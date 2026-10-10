@@ -27,7 +27,7 @@ This is the proposed compatibility envelope, not a claim that every row is imple
 
 ### Delivery priority and gates
 
-The work is ordered by contract dependencies, not by issue number. Finish or verify each phase's named prerequisite before starting dependent runtime work. Runtime PR publication, review, exact-head checks and merge remain serialized.
+The work is ordered by contract dependencies, not by issue number. Finish or verify each phase's named prerequisite before starting dependent runtime work. Independent slices may be developed, published as PRs, reviewed and validated concurrently in isolated worktrees once their dependencies are satisfied. Keep each PR's required checks and review tied to its exact head. Serialize integration: squash-merge one ready PR at a time, then rebase dependent worktrees and rerun affected checks.
 
 1. **Current behavior and finite syntax carveouts:** preserve Target 1, the current type contract, and existing parser/function behavior. The bounded #794 lexical prerequisite is merged. The selected #795 alias and #797 pagination contracts are narrow approved API changes; #798's selected predicate slice is separately bounded. Do not treat these selections as approval of the rest of #792.
 2. **Existing-type SQL extensions:** work only from the child issue's pinned signatures, semantics and dependencies. Expressions and relational syntax over existing types may proceed when their source/AST/transaction prerequisites are complete; #796 remains dependent on #793 for new type spellings/modifiers.
@@ -60,8 +60,7 @@ Prepared parameter Describe must advertise the selected type without performing 
 
 - #794: the bounded lexical carveout is selected in the issue; PR #852 was squash merged on 2026-10-07 to `3b03dd4db34ac88f533501d0484ecdc3cf223a2e`; #794 is closed and the merged source was read back. Scalar dollar-quoted literals, repeated unary-sign chains beyond a single signed numeric literal and chained/expanded postfix casts remain excluded. Protecting dollar-quoted text lexically does not admit it as a scalar literal. No broad #792 approval follows.
 - #802: the selected finite existing-type coercion, unknown/all-NULL TEXT result, explicitly cast parameters and runtime eager-operand rules are recorded in #791/#802. They are not awaiting a new broad type approval. The now-merged native #794 prerequisite was required because compact function-argument operator suffixes can be truncated before evaluation; the 2026-10-06 issue comment records that witness. Inner COALESCE promotion before arithmetic is separately tracked by #850 and gates #761/#848.
-- #795: the user selected the public alias wrapper, ordinary alias/prefix-list namespace rules and qualified-star deferral below. #794 remains an implementation prerequisite; full #795 acceptance is not closed by this selection.
-- #797: the user selected the finite integer/NULL/parameter/error rules below and authorized clean public AST changes. The 2026-10-07 local candidate uses Option<Expr> bounds rather than a compatibility-only QueryBound wrapper. This is candidate implementation with completed local validation, not merged-main support. The [joint alias/pagination closeout](alias-pagination-plan.md) records full-suite and equivalent-refinement provenance and remaining publication checks.
+- #795/#797: PR #858 completed the selected alias and pagination bundle and squash-merged on 2026-10-07 at `7977c848775ff4b776dbf40bda2bbb9893aac25d`. That commit is an ancestor of the refreshed `55b52e26` baseline; the merged source was read back and #795/#797 are closed. The historical candidate and validation notes below describe preparation evidence only. The broader #792/#793 profile, full generic dialect qualification and production-readiness obligations remain open.
 
 Scalar oracle evidence: the preparation lane retained `target/dialect-scalars-evidence/oracle-results.txt`, `oracle.sql` and `postgres.sha256` in its isolated worktree. The local PostgreSQL 18.6 Homebrew executable is aarch64-apple-darwin25.6.0, Apple clang 21.0.0, SHA256 `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`. Runtime column-divisor fixtures establish eager operand evaluation for NULLIF and extrema; a constant NULL first argument can be folded by PostgreSQL and is not a runtime laziness contract. Supplementary NULL-column fixtures preserve that distinction. Mixed BIGINT/FLOAT comparison follows the selected PostgreSQL promotion rather than claiming exact mixed-domain equality. This evidence does not approve #802 by itself.
 
@@ -224,8 +223,10 @@ inside a Subquery wrapper.
 ### D2: parameterized pagination (#797)
 
 Select public SelectStatement limit/offset as Option<Expr>, replacing the
-historical Option<i64> fields. The 2026-10-07 local candidate implements this
-field shape; merged support and full validation remain pending. Keep one authoritative bound expression per position
+historical Option<i64> fields. PR #858 merged this field shape on 2026-10-07
+at `7977c848775ff4b776dbf40bda2bbb9893aac25d`; the merged commit is an ancestor
+of the refreshed `55b52e26` baseline, and #797 is closed. The preparation notes
+below are historical. Keep one authoritative bound expression per position
 and reuse the existing expression AST. Do not introduce QueryBound or parallel
 literal/expression fields solely to preserve historical Rust or serde shapes.
 

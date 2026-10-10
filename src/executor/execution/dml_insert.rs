@@ -15,11 +15,28 @@ pub(in crate::executor::execution) fn execute_insert(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
+    let returning_read_controls =
+        if crate::executor::execution::exists_projection::contains(&statement.returning) {
+            Some(
+                crate::executor::execution::entrypoints::statement_read_controls(
+                    cassie, session, controls,
+                )?,
+            )
+        } else {
+            None
+        };
+    let statement_read_controls = returning_read_controls.as_ref().unwrap_or(controls);
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
-    let source_rows =
-        insert_source_rows(cassie, session, statement, params, user_functions, controls)?;
+    let source_rows = insert_source_rows(
+        cassie,
+        session,
+        statement,
+        params,
+        user_functions,
+        statement_read_controls,
+    )?;
     let source_width = source_rows
         .first()
         .map_or_else(|| insert_source_width(statement, &schema), Vec::len);
@@ -70,6 +87,7 @@ pub(in crate::executor::execution) fn execute_insert(
             user_functions,
             command_prefix: "INSERT 0",
             controls,
+            statement_read_controls,
         },
         affected_count,
         returning_rows,

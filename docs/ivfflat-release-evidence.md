@@ -41,6 +41,13 @@ membership-prefix and point reads, peak accounted memory, workers, fixture ident
 toolchain, and deployment profile. Artifact validation rejects missing fields, a weakened floor,
 sub-floor recall, or configuration drift.
 
+The recall-evidence contract requires finite `recall_at_k` and `recall_floor`
+values. Recall is a fraction in `[0, 1]`; its immutable floor remains `0.90` with
+the existing comparison tolerance. Both JSON numbers and numeric strings are
+supported within these bounds. [#917](https://github.com/cntryl/cassie/issues/917)
+records this finite numeric validator repair. This does not supply native evidence
+or complete the wider #764 qualification.
+
 ## Retained Evidence
 
 The exact-head native-Linux disk run and artifact links are recorded in

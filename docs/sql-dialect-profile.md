@@ -1,6 +1,6 @@
 # Proposed finite SQL dialect profile
 
-This proposed contract owns [#792](https://github.com/cntryl/cassie/issues/792) under [#791](https://github.com/cntryl/cassie/issues/791). Historical source baseline: `4a09c41a3670dad3a4c4c2b7ef7583327c37ab6b` (2026-10-06 refresh). Child issue source witnesses retain their original baseline `9ff42bc05c374f478a12a29caf7537268215e665`; those are historical mappings, not current execution. It inventories every one of the 58 new child owners and their existing prerequisites. Publication of this document does not approve a new public or durable contract, close an issue, or qualify runtime behavior. [Feature Support](feature-support.md) remains the sole current support owner; [Production Readiness](production-readiness.md) owns readiness.
+This proposed contract owns [#792](https://github.com/cntryl/cassie/issues/792) under [#791](https://github.com/cntryl/cassie/issues/791). Current planning refresh: repository revision `55b52e26` (2026-10-10); the detailed child issue source witnesses retain baseline `9ff42bc05c374f478a12a29caf7537268215e665`, and the prior source audit used `4a09c41a3670dad3a4c4c2b7ef7583327c37ab6b`. Those are historical mappings, not current execution. The ownership matrix inventories the 58 dialect child owners and their recorded prerequisites. Publication of this document does not approve a new public or durable contract, close an issue, or qualify runtime behavior. [Feature Support](feature-support.md) remains the sole current support owner; [Production Readiness](production-readiness.md) owns readiness.
 
 ## Boundaries and approval
 
@@ -9,6 +9,39 @@ Cassie remains single-node, Midge remains the direct storage and recovery owner,
 [Query Engine Target 1](query-engine-target.md) remains the finite current-type execution target. Its exclusions are preserved for that target. The rows below propose later work for selected PostgreSQL-shaped syntax, exact types, routine/trigger execution, locking, transactional DDL and a selected vector identity profile. They do not retroactively remove Target 1 exclusions. Full PostgreSQL/server/catalog/extension parity and blanket OLTP certification remain unclaimed.
 
 Approval is per finite family. The user selected the finite relation-alias AST/namespace and pagination expression contracts below on 2026-10-06 and explicitly authorized public API breaking changes. Existing-type syntax and scalar work may be approved independently of unresolved durable-type and transaction decisions. Native issue prerequisites must record this finite selection before dependent implementation; the full #792/#793 programs remain open. No wildcard “all PostgreSQL syntax” acceptance is permitted. Each row's implementation issue must pin the precise forms, type signatures, errors and exclusions before coding.
+
+## Finite capability matrix
+
+This is the proposed compatibility envelope, not a claim that every row is implemented. For present behavior, use the linked [Feature Support](feature-support.md) and [PostgreSQL Compatibility](postgres-compatibility.md) contracts. A proposal or issue selection is not runtime support. Proposed expansion forms outside a selected row remain unclaimed or are rejected; accepted syntax must never silently discard an unsupported modifier or change its meaning.
+
+| Area | Finite PostgreSQL-shaped scope | Owners | Decision and boundary |
+| --- | --- | --- | --- |
+| Lexing, expressions and names | Existing operators with whitespace-independent tokenization; ordinary relation aliases and column aliases; selected postfix casts/type names; null-safe predicates; ILIKE/regex; VALUES/row expressions; explicit CTE materialization; bounded LIMIT/OFFSET expressions. | #794–#801 | #794 is merged; #795 and #797 have separately selected finite contracts. #796/#798–#801 remain issue-scoped. Regex engine/Unicode behavior remains a gate for #799. No general PostgreSQL grammar claim. |
+| Scalar functions and aggregates | Selected NULLIF/GREATEST/LEAST over existing scalar types; bounded string/formatting and numeric/calendar functions; aggregate modifiers, Boolean/statistical/ordered-set and collection aggregates. | #802–#806, #811, #813, #815 | #802 is selected only for its listed current types. Calendar, formatting, ordered-set, volatility, output-growth and coercion details stay bounded by each owner; exact numeric/temporal functions wait on #793/#812/#814. |
+| Types, literals, casts and wire identity | Existing types remain exactly those in [Type Contract](type-contract.md). Proposed additions include exact NUMERIC, FLOAT4, TIMESTAMPTZ/INTERVAL, JSONB, standard arrays, enum/composite/domain, BIT and a selected vector profile. | #793, #807–#810, #812, #814, #816, #827–#828, #844 | #793 is a hard gate for each new family: names, OIDs, typmods, casts/parameters, text/binary codecs, NULL and equality laws, durable representation, limits and transition behavior must be explicitly resolved. No row here chooses those identities. |
+| Relational and mutation execution | Array construction/indexing and UNNEST; JSON table functions; data-modifying CTEs; UPDATE FROM/DELETE USING; conflict targets; finite COPY forms. | #807–#809, #823, #825, #829, #834, #846 | Preserve statement visibility, written-row scope, atomicity, cancellation and bounded ownership. #834 waits on CTE/mutation/DDL foundations; #846 also waits on wire and type contracts. |
+| Schema, catalog and extension lifecycle | Finite catalog rows; table creation/cloning; constraints/indexes; sequences/identity; temporary namespaces; atomic ALTER; LIST partitioning; object comments; allowlisted built-in extension metadata. | #817, #824, #826–#828, #831, #838–#845 | Preserve single-node operation and Midge ownership. Any persistent identity, layout, atomic publication, recovery, permission, or extension metadata change is gated by its owner contract; arbitrary extension loading is excluded. |
+| Transactions, routines and locks | Selected snapshot/row/advisory-lock behavior, scoped settings, SQL routines, procedural subset, dynamic SQL, security context, triggers, transactional DDL. | #819–#822, #830–#837 | These features are not implied by PostgreSQL syntax acceptance. Snapshot visibility, lock lifecycle/deadlock/cancellation, routine trust/scope, trigger ordering, rollback and catalog publication need explicit finite contracts before implementation. |
+| Catalog/client workflows | Allowlisted information-schema/pg_catalog rows and pinned generated ORM/client workflows over the selected SQL surface. | #817, #847 | Existing named-client support remains the narrow envelope in Feature Support and the compatibility probe contract. Client installation or connection alone is not workflow qualification; do not advertise unsupported catalog columns or PostgreSQL internals. |
+| Conformance and operational evidence | Generic differential corpus for every selected profile cell; representative resource/restart workloads; release-ledger consolidation. | #848, #849, #781 | #848 follows contracts and implementations; #849 follows #848 plus operational prerequisites #8 and #781. Conformance does not promote Production readiness; #8/#29 and Production Readiness retain that authority. |
+
+### Delivery priority and gates
+
+The work is ordered by contract dependencies, not by issue number. Finish or verify each phase's named prerequisite before starting dependent runtime work. Independent slices may be developed, published as PRs, reviewed and validated concurrently in isolated worktrees once their dependencies are satisfied. Keep each PR's required checks and review tied to its exact head. Serialize integration: squash-merge one ready PR at a time, then rebase dependent worktrees and rerun affected checks.
+
+1. **Current behavior and finite syntax carveouts:** preserve Target 1, the current type contract, and existing parser/function behavior. The bounded #794 lexical prerequisite is merged. The selected #795 alias and #797 pagination contracts are narrow approved API changes; #798's selected predicate slice is separately bounded. Do not treat these selections as approval of the rest of #792.
+2. **Existing-type SQL extensions:** work only from the child issue's pinned signatures, semantics and dependencies. Expressions and relational syntax over existing types may proceed when their source/AST/transaction prerequisites are complete; #796 remains dependent on #793 for new type spellings/modifiers.
+3. **Extended type and durable identity:** before implementing any new family, resolve its #793 record. A versioned successor layout plus verified export/recreate/reimport is the selected common transition policy, but concrete per-family values, byte tags, OIDs, codecs, coercions, migration/recreate handling and limits remain unresolved. No general permission to choose these in an implementation follows from the transition policy.
+4. **DDL, transaction, catalog and routine lifecycles:** proceed only after the affected snapshot, rollback, catalog publication, security and recovery contracts are selected. Names that appear in PostgreSQL syntax are insufficient evidence to choose atomicity or persistence behavior.
+5. **Qualification and promotion:** run generic pinned-oracle #848 after all selected cells and named prerequisites have evidence. Run #849 only after its corpus and operational dependencies; Production-ready evidence remains under [Production Readiness](production-readiness.md), including #8, and local diagnostic promotion remains under #29.
+
+| Priority | Scope | Exit condition |
+| --- | --- | --- |
+| P0 — correctness | Reproduced parser, binding, result, transaction or resource violations on currently claimed paths. | Focused regression and current support contract repaired before expanding dependent syntax. |
+| P1 — selected capability | Explicitly selected finite additions and their required semantic/type/lifecycle contracts. | Owner issue's finite forms, descriptors, errors, NULL behavior, parameters, resource and lifecycle cases are specified and implemented or explicitly blocked. |
+| P2 — qualification/readiness | Differential corpus, client workflows, representative workload/restart evidence and promotion records. | Exact-revision evidence satisfies each owner; unavailable or blocked axes stay visible and do not become support claims. |
+
+The P0/P1/P2 labels are ordering categories, not deadline or completion estimates. A qualification row can close only with evidence; it need not produce a runtime change when the acceptance criteria are already met.
 
 ## First wave: selected carveouts and proposed expansions
 
@@ -27,8 +60,7 @@ Prepared parameter Describe must advertise the selected type without performing 
 
 - #794: the bounded lexical carveout is selected in the issue; PR #852 was squash merged on 2026-10-07 to `3b03dd4db34ac88f533501d0484ecdc3cf223a2e`; #794 is closed and the merged source was read back. Scalar dollar-quoted literals, repeated unary-sign chains beyond a single signed numeric literal and chained/expanded postfix casts remain excluded. Protecting dollar-quoted text lexically does not admit it as a scalar literal. No broad #792 approval follows.
 - #802: the selected finite existing-type coercion, unknown/all-NULL TEXT result, explicitly cast parameters and runtime eager-operand rules are recorded in #791/#802. They are not awaiting a new broad type approval. The now-merged native #794 prerequisite was required because compact function-argument operator suffixes can be truncated before evaluation; the 2026-10-06 issue comment records that witness. Inner COALESCE promotion before arithmetic is separately tracked by #850 and gates #761/#848.
-- #795: the user selected the public alias wrapper, ordinary alias/prefix-list namespace rules and qualified-star deferral below. #794 remains an implementation prerequisite; full #795 acceptance is not closed by this selection.
-- #797: the user selected the finite integer/NULL/parameter/error rules below and authorized clean public AST changes. The 2026-10-07 local candidate uses Option<Expr> bounds rather than a compatibility-only QueryBound wrapper. This is candidate implementation with completed local validation, not merged-main support. The [joint alias/pagination closeout](alias-pagination-plan.md) records full-suite and equivalent-refinement provenance and remaining publication checks.
+- #795/#797: PR #858 completed the selected alias and pagination bundle and squash-merged on 2026-10-07 at `7977c848775ff4b776dbf40bda2bbb9893aac25d`. That commit is an ancestor of the refreshed `55b52e26` baseline; the merged source was read back and #795/#797 are closed. The historical candidate and validation notes below describe preparation evidence only. The broader #792/#793 profile, full generic dialect qualification and production-readiness obligations remain open.
 
 Scalar oracle evidence: the preparation lane retained `target/dialect-scalars-evidence/oracle-results.txt`, `oracle.sql` and `postgres.sha256` in its isolated worktree. The local PostgreSQL 18.6 Homebrew executable is aarch64-apple-darwin25.6.0, Apple clang 21.0.0, SHA256 `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`. Runtime column-divisor fixtures establish eager operand evaluation for NULLIF and extrema; a constant NULL first argument can be folded by PostgreSQL and is not a runtime laziness contract. Supplementary NULL-column fixtures preserve that distinction. Mixed BIGINT/FLOAT comparison follows the selected PostgreSQL promotion rather than claiming exact mixed-domain equality. This evidence does not approve #802 by itself.
 
@@ -118,7 +150,9 @@ The integration owner explicitly amended #794 and removed its broad #792 blocker
 
 The integration owner selected #802 finite SMALLINT/INT/BIGINT/FLOAT/TEXT/BOOLEAN signatures, PostgreSQL 18.6 coercion/NULL/eager-evaluation cases and explicitly cast parameter inputs, then removed its broad #792 blocker before implementation. New type families or unresolved coercion forms remain #792/#793-gated. The selected #802 slice reuses closed #752/#753/#432/#755 contracts. The #794 selection does not close or approve the full #792 profile. #794 is now merged and closed after the compact-argument lexical finding. #795 has the finite public alias AST/namespace contract selected below, and its #794 runtime prerequisite is now merged and closed.
 
-## Delivery and ownership
+## Historical first-wave delivery and ownership
+
+The following two paragraphs preserve the historical first-wave preparation record, including issue states and the former publication policy. The current workflow is defined in [Delivery priority and gates](#delivery-priority-and-gates).
 
 The integration owner owns contract review, shared AST/catalog/storage decisions, the dependency graph, exact-head review and serial publication/merge. Persistent sibling worktrees have separate target directories and server ports. Current #851 merged scan/filter/projection and portal qualification before this refresh; #756/#757 are closed and must not be rebuilt as missing foundation. Later #758/#759/#760 typed aggregates, joins and ordering/set/window kernels remain open. First-wave lanes are syntax/binding (#794 then #795), scalar expressions (#802) and pagination (#797). Parser changes are syntax-owned; function metadata/evaluator changes are scalar-owned; pagination isolates its helper and integration reviews shared query AST changes. Null-safe predicate grammar #798 follows the syntax merge.
 
@@ -191,8 +225,10 @@ inside a Subquery wrapper.
 ### D2: parameterized pagination (#797)
 
 Select public SelectStatement limit/offset as Option<Expr>, replacing the
-historical Option<i64> fields. The 2026-10-07 local candidate implements this
-field shape; merged support and full validation remain pending. Keep one authoritative bound expression per position
+historical Option<i64> fields. PR #858 merged this field shape on 2026-10-07
+at `7977c848775ff4b776dbf40bda2bbb9893aac25d`; the merged commit is an ancestor
+of the refreshed `55b52e26` baseline, and #797 is closed. The preparation notes
+below are historical. Keep one authoritative bound expression per position
 and reuse the existing expression AST. Do not introduce QueryBound or parallel
 literal/expression fields solely to preserve historical Rust or serde shapes.
 
@@ -223,9 +259,12 @@ A bound never allocates memory proportional to its magnitude.
 
 This is a selected finite subset, not full compatibility proof.
 The preparation oracle below pins the bare-parameter, explicitly cast arithmetic,
-NULL/negative/overflow cases. The local candidate has focused runtime evidence,
-with remaining joint red/green, descriptor, plan/portal and full-gate obligations
-recorded in [the integration plan](alias-pagination-plan.md). No extended
+NULL/negative/overflow cases. At the time of the 2026-10-07 preparation record,
+the local candidate had focused runtime evidence and remaining joint red/green,
+descriptor, plan/portal and full-gate obligations recorded in [the integration
+plan](alias-pagination-plan.md). PR #858 subsequently completed and merged the
+selected #795/#797 bundle; that finite closure does not establish broad PostgreSQL
+compatibility, complete #792/#793 coverage, or production readiness. No extended
 type or persistent-layout approval is implied.
 
 ### D3: extended contracts (#793)
@@ -250,12 +289,12 @@ in the original contract worktree was preserved and was not copied. Policy
 validation and local-link/source-owner checks are recorded separately; no Cargo
 build/test result is claimed for a documentation proposal. No issue closure,
 PR publication or merge is authorized by this document alone. The 2026-10-07
-joint-plan refresh is likewise documentation-only, but it describes the separate
-local #797 runtime candidate and the #795 implementation prerequisite as it stood
-at preparation time. Subsequent #852 merge readback permitted the selected joint
-#795/#797 runtime candidate; its focused tests do not substitute for pending
-complete gates or merged support. Historical
-proposal validation below is not fresh validation of that candidate.
+joint-plan refresh is likewise documentation-only and describes the separate
+local #797 runtime candidate and #795 implementation prerequisite as they stood
+at preparation time. PR #852 later closed the #794 lexical prerequisite; PR #858
+then completed and merged the selected joint #795/#797 bundle. The preparation
+tests and validation below are historical evidence, not fresh validation of the
+merged PR #858 head. Broader profile coverage and readiness gates remain open.
 
 ### User selection record and publication boundary
 
@@ -282,7 +321,10 @@ A fresh isolated Homebrew PostgreSQL 18.6 process on Darwin arm64 executed
 a generic alias/pagination statement corpus plus setup/version reads, with no Cassie runtime changes.
 The process was stopped after evidence collection. Full SQL/results and executable
 SHA256 are retained under target/contract-review in the refreshed worktree.
-This qualifies these proposal witnesses only, not #795/#797 implementation.
+This is PostgreSQL semantic-oracle evidence for the listed cases. Cassie
+implementation and finite issue closure were subsequently completed through PR
+#858; this reduced oracle corpus does not establish broad dialect compatibility
+or production readiness.
 
 | Proposal boundary | Executed result / SQLSTATE |
 | --- | --- |
@@ -300,9 +342,10 @@ Historical 2026-10-06 serde evidence was source-derived: public
 QuerySource/SelectStatement and Expr used derived Serialize/Deserialize, bounds
 were Option<i64>, and parser parameters used idx-1. This established the historical
 integer JSON shape and zero-based Expr::Param index. The 2026-10-07 local #797
-candidate now uses Option<Expr> and has focused serialization tests; the joint
-full gates and merged support remain pending. No superseded QueryBound proposal
-was implemented or tested.
+candidate used Option<Expr> and had focused serialization tests. PR #858 later
+merged the selected #795/#797 bundle, and both issues are closed. No superseded
+QueryBound proposal was implemented or tested; this historical record is not a
+fresh exact-head validation of PR #858.
 The user accepted breaking that historical query-AST shape. Implementation
 must instead prove exact current Expr literal/parameter/NULL serialization and
 execution behavior; no legacy literal-query round-trip requirement remains.

@@ -32,6 +32,7 @@ pub fn with_fixture_config(
         let session = cassie.create_session("tester", None);
         test(&cassie, &session);
     });
+    drop(runtime);
     std::fs::remove_dir_all(path).expect("remove fixture");
 }
 

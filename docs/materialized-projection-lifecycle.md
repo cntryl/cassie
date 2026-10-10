@@ -32,8 +32,8 @@ Diff, comparison, and repair start with a persisted verification report and foll
 
 Automatic analytical substitution requires a fresh, generation-verified, unrestricted
 single-table definition. Every column needed by the base query must be copied from the same
-base column under the same name. Filtered, limited, distinct, grouped, joined, or computed
-projection definitions remain directly queryable but cannot substitute for base rows without
+base column under the same name. Filtered, limited, offset-restricted, distinct, grouped,
+joined, or computed projection definitions remain directly queryable but cannot substitute for base rows without
 an equivalence proof. Reserved row identities use authoritative base rows because projection
 output has synthetic identities. Rollup substitution declines queries with window functions
 so the normal grouped and window execution stages preserve their results.

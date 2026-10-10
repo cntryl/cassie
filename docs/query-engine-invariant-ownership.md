@@ -597,7 +597,9 @@ On the 2026-10-10 `origin/main` baseline `059bc453c4dd8650f21b57b482b2f52433e8ec
 explicit SQL NULL across INSERT VALUES, INSERT SELECT, UPDATE, COPY FROM STDIN,
 embedded document ingest, and REST document create. It compares committed rows
 after successful writes and verifies rejected NULL writes neither publish new
-rows nor mutate an existing row. The three focused tests pass at the PR head.
+rows nor mutate an existing row. The original author reported the three focused
+tests passing at historical head `1a96073b4def627247cdd363ad36d5ea24ae850c`;
+this record does not qualify later replayed heads.
 This is executed CON-02 slice evidence only: it does not change support status,
 establish CON-01 JSON-null parity, or complete the remaining #769 invariants.
 

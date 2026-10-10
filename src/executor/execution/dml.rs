@@ -12,6 +12,11 @@ use crate::types::row_identity::ROW_IDENTITY_COLUMN;
 mod dml_delete;
 #[path = "dml_insert.rs"]
 mod dml_insert;
+#[path = "dml_returning.rs"]
+mod dml_returning;
+#[cfg(test)]
+#[path = "dml_returning_tests.rs"]
+mod dml_returning_tests;
 #[path = "dml_update.rs"]
 mod dml_update;
 
@@ -226,6 +231,17 @@ fn build_dml_result(
             command: format!("{} {affected_count}", context.command_prefix),
         });
     }
+    #[cfg(test)]
+    dml_returning_tests::observe(
+        dml_returning_tests::Phase::Entry,
+        context.controls,
+        affected_count,
+        &returning_rows,
+        returning_rows.capacity(),
+    );
+    if super::exists_projection::contains(context.returning) {
+        return dml_returning::build(context, affected_count, returning_rows);
+    }
     let column_schema = context.cassie.catalog.get_schema(context.table);
     let has_arrays = column_schema.as_ref().is_some_and(|schema| {
         schema
@@ -256,51 +272,48 @@ fn build_dml_result(
     } else {
         None
     };
-    let projected = if super::exists_projection::contains(context.returning) {
-        let source = QuerySource::Collection(
-            crate::sql::IdentifierPath::parse(context.table).map_err(QueryError::General)?,
-        );
-        let env = super::source::SourceExecutionEnv {
-            cassie: context.cassie,
-            session: context.session,
-            user_functions: context.user_functions,
-            params: context.params,
-            controls: context.statement_read_controls,
-        };
-        let (_read_scope, _overlay_scope) =
-            crate::executor::execution::entrypoints::enter_statement_read(
-                context.statement_read_controls,
-            );
-        let ctes = CteContext::new();
-        super::exists_projection::project(
-            &env,
-            &ctes,
-            &source,
-            vec![returning_rows],
-            context.returning,
-            None,
-        )?
-        .into_iter()
-        .flatten()
-        .collect()
-    } else {
-        projection::project_rows(
-            returning_rows,
-            context.returning,
-            context.params,
-            None,
-            context.user_functions,
-            context.session,
-        )?
-    };
+    let projected = projection::project_rows(
+        returning_rows,
+        context.returning,
+        context.params,
+        None,
+        context.user_functions,
+        context.session,
+    )?;
+    #[cfg(test)]
+    dml_returning_tests::observe(
+        dml_returning_tests::Phase::Projected,
+        context.controls,
+        affected_count,
+        &projected,
+        projected.capacity(),
+    );
     let columns = dml_returning_columns(
         context.returning,
         column_schema.as_ref(),
         context.user_functions,
     );
+    #[cfg(test)]
+    let mut returning_row_index = 0;
     Ok(QueryResult {
         columns,
-        rows: projected.into_iter().map(BatchRow::into_values).collect(),
+        rows: projected
+            .into_iter()
+            .map(|row| {
+                #[cfg(test)]
+                {
+                    dml_returning_tests::observe(
+                        dml_returning_tests::Phase::Materializing(returning_row_index),
+                        context.controls,
+                        affected_count,
+                        std::slice::from_ref(&row),
+                        1,
+                    );
+                    returning_row_index += 1;
+                }
+                row.into_values()
+            })
+            .collect(),
         command: format!("{} {affected_count}", context.command_prefix),
     })
 }

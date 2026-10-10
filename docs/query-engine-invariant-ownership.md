@@ -176,15 +176,17 @@ see the exact committed seed/final state; the skipped payload never replaces `ol
 Selected named probes:
 
 - [Embedded literals](../tests/sql_mutations/skipped_conflict_returning.rs):
-  `should_return_only_inserted_rows_and_counts_when_conflicts_are_skipped` passed
+  `should_preserve_skipped_conflict_insert_returning_contract` is the current name
+  of the embedded probe, whose unchanged body passed before the test-only rename
   with `cargo test --locked --test sql_mutations skipped_conflict_returning:: -- --nocapture`
   on main55, including exact rows/counts/metadata and independent state/counters.
 - [Simple Query](../tests/pgwire_extended/skipped_conflict_returning.rs):
   `should_match_skipped_conflict_returning_over_simple_query` passed.
 - [Declared text/binary input Bind](../tests/pgwire_extended/skipped_conflict_returning.rs):
-  `should_match_skipped_conflict_returning_over_declared_text_and_binary_binds` passed.
+  `should_match_skipped_conflict_returning_over_declared_text_bind` and
+  `should_match_skipped_conflict_returning_over_declared_binary_bind` passed.
 
-Both wire tests passed with
+All three wire tests passed with
 `cargo test --locked --test pgwire_extended skipped_conflict_returning:: -- --nocapture`.
 The existing ordinary DO NOTHING, multi-row source-order and completed-portal
 controls also passed, together with all four imported SqlFixture teardown controls.
@@ -208,8 +210,11 @@ selected wire refinement waits for both original connections to retire using
 public `pgwire.active_sessions == 0` and `sessions_finished_total` advancing by
 exactly two, then connects a fresh observer and requires the exact committed
 three-row state, complete descriptors, command tag and ReadyForQuery `I`. The
-refined probe passed on all three wire profiles. Embedded execution remains
-unchanged.
+refined probe passed on all three wire profiles in a fresh owned run at
+`47adf372bd1019563da4efd2bfb0941674751780`, using the focused wire command above.
+The immutable-source receipt records three passed tests and zero failures;
+the earlier capacity-cancelled attempt supplies no PASS evidence. Embedded
+execution remains unchanged.
 
 CON-01..09 and all remaining CON-10 mutations/ingress remain unqualified by this
 slice, including UPDATE/DELETE, INSERT SELECT, COPY/REST, other conflict arbiters,

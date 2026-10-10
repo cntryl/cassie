@@ -108,6 +108,17 @@ boundaries. A composed DISTINCT then sort query requires both events. These
 witnesses do not infer worker coverage or private input handoff from an event;
 those are separate controls. No global subscriber is installed.
 
+The first-registration witness runs in a fresh child process: an untraced
+thread first executes `SELECT id FROM r ORDER BY n,id` while the caller's
+capture is active, then the caller executes the same query. Both must return
+IDs `[4,5,1,2,6,3]`, and only the caller's sort event is captured. This reproduced
+a missing event with tracing-core 0.1.36's single-dispatcher registration fast
+path. Test support now retains a no-op dispatcher alongside each scoped capture
+so first registration consults all registered subscribers. It changes no global
+default, production logging or query execution. The new witness and existing
+sibling/parallel caller controls pass; whole-suite and hosted acceptance remain
+separate gates.
+
 ## D2 repeated Bind qualification
 
 For one prepared query per text/binary format, rebind limits/offsets `2/1`,

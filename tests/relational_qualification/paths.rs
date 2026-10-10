@@ -124,3 +124,52 @@ fn should_isolate_parallel_caller_operator_events() {
         println!("parallel scoped owner {operator}: {events:?}");
     }
 }
+
+#[test]
+fn should_capture_a_callsite_first_registered_by_an_untraced_thread() {
+    // Arrange
+    let child_flag = "CASSIE_RELATIONAL_FIRST_CALLSITE_CHILD";
+    let is_child = std::env::var_os(child_flag).is_some();
+
+    // Act
+    let succeeded = if is_child {
+        first_registration_query();
+        true
+    } else {
+        std::process::Command::new(std::env::current_exe().expect("test executable"))
+            .args([
+                "--exact",
+                "paths::should_capture_a_callsite_first_registered_by_an_untraced_thread",
+                "--nocapture",
+            ])
+            .env(child_flag, "1")
+            .output()
+            .expect("isolated first-registration process")
+            .status
+            .success()
+    };
+
+    // Assert
+    assert!(succeeded, "isolated first-registration probe failed");
+}
+
+fn first_registration_query() {
+    let captured = fixture();
+    let untraced = fixture();
+    let sql = "SELECT id FROM r ORDER BY n,id";
+    let ((untraced_result, captured_result), events) = capture(|| {
+        let untraced_result =
+            std::thread::spawn(move || untraced.cassie.execute_sql(&untraced.session, sql, vec![]))
+                .join()
+                .expect("untraced query thread");
+        let captured_result = captured.cassie.execute_sql(&captured.session, sql, vec![]);
+        (untraced_result, captured_result)
+    });
+    let expected = [4, 5, 1, 2, 6, 3].map(|id| vec![cassie::types::Value::Int64(id)]);
+    assert_eq!(untraced_result.expect("untraced sort").rows, expected);
+    assert_eq!(captured_result.expect("captured sort").rows, expected);
+    assert_eq!(events.len(), 1, "only the caller's sort is captured");
+    assert_eq!(events[0].operator, "sort");
+    assert_eq!(events[0].path, "native_primitive_keys");
+    assert_eq!(events[0].state, "accounted_blocking");
+}

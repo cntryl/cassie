@@ -45,5 +45,18 @@ mod exists_order;
 #[path = "relational_qualification/exists_window.rs"]
 mod exists_window;
 
+#[path = "relational_qualification/exists_returning.rs"]
+mod exists_returning;
+
+#[path = "relational_qualification/exists_returning_phases.rs"]
+mod exists_returning_phases;
+#[path = "support/relational_qualification/returning_phases.rs"]
+mod support_returning_phases;
+
+#[path = "relational_qualification/exists_returning_families.rs"]
+mod exists_returning_families;
+#[path = "support/relational_qualification/returning_families.rs"]
+mod support_returning_families;
+
 #[path = "relational_qualification/join_on.rs"]
 mod join_on;

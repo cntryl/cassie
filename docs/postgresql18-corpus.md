@@ -124,6 +124,14 @@ and concrete path/context cells; unsupported adapters remain pending under #848.
 
 ## Growth and final gate
 
+`scalar-receive.json` adds 73 forms over 146 extended text/binary paths.
+The #930 primitive error bundle owns 102 paths; #814 retains twelve temporal
+endpoint/presentation paths and #807 retains 32 standard-array identity paths.
+Those broader cells use PostgreSQL identities and complete comparisons. They
+are never converted to passes by the separate, explicitly adapted legacy-array
+SQLSTATE probes. Every default run includes the complete file, including known
+remaining type obligations, alongside all prior bootstrap/RETURNING/Boolean cells.
+
 Every bundle adds its exact forms/signatures, independent semantic assertions,
 path/context matrix and immutable receipts. Include scalar/typed/indexed/overlay,
 simple/extended text/binary, concurrency/privilege/locking/notification,

@@ -1,0 +1,1316 @@
+[
+  {
+    "id": "scalar-receive:int2-empty",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 21,
+        "format": 1,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int2-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 21,
+        "format": 1,
+        "value": "ff"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int2-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 21,
+        "format": 1,
+        "value": "ffd6"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int2-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 21,
+        "format": 1,
+        "value": "ffd600"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int2-null",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 21,
+        "format": 1,
+        "value": null
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int4-empty",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 23,
+        "format": 1,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int4-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 23,
+        "format": 1,
+        "value": "ffffff"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int4-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 23,
+        "format": 1,
+        "value": "ffffffd6"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int4-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 23,
+        "format": 1,
+        "value": "ffffffd600"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int4-null",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 23,
+        "format": 1,
+        "value": null
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int8-empty",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 20,
+        "format": 1,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int8-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 20,
+        "format": 1,
+        "value": "ffffffffffffff"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int8-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 20,
+        "format": 1,
+        "value": "ffffffffffffffd6"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int8-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 20,
+        "format": 1,
+        "value": "ffffffffffffffd600"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:int8-null",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 20,
+        "format": 1,
+        "value": null
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:float8-empty",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 701,
+        "format": 1,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:float8-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 701,
+        "format": 1,
+        "value": "3ff40000000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:float8-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 701,
+        "format": 1,
+        "value": "3ff4000000000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:float8-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 701,
+        "format": 1,
+        "value": "3ff400000000000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:float8-null",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 701,
+        "format": 1,
+        "value": null
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:uuid-empty",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 2950,
+        "format": 1,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:uuid-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 2950,
+        "format": 1,
+        "value": "00112233445566778899aabbccddee"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:uuid-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 2950,
+        "format": 1,
+        "value": "00112233445566778899aabbccddeeff"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:uuid-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 2950,
+        "format": 1,
+        "value": "00112233445566778899aabbccddeeff00"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:uuid-null",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 2950,
+        "format": 1,
+        "value": null
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:date-empty",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1082,
+        "format": 1,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:date-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1082,
+        "format": 1,
+        "value": "000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:date-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1082,
+        "format": 1,
+        "value": "00000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:date-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1082,
+        "format": 1,
+        "value": "0000000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:date-null",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1082,
+        "format": 1,
+        "value": null
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-empty",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": "0000000000bc61"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": "0000000000bc614e"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": "0000000000bc614e00"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-null",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": null
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:timestamp-empty",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1114,
+        "format": 1,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:timestamp-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1114,
+        "format": 1,
+        "value": "0000000000bc61"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:timestamp-exact",
+    "owner": 814,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1114,
+        "format": 1,
+        "value": "0000000000bc614e"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:timestamp-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1114,
+        "format": 1,
+        "value": "0000000000bc614e00"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:timestamp-null",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1114,
+        "format": 1,
+        "value": null
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:date-invalid-finite-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1082,
+        "format": 1,
+        "value": "80000001"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:date-invalid-finite-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1082,
+        "format": 1,
+        "value": "8000000100"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:date-invalid-finite-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1082,
+        "format": 1,
+        "value": "800000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-negative-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": "ffffffffffffffff"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-negative-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": "ffffffffffffffff00"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-negative-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": "ffffffffffffff"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-after-endpoint-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": "000000141dd76001"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-after-endpoint-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": "000000141dd7600100"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-after-endpoint-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": "000000141dd760"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:timestamp-invalid-finite-exact",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1114,
+        "format": 1,
+        "value": "8000000000000001"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:timestamp-invalid-finite-excess",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1114,
+        "format": 1,
+        "value": "800000000000000100"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:timestamp-invalid-finite-short",
+    "owner": 930,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1114,
+        "format": 1,
+        "value": "80000000000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:date-negative-infinity",
+    "owner": 814,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1082,
+        "format": 1,
+        "value": "80000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:date-positive-infinity",
+    "owner": 814,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1082,
+        "format": 1,
+        "value": "7fffffff"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:time-end-of-day",
+    "owner": 814,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1083,
+        "format": 1,
+        "value": "000000141dd76000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:timestamp-negative-infinity",
+    "owner": 814,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1114,
+        "format": 1,
+        "value": "8000000000000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:timestamp-positive-infinity",
+    "owner": 814,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1114,
+        "format": 1,
+        "value": "7fffffffffffffff"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-int2-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1005,
+        "format": 1,
+        "value": "000000010000000000000015000000010000000100000003ffd600"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-int4-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1007,
+        "format": 1,
+        "value": "000000010000000000000017000000010000000100000005ffffffd600"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-int8-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1016,
+        "format": 1,
+        "value": "000000010000000000000014000000010000000100000009ffffffffffffffd600"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-float8-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1022,
+        "format": 1,
+        "value": "0000000100000000000002bd0000000100000001000000093ff400000000000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-uuid-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 2951,
+        "format": 1,
+        "value": "000000010000000000000b8600000001000000010000001100112233445566778899aabbccddeeff00"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-date-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1182,
+        "format": 1,
+        "value": "00000001000000000000043a0000000100000001000000050000000000"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-time-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1183,
+        "format": 1,
+        "value": "00000001000000000000043b0000000100000001000000090000000000bc614e00"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-timestamp-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1115,
+        "format": 1,
+        "value": "00000001000000000000045a0000000100000001000000090000000000bc614e00"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-date-invalid-finite-exact",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1182,
+        "format": 1,
+        "value": "00000001000000000000043a00000001000000010000000480000001"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-date-invalid-finite-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1182,
+        "format": 1,
+        "value": "00000001000000000000043a0000000100000001000000058000000100"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-time-negative-exact",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1183,
+        "format": 1,
+        "value": "00000001000000000000043b000000010000000100000008ffffffffffffffff"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-time-negative-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1183,
+        "format": 1,
+        "value": "00000001000000000000043b000000010000000100000009ffffffffffffffff00"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-time-after-endpoint-exact",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1183,
+        "format": 1,
+        "value": "00000001000000000000043b000000010000000100000008000000141dd76001"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-time-after-endpoint-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1183,
+        "format": 1,
+        "value": "00000001000000000000043b000000010000000100000009000000141dd7600100"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-timestamp-invalid-finite-exact",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1115,
+        "format": 1,
+        "value": "00000001000000000000045a0000000100000001000000088000000000000001"
+      }
+    ]
+  },
+  {
+    "id": "scalar-receive:array-timestamp-invalid-finite-excess",
+    "owner": 807,
+    "setup": [],
+    "sql": "SELECT $1 AS value",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 1115,
+        "format": 1,
+        "value": "00000001000000000000045a000000010000000100000009800000000000000100"
+      }
+    ]
+  }
+]

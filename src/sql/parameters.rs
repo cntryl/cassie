@@ -3,8 +3,13 @@
 use crate::sql::{ast, ParsedStatement};
 use crate::types::DataType;
 
+mod admission;
 mod count;
 mod inference;
+
+use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use admission::{check_controls, checked_parameter_count, reserve_vector};
+pub(crate) use admission::{AdmittedParameterTypes, ParameterAdmissionError};
 
 pub use count::parameter_count;
 use inference::infer_parameter_type_oids_query;
@@ -102,34 +107,119 @@ pub fn declared_parameter_type_conflict(
     provided: &[i32],
     catalog: &crate::catalog::Catalog,
 ) -> Option<String> {
-    let boolean_oid = i32::try_from(DataType::Boolean.type_oid()).ok()?;
     let inference = infer_parameter_types_with_catalog(statement, &[], catalog);
-    if let Some(index) = inference
-        .context_demands
-        .iter()
-        .position(|demand| *demand == 3)
-    {
+    declared_conflict_for_demands(provided, &inference.context_demands)
+}
+
+fn declared_conflict_for_demands(provided: &[i32], demands: &[u8]) -> Option<String> {
+    let boolean_oid = i32::try_from(DataType::Boolean.type_oid()).ok()?;
+    if let Some(index) = demands.iter().position(|demand| *demand == 3) {
         return Some(format!(
             "parameter ${} has incompatible boolean and numeric contexts",
             index + 1
         ));
     }
-    provided
-        .iter()
-        .zip(inference.context_demands)
-        .find_map(|(declared, demand)| {
-            if demand & 1 == 0
-                || matches!(*declared, 0 | UNKNOWN_PARAMETER_TYPE_OID)
-                || *declared == boolean_oid
-            {
-                return None;
+    provided.iter().zip(demands).find_map(|(declared, demand)| {
+        if demand & 1 == 0
+            || matches!(*declared, 0 | UNKNOWN_PARAMETER_TYPE_OID)
+            || *declared == boolean_oid
+        {
+            return None;
+        }
+        let family = match *declared {
+            20 | 21 | 23 | 700 | 701 | 1700 => "numeric",
+            _ => "text",
+        };
+        Some(format!(
+            "incompatible comparison operands: boolean and {family}"
+        ))
+    })
+}
+
+// Private Parse admission shares the original inference visitor and conflict
+// projection. Public callers retain their existing Vec/Option contracts.
+pub(crate) fn checked_parse_parameter_types(
+    statement: &ParsedStatement,
+    provided: &[i32],
+    catalog: &crate::catalog::Catalog,
+    controls: &QueryExecutionControls,
+) -> Result<AdmittedParameterTypes, ParameterAdmissionError> {
+    let count = checked_parameter_count(statement, controls)?;
+    let mut normalized = reserve_vector::<i32>(controls, provided.len())?;
+    for (index, oid) in provided.iter().enumerate() {
+        if index % 256 == 0 {
+            check_controls(controls)?;
+        }
+        normalized.values.push(if *oid == 0 {
+            UNKNOWN_PARAMETER_TYPE_OID
+        } else {
+            *oid
+        });
+    }
+    {
+        // The conflict pass deliberately starts UNKNOWN, independently of
+        // supplied OIDs. Both its vectors drop before the second pass begins.
+        let mut first = AccountedInference::new(count, &[], controls)?;
+        check_controls(controls)?;
+        infer_parameter_type_oids_query(&statement.statement, catalog, &mut first.value);
+        if let Some(message) =
+            declared_conflict_for_demands(&normalized.values, &first.value.context_demands)
+        {
+            return Err(ParameterAdmissionError::LegacyConflict(message));
+        }
+    }
+    let mut actual = AccountedInference::new(count, &normalized.values, controls)?;
+    check_controls(controls)?;
+    infer_parameter_type_oids_query(&statement.statement, catalog, &mut actual.value);
+    let AccountedInference {
+        value,
+        oid_memory,
+        demand_memory,
+    } = actual;
+    let ParameterInference {
+        oids,
+        context_demands,
+        record_context_demands: _,
+    } = value;
+    drop(context_demands);
+    drop(demand_memory);
+    Ok(AdmittedParameterTypes::new(oids, oid_memory, controls))
+}
+
+struct AccountedInference {
+    value: ParameterInference,
+    oid_memory: QueryMemoryReservation,
+    demand_memory: QueryMemoryReservation,
+}
+
+impl AccountedInference {
+    fn new(
+        count: usize,
+        provided: &[i32],
+        controls: &QueryExecutionControls,
+    ) -> Result<Self, ParameterAdmissionError> {
+        let mut oids = reserve_vector::<i32>(controls, count)?;
+        let mut demands = reserve_vector::<u8>(controls, count)?;
+        for index in 0..count {
+            if index % 256 == 0 {
+                check_controls(controls)?;
             }
-            let family = match *declared {
-                20 | 21 | 23 | 700 | 701 | 1700 => "numeric",
-                _ => "text",
-            };
-            Some(format!(
-                "incompatible comparison operands: boolean and {family}"
-            ))
+            oids.values.push(
+                provided
+                    .get(index)
+                    .copied()
+                    .unwrap_or(UNKNOWN_PARAMETER_TYPE_OID),
+            );
+            demands.values.push(0);
+        }
+        Ok(Self {
+            value: ParameterInference {
+                oids: oids.values,
+                context_demands: demands.values,
+                record_context_demands: true,
+            },
+            oid_memory: oids.reservation,
+            demand_memory: demands.reservation,
         })
+    }
 }

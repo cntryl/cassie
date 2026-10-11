@@ -1,3 +1,6 @@
+#[path = "pgwire_extended/parameter_admission.rs"]
+mod parameter_admission;
+
 #[path = "pgwire_extended/statement_visibility.rs"]
 mod statement_visibility;
 

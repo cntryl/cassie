@@ -125,7 +125,10 @@ pub struct ExecutionResultCacheSnapshot {
     pub bypass_reasons: BTreeMap<String, u64>,
     pub evictions: u64,
     pub entries: u64,
+    /// Serialized payload bytes used by the configured cache limit.
     pub bytes: u64,
+    /// Live physical payload, key and backing-container capacity reservations.
+    pub accounted_retained_bytes: u64,
     pub max_entries: u64,
     pub max_bytes: u64,
 }

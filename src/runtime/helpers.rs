@@ -4,6 +4,11 @@ use super::{
     RuntimeFeedbackRecord, RuntimeFeedbackState, Serialize, Value, VecDeque, Write,
 };
 
+/// Hashes parameter values without materializing JSON serialization buffers.
+///
+/// # Panics
+///
+/// Panics if a JSON value cannot serialize into the infallible hashing sink.
 #[must_use]
 pub fn hash_params(params: &[Value]) -> u64 {
     fn hash_value(hasher: &mut std::hash::DefaultHasher, value: &Value) {
@@ -34,7 +39,10 @@ pub fn hash_params(params: &[Value]) -> u64 {
             }
             Value::Json(v) => {
                 6u8.hash(hasher);
-                v.to_string().hash(hasher);
+                serde_json::to_writer(JsonHashWriter(hasher), v)
+                    .expect("JSON values serialize into the parameter hasher");
+                // str::hash appends this delimiter after its UTF-8 bytes.
+                hasher.write_u8(0xff);
             }
         }
     }
@@ -44,6 +52,23 @@ pub fn hash_params(params: &[Value]) -> u64 {
     }
     hasher.finish()
 }
+
+struct JsonHashWriter<'a>(&'a mut std::hash::DefaultHasher);
+
+impl Write for JsonHashWriter<'_> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.0.write(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[path = "helpers/json_hash_tests.rs"]
+mod json_hash_tests;
 
 pub fn parameter_shape(params: &[Value]) -> Vec<ParameterShape> {
     params.iter().map(parameter_shape_for_value).collect()

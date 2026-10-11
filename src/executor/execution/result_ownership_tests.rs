@@ -210,3 +210,33 @@ fn should_reuse_preadmitted_command_capacity_when_the_remaining_budget_is_exhaus
     assert_eq!(controls.peak_query_memory_bytes(), peak);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_reuse_physical_admission_when_a_requester_view_returns_to_its_producer() {
+    // Arrange
+    let producer = controls(1_048_576);
+    let requester = controls(1_048_576);
+    let result = result(&producer);
+    let view = result.try_clone_for_query(&requester).expect("requester exposure");
+    let producer_bytes = producer.current_query_memory_bytes();
+    let requester_bytes = requester.current_query_memory_bytes();
+    let blocker = producer.reserve_query_memory(1_048_576 - producer_bytes)
+        .expect("fill producer remaining budget");
+
+    // Act
+    let returned = view.try_clone_for_query(&producer);
+    let producer_live = producer.current_query_memory_bytes();
+    drop(blocker);
+
+    // Assert
+    let returned = returned.expect("physical producer already owns the shared result");
+    assert_eq!(producer_live, 1_048_576);
+    assert_eq!(returned.rows().as_ptr(), result.rows().as_ptr());
+    assert_eq!(requester.current_query_memory_bytes(), requester_bytes);
+    let conversion = returned.admission().try_sibling(123).expect("producer conversion");
+    assert_eq!(producer.current_query_memory_bytes(), producer_bytes + 123);
+    assert_eq!(requester.current_query_memory_bytes(), requester_bytes);
+    drop((conversion, returned, result, view));
+    assert_eq!(producer.current_query_memory_bytes(), 0);
+    assert_eq!(requester.current_query_memory_bytes(), 0);
+}

@@ -65,12 +65,16 @@ pub struct ExecutionResultCacheKey {
 
 #[path = "runtime/accounted.rs"]
 pub(crate) mod accounted;
+#[path = "runtime/owned_memory.rs"]
+pub(crate) mod owned_memory;
 #[path = "runtime/adaptive_metrics.rs"]
 mod adaptive_metrics;
 #[path = "runtime/admission.rs"]
 mod admission;
 #[path = "runtime/cache_state.rs"]
 mod cache_state;
+#[path = "runtime/execution_result_cache.rs"]
+mod execution_result_cache;
 #[path = "runtime/column_batch_metrics.rs"]
 pub(crate) mod column_batch_metrics;
 #[path = "runtime/controls.rs"]
@@ -199,6 +203,7 @@ pub struct L1PlanHit {
 pub struct RuntimeState {
     limits: CassieRuntimeLimits,
     metrics: Mutex<RuntimeMetricsState>,
+    query_memory_observation: Mutex<controls::QueryMemoryObservation>,
     plan_cache: Mutex<PlanCacheState>,
     feedback: Mutex<RuntimeFeedbackState>,
     execution_result_cache: Mutex<ExecutionResultCacheState>,
@@ -225,6 +230,7 @@ impl RuntimeState {
         Self {
             limits,
             metrics: Mutex::new(metrics),
+            query_memory_observation: Mutex::new(controls::QueryMemoryObservation::default()),
             plan_cache: Mutex::new(PlanCacheState::default()),
             feedback: Mutex::new(RuntimeFeedbackState::default()),
             execution_result_cache: Mutex::new(ExecutionResultCacheState::default()),

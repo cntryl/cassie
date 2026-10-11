@@ -2,7 +2,6 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use crate::executor::QueryResult;
 use crate::planner::physical::PhysicalPlan;
 
 use super::{
@@ -13,18 +12,25 @@ use super::{
 #[cfg(test)]
 #[path = "cache_state_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "cache_ownership_tests.rs"]
+mod ownership_tests;
 
 #[derive(Debug, Default)]
 pub(super) struct ExecutionResultCacheState {
-    pub(super) entries: HashMap<ExecutionResultCacheKey, ExecutionResultCacheEntry>,
+    // Retire the deque's duplicate keys before entry-held key leases.
     pub(super) order: VecDeque<ExecutionResultCacheKey>,
+    pub(super) entries: HashMap<ExecutionResultCacheKey, ExecutionResultCacheEntry>,
     pub(super) bytes: usize,
+    pub(super) map_memory: Option<super::QueryMemoryReservation>,
+    pub(super) order_memory: Option<super::QueryMemoryReservation>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(super) struct ExecutionResultCacheEntry {
-    result: QueryResult,
-    bytes: usize,
+    pub(super) result: crate::executor::QueryResult,
+    pub(super) bytes: usize,
+    pub(super) key_memory: super::QueryMemoryReservation,
 }
 
 impl RuntimeState {
@@ -125,97 +131,6 @@ impl RuntimeState {
         self.record_plan_cache_invalidation();
     }
 
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn execution_result_cache_lookup(
-        &self,
-        key: &ExecutionResultCacheKey,
-    ) -> Option<QueryResult> {
-        let mut cache = self
-            .execution_result_cache
-            .lock()
-            .expect("execution result cache");
-        if let Some(entry) = cache.entries.get(key).cloned() {
-            Self::execution_result_cache_touch(&mut cache.order, key);
-            drop(cache);
-            self.record_execution_result_cache_hit();
-            return Some(entry.result);
-        }
-        drop(cache);
-        self.record_execution_result_cache_miss();
-        None
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn execution_result_cache_store(&self, key: &ExecutionResultCacheKey, result: QueryResult) {
-        let max_entries = self.limits.execution_result_cache_max_entries;
-        let max_bytes = self.limits.execution_result_cache_max_bytes;
-        if !self.limits.execution_result_cache_enabled.is_enabled()
-            || max_entries == 0
-            || max_bytes == 0
-        {
-            return;
-        }
-        let Ok(bytes) = serde_json::to_vec(&result).map(|payload| payload.len()) else {
-            self.record_execution_result_cache_bypass("serialization");
-            return;
-        };
-        if bytes > max_bytes {
-            self.record_execution_result_cache_bypass("oversized_entry");
-            return;
-        }
-        let mut cache = self
-            .execution_result_cache
-            .lock()
-            .expect("execution result cache");
-        if let std::collections::hash_map::Entry::Occupied(mut entry) =
-            cache.entries.entry(key.clone())
-        {
-            let previous_bytes = entry.get().bytes;
-            entry.insert(ExecutionResultCacheEntry { result, bytes });
-            cache.bytes = cache
-                .bytes
-                .saturating_sub(previous_bytes)
-                .saturating_add(bytes);
-            Self::execution_result_cache_touch(&mut cache.order, key);
-        } else {
-            cache
-                .entries
-                .insert(key.clone(), ExecutionResultCacheEntry { result, bytes });
-            cache.bytes = cache.bytes.saturating_add(bytes);
-            cache.order.push_back(key.clone());
-        }
-        let mut evictions = 0;
-        while cache.entries.len() > max_entries || cache.bytes > max_bytes {
-            if let Some(oldest) = cache.order.pop_front() {
-                if let Some(removed) = cache.entries.remove(&oldest) {
-                    cache.bytes = cache.bytes.saturating_sub(removed.bytes);
-                    evictions += 1;
-                }
-            } else {
-                break;
-            }
-        }
-        drop(cache);
-        self.record_execution_result_cache_eviction(evictions);
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn invalidate_execution_result_cache(&self) {
-        let mut cache = self
-            .execution_result_cache
-            .lock()
-            .expect("execution result cache");
-        cache.entries.clear();
-        cache.order.clear();
-        cache.bytes = 0;
-    }
-
     pub fn data_epoch(&self) -> u64 {
         self.data_epoch.load(Ordering::SeqCst)
     }
@@ -245,24 +160,6 @@ impl RuntimeState {
             .fetch_add(1, Ordering::SeqCst)
             .wrapping_add(1);
         self.index_feedback_epoch.store(epoch, Ordering::SeqCst);
-    }
-
-    fn execution_result_cache_touch(
-        order: &mut VecDeque<ExecutionResultCacheKey>,
-        key: &ExecutionResultCacheKey,
-    ) {
-        if let Some(position) = order.iter().position(|entry| entry == key) {
-            order.remove(position);
-        }
-        order.push_back(key.clone());
-    }
-
-    pub(super) fn execution_result_cache_size(&self) -> (usize, usize) {
-        let cache = self
-            .execution_result_cache
-            .lock()
-            .expect("execution result cache");
-        (cache.entries.len(), cache.bytes)
     }
 
     /// # Panics

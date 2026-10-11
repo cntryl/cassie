@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::types::{DataType, Value};
+use crate::types::DataType;
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct ColumnMeta {
@@ -32,12 +32,7 @@ impl ColumnMeta {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct QueryResult {
-    pub columns: Vec<ColumnMeta>,
-    pub rows: Vec<Vec<Value>>,
-    pub command: String,
-}
+pub use super::query_result::QueryResult;
 
 #[cfg(test)]
 #[path = "result_ownership_tests.rs"]

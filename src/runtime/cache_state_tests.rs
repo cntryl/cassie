@@ -1,3 +1,4 @@
+use crate::executor::QueryResult;
 use super::*;
 use crate::config::CassieRuntimeLimits;
 use crate::executor::ColumnMeta;
@@ -19,11 +20,12 @@ fn key(id: u64) -> ExecutionResultCacheKey {
 }
 
 fn result(width: usize) -> QueryResult {
-    QueryResult {
-        columns: vec![ColumnMeta::text("payload")],
-        rows: vec![vec![Value::String("x".repeat(width))]],
-        command: "SELECT 1".into(),
-    }
+    let controls = super::super::QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), std::time::Instant::now());
+    let mut builder = QueryResult::try_builder(&controls).expect("builder");
+    builder.try_push_column(&ColumnMeta::text("payload")).expect("column");
+    builder.try_push_row(&[Value::String("x".repeat(width))]).expect("row");
+    builder.try_set_command("SELECT 1").expect("command");
+    builder.finish().expect("result")
 }
 
 fn payload_size(result: &QueryResult) -> usize {
@@ -36,9 +38,9 @@ fn assert_payload(runtime: &RuntimeState, key: &ExecutionResultCacheKey, width: 
     let cached = runtime
         .execution_result_cache_lookup(key)
         .expect("cache hit");
-    assert_eq!(cached.rows, result(width).rows);
-    assert_eq!(cached.columns, vec![ColumnMeta::text("payload")]);
-    assert_eq!(cached.command, "SELECT 1");
+    assert_eq!(cached.rows(), result(width).rows());
+    assert_eq!(cached.columns(), vec![ColumnMeta::text("payload")]);
+    assert_eq!(cached.command(), "SELECT 1");
 }
 
 #[test]
@@ -104,7 +106,8 @@ fn should_preserve_returned_result_ownership_after_cache_retirement() {
     let mut returned = runtime
         .execution_result_cache_lookup(&first)
         .expect("actual hit");
-    returned.rows[0][0] = Value::String("caller mutation".into());
+    let controls = super::super::QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), std::time::Instant::now());
+    returned = returned.try_with_rows(&controls, &[vec![Value::String("caller mutation".into())]]).expect("admitted replacement");
 
     // Act
     runtime.execution_result_cache_store(&third, result(8_192));
@@ -125,7 +128,7 @@ fn should_preserve_returned_result_ownership_after_cache_retirement() {
     assert!(runtime.execution_result_cache_lookup(&first).is_none());
     assert!(runtime.execution_result_cache_lookup(&third).is_none());
     assert_eq!(
-        returned.rows,
+        returned.rows(),
         vec![vec![Value::String("caller mutation".into())]],
         "caller owns its independent result after cache retirement"
     );

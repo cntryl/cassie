@@ -178,6 +178,49 @@ evidence is accepted. Failed, skipped, unavailable, pending or unsupported
 in-scope cells keep it open. Update support/readiness claims from that evidence
 and close #791 last.
 
+## Consolidated local delivery batch
+
+The user selected one larger delivery PR on 2026-10-11, with small local
+commits, focused red → green tests and continuous independent review. Integrate
+those commits locally and run the complete ordered gate once the batch is ready.
+During iteration, run cheap formatting and touched-test policy checks before
+compilation, then compile related targets together where useful. Existing full
+suite coverage supplies unchanged regression evidence; additional focused
+witnesses address changed behavior, interactions and mandatory adversarial gaps.
+Preserve raw logs with one concise acceptance matrix. Optional hosted workflows
+do not delay delivery under the recorded local-first policy.
+
+The active batch combines the already defined Parse-only resource prerequisite
+under [#904](https://github.com/cntryl/cassie/issues/904) with complete current
+cache/authorization qualification under
+[#766](https://github.com/cntryl/cassie/issues/766). Its published definition
+records all ten CACHE/AUTH invariants and their exact remaining acceptance.
+The completed #763, #871, #886 and #882 foundations make #766 independent of the
+staged Parse merge. No new public API, persistent format or permission model is
+selected. Original parameter occurrence/coercion gaps remain open under #904.
+
+| Invariants | Remaining qualification |
+| --- | --- |
+| CACHE-01/02 | Bind existing cross-session/context and warm-cache revocation evidence to the final source; values and authority remain request-specific. |
+| CACHE-03 | Prove two actual warm readers observe committed changes after a postcommit publication error, then verify cold restart. |
+| CACHE-04 | Prove warm-hit to transaction/savepoint bypass transitions; record current provider callgraph boundaries precisely. |
+| CACHE-05 | Probe foreign-context persisted plans and variable-width replacement/eviction ownership with configured byte/entry bounds. |
+| AUTH-01 | Verify current access before first execution, Describe and materialized/streaming portal resumption, with denial cleanup. |
+| AUTH-02 | Qualify current read-only CALL wrappers and reuse existing network, COPY and administrative-image boundaries. |
+| AUTH-03 | Check actual wire/REST known, unknown and throttled authentication errors and captured logs for credential canaries. |
+| AUTH-04 | Qualify opaque-session lifecycle changes through query and administrative-image entrypoints. |
+| AUTH-05 | Reuse the current listener, credentials, transport and admission-permit cleanup matrix. |
+
+The interim Parse full gate was deliberately cancelled while full tests were
+running; its partial receipt is preserved and supplies no full-gate acceptance.
+Focused Parse proof includes the wire rejection/recovery test and 21 private
+tests, including the mandatory 1,152-byte sequential-pass and 1,151-byte denial
+ownership probes. These staged commits still require final batch validation,
+review, squash and merged-tree readback. Close #766 only after every selected
+invariant and issue criterion is complete. Full #904/#793/#791/#848/#849 remain
+open. The pending transaction-error API and external stress collector decisions
+are outside this batch; their dependent work remains pending.
+
 ## Accepted primitive receive increments
 
 The scalar registry and Boolean prerequisite is accepted as [PR #929](https://github.com/cntryl/cassie/pull/929),

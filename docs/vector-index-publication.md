@@ -136,8 +136,11 @@ second startup must be idempotent, with all owners retired before directory
 removal. The two existing live-intent recovery witnesses remain unchanged as
 published-state controls.
 
-Preparation status, 2026-10-10: this is a source-only qualification candidate;
-actual cold startups, focused controls, complete local validation and hosted
-acceptance are not started. Current cleanup may already satisfy the witness.
-This adds no format, API or support promotion; broader parent #764 acceptance
-and downstream #765 qualification remain open.
+Execution record, 2026-10-11: the orphan witness and both unchanged live-intent
+controls passed in [hosted storage qualification](https://github.com/cntryl/cassie/actions/runs/38088951196/job/114321247347)
+at tested merge [`65dcae93`](https://github.com/cntryl/cassie/commit/65dcae93c16ba3ae2e81fe101c6d446ba48d2110),
+for PR head [`6c2cde77`](https://github.com/cntryl/cassie/commit/6c2cde77c9c747a37ae181a0dc14d1e07bf45721).
+[PR #920](https://github.com/cntryl/cassie/pull/920) tracks the separate
+retained-executable startup probe, complete ordered local validation and final
+integration status. This finite witness adds no format, API or support promotion;
+broader parent #764 acceptance and downstream #765 qualification remain open.

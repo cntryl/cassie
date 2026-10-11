@@ -31,7 +31,7 @@ pub(crate) use column_identifier::ColumnIdentifierPath;
 pub use functions::registry;
 pub use parser::{parse_statement, SqlError, SqlErrorKind};
 
-pub(crate) use parameters::{checked_parse_parameter_types, ParameterAdmissionError};
+pub(crate) use parameters::{checked_parse_parameter_types_in_scope, ParameterAdmissionError};
 pub use parameters::{
     declared_parameter_type_conflict, parameter_count, parameter_type_oids,
     parameter_type_oids_with_catalog,

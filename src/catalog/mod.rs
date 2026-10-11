@@ -58,6 +58,7 @@ pub use indexes::{
 };
 pub use maintenance::MaintenanceDebtMeta;
 pub use metadata::Catalog;
+pub(crate) use metadata::FunctionInputScope;
 pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
 pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, ViewMeta, Volatility};
 pub use repair::ProjectionRepairReportMeta;

@@ -681,5 +681,5 @@ struct ExcessBinaryData(&'static str);
 pub(super) fn is_excess_binary_data(error: &io::Error) -> bool {
     error
         .get_ref()
-        .is_some_and(<(dyn std::error::Error + Send + Sync + 'static)>::is::<ExcessBinaryData>)
+        .is_some_and(<dyn std::error::Error + Send + Sync + 'static>::is::<ExcessBinaryData>)
 }

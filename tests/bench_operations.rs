@@ -8617,7 +8617,7 @@ mod benchmark_scaling_query_deadline_contract {
         // Act
         let accepts_approximate_ann_cardinality = hybrid.contains("query_up_to(")
             && hybrid.contains("HYBRID_SCALING_SQL")
-            && workloads.contains("(1..=maximum_rows).contains(&result.rows.len())");
+            && workloads.contains("(1..=maximum_rows).contains(&result.rows().len())");
 
         // Assert
         assert!(accepts_approximate_ann_cardinality);

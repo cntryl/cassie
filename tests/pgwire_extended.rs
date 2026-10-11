@@ -1,3 +1,8 @@
+#[path = "pgwire_extended/parameter_signatures.rs"]
+mod pgwire_parameter_signatures;
+#[path = "support/parameter_signature_wire.rs"]
+mod support_parameter_signature_wire;
+
 #[path = "pgwire_extended/parameter_admission.rs"]
 mod parameter_admission;
 

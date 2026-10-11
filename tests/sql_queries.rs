@@ -1,3 +1,6 @@
+#[path = "sql_queries/parameter_signatures.rs"]
+mod sql_parameter_signatures;
+
 #[path = "support/alias_fixture.rs"]
 mod support_alias_fixture;
 

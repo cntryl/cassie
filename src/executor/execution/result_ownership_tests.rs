@@ -186,3 +186,27 @@ fn should_cancel_during_admission_prepass_before_allocating_row_capacity() {
     assert_eq!(controls.peak_query_memory_bytes(), header);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_reuse_preadmitted_command_capacity_when_the_remaining_budget_is_exhausted() {
+    // Arrange
+    let controls = controls(1_048_576);
+    let mut builder = QueryResult::try_builder(&controls).expect("header");
+    builder.try_set_command("DELETE 18446744073709551615").expect("maximum count admission");
+    let blocker = controls.reserve_query_memory(1_048_576 - controls.current_query_memory_bytes())
+        .expect("occupy remaining budget");
+    let peak = controls.peak_query_memory_bytes();
+
+    // Act
+    let changed = builder.try_set_command("DELETE 1");
+    let result = builder.finish().expect("completed owner");
+    let actual = result.command().to_owned();
+    drop(result);
+    drop(blocker);
+
+    // Assert
+    assert!(changed.is_ok(), "finalize a preadmitted counted tag without allocating a replacement");
+    assert_eq!(actual, "DELETE 1");
+    assert_eq!(controls.peak_query_memory_bytes(), peak);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

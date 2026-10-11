@@ -53,17 +53,24 @@ fn should_infer_coalesce_inputs_from_typed_null_anchors() {
 #[test]
 fn should_infer_sql_function_inputs_independently_of_the_return_type() {
     // Arrange
-    let fixture = sql_fixture("scalar-user-function-input-projection", &[
-        "CREATE FUNCTION signature_flag(x BOOLEAN) RETURNS TEXT AS \"CAST(x AS TEXT)\"",
-    ]);
-    let parsed = parse_statement("SELECT signature_flag($1) AS value").expect("existing UDF syntax");
+    let fixture = sql_fixture(
+        "scalar-user-function-input-projection",
+        &["CREATE FUNCTION signature_flag(x BOOLEAN) RETURNS TEXT AS \"CAST(x AS TEXT)\""],
+    );
+    let parsed =
+        parse_statement("SELECT signature_flag($1) AS value").expect("existing UDF syntax");
     let bound = bind(parsed, &fixture.cassie.catalog).expect("existing UDF binding");
 
     // Act
-    let observed = parameter_type_oids_with_catalog(&bound.statement, &[705], &fixture.cassie.catalog);
+    let observed =
+        parameter_type_oids_with_catalog(&bound.statement, &[705], &fixture.cassie.catalog);
 
     // Assert
-    assert_eq!(observed, vec![16], "the BOOLEAN input is distinct from the TEXT return");
+    assert_eq!(
+        observed,
+        vec![16],
+        "the BOOLEAN input is distinct from the TEXT return"
+    );
 }
 
 #[test]
@@ -74,10 +81,12 @@ fn should_preserve_explicit_parameter_identities_in_public_inference() {
     let supplied = [16, 23, 25, 705, 0];
 
     // Act
-    let observations = supplied.map(|oid| {
-        parameter_type_oids_with_catalog(&parsed, &[oid], &fixture.cassie.catalog)
-    });
+    let observations = supplied
+        .map(|oid| parameter_type_oids_with_catalog(&parsed, &[oid], &fixture.cassie.catalog));
 
     // Assert
-    assert_eq!(observations, [vec![16], vec![23], vec![25], vec![25], vec![0]]);
+    assert_eq!(
+        observations,
+        [vec![16], vec![23], vec![25], vec![25], vec![0]]
+    );
 }

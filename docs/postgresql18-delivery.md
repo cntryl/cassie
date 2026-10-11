@@ -145,6 +145,27 @@ during Parse, retained prepared/cloned vectors, empty-query allocations or
 typed Execute/Describe admission. Those obligations and the confirmed
 occurrence/coercion gaps remain open under #904/#849 and the full owners.
 
+The next #904 foundation selects ten function-input groups from an actual
+immutable PostgreSQL 18.6 baseline: three lower/nested-COALESCE forms, unknown
+COALESCE, BOOLEAN/INT/BIGINT typed NULL anchors, a Boolean COALESCE predicate,
+and same-name TEXT/BOOLEAN-input SQL functions in two session schemas. Each
+group covers OID 0/705/matching declared identity, non-NULL/NULL and text/binary
+results, for 120 paths. Four wire tests and four public inference controls
+capture the selected contract. Lower input rules use existing FunctionIds;
+COALESCE shares the binder's common-type resolver. Scoped catalog input records
+are borrowed under interruptible read guards with admitted lexical/path scratch;
+function bodies and alias maps are not copied into the new Parse path.
+
+The original baseline at merged `5099e47c86f93e74f9726d0192115341091ad44e`
+retains all 134 paths/536 side observations: 80 function parameter-identity gaps
+(16 also fail Execute), 40 agreeing known-input controls, and 14 separate
+known-Boolean observations. The selected implementation does not close the
+eight known-Boolean error/phase gaps or two unaliased descriptor-name gaps.
+Invalid overloads/arity, other callable families, a generic UNKNOWN finalizer,
+retained prepared memory and the original occurrence gaps remain open. Public
+Vec/Option signatures, AST/catalog layouts and persistence are unchanged;
+this finite slice cannot close #904/#793/#791/#848/#849.
+
 Reuse #877 for the revised profile/scope and bootstrap infrastructure, #878 for
 the refreshed inventory ledger and #885 for the expanded type decision records.
 Their current contents are useful foundations but do not complete the expanded

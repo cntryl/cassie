@@ -12,12 +12,7 @@ pub struct Case {
     pub binary: &'static [u8],
 }
 
-pub fn assert_case(
-    frames: &fixture::Frames,
-    case: &Case,
-    output_format: i16,
-    null: bool,
-) {
+pub fn assert_case(frames: &fixture::Frames, case: &Case, output_format: i16, null: bool) {
     fixture::assert_success(frames);
     let parameters = frames
         .iter()
@@ -35,11 +30,23 @@ pub fn assert_case(
     let expected = if null {
         vec![0, 1, 255, 255, 255, 255]
     } else {
-        fixture::one_field_row(if output_format == 0 { case.text } else { case.binary })
+        fixture::one_field_row(if output_format == 0 {
+            case.text
+        } else {
+            case.binary
+        })
     };
-    assert_eq!(fixture::data_row_payloads(frames), vec![expected], "{}", case.sql);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![expected],
+        "{}",
+        case.sql
+    );
     let tags = frames.iter().map(|(tag, _)| *tag).collect::<Vec<_>>();
     assert_eq!(tags, b"1tT2TDCZ", "{}", case.sql);
-    let command = frames.iter().find(|(tag, _)| *tag == b'C').expect("command");
+    let command = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'C')
+        .expect("command");
     assert_eq!(command.1.as_slice(), b"SELECT 1\0");
 }

@@ -169,8 +169,11 @@ The RETURNING increment adds `tests/corpus/postgresql18/returning.json`: twelve
 cases and thirty-six simple/extended text/binary cells, including nine selected
 #869 cases and three planning-gap cases owned by #922/#923. Each
 mode prepares its own connections, requires successful setup and then compares
-the selected result. Fixtures create tables before BEGIN; disconnect rolls back
-their writes, and the next mode recreates the tables. Setup failures cannot
+the selected result. Fixtures create uniquely named tables before BEGIN;
+disconnect rolls back their writes, and each mode uses a fresh identifier
+namespace, shared by its two engines and recorded in the receipt. Schema
+objects remain in the owned ephemeral instances until shutdown. The fixtures
+do not require pending DROP IF EXISTS behavior from #839. Setup failures cannot
 qualify a cell. These inputs extend the six original bootstrap cases to eighteen
 cases and fifty-two cells. Execution and completion remain separate from input
 inventory; failed or unavailable cells keep qualification incomplete.

@@ -4,6 +4,8 @@ import contextlib
 import pathlib
 import sys
 import unittest
+import uuid
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
 from pg18_parity.run import run_cells
@@ -20,8 +22,8 @@ class Connection:
 
 
 class Connections:
-    def __init__(self, oracle, cassie):
-        self.connections = iter([oracle, cassie])
+    def __init__(self, *connections):
+        self.connections = iter(connections)
 
     def connect(self, _dsn):
         return contextlib.nullcontext(next(self.connections))
@@ -91,6 +93,26 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(outcomes[0]["outcome"], "passed")
         self.assertEqual(len(oracle.calls), 1)
         self.assertEqual(len(cassie.calls), 1)
+
+    def should_use_one_safe_namespace_per_pair_and_fresh_names_per_mode(self):
+        # Arrange
+        cell = {**self.cell, "setup": ["CREATE TABLE {fixture}_rt(id BIGINT)"],
+                "sql": "INSERT INTO {fixture}_rt VALUES($1) RETURNING id",
+                "modes": ["extended_text", "extended_binary"]}
+        connections = [Connection([self.success, self.value]) for _ in range(4)]
+        # Act
+        with patch("uuid.uuid4", side_effect=[uuid.UUID(int=1), uuid.UUID(int=2)]):
+            outcomes = run_cells(Connections(*connections), "oracle", "cassie", [cell])
+        # Assert
+        self.assertEqual([row["outcome"] for row in outcomes], ["passed", "passed"])
+        for index, namespace in enumerate(["p18_" + "0" * 31 + "1", "p18_" + "0" * 31 + "2"]):
+            expected = [(f"CREATE TABLE {namespace}_rt(id BIGINT)", "simple_text", []),
+                        (f"INSERT INTO {namespace}_rt VALUES($1) RETURNING id",
+                         cell["modes"][index], cell["parameters"])]
+            self.assertEqual(connections[index * 2].calls, expected)
+            self.assertEqual(connections[index * 2 + 1].calls, expected)
+            self.assertEqual(outcomes[index]["fixture_namespace"], namespace)
+        self.assertIn("{fixture}", cell["sql"], "input templates stay immutable")
 
 
 if __name__ == "__main__":

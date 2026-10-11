@@ -3,17 +3,14 @@
     "id": "returning:insert-values-overlay",
     "owner": 869,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_ri",
-      "CREATE TABLE pg18_ri(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_err",
-      "CREATE TABLE pg18_err(n BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT)",
+      "CREATE TABLE {fixture}_ri(id BIGINT)",
+      "CREATE TABLE {fixture}_err(n BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_rt VALUES(9)",
-      "INSERT INTO pg18_ri VALUES(1)"
+      "INSERT INTO {fixture}_rt VALUES(9)",
+      "INSERT INTO {fixture}_ri VALUES(1)"
     ],
-    "sql": "INSERT INTO pg18_rt VALUES(1),(2) RETURNING id, EXISTS(SELECT 1 FROM pg18_ri) AS any_inner, EXISTS(SELECT 1 FROM pg18_ri i WHERE i.id=pg18_rt.id) AS correlated, EXISTS(SELECT 1 FROM pg18_rt t WHERE t.id=pg18_rt.id) AS self_member, EXISTS(SELECT 1 FROM pg18_rt WHERE id=9) AS prior_write",
+    "sql": "INSERT INTO {fixture}_rt VALUES(1),(2) RETURNING id, EXISTS(SELECT 1 FROM {fixture}_ri) AS any_inner, EXISTS(SELECT 1 FROM {fixture}_ri i WHERE i.id={fixture}_rt.id) AS correlated, EXISTS(SELECT 1 FROM {fixture}_rt t WHERE t.id={fixture}_rt.id) AS self_member, EXISTS(SELECT 1 FROM {fixture}_rt WHERE id=9) AS prior_write",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -25,20 +22,16 @@
     "id": "returning:insert-select-overlay",
     "owner": 869,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_ri",
-      "CREATE TABLE pg18_ri(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_err",
-      "CREATE TABLE pg18_err(n BIGINT)",
-      "DROP TABLE IF EXISTS pg18_prior",
-      "CREATE TABLE pg18_prior(id BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT)",
+      "CREATE TABLE {fixture}_ri(id BIGINT)",
+      "CREATE TABLE {fixture}_err(n BIGINT)",
+      "CREATE TABLE {fixture}_prior(id BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_rt VALUES(9)",
-      "INSERT INTO pg18_ri VALUES(1)",
-      "INSERT INTO pg18_prior VALUES(1),(2)"
+      "INSERT INTO {fixture}_rt VALUES(9)",
+      "INSERT INTO {fixture}_ri VALUES(1)",
+      "INSERT INTO {fixture}_prior VALUES(1),(2)"
     ],
-    "sql": "INSERT INTO pg18_rt SELECT id FROM pg18_prior ORDER BY id RETURNING id, EXISTS(SELECT 1 FROM pg18_ri) AS any_inner, EXISTS(SELECT 1 FROM pg18_ri i WHERE i.id=pg18_rt.id) AS correlated, EXISTS(SELECT 1 FROM pg18_rt t WHERE t.id=pg18_rt.id) AS self_member, EXISTS(SELECT 1 FROM pg18_rt WHERE id=9) AS prior_write",
+    "sql": "INSERT INTO {fixture}_rt SELECT id FROM {fixture}_prior ORDER BY id RETURNING id, EXISTS(SELECT 1 FROM {fixture}_ri) AS any_inner, EXISTS(SELECT 1 FROM {fixture}_ri i WHERE i.id={fixture}_rt.id) AS correlated, EXISTS(SELECT 1 FROM {fixture}_rt t WHERE t.id={fixture}_rt.id) AS self_member, EXISTS(SELECT 1 FROM {fixture}_rt WHERE id=9) AS prior_write",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -50,18 +43,15 @@
     "id": "returning:update-new-row",
     "owner": 869,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_ri",
-      "CREATE TABLE pg18_ri(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_err",
-      "CREATE TABLE pg18_err(n BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT)",
+      "CREATE TABLE {fixture}_ri(id BIGINT)",
+      "CREATE TABLE {fixture}_err(n BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_rt VALUES(1),(2)",
-      "INSERT INTO pg18_ri VALUES(1)",
-      "INSERT INTO pg18_err VALUES(0)"
+      "INSERT INTO {fixture}_rt VALUES(1),(2)",
+      "INSERT INTO {fixture}_ri VALUES(1)",
+      "INSERT INTO {fixture}_err VALUES(0)"
     ],
-    "sql": "UPDATE pg18_rt SET id=id+10 RETURNING id, EXISTS(SELECT 1 FROM pg18_ri) AS any_inner, EXISTS(SELECT 1 FROM pg18_ri i WHERE i.id=pg18_rt.id-10) AS correlated, EXISTS(SELECT 1 FROM pg18_rt t WHERE t.id=pg18_rt.id-10) AS self_member",
+    "sql": "UPDATE {fixture}_rt SET id=id+10 RETURNING id, EXISTS(SELECT 1 FROM {fixture}_ri) AS any_inner, EXISTS(SELECT 1 FROM {fixture}_ri i WHERE i.id={fixture}_rt.id-10) AS correlated, EXISTS(SELECT 1 FROM {fixture}_rt t WHERE t.id={fixture}_rt.id-10) AS self_member",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -73,18 +63,15 @@
     "id": "returning:delete-old-row",
     "owner": 869,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_ri",
-      "CREATE TABLE pg18_ri(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_err",
-      "CREATE TABLE pg18_err(n BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT)",
+      "CREATE TABLE {fixture}_ri(id BIGINT)",
+      "CREATE TABLE {fixture}_err(n BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_rt VALUES(1),(2)",
-      "INSERT INTO pg18_ri VALUES(1)",
-      "INSERT INTO pg18_err VALUES(0)"
+      "INSERT INTO {fixture}_rt VALUES(1),(2)",
+      "INSERT INTO {fixture}_ri VALUES(1)",
+      "INSERT INTO {fixture}_err VALUES(0)"
     ],
-    "sql": "DELETE FROM pg18_rt RETURNING id, EXISTS(SELECT 1 FROM pg18_ri) AS any_inner, EXISTS(SELECT 1 FROM pg18_ri i WHERE i.id=pg18_rt.id) AS correlated, EXISTS(SELECT 1 FROM pg18_rt t WHERE t.id=pg18_rt.id) AS self_member",
+    "sql": "DELETE FROM {fixture}_rt RETURNING id, EXISTS(SELECT 1 FROM {fixture}_ri) AS any_inner, EXISTS(SELECT 1 FROM {fixture}_ri i WHERE i.id={fixture}_rt.id) AS correlated, EXISTS(SELECT 1 FROM {fixture}_rt t WHERE t.id={fixture}_rt.id) AS self_member",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -96,18 +83,15 @@
     "id": "returning:lazy-case",
     "owner": 869,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_ri",
-      "CREATE TABLE pg18_ri(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_err",
-      "CREATE TABLE pg18_err(n BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT)",
+      "CREATE TABLE {fixture}_ri(id BIGINT)",
+      "CREATE TABLE {fixture}_err(n BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_rt VALUES(1),(2)",
-      "INSERT INTO pg18_ri VALUES(1)",
-      "INSERT INTO pg18_err VALUES(0)"
+      "INSERT INTO {fixture}_rt VALUES(1),(2)",
+      "INSERT INTO {fixture}_ri VALUES(1)",
+      "INSERT INTO {fixture}_err VALUES(0)"
     ],
-    "sql": "UPDATE pg18_rt SET id=id RETURNING id, CASE WHEN id<0 THEN EXISTS(SELECT 1 FROM pg18_err e WHERE e.n/0=0) ELSE false END AS selected",
+    "sql": "UPDATE {fixture}_rt SET id=id RETURNING id, CASE WHEN id<0 THEN EXISTS(SELECT 1 FROM {fixture}_err e WHERE e.n/0=0) ELSE false END AS selected",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -119,18 +103,15 @@
     "id": "returning:zero-rows",
     "owner": 869,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_ri",
-      "CREATE TABLE pg18_ri(id BIGINT)",
-      "DROP TABLE IF EXISTS pg18_err",
-      "CREATE TABLE pg18_err(n BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT)",
+      "CREATE TABLE {fixture}_ri(id BIGINT)",
+      "CREATE TABLE {fixture}_err(n BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_rt VALUES(1),(2)",
-      "INSERT INTO pg18_ri VALUES(1)",
-      "INSERT INTO pg18_err VALUES(0)"
+      "INSERT INTO {fixture}_rt VALUES(1),(2)",
+      "INSERT INTO {fixture}_ri VALUES(1)",
+      "INSERT INTO {fixture}_err VALUES(0)"
     ],
-    "sql": "UPDATE pg18_rt SET id=id+10 WHERE id<0 RETURNING EXISTS(SELECT 1 FROM pg18_err e WHERE e.n/0=0) AS selected",
+    "sql": "UPDATE {fixture}_rt SET id=id+10 WHERE id<0 RETURNING EXISTS(SELECT 1 FROM {fixture}_err e WHERE e.n/0=0) AS selected",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -142,15 +123,13 @@
     "id": "returning:unique-before-error",
     "owner": 869,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT, code BIGINT UNIQUE)",
-      "DROP TABLE IF EXISTS pg18_err",
-      "CREATE TABLE pg18_err(n BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT, code BIGINT UNIQUE)",
+      "CREATE TABLE {fixture}_err(n BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_rt VALUES(9,7)",
-      "INSERT INTO pg18_err VALUES(0)"
+      "INSERT INTO {fixture}_rt VALUES(9,7)",
+      "INSERT INTO {fixture}_err VALUES(0)"
     ],
-    "sql": "INSERT INTO pg18_rt VALUES(1,7),(2,8) RETURNING EXISTS(SELECT 1 FROM pg18_err e WHERE e.n/0=0) AS selected",
+    "sql": "INSERT INTO {fixture}_rt VALUES(1,7),(2,8) RETURNING EXISTS(SELECT 1 FROM {fixture}_err e WHERE e.n/0=0) AS selected",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -162,14 +141,12 @@
     "id": "returning:same-command-unique",
     "owner": 869,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT, code BIGINT UNIQUE)",
-      "DROP TABLE IF EXISTS pg18_err",
-      "CREATE TABLE pg18_err(n BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT, code BIGINT UNIQUE)",
+      "CREATE TABLE {fixture}_err(n BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_err VALUES(0)"
+      "INSERT INTO {fixture}_err VALUES(0)"
     ],
-    "sql": "INSERT INTO pg18_rt VALUES(1,7),(2,7) RETURNING EXISTS(SELECT 1 FROM pg18_err) AS selected",
+    "sql": "INSERT INTO {fixture}_rt VALUES(1,7),(2,7) RETURNING EXISTS(SELECT 1 FROM {fixture}_err) AS selected",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -181,15 +158,13 @@
     "id": "returning:reached-error",
     "owner": 869,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT, code BIGINT UNIQUE)",
-      "DROP TABLE IF EXISTS pg18_err",
-      "CREATE TABLE pg18_err(n BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT, code BIGINT UNIQUE)",
+      "CREATE TABLE {fixture}_err(n BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_rt VALUES(9,7)",
-      "INSERT INTO pg18_err VALUES(0)"
+      "INSERT INTO {fixture}_rt VALUES(9,7)",
+      "INSERT INTO {fixture}_err VALUES(0)"
     ],
-    "sql": "INSERT INTO pg18_rt VALUES(1,8),(2,9) RETURNING EXISTS(SELECT 1 FROM pg18_err e WHERE e.n/0=0) AS selected",
+    "sql": "INSERT INTO {fixture}_rt VALUES(1,8),(2,9) RETURNING EXISTS(SELECT 1 FROM {fixture}_err e WHERE e.n/0=0) AS selected",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -201,12 +176,11 @@
     "id": "planning:constant-dead-case",
     "owner": 922,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_rt VALUES(1),(2)"
+      "INSERT INTO {fixture}_rt VALUES(1),(2)"
     ],
-    "sql": "UPDATE pg18_rt SET id=id RETURNING id, CASE WHEN id<0 THEN 1/0 ELSE 1 END AS selected",
+    "sql": "UPDATE {fixture}_rt SET id=id RETURNING id, CASE WHEN id<0 THEN 1/0 ELSE 1 END AS selected",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -218,12 +192,11 @@
     "id": "planning:constant-zero-rows",
     "owner": 922,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_rt",
-      "CREATE TABLE pg18_rt(id BIGINT)",
+      "CREATE TABLE {fixture}_rt(id BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_rt VALUES(1),(2)"
+      "INSERT INTO {fixture}_rt VALUES(1),(2)"
     ],
-    "sql": "UPDATE pg18_rt SET id=id+10 WHERE id<0 RETURNING 1/0 AS selected",
+    "sql": "UPDATE {fixture}_rt SET id=id+10 WHERE id<0 RETURNING 1/0 AS selected",
     "ordered": false,
     "modes": [
       "simple_text",
@@ -235,12 +208,11 @@
     "id": "planning:exists-target-elision",
     "owner": 923,
     "setup": [
-      "DROP TABLE IF EXISTS pg18_err",
-      "CREATE TABLE pg18_err(n BIGINT)",
+      "CREATE TABLE {fixture}_err(n BIGINT)",
       "BEGIN",
-      "INSERT INTO pg18_err VALUES(0)"
+      "INSERT INTO {fixture}_err VALUES(0)"
     ],
-    "sql": "SELECT EXISTS(SELECT e.n/e.n FROM pg18_err e) AS selected",
+    "sql": "SELECT EXISTS(SELECT e.n/e.n FROM {fixture}_err e) AS selected",
     "ordered": false,
     "modes": [
       "simple_text",

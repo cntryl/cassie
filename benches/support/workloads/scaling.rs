@@ -239,7 +239,7 @@ pub fn vector_top_k_ids(ctx: &BenchContext) -> Vec<String> {
         .execute_sql(&ctx.session, VECTOR_SCALING_SQL, vector_params())
         .expect("benchmark vector recall query")
         .rows()
-        .into_iter()
+        .iter()
         .map(|row| {
             row.first()
                 .and_then(Value::as_str)

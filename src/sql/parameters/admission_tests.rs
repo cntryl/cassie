@@ -457,3 +457,52 @@ fn should_bound_parameter_work_stack_by_depth_instead_of_projection_width() {
     assert_eq!(wide_controls.current_query_memory_bytes(), 0);
     assert_eq!(deep_controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_admit_only_one_inference_pass_at_a_time() {
+    // Arrange
+    let statement = parameter_statement(127);
+    let controls = controls(1_152);
+    let catalog = Catalog::new();
+    // Act
+    let admitted = checked_parse_parameter_types(&statement, &[23; 128], &catalog, &controls)
+        .expect("normalization plus one inference pass must fit");
+    let retained = controls.current_query_memory_bytes();
+    let admission_peak = controls.peak_query_memory_bytes();
+    let actual_oids = admitted.types().to_vec();
+    drop(admitted);
+    let released = controls.current_query_memory_bytes();
+    let reused = controls
+        .reserve_query_memory(1_152)
+        .expect("same full budget");
+    // Assert
+    assert_eq!(actual_oids, [23; 128]);
+    assert_eq!(admission_peak, 1_152);
+    assert_eq!(retained, 512);
+    assert_eq!(released, 0);
+    assert_eq!(controls.current_query_memory_bytes(), 1_152);
+    drop(reused);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_normalized_seed_storage_after_demand_budget_denial() {
+    // Arrange
+    let statement = parameter_statement(127);
+    let controls = controls(1_151);
+    let catalog = Catalog::new();
+    // Act
+    let result = checked_parse_parameter_types(&statement, &[23; 128], &catalog, &controls);
+    let admission_peak = controls.peak_query_memory_bytes();
+    let released = controls.current_query_memory_bytes();
+    let reused = controls
+        .reserve_query_memory(1_151)
+        .expect("same full budget");
+    // Assert
+    assert!(matches!(result, Err(ParameterAdmissionError::Memory(_))));
+    assert_eq!(admission_peak, 1_024);
+    assert_eq!(released, 0);
+    assert_eq!(controls.current_query_memory_bytes(), 1_151);
+    drop(reused);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

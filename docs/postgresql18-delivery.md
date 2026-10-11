@@ -225,7 +225,7 @@ no full-gate acceptance. Full #904/#793/#791/#848/#849 and the original paramete
 occurrence/coercion gaps remain open. #933 uses `Refs #766`: its finite repairs
 and configured cache-bound tests do not prove lifetime ownership of cache copies.
 
-### Selected next batch: CACHE-05 owned results
+### Selected CACHE-05 ownership batch
 
 On 2026-10-11 the user approved A+O from the concrete independently reviewed
 proposal: immutable shared results plus originating-query physical ownership
@@ -249,8 +249,10 @@ directories. The selected [ownership contract](query-result-ownership.md) define
 that coverage; [performance contracts](performance-contracts.md#query-memory-and-results)
 define retained-capacity and latest-query memory observations.
 Small local tests-first commits retain the implementation evidence. Actual
-ownership acceptance, the final ordered gate, independent review and guarded
-squash/readback remain pending; the candidate closes nothing.
+ownership acceptance requires the final ordered gate, independent review and
+guarded squash/readback; the candidate alone closes nothing. The current
+disposition and completed delivery evidence are retained in
+[#766](https://github.com/cntryl/cassie/issues/766).
 No SQL type, AST, persistent format, transaction-error API or permission-model
 change is selected. The pending transaction-error API and external stress
 collector decisions remain outside this batch. Keep #766 open until all selected

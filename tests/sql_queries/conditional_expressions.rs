@@ -567,7 +567,9 @@ fn should_promote_conditional_outer_operands_in_correlated_exists() {
 
     // Assert
     assert_eq!(
-        result.expect("conditional correlated outer coercion").rows(),
+        result
+            .expect("conditional correlated outer coercion")
+            .rows(),
         vec![vec![Value::Int64(9_007_199_254_740_993)]]
     );
 }
@@ -657,7 +659,9 @@ fn should_normalize_conditional_operands_once_in_nested_cte_scopes() {
 
     // Assert
     assert_eq!(
-        result.expect("single conditional normalization pass").rows(),
+        result
+            .expect("single conditional normalization pass")
+            .rows(),
         vec![vec![Value::Float64(f64::INFINITY)]]
     );
 }

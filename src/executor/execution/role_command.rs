@@ -35,11 +35,7 @@ pub(super) fn alter_role(
 ) -> Result<QueryResult, QueryError> {
     let output = empty_command("ALTER ROLE", controls)?;
     cassie
-        .alter_role(
-            &statement.name,
-            statement.login,
-            statement.password.clone(),
-        )
+        .alter_role(&statement.name, statement.login, statement.password.clone())
         .map_err(QueryError::Cassie)?;
 
     Ok(output)

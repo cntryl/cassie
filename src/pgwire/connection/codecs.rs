@@ -365,10 +365,17 @@ fn encode_array_element(
             value_to_binary(&value, element_oid)
         }
         serde_json::Value::String(value) => encode_array_string(value, codec),
-        serde_json::Value::Object(_) if matches!(codec.kind,
-            BinaryCodecKind::Text | BinaryCodecKind::Bpchar |
-            BinaryCodecKind::Varchar | BinaryCodecKind::Unknown
-        ) => Ok(value.to_string().into_bytes()),
+        serde_json::Value::Object(_)
+            if matches!(
+                codec.kind,
+                BinaryCodecKind::Text
+                    | BinaryCodecKind::Bpchar
+                    | BinaryCodecKind::Varchar
+                    | BinaryCodecKind::Unknown
+            ) =>
+        {
+            Ok(value.to_string().into_bytes())
+        }
         _ => Err(invalid_data(codec.name)),
     }
 }
@@ -380,15 +387,21 @@ fn encode_array_string(value: &str, codec: &BinaryCodec) -> io::Result<Vec<u8>> 
         BinaryCodecKind::Int2 => parse_i64_binary(value).and_then(encode_i16_binary),
         BinaryCodecKind::Int4 => parse_i64_binary(value).and_then(encode_i32_binary),
         BinaryCodecKind::Int8 => parse_i64_binary(value).map(|value| value.to_be_bytes().to_vec()),
-        BinaryCodecKind::Float8 => parse_f64_binary(value).map(|value| value.to_be_bytes().to_vec()),
-        BinaryCodecKind::Text | BinaryCodecKind::Bpchar |
-        BinaryCodecKind::Varchar | BinaryCodecKind::Unknown => Ok(value.as_bytes().to_vec()),
+        BinaryCodecKind::Float8 => {
+            parse_f64_binary(value).map(|value| value.to_be_bytes().to_vec())
+        }
+        BinaryCodecKind::Text
+        | BinaryCodecKind::Bpchar
+        | BinaryCodecKind::Varchar
+        | BinaryCodecKind::Unknown => Ok(value.as_bytes().to_vec()),
         BinaryCodecKind::Uuid => uuid::Uuid::parse_str(value)
             .map(|value| value.into_bytes().to_vec())
             .map_err(|_| invalid_data(codec.name)),
         BinaryCodecKind::Date => encode_date(value).map(|value| value.to_be_bytes().to_vec()),
         BinaryCodecKind::Time => encode_time(value).map(|value| value.to_be_bytes().to_vec()),
-        BinaryCodecKind::Timestamp => encode_timestamp(value).map(|value| value.to_be_bytes().to_vec()),
+        BinaryCodecKind::Timestamp => {
+            encode_timestamp(value).map(|value| value.to_be_bytes().to_vec())
+        }
         BinaryCodecKind::Json => unreachable!("JSON array elements preserve their JSON carrier"),
     }
 }

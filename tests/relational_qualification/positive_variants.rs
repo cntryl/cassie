@@ -66,7 +66,11 @@ fn should_match_positive_variant_literal_rows() {
             "{}",
             case.sql
         );
-        for (actual, expected) in result.columns().iter().zip(&case.ordered_descriptor_columns) {
+        for (actual, expected) in result
+            .columns()
+            .iter()
+            .zip(&case.ordered_descriptor_columns)
+        {
             assert_eq!(
                 (
                     actual.type_oid,

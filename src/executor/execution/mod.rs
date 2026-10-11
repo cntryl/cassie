@@ -44,9 +44,9 @@ fn primary_key_indexes(
         .collect()
 }
 
-mod types;
-mod query_result;
 mod command_output;
+mod query_result;
+mod types;
 pub use query_result::{OwnedQueryRows, QueryResultBuilder};
 use types::ExecutionBreakdownDurations;
 pub use types::{

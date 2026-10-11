@@ -45,7 +45,10 @@ fn should_preserve_null_safe_dml_predicates() {
         .execute("DELETE FROM dml_source WHERE n IS DISTINCT FROM 7 RETURNING id")
         .expect("null-safe delete filter");
     // Assert
-    assert_eq!(update.rows(), vec![vec![Value::Int64(1), Value::Bool(true)]]);
+    assert_eq!(
+        update.rows(),
+        vec![vec![Value::Int64(1), Value::Bool(true)]]
+    );
     assert_eq!(delete.rows(), vec![vec![Value::Int64(1)]]);
     assert_eq!(
         fixture.rows("SELECT id FROM dml_source ORDER BY id"),

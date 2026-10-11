@@ -1929,7 +1929,10 @@ mod executor_limits {
                 .expect("zero query timeout should disable the deadline");
 
             // Assert
-            assert_eq!(result.rows(), vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::String("alpha".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2730,7 +2733,10 @@ mod executor_parallel {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(result.rows(), vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::String("alpha".to_string())]]
+            );
             assert_eq!(metrics["parallel_scans"]["scans"].as_u64(), Some(0));
             assert!(
                 metrics["parallel_scans"]["fallback_scans"]
@@ -4874,7 +4880,10 @@ mod executor_streaming {
             .saturating_sub(before);
 
         // Assert
-        assert_eq!(result.rows(), vec![vec![Value::String("value".to_string())]]);
+        assert_eq!(
+            result.rows(),
+            vec![vec![Value::String("value".to_string())]]
+        );
         assert_eq!(visited, 1, "LIMIT 1 should visit exactly one stored row");
 
         let _ = std::fs::remove_dir_all(path);
@@ -4981,7 +4990,10 @@ mod executor_streaming {
             .saturating_sub(before);
 
         // Assert
-        assert_eq!(result.rows(), vec![vec![Value::String("outer".to_string())]]);
+        assert_eq!(
+            result.rows(),
+            vec![vec![Value::String("outer".to_string())]]
+        );
         assert_eq!(visited, 2, "EXISTS should stop after its first inner row");
 
         let _ = std::fs::remove_dir_all(path);
@@ -6350,7 +6362,8 @@ mod typed_array_ordering {
                 let mut rows = cassie
                     .execute_sql(session, query, vec![bound.clone()])
                     .expect("ARRAY DML RETURNING")
-                    .rows().to_vec();
+                    .rows()
+                    .to_vec();
                 rows.sort_by_key(|row| row[0].as_str().expect("item text").to_owned());
                 assert_eq!(
                     rows,

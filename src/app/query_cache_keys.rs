@@ -29,8 +29,11 @@ impl Cassie {
             controls.check_interruption()?;
             let memory = controls.reserve_query_memory(bytes)?;
             let user = copy_text(&session.user, controls)?;
-            let database = session.database.as_deref()
-                .map(|database| copy_text(database, controls)).transpose()?;
+            let database = session
+                .database
+                .as_deref()
+                .map(|database| copy_text(database, controls))
+                .transpose()?;
             let search_path = copy_path(path, controls)?;
             let key = ExecutionResultCacheKey {
                 sql_fingerprint,
@@ -94,7 +97,8 @@ fn copy_path(
 fn copy_text(text: &str, controls: &QueryExecutionControls) -> Result<String, CassieError> {
     controls.check_interruption()?;
     let mut copy = String::new();
-    copy.try_reserve_exact(text.len()).map_err(allocation_error)?;
+    copy.try_reserve_exact(text.len())
+        .map_err(allocation_error)?;
     if copy.capacity() > text.len() {
         return Err(CassieError::ResourceLimit(
             "allocator exceeded admitted result-cache text capacity".to_owned(),

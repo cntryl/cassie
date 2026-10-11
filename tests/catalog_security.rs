@@ -1149,7 +1149,10 @@ mod catalog_introspection {
                 .unwrap();
 
             // Assert
-            assert_eq!(selected.rows(), vec![vec![Value::String("root".to_string())]]);
+            assert_eq!(
+                selected.rows(),
+                vec![vec![Value::String("root".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -1894,7 +1897,11 @@ mod catalog_orm_metadata {
 
     fn query_rows(cassie: &Cassie, sql: &str) -> Vec<Vec<Value>> {
         let session = cassie.create_session("tester", None);
-        cassie.execute_sql(&session, sql, vec![]).unwrap().rows().to_vec()
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .unwrap()
+            .rows()
+            .to_vec()
     }
 
     fn collect_orm_metadata_rows(cassie: &Cassie) -> OrmMetadataRows {
@@ -2108,7 +2115,10 @@ mod catalog_probes {
                     nullable: true,
                 }]
             );
-            assert_eq!(result.rows(), vec![vec![Value::String("public".to_string())]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::String("public".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2170,7 +2180,10 @@ mod catalog_probes {
             let result = result.unwrap();
             assert_eq!(result.command(), "SET");
             assert_eq!(result.columns(), [] as [cassie::executor::ColumnMeta; 0]);
-            assert_eq!(result.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(
+                result.rows(),
+                [] as [std::vec::Vec<cassie::types::Value>; 0]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2929,7 +2942,11 @@ mod database_scope {
         session: &cassie::app::CassieSession,
         sql: &str,
     ) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).unwrap().rows().to_vec()
+        cassie
+            .execute_sql(session, sql, vec![])
+            .unwrap()
+            .rows()
+            .to_vec()
     }
 
     fn seed_projection_catalog_filtering_fixtures(
@@ -7212,7 +7229,8 @@ mod search_path_resolution {
         let rows = cassie
             .execute_sql(&session, "SELECT id FROM reporting.archive", vec![])
             .expect("renamed table stays in reporting")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
         assert_eq!(rows, vec![vec![Value::Int64(7)]]);
         assert!(cassie
             .execute_sql(&session, "SELECT id FROM public.archive", vec![])
@@ -7305,7 +7323,8 @@ mod search_path_resolution {
                 vec![],
             )
             .expect("query pg_class")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
 
         // Assert
         assert!(rows.is_empty(), "unqualified pg_class must be the catalog");
@@ -7325,7 +7344,8 @@ mod search_path_resolution {
         let current = cassie
             .execute_sql(&session, "SELECT current_schema()", vec![])
             .expect("current_schema")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
         assert_eq!(current, vec![vec![Value::String("public".into())]]);
         run(&cassie, &session, "CREATE TABLE lands_in_public (id INT)");
         assert!(cassie

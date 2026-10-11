@@ -90,10 +90,8 @@ impl SessionState {
     pub(super) fn new(limits: &crate::config::CassieRuntimeLimits) -> Self {
         // A connection may retain portals longer than one statement deadline.
         // Live executions keep their own cancellation and deadline controls.
-        let mut portal_memory_controls = QueryExecutionControls::from_limits(
-            limits,
-            std::time::Instant::now(),
-        );
+        let mut portal_memory_controls =
+            QueryExecutionControls::from_limits(limits, std::time::Instant::now());
         portal_memory_controls.deadline = None;
         Self {
             session: None,

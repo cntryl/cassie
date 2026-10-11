@@ -71,7 +71,10 @@ fn should_preserve_quoted_dotted_relation_identity_after_restart() {
         .expect("read relation with escaped quote and trailing space after restart");
 
     // Assert
-    assert_eq!(dotted_rows.rows(), vec![vec![cassie::types::Value::Int64(7)]]);
+    assert_eq!(
+        dotted_rows.rows(),
+        vec![vec![cassie::types::Value::Int64(7)]]
+    );
     assert_eq!(
         qualified_rows.rows(),
         vec![vec![cassie::types::Value::Int64(9)]]

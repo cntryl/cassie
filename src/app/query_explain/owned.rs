@@ -80,7 +80,13 @@ impl QueryExplainPlan {
         let retained = add(arc_bytes::<OwnedPlan>()?, plan_heap_bytes(&data)?)?;
         allocation.finish_retained(retained)?;
         let memory = allocation.into_memory();
-        Ok(Self { base: Arc::new(OwnedPlan { data, _memory: memory }), analyze: None })
+        Ok(Self {
+            base: Arc::new(OwnedPlan {
+                data,
+                _memory: memory,
+            }),
+            analyze: None,
+        })
     }
 
     pub(crate) fn try_with_analyze_with(
@@ -95,30 +101,47 @@ impl QueryExplainPlan {
         let memory = allocation.into_memory();
         Ok(Self {
             base: Arc::clone(&self.base),
-            analyze: Some(Arc::new(OwnedAnalyze { data, _memory: memory })),
+            analyze: Some(Arc::new(OwnedAnalyze {
+                data,
+                _memory: memory,
+            })),
         })
     }
 
     #[must_use]
-    pub fn format_version(&self) -> u32 { self.base.data.format_version }
+    pub fn format_version(&self) -> u32 {
+        self.base.data.format_version
+    }
 
     #[must_use]
-    pub fn summary(&self) -> &QueryPlanSummary { &self.base.data.summary }
+    pub fn summary(&self) -> &QueryPlanSummary {
+        &self.base.data.summary
+    }
 
     #[must_use]
-    pub fn nodes(&self) -> &[QueryPlanNode] { &self.base.data.nodes }
+    pub fn nodes(&self) -> &[QueryPlanNode] {
+        &self.base.data.nodes
+    }
 
     #[must_use]
-    pub fn attributes(&self) -> &[QueryPlanAttribute] { &self.base.data.attributes }
+    pub fn attributes(&self) -> &[QueryPlanAttribute] {
+        &self.base.data.attributes
+    }
 
     #[must_use]
-    pub fn estimates(&self) -> &QueryPlanEstimates { &self.base.data.estimates }
+    pub fn estimates(&self) -> &QueryPlanEstimates {
+        &self.base.data.estimates
+    }
 
     #[must_use]
-    pub fn features(&self) -> &[QueryPlanFeature] { &self.base.data.features }
+    pub fn features(&self) -> &[QueryPlanFeature] {
+        &self.base.data.features
+    }
 
     #[must_use]
-    pub fn diagnostics(&self) -> &QueryPlanDiagnostics { &self.base.data.diagnostics }
+    pub fn diagnostics(&self) -> &QueryPlanDiagnostics {
+        &self.base.data.diagnostics
+    }
 
     #[must_use]
     pub fn analyze(&self) -> Option<&QueryPlanAnalyze> {
@@ -128,9 +151,11 @@ impl QueryExplainPlan {
 
 impl serde::Serialize for QueryExplainPlan {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: serde::Serializer,
+    where
+        S: serde::Serializer,
     {
-        let mut output = serializer.serialize_struct("QueryExplainPlan", 7 + usize::from(self.analyze.is_some()))?;
+        let mut output = serializer
+            .serialize_struct("QueryExplainPlan", 7 + usize::from(self.analyze.is_some()))?;
         output.serialize_field("format_version", &self.format_version())?;
         output.serialize_field("summary", self.summary())?;
         output.serialize_field("nodes", self.nodes())?;
@@ -138,7 +163,9 @@ impl serde::Serialize for QueryExplainPlan {
         output.serialize_field("estimates", self.estimates())?;
         output.serialize_field("features", self.features())?;
         output.serialize_field("diagnostics", self.diagnostics())?;
-        if let Some(analyze) = self.analyze() { output.serialize_field("analyze", analyze)?; }
+        if let Some(analyze) = self.analyze() {
+            output.serialize_field("analyze", analyze)?;
+        }
         output.end()
     }
 }
@@ -150,7 +177,9 @@ fn arc_bytes<T>() -> Result<usize, CassieError> {
 }
 
 fn strings_heap<'a>(values: impl IntoIterator<Item = &'a String>) -> Result<usize, CassieError> {
-    values.into_iter().try_fold(0, |bytes, value| add(bytes, value.capacity()))
+    values
+        .into_iter()
+        .try_fold(0, |bytes, value| add(bytes, value.capacity()))
 }
 
 fn string_vector_heap(values: &[String], capacity: usize) -> Result<usize, CassieError> {
@@ -160,44 +189,113 @@ fn string_vector_heap(values: &[String], capacity: usize) -> Result<usize, Cassi
 fn plan_heap_bytes(data: &PlanData) -> Result<usize, CassieError> {
     let summary = &data.summary;
     let mut bytes = strings_heap([
-        &summary.collection, &summary.root_operator, &summary.access_path, &summary.storage_mode,
+        &summary.collection,
+        &summary.root_operator,
+        &summary.access_path,
+        &summary.storage_mode,
     ])?;
-    if let Some(index) = &summary.selected_index { bytes = add(bytes, index.capacity())?; }
-    bytes = add(bytes, mul(data.nodes.capacity(), size_of::<QueryPlanNode>())?)?;
+    if let Some(index) = &summary.selected_index {
+        bytes = add(bytes, index.capacity())?;
+    }
+    bytes = add(
+        bytes,
+        mul(data.nodes.capacity(), size_of::<QueryPlanNode>())?,
+    )?;
     for node in &data.nodes {
-        bytes = add(bytes, strings_heap([&node.id, &node.label, &node.kind, &node.detail, &node.status])?)?;
-        bytes = add(bytes, string_vector_heap(&node.badges, node.badges.capacity())?)?;
-        bytes = add(bytes, mul(node.metrics.capacity(), size_of::<super::QueryPlanMetric>())?)?;
+        bytes = add(
+            bytes,
+            strings_heap([
+                &node.id,
+                &node.label,
+                &node.kind,
+                &node.detail,
+                &node.status,
+            ])?,
+        )?;
+        bytes = add(
+            bytes,
+            string_vector_heap(&node.badges, node.badges.capacity())?,
+        )?;
+        bytes = add(
+            bytes,
+            mul(node.metrics.capacity(), size_of::<super::QueryPlanMetric>())?,
+        )?;
         for metric in &node.metrics {
             bytes = add(bytes, strings_heap([&metric.label, &metric.value])?)?;
-            if let Some(unit) = &metric.unit { bytes = add(bytes, unit.capacity())?; }
+            if let Some(unit) = &metric.unit {
+                bytes = add(bytes, unit.capacity())?;
+            }
         }
     }
-    bytes = add(bytes, mul(data.attributes.capacity(), size_of::<QueryPlanAttribute>())?)?;
+    bytes = add(
+        bytes,
+        mul(data.attributes.capacity(), size_of::<QueryPlanAttribute>())?,
+    )?;
     for attribute in &data.attributes {
-        bytes = add(bytes, strings_heap([&attribute.label, &attribute.value, &attribute.intent])?)?;
+        bytes = add(
+            bytes,
+            strings_heap([&attribute.label, &attribute.value, &attribute.intent])?,
+        )?;
     }
     bytes = add(bytes, data.estimates.cost_source.capacity())?;
-    bytes = add(bytes, string_vector_heap(&data.estimates.rejected_alternatives, data.estimates.rejected_alternatives.capacity())?)?;
-    bytes = add(bytes, mul(data.features.capacity(), size_of::<QueryPlanFeature>())?)?;
+    bytes = add(
+        bytes,
+        string_vector_heap(
+            &data.estimates.rejected_alternatives,
+            data.estimates.rejected_alternatives.capacity(),
+        )?,
+    )?;
+    bytes = add(
+        bytes,
+        mul(data.features.capacity(), size_of::<QueryPlanFeature>())?,
+    )?;
     for feature in &data.features {
-        bytes = add(bytes, strings_heap([&feature.id, &feature.label, &feature.intent, &feature.detail, &feature.node_id])?)?;
+        bytes = add(
+            bytes,
+            strings_heap([
+                &feature.id,
+                &feature.label,
+                &feature.intent,
+                &feature.detail,
+                &feature.node_id,
+            ])?,
+        )?;
     }
     let diagnostics = &data.diagnostics;
-    bytes = add(bytes, strings_heap([
-        &diagnostics.access_path_reason, &diagnostics.fallback_reason,
-        &diagnostics.pagination_strategy, &diagnostics.early_stop, &diagnostics.projection_shape,
-        &diagnostics.operator_feedback_state, &diagnostics.operator_feedback_reason,
-        &diagnostics.adaptive_decision_point, &diagnostics.adaptive_selected_alternative,
-        &diagnostics.adaptive_reason, &diagnostics.join_strategy, &diagnostics.join_fallback_reason,
-        &diagnostics.rollup_rewrite, &diagnostics.projection_freshness,
-    ])?)?;
-    add(bytes, string_vector_heap(&diagnostics.adaptive_candidates, diagnostics.adaptive_candidates.capacity())?)
+    bytes = add(
+        bytes,
+        strings_heap([
+            &diagnostics.access_path_reason,
+            &diagnostics.fallback_reason,
+            &diagnostics.pagination_strategy,
+            &diagnostics.early_stop,
+            &diagnostics.projection_shape,
+            &diagnostics.operator_feedback_state,
+            &diagnostics.operator_feedback_reason,
+            &diagnostics.adaptive_decision_point,
+            &diagnostics.adaptive_selected_alternative,
+            &diagnostics.adaptive_reason,
+            &diagnostics.join_strategy,
+            &diagnostics.join_fallback_reason,
+            &diagnostics.rollup_rewrite,
+            &diagnostics.projection_freshness,
+        ])?,
+    )?;
+    add(
+        bytes,
+        string_vector_heap(
+            &diagnostics.adaptive_candidates,
+            diagnostics.adaptive_candidates.capacity(),
+        )?,
+    )
 }
 
 fn analyze_heap_bytes(data: &QueryPlanAnalyze) -> Result<usize, CassieError> {
     add(
-        mul(data.operator_actuals.capacity(), size_of::<super::QueryPlanOperatorActual>())?,
+        mul(
+            data.operator_actuals.capacity(),
+            size_of::<super::QueryPlanOperatorActual>(),
+        )?,
         strings_heap(data.operator_actuals.iter().map(|actual| &actual.operator))?,
     )
 }

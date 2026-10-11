@@ -575,9 +575,19 @@ async fn dispatch_admin_query_routes(
                 body,
                 "rest_admin_query_execute",
                 |cassie, session, body, cancellation| {
-                    crate::rest::query::execute_converted(cassie, session, body, cancellation, |result, controls| {
-                        query_response::try_query_json_response(StatusCode::OK, &result, controls)
-                    })
+                    crate::rest::query::execute_converted(
+                        cassie,
+                        session,
+                        body,
+                        cancellation,
+                        |result, controls| {
+                            query_response::try_query_json_response(
+                                StatusCode::OK,
+                                &result,
+                                controls,
+                            )
+                        },
+                    )
                 },
             )
             .await
@@ -598,7 +608,8 @@ async fn dispatch_admin_query_routes(
                         session,
                         body,
                         cancellation,
-                    ).map(|value| json_response(StatusCode::OK, &value))
+                    )
+                    .map(|value| json_response(StatusCode::OK, &value))
                 },
             )
             .await
@@ -614,9 +625,19 @@ async fn dispatch_admin_query_routes(
                 body,
                 "rest_admin_query_explain",
                 |cassie, session, body, cancellation| {
-                    crate::rest::query::explain_converted(cassie, session, body, cancellation, |result, controls| {
-                        query_response::try_explain_json_response(StatusCode::OK, &result, controls)
-                    })
+                    crate::rest::query::explain_converted(
+                        cassie,
+                        session,
+                        body,
+                        cancellation,
+                        |result, controls| {
+                            query_response::try_explain_json_response(
+                                StatusCode::OK,
+                                &result,
+                                controls,
+                            )
+                        },
+                    )
                 },
             )
             .await
@@ -638,8 +659,7 @@ async fn run_admin_query_operation(
         ) -> Result<Response<RestBody>, crate::app::CassieError>
         + Send
         + 'static,
-) -> Result<Option<Response<RestBody>>, (StatusCode, String)>
-{
+) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
     let body = body.clone();
     let database = body_database(body.as_ref())?;
     let session = database_scoped_session(&cassie, context.request_context, &database)?;

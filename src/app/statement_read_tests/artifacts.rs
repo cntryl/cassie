@@ -133,7 +133,8 @@ fn should_recapture_fulltext_cache_identity_for_another_session() {
         &supplied,
     )
     .expect("second view")
-    .rows().to_vec();
+    .rows()
+    .to_vec();
     drop(supplied);
     let released = controls.current_query_memory_bytes();
     drop(fixture);
@@ -200,7 +201,8 @@ fn should_recapture_fulltext_cache_identity_for_another_engine() {
         &supplied,
     )
     .expect("called engine view")
-    .rows().to_vec();
+    .rows()
+    .to_vec();
     drop(supplied);
     let released = controls.current_query_memory_bytes();
     drop(first);

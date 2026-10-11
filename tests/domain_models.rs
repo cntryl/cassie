@@ -3923,7 +3923,8 @@ mod graph_backing_table_ddl {
         cassie
             .execute_sql(session, NEIGHBORS, vec![])
             .expect("graph traversal")
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     fn restart(cassie: Cassie, path: &str) -> (Cassie, CassieSession) {
@@ -4221,7 +4222,8 @@ mod graph_function_correctness {
         cassie
             .execute_sql(session, sql, vec![])
             .expect("read graph function")
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     fn with_graph(

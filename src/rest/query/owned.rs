@@ -71,7 +71,9 @@ impl RestQueryResult {
         controls: Option<&QueryExecutionControls>,
     ) -> Result<Self, CassieError> {
         check(controls)?;
-        let reservation = result.admission().try_sibling(conversion_bytes(result, controls)?)?;
+        let reservation = result
+            .admission()
+            .try_sibling(conversion_bytes(result, controls)?)?;
         let mut columns = fresh_vec(result.columns().len())?;
         for column in result.columns() {
             check(controls)?;
@@ -205,13 +207,19 @@ fn conversion_bytes(
     controls: Option<&QueryExecutionControls>,
 ) -> Result<usize, CassieError> {
     let mut bytes = add(size_of::<RestQueryPayload>(), 2 * size_of::<usize>())?;
-    bytes = add(bytes, mul(result.columns().len(), size_of::<RestColumnMeta>())?)?;
+    bytes = add(
+        bytes,
+        mul(result.columns().len(), size_of::<RestColumnMeta>())?,
+    )?;
     bytes = add(bytes, result.command().len())?;
     for column in result.columns() {
         check(controls)?;
         bytes = add(bytes, add(column.name.len(), column.data_type.len())?)?;
     }
-    bytes = add(bytes, mul(result.row_count(), size_of::<Vec<serde_json::Value>>())?)?;
+    bytes = add(
+        bytes,
+        mul(result.row_count(), size_of::<Vec<serde_json::Value>>())?,
+    )?;
     for row in result.rows() {
         check(controls)?;
         bytes = add(bytes, mul(row.len(), size_of::<serde_json::Value>())?)?;
@@ -266,13 +274,11 @@ fn fresh_vec<T>(length: usize) -> Result<Vec<T>, CassieError> {
     Ok(values)
 }
 
-fn copy_text(
-    text: &str,
-    controls: Option<&QueryExecutionControls>,
-) -> Result<String, CassieError> {
+fn copy_text(text: &str, controls: Option<&QueryExecutionControls>) -> Result<String, CassieError> {
     check(controls)?;
     let mut copy = String::new();
-    copy.try_reserve_exact(text.len()).map_err(allocation_error)?;
+    copy.try_reserve_exact(text.len())
+        .map_err(allocation_error)?;
     if copy.capacity() > text.len() {
         return Err(capacity_error());
     }

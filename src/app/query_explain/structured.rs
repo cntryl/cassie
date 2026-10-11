@@ -5,9 +5,9 @@ use crate::runtime::QueryExecutionControls;
 use super::allocation::PlanAllocation;
 use super::owned::PlanData;
 use super::{
-    non_empty_or_none, projection_freshness, selected_cost, QueryExplainPlan,
-    QueryPlanAttribute, QueryPlanDiagnostics, QueryPlanEstimates, QueryPlanFeature,
-    QueryPlanSummary, PLAN_FORMAT_VERSION,
+    non_empty_or_none, projection_freshness, selected_cost, QueryExplainPlan, QueryPlanAttribute,
+    QueryPlanDiagnostics, QueryPlanEstimates, QueryPlanFeature, QueryPlanSummary,
+    PLAN_FORMAT_VERSION,
 };
 
 pub(crate) fn structured_plan(
@@ -40,7 +40,12 @@ fn plan_summary(
             None => allocation.text("Command")?,
         },
         access_path: allocation.text(physical.read.access_path.as_str())?,
-        selected_index: physical.read.selected_index.as_deref().map(|index| allocation.text(index)).transpose()?,
+        selected_index: physical
+            .read
+            .selected_index
+            .as_deref()
+            .map(|index| allocation.text(index))
+            .transpose()?,
         selected_cost: selected_cost(physical),
         estimated_rows: super::selected_estimated_rows(physical),
         storage_mode: allocation.text(super::storage_mode(cassie, physical))?,
@@ -56,12 +61,28 @@ fn plan_attributes(
     let mut values = allocation.vector(7)?;
     for (label, value, intent) in [
         ("Access path", physical.read.access_path.as_str(), indexed),
-        ("Index", physical.read.selected_index.as_deref().unwrap_or("none"), indexed),
-        ("Top K", physical.top_k.mode.as_str(), attribute_intent(physical.top_k.enabled)),
-        ("Pagination", physical.read.pagination_strategy.as_str(), "neutral"),
+        (
+            "Index",
+            physical.read.selected_index.as_deref().unwrap_or("none"),
+            indexed,
+        ),
+        (
+            "Top K",
+            physical.top_k.mode.as_str(),
+            attribute_intent(physical.top_k.enabled),
+        ),
+        (
+            "Pagination",
+            physical.read.pagination_strategy.as_str(),
+            "neutral",
+        ),
         ("Projection", physical.projection.shape.as_str(), "neutral"),
         ("Storage", super::storage_mode(cassie, physical), "neutral"),
-        ("Freshness", projection_freshness(cassie, physical), "neutral"),
+        (
+            "Freshness",
+            projection_freshness(cassie, physical),
+            "neutral",
+        ),
     ] {
         values.push(QueryPlanAttribute {
             label: allocation.text(label)?,
@@ -73,7 +94,11 @@ fn plan_attributes(
 }
 
 pub(super) fn attribute_intent(enabled: bool) -> &'static str {
-    if enabled { "success" } else { "neutral" }
+    if enabled {
+        "success"
+    } else {
+        "neutral"
+    }
 }
 
 fn plan_estimates(
@@ -104,15 +129,69 @@ fn plan_features(
     let limits = cassie.runtime.limits();
     let mut values = allocation.vector(9)?;
     for (id, label, enabled, detail, node_id) in [
-        ("predicate_pushdown", "Predicate pushdown", physical.read.predicate_pushdown, "Filters applied before rows leave storage", "read"),
-        ("projection_pruning", "Projection pruning", !physical.read.projected_scan_fields.is_empty(), "Read path narrows scanned fields when possible", "read"),
-        ("covered_index", "Covered index", physical.read.covered_index, "Selected index satisfies the requested projection", "read"),
-        ("column_batch", "Column batch", physical.read.column_batch_index.is_some(), "Column-batch path can serve the selected index", "read"),
-        ("top_k", "Top K", physical.top_k.enabled, "Ordering and limit can stop early", "top_k"),
-        ("aggregate_parallel", "Parallel aggregate", physical.aggregate.parallel_candidate, "Aggregate is eligible for worker parallelism", "aggregate"),
-        ("aggregate_acceleration", "Aggregate acceleration", physical.aggregate.acceleration, "Rollup or projection can accelerate aggregation", "aggregate"),
-        ("vectorized_join_candidate", "Vector join candidate", physical.join.vectorized.candidate, "Join shape can use a vectorized candidate path", "join"),
-        ("vectorized_join_enabled", "Vector join enabled", physical.join.vectorized.candidate && limits.vectorized_joins_enabled, "Runtime limits allow the vectorized join path", "join"),
+        (
+            "predicate_pushdown",
+            "Predicate pushdown",
+            physical.read.predicate_pushdown,
+            "Filters applied before rows leave storage",
+            "read",
+        ),
+        (
+            "projection_pruning",
+            "Projection pruning",
+            !physical.read.projected_scan_fields.is_empty(),
+            "Read path narrows scanned fields when possible",
+            "read",
+        ),
+        (
+            "covered_index",
+            "Covered index",
+            physical.read.covered_index,
+            "Selected index satisfies the requested projection",
+            "read",
+        ),
+        (
+            "column_batch",
+            "Column batch",
+            physical.read.column_batch_index.is_some(),
+            "Column-batch path can serve the selected index",
+            "read",
+        ),
+        (
+            "top_k",
+            "Top K",
+            physical.top_k.enabled,
+            "Ordering and limit can stop early",
+            "top_k",
+        ),
+        (
+            "aggregate_parallel",
+            "Parallel aggregate",
+            physical.aggregate.parallel_candidate,
+            "Aggregate is eligible for worker parallelism",
+            "aggregate",
+        ),
+        (
+            "aggregate_acceleration",
+            "Aggregate acceleration",
+            physical.aggregate.acceleration,
+            "Rollup or projection can accelerate aggregation",
+            "aggregate",
+        ),
+        (
+            "vectorized_join_candidate",
+            "Vector join candidate",
+            physical.join.vectorized.candidate,
+            "Join shape can use a vectorized candidate path",
+            "join",
+        ),
+        (
+            "vectorized_join_enabled",
+            "Vector join enabled",
+            physical.join.vectorized.candidate && limits.vectorized_joins_enabled,
+            "Runtime limits allow the vectorized join path",
+            "join",
+        ),
     ] {
         values.push(QueryPlanFeature {
             id: allocation.text(id)?,
@@ -135,19 +214,24 @@ fn plan_diagnostics(
     let rewrite = super::rollup_rewrite(cassie, physical, allocation)?;
     Ok(QueryPlanDiagnostics {
         access_path_reason: allocation.text(&physical.read.access_path_reason)?,
-        fallback_reason: allocation.text(physical.read.fallback_reason.as_deref().unwrap_or("none"))?,
+        fallback_reason: allocation
+            .text(physical.read.fallback_reason.as_deref().unwrap_or("none"))?,
         pagination_strategy: allocation.text(physical.read.pagination_strategy.as_str())?,
         early_stop: allocation.text(physical.read.early_stop.as_str())?,
         projection_shape: allocation.text(physical.projection.shape.as_str())?,
-        operator_feedback_state: allocation.text(non_empty_or_none(&physical.operator_feedback.state))?,
-        operator_feedback_reason: allocation.text(non_empty_or_none(&physical.operator_feedback.reason))?,
+        operator_feedback_state: allocation
+            .text(non_empty_or_none(&physical.operator_feedback.state))?,
+        operator_feedback_reason: allocation
+            .text(non_empty_or_none(&physical.operator_feedback.reason))?,
         adaptive_enabled: adaptive.enabled,
         adaptive_decision_point: allocation.text(non_empty_or_none(&adaptive.decision_point))?,
         adaptive_candidates: allocation.strings(&adaptive.candidates)?,
-        adaptive_selected_alternative: allocation.text(non_empty_or_none(&adaptive.selected_alternative))?,
+        adaptive_selected_alternative: allocation
+            .text(non_empty_or_none(&adaptive.selected_alternative))?,
         adaptive_reason: allocation.text(non_empty_or_none(&adaptive.reason))?,
         join_strategy: allocation.text(physical.join.strategy.as_deref().unwrap_or("none"))?,
-        join_fallback_reason: allocation.text(physical.join.fallback_reason.as_deref().unwrap_or("none"))?,
+        join_fallback_reason: allocation
+            .text(physical.join.fallback_reason.as_deref().unwrap_or("none"))?,
         rollup_rewrite: rewrite,
         projection_freshness: allocation.text(projection_freshness(cassie, physical))?,
     })

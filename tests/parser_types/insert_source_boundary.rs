@@ -53,7 +53,8 @@ fn should_reject_source_prefix_before_catalog_lookup_or_writes() {
             .cassie
             .execute_sql(&observer, "SELECT flag FROM prefix_dst", vec![])
             .expect("fresh observer")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
         (result, rows)
     });
 

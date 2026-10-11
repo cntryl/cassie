@@ -435,7 +435,10 @@ fn should_fall_back_to_authoritative_vectors_for_partial_sidecars_or_missing_sta
                 5
             );
             drop(result);
-            assert_eq!(cassie.metrics()["query"]["current_accounted_memory_bytes"], 0);
+            assert_eq!(
+                cassie.metrics()["query"]["current_accounted_memory_bytes"],
+                0
+            );
             drop(cassie);
             std::fs::remove_dir_all(path).expect("cleanup");
         }

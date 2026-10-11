@@ -150,7 +150,8 @@ fn query(cassie: &Cassie, session: &cassie::app::CassieSession, sql: &str) -> Ve
     cassie
         .execute_sql(session, sql, vec![])
         .expect("query relational evidence")
-        .rows().to_vec()
+        .rows()
+        .to_vec()
 }
 
 fn fact_sql(fact: &Fact) -> String {

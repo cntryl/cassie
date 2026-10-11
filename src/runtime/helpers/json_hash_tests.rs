@@ -18,13 +18,16 @@ fn should_preserve_default_hasher_json_parameter_identity() {
     ];
 
     // Act
-    let identities = values.into_iter().map(|value| {
-        let mut legacy = DefaultHasher::new();
-        6_u8.hash(&mut legacy);
-        value.to_string().hash(&mut legacy);
-        let actual = hash_params(&[Value::Json(value)]);
-        (actual, legacy.finish())
-    }).collect::<Vec<_>>();
+    let identities = values
+        .into_iter()
+        .map(|value| {
+            let mut legacy = DefaultHasher::new();
+            6_u8.hash(&mut legacy);
+            value.to_string().hash(&mut legacy);
+            let actual = hash_params(&[Value::Json(value)]);
+            (actual, legacy.finish())
+        })
+        .collect::<Vec<_>>();
 
     // Assert
     for (actual, legacy) in identities {
@@ -50,8 +53,10 @@ fn should_preserve_json_parameter_boundaries_with_mixed_scalars() {
 
     // Act
     let actual = hash_params(&[
-        Value::Json(first), Value::String("between".to_owned()),
-        Value::Json(second), Value::Int64(42),
+        Value::Json(first),
+        Value::String("between".to_owned()),
+        Value::Json(second),
+        Value::Int64(42),
     ]);
 
     // Assert

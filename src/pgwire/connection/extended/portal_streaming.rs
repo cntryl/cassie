@@ -359,7 +359,9 @@ fn portal_document_result(
     let Some(QueryStatement::Select(select)) =
         prepared.parsed.as_ref().map(|parsed| &parsed.statement)
     else {
-        return Err(CassieError::Execution("streaming portal requires a select statement".to_owned()));
+        return Err(CassieError::Execution(
+            "streaming portal requires a select statement".to_owned(),
+        ));
     };
     let mut builder = QueryResult::try_builder(controls)?;
     for column in columns {
@@ -368,17 +370,24 @@ fn portal_document_result(
     builder.try_set_command("SELECT")?;
     // The existing conversion and lookup builders parse SQL identifiers. Admit
     // their bounded scratch before either the sizing pass or conversion runs.
-    let _identifiers = controls.reserve_query_memory(portal_identifier_bytes(spec, select, schema.as_ref())?)?;
+    let _identifiers =
+        controls.reserve_query_memory(portal_identifier_bytes(spec, select, schema.as_ref())?)?;
     while let Some(document) = documents.pop_document() {
         controls.check_interruption()?;
         let document = document.document();
         let scratch = crate::executor::retained_memory::add(
-            crate::executor::scan::projected_row_bytes(document, &spec.source_fields, schema.as_ref())?,
+            crate::executor::scan::projected_row_bytes(
+                document,
+                &spec.source_fields,
+                schema.as_ref(),
+            )?,
             crate::executor::scan::projected_lookup_bytes(&spec.source_fields, schema.as_ref())?,
         )?;
         let _projection = controls.reserve_query_memory(scratch)?;
         let row = crate::executor::scan::projected_document_to_row(
-            document, &spec.source_fields, schema.as_ref(),
+            document,
+            &spec.source_fields,
+            schema.as_ref(),
         );
         builder.try_push_values(portal_projection_values(select, &row, schema.as_ref()))?;
     }
@@ -392,15 +401,35 @@ fn portal_identifier_bytes(
 ) -> Result<usize, CassieError> {
     use crate::executor::retained_memory::{add, mul};
 
-    let catalog_longest = schema.into_iter().flat_map(|schema| &schema.fields)
-        .map(|field| field.name.len()).max().unwrap_or(0);
-    let source_longest = spec.source_fields.iter().map(String::len).max().unwrap_or(0);
-    let projection_longest = select.projection.iter().filter_map(|item| match item {
-        SelectItem::Column { name, .. } |
-        SelectItem::Expr { expr: crate::sql::ast::Expr::Column(name), .. } => Some(name.len()),
-        _ => None,
-    }).max().unwrap_or(0);
-    let longest = catalog_longest.max(source_longest).max(projection_longest).max(ROW_IDENTITY_COLUMN.len());
+    let catalog_longest = schema
+        .into_iter()
+        .flat_map(|schema| &schema.fields)
+        .map(|field| field.name.len())
+        .max()
+        .unwrap_or(0);
+    let source_longest = spec
+        .source_fields
+        .iter()
+        .map(String::len)
+        .max()
+        .unwrap_or(0);
+    let projection_longest = select
+        .projection
+        .iter()
+        .filter_map(|item| match item {
+            SelectItem::Column { name, .. }
+            | SelectItem::Expr {
+                expr: crate::sql::ast::Expr::Column(name),
+                ..
+            } => Some(name.len()),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0);
+    let longest = catalog_longest
+        .max(source_longest)
+        .max(projection_longest)
+        .max(ROW_IDENTITY_COLUMN.len());
     add(512, add(mul(longest, 32)?, mul(catalog_longest, 8)?)?)
 }
 
@@ -413,20 +442,28 @@ fn portal_projection_values<'a>(
     select.projection.iter().flat_map(move |item| {
         let wildcard = matches!(item, SelectItem::Wildcard);
         let column = match item {
-            SelectItem::Column { name, .. } |
-            SelectItem::Expr { expr: crate::sql::ast::Expr::Column(name), .. } => Some(
-                if is_identity_reference(name, schema_has_id) {
-                    ROW_IDENTITY_COLUMN
-                } else {
-                    name.as_str()
-                }
-            ),
+            SelectItem::Column { name, .. }
+            | SelectItem::Expr {
+                expr: crate::sql::ast::Expr::Column(name),
+                ..
+            } => Some(if is_identity_reference(name, schema_has_id) {
+                ROW_IDENTITY_COLUMN
+            } else {
+                name.as_str()
+            }),
             _ => None,
         };
         // Match the RowDescription's declared schema order for wildcard fields.
-        (wildcard && !schema_has_id).then_some(ROW_IDENTITY_COLUMN).into_iter()
-            .chain(schema.into_iter().flat_map(|schema| &schema.fields)
-                .filter(move |_| wildcard).map(|field| field.name.as_str()))
+        (wildcard && !schema_has_id)
+            .then_some(ROW_IDENTITY_COLUMN)
+            .into_iter()
+            .chain(
+                schema
+                    .into_iter()
+                    .flat_map(|schema| &schema.fields)
+                    .filter(move |_| wildcard)
+                    .map(|field| field.name.as_str()),
+            )
             .chain(column)
             .map(move |name| row.get(name).unwrap_or(&Value::Null))
     })

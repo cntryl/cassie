@@ -17,7 +17,9 @@ impl Cassie {
         mode: ExecutionMode,
         cancellation: QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
-        self.execute_sql_converted(session, sql, params, (mode, cancellation), |result, _| Ok(result))
+        self.execute_sql_converted(session, sql, params, (mode, cancellation), |result, _| {
+            Ok(result)
+        })
     }
 
     pub(crate) fn execute_sql_with_cancellation_converted<T>(
@@ -28,7 +30,13 @@ impl Cassie {
         cancellation: &QueryCancellationHandle,
         convert: impl FnOnce(QueryResult, &QueryExecutionControls) -> Result<T, CassieError>,
     ) -> Result<T, CassieError> {
-        self.execute_sql_converted(session, sql, params, (ExecutionMode::SimpleQuery, cancellation.clone()), convert)
+        self.execute_sql_converted(
+            session,
+            sql,
+            params,
+            (ExecutionMode::SimpleQuery, cancellation.clone()),
+            convert,
+        )
     }
 
     fn execute_sql_converted<T>(
@@ -41,14 +49,19 @@ impl Cassie {
     ) -> Result<T, CassieError> {
         let started = Instant::now();
         let Some(running) = self.runtime.try_begin_running_query() else {
-            return Err(CassieError::Execution("query admission exhausted".to_owned()));
+            return Err(CassieError::Execution(
+                "query admission exhausted".to_owned(),
+            ));
         };
-        let controls = QueryExecutionControls::with_cancellation(&self.runtime.limits(), started, execution.1);
+        let controls =
+            QueryExecutionControls::with_cancellation(&self.runtime.limits(), started, execution.1);
         let mut rows = 0;
-        let result = self.execute_sql_core(session, sql, params, execution.0, &controls).and_then(|result| {
-            rows = result.row_count();
-            convert(result, &controls)
-        });
+        let result = self
+            .execute_sql_core(session, sql, params, execution.0, &controls)
+            .and_then(|result| {
+                rows = result.row_count();
+                convert(result, &controls)
+            });
         self.finish_converted_query(session, started, &controls, &result, rows);
         drop(running);
         let _ = self.run_deferred_schema_cleanup();
@@ -65,14 +78,22 @@ impl Cassie {
     ) -> Result<T, CassieError> {
         let started = Instant::now();
         let Some(running) = self.runtime.try_begin_running_query() else {
-            return Err(CassieError::Execution("query admission exhausted".to_owned()));
+            return Err(CassieError::Execution(
+                "query admission exhausted".to_owned(),
+            ));
         };
-        let controls = QueryExecutionControls::with_cancellation(&self.runtime.limits(), started, cancellation.clone());
+        let controls = QueryExecutionControls::with_cancellation(
+            &self.runtime.limits(),
+            started,
+            cancellation.clone(),
+        );
         let mut rows = 0;
-        let result = self.explain_sql_core(session, sql, params, &controls).and_then(|output| {
-            rows = output.result().row_count();
-            convert(output, &controls)
-        });
+        let result = self
+            .explain_sql_core(session, sql, params, &controls)
+            .and_then(|output| {
+                rows = output.result().row_count();
+                convert(output, &controls)
+            });
         self.finish_converted_query(session, started, &controls, &result, rows);
         drop(running);
         let _ = self.run_deferred_schema_cleanup();

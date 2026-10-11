@@ -5,8 +5,7 @@ use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
     CreateDatabaseStatement, CreateGraphStatement, CreateSchemaStatement, CreateViewStatement,
-    DropDatabaseStatement, DropSchemaStatement, DropTableStatement,
-    DropViewStatement,
+    DropDatabaseStatement, DropSchemaStatement, DropTableStatement, DropViewStatement,
 };
 use crate::types::DataType;
 
@@ -16,10 +15,10 @@ mod schema_constraint_helpers;
 mod schema_foreign_keys;
 #[path = "schema_graph_rename.rs"]
 mod schema_graph_rename;
-#[path = "schema_sequence_rename.rs"]
-mod schema_sequence_rename;
 #[path = "schema_index_command.rs"]
 mod schema_index_command;
+#[path = "schema_sequence_rename.rs"]
+mod schema_sequence_rename;
 pub(super) use schema_index_command::drop_index;
 
 pub(super) fn create_graph(

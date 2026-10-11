@@ -1088,11 +1088,13 @@ mod vector_ann_concurrency {
 
         // Assert
         assert_eq!(
-            resolved.rows(), expected.rows(),
+            resolved.rows(),
+            expected.rows(),
             "paused reader keeps its source view"
         );
         assert_ne!(
-            resolved.rows(), exact.rows(),
+            resolved.rows(),
+            exact.rows(),
             "next statement sees the committed mutation"
         );
         assert_eq!(
@@ -1185,11 +1187,13 @@ mod vector_ann_concurrency {
 
         // Assert
         assert_eq!(
-            resolved.rows(), expected.rows(),
+            resolved.rows(),
+            expected.rows(),
             "paused reader keeps its source view"
         );
         assert_ne!(
-            resolved.rows(), exact.rows(),
+            resolved.rows(),
+            exact.rows(),
             "next statement sees the committed mutation"
         );
         assert_eq!(
@@ -3488,7 +3492,8 @@ mod specialized_query_controls {
             .cassie
             .execute_sql(&fixture.session, family.query(), vec![])
             .expect("exact controlled fallback")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
         if matches!(family, AnalyticalFamily::Graph) {
             let overlay_metrics = fixture.cassie.metrics();
             execute(&fixture.cassie, &fixture.session, "COMMIT");
@@ -4412,7 +4417,12 @@ mod specialized_query_controls_retrieval {
                     .expect("exact fallback query");
                 evidence.returned(RetrievalPhase::ExactFallback);
                 let after_fallback = fixture.cassie.metrics();
-                assert_eq!(fallback.rows(), first.rows(), "{} exact fallback", case.label());
+                assert_eq!(
+                    fallback.rows(),
+                    first.rows(),
+                    "{} exact fallback",
+                    case.label()
+                );
                 assert_eq!(
                     selected_read_count(case, &after_fallback),
                     selected_reads,

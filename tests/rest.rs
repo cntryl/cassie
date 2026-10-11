@@ -342,8 +342,7 @@ mod vector_memory_controls {
                 > 0
         );
         assert_eq!(
-            after_result_retirement["query"]["current_accounted_memory_bytes"],
-            0,
+            after_result_retirement["query"]["current_accounted_memory_bytes"], 0,
             "retiring DTOs must release the latest requesting query's owned buffers"
         );
     }
@@ -925,7 +924,8 @@ mod rest {
             cassie
                 .execute_sql(&session, sql, Vec::new())
                 .expect("select")
-                .rows().to_vec()
+                .rows()
+                .to_vec()
         };
 
         // Assert

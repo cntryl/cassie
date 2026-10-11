@@ -38,7 +38,10 @@ fn should_reject_explain_format_growth_before_unadmitted_copy() {
     // Arrange
     let controls = controls();
     let large = "x".repeat(8192);
-    let value = ChangingDisplay { calls: Cell::new(0), large: &large };
+    let value = ChangingDisplay {
+        calls: Cell::new(0),
+        large: &large,
+    };
     let mut allocation = PlanAllocation::new(&controls, 0).expect("empty admission");
 
     // Act
@@ -51,7 +54,10 @@ fn should_reject_explain_format_growth_before_unadmitted_copy() {
     let peak = controls.peak_query_memory_bytes();
 
     // Assert
-    assert!(rejected, "second-pass output must not grow beyond its counted admission");
+    assert!(
+        rejected,
+        "second-pass output must not grow beyond its counted admission"
+    );
     assert_eq!(calls, 2);
     assert_eq!(peak, 1);
     assert_eq!(released, 0);
@@ -79,7 +85,9 @@ fn should_reject_explain_separator_growth_before_unadmitted_copy() {
     let controls = controls();
     let separator = "x".repeat(8192);
     let calls = Rc::new(Cell::new(0));
-    let values = ChangingItems { calls: Rc::clone(&calls) };
+    let values = ChangingItems {
+        calls: Rc::clone(&calls),
+    };
     let mut allocation = PlanAllocation::new(&controls, 0).expect("empty admission");
 
     // Act
@@ -91,7 +99,10 @@ fn should_reject_explain_separator_growth_before_unadmitted_copy() {
     let peak = controls.peak_query_memory_bytes();
 
     // Assert
-    assert!(rejected, "separator writes must obey the same capacity guard as value writes");
+    assert!(
+        rejected,
+        "separator writes must obey the same capacity guard as value writes"
+    );
     assert_eq!(calls.get(), 2);
     assert_eq!(peak, 0);
     assert_eq!(released, 0);

@@ -327,7 +327,8 @@ fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Va
     cassie
         .execute_sql(session, sql, vec![])
         .expect("execute time-series evidence query")
-        .rows().to_vec()
+        .rows()
+        .to_vec()
 }
 
 fn explain(cassie: &Cassie, session: &CassieSession, lower: &str, upper: &str) -> String {

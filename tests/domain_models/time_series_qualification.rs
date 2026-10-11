@@ -140,7 +140,8 @@ fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
                     vec![],
                 )
                 .expect("query DST boundary rows")
-                .rows().to_vec()
+                .rows()
+                .to_vec()
         };
         let baseline = query("dst_day_baseline");
         let buckets = cassie
@@ -151,7 +152,8 @@ fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
                 vec![],
             )
             .expect("bucket timestamps by fixed UTC days")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
         let before = cassie.metrics();
 
         // Act

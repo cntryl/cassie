@@ -102,7 +102,7 @@ pub(super) fn build_select_result(
         result.try_push_values(row.entries().iter().filter_map(|(name, value)| {
             (keep_internal_identity_as_id
                 || !crate::types::row_identity::is_row_identity_column(name))
-                .then_some(value)
+            .then_some(value)
         }))?;
     }
     result.try_set_command("SELECT")?;

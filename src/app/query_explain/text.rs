@@ -1,5 +1,5 @@
-use crate::app::CassieError;
 use super::allocation::PlanAllocation;
+use crate::app::CassieError;
 use crate::sql::ast::{CteQuery, Expr, SelectItem};
 
 use super::super::{vector_prefilter_fallback_reason, vector_prefilter_supported, Cassie};
@@ -24,11 +24,15 @@ pub(super) fn plan_line(
     allocation.join(sections.iter().map(String::as_str), " ")
 }
 
-fn cte_section(physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
+fn cte_section(
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
     let recursive_ctes = allocation.join(
         physical.logical.ctes.iter().filter_map(|cte| {
             matches!(cte.query, CteQuery::Recursive { .. }).then_some(cte.name.as_str())
-        }), "|",
+        }),
+        "|",
     )?;
     allocation.format(format_args!(
         "recursive_cte={}",
@@ -40,10 +44,21 @@ fn cte_section(physical: &crate::planner::physical::PhysicalPlan, allocation: &m
     ))
 }
 
-fn read_plan_section(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
+fn read_plan_section(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
     let projection_pruning = !physical.read.projected_scan_fields.is_empty();
     let scan_fields = if projection_pruning {
-        allocation.join(physical.read.projected_scan_fields.iter().map(String::as_str), ",")?
+        allocation.join(
+            physical
+                .read
+                .projected_scan_fields
+                .iter()
+                .map(String::as_str),
+            ",",
+        )?
     } else {
         allocation.text("all")?
     };
@@ -74,8 +89,13 @@ fn read_plan_section(cassie: &Cassie, physical: &crate::planner::physical::Physi
     ))
 }
 
-fn operators_description(physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
-    if physical.operators.is_empty() { return allocation.text("Command"); }
+fn operators_description(
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
+    if physical.operators.is_empty() {
+        return allocation.text("Command");
+    }
     let mut operators = allocation.vector(physical.operators.len())?;
     for operator in &physical.operators {
         operators.push(allocation.format(format_args!("{operator:?}"))?);
@@ -91,7 +111,10 @@ fn index_feedback(physical: &crate::planner::physical::PhysicalPlan) -> &'static
     }
 }
 
-fn operator_feedback_section(physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
+fn operator_feedback_section(
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
     let feedback = &physical.operator_feedback;
     allocation.format(format_args!(
         "operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={}",
@@ -108,7 +131,10 @@ fn operator_feedback_section(physical: &crate::planner::physical::PhysicalPlan, 
     ))
 }
 
-fn adaptive_plan_section(physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
+fn adaptive_plan_section(
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
     let adaptive_plan = &physical.adaptive_plan;
     let adaptive_candidates = if adaptive_plan.candidates.is_empty() {
         allocation.text("none")?
@@ -129,7 +155,11 @@ fn adaptive_plan_section(physical: &crate::planner::physical::PhysicalPlan, allo
     ))
 }
 
-fn phase03_section(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
+fn phase03_section(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
     let diagnostics = phase03_diagnostics(cassie, physical, allocation)?;
     let encoded_execution =
         physical.read.column_batch_index.is_some() || physical.aggregate.acceleration;
@@ -169,7 +199,10 @@ fn phase03_section(cassie: &Cassie, physical: &crate::planner::physical::Physica
     ))
 }
 
-fn predicate_fields(physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
+fn predicate_fields(
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
     let mut fields = Vec::new();
     if let Some(filter) = physical.logical.filter.as_ref() {
         collect_expr_columns(filter, &mut fields, allocation)?;
@@ -177,7 +210,10 @@ fn predicate_fields(physical: &crate::planner::physical::PhysicalPlan, allocatio
     joined_fields(&mut fields, allocation)
 }
 
-fn projection_fields(physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
+fn projection_fields(
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
     let mut fields = Vec::new();
     for item in &physical.logical.projection {
         match item {
@@ -202,7 +238,11 @@ fn projection_fields(physical: &crate::planner::physical::PhysicalPlan, allocati
     joined_fields(&mut fields, allocation)
 }
 
-fn collect_expr_columns(expr: &Expr, fields: &mut Vec<String>, allocation: &mut PlanAllocation<'_>) -> Result<(), CassieError> {
+fn collect_expr_columns(
+    expr: &Expr,
+    fields: &mut Vec<String>,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<(), CassieError> {
     allocation.check()?;
     match expr {
         Expr::Column(field) => {
@@ -238,14 +278,22 @@ fn collect_expr_columns(expr: &Expr, fields: &mut Vec<String>, allocation: &mut 
     }
     Ok(())
 }
-fn joined_fields(fields: &mut Vec<String>, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
-    if fields.is_empty() { return allocation.text("none"); }
+fn joined_fields(
+    fields: &mut Vec<String>,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
+    if fields.is_empty() {
+        return allocation.text("none");
+    }
     fields.sort_unstable();
     fields.dedup();
     allocation.join(fields.iter().map(String::as_str), ",")
 }
 
-fn join_section(physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
+fn join_section(
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
     let join_keys = if physical.join.keys.is_empty() {
         allocation.text("none")?
     } else {
@@ -259,17 +307,36 @@ fn join_section(physical: &crate::planner::physical::PhysicalPlan, allocation: &
     let legality_barriers = if physical.join.legality_barriers.is_empty() {
         allocation.text("none")?
     } else {
-        allocation.join(physical.join.legality_barriers.iter().map(String::as_str), ",")?
+        allocation.join(
+            physical.join.legality_barriers.iter().map(String::as_str),
+            ",",
+        )?
     };
     let required_columns = if physical.join.properties.required_columns.is_empty() {
         allocation.text("none")?
     } else {
-        allocation.join(physical.join.properties.required_columns.iter().map(String::as_str), ",")?
+        allocation.join(
+            physical
+                .join
+                .properties
+                .required_columns
+                .iter()
+                .map(String::as_str),
+            ",",
+        )?
     };
     let required_ordering = if physical.join.properties.required_ordering.is_empty() {
         allocation.text("none")?
     } else {
-        allocation.join(physical.join.properties.required_ordering.iter().map(String::as_str), ",")?
+        allocation.join(
+            physical
+                .join
+                .properties
+                .required_ordering
+                .iter()
+                .map(String::as_str),
+            ",",
+        )?
     };
     allocation.format(format_args!(
         "join_strategy={} join_enumeration={} join_order={} join_keys={} join_sort_required={} join_fallback_reason={} join_legality_barriers={} join_required_columns={} join_required_ordering={} join_parameterized={} join_rewindable={} join_bounded={} join_memory_bound={}",
@@ -332,12 +399,18 @@ fn acceleration_section(
     ))
 }
 
-fn cost_section(physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
+fn cost_section(
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
     let estimates = &physical.estimates;
     let rejected_alternatives = if estimates.rejected_alternatives.is_empty() {
         allocation.text("none")?
     } else {
-        allocation.join(estimates.rejected_alternatives.iter().map(String::as_str), ",")?
+        allocation.join(
+            estimates.rejected_alternatives.iter().map(String::as_str),
+            ",",
+        )?
     };
     allocation.format(format_args!(
         "cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
@@ -369,8 +442,18 @@ fn vectorized_join_status<'a>(
 ) -> VectorizedJoinStatus<'a> {
     let candidate = physical.join.vectorized.candidate;
     let enabled = candidate && limits.vectorized_joins_enabled;
-    let fallback_reason = if enabled { "none" } else if candidate { "disabled" }
-        else { physical.join.vectorized.fallback_reason.as_deref().unwrap_or("none") };
+    let fallback_reason = if enabled {
+        "none"
+    } else if candidate {
+        "disabled"
+    } else {
+        physical
+            .join
+            .vectorized
+            .fallback_reason
+            .as_deref()
+            .unwrap_or("none")
+    };
     VectorizedJoinStatus {
         candidate,
         enabled,
@@ -421,14 +504,21 @@ fn prefilter_description(
     physical: &crate::planner::physical::PhysicalPlan,
     allocation: &mut PlanAllocation<'_>,
 ) -> Result<String, CassieError> {
-    let Some(filter) = physical.logical.filter.as_ref() else { return allocation.text("none"); };
+    let Some(filter) = physical.logical.filter.as_ref() else {
+        return allocation.text("none");
+    };
     if let Some(index) = physical.read.selected_index.as_deref() {
         return allocation.format(format_args!("index={index}"));
     }
-    let schema = cassie.catalog.clone_schema_with_controls(&physical.collection, allocation.controls())?;
+    let schema = cassie
+        .catalog
+        .clone_schema_with_controls(&physical.collection, allocation.controls())?;
     match schema.0.as_ref() {
         Some(schema) if vector_prefilter_supported(filter, schema) => allocation.text("row-scan"),
-        Some(schema) => allocation.format(format_args!("fallback={}", vector_prefilter_fallback_reason(filter, schema))),
+        Some(schema) => allocation.format(format_args!(
+            "fallback={}",
+            vector_prefilter_fallback_reason(filter, schema)
+        )),
         None => allocation.text("fallback=missing-schema"),
     }
 }
@@ -438,13 +528,30 @@ fn time_series_description(
     physical: &crate::planner::physical::PhysicalPlan,
     allocation: &mut PlanAllocation<'_>,
 ) -> Result<String, CassieError> {
-    let Some(name) = physical.read.selected_index.as_deref() else { return allocation.text("none"); };
-    cassie.catalog.with_index_metadata(&physical.collection, name, |index| {
-        let Some(index) = index.filter(|index| index.kind == crate::catalog::IndexKind::TimeSeries) else { return allocation.text("none"); };
-        let bucket = index.options.get("bucket_width").map_or("none", String::as_str);
-        let partition = index.options.get("partition_by").map_or("none", String::as_str);
-        allocation.format(format_args!("bucket_width:{bucket},partition_by:{partition},range_filter:{}", physical.logical.filter.is_some()))
-    })
+    let Some(name) = physical.read.selected_index.as_deref() else {
+        return allocation.text("none");
+    };
+    cassie
+        .catalog
+        .with_index_metadata(&physical.collection, name, |index| {
+            let Some(index) =
+                index.filter(|index| index.kind == crate::catalog::IndexKind::TimeSeries)
+            else {
+                return allocation.text("none");
+            };
+            let bucket = index
+                .options
+                .get("bucket_width")
+                .map_or("none", String::as_str);
+            let partition = index
+                .options
+                .get("partition_by")
+                .map_or("none", String::as_str);
+            allocation.format(format_args!(
+                "bucket_width:{bucket},partition_by:{partition},range_filter:{}",
+                physical.logical.filter.is_some()
+            ))
+        })
 }
 
 fn time_series_storage_description(
@@ -452,15 +559,26 @@ fn time_series_storage_description(
     physical: &crate::planner::physical::PhysicalPlan,
     allocation: &mut PlanAllocation<'_>,
 ) -> Result<String, CassieError> {
-    let Some(name) = physical.read.selected_index.as_deref() else { return allocation.text("none"); };
-    cassie.catalog.with_index_metadata(&physical.collection, name, |index| {
-        let value = match index.filter(|index| index.kind == crate::catalog::IndexKind::TimeSeries) {
-            Some(index) if time_series_bucket_width_supported(index.options.get("bucket_width").map(String::as_str)) => "bucket-native-v1",
-            Some(_) => "row-backed-fallback",
-            None => "none",
-        };
-        allocation.text(value)
-    })
+    let Some(name) = physical.read.selected_index.as_deref() else {
+        return allocation.text("none");
+    };
+    cassie
+        .catalog
+        .with_index_metadata(&physical.collection, name, |index| {
+            let value =
+                match index.filter(|index| index.kind == crate::catalog::IndexKind::TimeSeries) {
+                    Some(index)
+                        if time_series_bucket_width_supported(
+                            index.options.get("bucket_width").map(String::as_str),
+                        ) =>
+                    {
+                        "bucket-native-v1"
+                    }
+                    Some(_) => "row-backed-fallback",
+                    None => "none",
+                };
+            allocation.text(value)
+        })
 }
 
 fn time_series_bucket_width_supported(raw: Option<&str>) -> bool {
@@ -472,20 +590,40 @@ fn time_series_bucket_width_supported(raw: Option<&str>) -> bool {
     let unit = parts.next();
     amount.is_some_and(|value| value > 0)
         && parts.next().is_none()
-        && unit.is_some_and(|unit| ["minute", "minutes", "hour", "hours", "day", "days"].iter().any(|allowed| unit.eq_ignore_ascii_case(allowed)))
+        && unit.is_some_and(|unit| {
+            ["minute", "minutes", "hour", "hours", "day", "days"]
+                .iter()
+                .any(|allowed| unit.eq_ignore_ascii_case(allowed))
+        })
 }
 
-fn candidate_budget(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
+fn candidate_budget(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
     let budget = physical.top_k.limit.map(|needed| {
         let limits = cassie.runtime.limits();
-        let feedback = cassie.runtime.feedback_candidate_budget(&physical.collection).unwrap_or_default();
-        needed.max(limits.adaptive_candidate_min).max(feedback).min(limits.adaptive_candidate_max)
+        let feedback = cassie
+            .runtime
+            .feedback_candidate_budget(&physical.collection)
+            .unwrap_or_default();
+        needed
+            .max(limits.adaptive_candidate_min)
+            .max(feedback)
+            .min(limits.adaptive_candidate_max)
     });
     optional_number(budget, allocation)
 }
 
-fn optional_number(value: Option<usize>, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
-    match value { Some(value) => allocation.format(format_args!("{value}")), None => allocation.text("none") }
+fn optional_number(
+    value: Option<usize>,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
+    match value {
+        Some(value) => allocation.format(format_args!("{value}")),
+        None => allocation.text("none"),
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -540,7 +678,11 @@ fn phase03_diagnostics(
             .operators
             .iter()
             .any(|operator| matches!(operator, crate::planner::physical::Operator::VectorSearch));
-    let analytical_projection = cassie.catalog.with_analytical_projection_name(&physical.collection, |name| allocation.text(name.unwrap_or("none")))?;
+    let analytical_projection = cassie
+        .catalog
+        .with_analytical_projection_name(&physical.collection, |name| {
+            allocation.text(name.unwrap_or("none"))
+        })?;
 
     Ok(Phase03Diagnostics {
         column_native: DiagnosticFlag::from_bool(column_native),
@@ -635,17 +777,31 @@ fn has_operator(
     physical.operators.contains(target)
 }
 
-fn mixed_execution_stages(inputs: &MixedExecutionInputs, allocation: &mut PlanAllocation<'_>) -> Result<String, CassieError> {
-    let uses_search = inputs.operators.fulltext.is_enabled() || inputs.operators.vector.is_enabled();
+fn mixed_execution_stages(
+    inputs: &MixedExecutionInputs,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<String, CassieError> {
+    let uses_search =
+        inputs.operators.fulltext.is_enabled() || inputs.operators.vector.is_enabled();
     let stages = [
         (uses_search, "candidate_generation"),
         (inputs.clauses.filter.is_enabled(), "metadata_prefilter"),
         (uses_search, "exact_scoring"),
-        (inputs.operators.aggregate.is_enabled(), "analytical_grouping"),
+        (
+            inputs.operators.aggregate.is_enabled(),
+            "analytical_grouping",
+        ),
         (inputs.clauses.order.is_enabled(), "ordering"),
         (inputs.clauses.offset.is_enabled(), "offset"),
         (inputs.clauses.limit.is_enabled(), "limit"),
     ];
-    if !stages.iter().any(|(enabled, _)| *enabled) { return allocation.text("none"); }
-    allocation.join(stages.iter().filter_map(|(enabled, value)| enabled.then_some(*value)), ">")
+    if !stages.iter().any(|(enabled, _)| *enabled) {
+        return allocation.text("none");
+    }
+    allocation.join(
+        stages
+            .iter()
+            .filter_map(|(enabled, value)| enabled.then_some(*value)),
+        ">",
+    )
 }

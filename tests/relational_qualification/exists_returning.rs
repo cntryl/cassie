@@ -129,7 +129,10 @@ fn should_resolve_delete_returning_exists_against_deleted_old_row() {
 
     // Assert
     let result = result.expect("DELETE RETURNING correlates with the deleted old row");
-    assert_eq!(result.rows(), vec![vec![Value::Int64(2), Value::Bool(true)]]);
+    assert_eq!(
+        result.rows(),
+        vec![vec![Value::Int64(2), Value::Bool(true)]]
+    );
     assert_eq!(result.columns()[1].type_oid, 16);
 }
 
@@ -249,7 +252,10 @@ fn should_skip_unselected_returning_exists_branch() {
         vec![],
     );
     // Assert
-    let mut skipped_rows = skipped.expect("unselected EXISTS branch is lazy").rows().to_vec();
+    let mut skipped_rows = skipped
+        .expect("unselected EXISTS branch is lazy")
+        .rows()
+        .to_vec();
     skipped_rows.sort_by_key(|row| match row.first() {
         Some(Value::Int64(id)) => *id,
         _ => panic!("expected integer id in UPDATE RETURNING row"),

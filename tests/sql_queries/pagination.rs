@@ -133,7 +133,10 @@ fn should_enforce_checked_pagination_bounds() {
     );
 
     // Assert
-    assert_eq!(huge.expect("bounded source").rows(), Vec::<Vec<Value>>::new());
+    assert_eq!(
+        huge.expect("bounded source").rows(),
+        Vec::<Vec<Value>>::new()
+    );
     assert!(overflow
         .expect_err("overflow")
         .to_string()
@@ -434,7 +437,9 @@ fn should_admit_direct_bounds_at_the_existing_nesting_envelope() {
 
     // Assert
     assert_eq!(
-        result.expect("existing finite depth remains admitted").rows(),
+        result
+            .expect("existing finite depth remains admitted")
+            .rows(),
         Vec::<Vec<Value>>::new()
     );
 }

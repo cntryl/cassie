@@ -97,10 +97,8 @@ impl QueryResult {
                 exposure: None,
             });
         }
-        let exposure = controls.reserve_query_memory(add(
-            self.retained_bytes(),
-            Self::exposure_header_bytes(),
-        )?)?;
+        let exposure = controls
+            .reserve_query_memory(add(self.retained_bytes(), Self::exposure_header_bytes())?)?;
         controls.check_interruption()?;
         Ok(Self {
             payload: Arc::clone(&self.payload),
@@ -163,7 +161,11 @@ impl QueryResult {
     }
 
     pub(crate) fn exposure_storage_bytes(&self) -> usize {
-        if self.exposure.is_some() { Self::exposure_header_bytes() } else { 0 }
+        if self.exposure.is_some() {
+            Self::exposure_header_bytes()
+        } else {
+            0
+        }
     }
 
     pub(crate) fn shares_exposure(&self, other: &Self) -> bool {
@@ -211,7 +213,9 @@ impl QueryResultBuilder<'_> {
     /// Returns an interruption or resource error before cloning a new column.
     pub fn try_push_column(&mut self, column: &ColumnMeta) -> Result<(), CassieError> {
         self.controls.check_interruption()?;
-        let memory = self.memory.try_sibling(add(column.name.capacity(), column.data_type.capacity())?)?;
+        let memory = self
+            .memory
+            .try_sibling(add(column.name.capacity(), column.data_type.capacity())?)?;
         grow_vec(&mut self.columns, 1, &mut self.memory)?;
         self.columns.push(column.clone());
         self.memory.absorb(memory);
@@ -229,14 +233,19 @@ impl QueryResultBuilder<'_> {
         I: Iterator<Item = &'v Value> + Clone,
     {
         self.controls.check_interruption()?;
-        let (count, variable_bytes) = values.clone().try_fold((0, 0), |(count, bytes), value| {
-            self.controls.check_interruption()?;
-            Ok::<_, CassieError>((add(count, 1)?, add(bytes, value_clone_bytes(value)?)?))
-        })?;
+        let (count, variable_bytes) =
+            values.clone().try_fold((0, 0), |(count, bytes), value| {
+                self.controls.check_interruption()?;
+                Ok::<_, CassieError>((add(count, 1)?, add(bytes, value_clone_bytes(value)?)?))
+            })?;
         let variable_memory = self.memory.try_sibling(variable_bytes)?;
         grow_vec(&mut self.rows, 1, &mut self.memory)?;
         let (row, row_memory) = try_reserve_vec(count, &self.memory)?;
-        let mut pending = PendingRow { values: row, slots: row_memory, heap: variable_memory };
+        let mut pending = PendingRow {
+            values: row,
+            slots: row_memory,
+            heap: variable_memory,
+        };
         for value in values {
             self.controls.check_interruption()?;
             pending.values.push(value.clone());
@@ -258,7 +267,9 @@ impl QueryResultBuilder<'_> {
         }
         let memory = self.memory.try_sibling(command.len())?;
         let mut replacement = String::new();
-        replacement.try_reserve_exact(command.len()).map_err(allocation_error)?;
+        replacement
+            .try_reserve_exact(command.len())
+            .map_err(allocation_error)?;
         if replacement.capacity() > command.len() {
             return Err(CassieError::ResourceLimit(
                 "allocator exceeded admitted command capacity".to_owned(),

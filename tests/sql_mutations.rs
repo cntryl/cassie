@@ -72,7 +72,8 @@ mod copy_transaction_boundaries {
                 vec![],
             )
             .expect("select rows")
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -237,7 +238,8 @@ mod copy_array_text_input {
                 vec![],
             )
             .expect("read copied arrays")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
         assert_eq!(
             rows,
             vec![
@@ -299,7 +301,8 @@ mod copy_csv_null_fields {
                 vec![],
             )
             .expect("read copied rows")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
         assert_eq!(
             rows,
             vec![
@@ -453,7 +456,8 @@ mod dml_statement_atomicity {
         cassie
             .execute_sql(session, sql, vec![])
             .expect("select rows")
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -1438,7 +1442,8 @@ mod integration_sql_constraints {
                 vec![],
             )
             .expect("select rows")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
 
         // Assert
         assert!(inserted.is_ok(), "explicit NULL must satisfy the CHECKs");
@@ -2376,7 +2381,10 @@ mod integration_sql_delete {
             assert_eq!(deleted.rows().len(), 1);
             assert!(matches!(&deleted.rows()[0][0], Value::String(id) if !id.is_empty()));
             assert_eq!(deleted.rows()[0][1], Value::String("alpha".to_string()));
-            assert_eq!(selected.rows(), vec![vec![Value::String("beta".to_string())]]);
+            assert_eq!(
+                selected.rows(),
+                vec![vec![Value::String("beta".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2422,7 +2430,10 @@ mod integration_sql_delete {
 
             // Assert
             assert_eq!(deleted.columns()[0].name, "normalized");
-            assert_eq!(deleted.rows(), vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(
+                deleted.rows(),
+                vec![vec![Value::String("alpha".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2471,7 +2482,10 @@ mod integration_sql_delete {
 
             // Assert
             assert_eq!(deleted.command(), "DELETE 0");
-            assert_eq!(deleted.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(
+                deleted.rows(),
+                [] as [std::vec::Vec<cassie::types::Value>; 0]
+            );
             assert_eq!(selected.rows().len(), 1);
 
             let _ = std::fs::remove_dir_all(path);
@@ -6075,7 +6089,8 @@ mod integration_sql_transactions {
             let collected_from_a = cassie
                 .execute_sql(&session, "SELECT id FROM tx_multi_a", vec![])
                 .unwrap()
-                .rows().to_vec();
+                .rows()
+                .to_vec();
             assert_eq!(collected_from_a.len(), 1);
             let collected_from_b = cassie
                 .execute_sql(
@@ -6084,7 +6099,8 @@ mod integration_sql_transactions {
                     vec![],
                 )
                 .unwrap()
-                .rows().to_vec();
+                .rows()
+                .to_vec();
             assert_eq!(
                 collected_from_b,
                 vec![vec![Value::String("alice@example.com".into())]]
@@ -6413,7 +6429,10 @@ mod integration_sql_transactions {
                 .unwrap();
 
             // Assert
-            assert_eq!(selected.rows(), vec![vec![Value::String("beta".to_string())]]);
+            assert_eq!(
+                selected.rows(),
+                vec![vec![Value::String("beta".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -7740,7 +7759,11 @@ mod migration_ddl_sequences {
     }
 
     fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).unwrap().rows().to_vec()
+        cassie
+            .execute_sql(session, sql, vec![])
+            .unwrap()
+            .rows()
+            .to_vec()
     }
 
     fn create_sequence_default_schema(cassie: &Cassie, session: &CassieSession) {
@@ -9105,7 +9128,10 @@ mod transaction_staging {
         let child = cassie
             .execute_sql(&session, "SELECT id FROM transaction_cascade_child", vec![])
             .expect("read child after rollback");
-        assert_eq!(parent.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(
+            parent.rows(),
+            [] as [std::vec::Vec<cassie::types::Value>; 0]
+        );
         assert_eq!(child.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
@@ -9449,7 +9475,10 @@ mod unique_ddl_reservations {
                 vec![],
             )
             .expect("read rows");
-        assert_eq!(rows.rows(), vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
+        assert_eq!(
+            rows.rows(),
+            vec![vec![Value::Float64(1.0), Value::Int64(1)]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -10201,7 +10230,10 @@ mod unique_reservations {
                 vec![],
             )
             .expect("read rows");
-        assert_eq!(rows.rows(), vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
+        assert_eq!(
+            rows.rows(),
+            vec![vec![Value::Float64(1.0), Value::Int64(1)]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -10253,7 +10285,10 @@ mod unique_reservations {
                 vec![],
             )
             .expect("read rows");
-        assert_eq!(rows.rows(), vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
+        assert_eq!(
+            rows.rows(),
+            vec![vec![Value::Float64(1.0), Value::Int64(1)]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 }
@@ -10812,7 +10847,8 @@ mod foreign_key_integrity {
         cassie
             .execute_sql(session, sql, vec![])
             .unwrap_or_else(|error| panic!("{sql}: {error}"))
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -11474,7 +11510,8 @@ mod composite_unique_constraints {
                 vec![],
             )
             .expect("select ids")
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     fn int_ids(values: &[i64]) -> Vec<Vec<Value>> {
@@ -11714,7 +11751,8 @@ mod composite_unique_constraints {
         let notes = cassie
             .execute_sql(&session, "SELECT id, note FROM h ORDER BY id", vec![])
             .expect("select notes")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
 
         // Assert
         assert_eq!(
@@ -11780,7 +11818,8 @@ mod char_unique_trailing_blanks {
         let matched = cassie
             .execute_sql(&session, "SELECT id, c FROM f7 WHERE c = 'x'", vec![])
             .expect("select f7")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
 
         // Assert
         assert!(
@@ -11882,7 +11921,8 @@ mod alter_column_declared_case {
                 vec![],
             )
             .expect("select notes")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
 
         // Assert
         assert!(set_default.is_ok(), "SET DEFAULT names the column Note");

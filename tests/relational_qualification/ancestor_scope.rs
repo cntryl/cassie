@@ -144,7 +144,9 @@ fn should_preserve_nested_exists_branch_selection() {
     // Assert
     for (sql, result) in queries.iter().zip(results) {
         assert_eq!(
-            result.unwrap_or_else(|error| panic!("{sql}: {error}")).rows(),
+            result
+                .unwrap_or_else(|error| panic!("{sql}: {error}"))
+                .rows(),
             vec![
                 vec![Value::Int64(1), Value::Bool(true)],
                 vec![Value::Int64(2), Value::Bool(true)]
@@ -226,7 +228,9 @@ fn should_preserve_nested_scope_folding_boundaries() {
     // Assert
     for (sql, result) in queries.iter().zip(results) {
         assert_eq!(
-            result.unwrap_or_else(|error| panic!("{sql}: {error}")).rows(),
+            result
+                .unwrap_or_else(|error| panic!("{sql}: {error}"))
+                .rows(),
             vec![
                 vec![Value::Int64(1), Value::Bool(true)],
                 vec![Value::Int64(2), Value::Bool(true)]

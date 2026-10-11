@@ -48,4 +48,3 @@ pub(in crate::executor::execution) fn drop_index(
 
     Ok(output)
 }
-

@@ -38,7 +38,10 @@ pub fn assert_result(actual: QueryResult, boolean: bool, empty: bool) {
     }
     columns.push(column("selected", boolean));
     assert_eq!(actual.columns(), columns, "literal static descriptors");
-    assert_eq!(actual.command(), if empty { "UPDATE 0" } else { "UPDATE 2" });
+    assert_eq!(
+        actual.command(),
+        if empty { "UPDATE 0" } else { "UPDATE 2" }
+    );
     let mut actual_rows = actual.rows().to_vec();
     actual_rows.sort_by_key(|row| match row.first() {
         Some(Value::Int64(id)) => *id,

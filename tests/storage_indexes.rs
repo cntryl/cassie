@@ -109,7 +109,10 @@ mod index_publication_recovery {
                 .get_index(&collection, &index.name)
                 .expect("read published index")
                 .is_some());
-            assert_eq!(result.rows(), vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::String("alpha".to_string())]]
+            );
         });
 
         let _ = std::fs::remove_dir_all(path);
@@ -677,7 +680,11 @@ mod integration_sql_scalar_index_lexkey {
         sql: &str,
         params: Vec<Value>,
     ) -> Vec<Vec<Value>> {
-        let mut rows = cassie.execute_sql(session, sql, params).expect(sql).rows().to_vec();
+        let mut rows = cassie
+            .execute_sql(session, sql, params)
+            .expect(sql)
+            .rows()
+            .to_vec();
         rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
         rows
     }
@@ -962,7 +969,8 @@ mod integration_sql_scalar_index_lexkey {
                 if baseline.rows() != indexed.rows() {
                     divergent.push(format!(
                         "{predicate}: unindexed {:?} but indexed {:?}",
-                        baseline.rows(), indexed.rows()
+                        baseline.rows(),
+                        indexed.rows()
                     ));
                 }
             }
@@ -1039,7 +1047,8 @@ mod integration_sql_scalar_index_lexkey {
                 if baseline.rows() != indexed.rows() {
                     divergent.push(format!(
                         "{predicate}: unindexed {:?} but indexed {:?}",
-                        baseline.rows(), indexed.rows()
+                        baseline.rows(),
+                        indexed.rows()
                     ));
                 }
             }
@@ -2255,7 +2264,8 @@ mod integration_sql_scalar_indexes {
                                 vec![Value::Float64(parameter)],
                             )
                             .expect("range query with non-finite parameter")
-                            .rows().to_vec()
+                            .rows()
+                            .to_vec()
                     };
                     let full_scan = run("non_finite_param_plain");
                     let indexed = run("non_finite_param_indexed");
@@ -2357,7 +2367,8 @@ mod integration_sql_scalar_indexes {
                             vec![Value::Null],
                         )
                         .expect("range query with NULL parameter")
-                        .rows().to_vec();
+                        .rows()
+                        .to_vec();
                     results.push((format!("{table}: x {op} NULL"), rows));
                 }
             }
@@ -2408,7 +2419,8 @@ mod integration_sql_scalar_indexes {
                         vec![],
                     )
                     .expect("ordered limit query")
-                    .rows().to_vec()
+                    .rows()
+                    .to_vec()
             };
             let indexed_asc = run("order_null_keys_indexed", "ASC");
             let plain_asc = run("order_null_keys_plain", "ASC");
@@ -2474,7 +2486,8 @@ mod integration_sql_scalar_indexes {
                         vec![],
                     )
                     .expect("composite range query")
-                    .rows().to_vec();
+                    .rows()
+                    .to_vec();
                 rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
                 rows
             };
@@ -2667,7 +2680,10 @@ mod integration_sql_scalar_indexes {
                 .expect("ordered limit query after dropping NOT NULL");
 
             // Assert
-            assert_eq!(result.rows(), vec![vec![Value::Null], vec![Value::Int64(9)]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::Null], vec![Value::Int64(9)]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2713,7 +2729,10 @@ mod index_field_case {
 
         // Assert
         assert!(created.is_ok(), "CREATE INDEX on AMOUNT must succeed");
-        assert_eq!(filtered.rows(), vec![vec![Value::String("bob".to_string())]]);
+        assert_eq!(
+            filtered.rows(),
+            vec![vec![Value::String("bob".to_string())]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -6925,7 +6944,8 @@ mod scalar_index_redundant_bounds {
                 vec![],
             )
             .unwrap()
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     fn query_expression_rows(
@@ -6941,7 +6961,8 @@ mod scalar_index_redundant_bounds {
                 vec![],
             )
             .unwrap()
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -7708,7 +7729,11 @@ mod column_name_reuse_resolution {
     }
 
     fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows().to_vec()
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect(sql)
+            .rows()
+            .to_vec()
     }
 
     #[test]

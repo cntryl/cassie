@@ -2,8 +2,8 @@ pub mod aggregate;
 mod array_order;
 pub mod batch;
 mod execution;
-pub use execution::{OwnedQueryRows, QueryResultBuilder};
 pub(crate) use execution::plan_needs_statement_data;
+pub use execution::{OwnedQueryRows, QueryResultBuilder};
 
 pub(crate) fn delete_document_with_referential_actions(
     cassie: &crate::app::Cassie,

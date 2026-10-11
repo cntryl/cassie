@@ -1,7 +1,7 @@
-use crate::executor::QueryResult;
 use super::*;
 use crate::config::CassieRuntimeLimits;
 use crate::executor::ColumnMeta;
+use crate::executor::QueryResult;
 use crate::runtime::ExecutionMode;
 use crate::types::Value;
 
@@ -20,10 +20,17 @@ fn key(id: u64) -> ExecutionResultCacheKey {
 }
 
 fn result(width: usize) -> QueryResult {
-    let controls = super::super::QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), std::time::Instant::now());
+    let controls = super::super::QueryExecutionControls::from_limits(
+        &CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
     let mut builder = QueryResult::try_builder(&controls).expect("builder");
-    builder.try_push_column(&ColumnMeta::text("payload")).expect("column");
-    builder.try_push_row(&[Value::String("x".repeat(width))]).expect("row");
+    builder
+        .try_push_column(&ColumnMeta::text("payload"))
+        .expect("column");
+    builder
+        .try_push_row(&[Value::String("x".repeat(width))])
+        .expect("row");
     builder.try_set_command("SELECT 1").expect("command");
     builder.finish().expect("result")
 }
@@ -106,8 +113,13 @@ fn should_preserve_returned_result_ownership_after_cache_retirement() {
     let mut returned = runtime
         .execution_result_cache_lookup(&first)
         .expect("actual hit");
-    let controls = super::super::QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), std::time::Instant::now());
-    returned = returned.try_with_rows(&controls, &[vec![Value::String("caller mutation".into())]]).expect("admitted replacement");
+    let controls = super::super::QueryExecutionControls::from_limits(
+        &CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    returned = returned
+        .try_with_rows(&controls, &[vec![Value::String("caller mutation".into())]])
+        .expect("admitted replacement");
 
     // Act
     runtime.execution_result_cache_store(&third, result(8_192));

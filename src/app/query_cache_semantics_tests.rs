@@ -1,8 +1,8 @@
 //! Prior semantic-version plans must miss both compiled-plan cache layers.
 use super::*;
-use crate::types::Value;
 use crate::planner::physical::PhysicalPlan;
 use crate::sql::ast::{Expr, SelectItem};
+use crate::types::Value;
 
 const SQL: &str = "SELECT COALESCE(9007199254740993, 0.0) - 9007199254740992 AS value";
 
@@ -75,7 +75,8 @@ fn probe(layer: Layer) -> Evidence {
     let old_rows = cassie
         .execute_physical_statement(&session, &old, vec![], &controls)
         .expect("legacy engine path")
-        .rows().to_vec();
+        .rows()
+        .to_vec();
     match layer {
         Layer::L1 => cassie
             .runtime
@@ -108,7 +109,8 @@ fn probe(layer: Layer) -> Evidence {
     let rows = cassie
         .execute_sql(&session, SQL, vec![])
         .expect("actual cached query path")
-        .rows().to_vec();
+        .rows()
+        .to_vec();
     let (resolved, _) = cassie
         .resolve_physical_plan_with_parameter_oids(
             parsed,

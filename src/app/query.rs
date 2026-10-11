@@ -395,11 +395,16 @@ impl Cassie {
         });
         let (exec_cache_key, key_memory) = if is_select {
             match self.admitted_execution_result_cache_key(
-                session, sql_fingerprint, params, mode, controls,
+                session,
+                sql_fingerprint,
+                params,
+                mode,
+                controls,
             ) {
                 Ok((key, memory)) => (Some(key), Some(memory)),
                 Err(CassieError::ResourceLimit(_)) => {
-                    self.runtime.record_execution_result_cache_bypass("memory_budget");
+                    self.runtime
+                        .record_execution_result_cache_bypass("memory_budget");
                     (None, None)
                 }
                 Err(error) => return Err(error),
@@ -422,8 +427,11 @@ impl Cassie {
         cache_context: &QueryCacheContext,
         controls: &QueryExecutionControls,
     ) -> Result<Option<QueryResult>, CassieError> {
-        let Some(exec_cache_key) = cache_context.exec_cache_key.as_ref() else { return Ok(None); };
-        self.runtime.execution_result_cache_lookup_with_controls(exec_cache_key, controls)
+        let Some(exec_cache_key) = cache_context.exec_cache_key.as_ref() else {
+            return Ok(None);
+        };
+        self.runtime
+            .execution_result_cache_lookup_with_controls(exec_cache_key, controls)
     }
 
     pub(super) fn execution_result_cache_bypass_reason(
@@ -610,7 +618,8 @@ impl Cassie {
             .explain_statement_output_with_parameter_oids(
                 session, statement, parameters, analyze, controls,
             )?
-            .into_parts().0)
+            .into_parts()
+            .0)
     }
 
     fn explain_statement_output(
@@ -665,7 +674,9 @@ impl Cassie {
                 &before.expect("analyze snapshot"),
             )?;
             append_explain_analyze(&mut plan, &physical, &report, controls)?;
-            structured = structured.try_with_analyze_with(controls, |allocation| structured_analyze(&physical, &report, allocation))?;
+            structured = structured.try_with_analyze_with(controls, |allocation| {
+                structured_analyze(&physical, &report, allocation)
+            })?;
         }
 
         let mut result = QueryResult::try_builder(controls)?;

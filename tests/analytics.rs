@@ -979,7 +979,13 @@ mod analytical_projections {
                 .execute_sql(&session, statement, vec![])
                 .expect(statement);
         }
-        let read = |sql: &str| cassie.execute_sql(&session, sql, vec![]).expect(sql).rows().to_vec();
+        let read = |sql: &str| {
+            cassie
+                .execute_sql(&session, sql, vec![])
+                .expect(sql)
+                .rows()
+                .to_vec()
+        };
 
         // Act
         let projected = read("SELECT total, tag FROM alias_p ORDER BY tag");
@@ -2965,7 +2971,10 @@ mod column_batch_incremental_maintenance {
                         )
                         .expect("concurrent encoded read");
                     assert_eq!(result.rows().len(), 1);
-                    assert!(matches!(result.rows()[0].as_slice(), [Value::Int64(3 | 30)]));
+                    assert!(matches!(
+                        result.rows()[0].as_slice(),
+                        [Value::Int64(3 | 30)]
+                    ));
                 }
             }));
         }
@@ -3280,7 +3289,8 @@ mod column_batch_resilience {
                 vec![],
             )
             .expect("query FSST fixture")
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     fn sum_amount(fixture: &AmountFixture, table: &str) -> Result<Vec<Vec<Value>>, String> {
@@ -3371,7 +3381,10 @@ mod column_batch_resilience {
             .expect("aggregate large integers");
 
         // Assert
-        assert_eq!(result.rows(), vec![vec![Value::Int64(9_007_199_254_740_995)]]);
+        assert_eq!(
+            result.rows(),
+            vec![vec![Value::Int64(9_007_199_254_740_995)]]
+        );
         assert_eq!(cassie.metrics()["aggregate_acceleration"]["scans"], 1);
 
         let _ = std::fs::remove_dir_all(path);
@@ -6858,7 +6871,11 @@ mod projection_lifecycle {
     }
 
     fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).unwrap().rows().to_vec()
+        cassie
+            .execute_sql(session, sql, vec![])
+            .unwrap()
+            .rows()
+            .to_vec()
     }
 
     fn seed_materialized_projection_version_fixture(
@@ -8907,7 +8924,10 @@ mod projection_repair {
             .expect("repaired root");
 
         // Assert
-        assert_eq!(verification.rows()[0][0], Value::String("failed".to_string()));
+        assert_eq!(
+            verification.rows()[0][0],
+            Value::String("failed".to_string())
+        );
         assert_eq!(verification.rows()[0][5], Value::Int64(1));
         assert_eq!(plan.rows()[0][5], Value::Bool(true));
         assert_eq!(repair.rows()[0][0], Value::String("completed".to_string()));
@@ -9013,7 +9033,10 @@ mod projection_repair {
                 .unwrap();
 
             // Assert
-            assert_eq!(verification.rows()[0][0], Value::String("failed".to_string()));
+            assert_eq!(
+                verification.rows()[0][0],
+                Value::String("failed".to_string())
+            );
             assert_eq!(verification.rows()[0][4], Value::Int64(1));
             assert_eq!(verification.rows()[0][6], Value::Bool(true));
             assert_eq!(plan.rows()[0][5], Value::Bool(true));

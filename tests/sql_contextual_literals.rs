@@ -100,7 +100,10 @@ fn should_compare_jsonb_column_with_json_string_literal() {
         .expect("compare JSONB with array-shaped JSON string literal");
 
     // Assert
-    assert_eq!(result.rows(), vec![vec![Value::String("match".to_string())]]);
+    assert_eq!(
+        result.rows(),
+        vec![vec![Value::String("match".to_string())]]
+    );
     assert_eq!(reversed.rows(), result.rows());
     assert_eq!(
         inequality.rows(),
@@ -187,7 +190,10 @@ fn should_compare_jsonb_scalar_string_literals() {
         .expect("delete through JSONB equality");
 
     // Assert
-    assert_eq!(number.rows(), vec![vec![Value::String("number".to_string())]]);
+    assert_eq!(
+        number.rows(),
+        vec![vec![Value::String("number".to_string())]]
+    );
     assert_eq!(
         boolean.rows(),
         vec![vec![Value::String("boolean".to_string())]]
@@ -260,6 +266,9 @@ fn should_compare_text_with_array_shaped_string_literal() {
         inequality.rows(),
         vec![vec![Value::String("word".to_string())]]
     );
-    assert_eq!(in_list.rows(), vec![vec![Value::String("array".to_string())]]);
+    assert_eq!(
+        in_list.rows(),
+        vec![vec![Value::String("array".to_string())]]
+    );
     let _ = std::fs::remove_dir_all(path);
 }

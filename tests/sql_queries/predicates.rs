@@ -223,7 +223,10 @@ fn should_filter_rows_with_between_predicate() {
             .unwrap();
 
         // Assert
-        assert_eq!(selected.rows(), vec![vec![Value::String("beta".to_string())]]);
+        assert_eq!(
+            selected.rows(),
+            vec![vec![Value::String("beta".to_string())]]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -551,7 +554,10 @@ fn should_filter_rows_with_not_predicate() {
             .unwrap();
 
         // Assert
-        assert_eq!(selected.rows(), vec![vec![Value::String("keep".to_string())]]);
+        assert_eq!(
+            selected.rows(),
+            vec![vec![Value::String("keep".to_string())]]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -658,7 +664,10 @@ fn should_filter_rows_with_is_not_null_predicate() {
             .unwrap();
 
         // Assert
-        assert_eq!(selected.rows(), vec![vec![Value::String("beta".to_string())]]);
+        assert_eq!(
+            selected.rows(),
+            vec![vec![Value::String("beta".to_string())]]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });

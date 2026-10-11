@@ -10,11 +10,11 @@ use super::{
 };
 
 #[cfg(test)]
-#[path = "cache_state_tests.rs"]
-mod tests;
-#[cfg(test)]
 #[path = "cache_ownership_tests.rs"]
 mod ownership_tests;
+#[cfg(test)]
+#[path = "cache_state_tests.rs"]
+mod tests;
 
 #[derive(Debug, Default)]
 pub(super) struct ExecutionResultCacheState {

@@ -704,7 +704,8 @@ fn execute_vector_evidence(
     let mut expected = expected_rows.borrow_mut();
     if let Some(expected) = expected.as_ref() {
         assert_eq!(
-            result.rows(), *expected,
+            result.rows(),
+            *expected,
             "Tier 3 vector result must remain deterministic"
         );
     } else {

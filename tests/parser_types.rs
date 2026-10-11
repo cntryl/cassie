@@ -436,7 +436,8 @@ mod sql_text_utf8_offsets {
                     session,
                     &format!("SELECT name FROM utf8_names WHERE name = '{name}'"),
                 )
-                .rows().to_vec()
+                .rows()
+                .to_vec()
             });
 
             // Assert
@@ -3034,7 +3035,10 @@ mod sql_quoted_identifiers {
                 cassie.execute_sql(session, "SELECT \"A\" FROM rename_case", vec![]);
 
             // Assert
-            assert_eq!(selected.rows(), vec![vec![Value::Int64(1), Value::Int64(2)]]);
+            assert_eq!(
+                selected.rows(),
+                vec![vec![Value::Int64(1), Value::Int64(2)]]
+            );
             assert!(old_upper_name.is_err());
         });
     }
@@ -3118,7 +3122,10 @@ mod sql_quoted_identifiers {
 
             // Assert
             assert_eq!(updated.command(), "UPDATE 1");
-            assert_eq!(selected.rows(), vec![vec![Value::Int64(1), Value::Int64(3)]]);
+            assert_eq!(
+                selected.rows(),
+                vec![vec![Value::Int64(1), Value::Int64(3)]]
+            );
         });
     }
 
@@ -5507,7 +5514,11 @@ mod ddl_check_literals {
     }
 
     pub(super) fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows().to_vec()
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect(sql)
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -5823,7 +5834,8 @@ mod typed_parameter_canonicalization {
         cassie
             .execute_sql(&session, sql, vec![string(param)])
             .expect("parameterized query")
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     #[test]

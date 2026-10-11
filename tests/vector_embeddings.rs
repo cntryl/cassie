@@ -71,7 +71,10 @@ mod ann_candidate_exhaustion {
             1
         );
         drop((indexed, exact));
-        assert_eq!(cassie.metrics()["query"]["current_accounted_memory_bytes"], 0);
+        assert_eq!(
+            cassie.metrics()["query"]["current_accounted_memory_bytes"],
+            0
+        );
         drop(cassie);
         std::fs::remove_dir_all(path).expect("cleanup fixture");
     }
@@ -230,7 +233,10 @@ mod ann_candidate_exhaustion {
             );
         }
         drop((indexed, indexed_offset, exact, exact_offset));
-        assert_eq!(cassie.metrics()["query"]["current_accounted_memory_bytes"], 0);
+        assert_eq!(
+            cassie.metrics()["query"]["current_accounted_memory_bytes"],
+            0
+        );
         drop(cassie);
         std::fs::remove_dir_all(path).expect("cleanup fixture");
     }
@@ -2007,8 +2013,7 @@ mod hnsw_indexes {
         ];
         let exact = exact.expect("exact top-k should skip NULL vectors");
         let exact_rows = exact.rows();
-        let fallback = fallback
-            .expect("non-streaming exact top-k should skip NULL vectors");
+        let fallback = fallback.expect("non-streaming exact top-k should skip NULL vectors");
         let fallback_rows = fallback.rows();
         let indexed = indexed.expect("HNSW top-k should skip NULL vectors");
         let indexed_rows = indexed.rows();
@@ -6980,7 +6985,9 @@ mod vector_query_stability {
             .expect("indexed IVFFlat query");
 
         // Assert
-        let exact_ids = result_ids(&exact.rows()).into_iter().collect::<HashSet<_>>();
+        let exact_ids = result_ids(&exact.rows())
+            .into_iter()
+            .collect::<HashSet<_>>();
         let overlap = result_ids(&indexed.rows())
             .into_iter()
             .filter(|id| exact_ids.contains(id))
@@ -7406,7 +7413,8 @@ mod vector_source_column_lifecycle {
                 vec![],
             )
             .expect("read embeddings")
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     #[test]

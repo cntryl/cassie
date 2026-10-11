@@ -10,7 +10,9 @@ use crate::executor::QueryResult;
 
 use super::cache_state::{ExecutionResultCacheEntry, ExecutionResultCacheState};
 use super::owned_memory::allocation_error;
-use super::{ExecutionResultCacheKey, QueryExecutionControls, QueryMemoryReservation, RuntimeState};
+use super::{
+    ExecutionResultCacheKey, QueryExecutionControls, QueryMemoryReservation, RuntimeState,
+};
 
 impl RuntimeState {
     pub(crate) fn execution_result_cache_lookup_with_controls(
@@ -19,7 +21,10 @@ impl RuntimeState {
         controls: &QueryExecutionControls,
     ) -> Result<Option<QueryResult>, CassieError> {
         controls.check_interruption()?;
-        let mut cache = self.execution_result_cache.lock().expect("execution result cache");
+        let mut cache = self
+            .execution_result_cache
+            .lock()
+            .expect("execution result cache");
         let Some(entry) = cache.entries.get(key) else {
             drop(cache);
             self.record_execution_result_cache_miss();
@@ -36,8 +41,14 @@ impl RuntimeState {
     ///
     /// # Panics
     /// Panics if the cache lock is poisoned.
-    pub fn execution_result_cache_lookup(&self, key: &ExecutionResultCacheKey) -> Option<QueryResult> {
-        let mut cache = self.execution_result_cache.lock().expect("execution result cache");
+    pub fn execution_result_cache_lookup(
+        &self,
+        key: &ExecutionResultCacheKey,
+    ) -> Option<QueryResult> {
+        let mut cache = self
+            .execution_result_cache
+            .lock()
+            .expect("execution result cache");
         let result = cache.entries.get(key).map(|entry| entry.result.clone());
         if result.is_some() {
             touch(&mut cache.order, key);
@@ -58,7 +69,10 @@ impl RuntimeState {
     pub fn execution_result_cache_store(&self, key: &ExecutionResultCacheKey, result: QueryResult) {
         let max_entries = self.limits.execution_result_cache_max_entries;
         let max_bytes = self.limits.execution_result_cache_max_bytes;
-        if !self.limits.execution_result_cache_enabled.is_enabled() || max_entries == 0 || max_bytes == 0 {
+        if !self.limits.execution_result_cache_enabled.is_enabled()
+            || max_entries == 0
+            || max_bytes == 0
+        {
             return;
         }
         let Ok(bytes) = serialized_bytes(&result) else {
@@ -69,12 +83,18 @@ impl RuntimeState {
             self.record_execution_result_cache_bypass("oversized_entry");
             return;
         }
-        let mut cache = self.execution_result_cache.lock().expect("execution result cache");
+        let mut cache = self
+            .execution_result_cache
+            .lock()
+            .expect("execution result cache");
         if let Some(entry) = cache.entries.get_mut(key) {
             let previous_bytes = entry.bytes;
             entry.result = result;
             entry.bytes = bytes;
-            cache.bytes = cache.bytes.saturating_sub(previous_bytes).saturating_add(bytes);
+            cache.bytes = cache
+                .bytes
+                .saturating_sub(previous_bytes)
+                .saturating_add(bytes);
             touch(&mut cache.order, key);
         } else {
             let admission = result.admission();
@@ -92,13 +112,22 @@ impl RuntimeState {
             // Both owned key copies and both backing containers are admitted before cloning.
             let map_key = key.clone();
             let order_key = key.clone();
-            cache.entries.insert(map_key, ExecutionResultCacheEntry { result, bytes, key_memory });
+            cache.entries.insert(
+                map_key,
+                ExecutionResultCacheEntry {
+                    result,
+                    bytes,
+                    key_memory,
+                },
+            );
             cache.order.push_back(order_key);
             cache.bytes = cache.bytes.saturating_add(bytes);
         }
         let mut evictions = 0;
         while cache.entries.len() > max_entries || cache.bytes > max_bytes {
-            let Some(oldest) = cache.order.pop_front() else { break };
+            let Some(oldest) = cache.order.pop_front() else {
+                break;
+            };
             let removed = cache.entries.remove(&oldest);
             drop(oldest);
             if let Some(removed) = removed {
@@ -115,29 +144,65 @@ impl RuntimeState {
     /// # Panics
     /// Panics if the cache lock is poisoned.
     pub fn invalidate_execution_result_cache(&self) {
-        let mut cache = self.execution_result_cache.lock().expect("execution result cache");
+        let mut cache = self
+            .execution_result_cache
+            .lock()
+            .expect("execution result cache");
         let retired = std::mem::take(&mut *cache);
         drop(retired);
     }
 
     pub(super) fn execution_result_cache_size(&self) -> (usize, usize) {
-        let cache = self.execution_result_cache.lock().expect("execution result cache");
+        let cache = self
+            .execution_result_cache
+            .lock()
+            .expect("execution result cache");
         (cache.entries.len(), cache.bytes)
     }
 
     pub(super) fn execution_result_cache_retained_bytes(&self) -> usize {
-        let cache = self.execution_result_cache.lock().expect("execution result cache");
-        let capacity = cache.map_memory.as_ref().map_or(0, QueryMemoryReservation::bytes)
-            .saturating_add(cache.order_memory.as_ref().map_or(0, QueryMemoryReservation::bytes));
-        cache.entries.values().enumerate().fold(capacity, |bytes, (index, entry)| {
-            let unique = !cache.entries.values().take(index)
-                .any(|previous| previous.result.shares_storage(&entry.result));
-            let unique_exposure = !cache.entries.values().take(index)
-                .any(|previous| previous.result.shares_exposure(&entry.result));
-            bytes.saturating_add(entry.key_memory.bytes())
-                .saturating_add(if unique { entry.result.retained_bytes() } else { 0 })
-                .saturating_add(if unique_exposure { entry.result.exposure_storage_bytes() } else { 0 })
-        })
+        let cache = self
+            .execution_result_cache
+            .lock()
+            .expect("execution result cache");
+        let capacity = cache
+            .map_memory
+            .as_ref()
+            .map_or(0, QueryMemoryReservation::bytes)
+            .saturating_add(
+                cache
+                    .order_memory
+                    .as_ref()
+                    .map_or(0, QueryMemoryReservation::bytes),
+            );
+        cache
+            .entries
+            .values()
+            .enumerate()
+            .fold(capacity, |bytes, (index, entry)| {
+                let unique = !cache
+                    .entries
+                    .values()
+                    .take(index)
+                    .any(|previous| previous.result.shares_storage(&entry.result));
+                let unique_exposure = !cache
+                    .entries
+                    .values()
+                    .take(index)
+                    .any(|previous| previous.result.shares_exposure(&entry.result));
+                bytes
+                    .saturating_add(entry.key_memory.bytes())
+                    .saturating_add(if unique {
+                        entry.result.retained_bytes()
+                    } else {
+                        0
+                    })
+                    .saturating_add(if unique_exposure {
+                        entry.result.exposure_storage_bytes()
+                    } else {
+                        0
+                    })
+            })
     }
 }
 
@@ -149,9 +214,15 @@ fn touch(order: &mut VecDeque<ExecutionResultCacheKey>, key: &ExecutionResultCac
 }
 
 fn key_clone_bytes(key: &ExecutionResultCacheKey) -> Result<usize, CassieError> {
-    let strings = add(key.user.capacity(), key.database.as_ref().map_or(0, String::capacity))?;
+    let strings = add(
+        key.user.capacity(),
+        key.database.as_ref().map_or(0, String::capacity),
+    )?;
     key.search_path.iter().try_fold(
-        add(strings, mul(key.search_path.capacity(), size_of::<String>())?)?,
+        add(
+            strings,
+            mul(key.search_path.capacity(), size_of::<String>())?,
+        )?,
         |bytes, value| add(bytes, value.capacity()),
     )
 }
@@ -167,17 +238,24 @@ fn prepare_capacity(
     let capacity = needed.max(4).checked_next_power_of_two().ok_or_else(|| {
         CassieError::ResourceLimit("execution result cache capacity overflow".to_owned())
     })?;
-    let map_bytes = hash_table_bytes::<(ExecutionResultCacheKey, ExecutionResultCacheEntry)>(capacity)?;
+    let map_bytes =
+        hash_table_bytes::<(ExecutionResultCacheKey, ExecutionResultCacheEntry)>(capacity)?;
     let map_memory = admission.try_sibling(map_bytes)?;
-    let order_memory = admission.try_sibling(mul(capacity, size_of::<ExecutionResultCacheKey>())?)?;
+    let order_memory =
+        admission.try_sibling(mul(capacity, size_of::<ExecutionResultCacheKey>())?)?;
     let mut entries = HashMap::new();
     let mut order = VecDeque::new();
     entries.try_reserve(capacity).map_err(allocation_error)?;
-    order.try_reserve_exact(capacity).map_err(allocation_error)?;
-    if hash_table_bytes::<(ExecutionResultCacheKey, ExecutionResultCacheEntry)>(entries.capacity())? > map_bytes
+    order
+        .try_reserve_exact(capacity)
+        .map_err(allocation_error)?;
+    if hash_table_bytes::<(ExecutionResultCacheKey, ExecutionResultCacheEntry)>(entries.capacity())?
+        > map_bytes
         || order.capacity() > capacity
     {
-        return Err(CassieError::ResourceLimit("cache allocator exceeded admitted capacity".to_owned()));
+        return Err(CassieError::ResourceLimit(
+            "cache allocator exceeded admitted capacity".to_owned(),
+        ));
     }
     entries.extend(cache.entries.drain());
     order.extend(cache.order.drain(..));
@@ -195,13 +273,20 @@ fn serialized_bytes(result: &QueryResult) -> Result<usize, serde_json::Error> {
     Ok(counter.bytes)
 }
 
-struct CountingWriter { bytes: usize }
+struct CountingWriter {
+    bytes: usize,
+}
 
 impl Write for CountingWriter {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.bytes = self.bytes.checked_add(bytes.len()).ok_or_else(|| io::Error::other("cache serialized length overflow"))?;
+        self.bytes = self
+            .bytes
+            .checked_add(bytes.len())
+            .ok_or_else(|| io::Error::other("cache serialized length overflow"))?;
         Ok(bytes.len())
     }
 
-    fn flush(&mut self) -> io::Result<()> { Ok(()) }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }

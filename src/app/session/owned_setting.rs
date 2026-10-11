@@ -22,9 +22,12 @@ impl CassieSession {
         controls.check_interruption()?;
         if name.trim().eq_ignore_ascii_case("search_path") {
             let path = self.search_path.lock();
-            let bytes = path.iter().enumerate().try_fold(0, |bytes, (index, name)| {
-                add(add(bytes, name.len())?, if index == 0 { 0 } else { 2 })
-            })?;
+            let bytes = path
+                .iter()
+                .enumerate()
+                .try_fold(0, |bytes, (index, name)| {
+                    add(add(bytes, name.len())?, if index == 0 { 0 } else { 2 })
+                })?;
             let memory = controls.reserve_query_memory(add(bytes, size_of::<String>())?)?;
             let mut value = String::new();
             value.try_reserve_exact(bytes).map_err(allocation_error)?;
@@ -38,6 +41,8 @@ impl CassieSession {
         }
         let settings = self.settings.lock();
         let value = settings.get_ref(name)?;
-        Accounted::try_new(controls, add(value.len(), size_of::<String>())?, || value.to_owned())
+        Accounted::try_new(controls, add(value.len(), size_of::<String>())?, || {
+            value.to_owned()
+        })
     }
 }

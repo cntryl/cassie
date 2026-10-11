@@ -254,7 +254,9 @@ fn actual_operator_diagnostics(
     report: &ExplainAnalyzeReport,
     allocation: &mut super::query_explain::allocation::PlanAllocation<'_>,
 ) -> Result<String, super::CassieError> {
-    if physical.operators.is_empty() { return allocation.text("Command"); }
+    if physical.operators.is_empty() {
+        return allocation.text("Command");
+    }
     let mut operators = allocation.vector(physical.operators.len())?;
     for operator in &physical.operators {
         operators.push(allocation.format(format_args!(
@@ -276,15 +278,25 @@ pub(crate) fn structured_analyze(
 ) -> Result<QueryPlanAnalyze, super::CassieError> {
     let mut operator_actuals = allocation.vector(physical.operators.len().max(1))?;
     if physical.operators.is_empty() {
-        operator_actuals.push(operator_actual(allocation.text("Command")?, physical, report));
+        operator_actuals.push(operator_actual(
+            allocation.text("Command")?,
+            physical,
+            report,
+        ));
     } else {
         for operator in &physical.operators {
-            operator_actuals.push(operator_actual(allocation.format(format_args!("{operator:?}"))?, physical, report));
+            operator_actuals.push(operator_actual(
+                allocation.format(format_args!("{operator:?}"))?,
+                physical,
+                report,
+            ));
         }
     }
     Ok(QueryPlanAnalyze {
-        actual_rows: report.result.row_count(), actual_ms: report.elapsed_ms,
-        operator_actuals, diagnostics: structured_analyze_diagnostics(report),
+        actual_rows: report.result.row_count(),
+        actual_ms: report.elapsed_ms,
+        operator_actuals,
+        diagnostics: structured_analyze_diagnostics(report),
     })
 }
 
@@ -296,7 +308,8 @@ fn operator_actual(
     QueryPlanOperatorActual {
         operator,
         rows_in: physical.estimates.scan_rows,
-        rows_out: report.result.row_count(), elapsed_ms: report.elapsed_ms,
+        rows_out: report.result.row_count(),
+        elapsed_ms: report.elapsed_ms,
         storage_reads: report.deltas.runtime.storage_reads,
         storage_writes: report.deltas.runtime.storage_writes,
         temp_writes: report.deltas.runtime.temp_writes,

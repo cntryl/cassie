@@ -128,7 +128,10 @@ fn should_preserve_indexed_reads_when_qualified_order_conflicts_with_an_output_l
         .expect("counter");
 
     // Assert
-    assert_eq!(actual.expect("alias namespace and accelerator").rows(), base);
+    assert_eq!(
+        actual.expect("alias namespace and accelerator").rows(),
+        base
+    );
     assert_eq!(
         base_plan.expect("base plan").read.access_path,
         ReadAccessPath::OrderedBoundedScan

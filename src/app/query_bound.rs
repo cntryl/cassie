@@ -144,7 +144,9 @@ impl Cassie {
         let result_cache_bypass = self.execution_result_cache_bypass_reason(session, &physical);
         if let Some(reason) = result_cache_bypass {
             self.runtime.record_execution_result_cache_bypass(reason);
-        } else if let Some(mut cached) = self.try_execution_result_cache(&cache_context, controls)? {
+        } else if let Some(mut cached) =
+            self.try_execution_result_cache(&cache_context, controls)?
+        {
             if let Some(key) = cache_context.cache_key.as_ref() {
                 self.observe_query_plan_usage(key, &physical, &provenance)?;
             }

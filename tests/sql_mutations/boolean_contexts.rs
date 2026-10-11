@@ -204,7 +204,9 @@ fn should_use_declared_types_for_conflict_boolean_aliases() {
     assert!(matches!(typed_text, Err(CassieError::Planner(_))));
     assert_eq!(after_text, vec![vec![Value::Int64(10), Value::Bool(false)]]);
     assert_eq!(
-        false_boolean.expect("declared excluded Boolean FALSE").rows(),
+        false_boolean
+            .expect("declared excluded Boolean FALSE")
+            .rows(),
         Vec::<Vec<Value>>::new()
     );
     assert_eq!(

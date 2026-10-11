@@ -16,7 +16,10 @@ impl<'a> PlanAllocation<'a> {
         owner_bytes: usize,
     ) -> Result<Self, CassieError> {
         controls.check_interruption()?;
-        Ok(Self { controls, memory: controls.reserve_query_memory(owner_bytes)? })
+        Ok(Self {
+            controls,
+            memory: controls.reserve_query_memory(owner_bytes)?,
+        })
     }
 
     pub(crate) fn text(&mut self, text: &str) -> Result<String, CassieError> {
@@ -24,7 +27,11 @@ impl<'a> PlanAllocation<'a> {
     }
 
     pub(crate) fn format(&mut self, arguments: fmt::Arguments<'_>) -> Result<String, CassieError> {
-        let mut counter = CountingFormatter { controls: self.controls, bytes: 0, error: None };
+        let mut counter = CountingFormatter {
+            controls: self.controls,
+            bytes: 0,
+            error: None,
+        };
         if fmt::write(&mut counter, arguments).is_err() {
             return Err(counter.error.unwrap_or_else(format_error));
         }
@@ -40,7 +47,11 @@ impl<'a> PlanAllocation<'a> {
             self.memory.shrink_to(before);
             return Err(capacity_error());
         }
-        let mut output = CheckedFormatter { controls: self.controls, value: &mut value, error: None };
+        let mut output = CheckedFormatter {
+            controls: self.controls,
+            value: &mut value,
+            error: None,
+        };
         if fmt::write(&mut output, arguments).is_err() {
             let error = output.error.take().unwrap_or_else(format_error);
             drop(value);
@@ -105,9 +116,20 @@ impl<'a> PlanAllocation<'a> {
         for (index, value) in values.into_iter().enumerate() {
             self.controls.check_interruption()?;
             // Separators and fields share the same admitted-capacity guard.
-            let mut writer = CheckedFormatter { controls: self.controls, value: &mut output, error: None };
-            let separator_result = if index > 0 { writer.write_str(separator) } else { Ok(()) };
-            if separator_result.and_then(|()| writer.write_str(value)).is_err() {
+            let mut writer = CheckedFormatter {
+                controls: self.controls,
+                value: &mut output,
+                error: None,
+            };
+            let separator_result = if index > 0 {
+                writer.write_str(separator)
+            } else {
+                Ok(())
+            };
+            if separator_result
+                .and_then(|()| writer.write_str(value))
+                .is_err()
+            {
                 let error = writer.error.take().unwrap_or_else(format_error);
                 drop(output);
                 self.memory.shrink_to(before);
@@ -137,7 +159,9 @@ impl<'a> PlanAllocation<'a> {
         // The existing identifier helper admits at most five components before rejecting.
         // Bound its geometric text buffers, component directories and formatting copies.
         // Its existing infallible allocator internals are not replaced by this output owner.
-        let scratch = self.controls.reserve_query_memory(add(mul(raw.len(), 32)?, 1024)?)?;
+        let scratch = self
+            .controls
+            .reserve_query_memory(add(mul(raw.len(), 32)?, 1024)?)?;
         let canonical = crate::sql::ColumnIdentifierPath::reference_field_key(raw);
         let output = self.text(&canonical)?;
         drop(canonical);
@@ -145,10 +169,7 @@ impl<'a> PlanAllocation<'a> {
         Ok(output)
     }
 
-    pub(super) fn finish_retained(
-        &mut self,
-        retained_bytes: usize,
-    ) -> Result<(), CassieError> {
+    pub(super) fn finish_retained(&mut self, retained_bytes: usize) -> Result<(), CassieError> {
         self.controls.check_interruption()?;
         if retained_bytes > self.memory.bytes() {
             return Err(CassieError::ResourceLimit(
@@ -172,9 +193,19 @@ struct CountingFormatter<'a> {
 
 impl Write for CountingFormatter<'_> {
     fn write_str(&mut self, value: &str) -> fmt::Result {
-        match self.controls.check_interruption().and_then(|()| add(self.bytes, value.len())) {
-            Ok(bytes) => { self.bytes = bytes; Ok(()) }
-            Err(error) => { self.error = Some(error); Err(fmt::Error) }
+        match self
+            .controls
+            .check_interruption()
+            .and_then(|()| add(self.bytes, value.len()))
+        {
+            Ok(bytes) => {
+                self.bytes = bytes;
+                Ok(())
+            }
+            Err(error) => {
+                self.error = Some(error);
+                Err(fmt::Error)
+            }
         }
     }
 }
@@ -208,7 +239,9 @@ impl Write for CheckedFormatter<'_> {
                 return Err(fmt::Error);
             }
             let mut end = start.saturating_add(4096).min(value.len());
-            while !value.is_char_boundary(end) { end -= 1; }
+            while !value.is_char_boundary(end) {
+                end -= 1;
+            }
             self.value.push_str(&value[start..end]);
             start = end;
         }

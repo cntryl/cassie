@@ -40,7 +40,10 @@ pub(crate) fn vector_search_converted<T>(
     cassie: &Cassie,
     collection: &str,
     body: &[u8],
-    convert: impl FnOnce(RestQueryResult, &crate::runtime::QueryExecutionControls) -> Result<T, CassieError>,
+    convert: impl FnOnce(
+        RestQueryResult,
+        &crate::runtime::QueryExecutionControls,
+    ) -> Result<T, CassieError>,
 ) -> Result<T, CassieError> {
     let request: SearchRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;

@@ -126,7 +126,10 @@ pub(crate) fn execute_converted<T>(
     let request: QueryExecuteRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
     cassie.execute_sql_with_cancellation_converted(
-        session, request.sql.as_str(), Vec::new(), cancellation,
+        session,
+        request.sql.as_str(),
+        Vec::new(),
+        cancellation,
         |result, controls| {
             let result = RestQueryResult::try_from_result_with_controls(result, controls)?;
             convert(result, controls)
@@ -220,7 +223,10 @@ pub(crate) fn explain_converted<T>(
     let request: QueryExplainRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
     cassie.explain_sql_with_cancellation_converted(
-        session, request.sql.as_str(), Vec::new(), cancellation,
+        session,
+        request.sql.as_str(),
+        Vec::new(),
+        cancellation,
         |result, controls| {
             let result = RestQueryExplainResponse::try_from_output_with_controls(result, controls)?;
             convert(result, controls)
@@ -580,11 +586,13 @@ mod tests {
             );
             let mut builder = QueryResult::try_builder(&controls).expect("result builder");
             for _ in 0..row_count {
-                builder.try_push_row(&vec![Value::Int64(1); column_count]).expect("row");
+                builder
+                    .try_push_row(&vec![Value::Int64(1); column_count])
+                    .expect("row");
             }
             builder.try_set_command("SELECT").expect("command");
             RestQueryResult::try_from(builder.finish().expect("managed result"))
-            .expect("finite output")
+                .expect("finite output")
         });
 
         // Assert

@@ -2444,7 +2444,11 @@ mod scored_field_case {
     }
 
     fn scores(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows().to_vec()
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect(sql)
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -2664,7 +2668,8 @@ mod scored_read_equivalence {
                         let columns = sql(cassie, session, &query("search_columns"));
                         // Assert
                         assert_eq!(
-                            columns.rows(), baseline.rows(),
+                            columns.rows(),
+                            baseline.rows(),
                             "{predicate}: indexed={indexed}, transactional={transactional}"
                         );
                     }
@@ -2730,7 +2735,8 @@ mod fulltext_analyzer_consistency {
         cassie
             .execute_sql(&session, sql, params)
             .expect("statement should execute")
-            .rows().to_vec()
+            .rows()
+            .to_vec()
     }
 
     fn scored_ids(rows: &[Vec<Value>]) -> Vec<(String, f64)> {

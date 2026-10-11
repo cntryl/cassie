@@ -347,7 +347,10 @@ fn should_preserve_inner_scope_for_exists_output() {
     ]
     .map(|(id, present)| vec![Value::Int64(id), Value::Bool(present)]);
     for result in nested {
-        assert_eq!(result.expect("selected correlated wrapper").rows(), expected);
+        assert_eq!(
+            result.expect("selected correlated wrapper").rows(),
+            expected
+        );
     }
 }
 

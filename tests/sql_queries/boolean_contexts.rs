@@ -320,7 +320,9 @@ fn should_share_canonical_boolean_input_across_sql_adapters() {
         );
         assert_eq!(cast.columns()[0].type_oid, 16);
         assert_eq!(
-            selected.expect("supported Boolean predicate spelling").rows(),
+            selected
+                .expect("supported Boolean predicate spelling")
+                .rows(),
             if expected {
                 vec![vec![Value::Int64(1)]]
             } else {

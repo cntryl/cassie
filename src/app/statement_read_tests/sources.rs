@@ -471,13 +471,15 @@ fn should_capture_nested_data_before_table_free_query_execution() {
                 .cassie
                 .execute_sql(&reader, sql, vec![])
                 .expect("captured nested Data")
-                .rows().to_vec();
+                .rows()
+                .to_vec();
             drop(hook);
             let fresh = fixture
                 .cassie
                 .execute_sql(&reader, sql, vec![])
                 .expect("fresh nested Data")
-                .rows().to_vec();
+                .rows()
+                .to_vec();
             (captured, fresh, fired.load(Ordering::SeqCst), set)
         })
         .collect::<Vec<_>>();

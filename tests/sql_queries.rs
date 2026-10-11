@@ -3184,7 +3184,11 @@ mod own_qualified_references {
     }
 
     fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows().to_vec()
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect(sql)
+            .rows()
+            .to_vec()
     }
 
     fn two_rows(label: &str) -> (Cassie, CassieSession, String) {
@@ -5451,7 +5455,10 @@ mod integration_sql_read_path_depth {
             let after = cassie.metrics();
 
             // Assert
-            assert_eq!(result.rows(), vec![vec![Value::String("inside".to_string())]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::String("inside".to_string())]]
+            );
             let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
@@ -6920,7 +6927,10 @@ mod integration_sql_sets {
                 .unwrap();
 
             // Assert
-            assert_eq!(selected.rows(), vec![vec![Value::String("beta".to_string())]]);
+            assert_eq!(
+                selected.rows(),
+                vec![vec![Value::String("beta".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -8535,7 +8545,10 @@ mod scalar_functions {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.rows(), vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::String("alpha".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -8770,7 +8783,10 @@ mod scalar_functions {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.rows(), vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::String("alpha".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -9571,7 +9587,10 @@ mod sql_semantic_regressions {
             .expect("compare uuid to text literal");
 
         // Assert
-        assert_eq!(result.rows(), vec![vec![Value::String("row-1".to_string())]]);
+        assert_eq!(
+            result.rows(),
+            vec![vec![Value::String("row-1".to_string())]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -9630,7 +9649,10 @@ mod sql_semantic_regressions {
             .expect("compare bytea to text literal");
 
         // Assert
-        assert_eq!(result.rows(), vec![vec![Value::String("row-1".to_string())]]);
+        assert_eq!(
+            result.rows(),
+            vec![vec![Value::String("row-1".to_string())]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -9898,7 +9920,10 @@ mod window_frames {
 
         // Assert
         assert_eq!(empty.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
-        assert_eq!(single.rows(), vec![vec![Value::Int64(99), Value::Int64(99)]]);
+        assert_eq!(
+            single.rows(),
+            vec![vec![Value::Int64(99), Value::Int64(99)]]
+        );
     }
 
     #[test]
@@ -10176,7 +10201,10 @@ mod sql_typed_literal_predicates {
             .expect("execute UUID IN predicate");
 
         // Assert
-        assert_eq!(result.rows(), vec![vec![Value::String("row-2".to_string())]]);
+        assert_eq!(
+            result.rows(),
+            vec![vec![Value::String("row-2".to_string())]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -10235,7 +10263,10 @@ mod sql_typed_literal_predicates {
             .expect("execute UUID BETWEEN predicate");
 
         // Assert
-        assert_eq!(result.rows(), vec![vec![Value::String("inside".to_string())]]);
+        assert_eq!(
+            result.rows(),
+            vec![vec![Value::String("inside".to_string())]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -10305,7 +10336,10 @@ mod sql_typed_literal_predicates {
             .expect("execute BYTEA IN predicate");
 
         // Assert
-        assert_eq!(result.rows(), vec![vec![Value::String("row-2".to_string())]]);
+        assert_eq!(
+            result.rows(),
+            vec![vec![Value::String("row-2".to_string())]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -10364,7 +10398,10 @@ mod sql_typed_literal_predicates {
             .expect("execute BYTEA BETWEEN predicate");
 
         // Assert
-        assert_eq!(result.rows(), vec![vec![Value::String("inside".to_string())]]);
+        assert_eq!(
+            result.rows(),
+            vec![vec![Value::String("inside".to_string())]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -10555,7 +10592,8 @@ mod type_cast_promotion_evidence {
                 cassie
                     .execute_sql(&session, &format!("SELECT {expr}"), vec![])
                     .unwrap_or_else(|error| panic!("{expr} should cast: {error}"))
-                    .rows().to_vec()
+                    .rows()
+                    .to_vec()
             })
             .collect::<Vec<_>>();
 
@@ -10709,19 +10747,23 @@ mod reserved_id_source_resolution {
         let expected = vec![vec![Value::String(identity.clone())]];
         assert_eq!(joined.rows(), expected, "join lost the internal identity");
         assert_eq!(
-            derived.rows(), expected,
+            derived.rows(),
+            expected,
             "derived table lost the internal identity"
         );
         assert_eq!(
-            cte.rows(), expected,
+            cte.rows(),
+            expected,
             "CTE reference lost the internal identity"
         );
         assert_eq!(
-            union.rows(), expected,
+            union.rows(),
+            expected,
             "set operation lost the internal identity"
         );
         assert_eq!(
-            inserted.rows(), expected,
+            inserted.rows(),
+            expected,
             "INSERT ... SELECT stored NULL instead of the internal identity"
         );
 
@@ -10822,7 +10864,10 @@ mod reserved_id_source_resolution {
         // A row narrower than its own column list desynchronizes the pgwire
         // RowDescription/DataRow pair, so the widths must agree.
         assert_eq!(aliased.columns().len(), 1);
-        assert_eq!(aliased.rows(), vec![vec![Value::String("alice".to_string())]]);
+        assert_eq!(
+            aliased.rows(),
+            vec![vec![Value::String("alice".to_string())]]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -11127,7 +11172,8 @@ mod reserved_id_row_identity_column {
                 vec![],
             )
             .expect("reference rows")
-            .rows().to_vec();
+            .rows()
+            .to_vec();
         expected.sort_by(|left, right| {
             let key = |row: &Vec<Value>| match (&row[0], &row[1]) {
                 (Value::Int64(score), Value::String(identity)) => (*score, identity.clone()),
@@ -11476,7 +11522,11 @@ mod identifier_case_resolution {
     }
 
     fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows().to_vec()
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect(sql)
+            .rows()
+            .to_vec()
     }
 
     fn mixed_case_scores(label: &str) -> (Cassie, CassieSession, String) {

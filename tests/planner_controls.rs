@@ -252,7 +252,10 @@ mod execution_result_cache {
             .expect("beta query");
 
         // Assert
-        assert_eq!(alpha_result.rows(), vec![vec![Value::String("alpha".into())]]);
+        assert_eq!(
+            alpha_result.rows(),
+            vec![vec![Value::String("alpha".into())]]
+        );
         assert_eq!(beta_result.rows(), vec![vec![Value::String("beta".into())]]);
         let _ = std::fs::remove_dir_all(path);
     }

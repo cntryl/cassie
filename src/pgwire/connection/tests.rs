@@ -44,9 +44,15 @@ fn should_flush_pgwire_simple_query_result_once_for_multiple_rows() {
         std::time::Instant::now(),
     );
     let mut builder = QueryResult::try_builder(&controls).expect("result builder");
-    builder.try_push_column(&ColumnMeta::from_data_type("id", &DataType::Text)).expect("column");
-    builder.try_push_row(&[Value::String("doc-1".to_string())]).expect("first row");
-    builder.try_push_row(&[Value::String("doc-2".to_string())]).expect("second row");
+    builder
+        .try_push_column(&ColumnMeta::from_data_type("id", &DataType::Text))
+        .expect("column");
+    builder
+        .try_push_row(&[Value::String("doc-1".to_string())])
+        .expect("first row");
+    builder
+        .try_push_row(&[Value::String("doc-2".to_string())])
+        .expect("second row");
     builder.try_set_command("SELECT").expect("command");
     let result = builder.finish().expect("result");
 
@@ -284,8 +290,8 @@ fn should_reject_invalid_declared_vector_text_parameter_strings() {
     ];
 
     // Act
-    let results =
-        values.map(|text| super::codecs::value_to_binary(&Value::String(text.to_string()), 100_002));
+    let results = values
+        .map(|text| super::codecs::value_to_binary(&Value::String(text.to_string()), 100_002));
 
     // Assert
     for result in results {

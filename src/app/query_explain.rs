@@ -174,20 +174,35 @@ pub(super) fn plan_line(
     physical: &crate::planner::physical::PhysicalPlan,
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<PlanText, super::CassieError> {
-    PlanText::try_build(controls, |allocation| text::plan_line(cassie, physical, allocation))
+    PlanText::try_build(controls, |allocation| {
+        text::plan_line(cassie, physical, allocation)
+    })
 }
 
 fn selected_estimated_rows(physical: &crate::planner::physical::PhysicalPlan) -> u64 {
-    if physical.read.selected_index.is_some() { physical.estimates.index_rows }
-    else { physical.estimates.scan_rows }
+    if physical.read.selected_index.is_some() {
+        physical.estimates.index_rows
+    } else {
+        physical.estimates.scan_rows
+    }
 }
 
-fn storage_mode(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> &'static str {
-    cassie.catalog.collection_storage_mode(&physical.collection).map_or("unknown", |mode| mode.as_str())
+fn storage_mode(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> &'static str {
+    cassie
+        .catalog
+        .collection_storage_mode(&physical.collection)
+        .map_or("unknown", |mode| mode.as_str())
 }
 
 fn non_empty_or_none(value: &str) -> &str {
-    if value.is_empty() { "none" } else { value }
+    if value.is_empty() {
+        "none"
+    } else {
+        value
+    }
 }
 
 fn selected_cost(physical: &crate::planner::physical::PhysicalPlan) -> u64 {
@@ -196,11 +211,18 @@ fn selected_cost(physical: &crate::planner::physical::PhysicalPlan) -> u64 {
     let feedback_selected = non_empty_or_none(&physical.operator_feedback.selected_candidate);
     if operator_feedback == "used" && selected_alternative == feedback_selected {
         physical.operator_feedback.adjusted_selected_cost
-    } else { physical.estimates.selected_cost }
+    } else {
+        physical.estimates.selected_cost
+    }
 }
 
-fn projection_freshness(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> &'static str {
-    cassie.catalog.materialized_projection_freshness(&physical.collection)
+fn projection_freshness(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> &'static str {
+    cassie
+        .catalog
+        .materialized_projection_freshness(&physical.collection)
 }
 
 fn rollup_rewrite(

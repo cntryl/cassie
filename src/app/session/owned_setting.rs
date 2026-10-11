@@ -30,7 +30,9 @@ impl CassieSession {
                 })?;
             let memory = controls.reserve_query_memory(add(bytes, size_of::<String>())?)?;
             let mut value = String::new();
-            value.try_reserve_exact(bytes).map_err(allocation_error)?;
+            value
+                .try_reserve_exact(bytes)
+                .map_err(|error| allocation_error(&error))?;
             for (index, name) in path.iter().enumerate() {
                 if index != 0 {
                     value.push_str(", ");

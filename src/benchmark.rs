@@ -105,7 +105,8 @@ impl PgwireRowCodecKernel {
     /// Encodes one row through the frame writer used by live pgwire connections.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
-        crate::pgwire::connection::benchmark_encode_data_row(self.row.clone(), &self.columns, &[])
+        let row = self.row.clone();
+        crate::pgwire::connection::benchmark_encode_data_row(&row, &self.columns, &[])
             .expect("benchmark pgwire row should encode")
     }
 }

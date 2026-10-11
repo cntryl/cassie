@@ -73,12 +73,12 @@ use writers::{
 };
 
 pub(crate) fn benchmark_encode_data_row(
-    row: Vec<crate::types::Value>,
+    row: &[crate::types::Value],
     columns: &[crate::executor::ColumnMeta],
     result_formats: &[i16],
 ) -> io::Result<Vec<u8>> {
     let mut frame = Vec::new();
-    writers::append_data_row_frame(&mut frame, &row, columns, result_formats)?;
+    writers::append_data_row_frame(&mut frame, row, columns, result_formats)?;
     Ok(frame)
 }
 

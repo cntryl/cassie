@@ -70,7 +70,7 @@ fn copy_text(text: &str, controls: &QueryExecutionControls) -> Result<String, Ca
     let mut copied = String::new();
     copied
         .try_reserve_exact(text.len())
-        .map_err(allocation_error)?;
+        .map_err(|error| allocation_error(&error))?;
     if copied.capacity() > text.len() {
         return Err(CassieError::ResourceLimit(
             "allocator exceeded admitted vector result key capacity".to_owned(),

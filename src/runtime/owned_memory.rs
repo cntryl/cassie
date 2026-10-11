@@ -14,7 +14,9 @@ pub(crate) fn try_reserve_vec<T>(
 ) -> Result<(Vec<T>, QueryMemoryReservation), CassieError> {
     let reservation = admission.try_sibling(mul(length, size_of::<T>())?)?;
     let mut values = Vec::new();
-    values.try_reserve_exact(length).map_err(allocation_error)?;
+    values
+        .try_reserve_exact(length)
+        .map_err(|error| allocation_error(&error))?;
     if values.capacity() > length && size_of::<T>() != 0 {
         return Err(CassieError::ResourceLimit(
             "allocator exceeded admitted query directory capacity".to_owned(),
@@ -46,6 +48,6 @@ pub(crate) fn grow_vec<T>(
     Ok(())
 }
 
-pub(crate) fn allocation_error(error: std::collections::TryReserveError) -> CassieError {
+pub(crate) fn allocation_error(error: &std::collections::TryReserveError) -> CassieError {
     CassieError::ResourceLimit(format!("unable to allocate admitted query result: {error}"))
 }

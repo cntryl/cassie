@@ -99,7 +99,7 @@ fn frame_buffer(capacity: usize) -> Result<Vec<u8>, CassieError> {
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(capacity)
-        .map_err(crate::runtime::owned_memory::allocation_error)?;
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
     if bytes.capacity() > capacity {
         return Err(CassieError::ResourceLimit(
             "allocator exceeded admitted pgwire frame capacity".to_owned(),

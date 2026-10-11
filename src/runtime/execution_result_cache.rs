@@ -245,10 +245,12 @@ fn prepare_capacity(
         admission.try_sibling(mul(capacity, size_of::<ExecutionResultCacheKey>())?)?;
     let mut entries = HashMap::new();
     let mut order = VecDeque::new();
-    entries.try_reserve(capacity).map_err(allocation_error)?;
+    entries
+        .try_reserve(capacity)
+        .map_err(|error| allocation_error(&error))?;
     order
         .try_reserve_exact(capacity)
-        .map_err(allocation_error)?;
+        .map_err(|error| allocation_error(&error))?;
     if hash_table_bytes::<(ExecutionResultCacheKey, ExecutionResultCacheEntry)>(entries.capacity())?
         > map_bytes
         || order.capacity() > capacity

@@ -78,7 +78,8 @@ fn copy_path(
     controls.check_interruption()?;
     let length = path.len().max(1);
     let mut copy = Vec::new();
-    copy.try_reserve_exact(length).map_err(allocation_error)?;
+    copy.try_reserve_exact(length)
+        .map_err(|error| allocation_error(&error))?;
     if copy.capacity() > length {
         return Err(CassieError::ResourceLimit(
             "allocator exceeded admitted result-cache path capacity".to_owned(),
@@ -98,7 +99,7 @@ fn copy_text(text: &str, controls: &QueryExecutionControls) -> Result<String, Ca
     controls.check_interruption()?;
     let mut copy = String::new();
     copy.try_reserve_exact(text.len())
-        .map_err(allocation_error)?;
+        .map_err(|error| allocation_error(&error))?;
     if copy.capacity() > text.len() {
         return Err(CassieError::ResourceLimit(
             "allocator exceeded admitted result-cache text capacity".to_owned(),

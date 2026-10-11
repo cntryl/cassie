@@ -243,9 +243,14 @@ with `memory_budget`. Existing serialized cache-byte limits remain distinct from
 retained-capacity accounting. Complete backing-container and old/new overlap
 ownership is required; public return does not release a live allocation's lease.
 
-This batch targets the remaining #766 current-surface acceptance using small
-local tests-first commits and one complete final ordered gate. Implementation
-and actual ownership acceptance are pending; selection alone closes nothing.
+The implementation candidate is present for the remaining #766 current-surface
+acceptance, including SQL and vector execution-result cache keys and backing
+directories. The selected [ownership contract](query-result-ownership.md) defines
+that coverage; [performance contracts](performance-contracts.md#query-memory-and-results)
+define retained-capacity and latest-query memory observations.
+Small local tests-first commits retain the implementation evidence. Actual
+ownership acceptance, the final ordered gate, independent review and guarded
+squash/readback remain pending; the candidate closes nothing.
 No SQL type, AST, persistent format, transaction-error API or permission-model
 change is selected. The pending transaction-error API and external stress
 collector decisions remain outside this batch. Keep #766 open until all selected

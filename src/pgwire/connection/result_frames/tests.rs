@@ -67,7 +67,7 @@ fn result(controls: &QueryExecutionControls, cells: &[(i64, Value)]) -> QueryRes
 }
 
 #[test]
-fn should_bound_supported_text_and_binary_cell_encodings_before_allocation() {
+fn should_bound_supported_cell_encodings_before_allocation() {
     // Arrange
     let cells = cells();
 

@@ -237,7 +237,7 @@ impl AsyncWrite for FailingWrite {
 }
 
 #[test]
-fn should_release_result_and_frame_admission_after_a_wire_write_fails() {
+fn should_release_output_admission_after_a_wire_write_fails() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());

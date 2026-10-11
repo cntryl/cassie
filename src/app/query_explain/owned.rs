@@ -202,30 +202,7 @@ fn plan_heap_bytes(data: &PlanData) -> Result<usize, CassieError> {
         mul(data.nodes.capacity(), size_of::<QueryPlanNode>())?,
     )?;
     for node in &data.nodes {
-        bytes = add(
-            bytes,
-            strings_heap([
-                &node.id,
-                &node.label,
-                &node.kind,
-                &node.detail,
-                &node.status,
-            ])?,
-        )?;
-        bytes = add(
-            bytes,
-            string_vector_heap(&node.badges, node.badges.capacity())?,
-        )?;
-        bytes = add(
-            bytes,
-            mul(node.metrics.capacity(), size_of::<super::QueryPlanMetric>())?,
-        )?;
-        for metric in &node.metrics {
-            bytes = add(bytes, strings_heap([&metric.label, &metric.value])?)?;
-            if let Some(unit) = &metric.unit {
-                bytes = add(bytes, unit.capacity())?;
-            }
-        }
+        bytes = add(bytes, node_heap_bytes(node)?)?;
     }
     bytes = add(
         bytes,
@@ -288,6 +265,31 @@ fn plan_heap_bytes(data: &PlanData) -> Result<usize, CassieError> {
             diagnostics.adaptive_candidates.capacity(),
         )?,
     )
+}
+
+fn node_heap_bytes(node: &QueryPlanNode) -> Result<usize, CassieError> {
+    let mut bytes = strings_heap([
+        &node.id,
+        &node.label,
+        &node.kind,
+        &node.detail,
+        &node.status,
+    ])?;
+    bytes = add(
+        bytes,
+        string_vector_heap(&node.badges, node.badges.capacity())?,
+    )?;
+    bytes = add(
+        bytes,
+        mul(node.metrics.capacity(), size_of::<super::QueryPlanMetric>())?,
+    )?;
+    for metric in &node.metrics {
+        bytes = add(bytes, strings_heap([&metric.label, &metric.value])?)?;
+        if let Some(unit) = &metric.unit {
+            bytes = add(bytes, unit.capacity())?;
+        }
+    }
+    Ok(bytes)
 }
 
 fn analyze_heap_bytes(data: &QueryPlanAnalyze) -> Result<usize, CassieError> {

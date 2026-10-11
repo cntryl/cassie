@@ -163,16 +163,13 @@ impl Cassie {
             return Err(CassieError::DeadlineExceeded);
         }
 
-        let feedback = self.capture_query_feedback(
-            cache_context.is_select,
-            session.database.as_deref(),
-            &session.search_path(),
+        let mut result = self.execute_bound_plan_with_feedback(
+            session,
             &physical,
-        );
-        let execution = self.execute_physical_statement(session, &physical, params, controls);
-        self.record_query_feedback(feedback, &execution);
-
-        let mut result = execution?;
+            params,
+            cache_context.is_select,
+            controls,
+        )?;
         if let Some(columns) = output_columns {
             result = result.try_with_columns(controls, &columns)?;
         }
@@ -188,6 +185,25 @@ impl Cassie {
         }
 
         Ok(result)
+    }
+
+    fn execute_bound_plan_with_feedback(
+        &self,
+        session: &CassieSession,
+        physical: &std::sync::Arc<crate::planner::physical::PhysicalPlan>,
+        params: Vec<Value>,
+        is_select: bool,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        let feedback = self.capture_query_feedback(
+            is_select,
+            session.database.as_deref(),
+            &session.search_path(),
+            physical,
+        );
+        let execution = self.execute_physical_statement(session, physical, params, controls);
+        self.record_query_feedback(feedback, &execution);
+        execution
     }
 
     fn enter_bound_statement_read(

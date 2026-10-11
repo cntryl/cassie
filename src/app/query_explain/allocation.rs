@@ -40,7 +40,7 @@ impl<'a> PlanAllocation<'a> {
         let mut value = String::new();
         if let Err(error) = value.try_reserve_exact(counter.bytes) {
             self.memory.shrink_to(before);
-            return Err(allocation_error(error));
+            return Err(allocation_error(&error));
         }
         if value.capacity() > counter.bytes {
             drop(value);
@@ -68,7 +68,7 @@ impl<'a> PlanAllocation<'a> {
         let mut values = Vec::new();
         if let Err(error) = values.try_reserve_exact(length) {
             self.memory.shrink_to(before);
-            return Err(allocation_error(error));
+            return Err(allocation_error(&error));
         }
         if values.capacity() > length && size_of::<T>() != 0 {
             drop(values);
@@ -106,7 +106,7 @@ impl<'a> PlanAllocation<'a> {
         let mut output = String::new();
         if let Err(error) = output.try_reserve_exact(length) {
             self.memory.shrink_to(before);
-            return Err(allocation_error(error));
+            return Err(allocation_error(&error));
         }
         if output.capacity() > length {
             drop(output);
@@ -249,7 +249,7 @@ impl Write for CheckedFormatter<'_> {
     }
 }
 
-fn allocation_error(error: std::collections::TryReserveError) -> CassieError {
+fn allocation_error(error: &std::collections::TryReserveError) -> CassieError {
     CassieError::ResourceLimit(format!("unable to allocate EXPLAIN output: {error}"))
 }
 

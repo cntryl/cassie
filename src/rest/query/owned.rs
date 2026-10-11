@@ -54,7 +54,10 @@ impl RestQueryResult {
     ) -> Result<Self, CassieError> {
         controls.check_interruption()?;
         let admitted = result.try_clone_for_query(controls)?;
-        Self::convert(&admitted, Some(controls))
+        let converted = Self::convert(&admitted, Some(controls));
+        drop(admitted);
+        drop(result);
+        converted
     }
 
     #[cfg(test)]
@@ -267,7 +270,9 @@ fn json_number(value: f64) -> Result<serde_json::Value, CassieError> {
 
 fn fresh_vec<T>(length: usize) -> Result<Vec<T>, CassieError> {
     let mut values = Vec::new();
-    values.try_reserve_exact(length).map_err(allocation_error)?;
+    values
+        .try_reserve_exact(length)
+        .map_err(|error| allocation_error(&error))?;
     if values.capacity() > length && size_of::<T>() != 0 {
         return Err(capacity_error());
     }
@@ -278,7 +283,7 @@ fn copy_text(text: &str, controls: Option<&QueryExecutionControls>) -> Result<St
     check(controls)?;
     let mut copy = String::new();
     copy.try_reserve_exact(text.len())
-        .map_err(allocation_error)?;
+        .map_err(|error| allocation_error(&error))?;
     if copy.capacity() > text.len() {
         return Err(capacity_error());
     }
@@ -295,7 +300,7 @@ fn copy_text(text: &str, controls: Option<&QueryExecutionControls>) -> Result<St
     Ok(copy)
 }
 
-fn allocation_error(error: std::collections::TryReserveError) -> CassieError {
+fn allocation_error(error: &std::collections::TryReserveError) -> CassieError {
     CassieError::ResourceLimit(format!("unable to allocate REST result: {error}"))
 }
 

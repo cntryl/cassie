@@ -58,7 +58,7 @@ fn try_json_response<T: QueryJson>(
         return Err(counter
             .error
             .take()
-            .unwrap_or_else(|| serialization_error(error)));
+            .unwrap_or_else(|| serialization_error(&error)));
     }
     // bytes 1.12's from_owner allocates one AtomicUsize plus the owner.
     // Include its alignment and the boxed Full/MapErr body before either allocation.
@@ -86,7 +86,7 @@ fn try_json_response<T: QueryJson>(
         return Err(writer
             .error
             .take()
-            .unwrap_or_else(|| serialization_error(error)));
+            .unwrap_or_else(|| serialization_error(&error)));
     }
     if writer.length != counter.length {
         return Err(CassieError::Execution(
@@ -162,7 +162,7 @@ impl Write for JsonWriter<'_> {
     }
 }
 
-fn serialization_error(error: serde_json::Error) -> CassieError {
+fn serialization_error(error: &serde_json::Error) -> CassieError {
     CassieError::Execution(format!("unable to encode REST query result: {error}"))
 }
 

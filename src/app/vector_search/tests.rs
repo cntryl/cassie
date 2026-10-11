@@ -92,23 +92,7 @@ fn should_enforce_cached_vector_result_controls_before_retained_copy() {
     let cassie = Cassie::new_with_data_dir_and_config(&path, CassieRuntimeConfig::default())
         .expect("ephemeral Cassie");
     let producer = cached_result_controls(usize::MAX, 1_048_576);
-    let key = super::AdmittedVectorResultKey::new(
-        cassie.catalog.version(),
-        "local",
-        "cached-controls",
-        3,
-        super::VectorSearchInput {
-            collection: "docs",
-            vector_field: "embedding",
-            query: "query",
-            metric: Some(super::DistanceMetric::L2),
-            limit: 10,
-            offset: 0,
-        },
-        super::DistanceMetric::L2,
-        &producer,
-    )
-    .expect("key admission");
+    let key = cached_result_key(&cassie, &producer);
     let lookup_key = key.key.clone();
     let expected_rows = vec![vec![Value::Int64(7)], vec![Value::Int64(8)]];
     let mut result = QueryResult::try_builder(&producer).expect("builder");
@@ -195,6 +179,29 @@ fn should_enforce_cached_vector_result_controls_before_retained_copy() {
     assert_eq!(released, [0, 0, 0]);
     assert_eq!(final_producer_bytes, original_producer_bytes);
     assert_eq!(after.vector.count, before.vector.count);
+}
+
+fn cached_result_key(
+    cassie: &Cassie,
+    producer: &QueryExecutionControls,
+) -> super::AdmittedVectorResultKey {
+    super::AdmittedVectorResultKey::new(
+        cassie.catalog.version(),
+        "local",
+        "cached-controls",
+        3,
+        super::VectorSearchInput {
+            collection: "docs",
+            vector_field: "embedding",
+            query: "query",
+            metric: Some(super::DistanceMetric::L2),
+            limit: 10,
+            offset: 0,
+        },
+        super::DistanceMetric::L2,
+        producer,
+    )
+    .expect("key admission")
 }
 
 fn cached_result_controls(max_result_rows: usize, memory_budget: usize) -> QueryExecutionControls {

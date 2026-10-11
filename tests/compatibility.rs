@@ -717,12 +717,17 @@ datasource db {
                 .batch_execute(r#"CREATE FUNCTION compat_echo(x INT) RETURNS INT AS "x""#)
                 .await
                 .expect("function creation should succeed");
+            let statement = client
+                .prepare("SELECT compat_echo($1)")
+                .await
+                .expect("function input should be described");
             let row = client
-                .query_one("SELECT compat_echo($1)", &[&"7"])
+                .query_one(&statement, &[&7_i32])
                 .await
                 .expect("function call should succeed");
 
             // Assert
+            assert_eq!(statement.params(), [tokio_postgres::types::Type::INT4]);
             let echoed: i32 = row.try_get(0).expect("function return value");
             assert_eq!(echoed, 7);
 

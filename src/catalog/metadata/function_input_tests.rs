@@ -302,3 +302,41 @@ fn should_reject_expired_function_input_lookup_without_retaining_memory() {
     assert_eq!(controls.current_query_memory_bytes(), 0);
     assert_eq!(controls.peak_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_skip_input_metadata_for_functions_without_arguments() {
+    // Arrange
+    let catalog = Catalog::new();
+    let search_path = vec!["missing_schema_".repeat(32)];
+    let scope = FunctionInputScope {
+        database: "db",
+        search_path: &search_path,
+        user: "reader",
+        enforce_database_scope: true,
+    };
+    let statements = [
+        "SELECT CAST($1 AS INT)",
+        "SELECT version(), CAST($1 AS INT)",
+    ];
+
+    // Act
+    let observations = statements.map(|sql| {
+        let statement = parse_statement(sql).expect("existing syntax");
+        let controls = controls(1_024);
+        let result = checked_parse_parameter_types_in_scope(
+            &statement,
+            &[705],
+            &catalog,
+            &controls,
+            Some(&scope),
+        )
+        .and_then(|admitted| admitted.into_vec());
+        (result, controls.current_query_memory_bytes())
+    });
+
+    // Assert
+    for (sql, (result, retained)) in statements.into_iter().zip(observations) {
+        assert_eq!(result.expect(sql), [23], "{sql}");
+        assert_eq!(retained, 0, "{sql}");
+    }
+}

@@ -21,6 +21,33 @@ The required end state uses one shared tracker for query-owned materialization: 
 
 Execution-result caching currently enforces separate entry and serialized-payload byte limits. Cache copies do not yet reserve through the shared query-memory tracker. That selected ownership obligation remains open under [#766](https://github.com/cntryl/cassie/issues/766), alongside the final resource qualification in [#849](https://github.com/cntryl/cassie/issues/849). Replacement, eviction and independent-result tests establish the configured cache bounds; they do not establish shared-tracker coverage or release of backing container capacity.
 
+On 2026-10-11 the user selected the A+O
+[Query Result Ownership](query-result-ownership.md) contract for the next #766
+batch. Implementation is pending. Immutable shared QueryResult, REST and EXPLAIN
+payloads and owned transfers retain narrow memory reservations through final
+owner drop, including encoded HTTP frame buffers. They retain no full query
+controls, statement-read snapshots, cancellation, request or session scopes.
+
+Physical payload/key/container allocations remain charged to their producing
+query's tracker while retained. Each different requesting query separately
+admits the exposed result footprint before a hit; its new conversion/encoding
+buffers charge its active admitted tracker, never an unrelated cache producer.
+Same-query aliases share admission. Account actual backing capacity and old/new
+overlap before allocation; clear does not release retained map/deque capacity.
+Required construction, conversion, encoding or hit admission returns `54000`
+before denied allocation or partial success output. Optional SQL cache insertion
+may skip before extra allocation with `memory_budget` bypass, preserving the
+valid admitted query result. Failed admission records no successful hit.
+
+Preserve the existing serialized-payload byte setting and `bytes` observation.
+The selected `execution_result_cache.accounted_retained_bytes` observation owns
+retained capacity separately; physically shared allocations count once while
+requester exposure is a distinct query charge. Release evidence follows live
+owners, not a stale last-query snapshot. No public-return transfer exception or
+cache-wide budget is selected. #766 remains open until actual current-surface
+ownership and release acceptance is complete; #849 retains its wider final
+resource/restart qualification.
+
 `CASSIE_QUERY_MEMORY_BUDGET_BYTES` configures the per-query accounted-memory budget (default `10485760`); the unreleased temporary-spill name is not accepted. `CASSIE_MAX_RESULT_ROWS` configures the result-row cap (default `100000`). Cassie does not promise disk spilling: operators either stay within accounted memory or fail with `54000`.
 
 Execution-result caching is configured by `CASSIE_EXECUTION_RESULT_CACHE_ENABLED` (default `true`), `CASSIE_EXECUTION_RESULT_CACHE_MAX_ENTRIES` (default `64`), and `CASSIE_EXECUTION_RESULT_CACHE_MAX_BYTES` (default `67108864`). Eligibility is decided from the resolved physical plan. Active transactions, virtual catalogs, provider-backed work, session-mutating builtins (including qualified calls and calls through views), and non-immutable user functions bypass the cache. Safe keys include normalized user, database, search path, session-settings fingerprint, parameters, execution mode, schema epoch, and data epoch.

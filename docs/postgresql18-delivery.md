@@ -84,6 +84,19 @@ it does not implement the shared registry or qualify new SQL types, catalog
 publication or durable formats. Record its merged commit and existing catalog,
 database-scope and projection witnesses before consuming it as completed.
 
+That prerequisite is accepted as [PR #926](https://github.com/cntryl/cassie/pull/926),
+commit `2e7040dbce1f2235ba62ef2fbca52bee327a253c`: full ordered gate 3,845 Rust
+passes, eight focused catalog/visibility/projection/wire witnesses and all 15
+fresh hosted checks; exact merged tree verified, #925 closed. The next focused
+[#928 bundle](https://github.com/cntryl/cassie/issues/928) centralizes metadata for
+existing scalars and qualifies PostgreSQL Boolean binary reception. It changes
+no public Rust signatures, legacy durable identities or mutable catalog roots;
+#819/#833 remain open without being consumed by immutable builtin lookup.
+Full #904/#793/#791 acceptance, named uint32 wire identities, all coercions,
+new types and actual v3 upgrade round trips remain open. The independent native
+ARM canonical failure stays failed under #927; its external remedy does not
+become a circular prerequisite on unrelated static scalar primitives.
+
 Record an implementation prerequisite as `owner; completed commit; exact tests;
 passed result; remaining integration obligations` before dependent work starts.
 A closed issue without that evidence is insufficient. #793 specifies contracts;

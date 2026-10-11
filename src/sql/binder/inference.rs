@@ -842,25 +842,15 @@ pub(super) fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
 }
 
 fn scalar_data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
-    match oid {
-        16 => Some(DataType::Boolean),
-        17 => Some(DataType::Bytea),
-        20 => Some(DataType::BigInt),
-        21 => Some(DataType::SmallInt),
-        23 => Some(DataType::Int),
-        25 => Some(DataType::Text),
-        114 => Some(DataType::Json),
-        701 => Some(DataType::Float),
-        1042 => Some(DataType::Char { length: None }),
-        1043 => Some(DataType::Varchar { length: None }),
-        1082 => Some(DataType::Date),
-        1083 => Some(DataType::Time),
-        1114 => Some(DataType::Timestamp),
-        2950 => Some(DataType::Uuid),
-        oid => {
-            crate::types::schema::vector_dimensions_for_oid(i64::from(oid)).map(DataType::Vector)
-        }
+    let metadata = u32::try_from(oid)
+        .ok()
+        .and_then(crate::types::builtin::builtin_for_oid);
+    if let Some(metadata) =
+        metadata.filter(|metadata| metadata.kind != crate::types::builtin::BuiltinKind::Unknown)
+    {
+        return Some(metadata.kind.data_type());
     }
+    crate::types::schema::vector_dimensions_for_oid(i64::from(oid)).map(DataType::Vector)
 }
 
 fn preserve_alias_identity(source: &QuerySource, catalog: &Catalog, schema: &mut Schema) {

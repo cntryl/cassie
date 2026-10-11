@@ -803,6 +803,16 @@ impl ExtendedQueryError {
                 record_protocol_error: false,
             };
         }
+        if super::codecs::is_excess_binary_data(error) {
+            return Self {
+                pg_error: Box::new(PgWireError::new(
+                    PgWireSeverity::Error,
+                    "22P03",
+                    error.to_string(),
+                )),
+                record_protocol_error: false,
+            };
+        }
         if error.kind() == io::ErrorKind::Unsupported {
             return Self::unsupported(error.to_string());
         }

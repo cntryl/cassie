@@ -88,9 +88,9 @@ def main():
     if not dsn:
         parser.error("Cassie connection environment variable is missing")
     corpus = pathlib.Path(__file__).resolve().parents[2] / "tests/corpus/postgresql18"
-    paths = {name: corpus / (name + ".json") for name in ["reference", "bootstrap", "returning", "inventory"]}
-    manifest, bootstrap, returning, inventory = [json.loads(paths[name].read_text()) for name in paths]
-    cells = bootstrap + returning
+    paths = {name: corpus / (name + ".json") for name in ["reference", "bootstrap", "returning", "boolean", "inventory"]}
+    manifest, bootstrap, returning, boolean, inventory = [json.loads(paths[name].read_text()) for name in paths]
+    cells = bootstrap + returning + boolean
     required = {f"{cell['id']}:{mode}" for cell in cells for mode in cell["modes"]}
     receipt = {
         "schema": "cassie-pg18-differential.v1", "qualification": "incomplete",

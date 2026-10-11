@@ -921,12 +921,12 @@ mod scalar_index_resource_controls {
             "controlled_scalar_memory",
             &"x".repeat(4_096),
         );
-        // Bootstrap all32 rows/index once; only score0 has a deliberately oversized ID.
+        // Bootstrap all 32 rows/index once; only score 0 has a deliberately oversized ID.
         drop(session);
         drop(cassie);
 
         // Act
-        let observations = [64, 1_024].map(|memory_budget| {
+        let observations = [64, 2 * 1_024].map(|memory_budget| {
             let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
             config.limits.query_memory_budget_bytes = memory_budget;
             config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();

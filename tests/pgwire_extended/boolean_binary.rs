@@ -358,8 +358,6 @@ fn should_persist_boolean_binary_normalization_across_recovery_boundaries() {
         );
     }
     assert_eq!(wire::error_code(&stages[0][5]).as_deref(), Some("22P03"));
-    assert_eq!(
-        fixture::data_row_payloads(&stages[0][5]),
-        Vec::<Vec<u8>>::new()
-    );
+    let rejected_rows = fixture::data_row_payloads(&stages[0][5]);
+    assert_eq!(rejected_rows, Vec::<Vec<u8>>::new());
 }

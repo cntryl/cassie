@@ -208,7 +208,7 @@ selected. Original parameter occurrence/coercion gaps remain open under #904.
 | AUTH-01 | Verify current access before first execution, Describe and materialized/streaming portal resumption, with denial cleanup. |
 | AUTH-02 | Qualify current read-only CALL wrappers and reuse existing network, COPY and administrative-image boundaries. |
 | AUTH-03 | Check actual wire/REST known, unknown and throttled authentication errors and captured logs for credential canaries. |
-| AUTH-04 | Qualify opaque-session lifecycle changes through query and administrative-image entrypoints. |
+| AUTH-04 | Qualify opaque-session revoke, rotation, NOLOGIN, deletion and expiry through the actual REST query endpoint; images use existing pgwire COPY controls under AUTH-01/02/05. |
 | AUTH-05 | Reuse the current listener, credentials, transport and admission-permit cleanup matrix. |
 
 The interim Parse full gate was deliberately cancelled while full tests were

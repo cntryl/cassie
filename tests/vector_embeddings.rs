@@ -7623,6 +7623,10 @@ mod vector_write_path {
         include!("vector_embeddings/publication_orphans.rs");
     }
 
+    mod cache_publication {
+        include!("vector_embeddings/cache_publication.rs");
+    }
+
     fn new_vector_cassie(path: &str) -> Cassie {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {

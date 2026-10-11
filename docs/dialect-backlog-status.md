@@ -121,6 +121,13 @@ Follow stages 0–6 and the owner dependencies in [Delivery](postgresql18-delive
 
 Final #848 qualification includes every old owner and #904–#916. Every failed, skipped, unavailable, pending or unsupported in-scope cell remains open. #847 clients, #779 cross-path acceptance, #8 → #29 → #781 operational/release acceptance and #849 resource/restart evidence remain final obligations. Preserve external milestones and completed foundations. #791 closes last.
 
+PostgreSQL reference probes during #869 qualification added stage-2 owners
+[#922](https://github.com/cntryl/cassie/issues/922) for planning-time constant
+expression errors and [#923](https://github.com/cntryl/cassie/issues/923) for
+irrelevant EXISTS target expressions. They remain final #761/#848 obligations;
+the earlier inventory is a timestamped snapshot, not a claim that no new gaps
+can be found.
+
 ## Completed staged foundations
 
 These merged commits were read back through GitHub and verified as ancestors of baseline `769d4db8fb7e60f0a29fade73137433a20e5a817`. Test results below are the PRs' historical immutable qualification records, not reruns on this ledger head. Consume only their demonstrated slice; complete broader PostgreSQL semantics under the remaining owners.
@@ -157,6 +164,16 @@ These are immutable source witnesses, not current or inherited check results. Re
 The stage-0 corpus inventories 4,009 pending upstream entries and hashes 370 regression/isolation inputs from immutable PostgreSQL 18.6 source. Its six bootstrap SQL cases produce sixteen simple/extended text/binary cells. An owned Cassie build whose runtime source matches `769d4db8fb7e60f0a29fade73137433a20e5a817` has thirteen passing and three failing cells: missing-column SQLSTATE 42703 on PostgreSQL versus 42601 on Cassie across all three applicable protocol modes. These failures are recorded on #848; all broad inventory/path classification remains pending. The bootstrap cannot emit complete qualification or infer instance provenance from a caller-supplied revision.
 
 The confirmed missing-libpq preflight path currently exits without a structured receipt; #848 owns completion of unavailable/error accounting. Missing receipts remain unavailable, never passing cells.
+
+The RETURNING increment adds `tests/corpus/postgresql18/returning.json`: twelve
+cases and thirty-six simple/extended text/binary cells, including nine selected
+#869 cases and three planning-gap cases owned by #922/#923. Each
+mode prepares its own connections, requires successful setup and then compares
+the selected result. Fixtures create tables before BEGIN; disconnect rolls back
+their writes, and the next mode recreates the tables. Setup failures cannot
+qualify a cell. These inputs extend the six original bootstrap cases to eighteen
+cases and fifty-two cells. Execution and completion remain separate from input
+inventory; failed or unavailable cells keep qualification incomplete.
 
 No support or Production-ready promotion follows from this ledger. [Feature Support](feature-support.md), [Production Readiness](production-readiness.md), exact immutable execution receipts and current GitHub state remain authority.
 

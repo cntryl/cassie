@@ -245,7 +245,7 @@ fn should_skip_unselected_returning_exists_branch() {
     let skipped = fixture.cassie.execute_sql(
         &fixture.session,
         "UPDATE returning_atomic SET id=id RETURNING id, \
-         COALESCE(true, EXISTS(SELECT 1 FROM returning_atomic WHERE 1/0=0)) AS selected",
+         COALESCE(true, EXISTS(SELECT 1 FROM returning_atomic WHERE returning_atomic.id/0=0)) AS selected",
         vec![],
     );
     // Assert
@@ -281,7 +281,7 @@ fn should_rollback_update_when_returning_exists_errors() {
     let failed = fixture.cassie.execute_sql(
         &fixture.session,
         "UPDATE returning_atomic SET id=id+10 WHERE id=1 RETURNING id, \
-         EXISTS(SELECT 1 FROM returning_atomic i WHERE i.id=1 AND 1/0=0) AS selected",
+         EXISTS(SELECT 1 FROM returning_atomic i WHERE i.id=1 AND i.id/0=0) AS selected",
         vec![],
     );
     let after_error = fixture.cassie.execute_sql(
@@ -321,7 +321,7 @@ fn should_reject_reads_after_returning_error_until_savepoint_rollback() {
     let failed = fixture.cassie.execute_sql(
         &fixture.session,
         "UPDATE returning_savepoint SET id=11 WHERE id=1 RETURNING id, \
-         EXISTS(SELECT 1 FROM returning_savepoint WHERE id=1 AND 1/0=0) AS selected",
+         EXISTS(SELECT 1 FROM returning_savepoint WHERE id=1 AND returning_savepoint.id/0=0) AS selected",
         vec![],
     );
     let status_after_failure = fixture.session.transaction_status();
@@ -375,7 +375,7 @@ fn should_restore_prior_staged_writes_after_savepoint_rollback() {
     let failed = fixture.cassie.execute_sql(
         &fixture.session,
         "UPDATE returning_savepoint SET id=11 WHERE id=1 RETURNING id, \
-         EXISTS(SELECT 1 FROM returning_savepoint WHERE id=1 AND 1/0=0) AS selected",
+         EXISTS(SELECT 1 FROM returning_savepoint WHERE id=1 AND returning_savepoint.id/0=0) AS selected",
         vec![],
     );
     let rollback_to = fixture.cassie.execute_sql(

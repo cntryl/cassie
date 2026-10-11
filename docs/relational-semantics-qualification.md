@@ -549,6 +549,18 @@ evaluate them. Reached errors abort the command through the existing atomic
 wrapper. This selected DML phase does not change independent eager folding in
 SELECT or in the non-DML phases recorded above.
 
+The PostgreSQL 18.6 reference distinguishes runtime laziness from planning-time
+constant evaluation. A dynamically dead CASE containing constant `1/0`, or
+zero-row `UPDATE ... RETURNING 1/0`, can fail with SQLSTATE `22012` during
+planning. The corresponding row-dependent divisions stay unevaluated. The
+runtime witnesses now use qualified row-dependent divisions; the original
+constant-expression witnesses did not establish PostgreSQL parity. Planning
+behavior remains open in [#922](https://github.com/cntryl/cassie/issues/922),
+consistent with PostgreSQL's [expression evaluation rules](https://www.postgresql.org/docs/18/sql-expressions.html#SYNTAX-EXPRESS-EVAL).
+PostgreSQL also discards irrelevant EXISTS target expressions: division in its
+SELECT list does not establish a reached runtime error. That independent gap
+is owned by [#923](https://github.com/cntryl/cassie/issues/923).
+
 The finite witnesses are grouped as follows:
 
 - `tests/relational_qualification/exists_returning.rs` retains the original
@@ -560,10 +572,13 @@ The finite witnesses are grouped as follows:
   literal complete descriptors and typed row multisets. INSERT witnesses retain
   a prior transaction write, distinguish the pre-command subquery view from the
   new outer rows, and check a later statement and independent observers.
-  DELETE errors preserve the original rows. A two-row INSERT duplicate on a
-  non-id UNIQUE field must fail with the exact earlier constraint error before
-  a reached RETURNING division error; a distinct-value control must reach that
-  division error. Both commands leave an independent observer empty.
+  DELETE errors preserve the original rows. Same-command duplicates on a non-id
+  UNIQUE field retain their exact constraint error and leave an independent
+  observer empty. A separately seeded conflict on the first INSERT candidate
+  must precede its RETURNING error; distinct candidates must reach row-dependent
+  division in WHERE. Both commands preserve the independently observed seed.
+  This does not impose a later candidate's UNIQUE error before an earlier row's
+  RETURNING error: the PostgreSQL reference can reach RETURNING first.
 - The private `src/executor/execution/dml_returning_tests.rs` witnesses admit
   fresh copied output even when input rows already hold leases, retain actual
   linked row and ancestor owners through all public rows, and reserve public

@@ -1,0 +1,251 @@
+[
+  {
+    "id": "returning:insert-values-overlay",
+    "owner": 869,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_ri",
+      "CREATE TABLE pg18_ri(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_err",
+      "CREATE TABLE pg18_err(n BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_rt VALUES(9)",
+      "INSERT INTO pg18_ri VALUES(1)"
+    ],
+    "sql": "INSERT INTO pg18_rt VALUES(1),(2) RETURNING id, EXISTS(SELECT 1 FROM pg18_ri) AS any_inner, EXISTS(SELECT 1 FROM pg18_ri i WHERE i.id=pg18_rt.id) AS correlated, EXISTS(SELECT 1 FROM pg18_rt t WHERE t.id=pg18_rt.id) AS self_member, EXISTS(SELECT 1 FROM pg18_rt WHERE id=9) AS prior_write",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "returning:insert-select-overlay",
+    "owner": 869,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_ri",
+      "CREATE TABLE pg18_ri(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_err",
+      "CREATE TABLE pg18_err(n BIGINT)",
+      "DROP TABLE IF EXISTS pg18_prior",
+      "CREATE TABLE pg18_prior(id BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_rt VALUES(9)",
+      "INSERT INTO pg18_ri VALUES(1)",
+      "INSERT INTO pg18_prior VALUES(1),(2)"
+    ],
+    "sql": "INSERT INTO pg18_rt SELECT id FROM pg18_prior ORDER BY id RETURNING id, EXISTS(SELECT 1 FROM pg18_ri) AS any_inner, EXISTS(SELECT 1 FROM pg18_ri i WHERE i.id=pg18_rt.id) AS correlated, EXISTS(SELECT 1 FROM pg18_rt t WHERE t.id=pg18_rt.id) AS self_member, EXISTS(SELECT 1 FROM pg18_rt WHERE id=9) AS prior_write",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "returning:update-new-row",
+    "owner": 869,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_ri",
+      "CREATE TABLE pg18_ri(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_err",
+      "CREATE TABLE pg18_err(n BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_rt VALUES(1),(2)",
+      "INSERT INTO pg18_ri VALUES(1)",
+      "INSERT INTO pg18_err VALUES(0)"
+    ],
+    "sql": "UPDATE pg18_rt SET id=id+10 RETURNING id, EXISTS(SELECT 1 FROM pg18_ri) AS any_inner, EXISTS(SELECT 1 FROM pg18_ri i WHERE i.id=pg18_rt.id-10) AS correlated, EXISTS(SELECT 1 FROM pg18_rt t WHERE t.id=pg18_rt.id-10) AS self_member",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "returning:delete-old-row",
+    "owner": 869,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_ri",
+      "CREATE TABLE pg18_ri(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_err",
+      "CREATE TABLE pg18_err(n BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_rt VALUES(1),(2)",
+      "INSERT INTO pg18_ri VALUES(1)",
+      "INSERT INTO pg18_err VALUES(0)"
+    ],
+    "sql": "DELETE FROM pg18_rt RETURNING id, EXISTS(SELECT 1 FROM pg18_ri) AS any_inner, EXISTS(SELECT 1 FROM pg18_ri i WHERE i.id=pg18_rt.id) AS correlated, EXISTS(SELECT 1 FROM pg18_rt t WHERE t.id=pg18_rt.id) AS self_member",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "returning:lazy-case",
+    "owner": 869,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_ri",
+      "CREATE TABLE pg18_ri(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_err",
+      "CREATE TABLE pg18_err(n BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_rt VALUES(1),(2)",
+      "INSERT INTO pg18_ri VALUES(1)",
+      "INSERT INTO pg18_err VALUES(0)"
+    ],
+    "sql": "UPDATE pg18_rt SET id=id RETURNING id, CASE WHEN id<0 THEN EXISTS(SELECT 1 FROM pg18_err e WHERE e.n/0=0) ELSE false END AS selected",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "returning:zero-rows",
+    "owner": 869,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_ri",
+      "CREATE TABLE pg18_ri(id BIGINT)",
+      "DROP TABLE IF EXISTS pg18_err",
+      "CREATE TABLE pg18_err(n BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_rt VALUES(1),(2)",
+      "INSERT INTO pg18_ri VALUES(1)",
+      "INSERT INTO pg18_err VALUES(0)"
+    ],
+    "sql": "UPDATE pg18_rt SET id=id+10 WHERE id<0 RETURNING EXISTS(SELECT 1 FROM pg18_err e WHERE e.n/0=0) AS selected",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "returning:unique-before-error",
+    "owner": 869,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT, code BIGINT UNIQUE)",
+      "DROP TABLE IF EXISTS pg18_err",
+      "CREATE TABLE pg18_err(n BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_rt VALUES(9,7)",
+      "INSERT INTO pg18_err VALUES(0)"
+    ],
+    "sql": "INSERT INTO pg18_rt VALUES(1,7),(2,8) RETURNING EXISTS(SELECT 1 FROM pg18_err e WHERE e.n/0=0) AS selected",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "returning:same-command-unique",
+    "owner": 869,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT, code BIGINT UNIQUE)",
+      "DROP TABLE IF EXISTS pg18_err",
+      "CREATE TABLE pg18_err(n BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_err VALUES(0)"
+    ],
+    "sql": "INSERT INTO pg18_rt VALUES(1,7),(2,7) RETURNING EXISTS(SELECT 1 FROM pg18_err) AS selected",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "returning:reached-error",
+    "owner": 869,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT, code BIGINT UNIQUE)",
+      "DROP TABLE IF EXISTS pg18_err",
+      "CREATE TABLE pg18_err(n BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_rt VALUES(9,7)",
+      "INSERT INTO pg18_err VALUES(0)"
+    ],
+    "sql": "INSERT INTO pg18_rt VALUES(1,8),(2,9) RETURNING EXISTS(SELECT 1 FROM pg18_err e WHERE e.n/0=0) AS selected",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "planning:constant-dead-case",
+    "owner": 922,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_rt VALUES(1),(2)"
+    ],
+    "sql": "UPDATE pg18_rt SET id=id RETURNING id, CASE WHEN id<0 THEN 1/0 ELSE 1 END AS selected",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "planning:constant-zero-rows",
+    "owner": 922,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_rt",
+      "CREATE TABLE pg18_rt(id BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_rt VALUES(1),(2)"
+    ],
+    "sql": "UPDATE pg18_rt SET id=id+10 WHERE id<0 RETURNING 1/0 AS selected",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "planning:exists-target-elision",
+    "owner": 923,
+    "setup": [
+      "DROP TABLE IF EXISTS pg18_err",
+      "CREATE TABLE pg18_err(n BIGINT)",
+      "BEGIN",
+      "INSERT INTO pg18_err VALUES(0)"
+    ],
+    "sql": "SELECT EXISTS(SELECT e.n/e.n FROM pg18_err e) AS selected",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  }
+]

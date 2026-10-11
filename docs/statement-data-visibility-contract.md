@@ -79,6 +79,15 @@ do not execute their subqueries. A reached occurrence preserves its normal
 error. This row-reached law is distinct from the existing eager folding of
 independent occurrences in SELECT and the selected non-DML phases.
 
+This governs runtime evaluation, after binding and planning. PostgreSQL can
+reject immutable constant expressions while planning a dynamically dead CASE
+branch or a zero-row command. Its planning-time `1/0` behavior remains an open
+parity gap in [#922](https://github.com/cntryl/cassie/issues/922); it is not an
+exception to the PostgreSQL 18 delivery contract. Runtime laziness witnesses
+use row-dependent division so they do not confuse those phases. Likewise,
+PostgreSQL can discard irrelevant EXISTS target expressions; Cassie's existing
+target evaluation gap remains owned by [#923](https://github.com/cntryl/cassie/issues/923).
+
 `RETURNING` remains atomic under the existing publish-after-complete-success
 wrapper. If expression evaluation fails, the command must preserve its current
 rollback, failed-transaction and savepoint behavior and must not publish a

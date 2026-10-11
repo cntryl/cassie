@@ -14,6 +14,22 @@ from .libpq import Libpq
 from .reference import reference
 
 
+class FixtureError(RuntimeError):
+    def __init__(self, side, index, results):
+        super().__init__("corpus fixture did not complete successfully")
+        self.side = side
+        self.index = index
+        self.results = results
+
+
+def prepare(connection, cell, side):
+    for index, sql in enumerate(cell.get("setup", [])):
+        results = connection.query(sql)
+        if (len(results) != 1 or results[0]["status"] not in (1, 2)
+                or results[0]["sqlstate"] is not None):
+            raise FixtureError(side, index, results)
+
+
 def run_cells(libpq, reference_dsn, cassie_dsn, cells):
     outcomes = []
     for cell in cells:
@@ -21,6 +37,8 @@ def run_cells(libpq, reference_dsn, cassie_dsn, cells):
             identity = f"{cell['id']}:{mode}"
             try:
                 with libpq.connect(reference_dsn) as oracle, libpq.connect(cassie_dsn) as cassie:
+                    prepare(oracle, cell, "reference")
+                    prepare(cassie, cell, "cassie")
                     expected = oracle.query(cell["sql"], mode, cell.get("parameters", []))
                     actual = cassie.query(cell["sql"], mode, cell.get("parameters", []))
                 differences = []
@@ -32,6 +50,10 @@ def run_cells(libpq, reference_dsn, cassie_dsn, cells):
                 outcomes.append({"id": identity, "owner": cell["owner"],
                                  "outcome": "failed" if differences else "passed",
                                  "differences": differences, "reference": expected, "cassie": actual})
+            except FixtureError as error:
+                outcomes.append({"id": identity, "owner": cell["owner"], "outcome": "failed",
+                                 "stage": "setup", "side": error.side, "setup_index": error.index,
+                                 "results": error.results})
             except (ConnectionError, TimeoutError, NotImplementedError) as error:
                 outcomes.append({"id": identity, "owner": cell["owner"], "outcome": "unavailable",
                                  "reason": str(error)})
@@ -52,8 +74,9 @@ def main():
     if not dsn:
         parser.error("Cassie connection environment variable is missing")
     corpus = pathlib.Path(__file__).resolve().parents[2] / "tests/corpus/postgresql18"
-    paths = {name: corpus / (name + ".json") for name in ["reference", "bootstrap", "inventory"]}
-    manifest, cells, inventory = [json.loads(paths[name].read_text()) for name in paths]
+    paths = {name: corpus / (name + ".json") for name in ["reference", "bootstrap", "returning", "inventory"]}
+    manifest, bootstrap, returning, inventory = [json.loads(paths[name].read_text()) for name in paths]
+    cells = bootstrap + returning
     required = {f"{cell['id']}:{mode}" for cell in cells for mode in cell["modes"]}
     receipt = {
         "schema": "cassie-pg18-differential.v1", "qualification": "incomplete",

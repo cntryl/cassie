@@ -144,8 +144,8 @@ fn should_abort_delete_when_returning_reaches_each_exists_error() {
     let fixture = seeded();
     sql(&fixture, "INSERT INTO family_target VALUES(1),(2)");
     let expressions = [
-        "EXISTS(SELECT 1 FROM family_inner WHERE 1/0=0)",
-        "EXISTS(SELECT 1 FROM family_inner i WHERE i.id=family_target.id AND 1/0=0)",
+        "EXISTS(SELECT 1 FROM family_inner WHERE family_inner.id/0=0)",
+        "EXISTS(SELECT 1 FROM family_inner i WHERE i.id=family_target.id AND i.id/0=0)",
     ];
     for expression in expressions {
         // Act
@@ -176,10 +176,34 @@ fn should_check_fresh_insert_uniqueness_before_reached_returning_error() {
     sql(&fixture, "INSERT INTO authority_error VALUES(0)");
 
     // Act
-    let duplicate = fixture.cassie.execute_sql(
+    let same_command = fixture.cassie.execute_sql(
         &fixture.session,
         "INSERT INTO authority_target VALUES(1,7),(2,7) \
-         RETURNING EXISTS(SELECT e.n/e.n FROM authority_error e)",
+         RETURNING EXISTS(SELECT 1 FROM authority_error)",
+        vec![],
+    );
+
+    // Assert
+    assert!(
+        matches!(same_command, Err(CassieError::UniqueViolation { ref table, ref column, ref constraint })
+            if table == "postgres.public.authority_target" && column == "code" && constraint == "authority_target_code_unique"),
+        "same-command duplicates retain fresh constraint authority"
+    );
+    assert_fresh_rows(
+        &fixture,
+        "authority_target",
+        &[("id", false), ("code", false)],
+        &[],
+    );
+
+    // Arrange a conflict on the first candidate before its runtime error.
+    sql(&fixture, "INSERT INTO authority_target VALUES(9,7)");
+
+    // Act
+    let duplicate = fixture.cassie.execute_sql(
+        &fixture.session,
+        "INSERT INTO authority_target VALUES(1,7),(2,8) \
+         RETURNING EXISTS(SELECT 1 FROM authority_error e WHERE e.n/0=0)",
         vec![],
     );
 
@@ -193,14 +217,17 @@ fn should_check_fresh_insert_uniqueness_before_reached_returning_error() {
         &fixture,
         "authority_target",
         &[("id", false), ("code", false)],
-        &[],
+        &[vec![
+            cassie::types::Value::Int64(9),
+            cassie::types::Value::Int64(7),
+        ]],
     );
 
     // Distinct-value reachability control.
     let distinct = fixture.cassie.execute_sql(
         &fixture.session,
-        "INSERT INTO authority_target VALUES(1,7),(2,8) \
-         RETURNING EXISTS(SELECT e.n/e.n FROM authority_error e)",
+        "INSERT INTO authority_target VALUES(1,8),(2,9) \
+         RETURNING EXISTS(SELECT 1 FROM authority_error e WHERE e.n/0=0)",
         vec![],
     );
 
@@ -213,6 +240,9 @@ fn should_check_fresh_insert_uniqueness_before_reached_returning_error() {
         &fixture,
         "authority_target",
         &[("id", false), ("code", false)],
-        &[],
+        &[vec![
+            cassie::types::Value::Int64(9),
+            cassie::types::Value::Int64(7),
+        ]],
     );
 }

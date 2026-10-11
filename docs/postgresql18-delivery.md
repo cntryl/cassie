@@ -16,7 +16,7 @@ planning counts, not completion evidence; refresh GitHub before later claims.
 | --- | --- | --- |
 | 0 | #791–#793; #904–#916 | Scope, ownership, dependencies and bootstrap inventory/harness; retain #848 final gate. |
 | 1 | #869 → #761; #768/#769; #819/#833; #904 | RETURNING/relational acceptance, codec/mutation qualification, isolation, transactional catalogs, shared type runtime. |
-| 2 | #796, #798–#801, #803, #812–#816; #762 → #777 → #780 | Grammar/expressions/scalars; row grammar before row-subquery acceptance; catalog/client/wire foundations. |
+| 2 | #796, #798–#801, #803, #812–#816, #922/#923; #762 → #777 → #780 | Grammar/expressions/scalars; row grammar before row-subquery acceptance; catalog/client/wire foundations. |
 | 3 | #804–#811; #817/#818; #820–#822; #905–#908 | Collections, aggregation, sessions, ranges/XML/geometry/money. |
 | 4 | #823–#828, #834, #838–#841, #845/#846; #909 | Mutations/schema; constraints → table foundation → composite/domain integration. |
 | 5 | #829–#832, #835–#837, #842–#844; #910–#916 | Full PL/pgSQL and remaining SQL objects, rules, statistics, local two-phase transactions and large objects. |
@@ -45,6 +45,14 @@ their remaining acceptance obligations.
 | [#914](https://github.com/cntryl/cassie/issues/914) | Implement PostgreSQL extended statistics | #833, #842 ANALYZE implementation, #817 catalogs |
 | [#915](https://github.com/cntryl/cassie/issues/915) | Implement local two-phase transactions and recovery | #819, #833, #793 durable format record, #820 locking |
 | [#916](https://github.com/cntryl/cassie/issues/916) | Implement Midge-backed PostgreSQL large objects | #793 durable format record, #904, #819, #833, #831 privileges |
+| [#922](https://github.com/cntryl/cassie/issues/922) | Match PostgreSQL planning-time constant expression errors | Shared expression/type/coercion and function-volatility contracts; keep runtime laziness distinct |
+| [#923](https://github.com/cntryl/cassie/issues/923) | Avoid evaluating irrelevant EXISTS target expressions | Shared expression/type planning; pin target-elision contexts against PostgreSQL before implementation |
+
+The two expression-planning owners were discovered by actual PostgreSQL 18.6
+comparison while qualifying #869. They remain stage-2 runtime work and final
+integration obligations for #761/#848; they do not invalidate the finite
+RETURNING callback repair or become architectural exclusions. Its runtime
+witnesses use row-dependent errors and PostgreSQL-qualified constraint ordering.
 
 ## Existing-owner extensions and staged dependencies
 

@@ -3768,7 +3768,7 @@ mod specialized_query_controls {
 
 // Formerly tests/specialized_query_controls_retrieval.rs.
 mod specialized_query_controls_retrieval {
-    use cassie::app::{Cassie, CassieError};
+    use cassie::app::{Cassie, CassieError, CassieSession};
     use cassie::config::{
         CassieRuntimeConfig, EmbeddingsRuntimeConfig, ExecutionResultCacheEnabled,
         LocalRuntimeConfig,
@@ -3776,6 +3776,8 @@ mod specialized_query_controls_retrieval {
     use cassie::types::Value;
 
     use super::support_sql as support;
+
+    use super::support_retrieval_phase_evidence::{RetrievalPhase, RetrievalPhaseEvidence};
 
     const COLLECTION: &str = "specialized_retrieval_controls";
     const FIXTURE_ROWS: usize = 64;
@@ -3861,14 +3863,24 @@ mod specialized_query_controls_retrieval {
         }
 
         fn drop_accelerator(&self) {
-            let indexes: &[&str] = match self.case {
-                RetrievalCase::Fulltext => &["retrieval_body_fulltext"],
-                RetrievalCase::VectorHnsw => &["retrieval_embedding_hnsw"],
-                RetrievalCase::VectorIvfFlat => &["retrieval_embedding_ivf"],
-                RetrievalCase::Hybrid => &["retrieval_embedding_hnsw", "retrieval_body_fulltext"],
+            let indexes: &[(&str, RetrievalPhase)] = match self.case {
+                RetrievalCase::Fulltext => {
+                    &[("retrieval_body_fulltext", RetrievalPhase::DropFulltext)]
+                }
+                RetrievalCase::VectorHnsw => {
+                    &[("retrieval_embedding_hnsw", RetrievalPhase::DropHnsw)]
+                }
+                RetrievalCase::VectorIvfFlat => {
+                    &[("retrieval_embedding_ivf", RetrievalPhase::DropIvfFlat)]
+                }
+                RetrievalCase::Hybrid => &[
+                    ("retrieval_embedding_hnsw", RetrievalPhase::DropHnsw),
+                    ("retrieval_body_fulltext", RetrievalPhase::DropFulltext),
+                ],
                 RetrievalCase::VectorExact => &[],
             };
-            for index in indexes {
+            for (index, phase) in indexes {
+                self.path.evidence().entered(*phase);
                 self.cassie
                     .execute_sql(
                         &self.cassie.create_session("tester", None),
@@ -3876,6 +3888,7 @@ mod specialized_query_controls_retrieval {
                         vec![],
                     )
                     .expect("drop retrieval accelerator");
+                self.path.evidence().returned(*phase);
             }
         }
     }
@@ -3884,6 +3897,9 @@ mod specialized_query_controls_retrieval {
         fn drop(&mut self) {
             // Keep the restriction on moving the engine out of the fixture.
             // The engine and directory guard then drop in declaration order.
+            self.path
+                .evidence()
+                .entered(RetrievalPhase::FixtureFieldsRetirement);
         }
     }
 
@@ -3896,10 +3912,35 @@ mod specialized_query_controls_retrieval {
         memory_budget: usize,
         after_setup: impl FnOnce(&Cassie, &str),
     ) -> RetrievalFixture {
+        fixture_with_evidence(
+            case,
+            memory_budget,
+            after_setup,
+            RetrievalPhaseEvidence::default(),
+        )
+    }
+
+    fn fixture_observed(
+        case: RetrievalCase,
+        memory_budget: usize,
+        evidence: RetrievalPhaseEvidence,
+    ) -> RetrievalFixture {
+        fixture_with_evidence(case, memory_budget, |_, _| {}, evidence)
+    }
+
+    fn fixture_with_evidence(
+        case: RetrievalCase,
+        memory_budget: usize,
+        after_setup: impl FnOnce(&Cassie, &str),
+        evidence: RetrievalPhaseEvidence,
+    ) -> RetrievalFixture {
+        evidence.entered(RetrievalPhase::StorageConfiguration);
         support::use_local_storage();
         let path = support::data_dir(&format!("specialized-{}", case.label()));
         // Construct this before the engine so partial setup unwinds owner first.
-        let directory = super::support_retrieval_directory::RetrievalDirectory::new(path);
+        let mut directory = super::support_retrieval_directory::RetrievalDirectory::new(path);
+        let mut evidence = evidence.for_path(directory.path());
+        directory.set_evidence(evidence.clone());
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_memory_budget_bytes = memory_budget;
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
@@ -3908,10 +3949,21 @@ mod specialized_query_controls_retrieval {
             model: "deterministic-test".to_string(),
             dimensions: 3,
         });
+        evidence.returned(RetrievalPhase::StorageConfiguration);
+        evidence.not_applicable(RetrievalPhase::ServerTeardown);
+        evidence.entered(RetrievalPhase::EngineConstruction);
         let cassie = Cassie::new_with_data_dir_and_config(directory.path(), config)
             .expect("retrieval fixture");
+        evidence.observe_midge(&cassie.midge);
+        directory.set_evidence(evidence.clone());
+        evidence.returned(RetrievalPhase::EngineConstruction);
+        evidence.entered(RetrievalPhase::Startup);
         cassie.startup().expect("startup retrieval fixture");
+        evidence.returned(RetrievalPhase::Startup);
+        evidence.entered(RetrievalPhase::SetupSession);
         let session = cassie.create_session("tester", None);
+        evidence.returned(RetrievalPhase::SetupSession);
+        evidence.entered(RetrievalPhase::CreateTable);
         cassie
             .execute_sql(
                 &session,
@@ -3919,6 +3971,8 @@ mod specialized_query_controls_retrieval {
                 vec![],
             )
             .expect("create retrieval table");
+        evidence.returned(RetrievalPhase::CreateTable);
+        evidence.entered(RetrievalPhase::SeedRows);
         let rows = (0..FIXTURE_ROWS)
             .map(|index| {
                 let coordinate =
@@ -3940,22 +3994,41 @@ mod specialized_query_controls_retrieval {
             .midge
             .put_fresh_documents(COLLECTION, rows)
             .expect("seed exact retrieval fixture");
+        evidence.returned(RetrievalPhase::SeedRows);
+        create_retrieval_indexes(&cassie, &session, case, &evidence);
+        after_setup(&cassie, directory.path());
+        RetrievalFixture {
+            cassie,
+            path: directory,
+            case,
+        }
+    }
+
+    fn create_retrieval_indexes(
+        cassie: &Cassie,
+        session: &CassieSession,
+        case: RetrievalCase,
+        evidence: &RetrievalPhaseEvidence,
+    ) {
         if matches!(case, RetrievalCase::Fulltext | RetrievalCase::Hybrid) {
+            evidence.entered(RetrievalPhase::BuildFulltext);
             cassie
                 .execute_sql(
-                    &session,
+                    session,
                     &format!(
                     "CREATE INDEX retrieval_body_fulltext ON {COLLECTION} USING fulltext (body)"
                 ),
                     vec![],
                 )
                 .expect("create fulltext index");
+            evidence.returned(RetrievalPhase::BuildFulltext);
         }
         match case {
             RetrievalCase::VectorHnsw | RetrievalCase::Hybrid => {
+                evidence.entered(RetrievalPhase::BuildHnsw);
                 cassie
                     .execute_sql(
-                        &session,
+                        session,
                         &format!(
                             "CREATE INDEX retrieval_embedding_hnsw ON {COLLECTION} USING vector \
                      (embedding) WITH (source_field = body, metric = l2, index_type = hnsw, \
@@ -3964,11 +4037,13 @@ mod specialized_query_controls_retrieval {
                         vec![],
                     )
                     .expect("create HNSW index");
+                evidence.returned(RetrievalPhase::BuildHnsw);
             }
             RetrievalCase::VectorIvfFlat => {
+                evidence.entered(RetrievalPhase::BuildIvfFlat);
                 cassie
                     .execute_sql(
-                        &session,
+                        session,
                         &format!(
                             "CREATE INDEX retrieval_embedding_ivf ON {COLLECTION} USING vector \
                      (embedding) WITH (source_field = body, metric = l2, index_type = ivfflat, \
@@ -3977,14 +4052,9 @@ mod specialized_query_controls_retrieval {
                         vec![],
                     )
                     .expect("create IVFFlat index");
+                evidence.returned(RetrievalPhase::BuildIvfFlat);
             }
             RetrievalCase::Fulltext | RetrievalCase::VectorExact => {}
-        }
-        after_setup(&cassie, directory.path());
-        RetrievalFixture {
-            cassie,
-            path: directory,
-            case,
         }
     }
 
@@ -4231,27 +4301,71 @@ mod specialized_query_controls_retrieval {
         assert_query_cleanup(&fixture.cassie);
     }
 
-    fn run_selected_retrieval_paths() -> Vec<String> {
+    fn assert_selected_metrics(
+        case: RetrievalCase,
+        before: &serde_json::Value,
+        selected: &serde_json::Value,
+        controlled_reads: u64,
+    ) {
+        let family = case.metric_family();
+        assert_eq!(
+            metric(selected, family, "count") - metric(before, family, "count"),
+            2
+        );
+        assert_eq!(
+            metric(selected, family, "result_count_total")
+                - metric(before, family, "result_count_total"),
+            (2 * RESULT_LIMIT) as u64
+        );
+        assert!(
+            metric(selected, family, "candidate_count_total")
+                - metric(before, family, "candidate_count_total")
+                <= (2 * FIXTURE_ROWS) as u64,
+            "{} candidate bound",
+            case.label()
+        );
+        assert!(
+            controlled_reads <= 2 * case.controlled_read_bound(),
+            "{} controlled read bound: {controlled_reads}",
+            case.label()
+        );
+    }
+
+    fn run_selected_retrieval_paths(caller: &'static str) -> Vec<String> {
+        let invocation = RetrievalPhaseEvidence::new(caller);
+        invocation.entered(RetrievalPhase::ThreadLocalGuard);
         let _guard = cassie::midge::adapter::query_scan_control_test_guard();
+        invocation.returned(RetrievalPhase::ThreadLocalGuard);
         let mut paths = Vec::new();
         for case in RetrievalCase::ALL {
             // Arrange
-            let fixture = fixture(case, 4 * 1024 * 1024);
+            let fixture =
+                fixture_observed(case, 4 * 1024 * 1024, invocation.for_case(case.label()));
             paths.push(fixture.path.path().to_owned());
+            let evidence = fixture.path.evidence().clone();
+            let _query_locals = evidence.query_locals_scope();
+            evidence.entered(RetrievalPhase::ReaderCreation);
             let session = fixture.cassie.create_session("reader", None);
+            evidence.returned(RetrievalPhase::ReaderCreation);
+            evidence.entered(RetrievalPhase::QueryCreation);
             let query = fixture.query();
+            evidence.returned(RetrievalPhase::QueryCreation);
             let before = fixture.cassie.metrics();
             let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
 
             // Act
+            evidence.entered(RetrievalPhase::SelectedFirst);
             let first = fixture
                 .cassie
                 .execute_sql(&session, &query, vec![])
                 .expect("first retrieval query");
+            evidence.returned(RetrievalPhase::SelectedFirst);
+            evidence.entered(RetrievalPhase::SelectedSecond);
             let second = fixture
                 .cassie
                 .execute_sql(&session, &query, vec![])
                 .expect("second retrieval query");
+            evidence.returned(RetrievalPhase::SelectedSecond);
             let selected = fixture.cassie.metrics();
             let controlled_reads = fixture
                 .cassie
@@ -4260,32 +4374,12 @@ mod specialized_query_controls_retrieval {
                 .saturating_sub(before_reads);
 
             // Assert
+            evidence.entered(RetrievalPhase::Assertions);
             assert_eq!(first.rows, second.rows, "{} ordering", case.label());
             assert_eq!(first.rows.len(), RESULT_LIMIT);
             let ids = result_ids(&first.rows);
             assert!(ids.windows(2).all(|pair| pair[0] != pair[1]));
-            let family = case.metric_family();
-            assert_eq!(
-                metric(&selected, family, "count") - metric(&before, family, "count"),
-                2
-            );
-            assert_eq!(
-                metric(&selected, family, "result_count_total")
-                    - metric(&before, family, "result_count_total"),
-                (2 * RESULT_LIMIT) as u64
-            );
-            assert!(
-                metric(&selected, family, "candidate_count_total")
-                    - metric(&before, family, "candidate_count_total")
-                    <= (2 * FIXTURE_ROWS) as u64,
-                "{} candidate bound",
-                case.label()
-            );
-            assert!(
-                controlled_reads <= 2 * case.controlled_read_bound(),
-                "{} controlled read bound: {controlled_reads}",
-                case.label()
-            );
+            assert_selected_metrics(case, &before, &selected, controlled_reads);
             assert_query_cleanup(&fixture.cassie);
 
             if case.uses_persisted_retrieval() {
@@ -4296,10 +4390,12 @@ mod specialized_query_controls_retrieval {
                     case.label()
                 );
                 fixture.drop_accelerator();
+                evidence.entered(RetrievalPhase::ExactFallback);
                 let fallback = fixture
                     .cassie
                     .execute_sql(&session, &query, vec![])
                     .expect("exact fallback query");
+                evidence.returned(RetrievalPhase::ExactFallback);
                 let after_fallback = fixture.cassie.metrics();
                 assert_eq!(fallback.rows, first.rows, "{} exact fallback", case.label());
                 assert_eq!(
@@ -4310,12 +4406,14 @@ mod specialized_query_controls_retrieval {
                 );
                 assert_query_cleanup(&fixture.cassie);
             }
+            evidence.returned(RetrievalPhase::Assertions);
+            evidence.entered(RetrievalPhase::QueryLocalsRetirement);
         }
         paths
     }
     #[test]
     fn should_publish_only_deterministic_bounded_final_retrieval_paths() {
-        run_selected_retrieval_paths();
+        run_selected_retrieval_paths("selected_retrieval_paths");
     }
 
     #[test]
@@ -4325,7 +4423,7 @@ mod specialized_query_controls_retrieval {
 
         // Act
         let warnings = super::support_teardown_evidence::capture_warnings(|| {
-            paths = run_selected_retrieval_paths();
+            paths = run_selected_retrieval_paths("fixture_teardown_warnings");
         });
 
         // Assert
@@ -4379,21 +4477,33 @@ mod specialized_query_controls_retrieval {
     #[test]
     fn should_release_retrieval_engine_while_cloned_reader_results_remain_live() {
         // Arrange
-        let fixture = fixture(RetrievalCase::VectorHnsw, 4 * 1024 * 1024);
+        let invocation = RetrievalPhaseEvidence::new("escaped_reader_results");
+        let fixture = fixture_observed(
+            RetrievalCase::VectorHnsw,
+            4 * 1024 * 1024,
+            invocation.for_case(RetrievalCase::VectorHnsw.label()),
+        );
+        let evidence = fixture.path.evidence().clone();
         let path = fixture.path.path().to_owned();
+        evidence.entered(RetrievalPhase::ReaderCreation);
         let reader = fixture.cassie.create_session("reader", None);
         let escaped_reader = reader.clone();
+        evidence.returned(RetrievalPhase::ReaderCreation);
+        evidence.entered(RetrievalPhase::SelectedFirst);
         let result = fixture
             .cassie
             .execute_sql(&reader, &fixture.query(), vec![])
             .expect("reader retrieval");
+        evidence.returned(RetrievalPhase::SelectedFirst);
         assert_query_cleanup(&fixture.cassie);
         drop(reader);
 
         // Act
+        evidence.entered(RetrievalPhase::EscapedReaderResults);
         let warnings = super::support_teardown_evidence::capture_warnings(|| drop(fixture));
 
         // Assert
+        evidence.entered(RetrievalPhase::Assertions);
         assert_eq!(escaped_reader.user, "reader");
         assert_eq!(result.rows.len(), RESULT_LIMIT);
         assert!(!std::path::Path::new(&path).exists());
@@ -4401,8 +4511,10 @@ mod specialized_query_controls_retrieval {
             !warnings.contains("Midge graceful shutdown did not complete"),
             "escaped reader teardown warnings: {warnings}"
         );
+        evidence.returned(RetrievalPhase::Assertions);
         drop(result);
         drop(escaped_reader);
+        evidence.returned(RetrievalPhase::EscapedReaderResults);
     }
 }
 
@@ -4417,3 +4529,6 @@ mod support_teardown_evidence;
 
 #[path = "support/retrieval_directory.rs"]
 mod support_retrieval_directory;
+
+#[path = "support/retrieval_phase_evidence.rs"]
+mod support_retrieval_phase_evidence;

@@ -1,4 +1,9 @@
 // Consolidated integration suite: rest.
+#[path = "rest/authentication_redaction.rs"]
+mod authentication_redaction;
+#[path = "support/authentication_redaction.rs"]
+mod support_authentication_redaction;
+
 #[path = "support/retrieval.rs"]
 mod support_retrieval;
 

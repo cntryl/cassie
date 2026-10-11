@@ -286,20 +286,20 @@ async fn handle_parse(
     session
         .authorize_statement(&parsed.statement)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    let parameter_type_oids = normalize_parameter_type_oids(&parameter_type_oids);
-    if let Some(message) =
-        crate::sql::declared_parameter_type_conflict(&parsed, &parameter_type_oids, &cassie.catalog)
-    {
-        return Err(ExtendedQueryError::cassie(&CassieError::Planner(message)));
-    }
-    let parameter_types = crate::sql::parameter_type_oids_with_catalog(
+    let controls = runtime.query_controls(std::time::Instant::now());
+    let admitted = crate::sql::checked_parse_parameter_types(
         &parsed,
         &parameter_type_oids,
         &cassie.catalog,
-    );
-    crate::sql::pagination::validate_statement(&mut parsed, Some(&parameter_types))
+        &controls,
+    )
+    .map_err(ExtendedQueryError::parameter_admission)?;
+    crate::sql::pagination::validate_statement(&mut parsed, Some(admitted.types()))
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
+    let parameter_types = admitted
+        .into_vec()
+        .map_err(ExtendedQueryError::parameter_admission)?;
     let id = state.next_prepared_id();
     store_prepared_statement(
         runtime,
@@ -789,6 +789,24 @@ impl ExtendedQueryError {
     fn cassie(error: &CassieError) -> Self {
         Self {
             pg_error: Box::new(PgWireError::from_cassie_error(PgWireSeverity::Error, error)),
+            record_protocol_error: false,
+        }
+    }
+
+    fn parameter_admission(error: crate::sql::ParameterAdmissionError) -> Self {
+        use crate::sql::ParameterAdmissionError;
+
+        let (sqlstate, message) = match error {
+            ParameterAdmissionError::Memory(message) => ("53200", message),
+            ParameterAdmissionError::InvalidParam(message) => ("42P02", message),
+            ParameterAdmissionError::Cancelled => ("57014", "query cancelled".to_string()),
+            ParameterAdmissionError::Deadline => ("57014", "query deadline exceeded".to_string()),
+            ParameterAdmissionError::LegacyConflict(message) => {
+                return Self::cassie(&CassieError::Planner(message));
+            }
+        };
+        Self {
+            pg_error: Box::new(PgWireError::new(PgWireSeverity::Error, sqlstate, message)),
             record_protocol_error: false,
         }
     }

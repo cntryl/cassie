@@ -167,6 +167,12 @@ pub(crate) fn lookup_plan(
         return Ok(None);
     }
 
+    if entry.key != *key {
+        runtime.record_query_cache_l2_miss();
+        let _ = delete_temp_key(midge, runtime, storage_key);
+        return Ok(None);
+    }
+
     runtime.record_query_cache_l2_hit();
     Ok(Some(Arc::new(entry.plan)))
 }
@@ -430,6 +436,58 @@ mod tests {
                 assert!(result.is_none());
             },
         );
+    }
+
+    #[test]
+    fn should_reject_persisted_plan_cache_entries_with_foreign_context() {
+        // Arrange
+        let mut outcomes = None;
+        cache_fixture(
+            "foreign-context",
+            CassieRuntimeLimits::default(),
+            |midge, runtime| {
+                let requested = cache_key(2);
+                let mut foreign = requested.clone();
+                foreign.database = Some("another_database".to_string());
+                foreign.search_path = vec!["another_schema".to_string()];
+                foreign.parameter_shape = vec![ParameterShape::String];
+                foreign.mode = ExecutionMode::ExtendedQuery;
+                let storage_key = plan_entry_key(&requested);
+                let entry = CachedPlanEntry {
+                    key: foreign,
+                    plan: physical_plan(),
+                    created_at_ms: current_time_millis(),
+                };
+                put_temp_json(midge, runtime, storage_key.clone(), &entry, 60)
+                    .expect("persist valid foreign-context entry under requested key");
+
+                // Act
+                let rejected = lookup_plan(midge, runtime, &requested).expect("foreign lookup");
+                let retained = midge
+                    .raw_get(StorageFamily::Temp, &storage_key)
+                    .expect("read rejected entry");
+                let matching = CachedPlanEntry {
+                    key: requested.clone(),
+                    plan: physical_plan(),
+                    created_at_ms: current_time_millis(),
+                };
+                put_temp_json(midge, runtime, storage_key, &matching, 60)
+                    .expect("persist authoritative matching entry");
+                let accepted = lookup_plan(midge, runtime, &requested).expect("matching lookup");
+
+                outcomes = Some((rejected.is_none(), retained.is_none(), accepted.is_some()));
+            },
+        );
+
+        // Assert
+        // The fixture and storage owners retire before the intended RED can panic.
+        let (rejected, deleted, accepted) = outcomes.expect("completed cache observations");
+        assert!(
+            rejected,
+            "foreign context must never become a persisted hit"
+        );
+        assert!(deleted, "rejected foreign context must be deleted");
+        assert!(accepted, "matching entry remains a valid positive control");
     }
 
     #[test]

@@ -1,3 +1,11 @@
+#[path = "pgwire_extended/parameter_admission.rs"]
+mod parameter_admission;
+
+#[path = "pgwire_extended/portal_authorization.rs"]
+mod portal_authorization;
+#[path = "support/portal_authorization.rs"]
+mod support_portal_authorization;
+
 #[path = "pgwire_extended/statement_visibility.rs"]
 mod statement_visibility;
 

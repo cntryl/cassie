@@ -10,6 +10,10 @@ use super::{
     RuntimeState,
 };
 
+#[cfg(test)]
+#[path = "cache_state_tests.rs"]
+mod tests;
+
 #[derive(Debug, Default)]
 pub(super) struct ExecutionResultCacheState {
     pub(super) entries: HashMap<ExecutionResultCacheKey, ExecutionResultCacheEntry>,

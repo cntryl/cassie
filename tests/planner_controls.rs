@@ -12,6 +12,9 @@ mod support_sql;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
+#[path = "planner_controls/cache_transaction_qualification.rs"]
+mod cache_transaction_qualification;
+
 // Formerly tests/adaptive_promotion_evidence.rs.
 mod adaptive_promotion_evidence {
     use cassie::config::{CassieRuntimeLimits, OperatorSwitchingEnabled};

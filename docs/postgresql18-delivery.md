@@ -105,6 +105,46 @@ its final gate still waits on every owner, client and operational obligation.
 
 ## Bundle and closeout policy
 
+The private parameter-analysis extraction is accepted as
+[PR #932](https://github.com/cntryl/cassie/pull/932), commit
+`fbcc118ae63b02a35ea7d052e7333281820161ab`, tree
+`ca4d20dee587321070c92c1eb21d323ee86efda7`: the full ordered local gate
+passed 3,861 tests with nine existing ignores, plus 34 exact regression
+witnesses, and independent final review found no material findings. Required
+GitHub rules and the merged tree were verified; optional checks were pending
+at merge. This is a structural prerequisite, not parameter semantic parity.
+
+The next finite #904 bundle admits transient parameter metadata for nonempty
+wire Parse against fresh shared request controls, after authorization and
+before normalization, inference or prepared-statement publication. A checked
+borrowed AST traversal and fallible allocations reuse the existing inference
+visitor. Allocation failures use a private Parse error route (`53200`), logical
+parameter bounds use `42P02`, and cancellation/deadline checks use `57014`.
+Admitted inference and legacy conflict errors retain their existing behavior.
+The recorded safe RED uses 4,096 known INT4 parameters under a 1,024-byte
+budget: the original runtime returns ParseComplete instead of `53200`.
+Recovery must ignore Describe until Sync and permit the same statement name
+to be parsed and closed. Separate tests on the same controls must prove
+transient reservations release and their capacity can be reused.
+
+The logical limit comes from the pinned PostgreSQL 18.6 source archive,
+SHA256 `555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f`:
+
+| Source | Contract | Member SHA256 |
+| --- | --- | --- |
+| `src/include/utils/memutils.h:40` | MaxAllocSize = 1,073,741,823 | `cd136ef822c024b97374a659366d0f9fb7270324ef67597b323b34f8d1706b47` |
+| `src/include/postgres_ext.h:32` | Oid is the selected four-byte unsigned identity | `7f2d7945243abf649e0c574457db63abd3b704603db245e15f2268e823154322` |
+| `src/backend/parser/parse_param.c:141` | One-based parameter number is 1 through 268,435,455 | `4aab2ecc770fcda619b26ac12beaf7e527542b56f55eb45879b72e92442e8a28` |
+| `src/backend/utils/errcodes.txt:375` | Undefined parameter is `42P02` | `6e8de346643ba84aa3c9c6a73360acfc7b2dfb89162c06c08ce9bf5bcd5bbcba` |
+
+Checked arithmetic and the zero-based maximum 268,435,454 precede slot
+allocation. Constructed AST indices such as `usize::MAX` must reject safely;
+they do not imply a native PostgreSQL message or position. This bundle does
+not qualify recursive inference interruption, registered client CancelRequest
+during Parse, retained prepared/cloned vectors, empty-query allocations or
+typed Execute/Describe admission. Those obligations and the confirmed
+occurrence/coercion gaps remain open under #904/#849 and the full owners.
+
 Reuse #877 for the revised profile/scope and bootstrap infrastructure, #878 for
 the refreshed inventory ledger and #885 for the expanded type decision records.
 Their current contents are useful foundations but do not complete the expanded
@@ -137,6 +177,58 @@ and prerequisite acceptance criterion is complete and #849 resource/restart
 evidence is accepted. Failed, skipped, unavailable, pending or unsupported
 in-scope cells keep it open. Update support/readiness claims from that evidence
 and close #791 last.
+
+## Consolidated local delivery batch
+
+The user selected one larger delivery PR on 2026-10-11, with small local
+commits, focused red → green tests and continuous independent review. Integrate
+those commits locally and run the complete ordered gate once the batch is ready.
+During iteration, run cheap formatting and touched-test policy checks before
+compilation, then compile related targets together where useful. Existing full
+suite coverage supplies unchanged regression evidence; additional focused
+witnesses address changed behavior, interactions and mandatory adversarial gaps.
+Preserve raw logs with one concise acceptance matrix. Optional hosted workflows
+do not delay delivery under the recorded local-first policy.
+
+The active batch combines the already defined Parse-only resource prerequisite
+under [#904](https://github.com/cntryl/cassie/issues/904) with complete current
+cache/authorization qualification under
+[#766](https://github.com/cntryl/cassie/issues/766). Its published definition
+records all ten CACHE/AUTH invariants and their exact remaining acceptance.
+The completed #763, #871, #886 and #882 foundations make #766 independent of the
+staged Parse merge. No new public API, persistent format or permission model is
+selected. Original parameter occurrence/coercion gaps remain open under #904.
+
+| Invariants | Remaining qualification |
+| --- | --- |
+| CACHE-01/02 | Bind existing cross-session/context and warm-cache revocation evidence to the final source; values and authority remain request-specific. |
+| CACHE-03 | Prove two actual warm readers observe committed changes after a postcommit publication error, then verify cold restart. |
+| CACHE-04 | Prove warm-hit to transaction/savepoint bypass transitions; record current provider callgraph boundaries precisely. |
+| CACHE-05 | Verify foreign-context persisted plans and variable-width replacement/eviction with configured byte/entry bounds. Shared-tracker coverage of cache copies remains open and prevents owner closure. |
+| AUTH-01 | Verify current access before first execution, Describe and materialized/streaming portal resumption, with denial cleanup. |
+| AUTH-02 | Qualify current read-only CALL wrappers and reuse existing network, COPY and administrative-image boundaries. |
+| AUTH-03 | Check actual wire/REST known, unknown and throttled authentication errors and captured logs for credential canaries. |
+| AUTH-04 | Qualify opaque-session revoke, rotation, NOLOGIN, deletion and expiry through the actual REST query endpoint; images use existing pgwire COPY controls under AUTH-01/02/05. |
+| AUTH-05 | Reuse the current listener, credentials, transport and admission-permit cleanup matrix. |
+
+The interim Parse full gate was deliberately cancelled while full tests were
+running; its partial receipt is preserved and supplies no full-gate acceptance.
+Focused Parse proof includes the wire rejection/recovery test and 21 private
+tests, including the mandatory 1,152-byte sequential-pass and 1,151-byte denial
+ownership probes. These staged commits still require final batch validation,
+review, squash and merged-tree readback. Close #766 only after every selected
+invariant and issue criterion is complete. Full #904/#793/#791/#848/#849 remain
+open. The pending transaction-error API and external stress collector decisions
+are outside this batch; their dependent work remains pending.
+
+The focused #766 increments passed 19 checks, including 14 new cases and five
+existing cache controls; the additional network credential-redaction test also
+passed. These local repairs prevent materialized portal rows after revocation and
+reject foreign-context persisted plans. Review identified missing shared-tracker
+coverage of result-cache copies in the standing
+[memory contract](performance-contracts.md). That selected CACHE-05 obligation
+keeps #766 open. This batch uses `Refs #766`; it does not transfer the obligation
+to another issue or select a new public result/lease API.
 
 ## Accepted primitive receive increments
 

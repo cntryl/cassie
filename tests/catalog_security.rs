@@ -21,6 +21,9 @@ mod support_sql_fixture;
 #[path = "catalog_security/type_catalog_discovery.rs"]
 mod type_catalog_discovery;
 
+#[path = "catalog_security/call_authorization.rs"]
+mod call_authorization;
+
 // Formerly tests/auth.rs.
 mod auth {
     use super::support_sql as support;

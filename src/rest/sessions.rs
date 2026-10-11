@@ -508,3 +508,7 @@ mod tests {
         assert!(authenticate(&cassie, &replacement).is_ok());
     }
 }
+
+#[cfg(test)]
+#[path = "sessions/entrypoint_tests.rs"]
+mod entrypoint_tests;

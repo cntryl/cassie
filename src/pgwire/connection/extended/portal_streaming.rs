@@ -68,6 +68,13 @@ pub(super) async fn resume_suspended_portal(
         )
         .await;
     }
+    if let Err(error) = cassie.ensure_session_database_access(request.session) {
+        if let Some(cancellation) = request.suspended.cancellation.as_ref() {
+            request.state.clear_query_cancellation(cancellation);
+        }
+        request.state.clear_portal_execution(request.portal_name);
+        return Err(ExtendedQueryError::cassie(&error));
+    }
     let result_cap = cassie.runtime.limits().max_result_rows;
     write_suspended_result(
         write_half,

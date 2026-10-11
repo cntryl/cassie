@@ -28,25 +28,53 @@ The [private typed-batch contract](typed-batch-contract.md) supplies #753's
 selected documented boundary for PIPE-01, VEX-01, VEX-02, VEX-03, VEX-05, VEX-06
 and VEX-26. Its exact type/view matrix, constructor laws, scalar fallback and
 ownership/accounting rules govern #756 and subsequent relational kernels.
-Runtime constructors and kernels remain Planned; these rows are specification
-dispositions, not executed runtime acceptance. The
+These written laws are specification dispositions; the accepted first runtime
+slice is recorded separately below. The
 [wire transaction contract](pgwire-transaction-contract.md) supplies #755's
 selected origin/state/operation and portal-lifetime laws and its five-owner finite
 acceptance dispositions. Named raw-wire cases cover privacy, rollback, joined
-handoff, exact unnamed reset, recovery Sync and I/T/E. Exact-revision validation,
-review and merge/closure readback must complete before dependent #756/#757 work.
-The invariant and finding rows below retain the audit-baseline classification;
-the completing #755 PR supplies the current finite runtime closeout. Broader
-#757/#763/#780 qualification is not completed by these cases.
+handoff, exact unnamed reset, recovery Sync and I/T/E. The completing #790 PR
+records exact-revision validation, review and merge/closure readback for that
+finite contract. The invariant and finding rows below retain the audit-baseline
+classification; subsequent runtime acceptance is recorded separately.
+
+## Accepted finite prerequisites (2026-10-11)
+
+[#753/#755](https://github.com/cntryl/cassie/pull/790) are complete through
+PR #790, commit `9ff42bc05c374f478a12a29caf7537268215e665`.
+[#756/#757](https://github.com/cntryl/cassie/pull/851) are complete through
+PR #851, commit `4a09c41a3670dad3a4c4c2b7ef7583327c37ab6b`;
+[the finite acceptance matrix](typed-pipeline-acceptance.md) records the first
+private typed scan/filter/projection and portal ownership witnesses.
+[#763](https://github.com/cntryl/cassie/pull/871) is complete through PR #871,
+commit `ce72a23f2d0a3cdb9a811107aec7629151fcd319`, for its selected Data-family
+statement view and immutable overlay boundaries. Each linked PR retains its
+ordered local gate, independent review, final-head hosted checks and exact
+merged-tree/issue-closure readback. Milestones 1 and 2 closed on 2026-10-11;
+this closeout does not replace or refresh the historical census above.
+
+Full relational acceptance #761, column/mutation qualification #768/#769,
+client/wire qualification #777/#780, isolation #819, transactional catalogs #833
+and the #793/#904 type/runtime and upgrade obligations remain open under
+[#791](https://github.com/cntryl/cassie/issues/791) and the
+[expanded PostgreSQL 18.6 profile](sql-dialect-profile.md). Earlier finite type
+and syntax exclusions are intermediate delivery boundaries, not exclusions
+from final parity. #848/#849 retain complete corpus and resource/restart gates;
+no broader feature or production-readiness promotion follows from these merges.
 
 [Finite target and gates](query-engine-target.md) govern selection.
 [Feature Support](feature-support.md) owns current status and [Production Readiness](production-readiness.md)
 owns release qualification. Refresh issue state/dependencies before starting a slice;
 the snapshot is not a perpetual queue status.
 
-## Owner, dependency, oracle and promotion matrix
+## Recorded owner, dependency, oracle and promotion matrix
 
-| Run order | Owner / current issue state | Milestone | Declared blockers / current state | Assigned rows | Independent oracle | Completion / promotion |
+Owner/dependency states below retain the dated snapshot and individual updates
+recorded with it. They are historical records, not a live readiness queue.
+Use current issue readback and the accepted prerequisite records above before
+dependent work; preserve the original invariant counts and dependency provenance.
+
+| Run order | Owner / recorded issue state | Milestone | Declared blockers / recorded state | Assigned rows | Independent oracle | Completion / promotion |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | [#748](https://github.com/cntryl/cassie/issues/748) — Bug: Prevent IVFFlat from silently underfilling top-k results (CLOSED) | 1 | None | 1 | Authoritative exact ranking and eligible source cardinality; compare requested LIMIT/OFFSET separately from ANN recall. | Completed by merged [#783](https://github.com/cntryl/cassie/pull/783) and issue-closure readback; retain the finite regression/resource contract. No feature or native readiness promotion. |
 | 2 | [#432](https://github.com/cntryl/cassie/issues/432) — Bug: Enforce Boolean contextual typing across SQL expression paths (CLOSED) | 1 | None | 3 | Declared Boolean type plus hand-derived three-valued truth tables and the pinned PostgreSQL input/context rules; compare every caller. | Completed by merged [#784](https://github.com/cntryl/cassie/pull/784) at `8d94dc4a9d7f3b95ad396645deeaf9f297779bf3` with issue-closure readback. Preserve the finite Boolean/type/error contract; no broader catalog, grammar, type ABI or native readiness promotion. |
@@ -91,7 +119,8 @@ the snapshot is not a perpetual queue status.
 
 The baseline classification and source/test anchors below retain the original
 audit identity. A next probe is a falsification plan, not an executed pass. The
-owner matrix supplies current dependencies, independent oracle and promotion gate.
+owner matrix records historical dependencies, independent oracles and promotion
+gates; current readiness requires issue and accepted-prerequisite readback.
 Missing named tests remain visible. Implementing revisions must separately qualify
 their selected paths and record actual acceptance rather than rewriting this baseline.
 
@@ -640,14 +669,14 @@ field, including completed repairs and still-open probes.
 
 | Record | Baseline classification | Related owners | Current disposition / next action |
 | --- | --- | --- | --- |
-| F-WIRE-IMPLICIT-BATCH | confirmed_execution | [#755](https://github.com/cntryl/cassie/issues/755) | [#755](https://github.com/cntryl/cassie/issues/755) selected Query/Sync state tables and independent-session privacy/publication/rollback cases are implemented; completing PR validation and merge readback remain gates. |
+| F-WIRE-IMPLICIT-BATCH | confirmed_execution | [#755](https://github.com/cntryl/cassie/issues/755) | The selected #755 Query/Sync privacy, publication, rollback and recovery contract is complete through [#790](https://github.com/cntryl/cassie/pull/790), with final validation and exact merge/closure readback. Full protocol and PostgreSQL transaction acceptance remain with #780/#819/#833. |
 | F-SQL-BOOLEAN-CONTEXT | confirmed_execution | [#432](https://github.com/cntryl/cassie/issues/432) | Completed by merged [#784](https://github.com/cntryl/cassie/pull/784) at `8d94dc4a9d7f3b95ad396645deeaf9f297779bf3` with issue-closure readback. Preserve the finite Boolean/type/error contract; no broader catalog, grammar, type ABI or native readiness promotion. |
 | F-SQL-SCALAR-SUBQUERY-CLAIM | confirmed_execution_and_source | [#754](https://github.com/cntryl/cassie/issues/754), [#762](https://github.com/cntryl/cassie/issues/762) | [#754](https://github.com/cntryl/cassie/issues/754) corrects scalar-expression claims to Planned; implementation/cardinality/type contract remains [#762](https://github.com/cntryl/cassie/issues/762) after [#761](https://github.com/cntryl/cassie/issues/761). |
 | F-WIRE-UNNAMED-RESET | source_gap_partial_probe | [#755](https://github.com/cntryl/cassie/issues/755) | [#755](https://github.com/cntryl/cassie/issues/755)/[#780](https://github.com/cntryl/cassie/issues/780) direct unnamed statement Describe/portal Execute and accepted Query reset cases are executed; joined handoff is probed. The baseline named-portal observation alone was not a conformance defect; broader packet qualification remains #780. |
-| G-WIRE-SYNC-IMPLICIT-TRANSACTION | source_review_unverified | [#755](https://github.com/cntryl/cassie/issues/755) | [#755](https://github.com/cntryl/cassie/issues/755) selected private-until-Sync, failed-cycle rollback, joined handoff and same-Sync commit-failure cases are executed. Completing PR validation/review/readback gates closure; broader #757/#763/#780 acceptance remains separate. |
-| G-FULL-POSTGRES-SCOPE | documented_boundaries | [#751](https://github.com/cntryl/cassie/issues/751), [#752](https://github.com/cntryl/cassie/issues/752), [#777](https://github.com/cntryl/cassie/issues/777) | [#751](https://github.com/cntryl/cassie/issues/751) finite target preserves all current exclusions; [#752](https://github.com/cntryl/cassie/issues/752)/[#777](https://github.com/cntryl/cassie/issues/777) own selected type/client identities and evidence. |
-| COLUMN-F1 | confirmed_focused_probe | [#749](https://github.com/cntryl/cassie/issues/749) | [#749](https://github.com/cntryl/cassie/issues/749) closed by merged [#783](https://github.com/cntryl/cassie/pull/783) after source/operator admission, continuous row leases, exact capacity and active-phase/cleanup probes. Broad typed-column adoption/lifecycle qualification remains with [#756](https://github.com/cntryl/cassie/issues/756)/[#768](https://github.com/cntryl/cassie/issues/768). |
-| COLUMN-B1 | source_backed_capability_boundary | [#753](https://github.com/cntryl/cassie/issues/753), [#756](https://github.com/cntryl/cassie/issues/756) | Common typed-column pipeline remains absent/Planned; [#753](https://github.com/cntryl/cassie/issues/753) laws precede [#756](https://github.com/cntryl/cassie/issues/756)/[#758](https://github.com/cntryl/cassie/issues/758)/[#759](https://github.com/cntryl/cassie/issues/759)/[#760](https://github.com/cntryl/cassie/issues/760) implementations. Correct scalar fallback is not a defect. |
+| G-WIRE-SYNC-IMPLICIT-TRANSACTION | source_review_unverified | [#755](https://github.com/cntryl/cassie/issues/755) | The finite #755 private-until-Sync, failed-cycle rollback, joined handoff and same-Sync commit-failure acceptance is complete through [#790](https://github.com/cntryl/cassie/pull/790). Selected portal and statement-view qualification is separately accepted through [#851](https://github.com/cntryl/cassie/pull/851)/[#871](https://github.com/cntryl/cassie/pull/871); full #780/#819/#833 obligations remain open. |
+| G-FULL-POSTGRES-SCOPE | documented_boundaries | [#751](https://github.com/cntryl/cassie/issues/751), [#752](https://github.com/cntryl/cassie/issues/752), [#777](https://github.com/cntryl/cassie/issues/777) | Historical Target 1 boundaries remain recorded. The [selected profile](sql-dialect-profile.md) and [#791](https://github.com/cntryl/cassie/issues/791) now require full PostgreSQL 18.6 core SQL and PL/pgSQL; earlier finite exclusions are intermediate. #793/#904/#819/#833/#848/#849 retain their remaining implementation and qualification obligations. |
+| COLUMN-F1 | confirmed_focused_probe | [#749](https://github.com/cntryl/cassie/issues/749) | The selected #749 admission/resource repair is complete through [#783](https://github.com/cntryl/cassie/pull/783). The first private typed transport slice is separately accepted through [#851](https://github.com/cntryl/cassie/pull/851); complete column layout/generation/lifecycle qualification remains with #768. |
+| COLUMN-B1 | source_backed_capability_boundary | [#753](https://github.com/cntryl/cassie/issues/753), [#756](https://github.com/cntryl/cassie/issues/756) | The first private typed scan/filter/projection and portal ownership slice is implemented and qualified through [#851](https://github.com/cntryl/cassie/pull/851). The complete common relational target remains Planned pending its full integration/qualification owners, including #761/#768/#779. Correct scalar fallback is not a defect. |
 | vector-finding-1 | confirmed_production_probe | [#748](https://github.com/cntryl/cassie/issues/748) | [#748](https://github.com/cntryl/cassie/issues/748) closed by merged [#783](https://github.com/cntryl/cassie/pull/783): validated indexed-vector cardinality, OFFSET sufficiency and exact fallback/resource rejection prevent silent underfill; approximate recall remains separate. |
 | vector-finding-2 | confirmed_production_probe | [#750](https://github.com/cntryl/cassie/issues/750) | [#750](https://github.com/cntryl/cassie/issues/750) closed by merged [#783](https://github.com/cntryl/cassie/pull/783): controlled REST memory/caps, cache/normalized/ANN/output reservations and failure cleanup. [#767](https://github.com/cntryl/cassie/issues/767) retains later generation/cache/cancellation qualification. |
 | vector-finding-3 | confirmed_documentation_drift | [#754](https://github.com/cntryl/cassie/issues/754) | [#754](https://github.com/cntryl/cassie/issues/754) aligns subsystem labels with existing canonical Stable HNSW/IVFFlat; no status downgrade or new ANN contract. |

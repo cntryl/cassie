@@ -87,8 +87,8 @@ database-scope and projection witnesses before consuming it as completed.
 That prerequisite is accepted as [PR #926](https://github.com/cntryl/cassie/pull/926),
 commit `2e7040dbce1f2235ba62ef2fbca52bee327a253c`: full ordered gate 3,845 Rust
 passes, eight focused catalog/visibility/projection/wire witnesses and all 15
-fresh hosted checks; exact merged tree verified, #925 closed. The next focused
-[#928 bundle](https://github.com/cntryl/cassie/issues/928) centralizes metadata for
+fresh hosted checks; exact merged tree verified, #925 closed. The subsequently
+accepted [#928 bundle](https://github.com/cntryl/cassie/issues/928) centralizes metadata for
 existing scalars and qualifies PostgreSQL Boolean binary reception. It changes
 no public Rust signatures, legacy durable identities or mutable catalog roots;
 #819/#833 remain open without being consumed by immutable builtin lookup.
@@ -125,15 +125,20 @@ cntryl-tools validate-benchmarks --config .cntryl/repository.toml
 cntryl-tools check-module-sizes --config .cntryl/repository.toml
 ```
 
-Then complete adversarial review, focused probes for Jev gap probability ≥0.30,
-final-head hosted checks, squash merge and merged-commit/issue readback.
+Then complete clean adversarial review and mandatory focused probes for Jev gap
+probability ≥0.30. Recheck actual repository-required GitHub rules/checks against
+the final head. Under the user-selected local-first policy, the complete ordered
+local gate, clean review, mandatory probes and required GitHub rules/checks must
+pass; pending nonrequired hosted checks need not delay merge. Disclose those
+pending checks and never report them as passed. Guard squash merge to the reviewed
+head, then read back the merged commit/tree and issue state.
 The milestone closes only after every in-scope corpus cell passes, every owner
 and prerequisite acceptance criterion is complete and #849 resource/restart
 evidence is accepted. Failed, skipped, unavailable, pending or unsupported
 in-scope cells keep it open. Update support/readiness claims from that evidence
 and close #791 last.
 
-## Current primitive receive increment
+## Accepted primitive receive increments
 
 The scalar registry and Boolean prerequisite is accepted as [PR #929](https://github.com/cntryl/cassie/pull/929),
 commit `3077586b4d2719b9aaa15bbb095ed353c8eb0a24`, tree
@@ -142,8 +147,15 @@ passes, twenty exact witnesses, 552 selected PostgreSQL comparisons, 24 addition
 mixed-parameter comparisons and all fifteen fresh hosted checks. Exact merged
 tree and #928 closure are verified; full parents remain open.
 
-The next [#930 bundle](https://github.com/cntryl/cassie/issues/930) is defined
-before coding. Existing scalar receive errors use the registered fixed width,
+The [#930 bundle](https://github.com/cntryl/cassie/issues/930) was defined before
+coding and completed through [PR #931](https://github.com/cntryl/cassie/pull/931),
+commit `e2cf9c6818d40b28c38af4b1918abaa4d57c5ef8`, tree
+`bc549e8a6bd5735da26ab90b970925de52737481`. Its full ordered gate passed
+3,854 Rust tests, with 26 separate exact witnesses and all 15 fresh hosted checks;
+#930 closure and exact merged-tree readback are verified. The four new
+`pgwire_scalar_receive_errors` tests qualify fixed scalar metadata, temporal
+error priority, rejected mutations and nested legacy scalar propagation.
+Existing scalar receive errors use the registered fixed width,
 validate that prefix, then classify excess bytes as `22P03`; insufficient data
 remains `08P01`. Confirmed invalid DATE/TIME/TIMESTAMP range errors use `22008`
 before an excess-byte error. This is Stage 1 primitive work under #904/#780,
@@ -152,9 +164,12 @@ completed #885 records, #926 extraction and #929 registry without consuming new
 temporal types, mutable catalog roots or isolation. Both approved format
 contracts and the currently admitted value set remain unchanged.
 
-Read-only preparation retains all failures: the current 140-case scalar probe
-has 120 passes and twenty failures; a 64-case temporal priority probe has
-24 passes and forty failures. PostgreSQL validates an invalid temporal prefix
+Pre-#930 read-only preparation recorded 120 passes and twenty failures in the
+140-case scalar probe, and 24 passes and forty failures in the 64-case temporal
+priority probe. Those baseline receipts remain historical. PR #931 passed all
+102 selected receive paths and all 552 prior Boolean paths; its complete pinned
+corpus record remains FAILED at 695 passes, 59 failures and 4,009 pending. This
+record is not a new corpus run. PostgreSQL validates an invalid temporal prefix
 before checking excess bytes. Timestamp text presentation, infinity, 24:00,
 large-year support and other full temporal obligations remain under #814/#904/#848.
 Existing legacy-array elements delegate to the scalar receiver; #930 qualifies

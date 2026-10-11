@@ -92,31 +92,6 @@ pub(crate) fn resolve_plan(
     ))
 }
 
-pub(super) fn infer_bound_parameter_types(expr: &Expr, oids: &mut super::ParameterInference) {
-    match expr {
-        Expr::Param(index) => super::set_parameter_type_oid(oids, *index, &DataType::BigInt),
-        Expr::Cast { expr, data_type } => {
-            super::infer_parameter_type_from_expected_expr(expr, data_type, oids);
-            infer_cast_parameters(expr, oids);
-        }
-        _ => infer_cast_parameters(expr, oids),
-    }
-}
-
-fn infer_cast_parameters(expr: &Expr, oids: &mut super::ParameterInference) {
-    match expr {
-        Expr::Cast { expr, data_type } => {
-            super::infer_parameter_type_from_expected_expr(expr, data_type, oids);
-            infer_cast_parameters(expr, oids);
-        }
-        Expr::Binary { left, right, .. } => {
-            infer_cast_parameters(left, oids);
-            infer_cast_parameters(right, oids);
-        }
-        _ => {}
-    }
-}
-
 pub(crate) fn is_admitted(expr: &Expr) -> bool {
     is_admitted_at_depth(expr, 0)
 }

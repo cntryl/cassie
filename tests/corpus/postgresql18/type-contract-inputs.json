@@ -10072,5 +10072,5 @@
     }
   ],
   "descriptor_oracles_sha256": "9dc312b3493d024d6650fcb38be4f7bb06cb2e22a3abbb76e0b72a83fb046cca",
-  "schema_selection_status": "Common CRB3 approved; exact catalog/export schemas proposed pending explicit user direction; runtime qualification pending"
+  "schema_selection_status": "Common CRB3 and exact catalog/export schemas approved 2026-10-10; runtime qualification pending"
 }

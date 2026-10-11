@@ -32,8 +32,8 @@ EXISTS scope machinery. Neither track independently expands the other's contract
 ## Activation gates
 
 - Relational qualification precedes bounded scalar subqueries: #761 then #762,
-  followed by #777 and #780. The selected SQL-022 failures #868/#869/#870 keep #761
-  open until their required repairs or approved target dispositions complete.
+  followed by #777 and #780. The selected SQL-022 repairs #868/#869/#870 are
+  accepted as recorded below; #761 remains open for its full qualification.
 - Statement visibility #763 precedes #764, #766, #768, #769, #773 and #775.
   ANN qualification #764 precedes text/hybrid #765; cache/auth #766 precedes
   REST-vector #767. These lists do not replace additional named prerequisites.
@@ -54,16 +54,32 @@ and server ports; only one heavy full Cargo validation runs on the local host.
 Workers may prepare independent ready slices. Blocked tracks may prepare source
 inventories and reviewable contract decisions without implementing blocked behavior.
 
-The selected first wave pairs relational #761/#864/#866 review with #763
-statement-view review and separate #861 attribution. Retained implementation
-already couples the first two through joined nested reads, so their coherent
-integration bundle owns both acceptance matrices. #761 is referenced rather than
-closed while #868/#869/#870 remain unresolved. The known #861 fixture ownership repair
-is already on main; it does not establish the prolonged wait's cause.
+The initial first wave paired relational #761/#864/#866 review with #763
+statement-view review and separate #861 attribution. The finite #763 Data-family
+statement-view and overlay prerequisite is accepted through [PR #871](https://github.com/cntryl/cassie/pull/871),
+commit `ce72a23f2d0a3cdb9a811107aec7629151fcd319`. The selected SQL-022 repair
+prerequisites for #761 are also accepted:
+
+| Owner / completing PR | Immutable merge commit | Finite acceptance evidence |
+| --- | --- | --- |
+| #870 / [#872](https://github.com/cntryl/cassie/pull/872) | `700cbad7bc87801b51eceb0b532451d0dc021d1b` | Nested ancestor scope, including `ancestor_scope::should_preserve_ancestor_scope_in_nested_exists`; final focused run passed four unit and five relational tests. |
+| #868 / [#873](https://github.com/cntryl/cassie/pull/873) | `3ccb302c4d6b9f97dc033e90a53c2930e663086c` | Correlated EXISTS in HAVING, ordering, JOIN ON and window values, including `exists_having::should_resolve_exists_against_actual_having_groups`; final relational suite passed 57 tests. |
+| #869 / [#884](https://github.com/cntryl/cassie/pull/884) | `4a35dc373c4ac449184d42001055b447b3c53dc4` | RETURNING statement view, row phase and atomicity, including `exists_returning::should_resolve_update_returning_exists_against_captured_view_with_new_row`; 20 RETURNING integration and ten private resource tests passed in the final full gate and as separate retained witnesses. |
+
+The named cases belong to `tests/relational_qualification.rs`; linked PRs retain
+complete validation, review and exact merged-tree/issue-closure evidence. These
+finite repairs do not close #761 or complete later scalar-subquery, coercion,
+client or wire acceptance. The known #861 fixture ownership repair is already
+on main; it does not establish the prolonged wait's cause.
 
 Each runtime behavior follows local red -> green -> refactor. Publish one PR at
-a time after its required ordered local gates. Complete adversarial review,
-refinement, final-head hosted checks, squash merge and issue/source readback before
-publishing the next PR. Rebase remaining worktrees after each accepted merge.
+a time after its required ordered local gates. Complete clean adversarial review,
+mandatory focused probes and actual repository-required GitHub rules/checks on
+the final head before guarded squash merge and issue/source readback. Under the
+user-selected local-first policy, disclose pending nonrequired hosted checks;
+they need not delay merge and must not be reported as passed. The
+[closeout policy](postgresql18-delivery.md#bundle-and-closeout-policy) retains the
+complete local and final acceptance gates. Rebase remaining worktrees after each
+accepted merge.
 Keep persistent-format, migration and public-contract decisions explicit and
 approved before dependent implementation.

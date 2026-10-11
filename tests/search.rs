@@ -817,7 +817,7 @@ mod fulltext_persisted_sql {
         // Assert
         let mut bodies = result
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| row[0].clone())
             .collect::<Vec<_>>();
         bodies.sort_by_key(|value| format!("{value:?}"));
@@ -870,7 +870,7 @@ mod fulltext_persisted_sql {
             )
             .expect("query nullable-filtered postings")
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| row[0].clone())
             .collect::<Vec<_>>();
         let after = cassie.metrics();

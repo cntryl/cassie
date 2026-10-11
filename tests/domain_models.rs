@@ -2055,7 +2055,7 @@ mod time_series_indexes {
             .execute_sql(session, sql, vec![])
             .expect(sql)
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| match row.first() {
                 Some(Value::Int64(amount)) => *amount,
                 other => panic!("expected integer amount, got {other:?}"),

@@ -706,7 +706,7 @@ fn should_match_like_wildcards_anywhere_in_pattern() {
                 )
                 .expect("evaluate like predicate")
                 .rows()
-                .into_iter()
+                .iter()
                 .map(|row| row[0].clone())
                 .collect::<Vec<_>>()
     };

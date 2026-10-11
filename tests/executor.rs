@@ -2230,7 +2230,7 @@ mod executor_limits {
             assert_eq!(result.rows().len(), 2);
             let ids = result
                 .rows()
-                .into_iter()
+                .iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
                     _ => panic!("expected id string"),
@@ -3526,7 +3526,7 @@ mod executor_projection {
             assert_eq!(result.rows().len(), 5);
             let ids = result
                 .rows()
-                .into_iter()
+                .iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
                     _ => panic!("expected id string"),
@@ -3614,7 +3614,7 @@ mod executor_projection {
         assert_eq!(result.rows().len(), 5);
         let ids = result
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| match &row[0] {
                 Value::String(value) => value.clone(),
                 _ => panic!("expected id string"),
@@ -3999,7 +3999,7 @@ mod executor_query_sources {
 
         let ids = result
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| match &row[0] {
                 Value::String(value) => value.clone(),
                 _ => panic!("expected id value"),
@@ -4092,7 +4092,7 @@ mod executor_query_sources {
 
         let ids = result
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| match &row[0] {
                 Value::String(value) => value.clone(),
                 _ => panic!("expected id value"),
@@ -4344,7 +4344,7 @@ mod executor_query_sources {
 
         let values = result
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| match row.first() {
                 Some(Value::Int64(value)) => *value,
                 _ => panic!("expected integer value"),
@@ -4506,7 +4506,7 @@ mod executor_sort {
             assert_eq!(result.rows().len(), 3);
             let ids = result
                 .rows()
-                .into_iter()
+                .iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
                     _ => panic!("expected id string"),
@@ -4602,7 +4602,7 @@ mod executor_sort {
             assert_eq!(result.rows().len(), 3);
             let ids = result
                 .rows()
-                .into_iter()
+                .iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
                     _ => panic!("expected id"),
@@ -5153,7 +5153,7 @@ mod executor_vector_scoring {
 
         let ids = result
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| match &row[0] {
                 cassie::types::Value::String(id) => id.clone(),
                 _ => panic!("expected string id"),
@@ -5238,7 +5238,7 @@ mod executor_vector_scoring {
             assert_eq!(result.rows().len(), 3);
             let ids = result
                 .rows()
-                .into_iter()
+                .iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
                     _ => panic!("expected id string"),
@@ -5324,7 +5324,7 @@ mod executor_vector_scoring {
             assert_eq!(result.rows().len(), 3);
             let ids = result
                 .rows()
-                .into_iter()
+                .iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
                     _ => panic!("expected id string"),

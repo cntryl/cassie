@@ -1186,7 +1186,7 @@ mod integration_sql_scalar_index_lexkey {
             .execute_sql(session, sql, vec![])
             .expect(sql)
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| match row.first() {
                 Some(Value::Int64(seq)) => *seq,
                 other => panic!("expected integer seq, got {other:?}"),

@@ -1029,7 +1029,7 @@ mod integration_sql_ctes {
 
         let rows = result
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| match row.first() {
                 Some(Value::Int64(value)) => *value,
                 _ => panic!("expected integer value"),
@@ -3080,7 +3080,7 @@ mod integration_sql_null_semantics {
                 )
                 .expect("evaluate null predicate")
                 .rows()
-                .into_iter()
+                .iter()
                 .map(|row| row[0].clone())
                 .collect::<Vec<_>>()
         };
@@ -7280,7 +7280,7 @@ mod recursive_cte_semantics {
     fn integer_values(result: cassie::executor::QueryResult) -> Vec<i64> {
         result
             .rows()
-            .into_iter()
+            .iter()
             .map(|row| match row.first() {
                 Some(Value::Int64(value)) => *value,
                 Some(Value::Float64(value)) => value

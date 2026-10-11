@@ -61,6 +61,7 @@ pub fn assert_result(actual: QueryResult, boolean: bool, empty: bool) {
         ]
     };
     assert_eq!(actual_rows, expected, "exact returned multiset");
+    drop(actual);
 }
 
 pub fn assert_original_rows(fixture: &Fixture) {

@@ -2067,7 +2067,7 @@ mod hnsw_indexes {
         );
 
         // Assert
-        let rows = result.as_ref().map(|result| result.rows()).ok();
+        let rows = result.as_ref().map(cassie::executor::QueryResult::rows).ok();
         assert_eq!(
             rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
             Some(Value::String("near".to_string()))
@@ -5087,7 +5087,7 @@ mod ivfflat_indexes {
         );
 
         // Assert
-        let rows = result.as_ref().map(|result| result.rows()).ok();
+        let rows = result.as_ref().map(cassie::executor::QueryResult::rows).ok();
         assert_eq!(
             rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
             Some(Value::String("near".to_string()))
@@ -6985,10 +6985,10 @@ mod vector_query_stability {
             .expect("indexed IVFFlat query");
 
         // Assert
-        let exact_ids = result_ids(&exact.rows())
+        let exact_ids = result_ids(exact.rows())
             .into_iter()
             .collect::<HashSet<_>>();
-        let overlap = result_ids(&indexed.rows())
+        let overlap = result_ids(indexed.rows())
             .into_iter()
             .filter(|id| exact_ids.contains(id))
             .count();
@@ -7036,7 +7036,7 @@ mod vector_query_stability {
         let after = cassie.metrics();
 
         // Assert
-        assert!(!result_ids(&result.rows()).contains(&"row-0000".to_string()));
+        assert!(!result_ids(result.rows()).contains(&"row-0000".to_string()));
         assert_eq!(
             after["vector"]["last_fallback_reason"].as_str(),
             Some("structured-filter-exact")
@@ -7151,7 +7151,7 @@ mod vector_query_stability {
             after["vector"]["ivfflat_executions"].as_u64().unwrap()
                 > before["vector"]["ivfflat_executions"].as_u64().unwrap()
         );
-        assert_large_magnitude_index_rows_match_scan(&exact.rows(), &indexed.rows());
+        assert_large_magnitude_index_rows_match_scan(exact.rows(), indexed.rows());
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -7194,7 +7194,7 @@ mod vector_query_stability {
             after["vector"]["hnsw_executions"].as_u64().unwrap()
                 > before["vector"]["hnsw_executions"].as_u64().unwrap()
         );
-        assert_large_magnitude_index_rows_match_scan(&exact.rows(), &indexed.rows());
+        assert_large_magnitude_index_rows_match_scan(exact.rows(), indexed.rows());
         let _ = std::fs::remove_dir_all(path);
     }
 }

@@ -3868,6 +3868,7 @@ mod executor_query_sources {
                 _ => panic!("expected float score"),
             }
         }
+        drop(result);
     }
 
     fn assert_parameterized_alias_result(result: &executor::QueryResult) {

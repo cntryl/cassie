@@ -37,7 +37,7 @@ mod derived_result_metadata {
         };
         result
             .columns()
-            .into_iter()
+            .iter()
             .map(|column| (column.name.clone(), column.type_oid))
             .collect()
     }

@@ -87,8 +87,8 @@ fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() 
     // Assert
     assert_eq!(cold.rows()[0][0].as_str(), Some("id0500"));
     assert_eq!(
-        serde_json::to_value(&refreshed.columns()).expect("warm descriptors"),
-        serde_json::to_value(&cold.columns()).expect("cold descriptors")
+        serde_json::to_value(refreshed.columns()).expect("warm descriptors"),
+        serde_json::to_value(cold.columns()).expect("cold descriptors")
     );
     assert_eq!(refreshed.rows(), cold.rows());
     assert_eq!(stale.rows(), cold.rows());

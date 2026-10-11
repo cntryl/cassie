@@ -45,6 +45,7 @@ pub fn assert_result(
         "every literal ColumnMeta field"
     );
     assert_eq!(actual_rows.as_slice(), expected, "exact returned multiset");
+    drop(actual);
 }
 
 pub fn assert_fresh_rows(

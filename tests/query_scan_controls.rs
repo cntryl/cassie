@@ -357,6 +357,13 @@ mod column_store_query_controls {
                 1,
                 "LIMIT must enumerate exactly one live marker"
             );
+            assert!(
+                fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+                    .as_u64()
+                    .expect("live result memory")
+                    > 0
+            );
+            drop(result);
             fixture.assert_cleanup();
         }
     }
@@ -407,6 +414,13 @@ mod column_store_query_controls {
             3,
             "two outputs plus the staged delete must consume three persisted markers"
         );
+        assert!(
+            fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+                .as_u64()
+                .expect("live result memory")
+                > 0
+        );
+        drop(result);
         fixture.assert_cleanup();
         fixture
             .cassie

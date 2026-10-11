@@ -214,7 +214,7 @@ async fn observe(fixture: &SqlFixture, scenario: Scenario) -> Transcript {
 
 pub fn collect(scenario: Scenario) -> Transcript {
     let mut config = CassieRuntimeConfig::from_env().expect("configuration");
-    config.password = "postgres".to_owned();
+    "postgres".clone_into(&mut config.password);
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     let fixture = sql_fixture_with_config("portal-current-authorization", &[], config);
     fixture.cassie.startup().expect("startup");
@@ -237,7 +237,10 @@ pub fn assert_denied(transcript: &Transcript) {
         "resumed transcript: {:?}",
         transcript.resumed
     );
-    assert!(wire::data_rows(&transcript.resumed).is_empty());
+    assert_eq!(
+        wire::data_rows(&transcript.resumed),
+        [] as [Vec<Option<String>>; 0]
+    );
     assert_eq!(
         transcript
             .resumed

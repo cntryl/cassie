@@ -17,7 +17,9 @@ Missing access-path evidence is a failed contract, not permission to infer the i
 
 ## Query Memory and Results
 
-One shared tracker accounts query-owned materialization: sorts, distinct sets, hash tables, aggregate state, recursive working sets, graph frontiers, search candidates, portal buffers, and execution-result-cache payloads. Operators reserve before allocation and release on drop. Exceeding the configured query budget returns SQLSTATE `54000`.
+The required end state uses one shared tracker for query-owned materialization: sorts, distinct sets, hash tables, aggregate state, recursive working sets, graph frontiers, search candidates, portal buffers, and execution-result-cache payloads. Operators must reserve before allocation and release on drop. Exceeding the configured query budget returns SQLSTATE `54000`.
+
+Execution-result caching currently enforces separate entry and serialized-payload byte limits. Cache copies do not yet reserve through the shared query-memory tracker. That selected ownership obligation remains open under [#766](https://github.com/cntryl/cassie/issues/766), alongside the final resource qualification in [#849](https://github.com/cntryl/cassie/issues/849). Replacement, eviction and independent-result tests establish the configured cache bounds; they do not establish shared-tracker coverage or release of backing container capacity.
 
 `CASSIE_QUERY_MEMORY_BUDGET_BYTES` configures the per-query accounted-memory budget (default `10485760`); the unreleased temporary-spill name is not accepted. `CASSIE_MAX_RESULT_ROWS` configures the result-row cap (default `100000`). Cassie does not promise disk spilling: operators either stay within accounted memory or fail with `54000`.
 

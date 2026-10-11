@@ -204,7 +204,7 @@ selected. Original parameter occurrence/coercion gaps remain open under #904.
 | CACHE-01/02 | Bind existing cross-session/context and warm-cache revocation evidence to the final source; values and authority remain request-specific. |
 | CACHE-03 | Prove two actual warm readers observe committed changes after a postcommit publication error, then verify cold restart. |
 | CACHE-04 | Prove warm-hit to transaction/savepoint bypass transitions; record current provider callgraph boundaries precisely. |
-| CACHE-05 | Probe foreign-context persisted plans and variable-width replacement/eviction ownership with configured byte/entry bounds. |
+| CACHE-05 | Verify foreign-context persisted plans and variable-width replacement/eviction with configured byte/entry bounds. Shared-tracker coverage of cache copies remains open and prevents owner closure. |
 | AUTH-01 | Verify current access before first execution, Describe and materialized/streaming portal resumption, with denial cleanup. |
 | AUTH-02 | Qualify current read-only CALL wrappers and reuse existing network, COPY and administrative-image boundaries. |
 | AUTH-03 | Check actual wire/REST known, unknown and throttled authentication errors and captured logs for credential canaries. |
@@ -220,6 +220,15 @@ review, squash and merged-tree readback. Close #766 only after every selected
 invariant and issue criterion is complete. Full #904/#793/#791/#848/#849 remain
 open. The pending transaction-error API and external stress collector decisions
 are outside this batch; their dependent work remains pending.
+
+The focused #766 increments passed 19 checks, including 14 new cases and five
+existing cache controls; the additional network credential-redaction test also
+passed. These local repairs prevent materialized portal rows after revocation and
+reject foreign-context persisted plans. Review identified missing shared-tracker
+coverage of result-cache copies in the standing
+[memory contract](performance-contracts.md). That selected CACHE-05 obligation
+keeps #766 open. This batch uses `Refs #766`; it does not transfer the obligation
+to another issue or select a new public result/lease API.
 
 ## Accepted primitive receive increments
 

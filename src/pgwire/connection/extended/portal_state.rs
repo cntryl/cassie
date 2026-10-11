@@ -1,13 +1,15 @@
 use tokio::io::AsyncWrite;
 
-use super::super::writers::{
-    append_command_complete_frame, append_data_row_frame, append_portal_suspended_frame,
-    append_row_description_frame, ensure_row_widths, select_command_tag,
-};
+use super::super::result_frames::QueryResultFrames;
+use super::super::writers::ensure_row_widths;
 use super::{
     write_frame, CassieError, ExtendedQueryError, Portal, PortalSuspended, PreparedStatement,
     QueryResult, SessionState, Value,
 };
+
+#[cfg(test)]
+#[path = "portal_state/ownership_tests.rs"]
+mod ownership_tests;
 
 #[derive(Debug, Clone)]
 pub(super) struct PortalExecution {
@@ -155,34 +157,29 @@ pub(super) async fn write_materialized_result(
         rows_emitted,
         row_description_sent,
     } = request;
-    let QueryResult {
-        columns,
-        mut rows,
-        command,
-    } = result;
     let window = PortalFetchWindow::new(result_cap, rows_emitted, max_rows);
-    if window.rejects_lookahead(rows.len() > window.page_rows()) {
+    if window.rejects_lookahead(result.row_count() > window.page_rows()) {
         clear_cancellation(state, cancellation.as_ref());
         return Err(window.overflow_error());
     }
 
-    let page_len = window.page_rows().min(rows.len());
-    let portal_memory = if page_len < rows.len() {
-        Some(
-            reserve_portal_memory(state, &columns, &rows[page_len..], &command, false)
-                .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))?,
-        )
+    let page_len = window.page_rows().min(result.row_count());
+    let remains_suspended = page_len < result.row_count();
+    // A retained page admits the complete physical payload in the connection's
+    // portal budget. Advancing an offset does not release still-owned capacity.
+    let result = if remains_suspended {
+        result
+            .try_clone_for_query(&state.portal_memory_controls)
+            .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))
+            .map_err(|error| ExtendedQueryError::cassie(&error))?
     } else {
-        None
+        result
     };
-    let remaining = rows.split_off(page_len);
-    let remains_suspended = !remaining.is_empty();
     let row_description_sent = write_portal_page_frames(
         write_half,
         PortalPageFrames {
-            columns: &columns,
-            rows,
-            command: &command,
+            result: &result,
+            rows: &result.rows()[..page_len],
             result_formats: &portal.result_formats,
             row_description_already_sent: row_description_sent,
             remains_suspended,
@@ -191,22 +188,21 @@ pub(super) async fn write_materialized_result(
     .await
     .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))?;
 
-    let completion_command = command.clone();
+    let completion = result.clone();
     let suspended = remains_suspended.then_some(PortalSuspended {
-        columns,
-        rows: remaining,
-        command,
+        result,
+        row_offset: page_len,
         row_description_sent,
         streaming: false,
         rows_emitted: rows_emitted.saturating_add(page_len),
         cancellation,
-        portal_memory,
+        portal_memory: None,
     });
     store_portal_state(
         state,
         portal_name,
         row_description_sent,
-        &completion_command,
+        completion.command(),
         suspended,
     );
     Ok(())
@@ -234,21 +230,23 @@ pub(super) async fn write_suspended_result(
         result_cap,
     } = request;
     let window = PortalFetchWindow::new(result_cap, suspended.rows_emitted, max_rows);
-    if window.rejects_lookahead(suspended.rows.len() > window.page_rows()) {
+    let rows = suspended
+        .result
+        .rows()
+        .get(suspended.row_offset..)
+        .ok_or_else(|| ExtendedQueryError::protocol("invalid suspended portal row offset"))?;
+    if window.rejects_lookahead(rows.len() > window.page_rows()) {
         clear_cancellation(state, suspended.cancellation.as_ref());
         return Err(window.overflow_error());
     }
 
-    let page_len = window.page_rows().min(suspended.rows.len());
-    let remaining = suspended.rows.split_off(page_len);
-    let rows = std::mem::take(&mut suspended.rows);
-    let remains_suspended = !remaining.is_empty();
+    let page_len = window.page_rows().min(rows.len());
+    let remains_suspended = page_len < rows.len();
     let row_description_sent = write_portal_page_frames(
         write_half,
         PortalPageFrames {
-            columns: &suspended.columns,
-            rows,
-            command: &suspended.command,
+            result: &suspended.result,
+            rows: &rows[..page_len],
             result_formats: &portal.result_formats,
             row_description_already_sent: suspended.row_description_sent,
             remains_suspended,
@@ -257,25 +255,17 @@ pub(super) async fn write_suspended_result(
     .await
     .inspect_err(|_| clear_cancellation(state, suspended.cancellation.as_ref()))?;
 
-    suspended.rows = remaining;
+    suspended.row_offset += page_len;
     suspended.row_description_sent = row_description_sent;
     suspended.rows_emitted = suspended.rows_emitted.saturating_add(page_len);
-    if let Some(portal_memory) = suspended.portal_memory.as_mut() {
-        portal_memory.shrink_to(portal_state_bytes(
-            &suspended.columns,
-            &suspended.rows,
-            &suspended.command,
-            false,
-        ));
-    }
     let cancellation = suspended.cancellation.clone();
-    let command = suspended.command.clone();
+    let completion = suspended.result.clone();
     let suspended = remains_suspended.then_some(suspended);
     store_portal_state(
         state,
         portal_name,
         row_description_sent,
-        &command,
+        completion.command(),
         suspended,
     );
     if !remains_suspended {
@@ -316,17 +306,22 @@ pub(super) async fn write_streaming_result(
         return Err(window.overflow_error());
     }
 
-    let QueryResult {
-        columns,
-        mut rows,
-        command,
-    } = result;
-    rows.truncate(window.page_rows());
-    let page_len = rows.len();
+    let page_len = result.row_count().min(window.page_rows());
+    let result = if has_more {
+        result
+            .try_clone_for_query(&state.portal_memory_controls)
+            .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))
+            .map_err(|error| ExtendedQueryError::cassie(&error))?
+    } else {
+        result
+    };
     let portal_memory = if has_more {
         Some(
-            reserve_portal_memory(state, &columns, &[], &command, true)
-                .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))?,
+            state
+                .portal_memory_controls
+                .reserve_query_memory(std::mem::size_of::<crate::midge::adapter::MidgeRowCursor>())
+                .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))
+                .map_err(|error| ExtendedQueryError::cassie(&error))?,
         )
     } else {
         None
@@ -334,9 +329,8 @@ pub(super) async fn write_streaming_result(
     let row_description_sent = write_portal_page_frames(
         write_half,
         PortalPageFrames {
-            columns: &columns,
-            rows,
-            command: &command,
+            result: &result,
+            rows: &result.rows()[..page_len],
             result_formats: &portal.result_formats,
             row_description_already_sent: row_description_sent,
             remains_suspended: has_more,
@@ -345,11 +339,10 @@ pub(super) async fn write_streaming_result(
     .await
     .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))?;
 
-    let completion_command = command.clone();
+    let completion = result.clone();
     let suspended = has_more.then_some(PortalSuspended {
-        columns,
-        rows: Vec::new(),
-        command,
+        row_offset: result.row_count(),
+        result,
         row_description_sent,
         streaming: true,
         rows_emitted: rows_emitted.saturating_add(page_len),
@@ -360,16 +353,15 @@ pub(super) async fn write_streaming_result(
         state,
         portal_name,
         row_description_sent,
-        &completion_command,
+        completion.command(),
         suspended,
     );
     Ok(has_more)
 }
 
 struct PortalPageFrames<'a> {
-    columns: &'a [crate::executor::ColumnMeta],
-    rows: Vec<Vec<Value>>,
-    command: &'a str,
+    result: &'a QueryResult,
+    rows: &'a [Vec<Value>],
     result_formats: &'a [i16],
     row_description_already_sent: bool,
     remains_suspended: bool,
@@ -380,39 +372,35 @@ async fn write_portal_page_frames(
     page: PortalPageFrames<'_>,
 ) -> Result<bool, ExtendedQueryError> {
     let PortalPageFrames {
-        columns,
+        result,
         rows,
-        command,
         result_formats,
         row_description_already_sent,
         remains_suspended,
     } = page;
-    ensure_row_widths(&rows, columns)
+    let columns = result.columns();
+    ensure_row_widths(rows, columns)
         .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    let command = select_command_tag(command, rows.len());
-    let mut frame = Vec::new();
+    let mut frames = QueryResultFrames::try_new(result, rows, result_formats)
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let mut row_description_sent = row_description_already_sent;
     if !row_description_sent && !columns.is_empty() {
-        append_row_description_frame(&mut frame, columns, result_formats)
+        frames
+            .description(columns, result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-        write_frame(write_half, &frame).await?;
+        write_frame(write_half, frames.bytes()).await?;
         row_description_sent = true;
     }
     for row in rows {
-        frame.clear();
-        append_data_row_frame(&mut frame, row, columns, result_formats)
+        frames
+            .row(row, columns, result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-        write_frame(write_half, &frame).await?;
+        write_frame(write_half, frames.bytes()).await?;
     }
-    frame.clear();
-    if remains_suspended {
-        append_portal_suspended_frame(&mut frame)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    } else {
-        append_command_complete_frame(&mut frame, &command)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    }
-    write_frame(write_half, &frame).await?;
+    frames
+        .completion(remains_suspended)
+        .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
+    write_frame(write_half, frames.bytes()).await?;
     Ok(row_description_sent)
 }
 
@@ -422,11 +410,14 @@ async fn write_portal_page_frames(
 pub(super) async fn write_completed_portal(
     write_half: &mut (impl AsyncWrite + Unpin),
     command: &str,
+    controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<(), ExtendedQueryError> {
-    let mut frame = Vec::new();
-    append_command_complete_frame(&mut frame, command)
+    let mut frames = QueryResultFrames::try_command(command, controls)
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    frames
+        .completion(false)
         .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    write_frame(write_half, &frame).await
+    write_frame(write_half, frames.bytes()).await
 }
 
 fn store_portal_state(
@@ -466,79 +457,5 @@ fn clear_cancellation(
 ) {
     if let Some(cancellation) = cancellation {
         state.clear_query_cancellation(cancellation);
-    }
-}
-
-fn reserve_portal_memory(
-    state: &SessionState,
-    columns: &[crate::executor::ColumnMeta],
-    rows: &[Vec<Value>],
-    command: &str,
-    streaming: bool,
-) -> Result<crate::runtime::QueryMemoryReservation, ExtendedQueryError> {
-    state
-        .portal_memory_controls
-        .reserve_query_memory(portal_state_bytes(columns, rows, command, streaming))
-        .map_err(|error| ExtendedQueryError::cassie(&error))
-}
-
-fn portal_state_bytes(
-    columns: &[crate::executor::ColumnMeta],
-    rows: &[Vec<Value>],
-    command: &str,
-    streaming: bool,
-) -> usize {
-    let columns_bytes = columns
-        .iter()
-        .fold(std::mem::size_of_val(columns), |bytes, column| {
-            bytes
-                .saturating_add(column.name.len())
-                .saturating_add(column.data_type.len())
-        });
-    let rows_bytes = rows.iter().fold(std::mem::size_of_val(rows), |bytes, row| {
-        row.iter().fold(
-            bytes.saturating_add(std::mem::size_of_val(row.as_slice())),
-            |bytes, value| bytes.saturating_add(value_variable_bytes(value)),
-        )
-    });
-    let cursor_bytes = if streaming {
-        std::mem::size_of::<crate::midge::adapter::MidgeRowCursor>()
-    } else {
-        0
-    };
-    columns_bytes
-        .saturating_add(rows_bytes)
-        .saturating_add(command.len())
-        .saturating_add(cursor_bytes)
-}
-
-fn value_variable_bytes(value: &Value) -> usize {
-    match value {
-        Value::String(value) => value.len(),
-        Value::Vector(value) => value
-            .values
-            .len()
-            .saturating_mul(std::mem::size_of::<f32>()),
-        Value::Json(value) => json_variable_bytes(value),
-        Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => 0,
-    }
-}
-
-fn json_variable_bytes(value: &serde_json::Value) -> usize {
-    match value {
-        serde_json::Value::String(value) => value.len(),
-        serde_json::Value::Array(values) => values.iter().fold(
-            values
-                .len()
-                .saturating_mul(std::mem::size_of::<serde_json::Value>()),
-            |bytes, value| bytes.saturating_add(json_variable_bytes(value)),
-        ),
-        serde_json::Value::Object(values) => values.iter().fold(0usize, |bytes, (key, value)| {
-            bytes
-                .saturating_add(key.len())
-                .saturating_add(std::mem::size_of::<serde_json::Value>())
-                .saturating_add(json_variable_bytes(value))
-        }),
-        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => 0,
     }
 }

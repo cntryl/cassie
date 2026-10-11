@@ -1,5 +1,6 @@
 use super::codecs::{validate_result_formats, value_to_binary, value_to_text};
 use super::errors::PgWireError;
+use super::result_frames::QueryResultFrames;
 use super::{AsyncWrite, AsyncWriteExt, CassieSession};
 use crate::types::Value;
 use std::{convert::TryFrom, io, str};
@@ -117,31 +118,29 @@ pub(super) async fn write_simple_query_result(
     write_half: &mut (impl AsyncWrite + Unpin),
     result: crate::executor::QueryResult,
 ) -> io::Result<()> {
-    let crate::executor::QueryResult {
-        columns,
-        rows,
-        command,
-    } = result;
+    let columns = result.columns();
+    let rows = result.rows();
+    if !columns.is_empty() {
+        ensure_row_widths(rows, columns)?;
+    }
+    let mut frames = QueryResultFrames::try_new(&result, rows, &[]).map_err(io::Error::other)?;
 
     if !columns.is_empty() {
-        ensure_row_widths(&rows, &columns)?;
-        let command = select_command_tag(&command, rows.len());
-        let mut frame = Vec::new();
-        append_row_description_frame(&mut frame, &columns, &[])?;
-        write_half.write_all(&frame).await?;
+        frames.description(columns, &[])?;
+        write_half.write_all(frames.bytes()).await?;
         for row in rows {
-            frame.clear();
-            append_data_row_frame(&mut frame, row, &columns, &[])?;
-            write_half.write_all(&frame).await?;
+            frames.row(row, columns, &[])?;
+            write_half.write_all(frames.bytes()).await?;
         }
-        frame.clear();
-        append_command_complete_frame(&mut frame, &command)?;
-        write_half.write_all(&frame).await?;
+        frames.completion(false)?;
+        write_half.write_all(frames.bytes()).await?;
         write_half.flush().await?;
         return Ok(());
     }
 
-    write_command_complete(write_half, &command).await?;
+    frames.completion(false)?;
+    write_half.write_all(frames.bytes()).await?;
+    write_half.flush().await?;
     Ok(())
 }
 
@@ -227,12 +226,12 @@ pub(super) fn append_row_description_frame(
 
 pub(super) fn append_data_row_frame(
     frame: &mut Vec<u8>,
-    row: Vec<Value>,
+    row: &[Value],
     columns: &[crate::executor::ColumnMeta],
     result_formats: &[i16],
 ) -> io::Result<()> {
     validate_result_formats(columns, result_formats)?;
-    ensure_row_width(&row, columns)?;
+    ensure_row_width(row, columns)?;
 
     let mut payload = Vec::new();
     payload.extend_from_slice(
@@ -241,7 +240,7 @@ pub(super) fn append_data_row_frame(
             .to_be_bytes(),
     );
 
-    for (index, value) in row.into_iter().enumerate() {
+    for (index, value) in row.iter().enumerate() {
         match value {
             Value::Null => payload.extend_from_slice(&(-1_i32).to_be_bytes()),
             other => {
@@ -445,6 +444,10 @@ pub(super) fn append_backend_frame(frame: &mut Vec<u8>, tag: u8, payload: &[u8])
 
 pub(super) fn is_backend_frame_too_large(error: &io::Error) -> bool {
     error.to_string() == "pgwire backend frame exceeds 16777216 bytes"
+}
+
+pub(super) fn query_memory_error(error: &io::Error) -> Option<&crate::app::CassieError> {
+    error.get_ref()?.downcast_ref::<crate::app::CassieError>()
 }
 
 fn backend_frame_too_large_error() -> io::Error {

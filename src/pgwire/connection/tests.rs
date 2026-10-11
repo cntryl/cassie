@@ -39,14 +39,16 @@ fn should_flush_pgwire_simple_query_result_once_for_multiple_rows() {
         .enable_all()
         .build()
         .expect("runtime");
-    let result = QueryResult {
-        columns: vec![ColumnMeta::from_data_type("id", &DataType::Text)],
-        rows: vec![
-            vec![Value::String("doc-1".to_string())],
-            vec![Value::String("doc-2".to_string())],
-        ],
-        command: "SELECT".to_string(),
-    };
+    let controls = crate::runtime::QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    let mut builder = QueryResult::try_builder(&controls).expect("result builder");
+    builder.try_push_column(&ColumnMeta::from_data_type("id", &DataType::Text)).expect("column");
+    builder.try_push_row(&[Value::String("doc-1".to_string())]).expect("first row");
+    builder.try_push_row(&[Value::String("doc-2".to_string())]).expect("second row");
+    builder.try_set_command("SELECT").expect("command");
+    let result = builder.finish().expect("result");
 
     runtime.block_on(async {
         let mut writer = CountingWrite::default();
@@ -71,8 +73,8 @@ fn should_reject_binary_float8_for_integer_beyond_exact_range() {
     let exact = Value::Int64(-9_007_199_254_740_992);
 
     // Act
-    let inexact_result = super::codecs::value_to_binary(inexact, 701);
-    let exact_result = super::codecs::value_to_binary(exact, 701);
+    let inexact_result = super::codecs::value_to_binary(&inexact, 701);
+    let exact_result = super::codecs::value_to_binary(&exact, 701);
 
     // Assert
     let error = inexact_result.expect_err("inexact int8 must not be rounded to float8");
@@ -90,8 +92,8 @@ fn should_reject_binary_float8_for_i64_max() {
     let minimum = Value::Int64(i64::MIN);
 
     // Act
-    let saturating_result = super::codecs::value_to_binary(saturating, 701);
-    let minimum_result = super::codecs::value_to_binary(minimum, 701);
+    let saturating_result = super::codecs::value_to_binary(&saturating, 701);
+    let minimum_result = super::codecs::value_to_binary(&minimum, 701);
 
     // Assert
     let error = saturating_result.expect_err("i64::MAX has no exact float8 representation");
@@ -117,7 +119,7 @@ fn should_preserve_json_string_documents_in_binary_array_elements() {
     ];
 
     // Act
-    let encoded = super::codecs::value_to_binary(value.clone(), 34_114);
+    let encoded = super::codecs::value_to_binary(&value, 34_114);
     let decoded = super::codecs::binary_to_value(&expected, 34_114);
 
     // Assert
@@ -140,7 +142,7 @@ fn should_preserve_nested_json_documents_in_binary_array_elements() {
     ];
 
     // Act
-    let encoded = super::codecs::value_to_binary(value.clone(), 34_114);
+    let encoded = super::codecs::value_to_binary(&value, 34_114);
     let decoded = super::codecs::binary_to_value(&expected, 34_114);
 
     // Assert
@@ -166,7 +168,7 @@ fn should_encode_declared_vectors_from_json_returning_arrays() {
     ];
 
     // Act
-    let results = values.map(|value| super::codecs::value_to_binary(value, 100_002));
+    let results = values.map(|value| super::codecs::value_to_binary(&value, 100_002));
 
     // Assert
     for (result, expected) in results.into_iter().zip(expected) {
@@ -190,7 +192,7 @@ fn should_reject_invalid_json_returning_vector_components() {
     ];
 
     // Act
-    let results = values.map(|value| super::codecs::value_to_binary(value, 100_002));
+    let results = values.map(|value| super::codecs::value_to_binary(&value, 100_002));
 
     // Assert
     for result in results {
@@ -210,7 +212,7 @@ fn should_roundtrip_maximum_supported_binary_vector_width() {
     let expected_header = [127, 255, 0, 0];
 
     // Act
-    let bytes = super::codecs::value_to_binary(Value::Vector(vector), 132_767)
+    let bytes = super::codecs::value_to_binary(&Value::Vector(vector), 132_767)
         .expect("maximum registered scalar vector width");
     let decoded = super::codecs::binary_to_value(&bytes, 132_767)
         .expect("decode maximum registered scalar vector width");
@@ -249,7 +251,7 @@ fn should_encode_declared_vectors_from_text_parameter_strings() {
     let results = cases.map(|(text, expected)| {
         (
             text,
-            super::codecs::value_to_binary(Value::String(text.to_string()), 100_002),
+            super::codecs::value_to_binary(&Value::String(text.to_string()), 100_002),
             expected,
         )
     });
@@ -283,7 +285,7 @@ fn should_reject_invalid_declared_vector_text_parameter_strings() {
 
     // Act
     let results =
-        values.map(|text| super::codecs::value_to_binary(Value::String(text.to_string()), 100_002));
+        values.map(|text| super::codecs::value_to_binary(&Value::String(text.to_string()), 100_002));
 
     // Assert
     for result in results {
@@ -306,7 +308,7 @@ fn should_borrow_vector_numeric_tokens_from_the_original_text() {
     // Act
     let tokens = serde_json::from_str::<[&serde_json::value::RawValue; 2]>(text)
         .expect("borrowed numeric JSON tokens");
-    let encoded = super::codecs::value_to_binary(Value::String(text.to_string()), 100_002);
+    let encoded = super::codecs::value_to_binary(&Value::String(text.to_string()), 100_002);
 
     // Assert
     for ((token, expected), offset) in tokens.into_iter().zip(expected).zip(offsets) {
@@ -334,7 +336,7 @@ fn should_reject_oversized_vector_text_sequences_before_returning_output() {
     ];
 
     // Act
-    let outputs = inputs.map(|text| super::codecs::value_to_binary(Value::String(text), 100_002));
+    let outputs = inputs.map(|text| super::codecs::value_to_binary(&Value::String(text), 100_002));
 
     // Assert
     for output in outputs {

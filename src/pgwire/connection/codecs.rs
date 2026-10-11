@@ -19,17 +19,17 @@ const MICROSECONDS_PER_DAY: i64 = 86_400_000_000;
 
 /// Renders `value` with PostgreSQL's text output function for the column's
 /// declared `type_oid`.
-pub(super) fn value_to_text(value: Value, type_oid: i64) -> String {
+pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
     match value {
         Value::Null => "NULL".to_string(),
         // boolout emits a single `t`/`f`; a JSON column keeps JSON's spelling.
         Value::Bool(v) if type_oid == i64::from(BinaryCodecKind::Bool.metadata().oid) => {
-            if v { "t" } else { "f" }.to_string()
+            if *v { "t" } else { "f" }.to_string()
         }
         Value::Bool(v) => v.to_string(),
         Value::Int64(v) => v.to_string(),
-        Value::Float64(v) => float8_text(v),
-        Value::String(v) => v,
+        Value::Float64(v) => float8_text(*v),
+        Value::String(v) => v.clone(),
         Value::Vector(v) => format!(
             "[{}]",
             v.values
@@ -57,7 +57,7 @@ fn float8_text(value: f64) -> String {
     }
 }
 
-pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
+pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8>> {
     if vector_dimensions_for_oid(type_oid).is_some() {
         return encode_vector(value, type_oid);
     }
@@ -67,12 +67,12 @@ pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>
     let codec = binary_codec_for_oid(type_oid)?;
     match codec.kind {
         BinaryCodecKind::Bool => match value {
-            Value::Bool(value) => Ok(vec![u8::from(value)]),
-            Value::String(value) => parse_bool_binary(&value),
+            Value::Bool(value) => Ok(vec![u8::from(*value)]),
+            Value::String(value) => parse_bool_binary(value),
             _ => invalid_value(codec.name),
         },
         BinaryCodecKind::Bytea => match value {
-            Value::String(value) => decode_bytea(&value),
+            Value::String(value) => decode_bytea(value),
             _ => invalid_value(codec.name),
         },
         BinaryCodecKind::Int2 => encode_integer(value, codec.name, encode_i16_binary),
@@ -87,31 +87,31 @@ pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>
         // plain values, so a number or boolean is written in JSON spelling.
         BinaryCodecKind::Json => match value {
             Value::Json(value) => Ok(value.to_string().into_bytes()),
-            Value::String(value) => Ok(value.into_bytes()),
+            Value::String(value) => Ok(value.as_bytes().to_vec()),
             Value::Bool(value) => Ok(value.to_string().into_bytes()),
             Value::Int64(value) => Ok(value.to_string().into_bytes()),
-            Value::Float64(value) => serde_json::Number::from_f64(value)
+            Value::Float64(value) => serde_json::Number::from_f64(*value)
                 .map(|number| number.to_string().into_bytes())
                 .ok_or_else(|| invalid_data(codec.name)),
             _ => invalid_value(codec.name),
         },
         BinaryCodecKind::Uuid => match value {
-            Value::String(value) => uuid::Uuid::parse_str(&value)
+            Value::String(value) => uuid::Uuid::parse_str(value)
                 .map(|value| value.into_bytes().to_vec())
                 .map_err(|_| invalid_data(codec.name)),
             _ => invalid_value(codec.name),
         },
         BinaryCodecKind::Date => match value {
-            Value::String(value) => encode_date(&value).map(|value| value.to_be_bytes().to_vec()),
+            Value::String(value) => encode_date(value).map(|value| value.to_be_bytes().to_vec()),
             _ => invalid_value(codec.name),
         },
         BinaryCodecKind::Time => match value {
-            Value::String(value) => encode_time(&value).map(|value| value.to_be_bytes().to_vec()),
+            Value::String(value) => encode_time(value).map(|value| value.to_be_bytes().to_vec()),
             _ => invalid_value(codec.name),
         },
         BinaryCodecKind::Timestamp => match value {
             Value::String(value) => {
-                encode_timestamp(&value).map(|value| value.to_be_bytes().to_vec())
+                encode_timestamp(value).map(|value| value.to_be_bytes().to_vec())
             }
             _ => invalid_value(codec.name),
         },
@@ -225,7 +225,7 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
     Ok(value)
 }
 
-fn encode_array(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
+fn encode_array(value: &Value, type_oid: i64) -> io::Result<Vec<u8>> {
     let Value::Json(serde_json::Value::Array(values)) = value else {
         return invalid_value("array");
     };
@@ -257,12 +257,7 @@ fn encode_array(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
             encoded.extend_from_slice(&(-1_i32).to_be_bytes());
             continue;
         }
-        let value = if element_oid == i64::from(BinaryCodecKind::Json.metadata().oid) {
-            Value::Json(value)
-        } else {
-            json_to_value(value, codec.name)?
-        };
-        let element = value_to_binary(value, element_oid)?;
+        let element = encode_array_element(value, element_oid, codec)?;
         encoded.extend_from_slice(
             &i32::try_from(element.len())
                 .map_err(|_| invalid_data("array"))?
@@ -351,17 +346,50 @@ fn read_i32(parameter: &[u8], cursor: &mut usize, type_name: &str) -> io::Result
     ))
 }
 
-fn json_to_value(value: serde_json::Value, type_name: &str) -> io::Result<Value> {
+fn encode_array_element(
+    value: &serde_json::Value,
+    element_oid: i64,
+    codec: &BinaryCodec,
+) -> io::Result<Vec<u8>> {
+    if codec.kind == BinaryCodecKind::Json {
+        return Ok(value.to_string().into_bytes());
+    }
     match value {
-        serde_json::Value::Bool(value) => Ok(Value::Bool(value)),
-        serde_json::Value::Number(value) => value
-            .as_i64()
-            .map(Value::Int64)
-            .or_else(|| value.as_f64().map(Value::Float64))
-            .ok_or_else(|| invalid_data(type_name)),
-        serde_json::Value::String(value) => Ok(Value::String(value)),
-        serde_json::Value::Object(value) => Ok(Value::Json(serde_json::Value::Object(value))),
-        _ => Err(invalid_data(type_name)),
+        serde_json::Value::Bool(value) => value_to_binary(&Value::Bool(*value), element_oid),
+        serde_json::Value::Number(value) => {
+            let value = value
+                .as_i64()
+                .map(Value::Int64)
+                .or_else(|| value.as_f64().map(Value::Float64))
+                .ok_or_else(|| invalid_data(codec.name))?;
+            value_to_binary(&value, element_oid)
+        }
+        serde_json::Value::String(value) => encode_array_string(value, codec),
+        serde_json::Value::Object(_) if matches!(codec.kind,
+            BinaryCodecKind::Text | BinaryCodecKind::Bpchar |
+            BinaryCodecKind::Varchar | BinaryCodecKind::Unknown
+        ) => Ok(value.to_string().into_bytes()),
+        _ => Err(invalid_data(codec.name)),
+    }
+}
+
+fn encode_array_string(value: &str, codec: &BinaryCodec) -> io::Result<Vec<u8>> {
+    match codec.kind {
+        BinaryCodecKind::Bool => parse_bool_binary(value),
+        BinaryCodecKind::Bytea => decode_bytea(value),
+        BinaryCodecKind::Int2 => parse_i64_binary(value).and_then(encode_i16_binary),
+        BinaryCodecKind::Int4 => parse_i64_binary(value).and_then(encode_i32_binary),
+        BinaryCodecKind::Int8 => parse_i64_binary(value).map(|value| value.to_be_bytes().to_vec()),
+        BinaryCodecKind::Float8 => parse_f64_binary(value).map(|value| value.to_be_bytes().to_vec()),
+        BinaryCodecKind::Text | BinaryCodecKind::Bpchar |
+        BinaryCodecKind::Varchar | BinaryCodecKind::Unknown => Ok(value.as_bytes().to_vec()),
+        BinaryCodecKind::Uuid => uuid::Uuid::parse_str(value)
+            .map(|value| value.into_bytes().to_vec())
+            .map_err(|_| invalid_data(codec.name)),
+        BinaryCodecKind::Date => encode_date(value).map(|value| value.to_be_bytes().to_vec()),
+        BinaryCodecKind::Time => encode_time(value).map(|value| value.to_be_bytes().to_vec()),
+        BinaryCodecKind::Timestamp => encode_timestamp(value).map(|value| value.to_be_bytes().to_vec()),
+        BinaryCodecKind::Json => unreachable!("JSON array elements preserve their JSON carrier"),
     }
 }
 
@@ -392,31 +420,31 @@ fn result_format_for_index(formats: &[i16], index: usize) -> i16 {
 }
 
 fn encode_integer(
-    value: Value,
+    value: &Value,
     type_name: &str,
     encode: fn(i64) -> io::Result<Vec<u8>>,
 ) -> io::Result<Vec<u8>> {
     match value {
-        Value::Int64(value) => encode(value),
-        Value::String(value) => parse_i64_binary(&value).and_then(encode),
+        Value::Int64(value) => encode(*value),
+        Value::String(value) => parse_i64_binary(value).and_then(encode),
         _ => invalid_value(type_name),
     }
 }
 
-fn encode_int8(value: Value, type_name: &str) -> io::Result<Vec<u8>> {
+fn encode_int8(value: &Value, type_name: &str) -> io::Result<Vec<u8>> {
     match value {
         Value::Int64(value) => Ok(value.to_be_bytes().to_vec()),
-        Value::Float64(value) => encode_f64_as_i64_binary(value),
-        Value::String(value) => parse_i64_binary(&value).map(|value| value.to_be_bytes().to_vec()),
+        Value::Float64(value) => encode_f64_as_i64_binary(*value),
+        Value::String(value) => parse_i64_binary(value).map(|value| value.to_be_bytes().to_vec()),
         _ => invalid_value(type_name),
     }
 }
 
-fn encode_float8(value: Value, type_name: &str) -> io::Result<Vec<u8>> {
+fn encode_float8(value: &Value, type_name: &str) -> io::Result<Vec<u8>> {
     match value {
         Value::Float64(value) => Ok(value.to_be_bytes().to_vec()),
-        Value::Int64(value) => encode_i64_as_f64_binary(value),
-        Value::String(value) => parse_f64_binary(&value).map(|value| value.to_be_bytes().to_vec()),
+        Value::Int64(value) => encode_i64_as_f64_binary(*value),
+        Value::String(value) => parse_f64_binary(value).map(|value| value.to_be_bytes().to_vec()),
         _ => invalid_value(type_name),
     }
 }

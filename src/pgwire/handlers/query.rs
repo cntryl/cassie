@@ -20,17 +20,18 @@ pub fn run_simple_query(
             let mut out = Vec::new();
             out.push(ServerMessage::RowDescription(
                 result
-                    .columns
-                    .into_iter()
+                    .columns()
+                    .iter()
+                    .cloned()
                     .map(RowDescriptionField::from)
                     .collect(),
             ));
-            for row in result.rows {
+            for row in result.rows() {
                 out.push(ServerMessage::DataRow(
-                    row.into_iter().map(format_value).collect(),
+                    row.iter().map(format_value).collect(),
                 ));
             }
-            out.push(ServerMessage::CommandComplete(result.command));
+            out.push(ServerMessage::CommandComplete(result.command().to_owned()));
             out
         }
         Err(err) => vec![ServerMessage::ErrorResponse(err.to_string())],
@@ -40,13 +41,13 @@ pub fn run_simple_query(
 /// # Errors
 ///
 /// Returns an error when validation, storage, or execution fails.
-fn format_value(value: Value) -> String {
+fn format_value(value: &Value) -> String {
     match value {
         Value::Null => "NULL".to_string(),
         Value::Bool(v) => v.to_string(),
         Value::Int64(v) => v.to_string(),
         Value::Float64(v) => v.to_string(),
-        Value::String(v) => v,
+        Value::String(v) => v.clone(),
         Value::Vector(v) => format!(
             "[{}]",
             v.values

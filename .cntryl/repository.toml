@@ -19,6 +19,5 @@ warn_lines = 900
 max_lines = 1000
 allowlist = []
 legacy_allowlist = [
-  "src/catalog/virtual_views.rs",
   "src/midge/adapter/column_batches.rs",
 ]

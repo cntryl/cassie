@@ -70,7 +70,7 @@ the snapshot is not a perpetual queue status.
 | 20 | [#766](https://github.com/cntryl/cassie/issues/766) — Enhancement: Qualify cache context and authorization ownership (OPEN) | 4 | [#763](https://github.com/cntryl/cassie/issues/763) (OPEN) | 10 | Uncached fresh execution under current role/database/settings/epochs, live revocation and independent session/control ownership. | Execute selected obligations or record approved boundaries; fix/link confirmed gaps and retain exact-revision acceptance before feature-owner promotion review. |
 | 21 | [#767](https://github.com/cntryl/cassie/issues/767) — Enhancement: Probe REST vector cancellation, generations and cache invalidation (OPEN) | 4 | [#750](https://github.com/cntryl/cassie/issues/750) (CLOSED), [#766](https://github.com/cntryl/cassie/issues/766) (OPEN) | 3 | Uncached authoritative source plus controlled local-provider/worker/mutation barriers and documented permitted generations. | Execute selected obligations or record approved boundaries; fix/link confirmed gaps and retain exact-revision acceptance before feature-owner promotion review. |
 | 22 | [#768](https://github.com/cntryl/cassie/issues/768) — Enhancement: Qualify column layouts, codecs and generation publication (OPEN) | 4 | [#758](https://github.com/cntryl/cassie/issues/758) (OPEN), [#763](https://github.com/cntryl/cassie/issues/763) (OPEN) | 11 | Authoritative rows, existing golden codec bytes and checksums, generation/range identity and atomic lifecycle/restart observations. | Execute selected obligations or record approved boundaries; fix/link confirmed gaps and retain exact-revision acceptance before feature-owner promotion review. |
-| 23 | [#769](https://github.com/cntryl/cassie/issues/769) — Enhancement: Qualify constraints and mutation identity across ingress paths (OPEN) | 4 | [#432](https://github.com/cntryl/cassie/issues/432) (CLOSED), [#763](https://github.com/cntryl/cassie/issues/763) (OPEN) | 10 | Authoritative pre/post document/index state and declared constraint/identity semantics across SQL, COPY and permitted REST ingress. | Execute selected obligations or record approved boundaries; fix/link confirmed gaps and retain exact-revision acceptance before feature-owner promotion review. |
+| 23 | [#769](https://github.com/cntryl/cassie/issues/769) — Enhancement: Qualify constraints and mutation identity across ingress paths (OPEN) | 4 | [#432](https://github.com/cntryl/cassie/issues/432) (CLOSED), [#763](https://github.com/cntryl/cassie/issues/763) (CLOSED) | 10 | Authoritative pre/post document/index state and declared constraint/identity semantics across SQL, COPY and permitted REST ingress. | Execute selected obligations or record approved boundaries; fix/link confirmed gaps and retain exact-revision acceptance before feature-owner promotion review. |
 | 24 | [#770](https://github.com/cntryl/cassie/issues/770) — Enhancement: Qualify embedding providers and derived vector writes (OPEN) | 4 | [#751](https://github.com/cntryl/cassie/issues/751) (CLOSED), [#750](https://github.com/cntryl/cassie/issues/750) (CLOSED) | 8 | Deterministic local/mock provider request/response/cardinality fixtures and authoritative atomic derived-write results. | Execute selected obligations or record approved boundaries; fix/link confirmed gaps and retain exact-revision acceptance before feature-owner promotion review. |
 | 25 | [#771](https://github.com/cntryl/cassie/issues/771) — Enhancement: Qualify storage lifecycle and recovery publication boundaries (OPEN) | 4 | [#751](https://github.com/cntryl/cassie/issues/751) (CLOSED) | 16 | Current layout/database ownership plus authoritative recovered rows and existing journal/image/checksum/failure contracts. | Execute selected obligations or record approved boundaries; fix/link confirmed gaps and retain exact-revision acceptance before feature-owner promotion review. |
 | 26 | [#772](https://github.com/cntryl/cassie/issues/772) — Enhancement: Qualify graph traversal and time-series retrieval overlaps (OPEN) | 4 | [#771](https://github.com/cntryl/cassie/issues/771) (OPEN) | 6 | Hand-derived small graph paths and UTC time-range fixtures, authoritative rows and overlay/resource boundaries. | Execute selected obligations or record approved boundaries; fix/link confirmed gaps and retain exact-revision acceptance before feature-owner promotion review. |
@@ -589,6 +589,49 @@ execution or performance claim is made.
 | dom-004 — Graph adjacency must reflect own transaction overlay and persist/reconcile consistently across source writes, DDL rename/drop and restart. | mapped-source-test; mapped_source_and_existing_test_not_rerun | [#772](https://github.com/cntryl/cassie/issues/772) | Source: [src/executor/execution/graph.rs:46](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/graph.rs#L46); [src/midge/adapter/graphs/reconcile.rs](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/midge/adapter/graphs/reconcile.rs)<br>Evidence: [tests/domain_models.rs:294](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L294); [tests/domain_models.rs:171](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L171); [tests/query_scan_controls.rs:1757](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/query_scan_controls.rs#L1757); [tests/query_scan_controls.rs:1653](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/query_scan_controls.rs#L1653) | Stagededgeupdate/delete/savepoint anddatabaseisolation, interruptedrename/drop, one missingadjacencyrecord amongvalid. |
 | dom-005 — Time-series candidates must use fixed UTC positive minute/hour/day buckets with exact half-open boundaries, partition identity and authoritative residual filters. | mapped-source-test; mapped_source_and_existing_test_not_rerun | [#772](https://github.com/cntryl/cassie/issues/772) | Source: [docs/feature-support.md:122](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/docs/feature-support.md#L122); [src/executor/execution/time_series_read.rs](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/time_series_read.rs)<br>Evidence: [tests/domain_models.rs:1153](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L1153); [tests/domain_models.rs:2065](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L2065); [tests/domain_models.rs:4131](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L4131) | Negativeepoch/subsecondboundary,timezoneequivalenttimestamps, float/signedzeropartitions,delimiterstrings,NULL,multiplepartitions; rowbaseline. |
 | dom-006 — Missing/stale/corrupt/incomplete time-series derived membership must atomically fallback/rebuild; retention uses normal deletion to maintain dependent indexes/rollups/projection debt. | mapped-source-test; mapped_source_and_existing_test_not_rerun | [#772](https://github.com/cntryl/cassie/issues/772) | Source: [src/midge/adapter/time_series_indexes/controlled.rs](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/midge/adapter/time_series_indexes/controlled.rs); [src/executor/execution/time_series_read.rs](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/time_series_read.rs); [docs/indexes-and-constraints.md:243](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/docs/indexes-and-constraints.md#L243)<br>Evidence: [tests/domain_models.rs:836](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L836); [tests/domain_models.rs:1711](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L1711); [tests/domain_models.rs:1847](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L1847); [tests/domain_models.rs:2496](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L2496) | Removeone memberwithvalidneighbors, stalegeneration/missingcount, retentioninterruptedcommit androlluprefreshfailure; exactrows/debt/recovery. |
+
+## Executed CON-02 ingress qualification
+
+On the 2026-10-10 `origin/main` baseline `059bc453c4dd8650f21b57b482b2f52433e8ecdc`,
+`tests/constraint_ingress.rs` exercises omitted defaults, explicit values, and
+explicit SQL NULL across INSERT VALUES, INSERT SELECT, UPDATE, COPY FROM STDIN,
+embedded document ingest, and REST document create. It compares committed rows
+after successful writes and verifies rejected NULL writes neither publish new
+rows nor mutate an existing row. The original author reported the three focused
+tests passing at historical head `1a96073b4def627247cdd363ad36d5ea24ae850c`;
+this record does not qualify later replayed heads.
+This is executed CON-02 slice evidence only: it does not change support status,
+establish CON-01 JSON-null parity, or complete the remaining #769 invariants.
+
+#### Current CON-02 integration contract
+
+[PR #901](https://github.com/cntryl/cassie/pull/901) targets accepted
+main `03ebe0ad39c5e17e3d4c08223272defe333561d4` in Stage 1 of the
+[PostgreSQL 18 program](postgresql18-delivery.md). Direct prerequisites are
+complete: #432 at `8d94dc4a9d7f3b95ad396645deeaf9f297779bf3` and #763 at
+`ce72a23f2d0a3cdb9a811107aec7629151fcd319`; both are ancestors of that main.
+The completed Boolean/default and statement-view foundations are retained.
+
+The three original test bodies are unchanged. Their fixture lives in
+[focused test support](../tests/support/constraint_ingress.rs); its field order
+drops the session and Cassie before removing the unique temporary local store.
+The integration target has one SQL-semantics shard assignment. Exact stored
+values and the unchanged row after rejected writes qualify this finite fixture.
+COPY exercises the embedded CSV entry point; REST exercises document creation.
+They do not establish protocol-wide COPY or REST transport qualification.
+
+This adds no runtime, public API or durable-format change, and makes no invented
+runtime RED claim. The original reported distinct-sort failure has unknown cause
+because its exact original head, environment and raw failure evidence are absent.
+The separate accepted collector correction and current observer witnesses do not
+retroactively diagnose it. Local/hosted evidence is recorded on the current PR.
+
+[#769](https://github.com/cntryl/cassie/issues/769) remains open for complete
+CON-01 through CON-10 acceptance, including other type/default families, JSON
+document null, parameters/descriptors/errors, multirow/concurrent mutations and
+restart. [#768](https://github.com/cntryl/cassie/issues/768) retains independent
+storage and native benchmark obligations. Neither finite slice promotes the
+full PostgreSQL 18 or production-readiness claim.
 
 ## Finding and boundary records
 

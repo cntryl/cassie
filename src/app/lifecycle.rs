@@ -66,7 +66,9 @@ impl Cassie {
             feedback_reconciliation_required: Arc::new(AtomicBool::new(false)),
             normalized_vector_cache: Arc::new(Mutex::new(BTreeMap::new())),
             query_embedding_cache: Arc::new(Mutex::new(BTreeMap::new())),
-            vector_search_result_cache: Arc::new(Mutex::new(BTreeMap::new())),
+            vector_search_result_cache: Arc::new(Mutex::new(
+                super::vector_search::VectorResultCache::default(),
+            )),
             auth_user: "root".to_string(),
             auth_password,
             bootstrap_password_hash: super::auth::LazyPasswordHash::default(),

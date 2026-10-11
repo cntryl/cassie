@@ -50,7 +50,7 @@ impl Cassie {
         result.diagnostics.execution = Some((
             started_at.elapsed(),
             candidate_count,
-            result.result.rows.len(),
+            result.result.row_count(),
         ));
         result.diagnostics.hnsw = Some(candidate_count);
         Ok(Some(result))
@@ -145,7 +145,7 @@ impl Cassie {
         result.diagnostics.execution = Some((
             started_at.elapsed(),
             candidate_count,
-            result.result.rows.len(),
+            result.result.row_count(),
         ));
         result.diagnostics.ivfflat = Some((training.lists, probed_lists.len(), candidate_count));
         Ok(Some(result))

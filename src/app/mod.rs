@@ -114,12 +114,12 @@ mod operational;
 mod portal_reads;
 pub(crate) use portal_reads::PortalReadSpec;
 mod query;
-mod query_cache_keys;
-mod query_lifecycle;
 mod query_bound;
+mod query_cache_keys;
 mod query_describe;
 mod query_explain;
 mod query_feedback;
+mod query_lifecycle;
 mod query_wire;
 pub(crate) use query_feedback::USER_SEARCH_PATH_ENTRY;
 mod query_metrics;
@@ -148,6 +148,6 @@ pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayR
 pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};
 
 #[cfg(test)]
-mod statement_read_tests;
-#[cfg(test)]
 mod query_result_cache_key_tests;
+#[cfg(test)]
+mod statement_read_tests;

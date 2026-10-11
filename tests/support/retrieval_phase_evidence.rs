@@ -104,12 +104,11 @@ impl RetrievalPhaseEvidence {
         evidence
     }
 
-    pub(super) fn for_path(&self, path: &str) -> Self {
-        let mut evidence = self.clone();
-        if let Some(context) = &mut evidence.context {
+    pub(super) fn for_path(mut self, path: &str) -> Self {
+        if let Some(context) = &mut self.context {
             context.path = Some(path.to_owned());
         }
-        evidence
+        self
     }
 
     pub(super) fn observe_midge(&mut self, midge: &Arc<Midge>) {

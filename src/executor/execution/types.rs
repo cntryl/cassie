@@ -39,6 +39,10 @@ pub struct QueryResult {
     pub command: String,
 }
 
+#[cfg(test)]
+#[path = "result_ownership_tests.rs"]
+mod result_ownership_tests;
+
 #[derive(Debug, Clone, Copy, Default, serde::Serialize)]
 pub struct ExecutionBreakdownMicros {
     pub scan_us: u64,

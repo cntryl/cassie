@@ -1,5 +1,7 @@
 //! Caller-thread completed-operator events; never a global last-path observation.
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
+
+static REGISTRATION_ANCHOR: OnceLock<tracing::Dispatch> = OnceLock::new();
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Event {
@@ -59,6 +61,11 @@ impl tracing::Subscriber for Capture {
 /// # Panics
 /// Propagates the selected query panic or a poisoned event lock.
 pub fn capture<T>(run: impl FnOnce() -> T) -> (T, Vec<Event>) {
+    // Keep two registered dispatchers while capturing. tracing-core's
+    // single-dispatcher fast path otherwise consults the registering thread's
+    // default: an untraced thread can cache "never" for our first operator event.
+    REGISTRATION_ANCHOR
+        .get_or_init(|| tracing::Dispatch::new(tracing::subscriber::NoSubscriber::default()));
     let capture = Capture::default();
     let result = tracing::subscriber::with_default(capture.clone(), run);
     let events = std::mem::take(&mut *capture.0.lock().expect("path events"));

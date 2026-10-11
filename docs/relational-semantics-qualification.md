@@ -108,6 +108,17 @@ boundaries. A composed DISTINCT then sort query requires both events. These
 witnesses do not infer worker coverage or private input handoff from an event;
 those are separate controls. No global subscriber is installed.
 
+The first-registration witness runs in a fresh child process: an untraced
+thread first executes `SELECT id FROM r ORDER BY n,id` while the caller's
+capture is active, then the caller executes the same query. Both must return
+IDs `[4,5,1,2,6,3]`, and only the caller's sort event is captured. This reproduced
+a missing event with tracing-core 0.1.36's single-dispatcher registration fast
+path. Test support now retains a no-op dispatcher alongside each scoped capture
+so first registration consults all registered subscribers. It changes no global
+default, production logging or query execution. The new witness and existing
+sibling/parallel caller controls pass; whole-suite and hosted acceptance remain
+separate gates.
+
 ## D2 repeated Bind qualification
 
 For one prepared query per text/binary format, rebind limits/offsets `2/1`,
@@ -520,3 +531,72 @@ and 7/7. Normal ordered full validation, exact-head hosted checks, independent
 review, merge and issue readback belong to the PR record. Historical RED receipts
 remain unaltered. #761 stays open while its selected blockers remain unresolved;
 support and production readiness are unchanged.
+
+## Selected EXISTS RETURNING phase (#869)
+
+The finite repair in [#869](https://github.com/cntryl/cassie/issues/869) follows
+the selected [statement Data visibility contract](statement-data-visibility-contract.md).
+All returned rows share the command's pre-command Data view and immutable
+snapshot of prior transaction writes. The current command's writes are absent
+from that subquery view. Correlation supplies the inserted or updated new row,
+or the deleted old row. Mutation preparation, same-command uniqueness checks,
+staging and publication retain their fresh authorities.
+
+Independent and correlated EXISTS occurrences follow reached scalar evaluation
+for each actual returned row. Dead CASE branches and unselected COALESCE
+arguments do not execute those occurrences, and a zero-row command does not
+evaluate them. Reached errors abort the command through the existing atomic
+wrapper. This selected DML phase does not change independent eager folding in
+SELECT or in the non-DML phases recorded above.
+
+The PostgreSQL 18.6 reference distinguishes runtime laziness from planning-time
+constant evaluation. A dynamically dead CASE containing constant `1/0`, or
+zero-row `UPDATE ... RETURNING 1/0`, can fail with SQLSTATE `22012` during
+planning. The corresponding row-dependent divisions stay unevaluated. The
+runtime witnesses now use qualified row-dependent divisions; the original
+constant-expression witnesses did not establish PostgreSQL parity. Planning
+behavior remains open in [#922](https://github.com/cntryl/cassie/issues/922),
+consistent with PostgreSQL's [expression evaluation rules](https://www.postgresql.org/docs/18/sql-expressions.html#SYNTAX-EXPRESS-EVAL).
+PostgreSQL also discards irrelevant EXISTS target expressions: division in its
+SELECT list does not establish a reached runtime error. That independent gap
+is owned by [#923](https://github.com/cntryl/cassie/issues/923).
+
+The finite witnesses are grouped as follows:
+
+- `tests/relational_qualification/exists_returning.rs` retains the original
+  UPDATE, INSERT SELECT, DELETE, captured-view and error controls.
+- `exists_returning_phases.rs` pairs dead and reached CASE/COALESCE controls
+  with zero affected rows and independent committed readback.
+- `exists_returning_families.rs` adds separate ordinary and EXISTS controls for
+  INSERT VALUES, INSERT SELECT, changed UPDATE rows and deleted old rows, with
+  literal complete descriptors and typed row multisets. INSERT witnesses retain
+  a prior transaction write, distinguish the pre-command subquery view from the
+  new outer rows, and check a later statement and independent observers.
+  DELETE errors preserve the original rows. Same-command duplicates on a non-id
+  UNIQUE field retain their exact constraint error and leave an independent
+  observer empty. A separately seeded conflict on the first INSERT candidate
+  must precede its RETURNING error; distinct candidates must reach row-dependent
+  division in WHERE. Both commands preserve the independently observed seed.
+  This does not impose a later candidate's UNIQUE error before an earlier row's
+  RETURNING error: the PostgreSQL reference can reach RETURNING first.
+- The private `src/executor/execution/dml_returning_tests.rs` witnesses admit
+  fresh copied output even when input rows already hold leases, retain actual
+  linked row and ancestor owners through all public rows, and reserve public
+  result slots. Cancellation and deadline checks apply during final
+  materialization. A phase-attributed real DML peak-minus-one denial must leave
+  writes unpublished; retirement releases private charges and workers. Public
+  copied result values remain independent after the materialization boundary.
+
+The earlier sibling diagnostics and their counts above are historical snapshots;
+they do not qualify this RETURNING phase. The corrected pre-repair probes passed
+the four new scalar-phase controls and nine original integration controls, while
+six of ten private helper probes exposed admission, parent-retention, public-slot,
+and final cancellation/deadline defects. Those RED receipts remain distinct from
+the repaired source and its pending replay. At this source checkpoint the six
+new family witnesses, the rebased source, complete ordered local validation,
+exact-head hosted checks, independent final review, merge and issue readback
+remain unqualified. Their current results belong to the PR record.
+
+This finite selection does not complete SQL-022, broaden supported grammar, or
+establish native release or production readiness. The wider
+[#761](https://github.com/cntryl/cassie/issues/761) program remains open.

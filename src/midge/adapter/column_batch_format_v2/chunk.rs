@@ -994,3 +994,6 @@ pub(super) fn checked_u64_length(length: u64, maximum: usize) -> Result<usize, C
     }
     Ok(length)
 }
+
+#[cfg(test)]
+mod selection_policy_tests;

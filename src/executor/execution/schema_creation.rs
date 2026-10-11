@@ -1,5 +1,6 @@
 use super::{catalog, primary_key_indexes, Cassie, FieldSchema, QueryError, QueryResult, Schema};
 use crate::app::{CassieError, CatalogObjectKind};
+use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{CreateIndexStatement, CreateTableStatement};
 
 pub(super) struct CreationOutcome {
@@ -8,30 +9,31 @@ pub(super) struct CreationOutcome {
 }
 
 impl CreationOutcome {
-    fn created(command: &str) -> Self {
+    fn created(result: QueryResult) -> Self {
         Self {
-            result: empty_command(command),
+            result,
             created: true,
         }
     }
 
-    fn unchanged(command: &str) -> Self {
-        Self {
-            result: empty_command(command),
+    fn unchanged(command: &str, controls: &QueryExecutionControls) -> Result<Self, QueryError> {
+        Ok(Self {
+            result: super::command_output::empty(command, controls)?,
             created: false,
-        }
+        })
     }
 }
 
 pub(super) fn create_table(
     cassie: &Cassie,
     statement: &CreateTableStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<CreationOutcome, QueryError> {
     let table = statement.table.to_string();
     cassie
         .midge
         .with_collection_gates(std::slice::from_ref(&table), || {
-            create_table_gated(cassie, statement, &table)
+            create_table_gated(cassie, statement, &table, controls)
         })
 }
 
@@ -39,9 +41,10 @@ fn create_table_gated(
     cassie: &Cassie,
     statement: &CreateTableStatement,
     table: &str,
+    controls: &QueryExecutionControls,
 ) -> Result<CreationOutcome, QueryError> {
     if statement.if_not_exists && cassie.catalog.relation_exists(table) {
-        return Ok(CreationOutcome::unchanged("CREATE TABLE"));
+        return CreationOutcome::unchanged("CREATE TABLE", controls);
     }
     if cassie.catalog.relation_exists(table) {
         return Err(CassieError::CatalogObjectAlreadyExists {
@@ -66,6 +69,7 @@ fn create_table_gated(
         catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
     let table_sequences =
         super::sequence_command::prepare_create_table_sequences(cassie, statement)?;
+    let output = super::command_output::empty("CREATE TABLE", controls)?;
     cassie
         .midge
         .create_collection_with_meta(table, &schema, &collection_meta)
@@ -105,12 +109,13 @@ fn create_table_gated(
         cassie.catalog.register_index(index);
     }
     super::schema_command::refresh_table_cardinality_stats(cassie, table)?;
-    Ok(CreationOutcome::created("CREATE TABLE"))
+    Ok(CreationOutcome::created(output))
 }
 
 pub(super) fn create_index(
     cassie: &Cassie,
     statement: &CreateIndexStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<CreationOutcome, QueryError> {
     if statement.if_not_exists
         && cassie
@@ -118,7 +123,7 @@ pub(super) fn create_index(
             .get_index(&statement.table, &statement.name)
             .is_some()
     {
-        return Ok(CreationOutcome::unchanged("CREATE INDEX"));
+        return CreationOutcome::unchanged("CREATE INDEX", controls);
     }
 
     let is_column_store = cassie
@@ -149,6 +154,7 @@ pub(super) fn create_index(
         unique: statement.unique,
         options: statement.options.clone(),
     };
+    let output = super::command_output::empty("CREATE INDEX", controls)?;
     if matches!(statement.kind, catalog::IndexKind::Vector) {
         let vector = super::vector_index_command::vector_index_metadata(cassie, statement)?;
         cassie.put_vector_index_with_backfill(&vector, Some(&metadata))?;
@@ -157,13 +163,5 @@ pub(super) fn create_index(
         cassie.catalog.register_index(metadata);
     }
     super::schema_command::refresh_table_cardinality_stats(cassie, &statement.table)?;
-    Ok(CreationOutcome::created("CREATE INDEX"))
-}
-
-fn empty_command(command: &str) -> QueryResult {
-    QueryResult {
-        columns: Vec::new(),
-        rows: Vec::new(),
-        command: command.to_string(),
-    }
+    Ok(CreationOutcome::created(output))
 }

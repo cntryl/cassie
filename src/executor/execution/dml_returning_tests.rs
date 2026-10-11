@@ -274,9 +274,11 @@ fn should_cancel_at_actual_returning_materialization_after_successful_projection
     assert!(
         matches!(result, Err(QueryError::General(ref message)) if message == "query canceled"),
         "actual final-boundary cancellation: {:?}",
-        result
-            .as_ref()
-            .map(|result| (&result.command, result.rows.len(), result.columns.len()))
+        result.as_ref().map(|result| (
+            result.command(),
+            result.rows().len(),
+            result.columns().len()
+        ))
     );
     assert!(matches!(
         CassieError::from(result.expect_err("canceled helper")),
@@ -306,9 +308,11 @@ fn should_expire_at_actual_returning_materialization_after_successful_projection
     assert!(
         matches!(result, Err(QueryError::General(ref message)) if message == "query timeout exceeded"),
         "actual final-boundary expiry: {:?}",
-        result
-            .as_ref()
-            .map(|result| (&result.command, result.rows.len(), result.columns.len()))
+        result.as_ref().map(|result| (
+            result.command(),
+            result.rows().len(),
+            result.columns().len()
+        ))
     );
     assert!(matches!(
         CassieError::from(result.expect_err("expired helper")),
@@ -332,15 +336,15 @@ fn should_preserve_ordinary_returning_success_with_retired_private_controls() {
 
     // Assert
     let result = run.result.expect("ordinary no-EXISTS control");
-    assert_eq!(result.command, "UPDATE 2");
+    assert_eq!(result.command(), "UPDATE 2");
     assert_eq!(
-        result.columns,
+        result.columns(),
         vec![
             support::column("id", "bigint", 20, 8),
             support::column("payload", "text", 25, -1)
         ]
     );
-    let mut rows = result.rows;
+    let mut rows = result.rows().to_vec();
     rows.sort_by_key(|row| match row[0] {
         Value::Int64(id) => id,
         ref other => panic!("id: {other:?}"),

@@ -1,5 +1,6 @@
-use super::{CassieSession, ColumnMeta, QueryError, QueryResult, Value};
+use super::{CassieSession, ColumnMeta, QueryError, QueryResult};
 use crate::catalog::DEFAULT_SCHEMA;
+use crate::runtime::QueryExecutionControls;
 
 /// The single column `SHOW` returns, shared by Describe and execution so the
 /// `RowDescription` of a prepared `SHOW` always matches its `DataRow`.
@@ -22,6 +23,7 @@ fn show_column_name(variable: &str) -> &str {
 pub(super) fn execute_show(
     session: Option<&CassieSession>,
     statement: &crate::sql::ast::ShowStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let variable = statement.variable.trim().to_ascii_lowercase();
     if variable.is_empty() {
@@ -29,29 +31,41 @@ pub(super) fn execute_show(
     }
 
     let value = if variable == "transaction isolation level" {
-        "read committed".to_string()
-    } else {
-        session.map_or_else(
-            || default_setting(&variable),
-            |session| session.setting(&variable),
+        crate::runtime::accounted::Accounted::try_new(
+            controls,
+            std::mem::size_of::<String>() + "read committed".len(),
+            || "read committed".to_owned(),
         )?
+    } else {
+        match session {
+            Some(session) => session.accounted_setting(&variable, controls)?,
+            None => default_setting(&variable, controls)?,
+        }
     };
-    Ok(QueryResult {
-        columns: show_result_columns(statement),
-        rows: vec![vec![Value::String(value)]],
-        command: "SHOW".to_string(),
-    })
+    let mut result = super::command_output::columns(
+        "SHOW",
+        &[(show_column_name(&variable), crate::types::DataType::Text)],
+        controls,
+    )?;
+    super::command_output::push_row(
+        &mut result,
+        &[super::command_output::Cell::Text(value.get())],
+        controls,
+    )?;
+    Ok(result.finish()?)
 }
 
 pub(super) fn execute_set(
     session: Option<&CassieSession>,
     statement: &crate::sql::ast::SetStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let variable = statement.variable.trim().to_ascii_lowercase();
     if variable.is_empty() {
         return Err(QueryError::General("SET requires a variable".to_string()));
     }
 
+    let output = super::command_output::empty("SET", controls)?;
     if variable == "search_path" {
         let value = statement.value.as_deref().unwrap_or("").trim();
         let Some(session) = session else {
@@ -70,15 +84,14 @@ pub(super) fn execute_set(
         };
         session.set_setting(&variable, statement.value.as_deref().unwrap_or(""))?;
     }
-    Ok(QueryResult {
-        columns: Vec::new(),
-        rows: Vec::new(),
-        command: "SET".to_string(),
-    })
+    Ok(output)
 }
 
-fn default_setting(name: &str) -> Result<String, crate::app::CassieError> {
-    CassieSession::new("root".to_string(), None).setting(name)
+fn default_setting(
+    name: &str,
+    controls: &QueryExecutionControls,
+) -> Result<crate::runtime::accounted::Accounted<String>, crate::app::CassieError> {
+    CassieSession::new("root".to_string(), None).accounted_setting(name, controls)
 }
 
 fn setting_display_name(name: &str) -> &str {

@@ -1,5 +1,6 @@
 //! Prior semantic-version plans must miss both compiled-plan cache layers.
 use super::*;
+use crate::types::Value;
 use crate::planner::physical::PhysicalPlan;
 use crate::sql::ast::{Expr, SelectItem};
 

@@ -1,3 +1,8 @@
+#[path = "materialized_projection_verification.rs"]
+mod verification;
+pub(super) use verification::{verify_projection, verify_projection_state};
+
+pub(super) use super::command_output::empty as empty_command;
 #[path = "materialized_projection/read_equivalence.rs"]
 mod read_equivalence;
 pub(super) use read_equivalence::preserves_base_columns;
@@ -6,9 +11,9 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::{
-    catalog, execute_plan, virtual_views, BatchRow, Cassie, ColumnMeta, CteContext, DataType, Expr,
-    FunctionCall, FunctionMeta, LogicalPlan, QueryError, QueryExecutionControls, QueryResult,
-    QuerySource, QueryStatement, Schema, SelectItem, Value,
+    catalog, execute_plan, virtual_views, BatchRow, Cassie, CteContext, Expr, FunctionCall,
+    FunctionMeta, LogicalPlan, QueryError, QueryExecutionControls, QueryResult, QuerySource,
+    QueryStatement, Schema, SelectItem,
 };
 use crate::midge::adapter::RootHashRecord;
 use crate::types::json::try_value_to_json;
@@ -37,7 +42,7 @@ pub(super) fn create_materialized_projection(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_not_exists && cassie.catalog.relation_exists(&statement.name) {
-        return Ok(empty_command("CREATE MATERIALIZED PROJECTION"));
+        return empty_command("CREATE MATERIALIZED PROJECTION", controls);
     }
     if cassie.catalog.relation_exists(&statement.name)
         || virtual_views::schema(&statement.name).is_some()
@@ -63,6 +68,7 @@ pub(super) fn create_materialized_projection(
         definition_fingerprint: stable_projection_fingerprint(&statement.query),
         created_ms: now_ms(),
     });
+    let output = empty_command("CREATE MATERIALIZED PROJECTION", controls)?;
     let created = cassie.midge.with_collection_gates(
         std::slice::from_ref(&statement.name),
         || -> Result<bool, QueryError> {
@@ -87,19 +93,37 @@ pub(super) fn create_materialized_projection(
         },
     )?;
     if !created {
-        return Ok(empty_command("CREATE MATERIALIZED PROJECTION"));
+        return Ok(output);
     }
-    refresh_materialized_projection(cassie, session, &statement.name, user_functions, controls)?;
-    Ok(empty_command("CREATE MATERIALIZED PROJECTION"))
+    refresh_materialized_projection_data(
+        cassie,
+        session,
+        &statement.name,
+        user_functions,
+        controls,
+    )?;
+    Ok(output)
 }
 
 pub(super) fn refresh_materialized_projection(
+    cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
+    name: &str,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let output = empty_command("REFRESH MATERIALIZED PROJECTION", controls)?;
+    refresh_materialized_projection_data(cassie, session, name, user_functions, controls)?;
+    Ok(output)
+}
+
+pub(super) fn refresh_materialized_projection_data(
     cassie: &Cassie,
     _session: Option<&crate::app::CassieSession>,
     name: &str,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
-) -> Result<QueryResult, QueryError> {
+) -> Result<(), QueryError> {
     let mut metadata = cassie
         .catalog
         .get_materialized_projection(name)
@@ -114,7 +138,7 @@ pub(super) fn refresh_materialized_projection(
                 .runtime
                 .record_materialized_projection_refresh(metadata.collection.clone());
             persist_projection_metadata(cassie, metadata)?;
-            Ok(empty_command("REFRESH MATERIALIZED PROJECTION"))
+            Ok(())
         }
         Err(error) => {
             metadata.freshness = catalog::ProjectionFreshness::Failed;
@@ -133,16 +157,18 @@ pub(super) fn drop_materialized_projection(
     cassie: &Cassie,
     name: &str,
     if_exists: bool,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let Some(metadata) = cassie.catalog.get_materialized_projection(name) else {
         if if_exists {
-            return Ok(empty_command("DROP MATERIALIZED PROJECTION"));
+            return empty_command("DROP MATERIALIZED PROJECTION", controls);
         }
         return Err(QueryError::General(format!(
             "materialized projection '{name}' does not exist"
         )));
     };
 
+    let output = empty_command("DROP MATERIALIZED PROJECTION", controls)?;
     // Storage and catalog removal use exact keys, so drop the stored projection
     // name rather than the name as it was typed.
     let projection = metadata.collection.clone();
@@ -151,7 +177,7 @@ pub(super) fn drop_materialized_projection(
         .with_collection_gates(std::slice::from_ref(&projection), || {
             drop_materialized_projection_gated(cassie, &projection, &metadata)
         })?;
-    Ok(empty_command("DROP MATERIALIZED PROJECTION"))
+    Ok(output)
 }
 
 /// Removes one materialized projection while holding its catalog gate, so the
@@ -215,149 +241,14 @@ pub(super) fn alter_materialized_projection(
         crate::sql::ast::AlterMaterializedProjectionOperation::ActivateVersion {
             version_id,
             unsafe_override,
-        } => activate_projection_version(cassie, &statement.name, version_id, *unsafe_override),
-    }
-}
-
-pub(super) fn verify_projection(
-    cassie: &Cassie,
-    statement: &crate::sql::ast::VerifyProjectionStatement,
-) -> Result<QueryResult, QueryError> {
-    let target = resolve_verification_target(cassie, statement)?;
-    let (metadata, hashes, indexes) = verification_mode_components(statement.mode);
-    let report = cassie
-        .midge
-        .verify_projection_integrity(&target.output_collection, hashes, indexes, metadata)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    let completed_ms = Some(now_ms());
-    let persisted = catalog::ProjectionIntegrityReportMeta {
-        state: report.state.clone(),
-        target: Some(target.output_collection.clone()),
-        version_id: target.version_id.clone(),
-        mode: statement.mode.as_str().to_string(),
-        checked_components: report.checked_components.clone(),
-        skipped_components: report.skipped_components.clone(),
-        mismatch_count: report.mismatch_count,
-        missing_count: report.missing_count,
-        stale_count: report.stale_count,
-        repairable: report.repairable,
-        elapsed_ms: report.elapsed_ms,
-        completed_ms,
-        last_error: report.last_error.clone(),
-    };
-    let mut projection = cassie
-        .catalog
-        .get_projection_metadata(&target.metadata_key)
-        .or_else(|| {
-            cassie
-                .catalog
-                .get_materialized_projection(&target.metadata_key)
-        })
-        .unwrap_or_else(|| catalog::ProjectionMeta::new(&target.metadata_key, 1));
-    projection.integrity = persisted;
-    persist_projection_metadata(cassie, projection)?;
-    cassie.runtime.record_projection_integrity_verification(
-        target.metadata_key.clone(),
-        report.state != catalog::ProjectionVerificationState::Verified,
-    );
-
-    Ok(QueryResult {
-        columns: vec![
-            ColumnMeta::text("state"),
-            ColumnMeta::text("target_collection"),
-            ColumnMeta::text("mode"),
-            ColumnMeta::from_data_type("mismatch_count", &DataType::BigInt),
-            ColumnMeta::from_data_type("missing_count", &DataType::BigInt),
-            ColumnMeta::from_data_type("stale_count", &DataType::BigInt),
-            ColumnMeta::from_data_type("repairable", &DataType::Boolean),
-            ColumnMeta::text("checked_components"),
-            ColumnMeta::text("skipped_components"),
-            ColumnMeta::text("last_error"),
-        ],
-        rows: vec![vec![
-            Value::String(report.state.as_str().to_string()),
-            Value::String(target.output_collection),
-            Value::String(statement.mode.as_str().to_string()),
-            Value::Int64(u64_to_i64(report.mismatch_count)),
-            Value::Int64(u64_to_i64(report.missing_count)),
-            Value::Int64(u64_to_i64(report.stale_count)),
-            Value::Bool(report.repairable),
-            Value::String(report.checked_components.join(",")),
-            Value::String(report.skipped_components.join(",")),
-            Value::String(report.last_error.unwrap_or_default()),
-        ]],
-        command: "VERIFY PROJECTION".to_string(),
-    })
-}
-
-struct VerificationTarget {
-    metadata_key: String,
-    output_collection: String,
-    version_id: Option<String>,
-}
-
-fn resolve_verification_target(
-    cassie: &Cassie,
-    statement: &crate::sql::ast::VerifyProjectionStatement,
-) -> Result<VerificationTarget, QueryError> {
-    if let Some(projection) = cassie.catalog.get_materialized_projection(&statement.name) {
-        let version_id = statement
-            .version_id
-            .clone()
-            .or_else(|| projection.active_version.clone());
-        let output_collection = if let Some(version_id) = version_id.as_ref() {
-            projection
-                .versions
-                .iter()
-                .find(|version| &version.version_id == version_id)
-                .map(|version| version.output_collection.clone())
-                .ok_or_else(|| {
-                    QueryError::General(format!("projection version '{version_id}' does not exist"))
-                })?
-        } else {
-            projection
-                .materialized
-                .as_ref()
-                .map(|materialized| materialized.output_collection.clone())
-                .ok_or_else(|| {
-                    QueryError::General(format!(
-                        "materialized projection '{}' is missing output collection",
-                        statement.name
-                    ))
-                })?
-        };
-        return Ok(VerificationTarget {
-            metadata_key: projection.collection,
-            output_collection,
+        } => activate_projection_version(
+            cassie,
+            &statement.name,
             version_id,
-        });
+            *unsafe_override,
+            controls,
+        ),
     }
-    if !cassie.catalog.exists(&statement.name) {
-        return Err(QueryError::General(format!(
-            "projection or collection '{}' does not exist",
-            statement.name
-        )));
-    }
-    Ok(VerificationTarget {
-        metadata_key: statement.name.clone(),
-        output_collection: statement.name.clone(),
-        version_id: statement.version_id.clone(),
-    })
-}
-
-fn verification_mode_components(
-    mode: crate::sql::ast::ProjectionVerificationMode,
-) -> (bool, bool, bool) {
-    match mode {
-        crate::sql::ast::ProjectionVerificationMode::MetadataOnly => (true, false, false),
-        crate::sql::ast::ProjectionVerificationMode::HashesOnly => (false, true, false),
-        crate::sql::ast::ProjectionVerificationMode::IndexesOnly => (false, false, true),
-        crate::sql::ast::ProjectionVerificationMode::Full => (true, true, true),
-    }
-}
-
-fn u64_to_i64(value: u64) -> i64 {
-    i64::try_from(value).unwrap_or(i64::MAX)
 }
 
 fn activate_projection_version(
@@ -365,6 +256,7 @@ fn activate_projection_version(
     name: &str,
     version_id: &str,
     unsafe_override: bool,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let mut metadata = cassie
         .catalog
@@ -415,6 +307,7 @@ fn activate_projection_version(
         )));
     }
 
+    let output = empty_command("ALTER MATERIALIZED PROJECTION", controls)?;
     let previous = metadata.active_version.clone();
     for version in &mut metadata.versions {
         if version.version_id == version_id {
@@ -441,7 +334,7 @@ fn activate_projection_version(
     cassie
         .runtime
         .record_projection_activation_write(name.to_string());
-    Ok(empty_command("ALTER MATERIALIZED PROJECTION"))
+    Ok(output)
 }
 
 fn build_active_version(
@@ -943,12 +836,4 @@ pub(super) fn now_ms() -> u64 {
         .map_or(0, |duration| {
             u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
         })
-}
-
-pub(super) fn empty_command(command: &str) -> QueryResult {
-    QueryResult {
-        columns: Vec::new(),
-        rows: Vec::new(),
-        command: command.to_string(),
-    }
 }

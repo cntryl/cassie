@@ -1,12 +1,15 @@
+use super::command_output::empty as empty_command;
 use super::{Cassie, QueryError, QueryResult};
 use crate::catalog::DefaultSequenceOwnership;
+use crate::runtime::QueryExecutionControls;
 
 pub(super) fn create_sequence(
     cassie: &Cassie,
     statement: &crate::sql::ast::CreateSequenceStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_not_exists && cassie.catalog.sequence_exists(&statement.name) {
-        return Ok(empty_command("CREATE SEQUENCE"));
+        return empty_command("CREATE SEQUENCE", controls);
     }
     if cassie.catalog.sequence_exists(&statement.name) {
         return Err(QueryError::General(format!(
@@ -16,20 +19,22 @@ pub(super) fn create_sequence(
     }
 
     let metadata = crate::catalog::SequenceMeta::new(&statement.name, statement.data_type.clone());
+    let output = empty_command("CREATE SEQUENCE", controls)?;
     cassie
         .midge
         .put_sequence(&metadata)
         .map_err(QueryError::from)?;
     cassie.catalog.register_sequence(metadata);
-    Ok(empty_command("CREATE SEQUENCE"))
+    Ok(output)
 }
 
 pub(super) fn drop_sequence(
     cassie: &Cassie,
     statement: &crate::sql::ast::DropSequenceStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_exists && !cassie.catalog.sequence_exists(&statement.name) {
-        return Ok(empty_command("DROP SEQUENCE"));
+        return empty_command("DROP SEQUENCE", controls);
     }
     if !cassie.catalog.sequence_exists(&statement.name) {
         return Err(QueryError::General(format!(
@@ -38,12 +43,13 @@ pub(super) fn drop_sequence(
         )));
     }
 
+    let output = empty_command("DROP SEQUENCE", controls)?;
     cassie
         .midge
         .delete_sequence(&statement.name)
         .map_err(QueryError::from)?;
     cassie.catalog.unregister_sequence(&statement.name);
-    Ok(empty_command("DROP SEQUENCE"))
+    Ok(output)
 }
 
 pub(super) fn prepare_create_table_sequences(
@@ -240,12 +246,4 @@ fn constraint_is_populated(constraint: &crate::catalog::FieldConstraint) -> bool
         || constraint.default_sequence.is_some()
         || constraint.check.is_some()
         || constraint.references_table.is_some()
-}
-
-fn empty_command(command: &str) -> QueryResult {
-    QueryResult {
-        columns: Vec::new(),
-        rows: Vec::new(),
-        command: command.to_string(),
-    }
 }

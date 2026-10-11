@@ -80,16 +80,16 @@ impl Fixture {
             )
             .expect("fresh independent readback");
         let first = if changed { 11 } else { 1 };
-        assert_eq!(actual.command, "SELECT");
+        assert_eq!(actual.command(), "SELECT");
         assert_eq!(
-            actual.columns,
+            actual.columns(),
             vec![
                 column("id", "bigint", 20, 8),
                 column("payload", "text", 25, -1)
             ]
         );
         assert_eq!(
-            actual.rows,
+            actual.rows(),
             (first..first + 2)
                 .map(|id| vec![Value::Int64(id), Value::String("x".repeat(PAYLOAD_BYTES))])
                 .collect::<Vec<_>>()
@@ -278,15 +278,32 @@ pub(super) fn helper_run(
     let result = call_helper(fixture, projection, &controls, &read_controls, rows);
     drop(hook);
     let peak = controls.peak_query_memory_bytes();
-    let retained = controls.current_query_memory_bytes();
+    let result_bytes = result.as_ref().map_or(0, QueryResult::retained_bytes);
+    let retained = controls
+        .current_query_memory_bytes()
+        .checked_sub(result_bytes)
+        .expect("managed result is charged to the same request tracker");
     assert_eq!(
         retained,
         view_charge + caller_charge,
-        "helper-owned state retires before success/error returns"
+        "private helper state retires while the public result retains only its own lease"
     );
     drop(anchors);
     drop(read_controls);
-    fixture.assert_retired(&controls);
+    assert_eq!(
+        controls.current_query_memory_bytes(),
+        result_bytes,
+        "only the independently owned public result survives private scope retirement"
+    );
+    assert_eq!(
+        fixture
+            .cassie
+            .runtime
+            .snapshot()
+            .runtime
+            .active_operator_workers,
+        0
+    );
     assert!(records
         .borrow()
         .iter()
@@ -319,8 +336,8 @@ pub(super) fn assert_result(actual: &QueryResult, changed: bool) {
     let mut columns = vec![column("id", "bigint", 20, 8)];
     columns.extend((0..COPIES).map(|index| column(&format!("p{index}"), "text", 25, -1)));
     columns.push(column("member", "boolean", 16, 1));
-    assert_eq!(actual.columns, columns, "literal full descriptors");
-    assert_eq!(actual.command, "UPDATE 2");
+    assert_eq!(actual.columns(), columns, "literal full descriptors");
+    assert_eq!(actual.command(), "UPDATE 2");
     let first = if changed { 11 } else { 1 };
     let expected = (first..first + 2)
         .map(|id| {
@@ -330,7 +347,7 @@ pub(super) fn assert_result(actual: &QueryResult, changed: bool) {
             row
         })
         .collect::<Vec<_>>();
-    let mut rows = actual.rows.clone();
+    let mut rows = actual.rows().to_vec();
     rows.sort_by_key(|row| match row[0] {
         Value::Int64(id) => id,
         ref other => panic!("id: {other:?}"),
@@ -374,7 +391,21 @@ pub(super) fn dml_run(budget: usize) -> DmlRun {
     );
     drop(hook);
     let peak = controls.peak_query_memory_bytes();
-    fixture.assert_retired(&controls);
+    let result_bytes = result.as_ref().map_or(0, QueryResult::retained_bytes);
+    assert_eq!(
+        controls.current_query_memory_bytes(),
+        result_bytes,
+        "only the managed public result survives the command scope"
+    );
+    assert_eq!(
+        fixture
+            .cassie
+            .runtime
+            .snapshot()
+            .runtime
+            .active_operator_workers,
+        0
+    );
     fixture.assert_readback(result.is_ok());
     assert!(records
         .borrow()
@@ -383,9 +414,11 @@ pub(super) fn dml_run(budget: usize) -> DmlRun {
         .all(super::observer::Roots::retired));
     println!(
         "actual DML budget={budget} peak={peak} result={:?} phases={}",
-        result
-            .as_ref()
-            .map(|result| (&result.command, result.rows.len(), result.columns.len())),
+        result.as_ref().map(|result| (
+            result.command(),
+            result.rows().len(),
+            result.columns().len()
+        )),
         records.borrow().len()
     );
     DmlRun {
@@ -439,9 +472,11 @@ pub(super) fn interrupt_helper(
     fixture.assert_retired(&controls);
     println!(
         "actual final-boundary expiry={expiry} result={:?} phases={}",
-        result
-            .as_ref()
-            .map(|result| (&result.command, result.rows.len(), result.columns.len())),
+        result.as_ref().map(|result| (
+            result.command(),
+            result.rows().len(),
+            result.columns().len()
+        )),
         records.borrow().len()
     );
     (result, records)

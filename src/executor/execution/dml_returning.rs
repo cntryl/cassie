@@ -68,6 +68,9 @@ pub(super) fn build(
     let count = batches
         .iter()
         .try_fold(0, |count, batch| add(count, batch.len()))?;
+    let _flatten_slots = context
+        .controls
+        .reserve_query_memory(mul(count, size_of::<BatchRow>())?)?;
     let mut projected = Vec::new();
     projected
         .try_reserve_exact(count)
@@ -82,12 +85,7 @@ pub(super) fn build(
         projected.capacity(),
     );
     let columns = dml_returning_columns(context.returning, schema.as_ref(), context.user_functions);
-    let rows = materialize(projected, context.controls, affected_count)?;
-    Ok(QueryResult {
-        columns,
-        rows,
-        command: format!("{} {affected_count}", context.command_prefix),
-    })
+    finish(context, affected_count, &columns, projected)
 }
 
 fn admit_inputs(
@@ -117,44 +115,51 @@ fn admit_inputs(
     Ok(())
 }
 
-fn materialize(
-    rows: Vec<BatchRow>,
-    controls: &QueryExecutionControls,
+pub(super) fn finish(
+    context: &DmlResultContext<'_>,
     affected_count: usize,
-) -> Result<Vec<Vec<Value>>, QueryError> {
-    let _ = affected_count;
+    columns: &[super::ColumnMeta],
+    rows: Vec<BatchRow>,
+) -> Result<QueryResult, QueryError> {
+    let controls = context.controls;
     let _parents = OperatorMemory::hold_rows(controls, &rows)?;
-    let bytes = rows
+    let mut output = QueryResult::try_builder(controls)?;
+    for column in columns {
+        output.try_push_column(column)?;
+    }
+    super::super::command_output::set_counted(&mut output, context.command_prefix, affected_count)?;
+    let slots = rows
         .iter()
         .try_fold(mul(rows.len(), size_of::<Vec<Value>>())?, |bytes, row| {
             add(bytes, mul(row.entries().len(), size_of::<Value>())?)
         })?;
-    let _slots = controls.reserve_query_memory(bytes)?;
-    let mut output = Vec::new();
-    output
+    let _slots = controls.reserve_query_memory(slots)?;
+    let mut materialized = Vec::new();
+    materialized
         .try_reserve_exact(rows.len())
         .map_err(|error| allocation_error(&error))?;
     for row in rows {
         #[cfg(test)]
-        {
-            super::dml_returning_tests::observe(
-                super::dml_returning_tests::Phase::Materializing(output.len()),
-                controls,
-                affected_count,
-                std::slice::from_ref(&row),
-                1,
-            );
-        }
+        super::dml_returning_tests::observe(
+            super::dml_returning_tests::Phase::Materializing(materialized.len()),
+            controls,
+            affected_count,
+            std::slice::from_ref(&row),
+            1,
+        );
         check_timeout(controls)?;
         let mut values = Vec::new();
         values
             .try_reserve_exact(row.entries().len())
             .map_err(|error| allocation_error(&error))?;
         values.extend(row.into_entries().into_iter().map(|(_, value)| value));
-        output.push(values);
+        materialized.push(values);
+    }
+    for values in &materialized {
+        output.try_push_row(values)?;
     }
     check_timeout(controls)?;
-    Ok(output)
+    Ok(output.finish()?)
 }
 
 fn allocation_error(error: &std::collections::TryReserveError) -> QueryError {

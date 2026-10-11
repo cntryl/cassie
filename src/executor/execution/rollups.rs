@@ -1,3 +1,4 @@
+use super::command_output::empty as empty_command;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -39,7 +40,7 @@ fn create_rollup_gated(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_not_exists && cassie.catalog.get_rollup(&statement.name).is_some() {
-        return Ok(empty_command("CREATE ROLLUP"));
+        return empty_command("CREATE ROLLUP", controls);
     }
 
     let meta = metadata_from_statement(cassie, statement, user_functions)?;
@@ -52,20 +53,21 @@ fn create_rollup_gated(
     let rows = serialize_rollup_rows(rows)?;
     ensure_source_generation(cassie, &meta, source_generation)?;
 
+    let output = empty_command("CREATE ROLLUP", controls)?;
     cassie
         .midge
         .put_rollup(&meta)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_rollup(meta.clone());
     if let Err(error) = publish_rollup_rows(cassie, meta.clone(), rows, source_generation) {
-        if let Err(cleanup_error) = drop_rollup(cassie, &meta.name, false) {
+        if let Err(cleanup_error) = drop_rollup_data(cassie, &meta.name, false) {
             return Err(QueryError::General(format!(
                 "rollup build failed: {error}; cleanup failed: {cleanup_error}"
             )));
         }
         return Err(error);
     }
-    Ok(empty_command("CREATE ROLLUP"))
+    Ok(output)
 }
 
 pub(super) fn refresh_rollup(
@@ -74,6 +76,17 @@ pub(super) fn refresh_rollup(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    let output = empty_command("REFRESH ROLLUP", controls)?;
+    refresh_rollup_data(cassie, name, user_functions, controls)?;
+    Ok(output)
+}
+
+fn refresh_rollup_data(
+    cassie: &Cassie,
+    name: &str,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
     let meta = cassie
         .catalog
         .get_rollup(name)
@@ -98,7 +111,7 @@ pub(super) fn refresh_rollup(
         )));
     }
     publish_rollup_rows(cassie, current_meta, rows, source_generation)?;
-    Ok(empty_command("REFRESH ROLLUP"))
+    Ok(())
 }
 
 fn ensure_source_generation(
@@ -223,10 +236,17 @@ pub(super) fn drop_rollup(
     cassie: &Cassie,
     name: &str,
     if_exists: bool,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    let output = empty_command("DROP ROLLUP", controls)?;
+    drop_rollup_data(cassie, name, if_exists)?;
+    Ok(output)
+}
+
+fn drop_rollup_data(cassie: &Cassie, name: &str, if_exists: bool) -> Result<(), QueryError> {
     let Some(meta) = cassie.catalog.get_rollup(name) else {
         if if_exists {
-            return Ok(empty_command("DROP ROLLUP"));
+            return Ok(());
         }
         return Err(QueryError::General(format!(
             "rollup '{name}' does not exist"
@@ -237,7 +257,7 @@ pub(super) fn drop_rollup(
         .with_collection_gates(std::slice::from_ref(&meta.output_collection), || {
             let Some(current_meta) = cassie.catalog.get_rollup(name) else {
                 if if_exists {
-                    return Ok(empty_command("DROP ROLLUP"));
+                    return Ok(());
                 }
                 return Err(QueryError::General(format!(
                     "rollup '{name}' does not exist"
@@ -254,7 +274,7 @@ pub(super) fn drop_rollup(
                 .delete_rollup(&current_meta.name)
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_rollup(&current_meta.name);
-            Ok(empty_command("DROP ROLLUP"))
+            Ok(())
         })
 }
 
@@ -272,7 +292,7 @@ pub(super) fn refresh_rollups_for_source(
         .map_err(QueryError::Cassie)
         .and_then(|()| {
             for rollup in cassie.catalog.list_rollups_for_source(source) {
-                refresh_rollup(cassie, &rollup.name, user_functions, controls)?;
+                refresh_rollup_data(cassie, &rollup.name, user_functions, controls)?;
             }
             Ok(())
         });
@@ -847,14 +867,6 @@ fn value_to_json(value: Value) -> Result<serde_json::Value, QueryError> {
         Value::String(value) => Ok(serde_json::Value::String(value)),
         Value::Vector(value) => Ok(serde_json::json!(value.values)),
         Value::Json(value) => Ok(value),
-    }
-}
-
-fn empty_command(command: &str) -> QueryResult {
-    QueryResult {
-        columns: Vec::new(),
-        rows: Vec::new(),
-        command: command.to_string(),
     }
 }
 

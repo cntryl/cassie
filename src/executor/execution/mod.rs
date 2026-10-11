@@ -45,6 +45,9 @@ fn primary_key_indexes(
 }
 
 mod types;
+mod query_result;
+mod command_output;
+pub use query_result::{OwnedQueryRows, QueryResultBuilder};
 use types::ExecutionBreakdownDurations;
 pub use types::{
     ColumnMeta, ExecutionBreakdownMicros, ExecutionBreakdownOutput, QueryError, QueryResult,

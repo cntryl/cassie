@@ -55,16 +55,6 @@ impl Cassie {
         result
     }
 
-    pub(crate) fn explain_sql_with_cancellation(
-        &self,
-        session: &CassieSession,
-        sql: &str,
-        params: Vec<Value>,
-        cancellation: &QueryCancellationHandle,
-    ) -> Result<QueryExplainOutput, CassieError> {
-        self.explain_sql_with_cancellation_converted(session, sql, params, cancellation, |output, _| Ok(output))
-    }
-
     pub(crate) fn explain_sql_with_cancellation_converted<T>(
         &self,
         session: &CassieSession,

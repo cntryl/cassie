@@ -6,7 +6,7 @@ use super::query_metrics::{
 use super::{
     current_time_millis, parser, query_cache, unsupported_sql_error, Arc, Cassie, CassieError,
     CassieSession, ColumnMeta, ExecutionMode, Instant, PlanCacheKey, PlanCacheProvenance,
-    QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement, Value,
+    QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement,
 };
 // Discard compiled plans from earlier Boolean/conditional binding and literal-only pagination.
 // Alias namespaces and expression bounds share this rebuildable cache epoch.

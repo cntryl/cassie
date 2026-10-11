@@ -157,16 +157,6 @@ impl AccountedDocumentPage {
     }
 
     #[must_use]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.documents.is_empty()
-    }
-
-    #[must_use]
-    pub(crate) fn len(&self) -> usize {
-        self.documents.len()
-    }
-
-    #[must_use]
     pub(crate) const fn has_more(&self) -> bool {
         self.has_more
     }
@@ -357,7 +347,7 @@ mod tests {
         let popped = page.pop_document().expect("page document");
 
         // Assert
-        assert!(page.is_empty());
+        assert!(page.pop_document().is_none());
         assert!(!page.has_more());
         assert_eq!(popped.id(), "one");
         assert_eq!(controls.current_query_memory_bytes(), retained_bytes);

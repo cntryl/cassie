@@ -900,9 +900,21 @@ mod scalar_index_resource_controls {
     fn should_reject_scalar_index_hit_before_retaining_it_given_low_memory() {
         // Arrange
         let _hook_guard = query_scan_control_test_guard();
-        let (cassie, path) = configured_cassie("low-memory", 64);
+        let (cassie, path) = configured_cassie("low-memory", 64 * 1_024);
         let session = cassie.create_session("tester", None);
         seed_indexed_rows(&cassie, &session, "controlled_scalar_memory");
+        // Bootstrap schema and index before reopening the same store at the target cap.
+        drop(session);
+        drop(cassie);
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.query_memory_budget_bytes = 64;
+        config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+        config.limits.parallel_scan_workers = 1;
+        let cassie =
+            Cassie::new_with_data_dir_and_config(&path, config).expect("low-memory cassie");
+        cassie.startup().expect("reopen indexed store");
+        let session = cassie.create_session("tester", None);
+        let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
 
         // Act
         let error = cassie
@@ -912,9 +924,14 @@ mod scalar_index_resource_controls {
             vec![],
         )
         .expect_err("one retained scalar hit should exceed the query budget");
+        let visited = cassie
+            .midge
+            .query_scan_entries_for_diagnostics()
+            .saturating_sub(before_entries);
 
         // Assert
         assert!(matches!(error, CassieError::ResourceLimit(_)));
+        assert_eq!(visited, 1, "reject the first native scalar-index hit");
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
@@ -1866,7 +1883,7 @@ mod graph_resilience {
         let path = data_dir("graph_low_memory");
         let runtime = current_thread_runtime();
         runtime.block_on(async {
-        let cassie = configured_cassie(&path, 64);
+        let cassie = configured_cassie(&path, 64 * 1_024);
         let session = cassie.create_session("tester", None);
         execute(&cassie, &session, "CREATE GRAPH social");
         let edges = (0..8)
@@ -1883,6 +1900,11 @@ mod graph_resilience {
             .midge
             .put_fresh_graph_documents("social_edges", edges)
             .expect("seed graph edges");
+        // Bootstrap under an ample budget, then reopen the same durable graph at the target cap.
+        drop(session);
+        drop(cassie);
+        let cassie = configured_cassie(&path, 64);
+        let session = cassie.create_session("tester", None);
         let before = cassie.metrics();
 
         // Act
@@ -1924,7 +1946,7 @@ mod graph_resilience {
         let path = data_dir("graph_shortest_path_low_memory");
         let runtime = current_thread_runtime();
         runtime.block_on(async {
-            let cassie = configured_cassie(&path, 64);
+            let cassie = configured_cassie(&path, 64 * 1_024);
             let session = cassie.create_session("tester", None);
             execute(&cassie, &session, "CREATE GRAPH social");
             let edges = (0..8)
@@ -1941,6 +1963,11 @@ mod graph_resilience {
                 .midge
                 .put_fresh_graph_documents("social_edges", edges)
                 .expect("seed graph edges");
+            // Bootstrap under an ample budget, then reopen the same durable graph at the target cap.
+            drop(session);
+            drop(cassie);
+            let cassie = configured_cassie(&path, 64);
+            let session = cassie.create_session("tester", None);
             let before = cassie.metrics();
 
             // Act
@@ -3004,7 +3031,7 @@ mod query_resource_controls {
     fn should_reject_unindexed_heap_top_k_before_exceeding_memory_budget() {
         // Arrange
         let _hook_guard = query_scan_control_test_guard();
-        let (cassie, path) = configured_cassie("heap-top-k-memory", 8 * 1_024);
+        let (cassie, path) = configured_cassie("heap-top-k-memory", 9 * 1_024);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -3022,8 +3049,9 @@ mod query_resource_controls {
             )
             .expect("complete top-k input must fit before ordering-key retention");
         assert_eq!(input.rows().len(), 4);
+        drop(input);
         // A computed order declines the simple-column shortcut. Two retained keys
-        // contain 2 * 256 * 21 TEXT bytes, exceeding 8 KiB after the narrow input fits.
+        // contain 2 * 256 * 21 TEXT bytes, exceeding 9 KiB after the narrow input fits.
         let key_arguments = vec!["payload"; 256].join(", ");
         let sql = format!(
             "SELECT payload FROM controlled_heap_top_k_memory ORDER BY concat({key_arguments}) LIMIT 2"

@@ -17,15 +17,7 @@ pub fn circle_fixture_with_row_limit(
         .join(format!("cassie-{name}-{}", uuid::Uuid::new_v4()))
         .to_string_lossy()
         .into_owned();
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
-        model: "retrieval-controls".to_string(),
-        dimensions: 3,
-    });
-    config.limits.query_memory_budget_bytes = budget;
-    config.limits.max_result_rows = max_result_rows;
-    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("create Cassie");
+    let cassie = open_circle_fixture(&path, budget, max_result_rows);
     cassie
         .execute_sql(
             &cassie.create_session("tester", None),
@@ -49,6 +41,18 @@ pub fn circle_fixture_with_row_limit(
         .put_fresh_documents("docs", documents)
         .expect("seed vectors");
     (cassie, path)
+}
+
+pub fn open_circle_fixture(path: &str, budget: usize, max_result_rows: usize) -> Cassie {
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
+        model: "retrieval-controls".to_string(),
+        dimensions: 3,
+    });
+    config.limits.query_memory_budget_bytes = budget;
+    config.limits.max_result_rows = max_result_rows;
+    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+    Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie")
 }
 
 pub fn create_index(cassie: &Cassie, options: &str) {

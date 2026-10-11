@@ -7058,26 +7058,49 @@ mod vector_query_stability {
         use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
         let path = data_dir("vector_exact_memory_budget");
-        let cassie = vector_cassie_with_memory_budget(&path, 32);
-        let session = cassie.create_session("tester", None);
+        let cassie = vector_cassie_with_memory_budget(&path, 64 * 1_024);
         let collection = "vector_exact_memory_budget";
         seed_vector_collection(&cassie, collection, 20);
+        drop(cassie);
+        let cassie = vector_cassie_with_memory_budget(&path, 32);
+        cassie.startup().expect("reopen seeded vector collection");
+        let session = cassie.create_session("tester", None);
+        let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
+        let before = cassie.metrics();
 
         // Act
-        let error = cassie
-            .execute_sql(
-                &session,
-                &vector_query(collection, false),
-                query_params(true, false),
-            )
-            .expect_err("exact vector heap should exceed the memory budget");
+        let outcome = cassie.execute_sql(
+            &session,
+            &vector_query(collection, false),
+            query_params(true, false),
+        );
+        let visited = cassie
+            .midge
+            .query_scan_entries_for_diagnostics()
+            .saturating_sub(before_entries);
+        let after = cassie.metrics();
+        let error = outcome.err();
+        drop(session);
+        drop(cassie);
+        let cleanup = std::fs::remove_dir_all(path);
 
         // Assert
+        let error = error.expect("exact vector query should exceed the memory budget");
+        assert!(matches!(error, CassieError::ResourceLimit(_)));
         assert!(
             error.to_string().contains("query memory budget"),
             "unexpected error: {error}"
         );
-        let _ = std::fs::remove_dir_all(path);
+        assert_eq!(visited, 1, "reject within the exact vector source scan");
+        assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+        assert_eq!(after["runtime"]["running_queries"], 0);
+        assert_eq!(after["runtime"]["active_operator_workers"], 0);
+        assert_eq!(after["vector"]["count"], before["vector"]["count"]);
+        assert_eq!(
+            after["query"]["rows_returned_total"],
+            before["query"]["rows_returned_total"]
+        );
+        cleanup.expect("retire vector fixture");
     }
 
     #[test]

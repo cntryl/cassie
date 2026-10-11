@@ -6,16 +6,26 @@ mod support_authentication_redaction;
 
 #[path = "support/retrieval.rs"]
 mod support_retrieval;
+#[path = "support/retrieval_provider.rs"]
+mod support_retrieval_provider;
 
 mod vector_memory_controls {
-    use super::support_retrieval::{circle_fixture, circle_fixture_with_row_limit, create_index};
+    use super::support_retrieval::{
+        circle_fixture, circle_fixture_with_row_limit, create_index, open_circle_fixture,
+    };
+    use super::support_retrieval_provider::CountingEmbeddingProvider;
     use cassie::app::CassieError;
+    use cassie::embeddings::EmbeddingProvider;
 
     #[test]
     fn should_reject_rest_vector_search_under_the_same_budget_as_sql() {
         // Arrange
-        let (cassie, path) = circle_fixture("rest_vector_budget", 64, 1);
-        create_index(&cassie, "index_type = bruteforce");
+        super::support_sql::use_local_storage();
+        let (setup, path) = circle_fixture("rest_vector_budget", 64, 64 * 1024);
+        create_index(&setup, "index_type = bruteforce");
+        drop(setup);
+        let cassie = open_circle_fixture(&path, 1, 100_000);
+        cassie.startup().expect("hydrate persisted vector fixture");
         let session = cassie.create_session("tester", None);
         let before = cassie.metrics();
 
@@ -43,22 +53,93 @@ mod vector_memory_controls {
     #[test]
     fn should_preserve_zero_limit_with_a_tiny_rest_vector_budget() {
         // Arrange
-        let (cassie, path) = circle_fixture("rest_vector_zero_budget", 3, 1);
-        create_index(&cassie, "index_type = bruteforce");
+        super::support_sql::use_local_storage();
+        let (setup, path) = circle_fixture("rest_vector_zero_budget", 3, 64 * 1024);
+        create_index(&setup, "index_type = bruteforce");
+        drop(setup);
+        let mut denied = open_circle_fixture(&path, 1, 100_000);
+        denied.startup().expect("hydrate one-byte vector fixture");
+        let denied_provider = CountingEmbeddingProvider::install(&mut denied);
+        drop(
+            denied_provider
+                .embed_query("query")
+                .expect("provider control"),
+        );
+        let denied_counter_control = denied_provider.calls();
+        denied_provider.reset_calls();
+        let denied_before = denied.metrics();
+        let denied_scan_before = denied.midge.query_scan_entries_for_diagnostics();
 
         // Act
+        let rejected = matches!(
+            cassie::rest::search::vector_search(
+                &denied,
+                "docs",
+                br#"{"field":"embedding","query":"query","limit":0}"#,
+            ),
+            Err(CassieError::ResourceLimit(_))
+        );
+        let denied_after = denied.metrics();
+        let denied_scan_after = denied.midge.query_scan_entries_for_diagnostics();
+        let denied_provider_calls = denied_provider.calls();
+        drop(denied_provider);
+        drop(denied);
+
+        // The same zero-row request still owns metadata and a managed REST payload.
+        // A separate small admitted budget qualifies empty success without vector work.
+        let mut cassie = open_circle_fixture(&path, 4 * 1024, 100_000);
+        cassie.startup().expect("hydrate admitted vector fixture");
+        let provider = CountingEmbeddingProvider::install(&mut cassie);
+        drop(provider.embed_query("query").expect("provider control"));
+        let counter_control = provider.calls();
+        provider.reset_calls();
+        let before = cassie.metrics();
+        let scan_before = cassie.midge.query_scan_entries_for_diagnostics();
         let result = cassie::rest::search::vector_search(
             &cassie,
             "docs",
             br#"{"field":"embedding","query":"query","limit":0}"#,
-        )
-        .expect("empty result");
-
-        // Assert
-        assert_eq!(result.rows(), Vec::<Vec<serde_json::Value>>::new());
-        assert!(serde_json::to_value(result).is_ok());
+        );
+        let output_error = result.as_ref().err().map(ToString::to_string);
+        let empty = result.as_ref().is_ok_and(|result| result.rows().is_empty());
+        let serializable = result
+            .as_ref()
+            .is_ok_and(|result| serde_json::to_value(result).is_ok());
+        let live = cassie.metrics();
+        let scan_after = cassie.midge.query_scan_entries_for_diagnostics();
+        let provider_calls = provider.calls();
+        drop(result);
+        let retired = cassie.metrics();
+        drop(provider);
         drop(cassie);
         std::fs::remove_dir_all(path).expect("cleanup fixture");
+
+        // Assert
+        assert!(rejected, "one byte cannot admit the required empty output");
+        assert_eq!(denied_counter_control, 1);
+        assert_eq!(denied_provider_calls, 0);
+        assert_eq!(denied_scan_after, denied_scan_before);
+        assert_eq!(denied_after["vector"], denied_before["vector"]);
+        assert_eq!(denied_after["query"]["current_accounted_memory_bytes"], 0);
+        assert!(
+            empty,
+            "an admitted zero limit returns no rows: {output_error:?}"
+        );
+        assert!(
+            serializable,
+            "empty managed REST output remains serializable"
+        );
+        assert_eq!(counter_control, 1);
+        assert_eq!(provider_calls, 0);
+        assert_eq!(scan_after, scan_before);
+        assert_eq!(live["vector"], before["vector"]);
+        assert!(
+            live["query"]["current_accounted_memory_bytes"]
+                .as_u64()
+                .expect("live empty REST result memory")
+                > 0
+        );
+        assert_eq!(retired["query"]["current_accounted_memory_bytes"], 0);
     }
 
     #[test]

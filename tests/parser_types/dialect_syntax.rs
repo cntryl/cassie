@@ -272,18 +272,18 @@ fn should_execute_compact_bound_operators_with_null_propagation() {
         .expect("spaced bound query");
 
     // Assert
-    assert_eq!(compact.columns, spaced.columns);
-    assert_eq!(compact.rows, spaced.rows);
+    assert_eq!(compact.columns(), spaced.columns());
+    assert_eq!(compact.rows(), spaced.rows());
     let expected = [
         ([false, true, true, true, false, true, false], 4),
         ([true, false, false, false, false, true, true], 6),
         ([false, true, true, false, true, false, true], 9),
     ];
-    for (row, (predicates, number)) in compact.rows.iter().zip(expected) {
+    for (row, (predicates, number)) in compact.rows().iter().zip(expected) {
         let mut values: Vec<_> = predicates.into_iter().map(Value::Bool).collect();
         values.push(Value::Int64(number));
         assert_eq!(row, &values);
     }
-    assert_eq!(compact.rows.len(), 4);
-    assert_eq!(compact.rows[3], vec![Value::Null; 8]);
+    assert_eq!(compact.rows().len(), 4);
+    assert_eq!(compact.rows()[3], vec![Value::Null; 8]);
 }

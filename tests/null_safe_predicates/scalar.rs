@@ -20,11 +20,11 @@ fn should_return_boolean_for_every_null_safe_truth_table_pair() {
         )).expect("NULL-safe scalar evaluation");
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::Bool(distinct), Value::Bool(!distinct)]]
         );
-        assert_eq!(result.columns.len(), 2);
-        for column in &result.columns {
+        assert_eq!(result.columns().len(), 2);
+        for column in &result.columns() {
             assert_eq!(
                 (column.type_oid, column.typlen, column.atttypmod),
                 (16, 1, -1)
@@ -49,7 +49,7 @@ fn should_match_current_json_equality_for_contextual_literals() {
     ).expect("current JSON predicate equality");
     // Assert
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![
             Value::Bool(true),
             Value::Bool(true),
@@ -82,7 +82,7 @@ fn should_preserve_current_scalar_equality_at_null_safe_comparisons() {
             .expect("selected current scalar family");
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::Bool(distinct)]],
             "{left} versus {right}"
         );
@@ -118,7 +118,7 @@ fn should_preserve_current_canonical_nan_equality() {
         vec![Value::Float64(f64::NAN)]).expect("existing canonical numeric equality");
     // Assert
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![
             Value::Bool(true),
             Value::Bool(true),
@@ -150,7 +150,7 @@ fn should_preserve_contextual_json_boundary_semantics() {
     });
     // Assert
     assert_eq!(
-        nulls.rows,
+        nulls.rows(),
         vec![
             vec![Value::Int64(1), Value::Bool(true)],
             vec![Value::Int64(2), Value::Bool(false)],

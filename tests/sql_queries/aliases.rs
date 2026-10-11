@@ -30,7 +30,7 @@ fn should_bind_ordinary_aliases_without_changing_underlying_columns() {
     // Assert
     for (sql, result) in forms.iter().zip(results) {
         assert_eq!(
-            result.expect(sql).rows,
+            result.expect(sql).rows(),
             vec![
                 vec![Value::Int64(1)],
                 vec![Value::Int64(2)],
@@ -62,16 +62,16 @@ fn should_preserve_prefix_alias_identity_shape() {
 
     // Assert
     let renamed = renamed.expect("prefix aliases");
-    assert_eq!(renamed.rows, original.rows);
+    assert_eq!(renamed.rows(), original.rows());
     assert_eq!(
         renamed
-            .columns
+            .columns()
             .iter()
             .map(|column| column.name.as_str())
             .collect::<Vec<_>>(),
         vec!["key", "score"]
     );
-    assert_eq!(explicit.expect("complete aliases").rows, original.rows);
+    assert_eq!(explicit.expect("complete aliases").rows(), original.rows());
     assert!(excess.is_err());
 }
 
@@ -96,7 +96,7 @@ fn should_join_aliased_relations_with_parameterized_pagination() {
 
     // Assert
     assert_eq!(
-        result.expect("aliased join pagination").rows,
+        result.expect("aliased join pagination").rows(),
         vec![vec![Value::Int64(2), Value::Int64(20)]]
     );
     assert!(fixture.execute("SELECT records.id FROM records r").is_err());
@@ -129,7 +129,7 @@ fn should_preserve_quoted_alias_identity_labels() {
 
     // Assert
     assert_eq!(
-        quoted.expect("case-distinct aliases").rows,
+        quoted.expect("case-distinct aliases").rows(),
         vec![
             vec![Value::Int64(10), Value::Int64(10)],
             vec![Value::Int64(20), Value::Int64(20)]
@@ -139,8 +139,8 @@ fn should_preserve_quoted_alias_identity_labels() {
         .iter()
         .map(|row| vec![row[1].clone(), row[0].clone(), row[0].clone()])
         .collect();
-    assert_eq!(payload_id.expect("ordinary id alias").rows, expected);
-    let mut actual = wildcard.expect("ordinary _id output label").rows;
+    assert_eq!(payload_id.expect("ordinary id alias").rows(), expected);
+    let mut actual = wildcard.expect("ordinary _id output label").rows();
     actual.sort_by(|left, right| left[1].as_i64().cmp(&right[1].as_i64()));
     assert_eq!(actual, original);
 }
@@ -168,10 +168,10 @@ fn should_preserve_identity_hiding_in_aliased_cte_wildcards() {
         fixture.execute("SELECT * FROM records r JOIN declared d ON r.score=d.id ORDER BY r.score");
 
     // Assert
-    assert_eq!(cte.expect("wildcard CTE prefix").rows, original);
+    assert_eq!(cte.expect("wildcard CTE prefix").rows(), original);
     let aliased = aliased.expect("aliased mixed identity join");
-    assert_eq!(aliased.rows, joined.rows);
-    assert_eq!(aliased.columns, joined.columns);
+    assert_eq!(aliased.rows(), joined.rows());
+    assert_eq!(aliased.columns(), joined.columns());
 }
 
 #[test]
@@ -237,10 +237,10 @@ fn should_preserve_indexed_alias_pagination_context() {
     );
 
     // Assert
-    assert_eq!(first.expect("indexed first bounds").rows, original[1..3]);
-    assert_eq!(second.expect("fresh bounds").rows, original[3..4]);
+    assert_eq!(first.expect("indexed first bounds").rows(), original[1..3]);
+    assert_eq!(second.expect("fresh bounds").rows(), original[3..4]);
     let explained = explained.expect("resolved bound explain");
-    let Value::String(plan) = &explained.rows[0][0] else {
+    let Value::String(plan) = &explained.rows()[0][0] else {
         panic!("text plan");
     };
     assert!(plan.contains("access_path=ordered_bounded_scan"), "{plan}");
@@ -267,11 +267,11 @@ fn should_preserve_indexed_alias_pagination_context() {
         .projected_scan_fields
         .iter()
         .all(|field| field != "key"));
-    assert_eq!(cached.expect("literal bounds").rows, original[..2]);
+    assert_eq!(cached.expect("literal bounds").rows(), original[..2]);
     assert!(literal_cache_hit);
     assert!(!dynamic_cache_hit);
     assert_eq!(
-        authorized.expect("reader alias namespace").rows,
+        authorized.expect("reader alias namespace").rows(),
         original[1..3]
     );
     assert!(matches!(
@@ -329,7 +329,7 @@ fn should_hide_original_unqualified_names_after_prefix_renaming() {
     assert!(old_id.is_err());
     assert!(old_score.is_err());
     assert_eq!(
-        visible.expect("visible renamed fields").rows,
+        visible.expect("visible renamed fields").rows(),
         vec![
             vec![Value::Int64(1), Value::Int64(20)],
             vec![Value::Int64(2), Value::Int64(10)]
@@ -359,17 +359,17 @@ fn should_order_by_explicit_output_alias_before_the_source_alias_column() {
 
     // Assert
     assert_eq!(
-        rows.expect("output alias order").rows,
+        rows.expect("output alias order").rows(),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
     assert_eq!(
-        expressions.expect("expression output alias order").rows,
+        expressions.expect("expression output alias order").rows(),
         vec![vec![Value::Int64(2)], vec![Value::Int64(3)]]
     );
     assert_eq!(
         source_order
             .expect("qualified source precedes colliding output label")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(2)], vec![Value::Int64(1)]]
     );
 }
@@ -393,7 +393,7 @@ fn should_reject_ambiguous_duplicate_source_column_aliases() {
     assert_eq!(
         wildcard
             .expect("duplicate output labels remain valid")
-            .columns
+            .columns()
             .iter()
             .map(|column| column.name.as_str())
             .collect::<Vec<_>>(),
@@ -443,7 +443,7 @@ fn should_preserve_alias_scopes_in_existing_correlated_selects() {
 
     // Assert
     assert_eq!(
-        shadowed.expect("inner alias shadows outer alias").rows,
+        shadowed.expect("inner alias shadows outer alias").rows(),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
     assert!(unsupported_on
@@ -455,11 +455,11 @@ fn should_preserve_alias_scopes_in_existing_correlated_selects() {
         .to_string()
         .contains("unresolvable column reference"));
     assert_eq!(
-        control.expect("existing correlated path").rows,
+        control.expect("existing correlated path").rows(),
         vec![vec![Value::Int64(2)]]
     );
     for (sql, result) in candidates.iter().zip(results) {
-        assert_eq!(result.expect(sql).rows, vec![vec![Value::Int64(2)]]);
+        assert_eq!(result.expect(sql).rows(), vec![vec![Value::Int64(2)]]);
     }
 }
 
@@ -481,7 +481,7 @@ fn should_preserve_ordinary_aliases_in_existing_lateral_scopes() {
 
     // Assert
     assert_eq!(
-        result.expect("existing lateral alias scope").rows,
+        result.expect("existing lateral alias scope").rows(),
         vec![
             vec![Value::Int64(1), Value::Int64(20)],
             vec![Value::Int64(2), Value::Int64(30)]

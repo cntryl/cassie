@@ -48,8 +48,8 @@ fn should_match_independent_relational_truth_tables() {
         }
         let result = result.unwrap_or_else(|error| panic!("{}: {error}", case.invariant));
         let columns = case.columns.expect("literal descriptor");
-        assert_eq!(result.columns.len(), columns.len(), "{}", case.invariant);
-        for (actual, expected) in result.columns.iter().zip(columns) {
+        assert_eq!(result.columns().len(), columns.len(), "{}", case.invariant);
+        for (actual, expected) in result.columns().iter().zip(columns) {
             // Embedded execution uses its own projection labels; pgwire names are checked separately.
             assert_eq!(
                 (
@@ -64,11 +64,11 @@ fn should_match_independent_relational_truth_tables() {
             );
         }
         let expected = case.expected_rows.expect("literal rows");
-        assert_eq!(result.rows.len(), expected.len(), "{}", case.invariant);
+        assert_eq!(result.rows().len(), expected.len(), "{}", case.invariant);
         if case.ordered {
             assert!(
                 result
-                    .rows
+                    .rows()
                     .iter()
                     .zip(&expected)
                     .all(|(actual, expected)| matches_row(actual, expected)),
@@ -76,7 +76,7 @@ fn should_match_independent_relational_truth_tables() {
                 case.invariant
             );
         } else {
-            let actual_rows = result.rows;
+            let actual_rows = result.rows();
             let mut matched = vec![false; actual_rows.len()];
             for row in expected {
                 let index = actual_rows
@@ -198,7 +198,7 @@ fn should_evaluate_correlated_exists_in_the_selected_output() {
 
     // Assert
     assert_eq!(
-        filter.expect("existing correlated WHERE").rows,
+        filter.expect("existing correlated WHERE").rows(),
         vec![
             vec![Value::Int64(1)],
             vec![Value::Int64(2)],
@@ -210,7 +210,7 @@ fn should_evaluate_correlated_exists_in_the_selected_output() {
         let result = result.unwrap_or_else(|error| panic!("{name}: {error}"));
         let expected =
             expected.map(|[id, present]| vec![Value::Int64(id), Value::Bool(present == 1)]);
-        assert_eq!(result.rows, expected, "{name}");
+        assert_eq!(result.rows(), expected, "{name}");
     }
 }
 
@@ -239,10 +239,10 @@ fn should_preserve_recursive_window_truth_tables() {
     for (case, result) in cases.iter().zip(results) {
         let result = result.unwrap_or_else(|error| panic!("{}: {error}", case.invariant));
         let expected = case.expected_rows.as_ref().expect("literal truth table");
-        assert_eq!(result.rows.len(), expected.len(), "{}", case.invariant);
+        assert_eq!(result.rows().len(), expected.len(), "{}", case.invariant);
         assert!(
             result
-                .rows
+                .rows()
                 .iter()
                 .zip(expected)
                 .all(|(actual, expected)| matches_row(actual, expected)),
@@ -250,8 +250,8 @@ fn should_preserve_recursive_window_truth_tables() {
             case.invariant
         );
         let columns = case.columns.as_ref().expect("literal descriptor");
-        assert_eq!(result.columns.len(), columns.len());
-        for (actual, expected) in result.columns.iter().zip(columns) {
+        assert_eq!(result.columns().len(), columns.len());
+        for (actual, expected) in result.columns().iter().zip(columns) {
             assert_eq!(
                 (
                     &actual.name,
@@ -298,11 +298,11 @@ fn should_preserve_uncorrelated_output_folding() {
 
     // Assert
     assert_eq!(
-        output.expect("uncorrelated selected output").rows,
+        output.expect("uncorrelated selected output").rows(),
         [1, 2, 3, 4, 5, 6].map(|id| vec![Value::Int64(id), Value::Bool(true)])
     );
     assert_eq!(
-        empty.expect("empty uncorrelated output").rows,
+        empty.expect("empty uncorrelated output").rows(),
         [] as [Vec<Value>; 0]
     );
     for (name, result) in [
@@ -334,7 +334,7 @@ fn should_preserve_inner_scope_for_exists_output() {
 
     // Assert
     assert_eq!(
-        shadow.expect("inner alias shadows outer alias").rows,
+        shadow.expect("inner alias shadows outer alias").rows(),
         [1, 2, 3, 4, 5, 6].map(|id| vec![Value::Int64(id), Value::Bool(true)])
     );
     let expected = [
@@ -347,7 +347,7 @@ fn should_preserve_inner_scope_for_exists_output() {
     ]
     .map(|(id, present)| vec![Value::Int64(id), Value::Bool(present)]);
     for result in nested {
-        assert_eq!(result.expect("selected correlated wrapper").rows, expected);
+        assert_eq!(result.expect("selected correlated wrapper").rows(), expected);
     }
 }
 
@@ -392,10 +392,10 @@ fn should_preserve_occurrence_scope_for_exists_output() {
     ]
     .map(|(id, present)| vec![Value::Int64(id), Value::Bool(present)]);
     for (sql, result) in results {
-        assert_eq!(result.expect("occurrence scope").rows, expected, "{sql}");
+        assert_eq!(result.expect("occurrence scope").rows(), expected, "{sql}");
     }
     assert_eq!(
-        shadow.expect("local CTE shadows outer alias").rows,
+        shadow.expect("local CTE shadows outer alias").rows(),
         [1, 2, 3, 4, 5, 6].map(|id| vec![Value::Int64(id), Value::Bool(true)])
     );
     let error = error.expect_err("uncorrelated sibling still folds on empty input");
@@ -427,7 +427,7 @@ fn should_skip_dead_correlated_exists_output() {
         assert_eq!(
             result
                 .expect("dead correlated branch is not evaluated")
-                .rows,
+                .rows(),
             vec![vec![Value::Int64(5), Value::Bool(expected)]],
             "{sql}"
         );
@@ -474,7 +474,7 @@ fn should_evaluate_correlated_case_operand_once() {
 
     // Assert
     assert_eq!(
-        result.expect("selected simple CASE").rows,
+        result.expect("selected simple CASE").rows(),
         vec![vec![Value::Bool(true)]]
     );
     assert_eq!(setting.expect("private session setting"), "x");
@@ -499,7 +499,7 @@ fn should_select_correlated_output_with_boolean_parameters() {
     // Assert
     for ((sql, result), expected) in cases.into_iter().zip(results).zip([false, true]) {
         assert_eq!(
-            result.expect("selected Boolean parameter").rows,
+            result.expect("selected Boolean parameter").rows(),
             vec![vec![Value::Bool(expected)]],
             "{sql}"
         );
@@ -537,10 +537,10 @@ fn should_preserve_delimited_dotted_outer_field_correlation() {
         } else {
             vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
         };
-        assert_eq!(result.rows.len(), 2, "dotted field control{index}");
+        assert_eq!(result.rows().len(), 2, "dotted field control{index}");
         assert!(
             result
-                .rows
+                .rows()
                 .iter()
                 .zip(expected)
                 .all(|(actual, expected)| actual == &expected),
@@ -603,10 +603,10 @@ fn should_classify_delimited_dotted_fields_from_supported_source_shapes() {
         } else {
             vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
         };
-        assert_eq!(result.rows.len(), 2, "{name}");
+        assert_eq!(result.rows().len(), 2, "{name}");
         assert!(
             result
-                .rows
+                .rows()
                 .iter()
                 .zip(expected)
                 .all(|(actual, expected)| actual == &expected),
@@ -644,10 +644,10 @@ fn should_preserve_supported_derived_projection_labels() {
             vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
         };
         let result = result.expect("selected emitted projection label");
-        assert_eq!(result.rows.len(), 2, "emitted projection control{index}");
+        assert_eq!(result.rows().len(), 2, "emitted projection control{index}");
         assert!(
             result
-                .rows
+                .rows()
                 .iter()
                 .zip(expected)
                 .all(|(actual, expected)| actual == &expected),
@@ -687,10 +687,10 @@ fn should_preserve_escaped_delimited_correlation_components() {
             ]
         };
         let result = result.expect("escaped delimited correlation");
-        assert_eq!(result.rows.len(), 2, "escaped component control{index}");
+        assert_eq!(result.rows().len(), 2, "escaped component control{index}");
         assert!(
             result
-                .rows
+                .rows()
                 .iter()
                 .zip(expected)
                 .all(|(actual, expected)| actual == &expected),
@@ -720,15 +720,15 @@ fn should_prefer_inner_delimited_field_scope() {
         .expect("selected dotted namespace query");
     // Assert
     let expected = vec![vec![Value::Bool(true)], vec![Value::Bool(false)]];
-    assert_eq!(result.rows.len(), 2);
-    assert_eq!(result.columns.len(), expected[0].len());
-    assert!(result.columns.iter().all(|column| column.type_oid == 16
+    assert_eq!(result.rows().len(), 2);
+    assert_eq!(result.columns().len(), expected[0].len());
+    assert!(result.columns().iter().all(|column| column.type_oid == 16
         && column.typlen == 1
         && column.atttypmod == -1
         && column.format_code == 0));
     assert!(
         result
-            .rows
+            .rows()
             .iter()
             .zip(expected)
             .all(|(actual, expected)| actual == &expected),
@@ -760,15 +760,15 @@ fn should_distinguish_case_specific_dotted_fields() {
         vec![Value::Bool(false), Value::Bool(true)],
         vec![Value::Bool(false), Value::Bool(true)],
     ];
-    assert_eq!(result.rows.len(), 2);
-    assert_eq!(result.columns.len(), expected[0].len());
-    assert!(result.columns.iter().all(|column| column.type_oid == 16
+    assert_eq!(result.rows().len(), 2);
+    assert_eq!(result.columns().len(), expected[0].len());
+    assert!(result.columns().iter().all(|column| column.type_oid == 16
         && column.typlen == 1
         && column.atttypmod == -1
         && column.format_code == 0));
     assert!(
         result
-            .rows
+            .rows()
             .iter()
             .zip(expected)
             .all(|(actual, expected)| actual == &expected),

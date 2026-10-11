@@ -46,7 +46,7 @@ fn should_discover_every_supported_scalar_array_family() {
         .expect("finite array registry");
 
     // Assert
-    assert_eq!(selected.rows, expected);
+    assert_eq!(selected.rows(), expected);
 }
 
 #[test]
@@ -92,9 +92,9 @@ fn should_preserve_scalar_registry_identity_across_column_modifiers() {
         .expect("character column modifiers");
 
     // Assert
-    assert_eq!(selected.rows, expected);
+    assert_eq!(selected.rows(), expected);
     assert_eq!(
-        attributes.rows,
+        attributes.rows(),
         vec![
             vec![
                 Value::String("c3".to_string()),
@@ -132,7 +132,7 @@ fn should_omit_unreferenced_vector_type_rows() {
         .expect("unreferenced vector registry");
 
     // Assert
-    assert_eq!(selected.rows, Vec::<Vec<Value>>::new());
+    assert_eq!(selected.rows(), Vec::<Vec<Value>>::new());
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn should_deduplicate_supported_schema_vector_identities() {
 
     // Assert
     assert_eq!(
-        vectors.rows,
+        vectors.rows(),
         vec![
             type_row(100_002, "vector(2)", -1, 0),
             type_row(100_007, "vector(7)", -1, 0),
@@ -171,7 +171,7 @@ fn should_deduplicate_supported_schema_vector_identities() {
         ]
     );
     let mut oids = std::collections::BTreeSet::new();
-    for row in &all_types.rows {
+    for row in &all_types.rows() {
         let Value::Int64(oid) = &row[0] else {
             panic!("registry OID is not an integer");
         };
@@ -181,12 +181,12 @@ fn should_deduplicate_supported_schema_vector_identities() {
     // wire identity must not replace or duplicate supported BOOLEAN[].
     assert_eq!(
         all_types
-            .rows
+            .rows()
             .iter()
             .find(|row| row[0] == Value::Int64(34_016)),
         Some(&type_row(34_016, "boolean[]", -1, 16))
     );
-    assert_eq!(all_types.rows.len(), 32);
+    assert_eq!(all_types.rows().len(), 32);
 }
 
 #[test]
@@ -228,6 +228,6 @@ fn should_discover_vector_types_within_the_current_database() {
         .expect("second database vector types");
 
     // Assert
-    assert_eq!(current.rows, vec![type_row(100_002, "vector(2)", -1, 0)]);
-    assert_eq!(other.rows, vec![type_row(100_007, "vector(7)", -1, 0)]);
+    assert_eq!(current.rows(), vec![type_row(100_002, "vector(2)", -1, 0)]);
+    assert_eq!(other.rows(), vec![type_row(100_007, "vector(7)", -1, 0)]);
 }

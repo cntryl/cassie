@@ -54,9 +54,9 @@ fn should_decline_offset_projection_substitution_while_using_unrestricted_twin()
                 vec![Value::Int64(3), Value::Null],
             ];
             let baseline = sql(cassie, session, BASE_QUERY);
-            assert_eq!(baseline.rows, expected);
+            assert_eq!(baseline.rows(), expected);
             assert_eq!(
-                baseline.columns,
+                baseline.columns(),
                 vec![
                     ColumnMeta {
                         name: "n".into(),
@@ -97,12 +97,12 @@ fn should_decline_offset_projection_substitution_while_using_unrestricted_twin()
             assert_retired(cassie);
 
             // Assert: the restricted candidate omits row one, but the base never does.
-            assert_eq!(base.rows, baseline.rows, "{label}");
-            assert_eq!(base.columns, baseline.columns, "{label}");
+            assert_eq!(base.rows(), baseline.rows(), "{label}");
+            assert_eq!(base.columns(), baseline.columns(), "{label}");
             assert_eq!(after, before + optimized_delta, "{label}");
-            assert_eq!(direct.columns, baseline.columns, "{label}");
+            assert_eq!(direct.columns(), baseline.columns(), "{label}");
             assert_eq!(
-                direct.rows,
+                direct.rows(),
                 if suffix.is_empty() {
                     expected
                 } else {

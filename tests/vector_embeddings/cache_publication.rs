@@ -39,7 +39,7 @@ fn assert_rows(cassie: &Cassie, session: &CassieSession, embedded: bool) {
     let value = if embedded { vector([1.0, 0.0, 0.0]) } else { Value::Null };
     assert_eq!(cassie.execute_sql(session,
         "SELECT id, embedding FROM cache_backfill_rows ORDER BY id", vec![])
-        .expect("cached scalar query").rows,
+        .expect("cached scalar query").rows(),
         vec![vec![Value::String("a".into()), value.clone()],
              vec![Value::String("b".into()), value]]);
 }

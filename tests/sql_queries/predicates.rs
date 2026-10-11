@@ -59,7 +59,7 @@ fn should_filter_rows_with_is_null_predicate() {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("alpha".to_string())]]
         );
 
@@ -114,7 +114,7 @@ fn should_filter_rows_with_in_list_predicate() {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("alpha".to_string())]]
         );
 
@@ -169,7 +169,7 @@ fn should_filter_rows_with_not_in_list_predicate() {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("gamma".to_string())]]
         );
 
@@ -223,7 +223,7 @@ fn should_filter_rows_with_between_predicate() {
             .unwrap();
 
         // Assert
-        assert_eq!(selected.rows, vec![vec![Value::String("beta".to_string())]]);
+        assert_eq!(selected.rows(), vec![vec![Value::String("beta".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -276,7 +276,7 @@ fn should_filter_rows_with_not_between_predicate() {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("alpha".to_string())]]
         );
 
@@ -331,7 +331,7 @@ fn should_order_nulls_first_when_requested() {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![
                 vec![Value::String("beta".to_string())],
                 vec![Value::String("alpha".to_string())],
@@ -389,7 +389,7 @@ fn should_order_nulls_last_when_requested() {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![
                 vec![Value::String("alpha".to_string())],
                 vec![Value::String("beta".to_string())],
@@ -446,7 +446,7 @@ fn should_filter_rows_with_exists_predicate() {
             .unwrap();
 
         // Assert
-        assert_eq!(selected.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(selected.rows(), vec![vec![Value::String("alpha".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -499,7 +499,7 @@ fn should_filter_rows_with_empty_exists_predicate() {
             .unwrap();
 
         // Assert
-        assert_eq!(selected.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(selected.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -551,7 +551,7 @@ fn should_filter_rows_with_not_predicate() {
             .unwrap();
 
         // Assert
-        assert_eq!(selected.rows, vec![vec![Value::String("keep".to_string())]]);
+        assert_eq!(selected.rows(), vec![vec![Value::String("keep".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -604,7 +604,7 @@ fn should_filter_rows_with_not_exists_predicate() {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("alpha".to_string())]]
         );
 
@@ -658,7 +658,7 @@ fn should_filter_rows_with_is_not_null_predicate() {
             .unwrap();
 
         // Assert
-        assert_eq!(selected.rows, vec![vec![Value::String("beta".to_string())]]);
+        assert_eq!(selected.rows(), vec![vec![Value::String("beta".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -696,7 +696,7 @@ fn should_match_like_wildcards_anywhere_in_pattern() {
                     params,
                 )
                 .expect("evaluate like predicate")
-                .rows
+                .rows()
                 .into_iter()
                 .map(|row| row[0].clone())
                 .collect::<Vec<_>>()

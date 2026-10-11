@@ -55,7 +55,7 @@ mod vector_memory_controls {
         .expect("empty result");
 
         // Assert
-        assert_eq!(result.rows, Vec::<Vec<serde_json::Value>>::new());
+        assert_eq!(result.rows(), Vec::<Vec<serde_json::Value>>::new());
         assert!(serde_json::to_value(result).is_ok());
         drop(cassie);
         std::fs::remove_dir_all(path).expect("cleanup fixture");
@@ -147,7 +147,7 @@ mod vector_memory_controls {
         assert!(matches!(excessive, Err(CassieError::ResourceLimit(_))));
         assert_eq!(after["vector"]["count"], before["vector"]["count"]);
         assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
-        assert_eq!(one.rows.len(), 1);
+        assert_eq!(one.rows().len(), 1);
         drop(cassie);
         std::fs::remove_dir_all(path).expect("cleanup fixture");
     }
@@ -304,7 +304,7 @@ mod vector_memory_controls {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(cold.rows.len(), 10);
+        assert_eq!(cold.rows().len(), 10);
         assert_eq!(
             after_cold["vector"]["count"]
                 .as_u64()
@@ -319,7 +319,7 @@ mod vector_memory_controls {
             metrics["vector"]["count"], after_cold["vector"]["count"],
             "second L2 request must use the result cache rather than execute the row scorer"
         );
-        assert_eq!(cold.rows, cached.rows);
+        assert_eq!(cold.rows(), cached.rows());
         assert!(serde_json::to_value(cached).is_ok());
         assert!(
             metrics["query"]["peak_accounted_memory_bytes"]
@@ -382,7 +382,7 @@ mod vector_memory_controls {
         .expect("controlled local search");
 
         // Assert
-        assert_eq!(result.rows[0][0], serde_json::json!("row-00"));
+        assert_eq!(result.rows()[0][0], serde_json::json!("row-00"));
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"],
             0
@@ -902,7 +902,7 @@ mod rest {
             cassie
                 .execute_sql(&session, sql, Vec::new())
                 .expect("select")
-                .rows
+                .rows()
         };
 
         // Assert
@@ -966,7 +966,7 @@ mod rest {
         let query = cassie
             .execute_sql(&session, "SELECT x FROM rest_made", Vec::new())
             .expect("query newly created collection from session");
-        assert_eq!(query.columns[0].name, "x");
+        assert_eq!(query.columns()[0].name, "x");
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -1517,14 +1517,14 @@ mod rest {
         let selected = selected.expect("select case-distinct fields");
         assert_eq!(
             selected
-                .columns
+                .columns()
                 .iter()
                 .map(|column| column.name.as_str())
                 .collect::<Vec<_>>(),
             ["Title", "title"]
         );
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![
                 cassie::types::Value::String("upper".to_string()),
                 cassie::types::Value::String("lower".to_string())

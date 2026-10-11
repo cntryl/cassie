@@ -100,7 +100,7 @@ impl SqlFixture {
         let Ok(result) = self.execute(sql) else {
             panic!("query failed: {sql}");
         };
-        result.rows
+        result.rows().to_vec()
     }
 
     /// Runs `sql`, which must fail, and returns the error.
@@ -145,7 +145,7 @@ mod teardown_tests {
                 .execute("SELECT CAST(7 AS BIGINT) AS n UNION ALL SELECT CAST(8 AS BIGINT) AS n")
                 .expect("same generic SQL");
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![vec![Value::Int64(7)], vec![Value::Int64(8)]]
             );
             drop(result);

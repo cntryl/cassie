@@ -128,7 +128,7 @@ mod set_operation_row_caps {
             let Ok(result) = cassie.execute_sql(&session, sql, vec![]) else {
                 panic!("query failed: {sql}");
             };
-            sorted_ints(result.rows)
+            sorted_ints(result.rows())
         };
 
         // Act
@@ -289,13 +289,13 @@ mod set_operation_chains {
         };
 
         // Assert
-        assert_eq!(regrouped.columns, plain.columns);
+        assert_eq!(regrouped.columns(), plain.columns());
         assert_eq!(ordered, vec![3]);
         let Ok(aliased) = aliased else {
             panic!("aliased regrouped chain failed");
         };
-        assert_eq!(aliased.columns[0].name, "m");
-        assert_eq!(ints(aliased.rows), vec![3, 2]);
+        assert_eq!(aliased.columns()[0].name, "m");
+        assert_eq!(ints(aliased.rows()), vec![3, 2]);
         assert_eq!(cte_right, vec![2, 3]);
         assert_eq!(cte_left, vec![2, 3]);
     }

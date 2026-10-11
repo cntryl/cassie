@@ -12,7 +12,7 @@ fn should_return_nullif_values_using_sql_equality() {
 
     // Assert
     assert_eq!(
-        result.expect("NULLIF is supported").rows,
+        result.expect("NULLIF is supported").rows(),
         vec![vec![
             Value::Null,
             Value::Int64(4),
@@ -34,7 +34,7 @@ fn should_ignore_null_arguments_in_conditional_extrema() {
 
     // Assert
     assert_eq!(
-        result.expect("conditional extrema are supported").rows,
+        result.expect("conditional extrema are supported").rows(),
         vec![vec![
             Value::Int64(9),
             Value::Int64(4),
@@ -54,7 +54,7 @@ fn should_compare_conditional_integer_values_without_float_rounding() {
 
     // Assert
     assert_eq!(
-        result.expect("integer comparisons remain exact").rows,
+        result.expect("integer comparisons remain exact").rows(),
         vec![vec![
             Value::Int64(9_007_199_254_740_993),
             Value::Int64(9_007_199_254_740_993),
@@ -81,11 +81,11 @@ fn should_apply_conditional_expressions_inside_relational_arguments() {
 
     // Assert
     assert_eq!(
-        aggregate.expect("aggregate argument").rows,
+        aggregate.expect("aggregate argument").rows(),
         vec![vec![Value::Int64(6)]]
     );
     assert_eq!(
-        window.expect("window argument").rows,
+        window.expect("window argument").rows(),
         vec![vec![Value::Int64(3)]; 3]
     );
 }
@@ -100,10 +100,10 @@ fn should_describe_nullif_using_the_promoted_first_operand() {
 
     // Assert
     let result = result.expect("NULLIF descriptor");
-    assert_eq!(result.columns[0].type_oid, DataType::Int.type_oid());
-    assert_eq!(result.columns[1].type_oid, DataType::Float.type_oid());
+    assert_eq!(result.columns()[0].type_oid, DataType::Int.type_oid());
+    assert_eq!(result.columns()[1].type_oid, DataType::Float.type_oid());
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![Value::Int64(1), Value::Float64(1.0)]]
     );
 }
@@ -119,10 +119,10 @@ fn should_describe_all_null_conditional_extrema_as_text() {
     // Assert
     let result = result.expect("all NULL descriptor");
     assert!(result
-        .columns
+        .columns()
         .iter()
         .all(|column| column.type_oid == DataType::Text.type_oid()));
-    assert_eq!(result.rows, vec![vec![Value::Null, Value::Null]]);
+    assert_eq!(result.rows(), vec![vec![Value::Null, Value::Null]]);
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn should_order_text_arguments_in_conditional_extrema() {
 
     // Assert
     assert_eq!(
-        result.expect("text extrema").rows,
+        result.expect("text extrema").rows(),
         vec![vec![
             Value::String("z".to_string()),
             Value::String("a".to_string())
@@ -207,9 +207,9 @@ fn should_use_bound_parameters_in_conditional_extrema() {
 
     // Assert
     let result = result.expect("conditional parameter binding");
-    assert_eq!(result.rows, vec![vec![Value::Int64(7), Value::Int64(2)]]);
-    assert_eq!(result.columns[0].type_oid, DataType::BigInt.type_oid());
-    assert_eq!(result.columns[1].type_oid, DataType::Int.type_oid());
+    assert_eq!(result.rows(), vec![vec![Value::Int64(7), Value::Int64(2)]]);
+    assert_eq!(result.columns()[0].type_oid, DataType::BigInt.type_oid());
+    assert_eq!(result.columns()[1].type_oid, DataType::Int.type_oid());
 }
 
 #[test]
@@ -248,11 +248,11 @@ fn should_promote_mixed_float_operands_before_conditional_comparison() {
     // Assert
     let result = result.expect("FLOAT equality promotes operands");
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![Value::Null, Value::Float64(9_007_199_254_740_992.0)]]
     );
     assert!(result
-        .columns
+        .columns()
         .iter()
         .all(|column| column.type_oid == DataType::Float.type_oid()));
 }
@@ -273,7 +273,7 @@ fn should_use_conditional_boolean_results_as_predicates() {
 
     // Assert
     assert_eq!(
-        result.expect("BOOLEAN extrema predicate").rows,
+        result.expect("BOOLEAN extrema predicate").rows(),
         vec![vec![Value::Int64(2)], vec![Value::Int64(3)]]
     );
 }
@@ -301,11 +301,11 @@ fn should_promote_conditional_values_against_null_float_columns() {
     for result in results {
         let result = result.expect("NULL FLOAT type determines coercion");
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::Float64(9_007_199_254_740_992.0); 3]]
         );
         assert!(result
-            .columns
+            .columns()
             .iter()
             .all(|column| column.type_oid == DataType::Float.type_oid()));
     }
@@ -329,7 +329,7 @@ fn should_promote_conditional_operands_in_join_predicates() {
 
     // Assert
     assert_eq!(
-        result.expect("conditional JOIN operand promotion").rows,
+        result.expect("conditional JOIN operand promotion").rows(),
         vec![vec![Value::Int64(9_007_199_254_740_993)]]
     );
 }
@@ -351,10 +351,10 @@ fn should_promote_conditional_operands_in_mutation_returning() {
     // Assert
     let result = result.expect("conditional RETURNING operand promotion");
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![Value::Float64(9_007_199_254_740_992.0)]]
     );
-    assert_eq!(result.columns[0].type_oid, DataType::Float.type_oid());
+    assert_eq!(result.columns()[0].type_oid, DataType::Float.type_oid());
 }
 
 #[test]
@@ -377,10 +377,10 @@ fn should_resolve_conditional_types_for_qualified_join_sources() {
     // Assert
     let result = result.expect("qualified source types remain distinct");
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![Value::Float64(9_007_199_254_740_992.0)]]
     );
-    assert_eq!(result.columns[0].type_oid, DataType::Float.type_oid());
+    assert_eq!(result.columns()[0].type_oid, DataType::Float.type_oid());
 }
 
 #[test]
@@ -400,10 +400,10 @@ fn should_promote_conditional_operands_in_dependent_cte_bodies() {
     // Assert
     let result = result.expect("dependent CTE coercion uses outer source types");
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![Value::Float64(9_007_199_254_740_992.0)]]
     );
-    assert_eq!(result.columns[0].type_oid, DataType::Float.type_oid());
+    assert_eq!(result.columns()[0].type_oid, DataType::Float.type_oid());
 }
 
 #[test]
@@ -497,7 +497,7 @@ fn should_promote_conditional_operands_in_mutation_predicates() {
     assert_eq!(
         result
             .expect("conditional mutation predicate coercion")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(1)]]
     );
 }
@@ -522,7 +522,7 @@ fn should_promote_conditional_operands_in_boolean_assignments() {
     assert_eq!(
         result
             .expect("conditional mutation assignment coercion")
-            .rows,
+            .rows(),
         vec![vec![Value::Bool(true)]]
     );
 }
@@ -567,7 +567,7 @@ fn should_promote_conditional_outer_operands_in_correlated_exists() {
 
     // Assert
     assert_eq!(
-        result.expect("conditional correlated outer coercion").rows,
+        result.expect("conditional correlated outer coercion").rows(),
         vec![vec![Value::Int64(9_007_199_254_740_993)]]
     );
 }
@@ -588,7 +588,7 @@ fn should_promote_nested_coalesce_values_for_conditional_float_results() {
 
     // Assert
     assert_eq!(
-        result.expect("conditional nested float coercion").rows,
+        result.expect("conditional nested float coercion").rows(),
         vec![vec![Value::Float64(9_007_199_254_740_992.0); 3]]
     );
 }
@@ -609,7 +609,7 @@ fn should_promote_derived_float_carriers_for_conditional_results() {
 
     // Assert
     assert_eq!(
-        result.expect("conditional derived float coercion").rows,
+        result.expect("conditional derived float coercion").rows(),
         vec![vec![Value::Float64(9_007_199_254_740_992.0); 3]]
     );
 }
@@ -624,7 +624,7 @@ fn should_preserve_native_nonfinite_conditional_float_values() {
 
     // Assert
     assert_eq!(
-        result.expect("native nonfinite float normalization").rows,
+        result.expect("native nonfinite float normalization").rows(),
         vec![vec![
             Value::Float64(f64::INFINITY),
             Value::Float64(f64::NEG_INFINITY)
@@ -657,7 +657,7 @@ fn should_normalize_conditional_operands_once_in_nested_cte_scopes() {
 
     // Assert
     assert_eq!(
-        result.expect("single conditional normalization pass").rows,
+        result.expect("single conditional normalization pass").rows(),
         vec![vec![Value::Float64(f64::INFINITY)]]
     );
 }
@@ -681,7 +681,7 @@ fn should_preserve_promoted_coalesce_values_across_expression_consumers() {
 
     // Assert
     assert_eq!(
-        direct.expect("direct conditional consumers").rows,
+        direct.expect("direct conditional consumers").rows(),
         vec![vec![
             Value::Null,
             Value::Float64(9_007_199_254_740_991.0),
@@ -689,14 +689,14 @@ fn should_preserve_promoted_coalesce_values_across_expression_consumers() {
         ]]
     );
     assert_eq!(
-        aggregate.expect("aggregate conditional consumers").rows,
+        aggregate.expect("aggregate conditional consumers").rows(),
         vec![vec![
             Value::Float64(9_007_199_254_740_991.0),
             Value::Float64(9_007_199_254_740_991.0)
         ]]
     );
     assert_eq!(
-        window.expect("window conditional consumer").rows,
+        window.expect("window conditional consumer").rows(),
         vec![vec![Value::Float64(9_007_199_254_740_991.0)]]
     );
 }

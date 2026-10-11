@@ -802,7 +802,7 @@ mod pgwire_binary_codecs {
             let stored = cassie
                 .execute_sql(&session, "SELECT vals FROM empty_arrays", vec![])
                 .expect("select stored array");
-            assert_eq!(stored.rows, vec![vec![Value::Json(serde_json::json!([]))]]);
+            assert_eq!(stored.rows(), vec![vec![Value::Json(serde_json::json!([]))]]);
 
             server.stop().await;
             let _ = std::fs::remove_dir_all(path);
@@ -1755,7 +1755,7 @@ mod pgwire_copy_protocol {
                 vec![],
             )
             .expect("count copied rows");
-        result.rows[0][0].clone()
+        result.rows()[0][0].clone()
     }
 
     async fn query(

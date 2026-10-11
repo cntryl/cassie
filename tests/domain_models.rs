@@ -116,7 +116,7 @@ mod graph_transaction_semantics {
                 vec![],
             )
             .expect("expand transaction overlay")
-            .rows;
+            .rows();
 
         // Assert
         assert_eq!(
@@ -201,7 +201,7 @@ mod graph_transaction_semantics {
                 vec![],
             )
             .expect("expand after rollback")
-            .rows;
+            .rows();
 
         // Assert
         assert_eq!(rows, vec![vec![Value::String("bob".into())]]);
@@ -235,7 +235,7 @@ mod graph_transaction_semantics {
                 vec![],
             )
             .expect("shortest path through transaction overlay")
-            .rows;
+            .rows();
 
         // Assert
         assert_eq!(
@@ -335,7 +335,7 @@ mod graph_transaction_semantics {
                 vec![],
             )
             .expect("read graph neighbors")
-            .rows
+            .rows()
     }
 
     #[test]
@@ -397,7 +397,7 @@ mod graph_transaction_semantics {
                     vec![],
                 )
                 .expect("expand graph")
-                .rows;
+                .rows();
 
             // Assert
             assert_eq!(
@@ -457,13 +457,13 @@ mod integration_sql_graph {
             .unwrap();
 
         // Assert
-        assert_eq!(neighbors.rows.len(), 2);
-        assert_eq!(neighbors.rows[0][0], Value::String("bob".to_string()));
-        assert_eq!(neighbors.rows[1][0], Value::String("carol".to_string()));
-        assert_eq!(shortest.rows.len(), 1);
-        assert_eq!(shortest.rows[0][0], Value::String("carol".to_string()));
-        assert_eq!(shortest.rows[0][1], Value::Float64(2.0));
-        assert_eq!(shortest.rows[0][2], Value::Int64(2));
+        assert_eq!(neighbors.rows().len(), 2);
+        assert_eq!(neighbors.rows()[0][0], Value::String("bob".to_string()));
+        assert_eq!(neighbors.rows()[1][0], Value::String("carol".to_string()));
+        assert_eq!(shortest.rows().len(), 1);
+        assert_eq!(shortest.rows()[0][0], Value::String("carol".to_string()));
+        assert_eq!(shortest.rows()[0][1], Value::Float64(2.0));
+        assert_eq!(shortest.rows()[0][2], Value::Int64(2));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -515,21 +515,21 @@ mod integration_sql_graph {
 
         // Assert
         assert_eq!(
-            expanded.rows,
+            expanded.rows(),
             vec![
                 vec![Value::String("bob".to_string()), Value::Int64(1)],
                 vec![Value::String("carol".to_string()), Value::Int64(1)],
                 vec![Value::String("carol".to_string()), Value::Int64(2)],
             ]
         );
-        let plan = match &explain.rows[0][0] {
+        let plan = match &explain.rows()[0][0] {
             Value::String(plan) => plan,
             other => panic!("expected explain string, got {other:?}"),
         };
         assert!(plan.contains("access_path=graph_adjacency"));
         assert_eq!(metrics["graph"]["traversals"].as_u64(), Some(1));
         assert_eq!(metrics["graph"]["last_graph"].as_str(), Some("social"));
-        assert_eq!(after_restart.rows.len(), 2);
+        assert_eq!(after_restart.rows().len(), 2);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -654,7 +654,7 @@ mod integration_sql_graph {
 
         // Assert
         assert_eq!(
-            expanded.rows,
+            expanded.rows(),
             vec![
                 vec![Value::String("bob".to_string()), Value::Int64(1)],
                 vec![Value::String("carol".to_string()), Value::Int64(2)],
@@ -851,7 +851,7 @@ mod time_series_index_completeness {
         let result = execute_query(&cassie);
 
         // Assert
-        assert_eq!(result.rows, expected_rows());
+        assert_eq!(result.rows(), expected_rows());
         assert_fallback(&cassie, "incomplete-bucket-membership");
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
@@ -884,7 +884,7 @@ mod time_series_index_completeness {
         let result = execute_query(&cassie);
 
         // Assert
-        assert_eq!(result.rows, expected_rows());
+        assert_eq!(result.rows(), expected_rows());
         assert_fallback(&cassie, "dangling-bucket-membership");
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
@@ -907,7 +907,7 @@ mod time_series_index_completeness {
         let result = execute_query(&cassie);
 
         // Assert
-        assert_eq!(result.rows, expected_rows());
+        assert_eq!(result.rows(), expected_rows());
         assert_fallback(&cassie, "missing-bucket-metadata");
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
@@ -930,7 +930,7 @@ mod time_series_index_completeness {
         let result = execute_query(&cassie);
 
         // Assert
-        assert_eq!(result.rows, expected_rows());
+        assert_eq!(result.rows(), expected_rows());
         assert_fallback(&cassie, "corrupt-bucket-metadata");
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
@@ -955,7 +955,7 @@ mod time_series_index_completeness {
         let result = execute_query(&cassie);
 
         // Assert
-        assert_eq!(result.rows, expected_rows());
+        assert_eq!(result.rows(), expected_rows());
         assert_fallback(&cassie, "corrupt-bucket-metadata");
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
@@ -980,7 +980,7 @@ mod time_series_index_completeness {
         let result = execute_query(&cassie);
 
         // Assert
-        assert_eq!(result.rows, expected_rows());
+        assert_eq!(result.rows(), expected_rows());
         assert_fallback(&cassie, "stale-bucket-metadata");
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
@@ -1002,7 +1002,7 @@ mod time_series_index_completeness {
         let result = execute_query(&restarted);
 
         // Assert
-        assert_eq!(result.rows, expected_rows());
+        assert_eq!(result.rows(), expected_rows());
         assert_eq!(manifest(&restarted)["version"].as_u64(), Some(1));
         assert_eq!(
             restarted.metrics()["time_series"]["bucket_native_hits"].as_u64(),
@@ -1034,7 +1034,7 @@ mod time_series_index_completeness {
         let result = execute_query(&restarted);
 
         // Assert
-        assert_eq!(result.rows, expected_rows());
+        assert_eq!(result.rows(), expected_rows());
         assert_eq!(manifest(&restarted)["version"].as_u64(), Some(1));
         assert_eq!(
             restarted.metrics()["time_series"]["bucket_native_hits"].as_u64(),
@@ -1254,7 +1254,7 @@ mod time_series_indexes {
             .unwrap();
 
         // Assert
-        let plan = match &explained.rows[0][0] {
+        let plan = match &explained.rows()[0][0] {
             cassie::types::Value::String(value) => value,
             other => panic!("expected explain string, got {other:?}"),
         };
@@ -1332,8 +1332,8 @@ mod time_series_indexes {
             );
 
             // Assert
-            assert_eq!(selected.rows, vec![vec![Value::Int64(1)]]);
-            let Value::String(plan) = &explained.rows[0][0] else {
+            assert_eq!(selected.rows(), vec![vec![Value::Int64(1)]]);
+            let Value::String(plan) = &explained.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(
@@ -1405,7 +1405,7 @@ mod time_series_indexes {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![
                     cassie::types::Value::String("acme".to_string()),
@@ -1520,7 +1520,7 @@ mod time_series_indexes {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("acme".to_string()), Value::Int64(20)],
                 vec![Value::String("globex".to_string()), Value::Int64(30)],
@@ -1582,7 +1582,7 @@ mod time_series_indexes {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![cassie::types::Value::Int64(20)],
                 vec![cassie::types::Value::Int64(30)],
@@ -1683,8 +1683,8 @@ mod time_series_indexes {
             canonical_test_index(&restarted, "ts_mutation_events", "idx_ts_mutation_time");
 
         // Assert
-        assert_eq!(result.rows, vec![vec![cassie::types::Value::Int64(20)]]);
-        let plan = match &explain.rows[0][0] {
+        assert_eq!(result.rows(), vec![vec![cassie::types::Value::Int64(20)]]);
+        let plan = match &explain.rows()[0][0] {
             cassie::types::Value::String(value) => value,
             other => panic!("expected explain string, got {other:?}"),
         };
@@ -1772,7 +1772,7 @@ mod time_series_indexes {
             .unwrap();
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::Int64(8)]]);
+        assert_eq!(result.rows(), vec![vec![Value::Int64(8)]]);
         assert_eq!(sidecars.len(), 8);
 
         let _ = std::fs::remove_dir_all(path);
@@ -1830,7 +1830,7 @@ mod time_series_indexes {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::Int64(20)]]);
+        assert_eq!(result.rows(), vec![vec![Value::Int64(20)]]);
         assert_eq!(
             metrics["time_series"]["bucket_native_hits"].as_u64(),
             Some(0)
@@ -1918,7 +1918,7 @@ mod time_series_indexes {
         // Assert
         assert_eq!(sidecars_before.len(), 2);
         assert_eq!(sidecars_after.len(), 1);
-        assert_eq!(result.rows, vec![vec![Value::Int64(20)]]);
+        assert_eq!(result.rows(), vec![vec![Value::Int64(20)]]);
         assert_eq!(
             metrics["time_series"]["bucket_native_hits"].as_u64(),
             Some(1)
@@ -2038,7 +2038,7 @@ mod time_series_indexes {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::Int64(20)]]);
+        assert_eq!(result.rows(), vec![vec![Value::Int64(20)]]);
         assert_eq!(metrics["time_series"]["bucket_native_hits"].as_u64(), Some(1));
         assert!(cancelled.expect_err("cancelled query").to_string().contains("canceled"));
 
@@ -2054,7 +2054,7 @@ mod time_series_indexes {
         cassie
             .execute_sql(session, sql, vec![])
             .expect(sql)
-            .rows
+            .rows()
             .into_iter()
             .map(|row| match row.first() {
                 Some(Value::Int64(amount)) => *amount,
@@ -2291,14 +2291,14 @@ mod time_series_retention {
 
             // Assert
             assert_eq!(
-                policies.rows,
+                policies.rows(),
                 vec![vec![
                     Value::String(policy_name),
                     Value::String("2 days".to_string()),
                     Value::String("ready".to_string()),
                 ]]
             );
-            assert_eq!(dropped.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(dropped.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2386,22 +2386,22 @@ mod time_series_retention {
                 .unwrap();
 
             // Assert
-            assert_eq!(first.command, "ENFORCE RETENTION 1");
-            assert_eq!(second.command, "ENFORCE RETENTION 0");
+            assert_eq!(first.command(), "ENFORCE RETENTION 1");
+            assert_eq!(second.command(), "ENFORCE RETENTION 0");
             assert_eq!(
-                rows.rows,
+                rows.rows(),
                 vec![
                     vec![Value::String("bad".to_string())],
                     vec![Value::String("fresh".to_string())],
                     vec![Value::String("missing".to_string())],
                 ]
             );
-            assert_eq!(indexed.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(indexed.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
             assert_eq!(metrics["retention"]["enforcements"].as_u64(), Some(2));
             assert_eq!(metrics["retention"]["deleted_rows"].as_u64(), Some(1));
             assert_eq!(metrics["retention"]["skipped_rows"].as_u64(), Some(4));
             assert_eq!(
-                policies.rows,
+                policies.rows(),
                 vec![vec![Value::Int64(0), Value::Int64(2)]]
             );
 
@@ -2476,19 +2476,19 @@ mod time_series_retention {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.command, "ENFORCE RETENTION 3");
+            assert_eq!(result.command(), "ENFORCE RETENTION 3");
             assert_eq!(
-                parents.rows,
+                parents.rows(),
                 vec![
                     vec![Value::String("2026-01-01T00:00:00Z".to_string())],
                     vec![Value::String("2026-01-09T00:00:00Z".to_string())],
                 ]
             );
-            assert_eq!(restrict.rows, vec![vec![Value::Int64(1)]]);
-            assert_eq!(cascade.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
-            assert_eq!(null.rows, vec![vec![Value::Null]]);
-            assert_eq!(default.rows, vec![vec![Value::Int64(5)]]);
-            assert_eq!(policy.rows, vec![vec![Value::Int64(3), Value::Int64(1)]]);
+            assert_eq!(restrict.rows(), vec![vec![Value::Int64(1)]]);
+            assert_eq!(cascade.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(null.rows(), vec![vec![Value::Null]]);
+            assert_eq!(default.rows(), vec![vec![Value::Int64(5)]]);
+            assert_eq!(policy.rows(), vec![vec![Value::Int64(3), Value::Int64(1)]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2553,7 +2553,7 @@ mod time_series_retention {
 
             // Assert
             assert_eq!(
-                operations.rows,
+                operations.rows(),
                 vec![vec![
                     Value::String("stale".to_string()),
                     Value::String("idle".to_string()),
@@ -2621,7 +2621,7 @@ mod time_series_retention {
 
             // Assert
             assert_eq!(
-                rollup.rows,
+                rollup.rows(),
                 vec![vec![
                     Value::String("2026-01-02T12:00:00Z".to_string()),
                     Value::String("a".to_string()),
@@ -2778,7 +2778,7 @@ mod time_series_rollups {
             // Assert
             let rollup_name = canonical_name("rollup_rewrite_events_hourly");
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![
                     vec![
                         Value::String("2026-01-01T00:00:00Z".to_string()),
@@ -2796,7 +2796,7 @@ mod time_series_rollups {
             );
             assert_eq!(metrics["rollups"]["rewrite_hits"].as_u64(), Some(1));
             assert!(matches!(
-                &explain.rows[0][0],
+                &explain.rows()[0][0],
                 Value::String(plan) if plan.contains(&format!("rollup_rewrite={rollup_name}"))
             ));
             assert!(cassie.catalog.get_rollup(&rollup_name).is_some());
@@ -2888,15 +2888,15 @@ mod time_series_rollups {
                 Value::String("a".to_string()),
                 Value::Float64(250.0),
             ]];
-            assert_eq!(before_restart.rows, expected_rows);
-            assert_eq!(after_restart.rows, expected_rows);
+            assert_eq!(before_restart.rows(), expected_rows);
+            assert_eq!(after_restart.rows(), expected_rows);
             assert_eq!(after_restart_rewrite_hits, Some(1));
-            assert_eq!(fallback.rows, expected_rows);
+            assert_eq!(fallback.rows(), expected_rows);
             assert!(matches!(
-                &fallback_plan.rows[0][0],
+                &fallback_plan.rows()[0][0],
                 Value::String(plan) if plan.contains("rollup_rewrite=none")
             ));
-            assert_eq!(after_recovery.rows, expected_rows);
+            assert_eq!(after_recovery.rows(), expected_rows);
             assert_eq!(
                 recovery.metrics()["rollups"]["rewrite_hits"].as_u64(),
                 Some(1)
@@ -2958,7 +2958,7 @@ mod time_series_rollups {
             assert!(cassie.catalog.get_rollup(&rollup_name).is_none());
             assert!(cassie.midge.collection_schema(&output_name).is_none());
             assert!(matches!(
-                source_rows.rows.as_slice(),
+                source_rows.rows().as_slice(),
                 [row] if matches!(row.get(2), Some(Value::Float64(value)) if value.is_infinite())
             ));
 
@@ -3039,15 +3039,15 @@ mod time_series_rollups {
 
             // Assert
             assert!(matches!(
-                previous_output.rows.as_slice(),
+                previous_output.rows().as_slice(),
                 [row] if matches!(row.first(), Some(Value::Float64(value)) if value.is_finite() && *value > 9.9e307)
             ));
-            assert_eq!(output_after.rows, previous_output.rows);
+            assert_eq!(output_after.rows(), previous_output.rows());
             assert_eq!(metadata.state, RollupState::Ready);
             assert!(!metadata.is_fresh(source_generation));
-            assert_eq!(debt.rows, vec![vec![Value::String("rollup".to_string())]]);
+            assert_eq!(debt.rows(), vec![vec![Value::String("rollup".to_string())]]);
             assert!(matches!(
-                authoritative.rows.as_slice(),
+                authoritative.rows().as_slice(),
                 [row] if matches!(row.get(2), Some(Value::Float64(value)) if value.is_infinite())
             ));
 
@@ -3095,9 +3095,9 @@ mod time_series_rollups {
             );
 
             // Assert
-            assert_eq!(selected.rows.len(), 2);
+            assert_eq!(selected.rows().len(), 2);
             assert!(matches!(
-                &explain.rows[0][0],
+                &explain.rows()[0][0],
                 Value::String(plan) if plan.contains("rollup_rewrite=none")
             ));
             assert!(refresh.is_err());
@@ -3168,7 +3168,7 @@ mod time_series_rollups {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![
                     vec![
                         Value::String("2026-01-01T00:00:00Z".to_string()),
@@ -3185,7 +3185,7 @@ mod time_series_rollups {
                 ]
             );
             assert!(matches!(
-                &explain.rows[0][0],
+                &explain.rows()[0][0],
                 Value::String(plan) if plan.contains("rollup_rewrite=none")
             ));
 
@@ -3220,7 +3220,7 @@ mod time_series_rollups {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(result.rows.len(), 2);
+            assert_eq!(result.rows().len(), 2);
             assert_eq!(metrics["rollups"]["rewrite_hits"].as_u64(), Some(0));
 
             let _ = std::fs::remove_dir_all(path);
@@ -3324,7 +3324,7 @@ mod time_series_rollups {
             updated_generation
         );
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![
                 Value::String("2026-01-01T00:00:00Z".to_string()),
                 Value::String("a".to_string()),
@@ -3378,7 +3378,7 @@ mod time_series_rollups {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![
                 vec![
                     Value::String("2026-01-01T00:00:00Z".to_string()),
@@ -3435,7 +3435,7 @@ mod time_series_rollups {
 
         // Assert
         assert_eq!(
-            catalog_rows.rows,
+            catalog_rows.rows(),
             vec![vec![
                 Value::String(rollup_name.clone()),
                 Value::String("ready".to_string())
@@ -3476,7 +3476,7 @@ mod time_series_rollups {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(selected.rows.len(), 2);
+            assert_eq!(selected.rows().len(), 2);
             assert_eq!(metrics["rollups"]["stale_fallbacks"].as_u64(), Some(1));
 
             let _ = std::fs::remove_dir_all(path);
@@ -3498,7 +3498,7 @@ mod time_series_rollups {
             vec![],
         )
         .unwrap();
-        assert_eq!(inserted.command, "INSERT 0 1");
+        assert_eq!(inserted.command(), "INSERT 0 1");
     }
 
     #[test]
@@ -3533,12 +3533,12 @@ mod time_series_rollups {
             .unwrap();
 
         // Assert
-        assert_eq!(source_rows.rows.len(), 3, "{:?}", source_rows.rows);
-        assert_eq!(source_rows.rows[0][2], Value::Int64(2));
-        assert_eq!(source_rows.rows[0][3], Value::Int64(12));
-        assert_eq!(debt.rows.len(), 1);
+        assert_eq!(source_rows.rows().len(), 3, "{:?}", source_rows.rows());
+        assert_eq!(source_rows.rows()[0][2], Value::Int64(2));
+        assert_eq!(source_rows.rows()[0][3], Value::Int64(12));
+        assert_eq!(debt.rows().len(), 1);
         assert_eq!(
-            debt.rows[0],
+            debt.rows()[0],
             vec![
                 Value::String("rollup".to_string()),
                 Value::Int64(4),
@@ -3597,10 +3597,10 @@ mod time_series_rollups {
             .unwrap();
 
         // Assert
-        assert_eq!(recovered.rows.len(), 3);
-        assert_eq!(recovered.rows[0][2], Value::Int64(2));
-        assert_eq!(recovered.rows[0][3], Value::Int64(12));
-        assert_eq!(remaining_debt.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(recovered.rows().len(), 3);
+        assert_eq!(recovered.rows()[0][2], Value::Int64(2));
+        assert_eq!(recovered.rows()[0][3], Value::Int64(12));
+        assert_eq!(remaining_debt.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -3674,7 +3674,7 @@ mod time_series_rollups {
                 "SELECT total, amount_sum, small_sum FROM __cassie_rollup_ev_hourly",
                 vec![],
             )
-            .map(|result| result.rows)
+            .map(|result| result.rows())
             .unwrap_or_default();
 
         // Assert
@@ -3754,7 +3754,7 @@ mod graph_database_scope {
                 vec![],
             );
 
-            assert_eq!(neighbors.rows, vec![vec![Value::String("bob".to_string())]]);
+            assert_eq!(neighbors.rows(), vec![vec![Value::String("bob".to_string())]]);
             assert!(
                 postgres_read.is_err(),
                 "another database must not read graph backing relations"
@@ -3843,11 +3843,11 @@ mod graph_database_scope {
                 vec!["tenant_a.public.social", "tenant_b.public.social"]
             );
             assert_eq!(
-                first_database_neighbors.rows,
+                first_database_neighbors.rows(),
                 vec![vec![Value::String("tenant_a_node".to_string())]]
             );
             assert_eq!(
-                second_database_neighbors.rows,
+                second_database_neighbors.rows(),
                 vec![vec![Value::String("tenant_b_node".to_string())]]
             );
             let _ = std::fs::remove_dir_all(path);
@@ -3923,7 +3923,7 @@ mod graph_backing_table_ddl {
         cassie
             .execute_sql(session, NEIGHBORS, vec![])
             .expect("graph traversal")
-            .rows
+            .rows()
     }
 
     fn restart(cassie: Cassie, path: &str) -> (Cassie, CassieSession) {
@@ -4159,7 +4159,7 @@ mod time_series_partition_delimiters {
                 let result = cassie.execute_sql(&session, &format!("SELECT id FROM {table} WHERE tenant = $1 AND event_at >= '2026-01-01T00:00:00Z' AND event_at < '2026-01-01T01:00:00Z'"), vec![Value::String("north\tamerica".to_string())]).expect("read indexed tab partition");
 
                 // Assert
-                assert_eq!(result.rows, vec![vec![Value::Int64(1)]]);
+                assert_eq!(result.rows(), vec![vec![Value::Int64(1)]]);
             }
             drop(session);
             drop(cassie);
@@ -4168,7 +4168,7 @@ mod time_series_partition_delimiters {
             let session = reopened.create_session("tester", None);
             for table in ["partition_write", "partition_rebuild"] {
                 let result = reopened.execute_sql(&session, &format!("SELECT id FROM {table} WHERE tenant = $1 AND event_at >= '2026-01-01T00:00:00Z' AND event_at < '2026-01-01T01:00:00Z'"), vec![Value::String("north\tamerica".to_string())]).expect("read tab partition after restart");
-                assert_eq!(result.rows, vec![vec![Value::Int64(1)]]);
+                assert_eq!(result.rows(), vec![vec![Value::Int64(1)]]);
             }
         });
         let _ = std::fs::remove_dir_all(path);
@@ -4198,7 +4198,7 @@ mod column_time_series_read_equivalence {
             // Act
             let indexed = sql(cassie, session, query);
             // Assert
-            assert_eq!(indexed.rows, baseline.rows);
+            assert_eq!(indexed.rows(), baseline.rows());
         });
     }
 }
@@ -4221,7 +4221,7 @@ mod graph_function_correctness {
         cassie
             .execute_sql(session, sql, vec![])
             .expect("read graph function")
-            .rows
+            .rows()
     }
 
     fn with_graph(

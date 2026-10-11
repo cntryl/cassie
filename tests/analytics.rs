@@ -72,7 +72,7 @@ mod aggregate_acceleration {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![
                 Value::Int64(3),
                 Value::Int64(2),
@@ -82,7 +82,7 @@ mod aggregate_acceleration {
                 Value::Int64(7),
             ]]
         );
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(
@@ -152,7 +152,7 @@ mod aggregate_acceleration {
                 .expect("aggregate exact case-distinct fields");
 
             // Assert
-            assert_eq!(result.rows, vec![vec![Value::Int64(3), Value::Int64(30)]]);
+            assert_eq!(result.rows(), vec![vec![Value::Int64(3), Value::Int64(30)]]);
             assert_eq!(cassie.metrics()["aggregate_acceleration"]["scans"], 1);
         });
 
@@ -226,7 +226,7 @@ mod aggregate_acceleration {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![
                 Value::Int64(1),
                 Value::Int64(10),
@@ -292,13 +292,13 @@ mod aggregate_acceleration {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("a".to_string()), Value::Int64(10)],
                 vec![Value::String("b".to_string()), Value::Int64(5)],
             ]
         );
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("aggregate_acceleration=false"));
@@ -426,16 +426,16 @@ mod analytical_projection_recovery {
         let after_restart_metrics = restarted.metrics();
 
         // Assert
-        assert_eq!(insert.command, "INSERT 0 1");
-        assert_eq!(commit.command, "COMMIT");
-        assert_eq!(before_restart.rows.len(), 2);
+        assert_eq!(insert.command(), "INSERT 0 1");
+        assert_eq!(commit.command(), "COMMIT");
+        assert_eq!(before_restart.rows().len(), 2);
         assert_eq!(
             before_restart_metrics["projections"]["last_fallback_reason"].as_str(),
             Some("maintenance_pending")
         );
-        assert_eq!(debt.rows.len(), 1);
+        assert_eq!(debt.rows().len(), 1);
         assert_eq!(
-            debt.rows[0],
+            debt.rows()[0],
             vec![
                 Value::String("materialized_projection".to_string()),
                 Value::Int64(2),
@@ -446,12 +446,12 @@ mod analytical_projection_recovery {
                 Value::String("maintenance_pending".to_string()),
             ]
         );
-        assert_eq!(restarted_debt.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(restarted_debt.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
         assert_eq!(
-            projection.rows,
+            projection.rows(),
             vec![vec![Value::String("stale".to_string())]]
         );
-        assert_eq!(after_restart.rows.len(), 2);
+        assert_eq!(after_restart.rows().len(), 2);
         assert_eq!(
             after_restart_metrics["projections"]["last_fallback_reason"].as_str(),
             Some("stale-or-unverified")
@@ -528,21 +528,21 @@ mod analytical_projection_recovery {
                 .unwrap();
 
             // Assert
-            assert_eq!(insert.unwrap().command, "INSERT 0 1");
+            assert_eq!(insert.unwrap().command(), "INSERT 0 1");
             assert_eq!(
-                debt_before_restart.rows,
+                debt_before_restart.rows(),
                 vec![vec![Value::String("materialized_projection".to_string())]]
             );
-            assert_eq!(debt_after_restart.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(debt_after_restart.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
             assert_eq!(
-                rows_before_restart.rows,
+                rows_before_restart.rows(),
                 vec![
                     vec![Value::String("acme".to_string()), Value::Int64(10)],
                     vec![Value::String("acme".to_string()), Value::Int64(20)],
                 ]
             );
-            assert_eq!(rows_after_restart.rows, rows_before_restart.rows);
-            assert_eq!(rows_after_refresh.rows, rows_before_restart.rows);
+            assert_eq!(rows_after_restart.rows(), rows_before_restart.rows());
+            assert_eq!(rows_after_refresh.rows(), rows_before_restart.rows());
 
             restarted.shutdown();
             let _ = std::fs::remove_dir_all(path);
@@ -577,8 +577,8 @@ mod analytical_projection_recovery {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.rows.len(), 1);
-            assert_eq!(result.rows[0][1], Value::Int64(10));
+            assert_eq!(result.rows().len(), 1);
+            assert_eq!(result.rows()[0][1], Value::Int64(10));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -738,7 +738,7 @@ mod analytical_projections {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("acme".to_string()), Value::Int64(10)],
                 vec![Value::String("acme".to_string()), Value::Int64(20)],
@@ -752,7 +752,7 @@ mod analytical_projections {
                     .as_u64()
                     .unwrap()
         );
-        let Value::String(plan) = &explained.rows[0][0] else {
+        let Value::String(plan) = &explained.rows()[0][0] else {
             panic!("expected explain string");
         };
         assert!(plan.contains(&format!(
@@ -809,7 +809,7 @@ mod analytical_projections {
 
             // Assert
             assert_eq!(
-                after_insert.rows,
+                after_insert.rows(),
                 vec![
                     vec![Value::String("acme".to_string()), Value::Int64(10)],
                     vec![Value::String("acme".to_string()), Value::Int64(11)],
@@ -817,7 +817,7 @@ mod analytical_projections {
                 ]
             );
             assert_eq!(
-                after_delete.rows,
+                after_delete.rows(),
                 vec![
                     vec![Value::String("acme".to_string()), Value::Int64(10)],
                     vec![Value::String("acme".to_string()), Value::Int64(20)],
@@ -886,7 +886,7 @@ mod analytical_projections {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("acme".to_string()), Value::Int64(10)],
                 vec![Value::String("acme".to_string()), Value::Int64(20)],
@@ -979,7 +979,7 @@ mod analytical_projections {
                 .execute_sql(&session, statement, vec![])
                 .expect(statement);
         }
-        let read = |sql: &str| cassie.execute_sql(&session, sql, vec![]).expect(sql).rows;
+        let read = |sql: &str| cassie.execute_sql(&session, sql, vec![]).expect(sql).rows();
 
         // Act
         let projected = read("SELECT total, tag FROM alias_p ORDER BY tag");
@@ -1064,7 +1064,7 @@ mod analytical_projection_schema_invalidation {
             let after = cassie.metrics();
 
             // Assert
-            assert_eq!(result.rows, vec![vec![Value::Int64(2), Value::Int64(1)]]);
+            assert_eq!(result.rows(), vec![vec![Value::Int64(2), Value::Int64(1)]]);
             assert!(
                 after["projections"]["mixed_execution_fallbacks"]
                     .as_u64()
@@ -1140,7 +1140,7 @@ mod analytical_projection_schema_invalidation {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![vec![Value::String("acme".to_string()), Value::Int64(99)]]
             );
             assert!(
@@ -1442,7 +1442,7 @@ mod column_batch_encoded_aggregates {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![vec![
                     Value::Int64(3),
                     Value::Int64(2),
@@ -1470,7 +1470,7 @@ mod column_batch_encoded_aggregates {
                         .unwrap_or_default(),
                 3
             );
-            let Value::String(plan) = &explain.rows[0][0] else {
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("aggregate_acceleration=true"));
@@ -1532,7 +1532,7 @@ mod column_batch_encoded_aggregates {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![vec![
                     Value::Int64(0),
                     Value::Int64(0),
@@ -1714,7 +1714,7 @@ mod column_batch_encoded_scans {
 
             // Assert
             assert_eq!(
-                covered.rows,
+                covered.rows(),
                 vec![
                     vec![Value::Int64(0)],
                     vec![Value::Int64(2)],
@@ -1748,7 +1748,7 @@ mod column_batch_encoded_scans {
                 0
             );
             assert_eq!(
-                required.rows,
+                required.rows(),
                 vec![
                     vec![Value::String("poison-0".to_string())],
                     vec![Value::String("poison-2".to_string())],
@@ -1834,13 +1834,13 @@ mod column_batch_encoded_scans {
 
             // Assert
             assert_eq!(
-                non_null.rows,
+                non_null.rows(),
                 vec![
                     vec![Value::String("row-2".to_string())],
                     vec![Value::String("row-4".to_string())],
                 ]
             );
-            assert_eq!(null.rows, vec![vec![Value::String("row-3".to_string())]]);
+            assert_eq!(null.rows(), vec![vec![Value::String("row-3".to_string())]]);
             assert_eq!(metric(&after, "scans") - metric(&before, "scans"), 2);
             assert_eq!(
                 metric(&after, "fallback_scans") - metric(&before, "fallback_scans"),
@@ -1911,7 +1911,7 @@ mod column_batch_encoded_scans {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![
                     Value::String("lower-3".to_string()),
                     Value::String("upper-3".to_string()),
@@ -1988,7 +1988,7 @@ mod column_batch_encoded_scans {
         // Assert
         assert_eq!(metadata.fields, vec!["a".to_string(), "A".to_string()]);
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![
                 Value::String("lower-3".to_string()),
                 Value::String("upper-3".to_string()),
@@ -2688,7 +2688,7 @@ mod column_batch_incremental_maintenance {
 
             // Assert
             assert_single_segment_rewrite(&before, &after_update, touched_id);
-            assert_eq!(result.rows, vec![vec![Value::Int64(30)]]);
+            assert_eq!(result.rows(), vec![vec![Value::Int64(30)]]);
             assert_eq!(persisted_chunk_count, 13);
             assert_eq!(
                 metric_delta(&metrics_before, &metrics_after, "segment_rewrites"),
@@ -2786,7 +2786,7 @@ mod column_batch_incremental_maintenance {
             // Assert
             assert_median_split(&before_split, &after_split);
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![
                     vec![Value::Int64(0)],
                     vec![Value::Int64(10)],
@@ -2892,7 +2892,7 @@ mod column_batch_incremental_maintenance {
             );
             assert_single_segment_rewrite(&before, &after, touched_id);
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![
                     vec![Value::Int64(0)],
                     vec![Value::Int64(1)],
@@ -2964,8 +2964,8 @@ mod column_batch_incremental_maintenance {
                             vec![],
                         )
                         .expect("concurrent encoded read");
-                    assert_eq!(result.rows.len(), 1);
-                    assert!(matches!(result.rows[0].as_slice(), [Value::Int64(3 | 30)]));
+                    assert_eq!(result.rows().len(), 1);
+                    assert!(matches!(result.rows()[0].as_slice(), [Value::Int64(3 | 30)]));
                 }
             }));
         }
@@ -3003,7 +3003,7 @@ mod column_batch_incremental_maintenance {
                 vec![],
             )
             .expect("final encoded read");
-        assert_eq!(final_result.rows, vec![vec![Value::Int64(3)]]);
+        assert_eq!(final_result.rows(), vec![vec![Value::Int64(3)]]);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -3071,7 +3071,7 @@ mod column_batch_incremental_maintenance {
             // Assert
             assert_eq!(metadata.segments.len(), 1);
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![
                     vec![Value::Int64(3)],
                     vec![Value::Int64(7)],
@@ -3268,7 +3268,7 @@ mod column_batch_resilience {
                 vec![],
             )
             .expect("query ALP codec-version fixture")
-            .rows
+            .rows()
     }
 
     fn fsst_codec_rows(fixture: &AmountFixture, table: &str, predicate: &str) -> Vec<Vec<Value>> {
@@ -3280,7 +3280,7 @@ mod column_batch_resilience {
                 vec![],
             )
             .expect("query FSST fixture")
-            .rows
+            .rows()
     }
 
     fn sum_amount(fixture: &AmountFixture, table: &str) -> Result<Vec<Vec<Value>>, String> {
@@ -3299,7 +3299,7 @@ mod column_batch_resilience {
                 &format!("SELECT SUM(amount) AS {alias} FROM {table}"),
                 vec![],
             )
-            .map(|result| result.rows)
+            .map(|result| result.rows())
             .map_err(|error| error.to_string())
     }
 
@@ -3371,7 +3371,7 @@ mod column_batch_resilience {
             .expect("aggregate large integers");
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::Int64(9_007_199_254_740_995)]]);
+        assert_eq!(result.rows(), vec![vec![Value::Int64(9_007_199_254_740_995)]]);
         assert_eq!(cassie.metrics()["aggregate_acceleration"]["scans"], 1);
 
         let _ = std::fs::remove_dir_all(path);
@@ -3489,7 +3489,7 @@ mod column_batch_resilience {
             .midge
             .has_column_batch_maintenance_debt(&collection)
             .expect("maintenance debt cleared"));
-        assert_eq!(result.rows, vec![vec![Value::Int64(8)]]);
+        assert_eq!(result.rows(), vec![vec![Value::Int64(8)]]);
         assert_eq!(cassie.metrics()["aggregate_acceleration"]["scans"], 1);
 
         let _ = std::fs::remove_dir_all(path);
@@ -3723,7 +3723,7 @@ mod column_batch_resilience {
             "postgres.public.column_batch_alp_lifecycle_after"
         );
         assert_eq!(renamed.segments[0].field_chunks["amount"].codec_name, "alp");
-        assert_eq!(selected.rows.len(), 4);
+        assert_eq!(selected.rows().len(), 4);
         assert_eq!(renamed_artifact_count, original_artifact_count);
         assert!(original_artifact_count >= 3);
         assert_eq!(dropped_artifact_count, 0);
@@ -4067,10 +4067,10 @@ mod column_batch_resilience {
 
         // Assert
         assert_eq!(
-            fallback.rows,
+            fallback.rows(),
             vec![vec![Value::Float64(1.0), Value::Float64(0.25)]]
         );
-        assert_eq!(exact.rows, fallback.rows);
+        assert_eq!(exact.rows(), fallback.rows());
         assert_eq!(metrics["aggregate_acceleration"]["scans"], 0);
         assert_eq!(metrics["aggregate_acceleration"]["row_blob_fallbacks"], 1);
         assert_eq!(
@@ -4297,7 +4297,7 @@ mod column_batch_resilience {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![
                 Value::Int64(2),
                 Value::Int64(0),
@@ -4333,7 +4333,7 @@ mod column_batch_resilience {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![
                 Value::Int64(0),
                 Value::Int64(0),
@@ -4404,7 +4404,7 @@ mod column_batch_resilience {
 
         // Assert
         assert_eq!(
-            fallback.rows,
+            fallback.rows(),
             vec![vec![
                 Value::Float64(2.5),
                 Value::Float64(2.5 / 3.0),
@@ -4412,7 +4412,7 @@ mod column_batch_resilience {
                 Value::Int64(2),
             ]]
         );
-        assert_eq!(exact.rows, fallback.rows);
+        assert_eq!(exact.rows(), fallback.rows());
         assert_eq!(fallback_metrics["aggregate_acceleration"]["scans"], 0);
         assert_eq!(
             fallback_metrics["aggregate_acceleration"]["row_blob_fallbacks"],
@@ -4465,13 +4465,13 @@ mod column_batch_resilience {
 
         // Assert
         assert_eq!(
-            accelerated.rows,
+            accelerated.rows(),
             vec![vec![
                 Value::Vector(cassie::types::Vector::new(vec![0.0, 10.0])),
                 Value::Vector(cassie::types::Vector::new(vec![1.0, 2.0])),
             ]]
         );
-        assert_eq!(exact.rows, accelerated.rows);
+        assert_eq!(exact.rows(), accelerated.rows());
         assert_eq!(metrics["aggregate_acceleration"]["scans"], 0);
         assert_eq!(metrics["aggregate_acceleration"]["row_blob_fallbacks"], 1);
         assert_eq!(
@@ -4583,11 +4583,11 @@ mod column_batches {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows, vec![vec![
+        assert_eq!(result.rows(), vec![vec![
             Value::String("alpha".to_string()),
             Value::String("one".to_string()),
         ]]);
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("column_batch_index=idx_column_batch_projection"));
@@ -4675,7 +4675,7 @@ mod column_batches {
         // Assert
         assert_eq!(metadata.fields, vec!["title".to_string(), "body".to_string()]);
         assert_eq!(metadata.segments.len(), 1);
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert!(dropped.is_none());
     });
 
@@ -4748,7 +4748,7 @@ mod column_batches {
                 .all(|codec| codec.encoded_len < codec.decoded_len)
         );
         assert!(codecs.iter().all(|codec| codec.value_count == 8));
-        assert_eq!(result.rows.len(), 8);
+        assert_eq!(result.rows().len(), 8);
         assert_eq!(metrics["column_batches"]["scans"], 1);
         assert!(metrics["column_batches"]["physical_bytes_total"]
             .as_u64()
@@ -4820,7 +4820,7 @@ mod column_batches {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![
                 Value::String("alpha".to_string()),
                 Value::String("one".to_string()),
@@ -4891,13 +4891,13 @@ mod column_batches {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("row4".to_string())],
                 vec![Value::String("row5".to_string())],
             ]
         );
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("column_batch_index=idx_column_batch_range_pruning"));
@@ -4963,7 +4963,7 @@ mod column_batches {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::String("alpha".to_string()), Value::Null]]
         );
         assert_eq!(metrics["column_batches"]["scans"], 1);
@@ -5044,7 +5044,7 @@ mod column_batches {
             .expect("column batch metadata should exist");
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(result.rows(), vec![vec![Value::String("alpha".to_string())]]);
         assert_eq!(metadata.segments.len(), 1);
         assert_eq!(metadata.segments[0].summaries["score"].non_null_count, 1);
     });
@@ -5107,7 +5107,7 @@ mod column_batches {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("alpha".to_string())],
                 vec![Value::String("beta".to_string())],
@@ -5218,7 +5218,7 @@ mod derived_state_recovery {
             .expect("metadata after recovery");
         // Assert
         assert_eq!(
-            fallback_result.rows,
+            fallback_result.rows(),
             vec![vec![Value::String("alpha".to_string()), Value::Int64(2)]]
         );
         assert!(matches!(
@@ -5226,7 +5226,7 @@ mod derived_state_recovery {
             ColumnBatchScanDecision::Fallback(reason)
                 if reason.as_str() == "maintenance_pending"
         ));
-        assert_eq!(recovered_result.rows, fallback_result.rows);
+        assert_eq!(recovered_result.rows(), fallback_result.rows());
         assert_eq!(
             metadata.built_generation,
             restarted
@@ -5296,7 +5296,7 @@ mod derived_state_recovery {
                     if reason.as_str() == "maintenance_pending"
             ));
             assert_eq!(
-                fallback_result.rows,
+                fallback_result.rows(),
                 vec![vec![Value::String("alpha".to_string()), Value::Int64(2)]]
             );
             assert!(fallback_metrics["column_batches"]["fallback_scans"]
@@ -5442,7 +5442,7 @@ mod derived_state_recovery {
             vec![],
         )
         .expect("query after recovery")
-        .rows;
+        .rows();
         let collection =
             canonical_test_collection(&restarted, "derived_state_add_column_batch_docs");
         let index = canonical_test_index(
@@ -5639,7 +5639,7 @@ mod projection_concurrency {
         first_result.expect("first refresh should succeed");
         second_result.expect("second refresh should succeed");
         assert_eq!(
-            rows.rows,
+            rows.rows(),
             vec![
                 vec![Value::String("bravo".to_string())],
                 vec![Value::String("charlie".to_string())],
@@ -6107,7 +6107,7 @@ mod projection_consistency {
 
         // Assert
         assert_eq!(
-            reports.rows,
+            reports.rows(),
             vec![vec![
                 Value::String("consistent".to_string()),
                 Value::Int64(2)
@@ -6457,9 +6457,9 @@ mod projection_diffing {
                 .unwrap();
 
             // Assert
-            assert_eq!(diff.columns[0].name, "row_id");
-            assert_eq!(diff.rows[0][0], Value::String("doc-1".to_string()));
-            assert_eq!(diff.rows[0][1], Value::String("changed".to_string()));
+            assert_eq!(diff.columns()[0].name, "row_id");
+            assert_eq!(diff.rows()[0][0], Value::String("doc-1".to_string()));
+            assert_eq!(diff.rows()[0][1], Value::String("changed".to_string()));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -6511,8 +6511,8 @@ mod projection_diffing {
         let compared = cassie.execute_sql(&session, &sql, vec![]).unwrap();
 
         // Assert
-        assert_eq!(compared.rows[0][1], Value::String("equal".to_string()));
-        assert_eq!(compared.rows[0][4], Value::Int64(0));
+        assert_eq!(compared.rows()[0][1], Value::String("equal".to_string()));
+        assert_eq!(compared.rows()[0][4], Value::Int64(0));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -6575,7 +6575,7 @@ mod projection_diffing {
                     vec![],
                 )
                 .unwrap();
-            let cursor = match &first.rows[0][5] {
+            let cursor = match &first.rows()[0][5] {
                 Value::String(value) => value.clone(),
                 other => panic!("expected resume cursor, got {other:?}"),
             };
@@ -6590,10 +6590,10 @@ mod projection_diffing {
                 .unwrap();
 
             // Assert
-            assert_eq!(first.rows[0][0], Value::String("doc-1".to_string()));
-            assert_eq!(first.rows[0][6], Value::Bool(false));
-            assert_eq!(second.rows[0][0], Value::String("doc-2".to_string()));
-            assert_eq!(second.rows[0][6], Value::Bool(true));
+            assert_eq!(first.rows()[0][0], Value::String("doc-1".to_string()));
+            assert_eq!(first.rows()[0][6], Value::Bool(false));
+            assert_eq!(second.rows()[0][0], Value::String("doc-2".to_string()));
+            assert_eq!(second.rows()[0][6], Value::Bool(true));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -6646,9 +6646,9 @@ mod projection_diffing {
             .unwrap();
 
         // Assert
-        assert_eq!(compared.rows[0][1], Value::String("unverifiable".to_string()));
+        assert_eq!(compared.rows()[0][1], Value::String("unverifiable".to_string()));
         assert_eq!(
-            reports.rows[0],
+            reports.rows()[0],
             vec![
                 Value::String("unverifiable".to_string()),
                 Value::String("incompatible-missing-algorithm".to_string()),
@@ -6708,7 +6708,7 @@ mod projection_diffing {
 
             // Act
             let compared = cassie.execute_sql(&session, &sql, vec![]).unwrap();
-            let report_id = match &compared.rows[0][5] {
+            let report_id = match &compared.rows()[0][5] {
                 Value::String(value) => value.clone(),
                 other => panic!("expected report id, got {other:?}"),
             };
@@ -6731,7 +6731,7 @@ mod projection_diffing {
 
         // Assert
         assert_eq!(
-            reports.rows,
+            reports.rows(),
             vec![vec![
                 Value::String("equal".to_string()),
                 Value::String("compatible".to_string()),
@@ -6858,7 +6858,7 @@ mod projection_lifecycle {
     }
 
     fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).unwrap().rows
+        cassie.execute_sql(session, sql, vec![]).unwrap().rows()
     }
 
     fn seed_materialized_projection_version_fixture(
@@ -7012,9 +7012,9 @@ mod projection_lifecycle {
         // Assert
         assert_eq!(first.applied_event_count, 1);
         assert_eq!(duplicate.skipped_duplicate_count, 1);
-        assert_eq!(selected.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(selected.rows(), vec![vec![Value::String("alpha".to_string())]]);
         assert_eq!(
-            checkpoint.rows,
+            checkpoint.rows(),
             vec![vec![
                 Value::String("orders-stream".to_string()),
                 Value::String("checkpoint-1".to_string()),
@@ -7110,7 +7110,7 @@ mod projection_lifecycle {
             assert_eq!(replay.applied_event_count, 1);
             assert_eq!(replay.skipped_duplicate_count, 1);
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![
                     vec![Value::String("alpha".to_string())],
                     vec![Value::String("bravo".to_string())],
@@ -7194,7 +7194,7 @@ mod projection_lifecycle {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("replayed".to_string())]]
             );
             assert_eq!(
@@ -7273,9 +7273,9 @@ mod projection_lifecycle {
 
         // Assert
         assert!(error.to_string().contains("out-of-order"));
-        assert_eq!(checkpoint.rows.len(), 1);
-        assert_eq!(checkpoint.rows[0][0], Value::String("failed".to_string()));
-        assert!(matches!(&checkpoint.rows[0][1], Value::String(message) if message.contains("out-of-order")));
+        assert_eq!(checkpoint.rows().len(), 1);
+        assert_eq!(checkpoint.rows()[0][0], Value::String("failed".to_string()));
+        assert!(matches!(&checkpoint.rows()[0][1], Value::String(message) if message.contains("out-of-order")));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -7362,17 +7362,17 @@ mod projection_lifecycle {
 
         // Assert
         assert!(error.to_string().contains("duplicate projection replay event"));
-        assert_eq!(selected.rows, Vec::<Vec<Value>>::new());
-        assert_eq!(checkpoint.rows.len(), 1);
-        assert_eq!(checkpoint.rows[0][0], Value::String("failed".to_string()));
+        assert_eq!(selected.rows(), Vec::<Vec<Value>>::new());
+        assert_eq!(checkpoint.rows().len(), 1);
+        assert_eq!(checkpoint.rows()[0][0], Value::String("failed".to_string()));
         assert_eq!(
-            checkpoint.rows[0][1],
+            checkpoint.rows()[0][1],
             Value::String("batch-conflict".to_string())
         );
-        assert_eq!(checkpoint.rows[0][2], Value::String(String::new()));
-        assert_eq!(checkpoint.rows[0][3], Value::String(String::new()));
-        assert!(matches!(&checkpoint.rows[0][4], Value::String(message) if message.contains("duplicate projection replay event")));
-        assert_eq!(restarted_checkpoint.rows, checkpoint.rows);
+        assert_eq!(checkpoint.rows()[0][2], Value::String(String::new()));
+        assert_eq!(checkpoint.rows()[0][3], Value::String(String::new()));
+        assert!(matches!(&checkpoint.rows()[0][4], Value::String(message) if message.contains("duplicate projection replay event")));
+        assert_eq!(restarted_checkpoint.rows(), checkpoint.rows());
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -7460,12 +7460,12 @@ mod projection_lifecycle {
 
         // Assert
         assert_eq!(
-            initial.rows,
+            initial.rows(),
             vec![vec![Value::String("bravo".to_string()), Value::Int64(2)]]
         );
-        assert_eq!(stale.rows, vec![vec![Value::String("stale".to_string())]]);
+        assert_eq!(stale.rows(), vec![vec![Value::String("stale".to_string())]]);
         assert_eq!(
-            refreshed.rows,
+            refreshed.rows(),
             vec![
                 vec![Value::String("bravo".to_string())],
                 vec![Value::String("charlie".to_string())],
@@ -8500,7 +8500,7 @@ mod projection_lifecycle {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("alpha".to_string())]]
         );
 
@@ -8748,13 +8748,13 @@ mod projection_repair {
 
             // Assert
             for (scope, action, executable, plan) in plans {
-                assert_eq!(plan.command, "PLAN REPAIR PROJECTION");
-                assert_eq!(plan.rows[0][0], Value::String("planned".to_string()));
-                assert_eq!(plan.rows[0][2], Value::String(scope.replace('-', "_")));
-                assert_eq!(plan.rows[0][4], Value::String(action.to_string()));
-                assert_eq!(plan.rows[0][5], Value::Bool(executable));
+                assert_eq!(plan.command(), "PLAN REPAIR PROJECTION");
+                assert_eq!(plan.rows()[0][0], Value::String("planned".to_string()));
+                assert_eq!(plan.rows()[0][2], Value::String(scope.replace('-', "_")));
+                assert_eq!(plan.rows()[0][4], Value::String(action.to_string()));
+                assert_eq!(plan.rows()[0][5], Value::Bool(executable));
                 assert_eq!(
-                    plan.rows[0][6],
+                    plan.rows()[0][6],
                     Value::String(format!("VERIFY PROJECTION {projection} MODE full"))
                 );
             }
@@ -8820,19 +8820,19 @@ mod projection_repair {
             .unwrap();
 
         // Assert
-        assert_eq!(repair.command, "REPAIR PROJECTION");
-        assert_eq!(repair.rows[0][0], Value::String("completed".to_string()));
+        assert_eq!(repair.command(), "REPAIR PROJECTION");
+        assert_eq!(repair.rows()[0][0], Value::String("completed".to_string()));
         assert_eq!(
-            repair.rows[0][7],
+            repair.rows()[0][7],
             Value::String("verified".to_string())
         );
-        assert_eq!(audit.rows[0][0], Value::String("completed".to_string()));
-        assert_eq!(audit.rows[0][1], Value::String("row".to_string()));
+        assert_eq!(audit.rows()[0][0], Value::String("completed".to_string()));
+        assert_eq!(audit.rows()[0][1], Value::String("row".to_string()));
         assert_eq!(
-            audit.rows[0][2],
+            audit.rows()[0][2],
             Value::String("rebuild_projection_hashes".to_string())
         );
-        assert_eq!(audit.rows[0][3], Value::String("verified".to_string()));
+        assert_eq!(audit.rows()[0][3], Value::String("verified".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -8907,11 +8907,11 @@ mod projection_repair {
             .expect("repaired root");
 
         // Assert
-        assert_eq!(verification.rows[0][0], Value::String("failed".to_string()));
-        assert_eq!(verification.rows[0][5], Value::Int64(1));
-        assert_eq!(plan.rows[0][5], Value::Bool(true));
-        assert_eq!(repair.rows[0][0], Value::String("completed".to_string()));
-        assert_eq!(repair.rows[0][7], Value::String("verified".to_string()));
+        assert_eq!(verification.rows()[0][0], Value::String("failed".to_string()));
+        assert_eq!(verification.rows()[0][5], Value::Int64(1));
+        assert_eq!(plan.rows()[0][5], Value::Bool(true));
+        assert_eq!(repair.rows()[0][0], Value::String("completed".to_string()));
+        assert_eq!(repair.rows()[0][7], Value::String("verified".to_string()));
         assert_eq!(root.row_count, 1_024);
         assert_eq!(root.range_count, 4);
         assert_eq!(
@@ -9013,12 +9013,12 @@ mod projection_repair {
                 .unwrap();
 
             // Assert
-            assert_eq!(verification.rows[0][0], Value::String("failed".to_string()));
-            assert_eq!(verification.rows[0][4], Value::Int64(1));
-            assert_eq!(verification.rows[0][6], Value::Bool(true));
-            assert_eq!(plan.rows[0][5], Value::Bool(true));
-            assert_eq!(repair.rows[0][0], Value::String("completed".to_string()));
-            assert_eq!(repair.rows[0][7], Value::String("verified".to_string()));
+            assert_eq!(verification.rows()[0][0], Value::String("failed".to_string()));
+            assert_eq!(verification.rows()[0][4], Value::Int64(1));
+            assert_eq!(verification.rows()[0][6], Value::Bool(true));
+            assert_eq!(plan.rows()[0][5], Value::Bool(true));
+            assert_eq!(repair.rows()[0][0], Value::String("completed".to_string()));
+            assert_eq!(repair.rows()[0][7], Value::String("verified".to_string()));
             assert!(cassie
                 .midge
                 .get_column_batch_metadata(&collection, &index_name)
@@ -9105,23 +9105,23 @@ mod projection_repair {
             .unwrap();
 
         // Assert
-        assert_eq!(verification.rows[0][0], Value::String("failed".to_string()));
-        assert_eq!(verification.rows[0][6], Value::Bool(true));
-        assert_eq!(plan.rows[0][5], Value::Bool(true));
-        assert_eq!(repair.rows[0][0], Value::String("completed".to_string()));
-        assert_eq!(repair.rows[0][7], Value::String("verified".to_string()));
-        assert_eq!(audit.rows[0][0], Value::String("completed".to_string()));
-        assert_eq!(audit.rows[0][1], Value::String("full_rebuild".to_string()));
+        assert_eq!(verification.rows()[0][0], Value::String("failed".to_string()));
+        assert_eq!(verification.rows()[0][6], Value::Bool(true));
+        assert_eq!(plan.rows()[0][5], Value::Bool(true));
+        assert_eq!(repair.rows()[0][0], Value::String("completed".to_string()));
+        assert_eq!(repair.rows()[0][7], Value::String("verified".to_string()));
+        assert_eq!(audit.rows()[0][0], Value::String("completed".to_string()));
+        assert_eq!(audit.rows()[0][1], Value::String("full_rebuild".to_string()));
         assert_eq!(
-            audit.rows[0][2],
+            audit.rows()[0][2],
             Value::String("refresh_materialized_projection".to_string())
         );
-        assert_eq!(audit.rows[0][3], Value::String("verified".to_string()));
+        assert_eq!(audit.rows()[0][3], Value::String("verified".to_string()));
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("alpha".to_string()), Value::Int64(1)]]
         );
-        assert_eq!(restarted_selected.rows, selected.rows);
+        assert_eq!(restarted_selected.rows(), selected.rows());
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -9203,20 +9203,20 @@ mod projection_repair {
             .unwrap();
 
         // Assert
-        assert_eq!(verification.rows[0][0], Value::String("failed".to_string()));
-        assert_eq!(verification.rows[0][6], Value::Bool(true));
-        assert_eq!(plan.rows[0][5], Value::Bool(true));
-        assert_eq!(repair.rows[0][0], Value::String("completed".to_string()));
-        assert_eq!(repair.rows[0][7], Value::String("verified".to_string()));
-        assert_eq!(audit.rows[0][0], Value::String("completed".to_string()));
-        assert_eq!(audit.rows[0][1], Value::String("projection_version".to_string()));
+        assert_eq!(verification.rows()[0][0], Value::String("failed".to_string()));
+        assert_eq!(verification.rows()[0][6], Value::Bool(true));
+        assert_eq!(plan.rows()[0][5], Value::Bool(true));
+        assert_eq!(repair.rows()[0][0], Value::String("completed".to_string()));
+        assert_eq!(repair.rows()[0][7], Value::String("verified".to_string()));
+        assert_eq!(audit.rows()[0][0], Value::String("completed".to_string()));
+        assert_eq!(audit.rows()[0][1], Value::String("projection_version".to_string()));
         assert_eq!(
-            audit.rows[0][2],
+            audit.rows()[0][2],
             Value::String("refresh_projection_version".to_string())
         );
-        assert_eq!(audit.rows[0][3], Value::String("verified".to_string()));
+        assert_eq!(audit.rows()[0][3], Value::String("verified".to_string()));
         assert_eq!(
-            versions.rows,
+            versions.rows(),
             vec![
                 vec![
                     Value::String("v1".to_string()),
@@ -9228,12 +9228,12 @@ mod projection_repair {
                 ]
             ]
         );
-        assert_eq!(active_rows.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(active_rows.rows(), vec![vec![Value::String("alpha".to_string())]]);
         assert_eq!(
-            restarted_verification.rows[0][0],
+            restarted_verification.rows()[0][0],
             Value::String("verified".to_string())
         );
-        assert_eq!(restarted_active_rows.rows, active_rows.rows);
+        assert_eq!(restarted_active_rows.rows(), active_rows.rows());
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -9315,12 +9315,12 @@ mod projection_repair {
             .unwrap();
 
         // Assert
-        assert_eq!(failed.rows[0][0], Value::String("failed".to_string()));
-        assert_eq!(repaired.rows[0][0], Value::String("completed".to_string()));
+        assert_eq!(failed.rows()[0][0], Value::String("failed".to_string()));
+        assert_eq!(repaired.rows()[0][0], Value::String("completed".to_string()));
         assert_eq!(manifest.generated_ms, 8_642);
-        assert_eq!(verification.rows[0][0], Value::String("verified".to_string()));
-        assert_eq!(active_rows.rows, vec![vec![Value::String("alpha".to_string())]]);
-        assert_eq!(reports.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(verification.rows()[0][0], Value::String("verified".to_string()));
+        assert_eq!(active_rows.rows(), vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(reports.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
         let _ = std::fs::remove_dir_all(snapshot);
@@ -9439,7 +9439,7 @@ mod projection_repair {
             .unwrap();
 
         // Assert
-        assert_eq!(reports.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(reports.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -9679,9 +9679,9 @@ mod projection_verification {
             .unwrap();
 
         // Assert
-        assert_eq!(verified.rows[0][0], Value::String("verified".to_string()));
+        assert_eq!(verified.rows()[0][0], Value::String("verified".to_string()));
         assert_eq!(
-            hashes.rows,
+            hashes.rows(),
             vec![vec![
                 Value::String("current".to_string()),
                 Value::Int64(1),
@@ -9690,7 +9690,7 @@ mod projection_verification {
             ]]
         );
         assert_eq!(
-            operations.rows,
+            operations.rows(),
             vec![vec![
                 Value::String("unknown".to_string()),
                 Value::String("unknown".to_string()),
@@ -9698,7 +9698,7 @@ mod projection_verification {
             ]]
         );
         assert_eq!(
-            reports.rows,
+            reports.rows(),
             vec![vec![
                 Value::String("verified".to_string()),
                 Value::String("full".to_string()),
@@ -9759,8 +9759,8 @@ mod projection_verification {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.rows[0][0], Value::String("failed".to_string()));
-            let Value::Int64(mismatches) = result.rows[0][3] else {
+            assert_eq!(result.rows()[0][0], Value::String("failed".to_string()));
+            let Value::Int64(mismatches) = result.rows()[0][3] else {
                 panic!("expected mismatch count");
             };
             assert!(mismatches >= 1);
@@ -9940,14 +9940,14 @@ mod read_model_optimization_round {
         expression: &cassie::executor::QueryResult,
     ) {
         assert_eq!(
-            page.rows,
+            page.rows(),
             vec![
                 vec![Value::String("first".to_string())],
                 vec![Value::String("second".to_string())],
             ]
         );
         assert_eq!(
-            expression.rows,
+            expression.rows(),
             vec![vec![Value::String("first".to_string())]]
         );
     }
@@ -10051,7 +10051,7 @@ mod read_model_optimization_round {
         after: &serde_json::Value,
     ) {
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("user-150".to_string()), Value::Int64(150)],
                 vec![Value::String("user-151".to_string()), Value::Int64(151)],
@@ -10206,7 +10206,7 @@ mod read_model_optimization_round {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![
                     vec![
                         Value::String("alpha".to_string()),
@@ -10301,7 +10301,7 @@ mod read_model_optimization_round {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![
                     vec![Value::String("ada".to_string()), Value::Int64(42)],
                     vec![Value::String("grace".to_string()), Value::Int64(7)],
@@ -10394,7 +10394,7 @@ mod read_model_optimization_round {
             let after = cassie.metrics();
 
             // Assert
-            assert_eq!(result.rows.len(), 5);
+            assert_eq!(result.rows().len(), 5);
             assert_eq!(after["joins"]["last_strategy"].as_str(), Some("vectorized"));
             let output_delta = after["joins"]["output_rows_total"].as_u64().unwrap()
                 - before["joins"]["output_rows_total"].as_u64().unwrap();
@@ -10491,7 +10491,7 @@ mod read_model_optimization_round {
             let after = cassie.metrics();
 
             // Assert
-            assert_eq!(result.rows.len(), 5);
+            assert_eq!(result.rows().len(), 5);
             assert_eq!(after["joins"]["last_strategy"].as_str(), Some("typed_hash"));
             let probe_delta = after["joins"]["vectorized_probe_rows_total"]
                 .as_u64()
@@ -10547,7 +10547,7 @@ mod read_model_optimization_round {
                     vec![],
                 )
                 .unwrap()
-                .rows;
+                .rows();
             rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
 
             // Assert
@@ -10690,7 +10690,7 @@ mod read_model_optimization_round {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("user-000".to_string()), Value::Int64(10)],
                 vec![Value::String("user-001".to_string()), Value::Int64(11)],
@@ -10793,7 +10793,7 @@ mod read_model_optimization_round {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("user-000".to_string()), Value::Int64(0)],
                 vec![Value::String("user-000".to_string()), Value::Int64(1)],
@@ -11018,7 +11018,7 @@ mod maintenance_memory_controls {
         let explain = cassie
             .execute_sql(&session, &format!("EXPLAIN {query}"), vec![])
             .expect("explain rollup query");
-        assert!(explain.rows.iter().flatten().any(|value| {
+        assert!(explain.rows().iter().flatten().any(|value| {
             value
                 .as_str()
                 .is_some_and(|plan| plan.contains("rollup_rewrite="))
@@ -11160,7 +11160,7 @@ mod derived_read_equivalence {
                 // Act
                 let rewritten = sql(cassie, session, &query);
                 // Assert
-                assert_eq!(rewritten.rows, baseline.rows, "{definition}");
+                assert_eq!(rewritten.rows(), baseline.rows(), "{definition}");
             }
         });
     }
@@ -11186,14 +11186,14 @@ mod derived_read_equivalence {
                 ];
                 let baseline = queries
                     .iter()
-                    .map(|query| sql(cassie, session, query).rows)
+                    .map(|query| sql(cassie, session, query).rows())
                     .collect::<Vec<_>>();
                 sql(cassie, session, &format!("CREATE MATERIALIZED PROJECTION {table}_projection WITH (analytical = true) AS SELECT tenant,{value} AS amount FROM {table}"));
                 // Act
                 for (query, expected) in queries.iter().zip(baseline) {
                     let rewritten = sql(cassie, session, query);
                     // Assert
-                    assert_eq!(rewritten.rows, expected, "{query}");
+                    assert_eq!(rewritten.rows(), expected, "{query}");
                 }
             }
         });
@@ -11219,14 +11219,14 @@ mod derived_read_equivalence {
             ];
             let baseline = queries
                 .iter()
-                .map(|query| sql(cassie, session, query).rows)
+                .map(|query| sql(cassie, session, query).rows())
                 .collect::<Vec<_>>();
             sql(cassie, session, "CREATE MATERIALIZED PROJECTION ap_identity_projection WITH (analytical = true) AS SELECT tenant,amount FROM ap_identity");
             // Act
             for (query, expected) in queries.iter().zip(baseline) {
                 let rewritten = sql(cassie, session, query);
                 // Assert
-                assert_eq!(rewritten.rows, expected, "{query}");
+                assert_eq!(rewritten.rows(), expected, "{query}");
             }
         });
     }
@@ -11247,7 +11247,7 @@ mod derived_read_equivalence {
             // Act
             let rewritten = sql(cassie, session, query);
             // Assert
-            assert_eq!(rewritten.rows, baseline.rows);
+            assert_eq!(rewritten.rows(), baseline.rows());
         });
     }
 }
@@ -11267,7 +11267,7 @@ mod typed_array_extrema {
             seed_numeric_arrays(cassie, session);
             let json = sql(cassie, session, "SELECT MIN(arr),MAX(arr) FROM json_values");
             assert_eq!(
-                json.rows,
+                json.rows(),
                 vec![vec![
                     Value::Json(serde_json::json!([1, 9])),
                     Value::Json(serde_json::json!([]))
@@ -11281,7 +11281,7 @@ mod typed_array_extrema {
             );
             // Assert
             assert_eq!(
-                arrays.rows,
+                arrays.rows(),
                 vec![vec![
                     Value::Json(serde_json::json!([])),
                     Value::Json(serde_json::json!([10]))
@@ -11325,7 +11325,7 @@ mod typed_array_extrema {
                 let metrics = cassie.metrics();
                 // Assert
                 assert_eq!(
-                    result.rows,
+                    result.rows(),
                     vec![vec![
                         Value::Json(serde_json::json!([2])),
                         Value::Json(serde_json::json!([10]))

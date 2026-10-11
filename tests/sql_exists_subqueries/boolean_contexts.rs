@@ -59,7 +59,7 @@ fn should_contextualize_unknown_boolean_literals_inside_correlated_exists() {
 
     // Assert
     assert_eq!(
-        selected.expect("canonical unknown Boolean input").rows,
+        selected.expect("canonical unknown Boolean input").rows(),
         Vec::<Vec<Value>>::new()
     );
 }
@@ -98,7 +98,7 @@ fn should_resolve_inner_boolean_columns_before_correlated_outer_numeric_columns(
     assert_eq!(
         selected
             .expect("unqualified n denotes the inner BOOLEAN column")
-            .rows,
+            .rows(),
         vec![
             vec![Value::Int64(1)],
             vec![Value::Int64(2)],
@@ -175,7 +175,7 @@ fn should_resolve_outer_boolean_predicates_in_supported_correlated_scope() {
     for (qualifier, result) in qualifiers.into_iter().zip(results) {
         if qualifier == "bool_scope_outer" {
             assert_eq!(
-                result.expect("local qualified outer BOOLEAN").rows,
+                result.expect("local qualified outer BOOLEAN").rows(),
                 vec![vec![Value::Int64(1)]]
             );
         } else {
@@ -191,7 +191,7 @@ fn should_resolve_outer_boolean_predicates_in_supported_correlated_scope() {
     assert_eq!(
         inner_shadow
             .expect("unqualified n denotes the inner BOOLEAN")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
 }

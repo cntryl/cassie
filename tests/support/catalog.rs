@@ -6,5 +6,5 @@ pub fn execute_statement(cassie: &Cassie, session: &CassieSession, sql: &str) {
 }
 
 pub fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-    cassie.execute_sql(session, sql, vec![]).unwrap().rows
+    cassie.execute_sql(session, sql, vec![]).unwrap().rows()
 }

@@ -38,13 +38,13 @@ fn should_order_correlated_exists_by_actual_input() {
             ],
             _ => vec![vec![Value::Int64(2)], vec![Value::Int64(1)]],
         };
-        assert_eq!(result.rows, expected, "{sql}");
+        assert_eq!(result.rows(), expected, "{sql}");
         assert_eq!(
             (
-                result.columns[0].type_oid,
-                result.columns[0].typlen,
-                result.columns[0].atttypmod,
-                result.columns[0].format_code
+                result.columns()[0].type_oid,
+                result.columns()[0].typlen,
+                result.columns()[0].atttypmod,
+                result.columns()[0].format_code
             ),
             (20, 8, -1, 0)
         );
@@ -71,7 +71,7 @@ fn should_choose_distinct_on_representatives_after_correlated_order_keys() {
     let result = fixture.cassie.execute_sql(&fixture.session, sql, vec![]);
     // Assert
     assert_eq!(
-        result.expect("actual ordered representative").rows,
+        result.expect("actual ordered representative").rows(),
         vec![vec![Value::Int64(2)], vec![Value::Int64(3)]]
     );
 }
@@ -100,7 +100,7 @@ fn should_respect_lazy_correlated_order_branch_selection() {
         .execute_sql(&fixture.session, reached, vec![]);
     // Assert
     assert_eq!(
-        dead_result.expect("dead correlated key").rows,
+        dead_result.expect("dead correlated key").rows(),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
     assert!(
@@ -129,7 +129,7 @@ fn should_resolve_correlated_order_output_aliases_before_key_evaluation() {
     let result = fixture.cassie.execute_sql(&fixture.session, sql, vec![]);
     // Assert
     assert_eq!(
-        result.expect("alias resolved key").rows,
+        result.expect("alias resolved key").rows(),
         vec![
             vec![Value::Int64(2), Value::Bool(false)],
             vec![Value::Int64(1), Value::Bool(true)]

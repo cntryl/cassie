@@ -99,7 +99,7 @@ fn neighbors(
             vec![],
         )
         .expect("query graph evidence neighbors")
-        .rows
+        .rows()
 }
 
 fn seeded_edges(seed: u64) -> Vec<String> {

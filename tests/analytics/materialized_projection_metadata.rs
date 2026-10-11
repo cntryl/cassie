@@ -71,17 +71,17 @@ fn should_report_declared_types_for_direct_materialized_projection_reads() {
         // Assert
         assert_eq!(offset_description, expected_columns());
         assert_eq!(unrestricted_description, expected_columns());
-        assert_eq!(offset.columns, expected_columns());
+        assert_eq!(offset.columns(), expected_columns());
         assert_eq!(
-            offset.rows,
+            offset.rows(),
             vec![
                 vec![Value::Int64(2), Value::String("second".into())],
                 vec![Value::Int64(3), Value::Null],
             ]
         );
-        assert_eq!(unrestricted.columns, expected_columns());
+        assert_eq!(unrestricted.columns(), expected_columns());
         assert_eq!(
-            unrestricted.rows,
+            unrestricted.rows(),
             vec![
                 vec![Value::Int64(1), Value::String("first".into())],
                 vec![Value::Int64(2), Value::String("second".into())],

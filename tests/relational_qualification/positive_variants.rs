@@ -56,17 +56,17 @@ fn should_match_positive_variant_literal_rows() {
             "positive {} {}: row_count={} column_count={}",
             case.invariant,
             case.sql,
-            result.rows.len(),
-            result.columns.len()
+            result.rows().len(),
+            result.columns().len()
         );
-        assert_eq!(result.rows.len(), case.rows.len(), "{}", case.sql);
+        assert_eq!(result.rows().len(), case.rows.len(), "{}", case.sql);
         assert_eq!(
-            result.columns.len(),
+            result.columns().len(),
             case.ordered_descriptor_columns.len(),
             "{}",
             case.sql
         );
-        for (actual, expected) in result.columns.iter().zip(&case.ordered_descriptor_columns) {
+        for (actual, expected) in result.columns().iter().zip(&case.ordered_descriptor_columns) {
             assert_eq!(
                 (
                     actual.type_oid,
@@ -80,7 +80,7 @@ fn should_match_positive_variant_literal_rows() {
             );
         }
         if case.comparison == "bag" {
-            let mut remaining = result.rows;
+            let mut remaining = result.rows();
             for row in &case.rows {
                 let index = remaining
                     .iter()
@@ -93,7 +93,7 @@ fn should_match_positive_variant_literal_rows() {
             assert_eq!(case.comparison, "ordered unless singleton/empty");
             assert!(
                 result
-                    .rows
+                    .rows()
                     .iter()
                     .zip(&case.rows)
                     .all(|(actual, expected)| matches_row(actual, expected)),
@@ -201,13 +201,13 @@ fn should_preserve_quoted_cte_prefix_descriptors_after_empty_output() {
     // Assert
     for (index, result) in results.into_iter().enumerate() {
         let result = result.expect("quoted CTE prefix");
-        assert_eq!(result.rows.len(), usize::from(index == 0));
+        assert_eq!(result.rows().len(), usize::from(index == 0));
         if index == 0 {
-            assert_eq!(result.rows, vec![vec![Value::Null, Value::Null]]);
+            assert_eq!(result.rows(), vec![vec![Value::Null, Value::Null]]);
         }
         assert_eq!(
             result
-                .columns
+                .columns()
                 .iter()
                 .map(|c| (c.name.as_str(), c.type_oid))
                 .collect::<Vec<_>>(),

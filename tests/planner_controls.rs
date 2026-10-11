@@ -98,7 +98,7 @@ mod execution_result_cache {
                 .expect("second mutation");
 
             // Assert
-            assert_eq!(result.rows, vec![vec![Value::String(expected.into())]]);
+            assert_eq!(result.rows(), vec![vec![Value::String(expected.into())]]);
             assert_eq!(
                 second.setting("application_name").expect("setting"),
                 expected
@@ -159,14 +159,14 @@ mod execution_result_cache {
 
         // Assert
         assert_eq!(
-            alice_result.rows,
+            alice_result.rows(),
             vec![vec![
                 Value::String("one".into()),
                 Value::String("alice".into())
             ]]
         );
         assert_eq!(
-            bob_result.rows,
+            bob_result.rows(),
             vec![vec![
                 Value::String("one".into()),
                 Value::String("bob".into())
@@ -205,7 +205,7 @@ mod execution_result_cache {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(alice_result.rows, bob_result.rows);
+        assert_eq!(alice_result.rows(), bob_result.rows());
         assert_eq!(metrics["execution_result_cache"]["hits"].as_u64(), Some(0));
         assert_eq!(
             metrics["execution_result_cache"]["misses"].as_u64(),
@@ -252,8 +252,8 @@ mod execution_result_cache {
             .expect("beta query");
 
         // Assert
-        assert_eq!(alpha_result.rows, vec![vec![Value::String("alpha".into())]]);
-        assert_eq!(beta_result.rows, vec![vec![Value::String("beta".into())]]);
+        assert_eq!(alpha_result.rows(), vec![vec![Value::String("alpha".into())]]);
+        assert_eq!(beta_result.rows(), vec![vec![Value::String("beta".into())]]);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -286,11 +286,11 @@ mod execution_result_cache {
 
         // Assert
         assert_eq!(
-            first_result.rows,
+            first_result.rows(),
             vec![vec![Value::String("first_client".into())]]
         );
         assert_eq!(
-            second_result.rows,
+            second_result.rows(),
             vec![vec![Value::String("second_client".into())]]
         );
         let _ = std::fs::remove_dir_all(path);
@@ -342,7 +342,7 @@ mod execution_result_cache {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("before".into())],
                 vec![Value::String("during".into())],
@@ -377,7 +377,7 @@ mod execution_result_cache {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(first.rows, second.rows);
+        assert_eq!(first.rows(), second.rows());
         assert_eq!(
             metrics["execution_result_cache"]["bypass_reasons"]["non_immutable_function"].as_u64(),
             Some(2)
@@ -411,7 +411,7 @@ mod execution_result_cache {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(first.rows, second.rows);
+        assert_eq!(first.rows(), second.rows());
         assert_eq!(
             metrics["execution_result_cache"]["bypass_reasons"]["non_immutable_function"].as_u64(),
             Some(2)
@@ -446,7 +446,7 @@ mod execution_result_cache {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(first.rows, second.rows);
+        assert_eq!(first.rows(), second.rows());
         assert_eq!(metrics["execution_result_cache"]["hits"].as_u64(), Some(0));
         assert_eq!(
             metrics["execution_result_cache"]["bypass_reasons"]["non_immutable_function"].as_u64(),
@@ -481,7 +481,7 @@ mod execution_result_cache {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(first.rows, second.rows);
+        assert_eq!(first.rows(), second.rows());
         assert_eq!(
             metrics["execution_result_cache"]["bypass_reasons"]["non_immutable_function"].as_u64(),
             Some(2)
@@ -516,7 +516,7 @@ mod execution_result_cache {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(first.rows, second.rows);
+        assert_eq!(first.rows(), second.rows());
         assert_eq!(metrics["execution_result_cache"]["hits"].as_u64(), Some(1));
 
         let _ = std::fs::remove_dir_all(path);
@@ -577,9 +577,9 @@ mod execution_result_cache {
             .expect("read rolled back state");
 
         // Assert
-        assert_eq!(before_rollback.rows.len(), 2);
+        assert_eq!(before_rollback.rows().len(), 2);
         assert_eq!(
-            after_rollback.rows,
+            after_rollback.rows(),
             vec![vec![Value::String("before".into())]]
         );
 
@@ -787,7 +787,7 @@ mod execution_result_cache {
 
         // Assert
         assert_eq!(
-            final_result.rows,
+            final_result.rows(),
             vec![
                 vec![Value::String("after".into())],
                 vec![Value::String("before".into())],
@@ -857,7 +857,7 @@ mod optimizer_memo {
             vec![],
         )
         .expect("explain memo join");
-        let plan = explained.rows[0][0].as_str().unwrap_or_default();
+        let plan = explained.rows()[0][0].as_str().unwrap_or_default();
 
         // Assert
         assert!(plan.contains("join_enumeration=exhaustive"), "plan={plan}");
@@ -873,7 +873,7 @@ mod optimizer_memo {
             vec![],
         )
         .expect("execute reordered memo join");
-        assert_eq!(result.rows, vec![vec![cassie::types::Value::Int64(1)]]);
+        assert_eq!(result.rows(), vec![vec![cassie::types::Value::Int64(1)]]);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -898,7 +898,7 @@ mod optimizer_memo {
             vec![],
         )
         .expect("explain missing statistics join");
-        let plan = explained.rows[0][0].as_str().unwrap_or_default();
+        let plan = explained.rows()[0][0].as_str().unwrap_or_default();
 
         // Assert
         assert!(plan.contains("join_enumeration=exhaustive"), "plan={plan}");
@@ -955,7 +955,7 @@ mod optimizer_memo {
         .expect("execute reordered qualified join");
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::Int64(1)]]);
+        assert_eq!(result.rows(), vec![vec![Value::Int64(1)]]);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -980,7 +980,7 @@ mod optimizer_memo {
             vec![],
         )
         .expect("explain outer join barrier");
-        let plan = explained.rows[0][0].as_str().unwrap_or_default();
+        let plan = explained.rows()[0][0].as_str().unwrap_or_default();
 
         // Assert
         assert!(plan.contains("join_enumeration=none"), "plan={plan}");
@@ -1014,7 +1014,7 @@ mod optimizer_memo {
             vec![],
         )
         .expect("explain non-equality memo join");
-        let plan = explained.rows[0][0].as_str().unwrap_or_default();
+        let plan = explained.rows()[0][0].as_str().unwrap_or_default();
 
         // Assert
         assert!(plan.contains("join_enumeration=exhaustive"), "plan={plan}");
@@ -1059,7 +1059,7 @@ mod optimizer_memo {
         let explained = cassie
             .execute_sql(&session, &sql, vec![])
             .expect("explain greedy memo join");
-        let plan = explained.rows[0][0].as_str().unwrap_or_default();
+        let plan = explained.rows()[0][0].as_str().unwrap_or_default();
 
         // Assert
         assert!(plan.contains("join_enumeration=greedy"), "plan={plan}");
@@ -1097,7 +1097,7 @@ mod optimizer_memo {
             vec![],
         )
         .expect("explain join properties");
-        let plan = explained.rows[0][0].as_str().unwrap_or_default();
+        let plan = explained.rows()[0][0].as_str().unwrap_or_default();
 
         // Assert
         assert!(
@@ -1209,14 +1209,14 @@ mod plan_cache {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(first.rows.len(), 1);
-            assert_eq!(second.rows.len(), 1);
+            assert_eq!(first.rows().len(), 1);
+            assert_eq!(second.rows().len(), 1);
             assert_eq!(
-                first.rows[0][0],
+                first.rows()[0][0],
                 cassie::types::Value::String("alpha".to_string())
             );
             assert_eq!(
-                second.rows[0][0],
+                second.rows()[0][0],
                 cassie::types::Value::String("beta".to_string())
             );
             assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(1));
@@ -1352,8 +1352,8 @@ mod plan_cache {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(first.rows.len(), 1);
-            assert_eq!(second.rows.len(), 1);
+            assert_eq!(first.rows().len(), 1);
+            assert_eq!(second.rows().len(), 1);
             assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(1));
             assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(1));
 
@@ -1434,8 +1434,8 @@ mod plan_cache {
                 .unwrap_or_default();
 
             // Assert
-            assert_eq!(first.rows, second.rows);
-            assert_eq!(first.rows.len(), 1);
+            assert_eq!(first.rows(), second.rows());
+            assert_eq!(first.rows().len(), 1);
             assert!(middle_reads > before_reads);
             assert_eq!(after_reads, middle_reads);
             assert_eq!(after["query"]["count"].as_u64(), Some(2));
@@ -1512,8 +1512,8 @@ mod plan_cache {
                 .unwrap();
 
             // Assert
-            assert_eq!(first.rows.len(), 1);
-            assert_eq!(second.rows.len(), 2);
+            assert_eq!(first.rows().len(), 1);
+            assert_eq!(second.rows().len(), 2);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -1566,11 +1566,11 @@ mod plan_cache {
 
         // Assert
         assert_eq!(
-            first.rows,
+            first.rows(),
             vec![vec![cassie::types::Value::String("alpha".to_string())]]
         );
         assert_eq!(
-            second.rows,
+            second.rows(),
             vec![vec![cassie::types::Value::String("beta".to_string())]]
         );
         assert_eq!(
@@ -1645,7 +1645,7 @@ mod plan_cache {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(result.rows.len(), 1);
+            assert_eq!(result.rows().len(), 1);
             assert_eq!(metrics["storage"]["temp"]["writes"].as_u64(), Some(0));
             assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(1));
             assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(0));
@@ -1712,8 +1712,8 @@ mod plan_cache {
                     )
                     .unwrap();
 
-                assert_eq!(first.rows.len(), 1);
-                assert_eq!(second.rows.len(), 1);
+                assert_eq!(first.rows().len(), 1);
+                assert_eq!(second.rows().len(), 1);
                 cassie.shutdown();
             }
 
@@ -1732,7 +1732,7 @@ mod plan_cache {
             let metrics = restarted.metrics();
 
             // Assert
-            assert_eq!(result.rows.len(), 1);
+            assert_eq!(result.rows().len(), 1);
             assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(1));
             assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(0));
 
@@ -1811,7 +1811,7 @@ mod plan_cache {
             let metrics = restarted.metrics();
 
             // Assert
-            assert_eq!(result.rows.len(), 1);
+            assert_eq!(result.rows().len(), 1);
             assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(0));
             assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(1));
 
@@ -1884,8 +1884,8 @@ mod plan_cache {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(first.rows.len(), 1);
-            assert_eq!(second.rows.len(), 1);
+            assert_eq!(first.rows().len(), 1);
+            assert_eq!(second.rows().len(), 1);
             assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(2));
             assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(0));
 
@@ -1972,9 +1972,9 @@ mod plan_cache {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(first.rows.len(), 1);
-            assert_eq!(second.rows.len(), 1);
-            assert_eq!(third.rows.len(), 1);
+            assert_eq!(first.rows().len(), 1);
+            assert_eq!(second.rows().len(), 1);
+            assert_eq!(third.rows().len(), 1);
             assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(3));
             assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(0));
             assert_eq!(metrics["plan_cache"]["evictions"].as_u64(), Some(2));
@@ -2069,8 +2069,8 @@ mod plan_cache {
             let after_second = cassie.metrics();
 
             // Assert
-            assert_eq!(first.rows.len(), 1);
-            assert_eq!(second.rows.len(), 1);
+            assert_eq!(first.rows().len(), 1);
+            assert_eq!(second.rows().len(), 1);
             assert_eq!(
                 after_second["storage"]["temp"]["reads"].as_u64(),
                 after_first["storage"]["temp"]["reads"].as_u64()
@@ -2710,7 +2710,7 @@ mod planner_costs {
                 .unwrap();
 
             // Assert
-            let plan = match &explained.rows[0][0] {
+            let plan = match &explained.rows()[0][0] {
                 cassie::types::Value::String(value) => value,
                 other => panic!("expected explain string, got {other:?}"),
             };

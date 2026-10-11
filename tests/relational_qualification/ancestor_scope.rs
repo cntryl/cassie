@@ -37,24 +37,24 @@ fn should_preserve_ancestor_scope_in_nested_exists() {
         } else {
             vec![vec![Value::Int64(1)]]
         };
-        assert_eq!(result.rows, expected, "{sql}");
+        assert_eq!(result.rows(), expected, "{sql}");
         assert_eq!(
             (
-                result.columns[0].type_oid,
-                result.columns[0].typlen,
-                result.columns[0].atttypmod,
-                result.columns[0].format_code
+                result.columns()[0].type_oid,
+                result.columns()[0].typlen,
+                result.columns()[0].atttypmod,
+                result.columns()[0].format_code
             ),
             (20, 8, -1, 0)
         );
         if boolean {
             assert_eq!(
                 (
-                    result.columns[1].name.as_str(),
-                    result.columns[1].type_oid,
-                    result.columns[1].typlen,
-                    result.columns[1].atttypmod,
-                    result.columns[1].format_code
+                    result.columns()[1].name.as_str(),
+                    result.columns()[1].type_oid,
+                    result.columns()[1].typlen,
+                    result.columns()[1].atttypmod,
+                    result.columns()[1].format_code
                 ),
                 ("matched", 16, 1, -1, 0)
             );
@@ -104,14 +104,14 @@ fn should_preserve_ancestor_identity_through_selected_nested_sources() {
                 vec![Value::Int64(2), Value::Bool(false)],
             ]
         };
-        assert_eq!(result.rows, expected, "{sql}");
+        assert_eq!(result.rows(), expected, "{sql}");
         assert_eq!(
             (
-                result.columns[1].name.as_str(),
-                result.columns[1].type_oid,
-                result.columns[1].typlen,
-                result.columns[1].atttypmod,
-                result.columns[1].format_code
+                result.columns()[1].name.as_str(),
+                result.columns()[1].type_oid,
+                result.columns()[1].typlen,
+                result.columns()[1].atttypmod,
+                result.columns()[1].format_code
             ),
             ("matched", 16, 1, -1, 0)
         );
@@ -144,7 +144,7 @@ fn should_preserve_nested_exists_branch_selection() {
     // Assert
     for (sql, result) in queries.iter().zip(results) {
         assert_eq!(
-            result.unwrap_or_else(|error| panic!("{sql}: {error}")).rows,
+            result.unwrap_or_else(|error| panic!("{sql}: {error}")).rows(),
             vec![
                 vec![Value::Int64(1), Value::Bool(true)],
                 vec![Value::Int64(2), Value::Bool(true)]
@@ -186,7 +186,7 @@ fn should_preserve_quoted_literal_ancestor_fields_in_nested_scope() {
     let result = fixture.cassie.execute_sql(&fixture.session, sql, vec![]);
     // Assert
     assert_eq!(
-        result.expect("literal ancestor identity").rows,
+        result.expect("literal ancestor identity").rows(),
         vec![
             vec![Value::Int64(1), Value::Bool(true), Value::Bool(false)],
             vec![Value::Int64(2), Value::Bool(false), Value::Bool(true)],
@@ -226,7 +226,7 @@ fn should_preserve_nested_scope_folding_boundaries() {
     // Assert
     for (sql, result) in queries.iter().zip(results) {
         assert_eq!(
-            result.unwrap_or_else(|error| panic!("{sql}: {error}")).rows,
+            result.unwrap_or_else(|error| panic!("{sql}: {error}")).rows(),
             vec![
                 vec![Value::Int64(1), Value::Bool(true)],
                 vec![Value::Int64(2), Value::Bool(true)]
@@ -235,14 +235,14 @@ fn should_preserve_nested_scope_folding_boundaries() {
         );
     }
     let empty = empty_correlated.expect("ancestor correlation defers beyond empty source");
-    assert_eq!(empty.rows, Vec::<Vec<Value>>::new());
+    assert_eq!(empty.rows(), Vec::<Vec<Value>>::new());
     assert_eq!(
         (
-            empty.columns[0].name.as_str(),
-            empty.columns[0].type_oid,
-            empty.columns[0].typlen,
-            empty.columns[0].atttypmod,
-            empty.columns[0].format_code
+            empty.columns()[0].name.as_str(),
+            empty.columns()[0].type_oid,
+            empty.columns()[0].typlen,
+            empty.columns()[0].atttypmod,
+            empty.columns()[0].format_code
         ),
         ("matched", 16, 1, -1, 0)
     );

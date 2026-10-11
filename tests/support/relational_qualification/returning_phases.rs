@@ -37,9 +37,9 @@ pub fn assert_result(mut actual: QueryResult, boolean: bool, empty: bool) {
         columns.push(column("id", false));
     }
     columns.push(column("selected", boolean));
-    assert_eq!(actual.columns, columns, "literal static descriptors");
-    assert_eq!(actual.command, if empty { "UPDATE 0" } else { "UPDATE 2" });
-    actual.rows.sort_by_key(|row| match row.first() {
+    assert_eq!(actual.columns(), columns, "literal static descriptors");
+    assert_eq!(actual.command(), if empty { "UPDATE 0" } else { "UPDATE 2" });
+    actual.rows().sort_by_key(|row| match row.first() {
         Some(Value::Int64(id)) => *id,
         other => panic!("BIGINT id: {other:?}"),
     });
@@ -56,7 +56,7 @@ pub fn assert_result(mut actual: QueryResult, boolean: bool, empty: bool) {
             vec![Value::Int64(2), selected],
         ]
     };
-    assert_eq!(actual.rows, expected, "exact returned multiset");
+    assert_eq!(actual.rows(), expected, "exact returned multiset");
 }
 
 pub fn assert_original_rows(fixture: &Fixture) {
@@ -65,10 +65,10 @@ pub fn assert_original_rows(fixture: &Fixture) {
         .cassie
         .execute_sql(&observer, "SELECT id FROM rt ORDER BY id", vec![])
         .expect("independent committed readback");
-    assert_eq!(actual.columns, vec![column("id", false)]);
-    assert_eq!(actual.command, "SELECT");
+    assert_eq!(actual.columns(), vec![column("id", false)]);
+    assert_eq!(actual.command(), "SELECT");
     assert_eq!(
-        actual.rows,
+        actual.rows(),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
 }

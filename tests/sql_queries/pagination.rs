@@ -27,11 +27,11 @@ fn should_bind_pagination_parameters_before_planning_each_execution() {
 
     // Assert
     assert_eq!(
-        first.expect("first bounds").rows,
+        first.expect("first bounds").rows(),
         vec![vec![Value::Int64(2)], vec![Value::Int64(3)]]
     );
     assert_eq!(
-        second.expect("second bounds").rows,
+        second.expect("second bounds").rows(),
         vec![vec![Value::Int64(4)]]
     );
 }
@@ -58,11 +58,11 @@ fn should_apply_admitted_integer_pagination() {
 
     // Assert
     assert_eq!(
-        computed.expect("computed bounds").rows,
+        computed.expect("computed bounds").rows(),
         vec![vec![Value::Int64(3)], vec![Value::Int64(4)]]
     );
-    assert_eq!(unbounded.expect("NULL bounds").rows.len(), 4);
-    assert_eq!(all.expect("ALL bound").rows.len(), 4);
+    assert_eq!(unbounded.expect("NULL bounds").rows().len(), 4);
+    assert_eq!(all.expect("ALL bound").rows().len(), 4);
 }
 
 #[test]
@@ -95,15 +95,15 @@ fn should_preserve_nested_pagination_parameters() {
 
     // Assert
     assert_eq!(
-        results[0].as_ref().expect("CTE").rows,
+        results[0].as_ref().expect("CTE").rows(),
         vec![vec![Value::Int64(3)]]
     );
     assert_eq!(
-        results[1].as_ref().expect("derived").rows,
+        results[1].as_ref().expect("derived").rows(),
         vec![vec![Value::Int64(3)]]
     );
     assert_eq!(
-        results[2].as_ref().expect("set").rows,
+        results[2].as_ref().expect("set").rows(),
         vec![vec![Value::Int64(2)]]
     );
 }
@@ -133,7 +133,7 @@ fn should_enforce_checked_pagination_bounds() {
     );
 
     // Assert
-    assert_eq!(huge.expect("bounded source").rows, Vec::<Vec<Value>>::new());
+    assert_eq!(huge.expect("bounded source").rows(), Vec::<Vec<Value>>::new());
     assert!(overflow
         .expect_err("overflow")
         .to_string()
@@ -186,9 +186,9 @@ fn should_resolve_direct_executor_bounds() {
     );
 
     // Assert
-    assert_eq!(result.expect("direct run").rows, Vec::<Vec<Value>>::new());
+    assert_eq!(result.expect("direct run").rows(), Vec::<Vec<Value>>::new());
     assert_eq!(
-        breakdown.expect("breakdown").result.rows,
+        breakdown.expect("breakdown").result.rows(),
         Vec::<Vec<Value>>::new()
     );
 }
@@ -434,7 +434,7 @@ fn should_admit_direct_bounds_at_the_existing_nesting_envelope() {
 
     // Assert
     assert_eq!(
-        result.expect("existing finite depth remains admitted").rows,
+        result.expect("existing finite depth remains admitted").rows(),
         Vec::<Vec<Value>>::new()
     );
 }

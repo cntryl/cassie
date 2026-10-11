@@ -436,7 +436,7 @@ mod sql_text_utf8_offsets {
                     session,
                     &format!("SELECT name FROM utf8_names WHERE name = '{name}'"),
                 )
-                .rows
+                .rows()
             });
 
             // Assert
@@ -466,9 +466,9 @@ mod sql_text_utf8_offsets {
             );
 
             // Assert
-            assert_eq!(aliased.columns[0].name, "x");
+            assert_eq!(aliased.columns()[0].name, "x");
             assert_eq!(
-                limited.rows,
+                limited.rows(),
                 vec![vec![Value::String("\u{212A}é".to_string())]]
             );
         });
@@ -494,7 +494,7 @@ mod sql_text_utf8_offsets {
             let selected = run(cassie, session, "SELECT b FROM utf8_rename");
 
             // Assert
-            assert_eq!(selected.rows, vec![vec![Value::String("v".to_string())]]);
+            assert_eq!(selected.rows(), vec![vec![Value::String("v".to_string())]]);
         });
     }
 
@@ -508,7 +508,7 @@ mod sql_text_utf8_offsets {
             ];
 
             // Act
-            let created = statements.map(|sql| run(cassie, session, sql).command);
+            let created = statements.map(|sql| run(cassie, session, sql).command());
             run(
                 cassie,
                 session,
@@ -518,7 +518,7 @@ mod sql_text_utf8_offsets {
 
             // Assert
             assert_eq!(created, ["CREATE TABLE", "CREATE TABLE"]);
-            assert_eq!(selected.rows, vec![vec![Value::String("n".to_string())]]);
+            assert_eq!(selected.rows(), vec![vec![Value::String("n".to_string())]]);
         });
     }
 }
@@ -2173,7 +2173,7 @@ mod sql_quoted_identifiers {
             let selected = run(cassie, session, sql);
 
             // Assert
-            assert_eq!(selected.rows, string_rows(&["alice"]));
+            assert_eq!(selected.rows(), string_rows(&["alice"]));
         });
     }
 
@@ -2187,8 +2187,8 @@ mod sql_quoted_identifiers {
             let selected = run(cassie, session, sql);
 
             // Assert
-            assert_eq!(selected.columns[0].name, "name");
-            assert_eq!(selected.rows, string_rows(&["bob", "alice"]));
+            assert_eq!(selected.columns()[0].name, "name");
+            assert_eq!(selected.rows(), string_rows(&["bob", "alice"]));
         });
     }
 
@@ -2203,8 +2203,8 @@ mod sql_quoted_identifiers {
             let remaining = run(cassie, session, "SELECT name FROM users ORDER BY id");
 
             // Assert
-            assert_eq!(updated.command, "UPDATE 1");
-            assert_eq!(remaining.rows, string_rows(&["x", "bob"]));
+            assert_eq!(updated.command(), "UPDATE 1");
+            assert_eq!(remaining.rows(), string_rows(&["x", "bob"]));
         });
     }
 
@@ -2219,8 +2219,8 @@ mod sql_quoted_identifiers {
             let remaining = run(cassie, session, "SELECT name FROM users ORDER BY id");
 
             // Assert
-            assert_eq!(deleted.command, "DELETE 1");
-            assert_eq!(remaining.rows, string_rows(&["alice"]));
+            assert_eq!(deleted.command(), "DELETE 1");
+            assert_eq!(remaining.rows(), string_rows(&["alice"]));
         });
     }
 
@@ -2235,8 +2235,8 @@ mod sql_quoted_identifiers {
             let selected = run(cassie, session, "SELECT \"Col\" FROM q");
 
             // Assert
-            assert_eq!(inserted.command, "INSERT 0 1");
-            assert_eq!(selected.rows, string_rows(&["v"]));
+            assert_eq!(inserted.command(), "INSERT 0 1");
+            assert_eq!(selected.rows(), string_rows(&["v"]));
         });
     }
 
@@ -2250,8 +2250,8 @@ mod sql_quoted_identifiers {
             let selected = run(cassie, session, sql);
 
             // Assert
-            assert_eq!(selected.columns[0].name, "Foo");
-            assert_eq!(selected.rows, string_rows(&["alice"]));
+            assert_eq!(selected.columns()[0].name, "Foo");
+            assert_eq!(selected.rows(), string_rows(&["alice"]));
         });
     }
 
@@ -2301,17 +2301,17 @@ mod sql_quoted_identifiers {
                 vec![Value::Int64(2), Value::Int64(1)],
                 vec![Value::Int64(1), Value::Int64(2)],
             ];
-            assert_eq!(upper_alias.rows, ordered_by_upper);
-            assert_eq!(upper_ordinal.rows, ordered_by_upper);
+            assert_eq!(upper_alias.rows(), ordered_by_upper);
+            assert_eq!(upper_ordinal.rows(), ordered_by_upper);
             assert_eq!(
-                grouped_upper_alias.rows,
+                grouped_upper_alias.rows(),
                 vec![
                     vec![Value::Int64(2), Value::Int64(1), Value::Int64(1)],
                     vec![Value::Int64(1), Value::Int64(2), Value::Int64(1)],
                 ]
             );
             assert_eq!(
-                lower_alias.rows,
+                lower_alias.rows(),
                 vec![
                     vec![Value::Int64(1), Value::Int64(2)],
                     vec![Value::Int64(2), Value::Int64(1)],
@@ -2319,7 +2319,7 @@ mod sql_quoted_identifiers {
             );
             assert_eq!(
                 upper_alias
-                    .columns
+                    .columns()
                     .iter()
                     .map(|column| column.name.as_str())
                     .collect::<Vec<_>>(),
@@ -2356,7 +2356,7 @@ mod sql_quoted_identifiers {
 
                 // Assert
                 assert_eq!(
-                    selected.rows,
+                    selected.rows(),
                     vec![
                         vec![Value::Int64(2), Value::Int64(1)],
                         vec![Value::Int64(1), Value::Int64(2)],
@@ -2364,7 +2364,7 @@ mod sql_quoted_identifiers {
                 );
                 assert_eq!(
                     selected
-                        .columns
+                        .columns()
                         .iter()
                         .map(|column| column.name.as_str())
                         .collect::<Vec<_>>(),
@@ -2438,8 +2438,8 @@ mod sql_quoted_identifiers {
             let selected = run(cassie, session, "SELECT v FROM keyed");
 
             // Assert
-            assert_eq!(upserted.command, "INSERT 0 1");
-            assert_eq!(selected.rows, string_rows(&["c"]));
+            assert_eq!(upserted.command(), "INSERT 0 1");
+            assert_eq!(selected.rows(), string_rows(&["c"]));
         });
     }
 
@@ -2473,7 +2473,7 @@ mod sql_quoted_identifiers {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![
                     Value::String("lower-new".to_string()),
                     Value::String("upper-new".to_string()),
@@ -2498,7 +2498,7 @@ mod sql_quoted_identifiers {
 
             // Assert
             assert_eq!(
-                grouped.rows,
+                grouped.rows(),
                 vec![
                     vec![Value::String("alice".to_string()), Value::Int64(1)],
                     vec![Value::String("bob".to_string()), Value::Int64(2)],
@@ -2517,7 +2517,7 @@ mod sql_quoted_identifiers {
             let compared = run(cassie, session, sql);
 
             // Assert
-            assert_eq!(compared.rows, string_rows(&["bob"]));
+            assert_eq!(compared.rows(), string_rows(&["bob"]));
         });
     }
 
@@ -2535,7 +2535,7 @@ mod sql_quoted_identifiers {
             };
 
             // Assert
-            assert_eq!(selected.rows, string_rows(&["bob"]));
+            assert_eq!(selected.rows(), string_rows(&["bob"]));
         });
     }
 
@@ -2559,8 +2559,8 @@ mod sql_quoted_identifiers {
             let selected = run(cassie, session, sql);
 
             // Assert
-            assert_eq!(selected.columns[0].name, "café");
-            assert_eq!(selected.rows, string_rows(&["noir"]));
+            assert_eq!(selected.columns()[0].name, "café");
+            assert_eq!(selected.rows(), string_rows(&["noir"]));
         });
     }
 
@@ -2609,7 +2609,7 @@ mod sql_quoted_identifiers {
             let undelimited = cassie.execute_sql(session, "SELECT email FROM exact_case", vec![]);
 
             // Assert
-            assert_eq!(exact.rows, string_rows(&["ada"]));
+            assert_eq!(exact.rows(), string_rows(&["ada"]));
             assert!(mismatched.is_err(), "quoted spelling must match exactly");
             assert!(
                 undelimited.is_err(),
@@ -2635,7 +2635,7 @@ mod sql_quoted_identifiers {
                 cassie.execute_sql(session, "SELECT \"Email\" FROM folded_case", vec![]);
 
             // Assert
-            assert_eq!(unquoted.rows, string_rows(&["ada"]));
+            assert_eq!(unquoted.rows(), string_rows(&["ada"]));
             assert!(
                 quoted_original_case.is_err(),
                 "unquoted declarations fold to lowercase"
@@ -2669,8 +2669,8 @@ mod sql_quoted_identifiers {
 
             // Assert
             let expected = vec![vec![Value::Int64(1), Value::Int64(2)]];
-            assert_eq!(selected.rows, expected);
-            assert_eq!(cte.rows, expected);
+            assert_eq!(selected.rows(), expected);
+            assert_eq!(cte.rows(), expected);
         });
     }
 
@@ -2714,7 +2714,7 @@ mod sql_quoted_identifiers {
 
             // Assert
             assert_eq!(
-                joined.rows,
+                joined.rows(),
                 vec![
                     vec![
                         Value::Int64(10),
@@ -2755,20 +2755,20 @@ mod sql_quoted_identifiers {
             );
 
             // Assert
-            assert_eq!(scored.rows.len(), 4);
-            assert_eq!(scored.rows[0][0], Value::Int64(1));
-            assert!(matches!(scored.rows[0][1], Value::Float64(score) if score > 0.0));
-            assert_eq!(scored.rows[0][2], Value::Float64(0.0));
-            assert_eq!(scored.rows[1][0], Value::Int64(2));
-            assert_eq!(scored.rows[1][1], Value::Float64(0.0));
+            assert_eq!(scored.rows().len(), 4);
+            assert_eq!(scored.rows()[0][0], Value::Int64(1));
+            assert!(matches!(scored.rows()[0][1], Value::Float64(score) if score > 0.0));
+            assert_eq!(scored.rows()[0][2], Value::Float64(0.0));
+            assert_eq!(scored.rows()[1][0], Value::Int64(2));
+            assert_eq!(scored.rows()[1][1], Value::Float64(0.0));
             assert!(
-                matches!(scored.rows[1][2], Value::Float64(score) if score > 0.0),
+                matches!(scored.rows()[1][2], Value::Float64(score) if score > 0.0),
                 "expected the exact Body score to match amber"
             );
-            let Value::Float64(lower_score) = scored.rows[2][1] else {
+            let Value::Float64(lower_score) = scored.rows()[2][1] else {
                 panic!("expected lower-field full-text score");
             };
-            let Value::Float64(upper_score) = scored.rows[2][2] else {
+            let Value::Float64(upper_score) = scored.rows()[2][2] else {
                 panic!("expected upper-field full-text score");
             };
             assert!(lower_score > 0.0);
@@ -2801,15 +2801,15 @@ mod sql_quoted_identifiers {
 
                 // Assert
                 assert_eq!(
-                    matched_upper.rows,
+                    matched_upper.rows(),
                     vec![
                         vec![Value::Int64(2)],
                         vec![Value::Int64(3)],
                         vec![Value::Int64(4)]
                     ]
                 );
-                assert_eq!(top_upper.rows[0][0], Value::Int64(4));
-                assert!(matches!(top_upper.rows[0][1], Value::Float64(score) if score > 0.0));
+                assert_eq!(top_upper.rows()[0][0], Value::Int64(4));
+                assert!(matches!(top_upper.rows()[0][1], Value::Float64(score) if score > 0.0));
             },
         );
     }
@@ -2853,9 +2853,9 @@ mod sql_quoted_identifiers {
                 );
 
                 // Assert
-                assert_eq!(matched.rows.len(), 1);
-                assert_eq!(matched.rows[0][0], Value::Int64(2));
-                assert!(matches!(matched.rows[0][1], Value::Float64(score) if score > 0.0));
+                assert_eq!(matched.rows().len(), 1);
+                assert_eq!(matched.rows()[0][0], Value::Int64(2));
+                assert!(matches!(matched.rows()[0][1], Value::Float64(score) if score > 0.0));
             },
         );
     }
@@ -2886,7 +2886,7 @@ mod sql_quoted_identifiers {
 
             // Assert
             assert_eq!(
-                grouped.rows,
+                grouped.rows(),
                 vec![
                     vec![
                         Value::String("north".to_string()),
@@ -2950,9 +2950,9 @@ mod sql_quoted_identifiers {
         );
 
         // Assert
-        assert_eq!(lower_exact.rows, vec![vec![Value::Int64(11)]]);
-        assert_eq!(upper_exact.rows, vec![vec![Value::Int64(22)]]);
-        assert_eq!(unquoted_upper.rows, vec![vec![Value::Int64(11)]]);
+        assert_eq!(lower_exact.rows(), vec![vec![Value::Int64(11)]]);
+        assert_eq!(upper_exact.rows(), vec![vec![Value::Int64(22)]]);
+        assert_eq!(unquoted_upper.rows(), vec![vec![Value::Int64(11)]]);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -3002,7 +3002,7 @@ mod sql_quoted_identifiers {
             // Assert
             assert_eq!(copied, 1);
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::Int64(11), Value::Int64(22)]]
             );
         });
@@ -3034,7 +3034,7 @@ mod sql_quoted_identifiers {
                 cassie.execute_sql(session, "SELECT \"A\" FROM rename_case", vec![]);
 
             // Assert
-            assert_eq!(selected.rows, vec![vec![Value::Int64(1), Value::Int64(2)]]);
+            assert_eq!(selected.rows(), vec![vec![Value::Int64(1), Value::Int64(2)]]);
             assert!(old_upper_name.is_err());
         });
     }
@@ -3079,8 +3079,8 @@ mod sql_quoted_identifiers {
             );
 
             // Assert
-            assert_eq!(mismatched.rows, Vec::<Vec<Value>>::new());
-            assert_eq!(exact.rows, vec![vec![Value::Int64(1)]]);
+            assert_eq!(mismatched.rows(), Vec::<Vec<Value>>::new());
+            assert_eq!(exact.rows(), vec![vec![Value::Int64(1)]]);
         });
     }
 
@@ -3098,7 +3098,7 @@ mod sql_quoted_identifiers {
             );
 
             // Assert
-            assert_eq!(filtered.rows, vec![vec![Value::Int64(1)]]);
+            assert_eq!(filtered.rows(), vec![vec![Value::Int64(1)]]);
         });
     }
 
@@ -3117,8 +3117,8 @@ mod sql_quoted_identifiers {
             let selected = run(cassie, session, "SELECT \"a\", \"A\" FROM separate_case");
 
             // Assert
-            assert_eq!(updated.command, "UPDATE 1");
-            assert_eq!(selected.rows, vec![vec![Value::Int64(1), Value::Int64(3)]]);
+            assert_eq!(updated.command(), "UPDATE 1");
+            assert_eq!(selected.rows(), vec![vec![Value::Int64(1), Value::Int64(3)]]);
         });
     }
 
@@ -3191,10 +3191,10 @@ mod sql_quoted_identifiers {
                 session,
                 "EXPLAIN SELECT \"A\" FROM indexed_case WHERE \"A\" = 10",
             );
-            let Value::String(sibling_plan) = &sibling_plan.rows[0][0] else {
+            let Value::String(sibling_plan) = &sibling_plan.rows()[0][0] else {
                 panic!("expected sibling explain string");
             };
-            let Value::String(matching_plan) = &matching_plan.rows[0][0] else {
+            let Value::String(matching_plan) = &matching_plan.rows()[0][0] else {
                 panic!("expected matching explain string");
             };
             let selected = run(
@@ -3217,8 +3217,8 @@ mod sql_quoted_identifiers {
                 matching_plan.contains("index=postgres.public.indexed_case_upper_idx"),
                 "the exact-case query should use the matching upper-case index"
             );
-            assert_eq!(selected.rows, vec![vec![Value::Int64(1)]]);
-            assert_eq!(matching.rows, vec![vec![Value::Int64(10)]]);
+            assert_eq!(selected.rows(), vec![vec![Value::Int64(1)]]);
+            assert_eq!(matching.rows(), vec![vec![Value::Int64(10)]]);
         });
     }
 }
@@ -5173,38 +5173,38 @@ mod types {
             .unwrap();
 
         // Assert
-        assert_eq!(selected.rows.len(), 1);
-        assert_eq!(selected.rows[0][0], Value::String("row-1".to_string()));
+        assert_eq!(selected.rows().len(), 1);
+        assert_eq!(selected.rows()[0][0], Value::String("row-1".to_string()));
         assert_eq!(
-            selected.rows[0][1],
+            selected.rows()[0][1],
             Value::String("550e8400-e29b-41d4-a716-446655440000".to_string())
         );
-        assert_eq!(selected.rows[0][2], Value::String("2026-06-18".to_string()));
-        assert_eq!(selected.rows[0][3], Value::String("12:34:56".to_string()));
+        assert_eq!(selected.rows()[0][2], Value::String("2026-06-18".to_string()));
+        assert_eq!(selected.rows()[0][3], Value::String("12:34:56".to_string()));
         assert_eq!(
-            selected.rows[0][4],
+            selected.rows()[0][4],
             Value::String("2026-06-18T12:34:56.000000Z".to_string())
         );
         assert_eq!(
-            selected.rows[0][5],
+            selected.rows()[0][5],
             Value::Json(serde_json::json!({"source": "types", "value": 1}))
         );
         assert_eq!(
-            selected.rows[0][6],
+            selected.rows()[0][6],
             Value::Json(serde_json::json!([1, 2, 3]))
         );
         assert_eq!(
-            selected.rows[0][7],
+            selected.rows()[0][7],
             Value::Vector(Vector::new(vec![0.25, 0.75]))
         );
-        assert_eq!(selected.rows[0][8], Value::Int64(12));
+        assert_eq!(selected.rows()[0][8], Value::Int64(12));
         assert_eq!(
-            selected.rows[0][9],
+            selected.rows()[0][9],
             Value::Int64(9_223_372_036_854_775_807)
         );
-        assert_eq!(selected.rows[0][10], Value::String("ABCD".to_string()));
-        assert_eq!(selected.rows[0][11], Value::String("sample".to_string()));
-        assert_eq!(selected.rows[0][12], Value::String("\\x01020a".to_string()));
+        assert_eq!(selected.rows()[0][10], Value::String("ABCD".to_string()));
+        assert_eq!(selected.rows()[0][11], Value::String("sample".to_string()));
+        assert_eq!(selected.rows()[0][12], Value::String("\\x01020a".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -5234,7 +5234,7 @@ mod types {
                 .unwrap();
             // Assert
             assert_eq!(
-                casted_uuid.rows[0][0],
+                casted_uuid.rows()[0][0],
                 Value::String("550e8400-e29b-41d4-a716-446655440000".to_string())
             );
 
@@ -5262,7 +5262,7 @@ mod types {
                 .unwrap();
 
             // Assert
-            assert_eq!(casted_text.rows[0][0], Value::Null);
+            assert_eq!(casted_text.rows()[0][0], Value::Null);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -5476,7 +5476,7 @@ mod sql_string_literals {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![
                     vec![Value::String("O'Brien".to_string())],
                     vec![Value::String("'".to_string())],
@@ -5507,7 +5507,7 @@ mod ddl_check_literals {
     }
 
     pub(super) fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows
+        cassie.execute_sql(session, sql, vec![]).expect(sql).rows()
     }
 
     #[test]
@@ -5823,7 +5823,7 @@ mod typed_parameter_canonicalization {
         cassie
             .execute_sql(&session, sql, vec![string(param)])
             .expect("parameterized query")
-            .rows
+            .rows()
     }
 
     #[test]
@@ -6115,11 +6115,11 @@ mod typed_value_consistency {
                 vec![Value::Bool(false)],
             )
             .expect("compatible parameter");
-        assert_eq!(compatible.rows, vec![vec![Value::Bool(false)]]);
+        assert_eq!(compatible.rows(), vec![vec![Value::Bool(false)]]);
         let chained = fixture.cassie.execute_sql(&fixture.session,
             "WITH seed AS (SELECT flag FROM parameter_coalesce), values_cte AS (SELECT COALESCE(flag, $1) AS value FROM seed) SELECT value FROM values_cte",
             vec![Value::Bool(false)]).expect("compatible chained CTE");
-        assert_eq!(chained.rows, vec![vec![Value::Bool(false)]]);
+        assert_eq!(chained.rows(), vec![vec![Value::Bool(false)]]);
         let canonical = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
         let uuid_result = fixture
             .cassie
@@ -6130,7 +6130,7 @@ mod typed_value_consistency {
             )
             .expect("UUID string parameter");
         assert_eq!(
-            uuid_result.rows,
+            uuid_result.rows(),
             vec![vec![Value::String(canonical.into())]]
         );
         let array = serde_json::json!([1, 2]);
@@ -6142,7 +6142,7 @@ mod typed_value_consistency {
                 vec![Value::Json(array.clone())],
             )
             .expect("array parameter");
-        assert_eq!(array_result.rows, vec![vec![Value::Json(array)]]);
+        assert_eq!(array_result.rows(), vec![vec![Value::Json(array)]]);
     }
 }
 

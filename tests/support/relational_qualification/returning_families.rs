@@ -30,20 +30,20 @@ pub fn assert_result(
     columns: &[(&str, bool)],
     expected: &[Vec<Value>],
 ) {
-    actual.rows.sort_by_key(|row| match row.first() {
+    actual.rows().sort_by_key(|row| match row.first() {
         Some(Value::Int64(id)) => *id,
         other => panic!("literal BIGINT id: {other:?}"),
     });
-    assert_eq!(actual.command, command);
+    assert_eq!(actual.command(), command);
     assert_eq!(
-        actual.columns,
+        actual.columns(),
         columns
             .iter()
             .map(|(name, boolean)| column(name, *boolean))
             .collect::<Vec<_>>(),
         "every literal ColumnMeta field"
     );
-    assert_eq!(actual.rows.as_slice(), expected, "exact returned multiset");
+    assert_eq!(actual.rows().as_slice(), expected, "exact returned multiset");
 }
 
 pub fn assert_fresh_rows(

@@ -265,7 +265,7 @@ fn run_read_scenarios(
             ],
         )
         .expect("bounded time-series evidence query")
-        .rows;
+        .rows();
     let negative_epoch = query_rows(
         cassie,
         session,
@@ -326,7 +326,7 @@ fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Va
     cassie
         .execute_sql(session, sql, vec![])
         .expect("execute time-series evidence query")
-        .rows
+        .rows()
 }
 
 fn explain(cassie: &Cassie, session: &CassieSession, lower: &str, upper: &str) -> String {
@@ -339,7 +339,7 @@ fn explain(cassie: &Cassie, session: &CassieSession, lower: &str, upper: &str) -
             vec![],
         )
         .expect("explain time-series evidence query")
-        .rows[0][0]
+        .rows()[0][0]
         .as_str()
         .expect("textual time-series evidence plan")
         .to_string()

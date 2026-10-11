@@ -36,7 +36,7 @@ mod derived_result_metadata {
             panic!("query failed: {sql}");
         };
         result
-            .columns
+            .columns()
             .into_iter()
             .map(|column| (column.name, column.type_oid))
             .collect()
@@ -179,11 +179,11 @@ mod derived_predicate_typing {
 
         let base_literal = fixture
             .execute("SELECT k FROM d WHERE k = '1'")
-            .map(|result| result.rows)
+            .map(|result| result.rows())
             .ok();
         let cte_literal = fixture
             .execute("WITH c AS (SELECT * FROM d) SELECT k FROM c WHERE k = '1'")
-            .map(|result| result.rows)
+            .map(|result| result.rows())
             .ok();
 
         // Assert
@@ -220,7 +220,7 @@ mod cte_alias_lists {
             panic!("a shorter alias list renames only the leading columns");
         };
         assert_eq!(
-            partial.rows,
+            partial.rows(),
             vec![vec![Value::Int64(1), Value::Int64(2), Value::Int64(3)]]
         );
         assert!(too_many.is_err(), "more aliases than columns is an error");

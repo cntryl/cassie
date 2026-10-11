@@ -59,7 +59,7 @@ fn should_retain_distinct_sort_sibling_events() {
     });
 
     // Assert
-    assert_eq!(result.expect("distinct sort").rows.len(), 5);
+    assert_eq!(result.expect("distinct sort").rows().len(), 5);
     for operator in ["distinct", "sort"] {
         assert!(
             events.iter().any(|event| event.operator == operator
@@ -91,7 +91,7 @@ fn should_isolate_parallel_caller_operator_events() {
                 let (result, events) =
                     capture(|| fixture.cassie.execute_sql(&fixture.session, sql, vec![]));
                 (
-                    result.expect("independent scoped query").rows.len(),
+                    result.expect("independent scoped query").rows().len(),
                     events,
                     operator,
                     path,
@@ -166,8 +166,8 @@ fn first_registration_query() {
         (untraced_result, captured_result)
     });
     let expected = [4, 5, 1, 2, 6, 3].map(|id| vec![cassie::types::Value::Int64(id)]);
-    assert_eq!(untraced_result.expect("untraced sort").rows, expected);
-    assert_eq!(captured_result.expect("captured sort").rows, expected);
+    assert_eq!(untraced_result.expect("untraced sort").rows(), expected);
+    assert_eq!(captured_result.expect("captured sort").rows(), expected);
     assert_eq!(events.len(), 1, "only the caller's sort is captured");
     assert_eq!(events[0].operator, "sort");
     assert_eq!(events[0].path, "native_primitive_keys");

@@ -52,7 +52,7 @@ fn should_preserve_coalesce_promotion_across_nested_source_scopes() {
         fixture
             .execute(sql)
             .unwrap_or_else(|error| panic!("query failed: {sql}: {error}"))
-            .rows
+            .rows()
     });
 
     // Assert

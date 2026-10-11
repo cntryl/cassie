@@ -28,20 +28,20 @@ fn should_distinguish_boolean_search_predicates_from_numeric_search_scores() {
 
     // Assert
     let literal = literal.expect("search produces a Boolean value");
-    assert_eq!(literal.rows, vec![vec![Value::Bool(true)]]);
-    assert_eq!(literal.columns[0].type_oid, 16);
+    assert_eq!(literal.rows(), vec![vec![Value::Bool(true)]]);
+    assert_eq!(literal.columns()[0].type_oid, 16);
     let predicate = predicate.expect("Boolean search predicate remains supported");
     assert_eq!(
-        predicate.rows,
+        predicate.rows(),
         vec![vec![Value::Int64(1), Value::Bool(true)]]
     );
-    assert_eq!(predicate.columns[1].type_oid, 16);
+    assert_eq!(predicate.columns()[1].type_oid, 16);
     let negated = negated.expect("Boolean search result supports NOT");
-    assert_eq!(negated.rows, vec![vec![Value::Bool(true)]]);
-    assert_eq!(negated.columns[0].type_oid, 16);
+    assert_eq!(negated.rows(), vec![vec![Value::Bool(true)]]);
+    assert_eq!(negated.columns()[0].type_oid, 16);
     let score = score.expect("search_score retains numeric semantics");
-    assert_eq!(score.columns[0].type_oid, 701);
-    assert!(matches!(score.rows[0][0], Value::Float64(value) if value > 0.0));
+    assert_eq!(score.columns()[0].type_oid, 701);
+    assert!(matches!(score.rows()[0][0], Value::Float64(value) if value > 0.0));
     assert!(matches!(numeric_predicate, Err(CassieError::Planner(_))));
 }
 
@@ -86,14 +86,14 @@ fn should_contextualize_join_predicates_before_operand_family_validation() {
         results[0]
             .as_ref()
             .expect("Boolean comparison before source validation")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(2)]]
     );
     assert_eq!(
         results[1]
             .as_ref()
             .expect("searched CASE before source validation")
-            .rows,
+            .rows(),
         Vec::<Vec<Value>>::new()
     );
 }
@@ -314,13 +314,13 @@ fn should_share_canonical_boolean_input_across_sql_adapters() {
         // Assert
         let cast = cast.expect("supported Boolean cast spelling");
         assert_eq!(
-            cast.rows,
+            cast.rows(),
             vec![vec![Value::Bool(expected)]],
             "cast {text:?}"
         );
-        assert_eq!(cast.columns[0].type_oid, 16);
+        assert_eq!(cast.columns()[0].type_oid, 16);
         assert_eq!(
-            selected.expect("supported Boolean predicate spelling").rows,
+            selected.expect("supported Boolean predicate spelling").rows(),
             if expected {
                 vec![vec![Value::Int64(1)]]
             } else {
@@ -330,11 +330,11 @@ fn should_share_canonical_boolean_input_across_sql_adapters() {
         );
         let operator = operator.expect("supported Boolean operator spelling");
         assert_eq!(
-            operator.rows,
+            operator.rows(),
             vec![vec![Value::Bool(expected)]],
             "AND {text:?}"
         );
-        assert_eq!(operator.columns[0].type_oid, 16);
+        assert_eq!(operator.columns()[0].type_oid, 16);
     }
 }
 
@@ -386,7 +386,7 @@ fn should_preserve_current_case_selection_semantics() {
 
     // Assert
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![
             Value::String("matched".to_string()),
             Value::String("chosen".to_string()),
@@ -394,8 +394,8 @@ fn should_preserve_current_case_selection_semantics() {
             Value::Int64(1),
         ]]
     );
-    assert_eq!(result.columns[0].type_oid, 25);
-    assert_eq!(result.columns[1].type_oid, 25);
+    assert_eq!(result.columns()[0].type_oid, 25);
+    assert_eq!(result.columns()[1].type_oid, 25);
 }
 
 fn truth_table() -> [(&'static str, &'static str, Value, Value); 9] {
@@ -425,11 +425,11 @@ fn should_preserve_complete_table_free_three_valued_boolean_truth_tables() {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![expected_and, expected_or]],
             "{left}, {right}"
         );
-        assert!(result.columns.iter().all(|column| column.type_oid == 16));
+        assert!(result.columns().iter().all(|column| column.type_oid == 16));
     }
     for (operand, expected) in [
         ("TRUE", Value::Bool(false)),
@@ -442,8 +442,8 @@ fn should_preserve_complete_table_free_three_valued_boolean_truth_tables() {
             .expect("evaluate NOT");
 
         // Assert
-        assert_eq!(result.rows, vec![vec![expected]]);
-        assert_eq!(result.columns[0].type_oid, 16);
+        assert_eq!(result.rows(), vec![vec![expected]]);
+        assert_eq!(result.columns()[0].type_oid, 16);
     }
 }
 
@@ -502,8 +502,8 @@ fn should_preserve_three_valued_boolean_semantics_across_current_storage_paths()
         let unknown = fixture.rows("SELECT row_key FROM bool_paths WHERE NULL");
 
         // Assert
-        assert_eq!(result.rows, expected, "{label}");
-        assert!(result.columns.iter().all(|column| column.type_oid == 16));
+        assert_eq!(result.rows(), expected, "{label}");
+        assert!(result.columns().iter().all(|column| column.type_oid == 16));
         assert_eq!(conjunction, vec![vec![Value::Int64(0)]], "{label}");
         assert_eq!(
             disjunction,
@@ -531,10 +531,10 @@ fn should_normalize_boolean_comparison_literals_before_covered_cbm2_scan_selecti
 
     // Assert
     assert_eq!(
-        result.rows,
+        result.rows(),
         [3, 4, 5].map(|id| vec![Value::Int64(id), Value::Bool(false)])
     );
-    assert_eq!(result.columns[1].type_oid, 16);
+    assert_eq!(result.columns()[1].type_oid, 16);
     let plan = explain_plan_text(&explain);
     assert_explain_contains(plan, "column_batch_index", "bool_paths_idx");
     assert_explain_contains(plan, "encoded_execution", "true");
@@ -624,8 +624,8 @@ fn should_treat_embedded_string_parameters_as_typed_text_in_boolean_contexts() {
         .expect("NULL predicate");
 
     // Assert
-    assert_eq!(false_value.rows, Vec::<Vec<Value>>::new());
-    assert_eq!(null_value.rows, Vec::<Vec<Value>>::new());
+    assert_eq!(false_value.rows(), Vec::<Vec<Value>>::new());
+    assert_eq!(null_value.rows(), Vec::<Vec<Value>>::new());
 }
 
 #[test]
@@ -650,8 +650,8 @@ fn should_preserve_explicit_embedded_parameter_casts_to_boolean() {
 
         // Assert
         let result = result.expect("explicit conversion retains the source parameter type");
-        assert_eq!(result.rows, vec![vec![Value::Bool(expected)]]);
-        assert_eq!(result.columns[0].type_oid, 16);
+        assert_eq!(result.rows(), vec![vec![Value::Bool(expected)]]);
+        assert_eq!(result.columns()[0].type_oid, 16);
     }
 }
 
@@ -725,8 +725,8 @@ fn should_preserve_embedded_boolean_comparison_parameter_provenance() {
     // Assert
     for (sql, expected, result) in accepted_results {
         let result = result.expect("same-type or contextual unknown-literal comparison");
-        assert_eq!(result.rows, vec![vec![expected]], "{sql}");
-        assert_eq!(result.columns[0].type_oid, 16, "{sql}");
+        assert_eq!(result.rows(), vec![vec![expected]], "{sql}");
+        assert_eq!(result.columns()[0].type_oid, 16, "{sql}");
     }
     for (sql, result) in rejected_results {
         assert_static_type_error(&result, sql);
@@ -759,7 +759,7 @@ fn should_validate_lateral_outer_boolean_types_before_row_evaluation() {
     assert_eq!(
         control
             .expect("supported LATERAL Boolean context distinguishes the outer rows")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(1)]]
     );
     for (sql, result) in statements.into_iter().zip(results) {
@@ -800,14 +800,14 @@ fn should_contextualize_boolean_between_inputs_before_storage_path_selection() {
         assert_eq!(
             literal
                 .expect("unknown literal gets Boolean range context")
-                .rows,
+                .rows(),
             vec![vec![Value::Bool(true)]],
             "{label}"
         );
         assert_eq!(
             range
                 .expect("Boolean range bounds normalize before scan selection")
-                .rows,
+                .rows(),
             (0..6).map(|id| vec![Value::Int64(id)]).collect::<Vec<_>>(),
             "{label}"
         );
@@ -816,7 +816,7 @@ fn should_contextualize_boolean_between_inputs_before_storage_path_selection() {
             "typed TEXT range input: {label}"
         );
         assert_eq!(
-            null.expect("SQL NULL range expression").rows,
+            null.expect("SQL NULL range expression").rows(),
             vec![vec![Value::Null]],
             "{label}"
         );
@@ -846,7 +846,7 @@ fn should_preserve_exported_lateral_boolean_output_types() {
     assert_eq!(
         boolean
             .expect("a supported LATERAL BOOLEAN output stays BOOLEAN at the parent ON sink")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(1)]]
     );
     assert!(
@@ -860,7 +860,7 @@ fn should_preserve_exported_lateral_boolean_output_types() {
     assert_eq!(
         qualified
             .expect("qualified outer BOOLEAN keeps its type despite an inner same-name INT")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(1)]]
     );
 }

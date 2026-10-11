@@ -30,7 +30,7 @@ fn should_preserve_skipped_conflict_insert_returning_contract() {
             .cassie
             .execute_sql(&seed_observer, OBSERVE, vec![])
             .expect("independent seed state")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(2), Value::String("old".into())]],
     );
     let expected_state = vec![
@@ -86,21 +86,21 @@ fn should_preserve_skipped_conflict_insert_returning_contract() {
             )
         );
     }
-    assert_eq!(first.command, "INSERT 0 2");
+    assert_eq!(first.command(), "INSERT 0 2");
     assert_eq!(
-        first.rows,
+        first.rows(),
         vec![
             vec![Value::Int64(3), Value::String("third".into())],
             vec![Value::Int64(1), Value::String("first".into())],
         ]
     );
-    assert!(first.rows.iter().all(|row| row.len() == 2));
-    assert_eq!(first.columns, expected_columns);
-    assert_eq!(retry.command, "INSERT 0 0");
-    assert_eq!(retry.rows, Vec::<Vec<Value>>::new());
-    assert_eq!(retry.columns, first.columns);
-    assert_eq!(first_state.rows, expected_state);
-    assert_eq!(retry_state.rows, expected_state);
-    assert!(first_state.rows.iter().all(|row| row.len() == 2));
-    assert!(retry_state.rows.iter().all(|row| row.len() == 2));
+    assert!(first.rows().iter().all(|row| row.len() == 2));
+    assert_eq!(first.columns(), expected_columns);
+    assert_eq!(retry.command(), "INSERT 0 0");
+    assert_eq!(retry.rows(), Vec::<Vec<Value>>::new());
+    assert_eq!(retry.columns(), first.columns());
+    assert_eq!(first_state.rows(), expected_state);
+    assert_eq!(retry_state.rows(), expected_state);
+    assert!(first_state.rows().iter().all(|row| row.len() == 2));
+    assert!(retry_state.rows().iter().all(|row| row.len() == 2));
 }

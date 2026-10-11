@@ -24,7 +24,7 @@ mod temporal_predicate_literals {
             )
             .expect("query temporal literal");
         let mut ids = result
-            .rows
+            .rows()
             .iter()
             .map(|row| match row[0] {
                 Value::Int64(id) => id,
@@ -121,7 +121,7 @@ mod temporal_predicate_literals {
                         vec![],
                     )
                     .expect("explain temporal index query");
-                let Value::String(plan) = &explain.rows[0][0] else {
+                let Value::String(plan) = &explain.rows()[0][0] else {
                     panic!("expected textual plan");
                 };
                 assert!(plan.contains(index_name));

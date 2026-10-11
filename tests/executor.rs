@@ -543,11 +543,11 @@ mod executor_commands {
             .expect("query should execute");
 
         // Assert
-        assert_eq!(result.columns.len(), 1);
-        assert_eq!(result.columns[0].name, "score");
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0].len(), 1);
-        match &result.rows[0][0] {
+        assert_eq!(result.columns().len(), 1);
+        assert_eq!(result.columns()[0].name, "score");
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0].len(), 1);
+        match &result.rows()[0][0] {
             cassie::types::Value::Float64(score) => assert!(*score > 0.0),
             _ => panic!("expected float score"),
         }
@@ -630,13 +630,13 @@ mod executor_commands {
 .expect("query should execute");
 
         // Assert
-        assert_eq!(result.columns.len(), 2);
-        assert_eq!(result.columns[0].name, "title");
-        assert_eq!(result.columns[1].name, "score");
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0].len(), 2);
-        assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
-        match &result.rows[0][1] {
+        assert_eq!(result.columns().len(), 2);
+        assert_eq!(result.columns()[0].name, "title");
+        assert_eq!(result.columns()[1].name, "score");
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0].len(), 2);
+        assert_eq!(result.rows()[0][0], Value::String("alpha".to_string()));
+        match &result.rows()[0][1] {
             Value::Float64(score) => assert!(*score > 0.0),
             _ => panic!("expected float score"),
         }
@@ -763,8 +763,8 @@ mod executor_commands {
                     vec![],
                 )
                 .unwrap();
-            assert_eq!(create.command, "CREATE TABLE");
-            assert_eq!(create.columns.len(), 0);
+            assert_eq!(create.command(), "CREATE TABLE");
+            assert_eq!(create.columns().len(), 0);
             assert!(cassie.catalog.exists(table_name));
 
             cassie
@@ -802,13 +802,13 @@ mod executor_commands {
                 .unwrap();
 
             // Assert
-            assert_eq!(alter_add.command, "ALTER TABLE");
-            assert_eq!(alter_rename.command, "ALTER TABLE");
+            assert_eq!(alter_add.command(), "ALTER TABLE");
+            assert_eq!(alter_rename.command(), "ALTER TABLE");
             assert!(!cassie.catalog.exists(table_name));
-            assert_eq!(rename_rows.columns.len(), 2);
-            assert_eq!(rename_rows.rows.len(), 1);
-            assert_eq!(rename_rows.rows[0][0], Value::String("d1".to_string()));
-            assert_eq!(drop.command, "DROP TABLE");
+            assert_eq!(rename_rows.columns().len(), 2);
+            assert_eq!(rename_rows.rows().len(), 1);
+            assert_eq!(rename_rows.rows()[0][0], Value::String("d1".to_string()));
+            assert_eq!(drop.command(), "DROP TABLE");
             assert!(!cassie.catalog.exists("ddl_table_archive"));
 
             let _ = std::fs::remove_dir_all(path);
@@ -839,7 +839,7 @@ mod executor_commands {
         assert_eq!(
             retried
                 .expect("retry should complete collection recovery")
-                .command,
+                .command(),
             "CREATE TABLE"
         );
         assert!(cassie.catalog.exists(table));
@@ -909,10 +909,10 @@ mod executor_commands {
                 .expect("schema should exist");
 
             // Assert
-            assert_eq!(rename.command, "ALTER TABLE");
-            assert_eq!(rows.rows.len(), 1);
-            assert_eq!(rows.rows[0][0], Value::String("d1".to_string()));
-            assert_eq!(rows.rows[0][1], Value::String("alpha".to_string()));
+            assert_eq!(rename.command(), "ALTER TABLE");
+            assert_eq!(rows.rows().len(), 1);
+            assert_eq!(rows.rows()[0][0], Value::String("d1".to_string()));
+            assert_eq!(rows.rows()[0][1], Value::String("alpha".to_string()));
             assert!(schema.fields.iter().any(|field| field.name == "headline"));
             assert!(!schema.fields.iter().any(|field| field.name == "title"));
 
@@ -970,12 +970,12 @@ mod executor_commands {
                 .unwrap();
 
             // Assert
-            assert_eq!(create_index.command, "CREATE INDEX");
-            assert_eq!(create_index.columns.len(), 0);
+            assert_eq!(create_index.command(), "CREATE INDEX");
+            assert_eq!(create_index.columns().len(), 0);
             assert!(!catalog_index.unique);
             assert_eq!(catalog_index.field, "title");
             assert_eq!(stored_index.field, "title");
-            assert_eq!(drop_index.command, "DROP INDEX");
+            assert_eq!(drop_index.command(), "DROP INDEX");
             assert!(cassie
                 .catalog
                 .get_index("idx_commands", "idx_title")
@@ -1027,8 +1027,8 @@ mod executor_commands {
                 .expect("index should be persisted");
 
             // Assert
-            assert_eq!(create_index.command, "CREATE INDEX");
-            assert_eq!(create_index.columns.len(), 0);
+            assert_eq!(create_index.command(), "CREATE INDEX");
+            assert_eq!(create_index.columns().len(), 0);
             assert_eq!(
                 catalog_index.fields,
                 vec!["title".to_string(), "score".to_string()]
@@ -1113,13 +1113,13 @@ mod executor_commands {
                 .get_function("double_input")
                 .expect("function should be registered");
             assert_eq!(function.name, "double_input");
-            assert_eq!(query.columns[1].name, "doubled");
+            assert_eq!(query.columns()[1].name, "doubled");
             assert_eq!(
-                query.rows[0],
+                query.rows()[0],
                 vec![Value::String("d1".to_string()), Value::Int64(3),]
             );
             assert_eq!(
-                query.rows[1],
+                query.rows()[1],
                 vec![Value::String("d2".to_string()), Value::Int64(7),]
             );
 
@@ -1235,9 +1235,9 @@ mod executor_commands {
             .unwrap();
 
         // Assert
-        assert_eq!(call.command, "CALL");
-        assert_eq!(rows.rows.len(), 1);
-        assert_eq!(rows.rows[0][0], Value::String("alpha".to_string()));
+        assert_eq!(call.command(), "CALL");
+        assert_eq!(rows.rows().len(), 1);
+        assert_eq!(rows.rows()[0][0], Value::String("alpha".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -1372,11 +1372,11 @@ mod executor_fulltext_scoring {
 
         // Assert
         let expected = cassie::search::bm25::bm25_score(3.0, 1.0, 2.0, 0.0, 0.0, 3.0, 2.0);
-        assert_eq!(result.columns.len(), 1);
-        assert_eq!(result.columns[0].name, "score");
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0].len(), 1);
-        match &result.rows[0][0] {
+        assert_eq!(result.columns().len(), 1);
+        assert_eq!(result.columns()[0].name, "score");
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0].len(), 1);
+        match &result.rows()[0][0] {
             Value::Float64(score) => assert_f64_close(*score, expected),
             _ => panic!("expected float score"),
         }
@@ -1414,7 +1414,7 @@ mod executor_fulltext_scoring {
             .expect("query should execute");
 
         // Assert
-        match &result.rows[0][0] {
+        match &result.rows()[0][0] {
             Value::Float64(score) => assert!(*score > 0.0),
             _ => panic!("expected float score"),
         }
@@ -1453,7 +1453,7 @@ mod executor_fulltext_scoring {
             .expect("score case-folded term");
 
         // Assert
-        assert!(matches!(result.rows[0][0], Value::Float64(score) if score > 0.0));
+        assert!(matches!(result.rows()[0][0], Value::Float64(score) if score > 0.0));
     }
 
     #[test]
@@ -1563,9 +1563,9 @@ mod executor_fulltext_scoring {
             .expect("plain select should execute");
 
         // Assert
-        assert_eq!(result.columns.len(), 1);
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
+        assert_eq!(result.columns().len(), 1);
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("d1".to_string()));
     }
 
     #[test]
@@ -1592,10 +1592,10 @@ mod executor_fulltext_scoring {
             .expect("snippet query should execute");
 
         // Assert
-        assert_eq!(result.columns[0].name, "excerpt");
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0].len(), 1);
-        match &result.rows[0][0] {
+        assert_eq!(result.columns()[0].name, "excerpt");
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0].len(), 1);
+        match &result.rows()[0][0] {
             Value::String(excerpt) => {
                 assert_eq!(excerpt, "Rust enables fast <mark>query</mark> search");
             }
@@ -1702,17 +1702,17 @@ mod executor_hybrid_scoring {
 .expect("query should execute");
 
         // Assert
-        assert_eq!(result.columns[0].name, "id");
-        assert_eq!(result.columns[1].name, "score");
-        assert_eq!(result.rows.len(), 2);
-        assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
-        assert_eq!(result.rows[1][0], Value::String("zeta".to_string()));
+        assert_eq!(result.columns()[0].name, "id");
+        assert_eq!(result.columns()[1].name, "score");
+        assert_eq!(result.rows().len(), 2);
+        assert_eq!(result.rows()[0][0], Value::String("alpha".to_string()));
+        assert_eq!(result.rows()[1][0], Value::String("zeta".to_string()));
 
-        let first_score = match &result.rows[0][1] {
+        let first_score = match &result.rows()[0][1] {
             Value::Float64(value) => *value,
             _ => panic!("expected float score"),
         };
-        let second_score = match &result.rows[1][1] {
+        let second_score = match &result.rows()[1][1] {
             Value::Float64(value) => *value,
             _ => panic!("expected float score"),
         };
@@ -1799,8 +1799,8 @@ mod executor_hybrid_scoring {
 .expect("query should execute");
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("d1".to_string()));
     });
     }
 
@@ -1929,7 +1929,7 @@ mod executor_limits {
                 .expect("zero query timeout should disable the deadline");
 
             // Assert
-            assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(result.rows(), vec![vec![Value::String("alpha".to_string())]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2224,9 +2224,9 @@ mod executor_limits {
                 .expect("query should execute");
 
             // Assert
-            assert_eq!(result.rows.len(), 2);
+            assert_eq!(result.rows().len(), 2);
             let ids = result
-                .rows
+                .rows()
                 .into_iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
@@ -2315,9 +2315,9 @@ mod executor_limits {
                 .expect("query should execute");
 
             // Assert
-            assert_eq!(default_offset_result.rows.len(), 1);
-            assert_eq!(explicit_offset_result.rows.len(), 1);
-            assert_eq!(default_offset_result.rows, explicit_offset_result.rows);
+            assert_eq!(default_offset_result.rows().len(), 1);
+            assert_eq!(explicit_offset_result.rows().len(), 1);
+            assert_eq!(default_offset_result.rows(), explicit_offset_result.rows());
         });
     }
 
@@ -2533,7 +2533,7 @@ mod executor_parallel {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 3);
+        assert_eq!(result.rows().len(), 3);
         assert!(metrics["parallel_scoring"]["scorings"]
             .as_u64()
             .unwrap_or(0)
@@ -2589,7 +2589,7 @@ mod executor_parallel {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_eq!(metrics["parallel_scoring"]["scorings"].as_u64(), Some(0));
         assert!(metrics["parallel_scoring"]["fallback_scorings"]
             .as_u64()
@@ -2663,7 +2663,7 @@ mod executor_parallel {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(result.rows.len(), PARALLEL_ROW_COUNT);
+            assert_eq!(result.rows().len(), PARALLEL_ROW_COUNT);
             assert!(metrics["parallel_scans"]["scans"].as_u64().unwrap_or(0) > 0);
             assert!(metrics["parallel_scans"]["workers"].as_u64().unwrap_or(0) >= 2);
             assert_eq!(
@@ -2730,7 +2730,7 @@ mod executor_parallel {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(result.rows(), vec![vec![Value::String("alpha".to_string())]]);
             assert_eq!(metrics["parallel_scans"]["scans"].as_u64(), Some(0));
             assert!(
                 metrics["parallel_scans"]["fallback_scans"]
@@ -2812,7 +2812,7 @@ mod executor_parallel {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![
                     Value::String("even".to_string()),
@@ -2892,7 +2892,7 @@ mod executor_parallel {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![
                 Value::Int64(parallel_row_count_i64()),
                 Value::Int64(usize_to_i64(non_null_rows)),
@@ -2971,7 +2971,7 @@ mod executor_parallel {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("b".to_string()), Value::Int64(256)],
                 vec![Value::String("c".to_string()), Value::Int64(256)],
@@ -3059,7 +3059,7 @@ mod executor_parallel {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows().len(), 2);
         assert_eq!(
             metrics["parallel_aggregation"]["aggregations"].as_u64(),
             Some(0)
@@ -3118,7 +3118,7 @@ mod executor_parallel {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::Int64(1), Value::Int64(7)]]);
+        assert_eq!(result.rows(), vec![vec![Value::Int64(1), Value::Int64(7)]]);
         assert_eq!(
             metrics["parallel_aggregation"]["aggregations"].as_u64(),
             Some(0)
@@ -3179,7 +3179,7 @@ mod executor_parallel {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![vec![Value::Int64(parallel_row_count_i64())]]
             );
             assert_eq!(
@@ -3226,7 +3226,7 @@ mod executor_parallel {
         );
         let result = cassie
             .execute_sql(&session, sql, vec![])
-            .map(|result| result.rows)
+            .map(|result| result.rows())
             .map_err(|error| error.to_string());
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
@@ -3452,9 +3452,9 @@ mod executor_projection {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.columns[0].name, "title");
-            assert_eq!(result.rows.len(), 1);
-            match &result.rows[0][0] {
+            assert_eq!(result.columns()[0].name, "title");
+            assert_eq!(result.rows().len(), 1);
+            match &result.rows()[0][0] {
                 Value::String(value) => assert_eq!(value, "alpha"),
                 _ => panic!("expected string in first column"),
             }
@@ -3517,9 +3517,9 @@ mod executor_projection {
                 .expect("query should execute");
 
             // Assert
-            assert_eq!(result.rows.len(), 5);
+            assert_eq!(result.rows().len(), 5);
             let ids = result
-                .rows
+                .rows()
                 .into_iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
@@ -3605,9 +3605,9 @@ mod executor_projection {
             .expect("query should execute");
 
         // Assert
-        assert_eq!(result.rows.len(), 5);
+        assert_eq!(result.rows().len(), 5);
         let ids = result
-            .rows
+            .rows()
             .into_iter()
             .map(|row| match &row[0] {
                 Value::String(value) => value.clone(),
@@ -3688,10 +3688,10 @@ mod executor_projection {
                 .expect("query should execute");
 
             // Assert
-            assert_eq!(result.rows.len(), 1);
-            assert_eq!(result.rows[0].len(), 2);
-            assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
-            assert_eq!(result.rows[0][1], Value::Null);
+            assert_eq!(result.rows().len(), 1);
+            assert_eq!(result.rows()[0].len(), 2);
+            assert_eq!(result.rows()[0][0], Value::String("alpha".to_string()));
+            assert_eq!(result.rows()[0][1], Value::Null);
         });
     }
 
@@ -3757,18 +3757,18 @@ mod executor_projection {
             .unwrap();
 
         // Assert
-        assert_eq!(result.rows.len(), 2);
-        assert_eq!(result.rows[0][0], Value::Null);
+        assert_eq!(result.rows().len(), 2);
+        assert_eq!(result.rows()[0][0], Value::Null);
         assert_eq!(
-            result.rows[0][1],
+            result.rows()[0][1],
             Value::Vector(cassie::types::Vector::new(vec![3.0, 4.0]))
         );
         assert_eq!(
-            result.rows[1][0],
+            result.rows()[1][0],
             Value::Json(serde_json::json!({"nested": ["a", "b"]}))
         );
         assert_eq!(
-            result.rows[1][1],
+            result.rows()[1][1],
             Value::Vector(cassie::types::Vector::new(vec![1.0, 2.0]))
         );
 
@@ -3852,10 +3852,10 @@ mod executor_query_sources {
     }
 
     fn assert_alias_query_result(result: executor::QueryResult) {
-        assert_eq!(result.columns[0].name, "title_out");
-        assert_eq!(result.columns[1].name, "score");
-        assert_eq!(result.rows.len(), 2);
-        for row in result.rows {
+        assert_eq!(result.columns()[0].name, "title_out");
+        assert_eq!(result.columns()[1].name, "score");
+        assert_eq!(result.rows().len(), 2);
+        for row in result.rows() {
             assert_eq!(row.len(), 2);
             match &row[1] {
                 Value::Float64(_) => {}
@@ -3865,8 +3865,8 @@ mod executor_query_sources {
     }
 
     fn assert_parameterized_alias_result(result: &executor::QueryResult) {
-        assert_eq!(result.rows.len(), 1);
-        match &result.rows[0][0] {
+        assert_eq!(result.rows().len(), 1);
+        match &result.rows()[0][0] {
             Value::String(value) => assert_eq!(value, "alpha"),
             _ => panic!("expected string in first column"),
         }
@@ -3989,10 +3989,10 @@ mod executor_query_sources {
 
 .expect("query should execute");
 
-        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows().len(), 2);
 
         let ids = result
-            .rows
+            .rows()
             .into_iter()
             .map(|row| match &row[0] {
                 Value::String(value) => value.clone(),
@@ -4082,10 +4082,10 @@ mod executor_query_sources {
 
 .expect("query should execute");
 
-        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows().len(), 2);
 
         let ids = result
-            .rows
+            .rows()
             .into_iter()
             .map(|row| match &row[0] {
                 Value::String(value) => value.clone(),
@@ -4159,10 +4159,10 @@ mod executor_query_sources {
 
 .unwrap();
 
-        assert_eq!(result.columns[0].name, "title");
-        assert_eq!(result.rows.len(), 2);
-        assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
-        assert_eq!(result.rows[1][0], Value::String("beta".to_string()));
+        assert_eq!(result.columns()[0].name, "title");
+        assert_eq!(result.rows().len(), 2);
+        assert_eq!(result.rows()[0][0], Value::String("alpha".to_string()));
+        assert_eq!(result.rows()[1][0], Value::String("beta".to_string()));
     }
 
     #[test]
@@ -4222,8 +4222,8 @@ mod executor_query_sources {
 
 .unwrap();
 
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("beta".to_string()));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("beta".to_string()));
     }
 
     #[test]
@@ -4283,8 +4283,8 @@ mod executor_query_sources {
 
 .unwrap();
 
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("alpha".to_string()));
     }
 
     #[test]
@@ -4337,7 +4337,7 @@ mod executor_query_sources {
 .unwrap();
 
         let values = result
-            .rows
+            .rows()
             .into_iter()
             .map(|row| match row.first() {
                 Some(Value::Int64(value)) => *value,
@@ -4497,9 +4497,9 @@ mod executor_sort {
                 .expect("query should execute");
 
             // Assert
-            assert_eq!(result.rows.len(), 3);
+            assert_eq!(result.rows().len(), 3);
             let ids = result
-                .rows
+                .rows()
                 .into_iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
@@ -4593,9 +4593,9 @@ mod executor_sort {
     .expect("query should execute");
 
             // Assert
-            assert_eq!(result.rows.len(), 3);
+            assert_eq!(result.rows().len(), 3);
             let ids = result
-                .rows
+                .rows()
                 .into_iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
@@ -4646,7 +4646,7 @@ mod executor_sort {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![
                     vec![Value::Int64(1)],
                     vec![Value::Int64(2)],
@@ -4727,9 +4727,9 @@ mod executor_sort {
                 .expect("query should execute");
 
             // Assert
-            assert_eq!(result.rows.len(), 2);
-            assert_eq!(result.rows[0][0], Value::String("title-b".to_string()));
-            assert_eq!(result.rows[1][0], Value::String("title-a".to_string()));
+            assert_eq!(result.rows().len(), 2);
+            assert_eq!(result.rows()[0][0], Value::String("title-b".to_string()));
+            assert_eq!(result.rows()[1][0], Value::String("title-a".to_string()));
         });
     }
 
@@ -4809,19 +4809,19 @@ mod executor_sort {
                 .expect("query should execute");
 
             // Assert
-            assert_eq!(first.command, second.command);
+            assert_eq!(first.command(), second.command());
             let first_columns = first
-                .columns
+                .columns()
                 .iter()
                 .map(|column| (column.name.clone(), column.data_type.clone()))
                 .collect::<Vec<_>>();
             let second_columns = second
-                .columns
+                .columns()
                 .iter()
                 .map(|column| (column.name.clone(), column.data_type.clone()))
                 .collect::<Vec<_>>();
             assert_eq!(first_columns, second_columns);
-            assert_eq!(first.rows, second.rows);
+            assert_eq!(first.rows(), second.rows());
         });
     }
 }
@@ -4874,7 +4874,7 @@ mod executor_streaming {
             .saturating_sub(before);
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::String("value".to_string())]]);
+        assert_eq!(result.rows(), vec![vec![Value::String("value".to_string())]]);
         assert_eq!(visited, 1, "LIMIT 1 should visit exactly one stored row");
 
         let _ = std::fs::remove_dir_all(path);
@@ -4981,7 +4981,7 @@ mod executor_streaming {
             .saturating_sub(before);
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::String("outer".to_string())]]);
+        assert_eq!(result.rows(), vec![vec![Value::String("outer".to_string())]]);
         assert_eq!(visited, 2, "EXISTS should stop after its first inner row");
 
         let _ = std::fs::remove_dir_all(path);
@@ -5065,11 +5065,11 @@ mod executor_vector_scoring {
 
 .expect("query should execute");
 
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.columns[0].name, "id");
-        assert_eq!(result.columns[1].name, "score");
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.columns()[0].name, "id");
+        assert_eq!(result.columns()[1].name, "score");
         assert_eq!(
-            result.rows[0][0],
+            result.rows()[0][0],
             cassie::types::Value::String("d1".to_string())
         );
     }
@@ -5140,7 +5140,7 @@ mod executor_vector_scoring {
             .expect("query should execute");
 
         let ids = result
-            .rows
+            .rows()
             .into_iter()
             .map(|row| match &row[0] {
                 cassie::types::Value::String(id) => id.clone(),
@@ -5223,9 +5223,9 @@ mod executor_vector_scoring {
                 .expect("query should execute");
 
             // Assert
-            assert_eq!(result.rows.len(), 3);
+            assert_eq!(result.rows().len(), 3);
             let ids = result
-                .rows
+                .rows()
                 .into_iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
@@ -5309,9 +5309,9 @@ mod executor_vector_scoring {
                 .expect("query should execute");
 
             // Assert
-            assert_eq!(result.rows.len(), 3);
+            assert_eq!(result.rows().len(), 3);
             let ids = result
-                .rows
+                .rows()
                 .into_iter()
                 .map(|row| match &row[0] {
                     Value::String(value) => value.clone(),
@@ -5426,8 +5426,8 @@ mod executor_vector_scoring {
             .expect("vector index should be persisted");
 
         // Assert
-        assert_eq!(create_index.command, "CREATE INDEX");
-        assert_eq!(create_index.columns.len(), 0);
+        assert_eq!(create_index.command(), "CREATE INDEX");
+        assert_eq!(create_index.columns().len(), 0);
         assert!(matches!(catalog_index.kind, IndexKind::Vector));
         assert_eq!(catalog_index.field, "embedding");
         assert_eq!(catalog_index.fields, vec!["embedding".to_string()]);
@@ -5535,7 +5535,7 @@ mod executor_vector_scoring {
             .unwrap();
 
         // Assert
-        assert_eq!(drop_index.command, "DROP INDEX");
+        assert_eq!(drop_index.command(), "DROP INDEX");
         assert!(cassie
             .catalog
             .get_index("idx_vector_commands", "idx_vector_embedding")
@@ -5657,7 +5657,7 @@ mod optimized_read_equivalence {
                     &format!("SELECT v FROM zero_ordered {tail}"),
                 );
                 // Assert
-                assert!(result.rows.is_empty(), "{tail}: {:?}", result.rows);
+                assert!(result.rows().is_empty(), "{tail}: {:?}", result.rows());
             }
         });
     }
@@ -5692,8 +5692,8 @@ mod optimized_read_equivalence {
                         .execute_sql(session, &format!("{statement} LIMIT 10"), params.clone())
                         .expect("bounded");
                     // Assert
-                    assert!(baseline.rows.is_empty(), "{statement}");
-                    assert_eq!(bounded.rows, baseline.rows, "{statement}");
+                    assert!(baseline.rows().is_empty(), "{statement}");
+                    assert_eq!(bounded.rows(), baseline.rows(), "{statement}");
                 }
             }
         });
@@ -5737,7 +5737,7 @@ mod optimized_read_equivalence {
                     &format!("SELECT doc_id FROM ordered_columns {tail}"),
                 );
                 // Assert
-                assert_eq!(column.rows, baseline.rows, "{tail}");
+                assert_eq!(column.rows(), baseline.rows(), "{tail}");
             }
         });
     }
@@ -5763,21 +5763,21 @@ mod join_scope_and_shape {
             let result=sql(cassie,session,"SELECT shadow_users.name,x.total FROM shadow_users JOIN LATERAL (SELECT total FROM shadow_orders WHERE k=shadow_users.k) AS x ON true ORDER BY shadow_users.name");
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![
                     vec![Value::String("ada".into()), Value::Int64(42)],
                     vec![Value::String("grace".into()), Value::Int64(7)]
                 ]
             );
             let wildcard = sql(cassie,session,"SELECT * FROM shadow_users JOIN LATERAL (SELECT * FROM shadow_orders WHERE k=shadow_users.k) AS x ON true ORDER BY shadow_users.name");
-            assert_eq!(wildcard.columns.len(), 6);
-            assert_eq!(wildcard.rows.len(), 2);
-            for row in &wildcard.rows {
+            assert_eq!(wildcard.columns().len(), 6);
+            assert_eq!(wildcard.rows().len(), 2);
+            for row in &wildcard.rows() {
                 assert_eq!(row.len(), 6, "{row:?}");
             }
             let single = sql(cassie,session,"SELECT shadow_users.name,x.outer_key FROM shadow_users JOIN LATERAL (SELECT shadow_users.k AS outer_key) AS x ON true ORDER BY shadow_users.name");
             assert_eq!(
-                single.rows,
+                single.rows(),
                 vec![
                     vec![Value::String("ada".into()), Value::Int64(1)],
                     vec![Value::String("grace".into()), Value::Int64(2)]
@@ -5806,10 +5806,10 @@ mod join_scope_and_shape {
             ] {
                 let result = sql(cassie, session, statement);
                 // Assert
-                assert_eq!(result.columns.len(), 6, "{statement}");
-                assert_eq!(result.rows.len(), 2, "{statement}");
-                for row in &result.rows {
-                    assert_eq!(row.len(), result.columns.len(), "{statement}: {row:?}");
+                assert_eq!(result.columns().len(), 6, "{statement}");
+                assert_eq!(result.rows().len(), 2, "{statement}");
+                for row in &result.rows() {
+                    assert_eq!(row.len(), result.columns().len(), "{statement}: {row:?}");
                 }
             }
             for source in [
@@ -5818,7 +5818,7 @@ mod join_scope_and_shape {
             ] {
                 let result=sql(cassie,session,&format!("SELECT shape_left.name,empty.k,empty.total FROM shape_left LEFT JOIN {source} ON shape_left.k=empty.k ORDER BY shape_left.name"));
                 assert_eq!(
-                    result.rows,
+                    result.rows(),
                     vec![
                         vec![Value::String("ada".into()), Value::Null, Value::Null],
                         vec![Value::String("grace".into()), Value::Null, Value::Null]
@@ -5826,8 +5826,8 @@ mod join_scope_and_shape {
                 );
             }
             let result=sql(cassie,session,"WITH empty AS (SELECT k,total FROM shape_right) SELECT * FROM shape_left LEFT JOIN empty ON shape_left.k=empty.k");
-            assert_eq!(result.columns.len(), 5);
-            for row in &result.rows {
+            assert_eq!(result.columns().len(), 5);
+            for row in &result.rows() {
                 assert_eq!(row.len(), 5, "{row:?}");
             }
             sql(
@@ -5837,9 +5837,9 @@ mod join_scope_and_shape {
             );
             for statement in ["SELECT * FROM shape_left LEFT JOIN shape_view ON shape_left.k=shape_view.k", "WITH seed AS (SELECT k,total FROM shape_right), renamed(x,y) AS (SELECT k,total FROM seed) SELECT * FROM shape_left LEFT JOIN renamed ON shape_left.k=renamed.x"] {
                 let result=sql(cassie,session,statement);
-                assert_eq!(result.columns.len(),5,"{statement}");
-                assert_eq!(result.rows.len(),2,"{statement}");
-                for row in result.rows { assert_eq!(row.len(),5,"{statement}: {row:?}"); assert_eq!(&row[3..],&[Value::Null,Value::Null]); }
+                assert_eq!(result.columns().len(),5,"{statement}");
+                assert_eq!(result.rows().len(),2,"{statement}");
+                for row in result.rows() { assert_eq!(row.len(),5,"{statement}: {row:?}"); assert_eq!(&row[3..],&[Value::Null,Value::Null]); }
             }
         });
     }
@@ -5859,14 +5859,14 @@ mod join_scope_and_shape {
             // Act
             let result=sql(cassie,session,"SELECT * FROM lateral_users LEFT JOIN LATERAL (SELECT total FROM lateral_orders WHERE order_key=lateral_users.user_key) AS recent ON true ORDER BY lateral_users.name");
             // Assert
-            assert_eq!(result.columns.len(), 4);
-            assert_eq!(result.rows.len(), 3);
-            for row in &result.rows {
+            assert_eq!(result.columns().len(), 4);
+            assert_eq!(result.rows().len(), 3);
+            for row in &result.rows() {
                 assert_eq!(row.len(), 4, "{row:?}");
             }
-            assert_eq!(result.rows[0][3], Value::Int64(42));
-            assert_eq!(result.rows[1][3], Value::Null);
-            assert_eq!(result.rows[2][3], Value::Int64(7));
+            assert_eq!(result.rows()[0][3], Value::Int64(42));
+            assert_eq!(result.rows()[1][3], Value::Null);
+            assert_eq!(result.rows()[2][3], Value::Int64(7));
         });
     }
     #[test]
@@ -5889,9 +5889,9 @@ mod join_scope_and_shape {
                     for predicate in ["nested_populated.k=nested_empty.k", "false"] {
                         let result=sql(cassie,session,&format!("SELECT * FROM nested_populated LEFT JOIN nested_empty ON {predicate} LEFT JOIN nested_other ON nested_empty.k=nested_other.k"));
                         // Assert
-                        assert_eq!(result.columns.len(), 6);
-                        assert_eq!(result.rows.len(), 2);
-                        for row in &result.rows {
+                        assert_eq!(result.columns().len(), 6);
+                        assert_eq!(result.rows().len(), 2);
+                        for row in &result.rows() {
                             assert_eq!(row.len(), 6, "{row:?}");
                             assert_eq!(
                                 &row[2..],
@@ -5899,7 +5899,7 @@ mod join_scope_and_shape {
                             );
                         }
                         let qualified=sql(cassie,session,&format!("SELECT nested_empty.k,nested_other.k FROM nested_populated LEFT JOIN nested_empty ON {predicate} LEFT JOIN nested_other ON nested_empty.k=nested_other.k"));
-                        assert_eq!(qualified.rows, vec![vec![Value::Null, Value::Null]; 2]);
+                        assert_eq!(qualified.rows(), vec![vec![Value::Null, Value::Null]; 2]);
                     }
                 },
             );
@@ -5922,7 +5922,7 @@ mod typed_array_ordering {
             seed_numeric_arrays(cassie, session);
             let json = sql(cassie, session, "SELECT item FROM json_values ORDER BY arr");
             assert_eq!(
-                json.rows,
+                json.rows(),
                 ["d", "b", "a", "c"].map(|item| vec![Value::String(item.into())])
             );
             // Act
@@ -5933,7 +5933,7 @@ mod typed_array_ordering {
             );
             // Assert
             assert_eq!(
-                arrays.rows,
+                arrays.rows(),
                 ["c", "d", "a", "b"].map(|item| vec![Value::String(item.into())])
             );
         });
@@ -5946,11 +5946,11 @@ mod typed_array_ordering {
             seed_numeric_arrays(cassie, session);
             let parameter = Value::Json(serde_json::json!([2]));
             let json = cassie.execute_sql(session, "SELECT json_values.item FROM array_values JOIN json_values ON array_values.item=json_values.item WHERE json_values.arr > $1 ORDER BY json_values.item", vec![parameter.clone()]).expect("JSON comparison control");
-            assert_eq!(json.rows, vec![vec![Value::String("c".into())]]);
+            assert_eq!(json.rows(), vec![vec![Value::String("c".into())]]);
             // Act
             let arrays = cassie.execute_sql(session, "SELECT array_values.item FROM array_values JOIN json_values ON array_values.item=json_values.item WHERE array_values.arr > $1 ORDER BY array_values.item", vec![parameter]).expect("qualified ARRAY comparison");
             // Assert
-            assert_eq!(arrays.rows, vec![vec![Value::String("b".into())]]);
+            assert_eq!(arrays.rows(), vec![vec![Value::String("b".into())]]);
             for query in [
                 "SELECT item FROM array_values WHERE COALESCE(arr, $1) > $2 ORDER BY item",
                 "SELECT item FROM array_values WHERE arr > COALESCE($1, $2) ORDER BY item",
@@ -5966,13 +5966,13 @@ mod typed_array_ordering {
                     )
                     .expect("contextual ARRAY parameter");
                 assert_eq!(
-                    result.rows,
+                    result.rows(),
                     vec![vec![Value::String("b".into())]],
                     "{query}"
                 );
             }
             let lateral = cassie.execute_sql(session, "SELECT array_values.item FROM array_values JOIN LATERAL (SELECT item FROM json_values WHERE arr > $1 AND json_values.item=array_values.item) AS inner_values ON TRUE", vec![Value::Json(serde_json::json!([2]))]).expect("inner JSON shadows outer ARRAY type");
-            assert_eq!(lateral.rows, vec![vec![Value::String("c".into())]]);
+            assert_eq!(lateral.rows(), vec![vec![Value::String("c".into())]]);
         });
     }
     #[test]
@@ -5995,7 +5995,7 @@ mod typed_array_ordering {
                 "SELECT item FROM array_values ORDER BY COALESCE(arr, NULL) LIMIT 3",
                 "SELECT item FROM array_values ORDER BY CASE WHEN item='a' THEN arr ELSE arr END LIMIT 3",
             ] {
-                assert_eq!(sql(cassie, session, query).rows, ["c", "d", "a"].map(|item| vec![Value::String(item.into())]), "{query}");
+                assert_eq!(sql(cassie, session, query).rows(), ["c", "d", "a"].map(|item| vec![Value::String(item.into())]), "{query}");
             }
             assert_eq!(
                 sql(
@@ -6003,12 +6003,12 @@ mod typed_array_ordering {
                     session,
                     "SELECT item FROM array_values ORDER BY arr DESC LIMIT 2"
                 )
-                .rows,
+                .rows(),
                 ["b", "a"].map(|item| vec![Value::String(item.into())])
             );
-            assert_eq!(sql(cassie, session, "SELECT item, ROW_NUMBER() OVER (ORDER BY arr) AS rank FROM array_values ORDER BY arr").rows, ["c", "d", "a", "b"].into_iter().zip(1..=4).map(|(item, rank)| vec![Value::String(item.into()), Value::Int64(rank)]).collect::<Vec<_>>());
-            assert_eq!(sql(cassie, session, "SELECT item, FIRST_VALUE(arr) OVER (PARTITION BY item ORDER BY item) AS first_arr FROM array_values ORDER BY first_arr LIMIT 1").rows, vec![vec![Value::String("c".into()), Value::Json(serde_json::json!([]))]]);
-            assert_eq!(sql(cassie, session, "SELECT left_arrays.item FROM (SELECT item, arr FROM array_values) AS left_arrays JOIN (SELECT item, arr FROM array_values) AS right_arrays ON left_arrays.arr > right_arrays.arr WHERE right_arrays.item='a'").rows, vec![vec![Value::String("b".into())]]);
+            assert_eq!(sql(cassie, session, "SELECT item, ROW_NUMBER() OVER (ORDER BY arr) AS rank FROM array_values ORDER BY arr").rows(), ["c", "d", "a", "b"].into_iter().zip(1..=4).map(|(item, rank)| vec![Value::String(item.into()), Value::Int64(rank)]).collect::<Vec<_>>());
+            assert_eq!(sql(cassie, session, "SELECT item, FIRST_VALUE(arr) OVER (PARTITION BY item ORDER BY item) AS first_arr FROM array_values ORDER BY first_arr LIMIT 1").rows(), vec![vec![Value::String("c".into()), Value::Json(serde_json::json!([]))]]);
+            assert_eq!(sql(cassie, session, "SELECT left_arrays.item FROM (SELECT item, arr FROM array_values) AS left_arrays JOIN (SELECT item, arr FROM array_values) AS right_arrays ON left_arrays.arr > right_arrays.arr WHERE right_arrays.item='a'").rows(), vec![vec![Value::String("b".into())]]);
             let bounded = cassie
                 .execute_sql(
                     session,
@@ -6020,7 +6020,7 @@ mod typed_array_ordering {
                 )
                 .expect("ARRAY BETWEEN");
             assert_eq!(
-                bounded.rows,
+                bounded.rows(),
                 ["a", "b"].map(|item| vec![Value::String(item.into())])
             );
         });
@@ -6073,7 +6073,7 @@ mod typed_array_ordering {
                 .expect("exact ARRAY comparison");
             // Assert
             assert_eq!(
-                ordered.rows,
+                ordered.rows(),
                 [
                     "empty",
                     "short",
@@ -6085,14 +6085,14 @@ mod typed_array_ordering {
                 ]
                 .map(|item| vec![Value::String(item.into())])
             );
-            assert_eq!(after.rows, vec![vec![Value::String("exact_high".into())]]);
+            assert_eq!(after.rows(), vec![vec![Value::String("exact_high".into())]]);
             assert_eq!(
                 sql(
                     cassie,
                     session,
                     "SELECT COUNT(*) FROM edge_arrays WHERE arr > NULL"
                 )
-                .rows,
+                .rows(),
                 vec![vec![Value::Int64(0)]]
             );
         });
@@ -6107,7 +6107,7 @@ mod typed_array_ordering {
             // Assert
             assert_eq!(
                 grouped
-                    .rows
+                    .rows()
                     .iter()
                     .map(|row| row[0].clone())
                     .collect::<Vec<_>>(),
@@ -6125,7 +6125,7 @@ mod typed_array_ordering {
                     vec![Value::Json(serde_json::json!([2]))],
                 )
                 .expect("ARRAY index range fallback");
-            assert_eq!(indexed.rows, vec![vec![Value::String("b".into())]]);
+            assert_eq!(indexed.rows(), vec![vec![Value::String("b".into())]]);
             sql(
                 cassie,
                 session,
@@ -6144,7 +6144,7 @@ mod typed_array_ordering {
                 )
                 .expect("ARRAY expression index range fallback");
             assert_eq!(
-                expression_indexed.rows,
+                expression_indexed.rows(),
                 vec![vec![Value::String("b".into())]]
             );
             let union = sql(
@@ -6153,7 +6153,7 @@ mod typed_array_ordering {
                 "SELECT arr FROM array_values UNION SELECT arr FROM array_values ORDER BY arr",
             );
             assert_eq!(
-                union.rows,
+                union.rows(),
                 [
                     serde_json::json!([]),
                     serde_json::json!([1, 9]),
@@ -6221,12 +6221,12 @@ mod typed_array_ordering {
                 );
                 // Assert
                 assert_eq!(
-                    ordered.rows,
+                    ordered.rows(),
                     vec![vec![Value::String("first".into())]],
                     "{data_type}"
                 );
                 assert_eq!(
-                    extrema.rows,
+                    extrema.rows(),
                     vec![vec![Value::Json(first), Value::Json(last)]],
                     "{data_type}"
                 );
@@ -6259,7 +6259,7 @@ mod typed_array_ordering {
             let result = sql(cassie, session, "SELECT item, RANK() OVER (ORDER BY arr) AS ranking, DENSE_RANK() OVER (ORDER BY arr) AS dense FROM float_arrays ORDER BY item");
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![
                     vec![Value::String("a".into()), Value::Int64(1), Value::Int64(1)],
                     vec![Value::String("b".into()), Value::Int64(1), Value::Int64(1)],
@@ -6285,7 +6285,7 @@ mod typed_array_ordering {
                     .expect("CHAR ARRAY peer fixture");
             }
             let char_ranks = sql(cassie, session, "SELECT item, RANK() OVER (ORDER BY arr) AS ranking, DENSE_RANK() OVER (ORDER BY arr) AS dense FROM char_arrays ORDER BY item");
-            assert_eq!(char_ranks.rows, result.rows);
+            assert_eq!(char_ranks.rows(), result.rows());
         });
     }
     #[test]
@@ -6316,12 +6316,12 @@ mod typed_array_ordering {
                     )
                     .expect("ARRAY INSERT RETURNING");
                 assert_eq!(
-                    inserted.rows,
+                    inserted.rows(),
                     vec![vec![Value::String(item.into()), Value::Bool(greater)]]
                 );
             }
             let conflict = cassie.execute_sql(session, "INSERT INTO array_dml VALUES ($1,$2) ON CONFLICT (item) DO UPDATE SET item=excluded.item WHERE array_dml.arr > $3 RETURNING item", vec![Value::String("a".into()), Value::Json(serde_json::json!([1])), bound.clone()]).expect("typed ARRAY conflict filter");
-            assert_eq!(conflict.rows, vec![vec![Value::String("a".into())]]);
+            assert_eq!(conflict.rows(), vec![vec![Value::String("a".into())]]);
             for predicate in [
                 "array_dml.arr > excluded.arr",
                 "array_dml.arr > COALESCE(excluded.arr,NULL)",
@@ -6338,7 +6338,7 @@ mod typed_array_ordering {
                     )
                     .expect("EXCLUDED ARRAY comparison");
                 assert_eq!(
-                    conflict.rows,
+                    conflict.rows(),
                     vec![vec![Value::String("a".into())]],
                     "{predicate}"
                 );
@@ -6350,7 +6350,7 @@ mod typed_array_ordering {
                 let mut rows = cassie
                     .execute_sql(session, query, vec![bound.clone()])
                     .expect("ARRAY DML RETURNING")
-                    .rows;
+                    .rows();
                 rows.sort_by_key(|row| row[0].as_str().expect("item text").to_owned());
                 assert_eq!(
                     rows,
@@ -6411,10 +6411,10 @@ mod typed_array_ordering {
                     let filtered = cassie.execute_sql(session, &format!("SELECT declared_arrays.id FROM {source} WHERE {expr} > $1 ORDER BY declared_arrays.id"), vec![Value::Json(serde_json::json!([2]))]).expect("outer ARRAY predicate");
                     // Assert
                     assert_eq!(
-                        ordered.rows,
+                        ordered.rows(),
                         ["c", "d", "a", "b"].map(|id| vec![Value::String(id.into())])
                     );
-                    assert_eq!(filtered.rows, vec![vec![Value::String("b".into())]]);
+                    assert_eq!(filtered.rows(), vec![vec![Value::String("b".into())]]);
                 }
             }
         });
@@ -6451,7 +6451,7 @@ mod typed_array_ordering {
             assert!(error.to_string().contains("query memory budget exceeded"));
             assert_eq!(controls.current_query_memory_bytes(), 0);
             assert_eq!(
-                sql(cassie, session, "SELECT COUNT(*) FROM array_budget").rows,
+                sql(cassie, session, "SELECT COUNT(*) FROM array_budget").rows(),
                 vec![vec![Value::Int64(0)]]
             );
         });
@@ -6489,43 +6489,43 @@ mod typed_relational_phase_equivalence {
                     let zero = sql(cassie, session, &format!("{winners} LIMIT 0 OFFSET 1"));
                     // Assert
                     assert_eq!(
-                        grouped_all.rows,
+                        grouped_all.rows(),
                         vec![
                             vec![Value::String("b".into()), Value::Int64(2), Value::Int64(2)],
                             vec![Value::String("a".into()), Value::Int64(3), Value::Int64(1)]
                         ]
                     );
-                    assert_eq!(grouped_page.rows, grouped_all.rows[1..2]);
+                    assert_eq!(grouped_page.rows(), grouped_all.rows()[1..2]);
                     assert_eq!(
-                        winners_all.rows,
+                        winners_all.rows(),
                         vec![
                             vec![Value::String("a".into()), Value::Int64(9), Value::Int64(1)],
                             vec![Value::String("b".into()), Value::Int64(5), Value::Int64(1)],
                             vec![Value::String("c".into()), Value::Int64(7), Value::Int64(1)]
                         ]
                     );
-                    assert_eq!(winners_page.rows, winners_all.rows[1..2]);
-                    assert_eq!(zero.rows, [] as [Vec<Value>; 0]);
+                    assert_eq!(winners_page.rows(), winners_all.rows()[1..2]);
+                    assert_eq!(zero.rows(), [] as [Vec<Value>; 0]);
                     assert_eq!(
                         grouped_page
-                            .columns
+                            .columns()
                             .iter()
                             .map(|column| column.type_oid)
                             .collect::<Vec<_>>(),
                         grouped_all
-                            .columns
+                            .columns()
                             .iter()
                             .map(|column| column.type_oid)
                             .collect::<Vec<_>>()
                     );
                     assert_eq!(
                         winners_page
-                            .columns
+                            .columns()
                             .iter()
                             .map(|column| column.type_oid)
                             .collect::<Vec<_>>(),
                         winners_all
-                            .columns
+                            .columns()
                             .iter()
                             .map(|column| column.type_oid)
                             .collect::<Vec<_>>()
@@ -6630,28 +6630,28 @@ mod typed_alias_bound_integration {
                 "SELECT p.payload FROM integration_scores AS p ORDER BY integration_scores.score", vec![]);
                 // Assert
                 assert_eq!(
-                    all.rows,
+                    all.rows(),
                     vec![
                         vec![Value::Int64(90)],
                         vec![Value::Int64(10)],
                         vec![Value::Int64(50)]
                     ]
                 );
-                assert_eq!(page.rows, all.rows[1..2]);
-                assert_eq!(prefix.rows, all.rows[..2]);
-                assert_eq!(unlimited.rows, all.rows);
-                assert_eq!(zero.rows, [] as [Vec<Value>; 0]);
+                assert_eq!(page.rows(), all.rows()[1..2]);
+                assert_eq!(prefix.rows(), all.rows()[..2]);
+                assert_eq!(unlimited.rows(), all.rows());
+                assert_eq!(zero.rows(), [] as [Vec<Value>; 0]);
                 assert_eq!(
-                    unqualified.rows,
+                    unqualified.rows(),
                     vec![
                         vec![Value::Int64(10)],
                         vec![Value::Int64(50)],
                         vec![Value::Int64(90)]
                     ]
                 );
-                assert_eq!(quoted.rows, all.rows);
-                assert_eq!(page.columns, all.columns);
-                assert_eq!(prefix.columns, all.columns);
+                assert_eq!(quoted.rows(), all.rows());
+                assert_eq!(page.columns(), all.columns());
+                assert_eq!(prefix.columns(), all.columns());
                 assert!(hidden.is_err(), "alias hides original input qualifier");
             },
         );

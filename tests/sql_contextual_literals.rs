@@ -100,17 +100,17 @@ fn should_compare_jsonb_column_with_json_string_literal() {
         .expect("compare JSONB with array-shaped JSON string literal");
 
     // Assert
-    assert_eq!(result.rows, vec![vec![Value::String("match".to_string())]]);
-    assert_eq!(reversed.rows, result.rows);
+    assert_eq!(result.rows(), vec![vec![Value::String("match".to_string())]]);
+    assert_eq!(reversed.rows(), result.rows());
     assert_eq!(
-        inequality.rows,
+        inequality.rows(),
         vec![
             vec![Value::String("array".to_string())],
             vec![Value::String("match".to_string())]
         ]
     );
     assert_eq!(
-        array_result.rows,
+        array_result.rows(),
         vec![vec![Value::String("array".to_string())]]
     );
     let _ = std::fs::remove_dir_all(path);
@@ -187,19 +187,19 @@ fn should_compare_jsonb_scalar_string_literals() {
         .expect("delete through JSONB equality");
 
     // Assert
-    assert_eq!(number.rows, vec![vec![Value::String("number".to_string())]]);
+    assert_eq!(number.rows(), vec![vec![Value::String("number".to_string())]]);
     assert_eq!(
-        boolean.rows,
+        boolean.rows(),
         vec![vec![Value::String("boolean".to_string())]]
     );
-    assert_eq!(sql_null.rows, [] as [Vec<Value>; 0]);
-    assert_eq!(projected.rows, vec![vec![Value::Bool(true)]]);
+    assert_eq!(sql_null.rows(), [] as [Vec<Value>; 0]);
+    assert_eq!(projected.rows(), vec![vec![Value::Bool(true)]]);
     assert_eq!(
-        updated.rows,
+        updated.rows(),
         vec![vec![Value::String("updated".to_string())]]
     );
     assert_eq!(
-        deleted.rows,
+        deleted.rows(),
         vec![vec![Value::String("boolean".to_string())]]
     );
     let _ = std::fs::remove_dir_all(path);
@@ -253,13 +253,13 @@ fn should_compare_text_with_array_shaped_string_literal() {
 
     // Assert
     assert_eq!(
-        equality.rows,
+        equality.rows(),
         vec![vec![Value::String("array".to_string())]]
     );
     assert_eq!(
-        inequality.rows,
+        inequality.rows(),
         vec![vec![Value::String("word".to_string())]]
     );
-    assert_eq!(in_list.rows, vec![vec![Value::String("array".to_string())]]);
+    assert_eq!(in_list.rows(), vec![vec![Value::String("array".to_string())]]);
     let _ = std::fs::remove_dir_all(path);
 }

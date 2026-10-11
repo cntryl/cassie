@@ -33,9 +33,9 @@ fn should_resolve_exists_against_actual_having_groups() {
         if index == 1 {
             expected.push(vec![Value::Int64(2), Value::Int64(1)]);
         }
-        assert_eq!(result.rows, expected, "{sql}");
-        assert_eq!(result.columns.len(), 2);
-        for (column, name) in result.columns.iter().zip(["id", "n"]) {
+        assert_eq!(result.rows(), expected, "{sql}");
+        assert_eq!(result.columns().len(), 2);
+        for (column, name) in result.columns().iter().zip(["id", "n"]) {
             assert_eq!(
                 (
                     column.name.as_str(),
@@ -74,11 +74,11 @@ fn should_preserve_having_scalar_selection() {
         "SELECT q.id AS id FROM having_lazy q WHERE q.id<0 GROUP BY q.id HAVING EXISTS(SELECT i.n / i.n FROM having_lazy i)",vec![]);
     // Assert
     assert_eq!(
-        skipped.expect("unreached correlated branch").rows,
+        skipped.expect("unreached correlated branch").rows(),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
     assert_eq!(
-        empty.expect("no groups to evaluate").rows,
+        empty.expect("no groups to evaluate").rows(),
         Vec::<Vec<Value>>::new()
     );
     for result in [reached, eager] {
@@ -111,10 +111,10 @@ fn should_preserve_multiple_having_group_keys() {
     // Assert
     let result = result.expect("correlation retains both actual group keys");
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![Value::Int64(1), Value::Int64(0), Value::Int64(2)]]
     );
-    for (column, name) in result.columns.iter().zip(["id", "n", "total"]) {
+    for (column, name) in result.columns().iter().zip(["id", "n", "total"]) {
         assert_eq!(
             (
                 column.name.as_str(),
@@ -126,5 +126,5 @@ fn should_preserve_multiple_having_group_keys() {
             (name, 20, 8, -1, 0)
         );
     }
-    assert_eq!(result.columns.len(), 3);
+    assert_eq!(result.columns().len(), 3);
 }

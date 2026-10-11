@@ -41,7 +41,7 @@ mod ann_candidate_exhaustion {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(indexed.rows, exact.rows);
+        assert_eq!(indexed.rows(), exact.rows());
         assert_eq!(
             after["vector"]["last_fallback_reason"],
             "candidate-exhausted"
@@ -86,8 +86,8 @@ mod ann_candidate_exhaustion {
         let indexed = top_k(&cassie, 4, 8);
 
         // Assert
-        assert_eq!(indexed.rows, exact.rows);
-        assert_eq!(indexed.rows.len(), 4);
+        assert_eq!(indexed.rows(), exact.rows());
+        assert_eq!(indexed.rows().len(), 4);
         drop(cassie);
         std::fs::remove_dir_all(path).expect("cleanup fixture");
     }
@@ -116,10 +116,10 @@ mod ann_candidate_exhaustion {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(indexed.rows, exact.rows);
-        assert_eq!(indexed_offset.rows, exact_offset.rows);
-        assert_eq!(beyond_end.rows, Vec::<Vec<Value>>::new());
-        assert_eq!(empty.rows, Vec::<Vec<Value>>::new());
+        assert_eq!(indexed.rows(), exact.rows());
+        assert_eq!(indexed_offset.rows(), exact_offset.rows());
+        assert_eq!(beyond_end.rows(), Vec::<Vec<Value>>::new());
+        assert_eq!(empty.rows(), Vec::<Vec<Value>>::new());
         assert_eq!(
             after["vector"]["ivfflat_fallbacks"],
             before["vector"]["ivfflat_fallbacks"]
@@ -152,9 +152,9 @@ mod ann_candidate_exhaustion {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(indexed.rows, exact.rows);
-        assert_eq!(indexed.rows.len(), 2);
-        assert_eq!(beyond_end.rows, Vec::<Vec<Value>>::new());
+        assert_eq!(indexed.rows(), exact.rows());
+        assert_eq!(indexed.rows().len(), 2);
+        assert_eq!(beyond_end.rows(), Vec::<Vec<Value>>::new());
         assert_eq!(
             after["vector"]["hnsw_fallbacks"],
             before["vector"]["hnsw_fallbacks"]
@@ -203,8 +203,8 @@ mod ann_candidate_exhaustion {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(indexed.rows, exact.rows);
-        assert_eq!(indexed_offset.rows, exact_offset.rows);
+        assert_eq!(indexed.rows(), exact.rows());
+        assert_eq!(indexed_offset.rows(), exact_offset.rows());
         assert_eq!(
             after["vector"]["last_fallback_reason"],
             "candidate-exhausted"
@@ -1639,7 +1639,7 @@ mod hnsw_indexes {
         .unwrap();
         let after = cassie.metrics();
 
-        assert_eq!(result.rows[0][0], Value::String("near".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("near".to_string()));
         assert_eq!(
             after["vector"]["hnsw_fallbacks"].as_u64().unwrap()
                 - before["vector"]["hnsw_fallbacks"].as_u64().unwrap(),
@@ -1790,7 +1790,7 @@ mod hnsw_indexes {
                         vec![],
                     )
                     .unwrap()
-                    .rows[0][0]
+                    .rows()[0][0]
                     .clone()
             })
         })
@@ -1858,7 +1858,7 @@ mod hnsw_indexes {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows[0][0], Value::String("near".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("near".to_string()));
         assert_eq!(
             after["vector"]["hnsw_executions"].as_u64().unwrap()
                 - before["vector"]["hnsw_executions"].as_u64().unwrap(),
@@ -1940,13 +1940,13 @@ mod hnsw_indexes {
         let after_upper = cassie.metrics();
 
         // Assert
-        assert_eq!(lower.rows[0][0], Value::String("lower-near".to_string()));
+        assert_eq!(lower.rows()[0][0], Value::String("lower-near".to_string()));
         assert_eq!(
             after_lower["vector"]["hnsw_executions"].as_u64().unwrap()
                 - before["vector"]["hnsw_executions"].as_u64().unwrap(),
             1
         );
-        assert_eq!(upper.rows[0][0], Value::String("upper-near".to_string()));
+        assert_eq!(upper.rows()[0][0], Value::String("upper-near".to_string()));
         assert_eq!(
             after_upper["vector"]["hnsw_executions"].as_u64(),
             after_lower["vector"]["hnsw_executions"].as_u64()
@@ -2003,11 +2003,11 @@ mod hnsw_indexes {
             Value::String("near".to_string()),
             Value::String("far".to_string()),
         ];
-        let exact_rows = exact.expect("exact top-k should skip NULL vectors").rows;
+        let exact_rows = exact.expect("exact top-k should skip NULL vectors").rows();
         let fallback_rows = fallback
             .expect("non-streaming exact top-k should skip NULL vectors")
-            .rows;
-        let indexed_rows = indexed.expect("HNSW top-k should skip NULL vectors").rows;
+            .rows();
+        let indexed_rows = indexed.expect("HNSW top-k should skip NULL vectors").rows();
         assert_eq!(exact_rows.len(), expected.len());
         assert_eq!(fallback_rows.len(), expected.len());
         assert_eq!(indexed_rows.len(), expected.len());
@@ -2058,7 +2058,7 @@ mod hnsw_indexes {
         );
 
         // Assert
-        let rows = result.map(|result| result.rows).ok();
+        let rows = result.map(|result| result.rows()).ok();
         assert_eq!(
             rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
             Some(Value::String("near".to_string()))
@@ -2280,7 +2280,7 @@ mod hnsw_indexes {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows[0][0], Value::String("near".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("near".to_string()));
         assert_eq!(
             after["vector"]["hnsw_fallbacks"].as_u64().unwrap()
                 - before["vector"]["hnsw_fallbacks"].as_u64().unwrap(),
@@ -2708,9 +2708,9 @@ mod integration_sql_hybrid_query {
 .unwrap();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
-        assert!(matches!(result.rows[0][1], Value::Float64(value) if value > 0.0));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("d2".to_string()));
+        assert!(matches!(result.rows()[0][1], Value::Float64(value) if value > 0.0));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -2789,8 +2789,8 @@ mod integration_sql_hybrid_query {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("text_match".to_string()));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("text_match".to_string()));
         assert_eq!(
             after["hybrid"]["candidate_count_total"]
                 .as_u64()
@@ -2851,7 +2851,7 @@ mod integration_sql_hybrid_query {
             .unwrap();
 
         // Assert
-        let Value::String(plan) = &result.rows[0][0] else {
+        let Value::String(plan) = &result.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("mixed_execution=true"));
@@ -2969,7 +2969,7 @@ mod integration_sql_hybrid_query {
                 hybrid_params("red"),
             )
             .expect("hybrid query")
-            .rows
+            .rows()
     }
 
     #[test]
@@ -3178,7 +3178,7 @@ mod integration_sql_hybrid_query {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows[0][0], Value::String("d0".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("d0".to_string()));
         let reads = after["storage"]["data"]["reads"].as_u64().unwrap()
             - before["storage"]["data"]["reads"].as_u64().unwrap();
         assert!(
@@ -3223,7 +3223,7 @@ mod integration_sql_hybrid_query {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows[0][0], Value::String("d0".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("d0".to_string()));
         let reads = after["storage"]["data"]["reads"].as_u64().unwrap()
             - before["storage"]["data"]["reads"].as_u64().unwrap();
         assert!(
@@ -3260,7 +3260,7 @@ mod integration_sql_hybrid_query {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows[0][0], Value::String("d0".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("d0".to_string()));
         assert_eq!(
             after["hybrid"]["prefilter_fallback_reasons"]["text-artifact"]
                 .as_u64()
@@ -3296,7 +3296,7 @@ mod integration_sql_hybrid_query {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows[0][0], Value::String("d0".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("d0".to_string()));
         assert_eq!(
             after["hybrid"]["prefilter_fallback_reasons"]["vector-artifact"]
                 .as_u64()
@@ -3328,7 +3328,7 @@ mod integration_sql_hybrid_query {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows[0][0], Value::String("d0".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("d0".to_string()));
         assert_eq!(
             after["hybrid"]["candidate_budget_rejections_total"]
                 .as_u64()
@@ -3410,7 +3410,7 @@ mod integration_sql_hybrid_query {
                         hybrid_params("alpha"),
                     )
                     .unwrap()
-                    .rows[0][0]
+                    .rows()[0][0]
                     .clone()
             })
         })
@@ -3500,7 +3500,7 @@ mod integration_sql_vector_indexes {
             .unwrap();
 
         // Assert
-        let Value::String(plan) = &result.rows[0][0] else {
+        let Value::String(plan) = &result.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("prefilter=index=sql_explain_vector_prefilter_status_idx"));
@@ -3574,11 +3574,11 @@ mod integration_sql_vector_indexes {
             .unwrap();
 
         // Assert
-        assert_eq!(result.rows.len(), 2);
-        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
-        assert_eq!(result.rows[1][0], Value::String("d2".to_string()));
-        assert!(matches!(result.rows[0][1], Value::Float64(value) if value == 0.0));
-        assert!(matches!(result.rows[1][1], Value::Float64(value) if value == 0.0));
+        assert_eq!(result.rows().len(), 2);
+        assert_eq!(result.rows()[0][0], Value::String("d1".to_string()));
+        assert_eq!(result.rows()[1][0], Value::String("d2".to_string()));
+        assert!(matches!(result.rows()[0][1], Value::Float64(value) if value == 0.0));
+        assert!(matches!(result.rows()[1][1], Value::Float64(value) if value == 0.0));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -3639,12 +3639,12 @@ mod integration_sql_vector_indexes {
             .unwrap();
 
         // Assert
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("prefilter=fallback=unsupported metadata predicate"));
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("d1".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -3697,7 +3697,7 @@ mod integration_sql_vector_indexes {
             .unwrap();
 
         // Assert
-        let Value::String(plan) = &result.rows[0][0] else {
+        let Value::String(plan) = &result.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("prefilter=index=sql_explain_hybrid_prefilter_status_idx"));
@@ -3924,7 +3924,7 @@ mod integration_sql_vector_indexes {
                 vec![Value::Vector(Vector::new(vec![3.0, 4.0, 0.0]))],
             )
             .unwrap()
-            .rows[0][0]
+            .rows()[0][0]
         {
             Value::String(id) => id.clone(),
             other => panic!("expected string row id, got {other:?}"),
@@ -4151,11 +4151,11 @@ mod integration_sql_vector_query {
             .unwrap();
 
         // Assert
-        assert_eq!(result.rows.len(), 2);
-        assert_eq!(result.rows[0][0], Value::String("orthogonal".to_string()));
-        assert_eq!(result.rows[0][1], Value::Float64(1.0));
-        assert_eq!(result.rows[1][0], Value::String("same".to_string()));
-        assert_eq!(result.rows[1][1], Value::Float64(0.0));
+        assert_eq!(result.rows().len(), 2);
+        assert_eq!(result.rows()[0][0], Value::String("orthogonal".to_string()));
+        assert_eq!(result.rows()[0][1], Value::Float64(1.0));
+        assert_eq!(result.rows()[1][0], Value::String("same".to_string()));
+        assert_eq!(result.rows()[1][1], Value::Float64(0.0));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -4213,7 +4213,7 @@ mod integration_sql_vector_query {
             .unwrap();
 
             // Assert
-            assert_eq!(result.rows, vec![vec![Value::Float64(11.0)]]);
+            assert_eq!(result.rows(), vec![vec![Value::Float64(11.0)]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -4272,7 +4272,7 @@ mod integration_sql_vector_query {
             .unwrap();
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::Float64(5.0)]]);
+        assert_eq!(result.rows(), vec![vec![Value::Float64(5.0)]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -4332,7 +4332,7 @@ mod integration_sql_vector_query {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![
                 Value::Float64(1.0),
                 Value::Float64(0.0),
@@ -4467,7 +4467,7 @@ mod ivfflat_completeness {
         let result = execute_top_k(cassie, collection);
         let after = cassie.metrics();
 
-        assert_eq!(result.rows[0][0], Value::String("near".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("near".to_string()));
         assert_eq!(
             after["vector"]["ivfflat_fallbacks"].as_u64().unwrap()
                 - before["vector"]["ivfflat_fallbacks"].as_u64().unwrap(),
@@ -4546,7 +4546,7 @@ mod ivfflat_completeness {
         let after = restarted.metrics();
 
         // Assert
-        assert_eq!(result.rows[0][0], Value::String("near".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("near".to_string()));
         assert_eq!(
             after["vector"]["ivfflat_fallbacks"].as_u64().unwrap()
                 - before["vector"]["ivfflat_fallbacks"].as_u64().unwrap(),
@@ -4828,7 +4828,7 @@ mod ivfflat_indexes {
         .unwrap();
         let after = cassie.metrics();
 
-        assert_eq!(result.rows[0][0], Value::String("near".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("near".to_string()));
         assert_eq!(
             after["vector"]["ivfflat_fallbacks"].as_u64().unwrap()
                 - before["vector"]["ivfflat_fallbacks"].as_u64().unwrap(),
@@ -5048,8 +5048,8 @@ mod ivfflat_indexes {
 
         // Assert
         assert_candidate_list_training(stored);
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("near".to_string()));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("near".to_string()));
         assert_candidate_list_metrics(&before, &after);
 
         let _ = std::fs::remove_dir_all(path);
@@ -5078,7 +5078,7 @@ mod ivfflat_indexes {
         );
 
         // Assert
-        let rows = result.map(|result| result.rows).ok();
+        let rows = result.map(|result| result.rows()).ok();
         assert_eq!(
             rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
             Some(Value::String("near".to_string()))
@@ -5254,7 +5254,7 @@ mod ivfflat_indexes {
             .expect("ivfflat training after insert");
         assert_eq!(inserted_training.row_count, 3);
         assert!(inserted_training.assignments.contains_key("new-nearest"));
-        assert_eq!(result.rows[0][0], Value::String("new-nearest".to_string()));
+        assert_eq!(result.rows()[0][0], Value::String("new-nearest".to_string()));
         let deleted_training = after_delete
             .metadata
             .ivfflat_training
@@ -5293,7 +5293,7 @@ mod ivfflat_indexes {
                         vec![],
                     )
                     .unwrap()
-                    .rows[0][0]
+                    .rows()[0][0]
                     .clone()
             })
         })
@@ -6940,7 +6940,7 @@ mod vector_query_stability {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(indexed.rows, exact.rows);
+        assert_eq!(indexed.rows(), exact.rows());
         assert!(
             after["vector"]["hnsw_executions"].as_u64().unwrap()
                 > before["vector"]["hnsw_executions"].as_u64().unwrap()
@@ -6976,8 +6976,8 @@ mod vector_query_stability {
             .expect("indexed IVFFlat query");
 
         // Assert
-        let exact_ids = result_ids(&exact.rows).into_iter().collect::<HashSet<_>>();
-        let overlap = result_ids(&indexed.rows)
+        let exact_ids = result_ids(&exact.rows()).into_iter().collect::<HashSet<_>>();
+        let overlap = result_ids(&indexed.rows())
             .into_iter()
             .filter(|id| exact_ids.contains(id))
             .count();
@@ -7025,7 +7025,7 @@ mod vector_query_stability {
         let after = cassie.metrics();
 
         // Assert
-        assert!(!result_ids(&result.rows).contains(&"row-0000".to_string()));
+        assert!(!result_ids(&result.rows()).contains(&"row-0000".to_string()));
         assert_eq!(
             after["vector"]["last_fallback_reason"].as_str(),
             Some("structured-filter-exact")
@@ -7140,7 +7140,7 @@ mod vector_query_stability {
             after["vector"]["ivfflat_executions"].as_u64().unwrap()
                 > before["vector"]["ivfflat_executions"].as_u64().unwrap()
         );
-        assert_large_magnitude_index_rows_match_scan(&exact.rows, &indexed.rows);
+        assert_large_magnitude_index_rows_match_scan(&exact.rows(), &indexed.rows());
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -7183,7 +7183,7 @@ mod vector_query_stability {
             after["vector"]["hnsw_executions"].as_u64().unwrap()
                 > before["vector"]["hnsw_executions"].as_u64().unwrap()
         );
-        assert_large_magnitude_index_rows_match_scan(&exact.rows, &indexed.rows);
+        assert_large_magnitude_index_rows_match_scan(&exact.rows(), &indexed.rows());
         let _ = std::fs::remove_dir_all(path);
     }
 }
@@ -7346,8 +7346,8 @@ mod vector_declared_id {
             .expect("vector top-k with row identity");
 
         // Assert
-        assert_eq!(declared.rows[0][0], Value::Int64(7));
-        assert_eq!(identity.rows[0][0], Value::String("a".to_string()));
+        assert_eq!(declared.rows()[0][0], Value::Int64(7));
+        assert_eq!(identity.rows()[0][0], Value::String("a".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7402,7 +7402,7 @@ mod vector_source_column_lifecycle {
                 vec![],
             )
             .expect("read embeddings")
-            .rows
+            .rows()
     }
 
     #[test]
@@ -7585,7 +7585,7 @@ mod vector_parameter_finiteness {
                 Vec::new(),
             )
             .expect("select rows")
-            .rows;
+            .rows();
 
         // Assert
         assert!(infinite.is_err(), "infinite component must be rejected");
@@ -7647,7 +7647,7 @@ mod vector_write_path {
         let Ok(result) = cassie.execute_sql(&session, sql, params) else {
             panic!("statement failed: {sql}");
         };
-        result.rows
+        result.rows()
     }
 
     fn error_text(cassie: &Cassie, sql: &str, params: Vec<Value>) -> String {
@@ -8526,12 +8526,12 @@ mod vector_read_equivalence {
                 let baseline = sql(cassie, session, &query);
                 let bounded = sql(cassie, session, &format!("{query} LIMIT 2"));
                 // Assert
-                assert_eq!(bounded.columns.len(), 2);
+                assert_eq!(bounded.columns().len(), 2);
                 assert!(bounded
-                    .rows
+                    .rows()
                     .iter()
-                    .all(|row| row.len() == bounded.columns.len()));
-                assert_eq!(bounded.rows, baseline.rows[..2]);
+                    .all(|row| row.len() == bounded.columns().len()));
+                assert_eq!(bounded.rows(), baseline.rows()[..2]);
             }
         });
     }
@@ -8552,7 +8552,7 @@ mod vector_read_equivalence {
             for tail in ["LIMIT 0", "LIMIT 0 OFFSET 1"] {
                 let result=sql(cassie,session,&format!("SELECT _id,vector_distance(embedding,'[1,0,0]') AS distance FROM vector_zero ORDER BY distance ASC {tail}"));
                 // Assert
-                assert!(result.rows.is_empty(), "{tail}");
+                assert!(result.rows().is_empty(), "{tail}");
             }
         });
     }
@@ -8571,7 +8571,7 @@ mod vector_read_equivalence {
             for tail in ["LIMIT 0", "LIMIT 0 OFFSET 1"] {
                 let result=sql(cassie,session,&format!("SELECT _id,hybrid_score(search_score(body,'alpha'),vector_score(embedding,'[1,0,0]')) AS score FROM hybrid_zero ORDER BY score DESC {tail}"));
                 // Assert
-                assert!(result.rows.is_empty(), "{tail}");
+                assert!(result.rows().is_empty(), "{tail}");
             }
         });
     }
@@ -8586,7 +8586,7 @@ mod vector_read_equivalence {
             let result = sql(cassie, session,
                 "SELECT _id,vector_distance(embedding,'[1,0,0]') AS distance FROM vector_no_ann ORDER BY distance DESC LIMIT 1");
             // Assert
-            assert_eq!(result.rows.len(), 1);
+            assert_eq!(result.rows().len(), 1);
             assert_eq!(cassie.metrics()["vector"]["ivfflat_fallbacks"], before);
         });
     }
@@ -8639,7 +8639,7 @@ mod vector_read_equivalence {
                 "{training:?}"
             );
             let ascending = sql(cassie, session, "SELECT _id,vector_distance(embedding,'[1,0,0]') AS distance FROM ivf_descending ORDER BY distance ASC LIMIT 4");
-            assert_eq!(ascending.rows.len(), 4);
+            assert_eq!(ascending.rows().len(), 4);
             let metrics = cassie.metrics();
             assert!(
                 metrics["vector"]["ivfflat_executions"].as_u64().unwrap() > 0,
@@ -8648,7 +8648,7 @@ mod vector_read_equivalence {
             // Act
             let indexed = sql(cassie, session, query);
             // Assert
-            assert_eq!(indexed.rows, baseline.rows);
+            assert_eq!(indexed.rows(), baseline.rows());
         });
     }
 
@@ -8663,8 +8663,8 @@ mod vector_read_equivalence {
                 .execute_vector_search("rest_vector_zero", "embedding", "alpha", None, 0, 0)
                 .expect("REST vector search executor");
             // Assert
-            assert_eq!(result.rows, [] as [Vec<cassie::types::Value>; 0]);
-            assert_ne!(result.columns, [] as [cassie::executor::ColumnMeta; 0]);
+            assert_eq!(result.rows(), [] as [Vec<cassie::types::Value>; 0]);
+            assert_ne!(result.columns(), [] as [cassie::executor::ColumnMeta; 0]);
         });
     }
 }

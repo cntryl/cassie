@@ -17,7 +17,7 @@ fn rows(cassie: &Cassie, session: &CassieSession, expected: &[&str]) {
         cassie
             .execute_sql(session, QUERY, vec![])
             .expect("query")
-            .rows,
+            .rows(),
         expected
             .iter()
             .map(|value| vec![Value::String((*value).into())])

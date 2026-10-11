@@ -114,7 +114,7 @@ mod fulltext_index_completeness {
     );
 
         // Assert
-        assert_eq!(result.rows.len(), 96);
+        assert_eq!(result.rows().len(), 96);
         assert!(fallback_count(&cassie, "invalid_persisted_artifact") > before);
         let _ = std::fs::remove_dir_all(path);
     }
@@ -142,7 +142,7 @@ mod fulltext_index_completeness {
     );
 
         // Assert
-        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows().len(), 2);
         assert!(fallback_count(&cassie, "invalid_persisted_artifact") > before);
         let _ = std::fs::remove_dir_all(path);
     }
@@ -177,9 +177,9 @@ mod fulltext_index_completeness {
     );
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert!(fallback_count(&cassie, "missing_candidate_row") > before);
-        assert!(matches!(result.rows[0][0], Value::String(_)));
+        assert!(matches!(result.rows()[0][0], Value::String(_)));
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -500,12 +500,12 @@ mod fulltext_persisted_sql {
             .expect("query exact-case persisted term");
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_eq!(
-            result.rows[0][0],
+            result.rows()[0][0],
             Value::String("The Rust compiler is fast".to_string())
         );
-        assert!(matches!(result.rows[0][1], Value::Float64(score) if score > 0.0));
+        assert!(matches!(result.rows()[0][1], Value::Float64(score) if score > 0.0));
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -560,12 +560,12 @@ mod fulltext_persisted_sql {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
-        assert!(matches!(result.rows[0][0], Value::String(_)));
+        assert_eq!(result.rows().len(), 1);
+        assert!(matches!(result.rows()[0][0], Value::String(_)));
         assert!(
-            matches!(&result.rows[0][2], Value::String(excerpt) if excerpt.contains("<mark>alpha</mark>"))
+            matches!(&result.rows()[0][2], Value::String(excerpt) if excerpt.contains("<mark>alpha</mark>"))
         );
-        assert!(matches!(result.rows[0][3], Value::Float64(score) if score > 0.0));
+        assert!(matches!(result.rows()[0][3], Value::Float64(score) if score > 0.0));
         assert!(
             after["search"]["posting_reads_total"].as_u64().unwrap()
                 > before["search"]["posting_reads_total"].as_u64().unwrap()
@@ -631,7 +631,7 @@ mod fulltext_persisted_sql {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(persisted.rows, baseline.rows);
+        assert_eq!(persisted.rows(), baseline.rows());
         assert!(
             after["search"]["posting_reads_total"].as_u64().unwrap()
                 > before["search"]["posting_reads_total"].as_u64().unwrap()
@@ -704,8 +704,8 @@ mod fulltext_persisted_sql {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][1], Value::String("keep".to_string()));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][1], Value::String("keep".to_string()));
         assert_eq!(
             after["search"]["candidate_row_fetches_total"]
                 .as_u64()
@@ -748,7 +748,7 @@ mod fulltext_persisted_sql {
 
         // Assert
         let ratings = result
-            .rows
+            .rows()
             .iter()
             .map(|row| row[0].clone())
             .collect::<Vec<_>>();
@@ -816,7 +816,7 @@ mod fulltext_persisted_sql {
 
         // Assert
         let mut bodies = result
-            .rows
+            .rows()
             .into_iter()
             .map(|row| row[0].clone())
             .collect::<Vec<_>>();
@@ -869,7 +869,7 @@ mod fulltext_persisted_sql {
                 ],
             )
             .expect("query nullable-filtered postings")
-            .rows
+            .rows()
             .into_iter()
             .map(|row| row[0].clone())
             .collect::<Vec<_>>();
@@ -966,7 +966,7 @@ mod fulltext_persisted_sql {
 
         // Assert
         let mut titles = result
-            .rows
+            .rows()
             .iter()
             .filter_map(|row| row.get(1).and_then(Value::as_str))
             .collect::<Vec<_>>();
@@ -1282,9 +1282,9 @@ mod fulltext_retrieval_corruption {
         .expect("query must use deterministic row fallback");
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_eq!(
-            result.rows[0][0],
+            result.rows()[0][0],
             cassie::types::Value::String("d1".to_string())
         );
         let after = cassie.metrics();
@@ -1391,9 +1391,9 @@ mod integration_sql_fulltext_query {
 .unwrap();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
-        assert!(matches!(result.rows[0][1], Value::Float64(value) if value > 0.0));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("d2".to_string()));
+        assert!(matches!(result.rows()[0][1], Value::Float64(value) if value > 0.0));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -1479,10 +1479,10 @@ mod integration_sql_fulltext_query {
 .unwrap();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("d3".to_string()));
-        assert_eq!(result.rows[0][1], Value::String("third".to_string()));
-        assert!(matches!(result.rows[0][2], Value::Float64(value) if value > 0.0));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("d3".to_string()));
+        assert_eq!(result.rows()[0][1], Value::String("third".to_string()));
+        assert!(matches!(result.rows()[0][2], Value::Float64(value) if value > 0.0));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -1542,7 +1542,7 @@ mod integration_sql_fulltext_query {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::Bool(true), Value::Bool(false)]]
         );
 
@@ -1611,11 +1611,11 @@ mod integration_sql_fulltext_query {
             .unwrap();
 
         // Assert
-        assert_eq!(result.rows.len(), 2);
-        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
-        assert!(matches!(result.rows[0][1], Value::Float64(score) if score > 0.0));
-        assert_eq!(result.rows[1][0], Value::String("d2".to_string()));
-        assert_eq!(result.rows[1][1], Value::Float64(0.0));
+        assert_eq!(result.rows().len(), 2);
+        assert_eq!(result.rows()[0][0], Value::String("d1".to_string()));
+        assert!(matches!(result.rows()[0][1], Value::Float64(score) if score > 0.0));
+        assert_eq!(result.rows()[1][0], Value::String("d2".to_string()));
+        assert_eq!(result.rows()[1][1], Value::Float64(0.0));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -1685,9 +1685,9 @@ mod integration_sql_fulltext_query {
 .unwrap();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
-        assert_eq!(result.rows[0][1], Value::Float64(0.0));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("d2".to_string()));
+        assert_eq!(result.rows()[0][1], Value::Float64(0.0));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -1764,9 +1764,9 @@ mod integration_sql_fulltext_query {
 .unwrap();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
-        assert!(matches!(result.rows[0][1], Value::Float64(value) if value > 0.0));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("d2".to_string()));
+        assert!(matches!(result.rows()[0][1], Value::Float64(value) if value > 0.0));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -1843,8 +1843,8 @@ mod integration_sql_fulltext_query {
 .unwrap();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("d2".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -1903,7 +1903,7 @@ mod integration_sql_fulltext_query {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![vec![Value::String("<mark>alpha</mark> beta".to_string())]]
             );
 
@@ -1973,8 +1973,8 @@ mod integration_sql_fulltext_query {
             index.options.get("stop_words"),
             Some(&"none".to_string())
         );
-        assert_eq!(result.rows[0][0], Value::Bool(true));
-        let Value::String(excerpt) = &result.rows[0][1] else {
+        assert_eq!(result.rows()[0][0], Value::Bool(true));
+        let Value::String(excerpt) = &result.rows()[0][1] else {
             panic!("expected snippet string");
         };
         assert!(excerpt.contains("<mark>the</mark>"));
@@ -2045,9 +2045,9 @@ mod integration_sql_fulltext_query {
             index.options.get("tokenizer"),
             Some(&"whitespace".to_string())
         );
-        assert_eq!(result.rows[0][0], Value::Bool(false));
-        assert_eq!(result.rows[0][1], Value::Bool(true));
-        let Value::String(excerpt) = &result.rows[0][2] else {
+        assert_eq!(result.rows()[0][0], Value::Bool(false));
+        assert_eq!(result.rows()[0][1], Value::Bool(true));
+        let Value::String(excerpt) = &result.rows()[0][2] else {
             panic!("expected snippet string");
         };
         assert!(excerpt.contains("<mark>alpha-beta</mark>"));
@@ -2397,11 +2397,11 @@ mod scored_declared_id {
             .expect("search top-k with row identity");
 
         // Assert
-        assert_eq!(declared.rows[0][0], Value::Int64(7));
+        assert_eq!(declared.rows()[0][0], Value::Int64(7));
         assert!(
-            matches!(&identity.rows[0][0], Value::String(value) if !value.is_empty()),
+            matches!(&identity.rows()[0][0], Value::String(value) if !value.is_empty()),
             "expected the internal identity, got {:?}",
-            identity.rows[0][0]
+            identity.rows()[0][0]
         );
 
         let _ = std::fs::remove_dir_all(path);
@@ -2444,7 +2444,7 @@ mod scored_field_case {
     }
 
     fn scores(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows
+        cassie.execute_sql(session, sql, vec![]).expect(sql).rows()
     }
 
     #[test]
@@ -2547,7 +2547,7 @@ mod scored_field_case {
         );
 
         // Assert
-        let upper = upper.map(|result| result.rows).ok();
+        let upper = upper.map(|result| result.rows()).ok();
         assert_eq!(upper, Some(lower));
         let _ = std::fs::remove_dir_all(path);
     }
@@ -2578,7 +2578,7 @@ mod scored_read_equivalence {
             for tail in ["LIMIT 0", "LIMIT 0 OFFSET 1"] {
                 let result = sql(cassie, session, &format!("SELECT _id,search_score(body,'alpha') AS score FROM search_zero WHERE search(body,'alpha') ORDER BY score DESC {tail}"));
                 // Assert
-                assert!(result.rows.is_empty(), "{tail}");
+                assert!(result.rows().is_empty(), "{tail}");
             }
         });
     }
@@ -2600,7 +2600,7 @@ mod scored_read_equivalence {
             );
             let query = "SELECT body,status,search_score(body,'alpha') AS score FROM partial_search WHERE search(body,'alpha') AND status = 'active'";
             let mut baseline = sql(cassie, session, query);
-            baseline.rows.sort_by_key(|row| format!("{row:?}"));
+            baseline.rows().sort_by_key(|row| format!("{row:?}"));
             sql(
                 cassie,
                 session,
@@ -2608,10 +2608,10 @@ mod scored_read_equivalence {
             );
             // Act
             let mut narrowed = sql(cassie, session, query);
-            narrowed.rows.sort_by_key(|row| format!("{row:?}"));
+            narrowed.rows().sort_by_key(|row| format!("{row:?}"));
             // Assert
-            assert_eq!(baseline.rows.len(), 2);
-            assert_eq!(narrowed.rows, baseline.rows);
+            assert_eq!(baseline.rows().len(), 2);
+            assert_eq!(narrowed.rows(), baseline.rows());
         });
     }
 
@@ -2662,7 +2662,7 @@ mod scored_read_equivalence {
                         let columns = sql(cassie, session, &query("search_columns"));
                         // Assert
                         assert_eq!(
-                            columns.rows, baseline.rows,
+                            columns.rows(), baseline.rows(),
                             "{predicate}: indexed={indexed}, transactional={transactional}"
                         );
                     }
@@ -2690,7 +2690,7 @@ mod scored_read_equivalence {
             );
             let query = "SELECT body,search_score(body,'alpha') AS score FROM canonical_search WHERE search(body,'alpha') AND code = '2024-01-01T00:00:00Z'";
             let mut baseline = sql(cassie, session, query);
-            baseline.rows.sort_by_key(|row| format!("{row:?}"));
+            baseline.rows().sort_by_key(|row| format!("{row:?}"));
             sql(
                 cassie,
                 session,
@@ -2698,10 +2698,10 @@ mod scored_read_equivalence {
             );
             // Act
             let mut narrowed = sql(cassie, session, query);
-            narrowed.rows.sort_by_key(|row| format!("{row:?}"));
+            narrowed.rows().sort_by_key(|row| format!("{row:?}"));
             // Assert
-            assert_eq!(baseline.rows.len(), 2);
-            assert_eq!(narrowed.rows, baseline.rows);
+            assert_eq!(baseline.rows().len(), 2);
+            assert_eq!(narrowed.rows(), baseline.rows());
         });
     }
 }
@@ -2726,7 +2726,7 @@ mod fulltext_analyzer_consistency {
         cassie
             .execute_sql(&session, sql, params)
             .expect("statement should execute")
-            .rows
+            .rows()
     }
 
     fn scored_ids(rows: &[Vec<Value>]) -> Vec<(String, f64)> {

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::builtin::{type_metadata, TypeMetadata};
+
 /// First type OID of the `VECTOR(n)` family: `VECTOR(n)` is this plus `n`.
 /// The range sits above the array OIDs (`34000..44000`) so no vector width
 /// can resolve to an array type.
@@ -81,42 +83,14 @@ impl DataType {
 
     #[must_use]
     pub fn type_oid(&self) -> i64 {
-        const OID_BOOL: i64 = 16;
-        const OID_INT2: i64 = 21;
-        const OID_INT8: i64 = 20;
-        const OID_INT4: i64 = 23;
-        const OID_TEXT: i64 = 25;
-        const OID_BYTEA: i64 = 17;
-        const OID_BPCHAR: i64 = 1042;
-        const OID_VARCHAR: i64 = 1043;
-        const OID_JSON: i64 = 114;
-        const OID_FLOAT8: i64 = 701;
-        const OID_UUID: i64 = 2950;
-        const OID_DATE: i64 = 1082;
-        const OID_TIME: i64 = 1083;
-        const OID_TIMESTAMP: i64 = 1114;
-        const OID_UNKNOWN: i64 = 705;
         const OID_ARRAY_BASE: i64 = 34000;
-
-        match self {
-            Self::Null => OID_UNKNOWN,
-            Self::SmallInt => OID_INT2,
-            Self::Int => OID_INT4,
-            Self::BigInt => OID_INT8,
-            Self::Float => OID_FLOAT8,
-            Self::Boolean => OID_BOOL,
-            Self::Text => OID_TEXT,
-            Self::Char { .. } => OID_BPCHAR,
-            Self::Varchar { .. } => OID_VARCHAR,
-            Self::Uuid => OID_UUID,
-            Self::Bytea => OID_BYTEA,
-            Self::Date => OID_DATE,
-            Self::Time => OID_TIME,
-            Self::Timestamp => OID_TIMESTAMP,
-            Self::Vector(dimensions) => VECTOR_OID_BASE + i64::try_from(*dimensions).unwrap_or(0),
-            Self::Json => OID_JSON,
-            Self::Array(inner) => {
-                let element = match inner.as_ref() {
+        match type_metadata(self) {
+            TypeMetadata::Scalar(metadata) => i64::from(metadata.oid),
+            TypeMetadata::Vector(dimensions) => {
+                VECTOR_OID_BASE + i64::try_from(dimensions).unwrap_or(0)
+            }
+            TypeMetadata::Array(inner) => {
+                let element = match inner {
                     Self::Vector(dimensions) => {
                         LEGACY_VECTOR_ELEMENT_BASE + i64::try_from(*dimensions).unwrap_or(0)
                     }
@@ -129,20 +103,9 @@ impl DataType {
 
     #[must_use]
     pub fn typlen(&self) -> i16 {
-        match self {
-            Self::Null => -2,
-            Self::SmallInt => 2,
-            Self::Int | Self::Date => 4,
-            Self::BigInt | Self::Float | Self::Time | Self::Timestamp => 8,
-            Self::Boolean => 1,
-            Self::Char { .. }
-            | Self::Varchar { .. }
-            | Self::Text
-            | Self::Bytea
-            | Self::Vector(_)
-            | Self::Json
-            | Self::Array(_) => -1,
-            Self::Uuid => 16,
+        match type_metadata(self) {
+            TypeMetadata::Scalar(metadata) => metadata.typlen,
+            TypeMetadata::Vector(_) | TypeMetadata::Array(_) => -1,
         }
     }
 

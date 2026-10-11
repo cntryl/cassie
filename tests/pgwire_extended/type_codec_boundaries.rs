@@ -8,13 +8,18 @@ use super::support_type_metadata_contract as fixture;
 fn should_reject_invalid_fixed_scalar_binary_widths() {
     // Arrange
     let mut cycles = Vec::new();
+    let mut expected_states = Vec::new();
     for case in matrix::SCALAR_CASES.iter().filter(|case| case.typlen > 0) {
         let mut short = case.input_binary.to_vec();
         short.pop().expect("fixed scalar literal is nonempty");
         let mut long = case.input_binary.to_vec();
         long.push(0);
         let sql = format!("SELECT CAST($1 AS {}) AS v", case.sql_type);
-        for body in [short, long] {
+        for (body, state) in [
+            (short, "08P01"),
+            (long, if case.oid == 16 { "22P03" } else { "08P01" }),
+        ] {
+            expected_states.push(state);
             cycles.push(fixture::execute_cycle(
                 &sql,
                 Some((case.oid, 1, Some(&body))),
@@ -29,8 +34,8 @@ fn should_reject_invalid_fixed_scalar_binary_widths() {
 
     // Assert
     assert_eq!(batches.len(), 18);
-    for frames in batches {
-        assert_eq!(wire::error_code(&frames).as_deref(), Some("08P01"));
+    for (frames, state) in batches.into_iter().zip(expected_states) {
+        assert_eq!(wire::error_code(&frames).as_deref(), Some(state));
         assert_eq!(fixture::data_row_payloads(&frames), Vec::<Vec<u8>>::new());
         assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'T').count(), 0);
         assert_eq!(
@@ -315,37 +320,6 @@ fn should_round_trip_finite_time_binary_endpoints() {
         fixture::assert_single_column_descriptors(frames, (1083, 8, -1), format, described);
         assert_eq!(fixture::data_row_payloads(frames), vec![expected]);
     }
-}
-
-#[test]
-fn should_reject_noncanonical_boolean_binary_byte() {
-    // Arrange
-    let cycles = vec![fixture::execute_cycle(
-        "SELECT CAST($1 AS BOOLEAN) AS v",
-        Some((16, 1, Some(&[2]))),
-        0,
-        false,
-    )];
-
-    // Act
-    let batches = fixture::run_cycles("type-boolean-binary-byte-error", &[], cycles);
-
-    // Assert
-    assert_eq!(batches.len(), 1);
-    let frames = &batches[0];
-    assert_eq!(wire::error_code(frames).as_deref(), Some("08P01"));
-    assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
-    assert_eq!(
-        frames
-            .iter()
-            .filter(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C'))
-            .count(),
-        0
-    );
-    assert_eq!(
-        frames.last().map(|frame| frame.1.as_slice()),
-        Some(&b"I"[..])
-    );
 }
 
 #[test]

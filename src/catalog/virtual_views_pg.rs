@@ -524,46 +524,22 @@ fn default_expression(value: &serde_json::Value) -> String {
 
 fn builtin_type_rows() -> Vec<VirtualRow> {
     let namespace = "pg_catalog";
-    let mut rows = vec![
-        type_row(&DataType::Null, namespace),
-        type_row(&DataType::Boolean, namespace),
-        type_row(&DataType::SmallInt, namespace),
-        type_row(&DataType::Int, namespace),
-        type_row(&DataType::BigInt, namespace),
-        type_row(&DataType::Float, namespace),
-        type_row(&DataType::Text, namespace),
-        type_row(&DataType::Char { length: None }, namespace),
-        type_row(&DataType::Varchar { length: None }, namespace),
-        type_row(&DataType::Bytea, namespace),
-        type_row(&DataType::Uuid, namespace),
-        type_row(&DataType::Date, namespace),
-        type_row(&DataType::Time, namespace),
-        type_row(&DataType::Timestamp, namespace),
-        type_row(&DataType::Json, namespace),
-    ];
-
-    rows.extend([
-        type_row(&DataType::Array(Box::new(DataType::Boolean)), namespace),
-        type_row(&DataType::Array(Box::new(DataType::SmallInt)), namespace),
-        type_row(&DataType::Array(Box::new(DataType::Int)), namespace),
-        type_row(&DataType::Array(Box::new(DataType::BigInt)), namespace),
-        type_row(&DataType::Array(Box::new(DataType::Float)), namespace),
-        type_row(&DataType::Array(Box::new(DataType::Text)), namespace),
-        type_row(
-            &DataType::Array(Box::new(DataType::Char { length: None })),
-            namespace,
-        ),
-        type_row(
-            &DataType::Array(Box::new(DataType::Varchar { length: None })),
-            namespace,
-        ),
-        type_row(&DataType::Array(Box::new(DataType::Bytea)), namespace),
-        type_row(&DataType::Array(Box::new(DataType::Uuid)), namespace),
-        type_row(&DataType::Array(Box::new(DataType::Json)), namespace),
-        type_row(&DataType::Array(Box::new(DataType::Date)), namespace),
-        type_row(&DataType::Array(Box::new(DataType::Time)), namespace),
-        type_row(&DataType::Array(Box::new(DataType::Timestamp)), namespace),
-    ]);
+    let types = crate::types::builtin::BUILTIN_TYPES;
+    let mut rows: Vec<_> = types
+        .iter()
+        .map(|metadata| type_row(&metadata.kind.data_type(), namespace))
+        .collect();
+    rows.extend(
+        types
+            .iter()
+            .filter(|metadata| metadata.kind != crate::types::builtin::BuiltinKind::Unknown)
+            .map(|metadata| {
+                type_row(
+                    &DataType::Array(Box::new(metadata.kind.data_type())),
+                    namespace,
+                )
+            }),
+    );
 
     rows
 }

@@ -1,4 +1,7 @@
 use crate::executor::ColumnMeta;
+use crate::types::builtin::{
+    builtin_for_oid, BuiltinKind as BinaryCodecKind, BuiltinType as BinaryCodec,
+};
 use crate::types::schema::vector_dimensions_for_oid;
 use crate::types::Value;
 use std::{io, str};
@@ -9,126 +12,10 @@ mod vector;
 
 use vector::{decode_vector, encode_vector};
 
-const OID_BOOL: i64 = 16;
-const OID_BYTEA: i64 = 17;
-const OID_INT8: i64 = 20;
-const OID_INT2: i64 = 21;
-const OID_INT4: i64 = 23;
-const OID_TEXT: i64 = 25;
-const OID_JSON: i64 = 114;
-const OID_FLOAT8: i64 = 701;
-const OID_DATE: i64 = 1082;
-const OID_TIME: i64 = 1083;
-const OID_TIMESTAMP: i64 = 1114;
-const OID_BPCHAR: i64 = 1042;
-const OID_VARCHAR: i64 = 1043;
-const OID_UUID: i64 = 2950;
-const OID_UNKNOWN: i64 = 705;
 const OID_ARRAY_BASE: i64 = 34_000;
 const OID_ARRAY_LIMIT: i64 = 44_000;
 const POSTGRES_EPOCH_JULIAN_DAY: i32 = 2_451_545;
 const MICROSECONDS_PER_DAY: i64 = 86_400_000_000;
-
-#[derive(Debug, Clone, Copy)]
-enum BinaryCodecKind {
-    Bool,
-    Bytea,
-    Int2,
-    Int4,
-    Int8,
-    Float8,
-    Text,
-    Json,
-    Uuid,
-    Date,
-    Time,
-    Timestamp,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct BinaryCodec {
-    oid: i64,
-    name: &'static str,
-    kind: BinaryCodecKind,
-}
-
-const BINARY_CODEC_REGISTRY: &[BinaryCodec] = &[
-    BinaryCodec {
-        oid: OID_BOOL,
-        name: "bool",
-        kind: BinaryCodecKind::Bool,
-    },
-    BinaryCodec {
-        oid: OID_BYTEA,
-        name: "bytea",
-        kind: BinaryCodecKind::Bytea,
-    },
-    BinaryCodec {
-        oid: OID_INT8,
-        name: "int8",
-        kind: BinaryCodecKind::Int8,
-    },
-    BinaryCodec {
-        oid: OID_INT2,
-        name: "int2",
-        kind: BinaryCodecKind::Int2,
-    },
-    BinaryCodec {
-        oid: OID_INT4,
-        name: "int4",
-        kind: BinaryCodecKind::Int4,
-    },
-    BinaryCodec {
-        oid: OID_TEXT,
-        name: "text",
-        kind: BinaryCodecKind::Text,
-    },
-    BinaryCodec {
-        oid: OID_JSON,
-        name: "json",
-        kind: BinaryCodecKind::Json,
-    },
-    BinaryCodec {
-        oid: OID_FLOAT8,
-        name: "float8",
-        kind: BinaryCodecKind::Float8,
-    },
-    BinaryCodec {
-        oid: OID_DATE,
-        name: "date",
-        kind: BinaryCodecKind::Date,
-    },
-    BinaryCodec {
-        oid: OID_TIME,
-        name: "time",
-        kind: BinaryCodecKind::Time,
-    },
-    BinaryCodec {
-        oid: OID_TIMESTAMP,
-        name: "timestamp",
-        kind: BinaryCodecKind::Timestamp,
-    },
-    BinaryCodec {
-        oid: OID_BPCHAR,
-        name: "bpchar",
-        kind: BinaryCodecKind::Text,
-    },
-    BinaryCodec {
-        oid: OID_VARCHAR,
-        name: "varchar",
-        kind: BinaryCodecKind::Text,
-    },
-    BinaryCodec {
-        oid: OID_UUID,
-        name: "uuid",
-        kind: BinaryCodecKind::Uuid,
-    },
-    BinaryCodec {
-        oid: OID_UNKNOWN,
-        name: "unknown",
-        kind: BinaryCodecKind::Text,
-    },
-];
 
 /// Renders `value` with PostgreSQL's text output function for the column's
 /// declared `type_oid`.
@@ -136,7 +23,9 @@ pub(super) fn value_to_text(value: Value, type_oid: i64) -> String {
     match value {
         Value::Null => "NULL".to_string(),
         // boolout emits a single `t`/`f`; a JSON column keeps JSON's spelling.
-        Value::Bool(v) if type_oid == OID_BOOL => if v { "t" } else { "f" }.to_string(),
+        Value::Bool(v) if type_oid == i64::from(BinaryCodecKind::Bool.metadata().oid) => {
+            if v { "t" } else { "f" }.to_string()
+        }
         Value::Bool(v) => v.to_string(),
         Value::Int64(v) => v.to_string(),
         Value::Float64(v) => float8_text(v),
@@ -190,7 +79,10 @@ pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>
         BinaryCodecKind::Int4 => encode_integer(value, codec.name, encode_i32_binary),
         BinaryCodecKind::Int8 => encode_int8(value, codec.name),
         BinaryCodecKind::Float8 => encode_float8(value, codec.name),
-        BinaryCodecKind::Text => Ok(value_to_text(value, type_oid).into_bytes()),
+        BinaryCodecKind::Text
+        | BinaryCodecKind::Bpchar
+        | BinaryCodecKind::Varchar
+        | BinaryCodecKind::Unknown => Ok(value_to_text(value, type_oid).into_bytes()),
         // Binary json is the document's text. Reads unwrap JSON scalars to
         // plain values, so a number or boolean is written in JSON spelling.
         BinaryCodecKind::Json => match value {
@@ -226,11 +118,10 @@ pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>
     }
 }
 
-fn binary_codec_for_oid(type_oid: i64) -> io::Result<BinaryCodec> {
-    BINARY_CODEC_REGISTRY
-        .iter()
-        .find(|codec| codec.oid == type_oid)
-        .copied()
+fn binary_codec_for_oid(type_oid: i64) -> io::Result<&'static BinaryCodec> {
+    u32::try_from(type_oid)
+        .ok()
+        .and_then(builtin_for_oid)
         .ok_or_else(|| unsupported_codec(type_oid))
 }
 
@@ -281,13 +172,14 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
     }
     let codec = binary_codec_for_oid(type_oid)?;
     match codec.kind {
-        BinaryCodecKind::Bool => {
-            fixed_bytes::<1>(parameter, codec.name).and_then(|bytes| match bytes[0] {
-                0 => Ok(Value::Bool(false)),
-                1 => Ok(Value::Bool(true)),
-                _ => Err(invalid_data(codec.name)),
-            })
-        }
+        BinaryCodecKind::Bool => match parameter {
+            [byte] => Ok(Value::Bool(*byte != 0)),
+            [] => Err(invalid_data(codec.name)),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                ExcessBinaryData(codec.name),
+            )),
+        },
         BinaryCodecKind::Bytea => Ok(Value::String(hex_bytea(parameter))),
         BinaryCodecKind::Int2 => fixed_bytes::<2>(parameter, codec.name)
             .map(i16::from_be_bytes)
@@ -303,7 +195,10 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         BinaryCodecKind::Float8 => fixed_bytes::<8>(parameter, codec.name)
             .map(f64::from_be_bytes)
             .map(Value::Float64),
-        BinaryCodecKind::Text => std::str::from_utf8(parameter)
+        BinaryCodecKind::Text
+        | BinaryCodecKind::Bpchar
+        | BinaryCodecKind::Varchar
+        | BinaryCodecKind::Unknown => std::str::from_utf8(parameter)
             .map(|value| Value::String(value.to_string()))
             .map_err(|_| invalid_data(codec.name)),
         BinaryCodecKind::Json => {
@@ -353,7 +248,7 @@ fn encode_array(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
             encoded.extend_from_slice(&(-1_i32).to_be_bytes());
             continue;
         }
-        let value = if element_oid == OID_JSON {
+        let value = if element_oid == i64::from(BinaryCodecKind::Json.metadata().oid) {
             Value::Json(value)
         } else {
             json_to_value(value, codec.name)?
@@ -777,4 +672,14 @@ pub(super) fn decode_hex_digit(byte: u8) -> Option<u8> {
         b'A'..=b'F' => Some(byte - b'A' + 10),
         _ => None,
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("incorrect binary data format for {0}")]
+struct ExcessBinaryData(&'static str);
+
+pub(super) fn is_excess_binary_data(error: &io::Error) -> bool {
+    error
+        .get_ref()
+        .is_some_and(|source| source.is::<ExcessBinaryData>())
 }

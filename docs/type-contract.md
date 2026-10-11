@@ -4,6 +4,15 @@ This is the selected current-type contract for [#752](https://github.com/cntryl/
 
 ## Metadata and input boundaries
 
+The private `src/types/builtin.rs` registry owns the fifteen existing scalar
+identities, lengths and codec kinds. Schema/executor descriptors, reverse
+binder/prepared lookup, pgwire text/binary codecs and builtin catalog enumeration
+consume it. Column modifiers, legacy vector/array identities, numeric text
+adapters and existing catalog names/categories/by-value flags retain their
+current adapters. This is a staged [#928](https://github.com/cntryl/cassie/issues/928)
+increment; full named identities, coercions, catalog publication and the approved
+v3 export/recreate/reimport transition remain under #904/#793.
+
 | Topic | Contract |
 | --- | --- |
 | Unknown carrier | Result and catalog descriptors use OID 705, typlen −2 and typmod −1. Cassie's logical `null` name is a metadata alias. SQL NULL Bind/DataRow field length remains −1. The descriptor convention does not introduce C-string storage. |
@@ -115,7 +124,7 @@ Text and binary support below describe the selected finite current profile. Nume
 | Int | trim + exact i64 parse + i32 range; decimal output | exact 4-byte network-endian signed integer |
 | BigInt | trim + exact i64 parse; decimal output | exact 8-byte network-endian signed integer; float-backed output requires finite integral in-range value |
 | Float | OID 700/701 -> f64; OID 1700 -> i64 if integral/in-range otherwise f64; text output Infinity/-Infinity/NaN where query values exist | OID 701: exact 8-byte network-endian f64; inexact i64-to-f64 output rejected; OID 700 and 1700 unsupported |
-| Boolean | PostgreSQL-style accepted vocabulary through shared boolean parser; result t/f | exact one-byte 0 or 1 only |
+| Boolean | PostgreSQL-style accepted vocabulary through shared boolean parser; result t/f | receive exactly one byte, nonzero means true; send canonical 0/1; empty input 08P01, excess bytes 22P03 |
 | Text | raw UTF-8 | raw UTF-8, invalid UTF-8 rejected |
 | Char | raw input -> write validation; raw unpadded output | UTF-8 text payload |
 | Varchar | raw input -> write validation; raw output | UTF-8 text payload |
@@ -256,7 +265,7 @@ that later typed kernels or every operator/type combination have shipped.
 | --- | --- |
 | TYPE-001 | `type_catalog_discovery`, `type_unknown_metadata`, `type_scalar_matrix`, `type_scalar_array_matrix`, `type_declared_null_matrix`, `type_output_identifier_identity` and `type_output_source_seams`: independent names/OIDs/lengths/modifiers and exact rows across the 17 logical variants and 29 codec families. Catalog VECTOR membership depends on the current schema. Wider catalog and relational qualification remains #761/#776. |
 | TYPE-002 | Scalar/array empty and NULL matrices, `type_json_array_nulls`, `type_json_array_copy` and existing `json_writes` owners: field length −1, literal text NULL, document null, storage and restart. Known direct document-null ARRAY(JSON) elements have the selected 0A000 exclusion. |
-| TYPE-003 | `type_codec_boundaries`, scalar matrix and near-code exact-float8 rejection owners: integer endpoints, integers beyond 2^53, literal network bytes, scalar widths and Boolean byte validation. Existing integer SUM/arithmetic owners remain part of the full suite. No exact-decimal or FLOAT4 result type. |
+| TYPE-003 | `type_codec_boundaries`, `boolean_binary`, scalar matrix and near-code exact-float8 rejection owners: integer endpoints, integers beyond 2^53, literal network bytes, scalar widths and all 256 Boolean receive bytes. Boolean sends canonical 0/1; excess input is 22P03 and insufficient input is 08P01. Named rebinding, inferred parameters, zero-row Bind, savepoint recovery, indexed predicates, legacy arrays and restart have focused witnesses. Existing integer SUM/arithmetic owners remain part of the full suite. No exact-decimal or FLOAT4 result type. |
 | TYPE-005 | `type_numeric_metadata` and source-seam owners: original 700/1700 OIDs, NULL origin, fixed/constrained outputs, required casts, cache validation, recursive output positions and existing failed-transaction error priority. Unsupported binary adapters remain explicit. |
 | TYPE-006 | Scalar/array temporal packets and `type_codec_boundaries`: pre-2000 dates, negative timestamp microseconds, fractional units, TIME endpoints and range rejection. Existing temporal text/binary owners supply the remaining finite parser cases. BC/infinity/24:00 extensions remain excluded. |
 | TYPE-007 | Temporal wire/storage matrices and existing canonical-instant comparison/order owners retain UTC timestamp semantics and the documented timezone deviation. Later cross-operator and typed-kernel matrices remain #776 and the dependent operator owners. |
@@ -266,6 +275,8 @@ that later typed kernels or every operator/type combination have shipped.
 
 The scalar, scalar-array and original declared-OID NULL matrices contain 548
 finite exchanges: 150, 224 and 174 respectively. The additional integer/TIME/
-Boolean/array-length boundary owners contain 51 exchanges. Exchange counts
+array-length boundary owners contain 50 exchanges. `boolean_binary` adds 548
+focused wire exchanges, including both output formats for every receive byte.
+Exchange counts
 describe fixture coverage and are separate from test counts or proof of a
 complete SQL/operator/physical-path cross-product.

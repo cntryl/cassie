@@ -48,6 +48,19 @@ declared ordering compares sequences. Multiple simple-query results are retained
 COPY streaming and further lifecycle adapters remain pending and cannot pass by
 being unavailable.
 
+[Boolean cells](../tests/corpus/postgresql18/boolean.json) add 278 forms over
+556 extended text/binary paths to the default runner. The #928 subset comprises
+552 paths: all 256 binary receive bytes, NULL/width controls, inferred/repeated
+parameters, empty results, text inputs and selected DML/index/transaction-overlay
+queries. Four ordinary required cells retain the confirmed #904 projected-before-
+inferred parameter discrepancy; they remain failed obligations. No failure is
+filtered from the runner or counted as supported. The separate Rust
+`boolean_binary` owner checks named statement reuse, Sync recovery, legacy-array
+normalization and savepoint/restart behavior. Legacy bool-array OID 34016 is
+distinct from PostgreSQL 1000; those adapted witnesses cannot establish common
+array descriptor parity. Failed-transaction SQLSTATE qualification remains
+under #780/#848, including the recorded 25P02 versus 22000 discrepancy.
+
 Column descriptors retain authoritative raw name bytes as `name_hex`. `name`
 is a UTF-8 display value, or null when those bytes cannot be displayed as UTF-8;
 it never replaces the byte identity. This preserves legal SQL_ASCII and other

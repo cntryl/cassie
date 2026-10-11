@@ -9,22 +9,13 @@ use std::str;
 
 use super::super::codecs::{decode_bytea, hex_bytea};
 use super::ExtendedQueryError;
+use crate::types::builtin::{builtin_for_oid, BuiltinKind};
 use crate::types::temporal::{canonical_date, canonical_time, canonical_timestamp};
 use crate::types::{DataType, Value};
 
-const OID_BOOL: i32 = 16;
-const OID_BYTEA: i32 = 17;
-const OID_INT8: i32 = 20;
-const OID_INT2: i32 = 21;
-const OID_INT4: i32 = 23;
-const OID_JSON: i32 = 114;
+// Text-only historical numeric adapters; their complete types/codecs remain staged.
 const OID_FLOAT4: i32 = 700;
-const OID_FLOAT8: i32 = 701;
-const OID_DATE: i32 = 1082;
-const OID_TIME: i32 = 1083;
-const OID_TIMESTAMP: i32 = 1114;
 const OID_NUMERIC: i32 = 1700;
-const OID_UUID: i32 = 2950;
 
 pub(super) fn decode_text_parameter(
     parameter: &[u8],
@@ -32,27 +23,36 @@ pub(super) fn decode_text_parameter(
 ) -> Result<Value, ExtendedQueryError> {
     let text = str::from_utf8(parameter)
         .map_err(|_| ExtendedQueryError::protocol("bind parameter is not valid UTF-8"))?;
-    match oid {
-        OID_BOOL => parse_bool(text).map(Value::Bool),
-        OID_INT2 => parse_integer(text, i64::from(i16::MIN), i64::from(i16::MAX)),
-        OID_INT4 => parse_integer(text, i64::from(i32::MIN), i64::from(i32::MAX)),
-        OID_INT8 => parse_integer(text, i64::MIN, i64::MAX),
-        OID_FLOAT4 | OID_FLOAT8 => parse_float(text).map(Value::Float64),
-        OID_NUMERIC => parse_numeric(text),
-        OID_JSON => serde_json::from_str(text)
+    let kind = u32::try_from(oid)
+        .ok()
+        .and_then(builtin_for_oid)
+        .map(|metadata| metadata.kind);
+    match kind {
+        Some(BuiltinKind::Bool) => parse_bool(text).map(Value::Bool),
+        Some(BuiltinKind::Int2) => parse_integer(text, i64::from(i16::MIN), i64::from(i16::MAX)),
+        Some(BuiltinKind::Int4) => parse_integer(text, i64::from(i32::MIN), i64::from(i32::MAX)),
+        Some(BuiltinKind::Int8) => parse_integer(text, i64::MIN, i64::MAX),
+        Some(BuiltinKind::Float8) => parse_float(text).map(Value::Float64),
+        _ if oid == OID_NUMERIC => parse_numeric(text),
+        _ if oid == OID_FLOAT4 => parse_float(text).map(Value::Float64),
+        Some(BuiltinKind::Json) => serde_json::from_str(text)
             .map(Value::Json)
             .map_err(|_| ExtendedQueryError::protocol("invalid JSON bind parameter")),
-        OID_DATE => canonical_text(text, canonical_date, "invalid date bind parameter"),
-        OID_TIME => canonical_text(text, canonical_time, "invalid time bind parameter"),
-        OID_TIMESTAMP => canonical_text(
+        Some(BuiltinKind::Date) => {
+            canonical_text(text, canonical_date, "invalid date bind parameter")
+        }
+        Some(BuiltinKind::Time) => {
+            canonical_text(text, canonical_time, "invalid time bind parameter")
+        }
+        Some(BuiltinKind::Timestamp) => canonical_text(
             text,
             canonical_timestamp,
             "invalid timestamp bind parameter",
         ),
-        OID_UUID => uuid::Uuid::parse_str(text.trim())
+        Some(BuiltinKind::Uuid) => uuid::Uuid::parse_str(text.trim())
             .map(|uuid| Value::String(uuid.to_string()))
             .map_err(|_| ExtendedQueryError::protocol("invalid uuid bind parameter")),
-        OID_BYTEA => decode_bytea(text)
+        Some(BuiltinKind::Bytea) => decode_bytea(text)
             .map(|bytes| Value::String(hex_bytea(&bytes)))
             .map_err(|_| ExtendedQueryError::protocol("invalid bytea bind parameter")),
         _ => match crate::sql::binder::parameter_data_type_for_oid(oid) {

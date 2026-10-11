@@ -70,6 +70,9 @@ mod support_type_declared_null_matrix;
 #[path = "pgwire_extended/boolean_contexts.rs"]
 mod pgwire_boolean_contexts;
 
+#[path = "pgwire_extended/boolean_binary.rs"]
+mod pgwire_boolean_binary;
+
 #[path = "pgwire_extended/type_numeric_metadata.rs"]
 mod pgwire_type_numeric_metadata;
 #[path = "pgwire_extended/type_output_source_seams.rs"]

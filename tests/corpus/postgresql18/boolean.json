@@ -1,0 +1,5019 @@
+[
+  {
+    "id": "boolean:byte-000",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "00"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-001",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "01"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-002",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "02"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-003",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "03"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-004",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "04"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-005",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "05"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-006",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "06"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-007",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "07"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-008",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "08"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-009",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "09"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-010",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "0a"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-011",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "0b"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-012",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "0c"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-013",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "0d"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-014",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "0e"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-015",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "0f"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-016",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "10"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-017",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "11"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-018",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "12"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-019",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "13"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-020",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "14"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-021",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "15"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-022",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "16"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-023",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "17"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-024",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "18"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-025",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "19"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-026",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "1a"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-027",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "1b"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-028",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "1c"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-029",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "1d"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-030",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "1e"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-031",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "1f"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-032",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "20"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-033",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "21"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-034",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "22"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-035",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "23"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-036",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "24"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-037",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "25"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-038",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "26"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-039",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "27"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-040",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "28"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-041",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "29"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-042",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "2a"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-043",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "2b"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-044",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "2c"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-045",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "2d"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-046",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "2e"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-047",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "2f"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-048",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "30"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-049",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "31"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-050",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "32"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-051",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "33"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-052",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "34"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-053",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "35"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-054",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "36"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-055",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "37"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-056",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "38"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-057",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "39"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-058",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "3a"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-059",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "3b"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-060",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "3c"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-061",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "3d"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-062",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "3e"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-063",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "3f"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-064",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "40"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-065",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "41"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-066",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "42"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-067",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "43"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-068",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "44"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-069",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "45"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-070",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "46"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-071",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "47"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-072",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "48"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-073",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "49"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-074",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "4a"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-075",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "4b"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-076",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "4c"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-077",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "4d"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-078",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "4e"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-079",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "4f"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-080",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "50"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-081",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "51"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-082",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "52"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-083",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "53"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-084",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "54"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-085",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "55"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-086",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "56"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-087",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "57"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-088",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "58"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-089",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "59"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-090",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "5a"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-091",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "5b"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-092",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "5c"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-093",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "5d"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-094",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "5e"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-095",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "5f"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-096",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "60"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-097",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "61"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-098",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "62"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-099",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "63"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-100",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "64"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-101",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "65"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-102",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "66"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-103",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "67"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-104",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "68"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-105",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "69"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-106",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "6a"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-107",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "6b"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-108",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "6c"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-109",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "6d"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-110",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "6e"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-111",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "6f"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-112",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "70"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-113",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "71"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-114",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "72"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-115",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "73"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-116",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "74"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-117",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "75"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-118",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "76"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-119",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "77"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-120",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "78"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-121",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "79"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-122",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "7a"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-123",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "7b"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-124",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "7c"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-125",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "7d"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-126",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "7e"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-127",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "7f"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-128",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-129",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "81"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-130",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "82"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-131",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "83"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-132",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "84"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-133",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "85"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-134",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "86"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-135",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "87"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-136",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "88"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-137",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "89"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-138",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "8a"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-139",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "8b"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-140",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "8c"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-141",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "8d"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-142",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "8e"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-143",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "8f"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-144",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "90"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-145",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "91"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-146",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "92"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-147",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "93"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-148",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "94"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-149",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "95"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-150",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "96"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-151",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "97"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-152",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "98"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-153",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "99"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-154",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "9a"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-155",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "9b"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-156",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "9c"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-157",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "9d"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-158",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "9e"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-159",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "9f"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-160",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "a0"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-161",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "a1"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-162",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "a2"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-163",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "a3"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-164",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "a4"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-165",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "a5"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-166",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "a6"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-167",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "a7"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-168",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "a8"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-169",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "a9"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-170",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "aa"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-171",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ab"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-172",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ac"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-173",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ad"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-174",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ae"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-175",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "af"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-176",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "b0"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-177",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "b1"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-178",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "b2"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-179",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "b3"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-180",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "b4"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-181",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "b5"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-182",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "b6"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-183",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "b7"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-184",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "b8"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-185",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "b9"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-186",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ba"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-187",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "bb"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-188",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "bc"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-189",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "bd"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-190",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "be"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-191",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "bf"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-192",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "c0"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-193",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "c1"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-194",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "c2"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-195",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "c3"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-196",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "c4"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-197",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "c5"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-198",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "c6"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-199",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "c7"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-200",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "c8"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-201",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "c9"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-202",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ca"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-203",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "cb"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-204",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "cc"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-205",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "cd"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-206",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ce"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-207",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "cf"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-208",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "d0"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-209",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "d1"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-210",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "d2"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-211",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "d3"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-212",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "d4"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-213",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "d5"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-214",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "d6"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-215",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "d7"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-216",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "d8"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-217",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "d9"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-218",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "da"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-219",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "db"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-220",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "dc"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-221",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "dd"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-222",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "de"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-223",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "df"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-224",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "e0"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-225",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "e1"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-226",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "e2"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-227",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "e3"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-228",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "e4"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-229",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "e5"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-230",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "e6"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-231",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "e7"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-232",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "e8"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-233",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "e9"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-234",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ea"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-235",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "eb"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-236",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ec"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-237",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ed"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-238",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ee"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-239",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ef"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-240",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "f0"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-241",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "f1"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-242",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "f2"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-243",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "f3"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-244",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "f4"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-245",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "f5"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-246",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "f6"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-247",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "f7"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-248",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "f8"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-249",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "f9"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-250",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "fa"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-251",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "fb"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-252",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "fc"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-253",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "fd"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-254",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "fe"
+      }
+    ]
+  },
+  {
+    "id": "boolean:byte-255",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ff"
+      }
+    ]
+  },
+  {
+    "id": "boolean:null",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": null
+      }
+    ]
+  },
+  {
+    "id": "boolean:short",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "id": "boolean:excess-zero",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "0000"
+      }
+    ]
+  },
+  {
+    "id": "boolean:excess-true",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ff00"
+      }
+    ]
+  },
+  {
+    "id": "boolean:inferred-cast-0",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT CAST($1 AS BOOLEAN) AS flag WHERE $1",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 0,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:inferred-not-0",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT NOT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 0,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:projected-inference-gap-0",
+    "owner": 904,
+    "setup": [],
+    "sql": "SELECT $1 AS flag WHERE $1",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 0,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:inferred-cast-705",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT CAST($1 AS BOOLEAN) AS flag WHERE $1",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 705,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:inferred-not-705",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT NOT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 705,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:projected-inference-gap-705",
+    "owner": 904,
+    "setup": [],
+    "sql": "SELECT $1 AS flag WHERE $1",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 705,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:no-rows",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag LIMIT 0",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:filtered-rows",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag WHERE FALSE",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:excess-no-rows",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag LIMIT 0",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "0001"
+      }
+    ]
+  },
+  {
+    "id": "boolean:repeated",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT NOT $1 AS negated, $1 OR FALSE AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:text-true",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 0,
+        "value": "5965"
+      }
+    ]
+  },
+  {
+    "id": "boolean:text-false",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 0,
+        "value": "6f66"
+      }
+    ]
+  },
+  {
+    "id": "boolean:text-zero",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 0,
+        "value": "30"
+      }
+    ]
+  },
+  {
+    "id": "boolean:text-one",
+    "owner": 928,
+    "setup": [],
+    "sql": "SELECT $1 AS flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 0,
+        "value": "31"
+      }
+    ]
+  },
+  {
+    "id": "boolean:insert",
+    "owner": 928,
+    "setup": [
+      "CREATE TABLE {fixture}_bool(id INT PRIMARY KEY, flag BOOLEAN)"
+    ],
+    "sql": "INSERT INTO {fixture}_bool(id,flag) VALUES(1,$1) RETURNING flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ff"
+      }
+    ]
+  },
+  {
+    "id": "boolean:update",
+    "owner": 928,
+    "setup": [
+      "CREATE TABLE {fixture}_bool(id INT PRIMARY KEY, flag BOOLEAN)",
+      "INSERT INTO {fixture}_bool VALUES(1,FALSE)"
+    ],
+    "sql": "UPDATE {fixture}_bool SET flag=$1 WHERE id=1 RETURNING flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:indexed",
+    "owner": 928,
+    "setup": [
+      "CREATE TABLE {fixture}_bool(id INT PRIMARY KEY, flag BOOLEAN)",
+      "INSERT INTO {fixture}_bool VALUES(1,TRUE),(2,FALSE)",
+      "CREATE INDEX {fixture}_flag_idx ON {fixture}_bool(flag)"
+    ],
+    "sql": "SELECT flag FROM {fixture}_bool WHERE flag=$1 ORDER BY id",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "80"
+      }
+    ]
+  },
+  {
+    "id": "boolean:overlay",
+    "owner": 928,
+    "setup": [
+      "CREATE TABLE {fixture}_bool(id INT PRIMARY KEY, flag BOOLEAN)",
+      "BEGIN",
+      "INSERT INTO {fixture}_bool VALUES(1,FALSE)"
+    ],
+    "sql": "UPDATE {fixture}_bool SET flag=$1 WHERE id=1 RETURNING flag",
+    "ordered": true,
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ],
+    "parameters": [
+      {
+        "oid": 16,
+        "format": 1,
+        "value": "ff"
+      }
+    ]
+  }
+]

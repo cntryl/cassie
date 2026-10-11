@@ -64,10 +64,12 @@ mod tests {
         let path =
             std::env::temp_dir().join(format!("cassie-retrieval-cleanup-{}", uuid::Uuid::new_v4()));
         std::fs::write(&path, b"file instead of directory").expect("create cleanup failure");
-        let directory = RetrievalDirectory::new(path.to_string_lossy().into_owned());
 
         // Act
-        let outcome = std::panic::catch_unwind(|| drop(directory));
+        let outcome = std::panic::catch_unwind(|| {
+            let directory = RetrievalDirectory::new(path.to_string_lossy().into_owned());
+            drop(directory);
+        });
 
         // Assert
         assert!(outcome.is_err());

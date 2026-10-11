@@ -15,10 +15,7 @@ fn should_reject_invalid_fixed_scalar_binary_widths() {
         let mut long = case.input_binary.to_vec();
         long.push(0);
         let sql = format!("SELECT CAST($1 AS {}) AS v", case.sql_type);
-        for (body, state) in [
-            (short, "08P01"),
-            (long, if case.oid == 16 { "22P03" } else { "08P01" }),
-        ] {
+        for (body, state) in [(short, "08P01"), (long, "22P03")] {
             expected_states.push(state);
             cycles.push(fixture::execute_cycle(
                 &sql,
@@ -48,7 +45,8 @@ fn should_reject_invalid_fixed_scalar_binary_widths() {
 #[test]
 fn should_reject_out_of_range_temporal_binary_parameters() {
     // Arrange
-    // Invalid finite endpoints, not a newly selected infinity/BC codec.
+    // Current adapter admission guards, including unsupported PostgreSQL-valid
+    // infinity/24:00 endpoints. These are not passing PostgreSQL cells (#814).
     let cases: [(i32, &[u8]); 6] = [
         (1082, &[128, 0, 0, 0]),
         (1082, &[127, 255, 255, 255]),
@@ -69,7 +67,7 @@ fn should_reject_out_of_range_temporal_binary_parameters() {
     // Assert
     assert_eq!(batches.len(), 6);
     for frames in batches {
-        assert_eq!(wire::error_code(&frames).as_deref(), Some("08P01"));
+        assert_eq!(wire::error_code(&frames).as_deref(), Some("22008"));
         assert_eq!(fixture::data_row_payloads(&frames), Vec::<Vec<u8>>::new());
         assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'T').count(), 0);
         assert_eq!(
@@ -153,8 +151,10 @@ fn should_reject_malformed_scalar_array_headers() {
 
     // Assert
     assert_eq!(batches.len(), 9);
-    for frames in batches {
-        assert_eq!(wire::error_code(&frames).as_deref(), Some("08P01"));
+    for (index, frames) in batches.into_iter().enumerate() {
+        // The excessive INT4 element reaches the shared scalar receiver.
+        let state = if index == 7 { "22P03" } else { "08P01" };
+        assert_eq!(wire::error_code(&frames).as_deref(), Some(state));
         assert_eq!(fixture::data_row_payloads(&frames), Vec::<Vec<u8>>::new());
         assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'T').count(), 0);
         assert_eq!(

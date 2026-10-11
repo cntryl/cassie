@@ -73,6 +73,11 @@ mod pgwire_boolean_contexts;
 #[path = "pgwire_extended/boolean_binary.rs"]
 mod pgwire_boolean_binary;
 
+#[path = "pgwire_extended/scalar_receive_errors.rs"]
+mod pgwire_scalar_receive_errors;
+#[path = "support/scalar_receive.rs"]
+mod support_scalar_receive;
+
 #[path = "pgwire_extended/type_numeric_metadata.rs"]
 mod pgwire_type_numeric_metadata;
 #[path = "pgwire_extended/type_output_source_seams.rs"]

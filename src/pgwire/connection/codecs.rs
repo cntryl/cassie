@@ -171,15 +171,17 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         return decode_array(parameter, type_oid);
     }
     let codec = binary_codec_for_oid(type_oid)?;
-    match codec.kind {
-        BinaryCodecKind::Bool => match parameter {
-            [byte] => Ok(Value::Bool(*byte != 0)),
-            [] => Err(invalid_data(codec.name)),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                ExcessBinaryData(codec.name),
-            )),
-        },
+    let original_parameter = parameter;
+    let parameter = usize::try_from(codec.typlen)
+        .ok()
+        .and_then(|width| parameter.get(..width))
+        .unwrap_or(parameter);
+    // Type receive functions validate their consumed prefix before PostgreSQL
+    // checks for unread bytes. Preserve that error priority for temporal values.
+    let value = match codec.kind {
+        BinaryCodecKind::Bool => {
+            fixed_bytes::<1>(parameter, codec.name).map(|bytes| Value::Bool(bytes[0] != 0))
+        }
         BinaryCodecKind::Bytea => Ok(Value::String(hex_bytea(parameter))),
         BinaryCodecKind::Int2 => fixed_bytes::<2>(parameter, codec.name)
             .map(i16::from_be_bytes)
@@ -213,7 +215,14 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         BinaryCodecKind::Date => decode_date(parameter).map(Value::String),
         BinaryCodecKind::Time => decode_time(parameter).map(Value::String),
         BinaryCodecKind::Timestamp => decode_timestamp(parameter).map(Value::String),
+    }?;
+    if parameter.len() != original_parameter.len() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            ExcessBinaryData(codec.name),
+        ));
     }
+    Ok(value)
 }
 
 fn encode_array(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
@@ -551,15 +560,15 @@ fn decode_date(bytes: &[u8]) -> io::Result<String> {
     let days = i32::from_be_bytes(fixed_bytes(bytes, "date")?);
     let julian_day = POSTGRES_EPOCH_JULIAN_DAY
         .checked_add(days)
-        .ok_or_else(|| invalid_data("date"))?;
-    let date = Date::from_julian_day(julian_day).map_err(|_| invalid_data("date"))?;
+        .ok_or_else(|| temporal_out_of_range("date"))?;
+    let date = Date::from_julian_day(julian_day).map_err(|_| temporal_out_of_range("date"))?;
     Ok(format_date(date))
 }
 
 fn decode_time(bytes: &[u8]) -> io::Result<String> {
     let micros = i64::from_be_bytes(fixed_bytes(bytes, "time")?);
     if !(0..MICROSECONDS_PER_DAY).contains(&micros) {
-        return Err(invalid_data("time"));
+        return Err(temporal_out_of_range("time"));
     }
     let time = time_from_microseconds(micros)?;
     Ok(format_time(time))
@@ -569,11 +578,11 @@ fn decode_timestamp(bytes: &[u8]) -> io::Result<String> {
     let micros = i64::from_be_bytes(fixed_bytes(bytes, "timestamp")?);
     let days = micros.div_euclid(MICROSECONDS_PER_DAY);
     let remainder = micros.rem_euclid(MICROSECONDS_PER_DAY);
-    let days = i32::try_from(days).map_err(|_| invalid_data("timestamp"))?;
+    let days = i32::try_from(days).map_err(|_| temporal_out_of_range("timestamp"))?;
     let julian_day = POSTGRES_EPOCH_JULIAN_DAY
         .checked_add(days)
-        .ok_or_else(|| invalid_data("timestamp"))?;
-    let date = Date::from_julian_day(julian_day).map_err(|_| invalid_data("timestamp"))?;
+        .ok_or_else(|| temporal_out_of_range("timestamp"))?;
+    let date = Date::from_julian_day(julian_day).map_err(|_| temporal_out_of_range("timestamp"))?;
     let time = time_from_microseconds(remainder)?;
     Ok(crate::types::temporal::format_timestamp(
         PrimitiveDateTime::new(date, time),
@@ -678,8 +687,21 @@ pub(super) fn decode_hex_digit(byte: u8) -> Option<u8> {
 #[error("incorrect binary data format for {0}")]
 struct ExcessBinaryData(&'static str);
 
-pub(super) fn is_excess_binary_data(error: &io::Error) -> bool {
-    error
-        .get_ref()
-        .is_some_and(<dyn std::error::Error + Send + Sync + 'static>::is::<ExcessBinaryData>)
+#[derive(Debug, thiserror::Error)]
+#[error("{0} out of range")]
+struct DateTimeOutOfRange(&'static str);
+
+fn temporal_out_of_range(type_name: &'static str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, DateTimeOutOfRange(type_name))
+}
+
+pub(super) fn binary_error_sqlstate(error: &io::Error) -> Option<&'static str> {
+    let error = error.get_ref()?;
+    if error.is::<ExcessBinaryData>() {
+        Some("22P03")
+    } else if error.is::<DateTimeOutOfRange>() {
+        Some("22008")
+    } else {
+        None
+    }
 }

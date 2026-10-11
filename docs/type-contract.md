@@ -280,3 +280,29 @@ focused wire exchanges, including both output formats for every receive byte.
 Exchange counts
 describe fixture coverage and are separate from test counts or proof of a
 complete SQL/operator/physical-path cross-product.
+
+## Staged primitive receive error classes
+
+The [#930 bundle](https://github.com/cntryl/cassie/issues/930), defined before
+coding, extends the existing scalar receiver without admitting new values.
+After obtaining a complete fixed-width prefix from the shared registry, decode
+and validate it before checking trailing bytes. Short input is `08P01`; excess
+bytes after a valid scalar are `22P03`. Confirmed invalid temporal values use
+`22008`, including when trailing bytes follow the invalid prefix. Private typed
+errors carry these classes into Bind; message-string matching is unnecessary.
+
+The exact admitted temporal set, stored canonical strings, vector and legacy
+array identities, public signatures and both approved v3 contracts remain
+unchanged. Existing legacy-array elements use the same receiver and propagate
+its typed errors; their legacy descriptors remain separately qualified without
+claiming standard PostgreSQL array identities or complete array framing.
+Current temporal rejection guards do not qualify PostgreSQL-valid
+infinity, 24:00 or large-year forms. Those forms and TIMESTAMP text presentation
+remain failed/pending under #814/#904/#848 until their full owner qualifies them.
+This finite input-error increment cannot complete those owners or #791.
+
+`scalar_receive_errors` adds 338 wire exchanges: named fixed-width recovery,
+temporal error priority, existing array-element delegation and indexed scalar
+mutations across savepoint recovery and restart. Independent packet/value
+fixtures retain the current adapters. Whole PostgreSQL comparisons, including
+still-pending temporal and standard-array forms, remain in the default corpus.

@@ -803,11 +803,11 @@ impl ExtendedQueryError {
                 record_protocol_error: false,
             };
         }
-        if super::codecs::is_excess_binary_data(error) {
+        if let Some(sqlstate) = super::codecs::binary_error_sqlstate(error) {
             return Self {
                 pg_error: Box::new(PgWireError::new(
                     PgWireSeverity::Error,
-                    "22P03",
+                    sqlstate,
                     error.to_string(),
                 )),
                 record_protocol_error: false,

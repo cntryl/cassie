@@ -132,3 +132,34 @@ and prerequisite acceptance criterion is complete and #849 resource/restart
 evidence is accepted. Failed, skipped, unavailable, pending or unsupported
 in-scope cells keep it open. Update support/readiness claims from that evidence
 and close #791 last.
+
+## Current primitive receive increment
+
+The scalar registry and Boolean prerequisite is accepted as [PR #929](https://github.com/cntryl/cassie/pull/929),
+commit `3077586b4d2719b9aaa15bbb095ed353c8eb0a24`, tree
+`37622657c3416310efccc9eae1f3b95ba7ad2478`: full ordered gate 3,850 Rust
+passes, twenty exact witnesses, 552 selected PostgreSQL comparisons, 24 additional
+mixed-parameter comparisons and all fifteen fresh hosted checks. Exact merged
+tree and #928 closure are verified; full parents remain open.
+
+The next [#930 bundle](https://github.com/cntryl/cassie/issues/930) is defined
+before coding. Existing scalar receive errors use the registered fixed width,
+validate that prefix, then classify excess bytes as `22P03`; insufficient data
+remains `08P01`. Confirmed invalid DATE/TIME/TIMESTAMP range errors use `22008`
+before an excess-byte error. This is Stage 1 primitive work under #904/#780,
+with explicit staged input-error ownership recorded in #814. It consumes the
+completed #885 records, #926 extraction and #929 registry without consuming new
+temporal types, mutable catalog roots or isolation. Both approved format
+contracts and the currently admitted value set remain unchanged.
+
+Read-only preparation retains all failures: the current 140-case scalar probe
+has 120 passes and twenty failures; a 64-case temporal priority probe has
+24 passes and forty failures. PostgreSQL validates an invalid temporal prefix
+before checking excess bytes. Timestamp text presentation, infinity, 24:00,
+large-year support and other full temporal obligations remain under #814/#904/#848.
+Existing legacy-array elements delegate to the scalar receiver; #930 qualifies
+the propagated error classes with explicit legacy identities and native oracle
+probes. Array identity and grammar stay unchanged. The outer-container framing
+change remains with #807 and its #796/#762 prerequisites.
+The independent native ARM failure remains under #927. These are pending
+program obligations, never architectural exceptions or passing cells.

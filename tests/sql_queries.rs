@@ -7278,7 +7278,7 @@ mod recursive_cte_semantics {
     }
 
     fn integer_values(result: cassie::executor::QueryResult) -> Vec<i64> {
-        result
+        let values = result
             .rows()
             .iter()
             .map(|row| match row.first() {
@@ -7289,7 +7289,9 @@ mod recursive_cte_semantics {
                     .expect("expected an integral float"),
                 other => panic!("expected integer value, got {other:?}"),
             })
-            .collect()
+            .collect();
+        drop(result);
+        values
     }
 
     #[test]

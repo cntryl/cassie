@@ -78,9 +78,7 @@ mod rest_normalized_query_controls {
         );
         set_query_scan_cancellation_after_entries(None);
         let after = cassie.metrics();
-        let error = result
-            .err()
-            .expect("query must reject the first record overlap");
+        let error = result.expect_err("query must reject the first record overlap");
 
         // Assert
         assert!(matches!(error, CassieError::ResourceLimit(_)), "{error:?}");

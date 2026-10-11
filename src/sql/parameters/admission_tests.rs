@@ -124,7 +124,7 @@ fn should_match_existing_parameter_counts_across_query_contexts() {
 }
 
 #[test]
-fn should_reserve_and_release_transient_parameter_storage_on_same_controls() {
+fn should_account_transient_parameter_storage_on_same_controls() {
     // Arrange
     let controls = controls(1_024);
     let statement = parse_statement("SELECT CAST($4 AS INT)").expect("SQL");
@@ -226,7 +226,7 @@ fn should_retain_stack_capacity_charge_after_pop_until_drop() {
 }
 
 #[test]
-fn should_reject_cancelled_stack_growth_and_release_existing_capacity() {
+fn should_release_stack_capacity_after_cancelled_growth() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -280,7 +280,7 @@ fn should_release_all_transient_reservations_after_stack_or_seed_budget_denial()
 }
 
 #[test]
-fn should_preserve_legacy_inferred_oids_and_conflict_messages() {
+fn should_preserve_legacy_parameter_metadata_results() {
     // Arrange
     let cases: [(&str, &[i32]); 9] = [
         ("SELECT 1", &[23, 25]),
@@ -295,7 +295,7 @@ fn should_preserve_legacy_inferred_oids_and_conflict_messages() {
     ];
     let catalog = Catalog::new();
     let controls = controls(64 * 1_024);
-    // Act / Assert
+    // Act
     for (sql, supplied) in cases {
         let statement = parse_statement(sql).expect(sql);
         let normalized: Vec<_> = supplied
@@ -304,6 +304,7 @@ fn should_preserve_legacy_inferred_oids_and_conflict_messages() {
             .collect();
         let legacy_conflict = declared_parameter_type_conflict(&statement, &normalized, &catalog);
         let checked = checked_parse_parameter_types(&statement, supplied, &catalog, &controls);
+        // Assert
         match legacy_conflict {
             Some(message) => assert!(
                 matches!(checked, Err(ParameterAdmissionError::LegacyConflict(actual)) if actual == message)
@@ -353,7 +354,7 @@ fn should_check_deadline_again_before_consuming_admitted_oids() {
 }
 
 #[test]
-fn should_reject_expired_stack_growth_and_release_existing_capacity() {
+fn should_release_stack_capacity_after_expired_growth() {
     // Arrange
     let controls = controls(1_024);
     let mut expired = controls.clone();

@@ -39,19 +39,27 @@ CBM2 codecs and selected column acceleration do not establish a common typed
 relational pipeline; that pipeline remains Planned.
 
 1. Contracts and correctness: retain the merged [#748](https://github.com/cntryl/cassie/issues/748)/[#749](https://github.com/cntryl/cassie/issues/749)/[#750](https://github.com/cntryl/cassie/issues/750) repairs, [#432](https://github.com/cntryl/cassie/issues/432) Boolean contract and [#751](https://github.com/cntryl/cassie/issues/751)/[#754](https://github.com/cntryl/cassie/issues/754) foundation;
-   retain the merged [finite type/codec contract](type-contract.md) in [#752](https://github.com/cntryl/cassie/issues/752) and define the [private batch/view contract](typed-batch-contract.md) in [#753](https://github.com/cntryl/cassie/issues/753).
-   [#755](https://github.com/cntryl/cassie/issues/755) implements and qualifies the user-selected bounded wire-cycle visibility
-   [contract](pgwire-transaction-contract.md); selecting its profile does not complete that runtime dependency.
-2. Typed batches and streaming: [#756](https://github.com/cntryl/cassie/issues/756) follows [#753](https://github.com/cntryl/cassie/issues/753)/[#749](https://github.com/cntryl/cassie/issues/749)/[#432](https://github.com/cntryl/cassie/issues/432)/[#755](https://github.com/cntryl/cassie/issues/755) and carries
-   scan/filter/projection through the selected type/kernel matrix, with bounded
-   scalar fallback and explicit row/wire conversion. [#757](https://github.com/cntryl/cassie/issues/757) follows [#755](https://github.com/cntryl/cassie/issues/755)/[#752](https://github.com/cntryl/cassie/issues/752) and
-   qualifies portal ownership.
+   retain the merged [finite type/codec contract](type-contract.md) in [#752](https://github.com/cntryl/cassie/issues/752) and the [private batch/view contract](typed-batch-contract.md) in [#753](https://github.com/cntryl/cassie/issues/753).
+   [PR #790](https://github.com/cntryl/cassie/pull/790), commit
+   `9ff42bc05c374f478a12a29caf7537268215e665`, completed #753 and the selected
+   #755 bounded wire-cycle [contract](pgwire-transaction-contract.md), including validation and merge/closure readback.
+2. Typed batches and streaming: [#756](https://github.com/cntryl/cassie/issues/756) followed [#753](https://github.com/cntryl/cassie/issues/753)/[#749](https://github.com/cntryl/cassie/issues/749)/[#432](https://github.com/cntryl/cassie/issues/432)/[#755](https://github.com/cntryl/cassie/issues/755) and delivered the first selected
+   scan/filter/projection slice with bounded scalar fallback and admitted row/wire
+   conversion. [#757](https://github.com/cntryl/cassie/issues/757) followed [#755](https://github.com/cntryl/cassie/issues/755)/[#752](https://github.com/cntryl/cassie/issues/752) and qualified selected portal ownership.
+   [PR #851](https://github.com/cntryl/cassie/pull/851), commit
+   `4a09c41a3670dad3a4c4c2b7ef7583327c37ab6b`, records both finite closures and
+   [executed witnesses](typed-pipeline-acceptance.md). Milestones 1 and 2 closed
+   on 2026-10-11; complete relational integration and promotion remain separate.
 3. Relational kernels: [#758](https://github.com/cntryl/cassie/issues/758) aggregates and [#759](https://github.com/cntryl/cassie/issues/759) joins follow [#756](https://github.com/cntryl/cassie/issues/756); [#760](https://github.com/cntryl/cassie/issues/760) ordering,
    sets and windows follows both; [#761](https://github.com/cntryl/cassie/issues/761) qualifies completed relational paths;
    [#762](https://github.com/cntryl/cassie/issues/762) then adds the selected bounded scalar expression subquery surface.
 4. Storage and retrieval qualification: [#763](https://github.com/cntryl/cassie/issues/763)–[#776](https://github.com/cntryl/cassie/issues/776) follow their individual ledger
    dependencies for visibility, constraints, cache/auth, columns/codecs, derived
    state, providers, ANN/text/hybrid/graph/time-series and portable kernel laws.
+   Retain #763's completed finite Data-family statement-view and immutable-overlay
+   prerequisite from [PR #871](https://github.com/cntryl/cassie/pull/871), commit
+   `ce72a23f2d0a3cdb9a811107aec7629151fcd319`; full #819/#833 isolation and
+   transactional-catalog acceptance remains with the PostgreSQL parity program.
 5. Compatibility and release evidence: [#777](https://github.com/cntryl/cassie/issues/777)–[#780](https://github.com/cntryl/cassie/issues/780) qualify the completed selected
    client/wire/control/cross-path subset; [#8](https://github.com/cntryl/cassie/issues/8) owns native operational objectives
    and repeated evidence, [#29](https://github.com/cntryl/cassie/issues/29) owns local diagnostic promotion after [#8](https://github.com/cntryl/cassie/issues/8), and [#781](https://github.com/cntryl/cassie/issues/781)

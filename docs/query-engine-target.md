@@ -29,6 +29,23 @@ This repair does not promote broader type, grammar, storage or native readiness 
 The [ownership ledger](query-engine-invariant-ownership.md) maps all baseline
 invariants to a primary child owner, dependency, independent oracle and promotion gate.
 
+The selected #753/#755 contracts are accepted through [#790](https://github.com/cntryl/cassie/pull/790)
+at `9ff42bc05c374f478a12a29caf7537268215e665`; the first #756/#757 typed
+transport and portal slice through [#851](https://github.com/cntryl/cassie/pull/851)
+at `4a09c41a3670dad3a4c4c2b7ef7583327c37ab6b`; and the finite #763
+Data-family statement-view/overlay slice through [#871](https://github.com/cntryl/cassie/pull/871)
+at `ce72a23f2d0a3cdb9a811107aec7629151fcd319`. Their linked acceptance
+records include completed validation, review, hosted checks and merge/closure
+readback. These finite prerequisites do not complete wider relational, wire,
+isolation or transactional-catalog acceptance.
+
+The top-priority [#791 program](postgresql18-delivery.md) now selects complete
+PostgreSQL 18.6 core SQL and full PL/pgSQL under [the dialect profile](sql-dialect-profile.md).
+Earlier finite exclusions in this Target 1 record are intermediate boundaries;
+only the profile's architectural exceptions may be excluded from final parity.
+#793/#904 retain actual type/runtime and v3 upgrade acceptance; #819/#833 retain
+isolation/catalog publication; #848/#849 retain complete corpus/resource/restart gates.
+
 Vectorized relational execution means operators carrying batches of typed column
 values, with validity, selection, row identity, ownership and bounded state.
 Embedding-vector similarity retrieval is a separate capability. CPU SIMD and
@@ -71,7 +88,7 @@ selected boundaries. These specifications do not qualify unimplemented runtime p
 | Logical types and codecs | Experimental types/casts; current declared universe listed below. | Shared logical/physical/codec identity, exact known deviations and selected kernel capability authority. | [#752](https://github.com/cntryl/cassie/issues/752); [#753](https://github.com/cntryl/cassie/issues/753); [#776](https://github.com/cntryl/cassie/issues/776) | Exact text/binary/metadata fixtures, large integer and malformed-input boundaries. No new persistent type/ABI. |
 | Physical ColumnStore | Experimental field-key tables; separate from Midge families and CBM2 sidecars. | Controlled selected-field reconstruction, row/field atomicity, schema/lifecycle and typed-reader qualification. | [#749](https://github.com/cntryl/cassie/issues/749); [#756](https://github.com/cntryl/cassie/issues/756); [#768](https://github.com/cntryl/cassie/issues/768) | Authoritative rows plus pre-decode reservations, corruption/generation and restart cases. No broad column-store promotion here. |
 | CBM2 column-batch acceleration | Stable current plain/constant/RLE/dictionary/frame-of-reference/ALP/FSST codecs, pruning, selected projection and aggregate paths. | Preserve current latest-only framing/generation/fallback rules; hand off eligible typed views without forced JSON conversion. | [#756](https://github.com/cntryl/cassie/issues/756); [#758](https://github.com/cntryl/cassie/issues/758); [#768](https://github.com/cntryl/cassie/issues/768) | Existing golden codecs, complete validation and authoritative row comparison; existing paired codec benchmark objectives. |
-| Common typed-column execution | Planned; current Batch is a vector of named scalar BatchRow values. | One private batch/view contract; scan/filter/projection, then aggregates/joins, then ordering/sets/windows. Every current supported logical value must survive declared output/fallback boundaries. | [#753](https://github.com/cntryl/cassie/issues/753); [#756](https://github.com/cntryl/cassie/issues/756); [#758](https://github.com/cntryl/cassie/issues/758)–[#760](https://github.com/cntryl/cassie/issues/760) | Constructor/ownership laws, scalar results and selected type/kernel matrix. No public API or disk format chosen here. |
+| Common typed-column execution | Planned for the complete relational target; the first private typed scan/filter/projection slice is implemented and qualified with [finite fallback and ownership boundaries](typed-pipeline-acceptance.md). | One private batch/view contract; scan/filter/projection, then aggregates/joins, then ordering/sets/windows. Every current supported logical value must survive declared output/fallback boundaries. | [#753](https://github.com/cntryl/cassie/issues/753); [#756](https://github.com/cntryl/cassie/issues/756); [#758](https://github.com/cntryl/cassie/issues/758)–[#760](https://github.com/cntryl/cassie/issues/760) | Constructor/ownership laws, scalar results and selected type/kernel matrix. No public API or disk format chosen here. |
 | Portable kernels and optional SIMD | Planned for the common relational target; vector-distance SIMD already exists independently. | Portable selected kernels are required; SIMD only for a measured beneficial eligible kernel with feature/alignment/tail/mask rules. | [#774](https://github.com/cntryl/cassie/issues/774) | Portable exact kernel plus dispatch/tail/NULL cases and measured performance; no required SIMD adoption. |
 | Pull controls, workers, caches and adaptive paths | Experimental broad surfaces; selected opt-in adaptive scalar/join switching is Stable. | Share engine limits/context; accurate final typed/row/fallback diagnostics; retain opt-in scope and deterministic merges. | [#749](https://github.com/cntryl/cassie/issues/749); [#766](https://github.com/cntryl/cassie/issues/766); [#778](https://github.com/cntryl/cassie/issues/778) | Controlled failure/cleanup and fresh semantic execution; disk spilling remains absent. |
 | Pgwire framing and messages | Experimental documented PostgreSQL v3 startup, password/transport, simple/extended messages, formats, COPY and cancellation. | Finite packet/state matrix and exact workflow evidence; advanced negotiation/auth/replication are not implied. | [#755](https://github.com/cntryl/cassie/issues/755); [#757](https://github.com/cntryl/cassie/issues/757); [#780](https://github.com/cntryl/cassie/issues/780) | Version-pinned state tables and secret-free exact-revision transcripts, including malformed/recovery boundaries. |
@@ -171,7 +188,7 @@ bypass those owners. Do not invent numeric SLOs, release dates or new runners.
 | Decision | Owner / next concrete artifact | Boundary |
 | --- | --- | --- |
 | Exact shared logical/codec and private native-kernel/type matrix | [#752](https://github.com/cntryl/cassie/issues/752) type table, then [#753](https://github.com/cntryl/cassie/issues/753) constructor/view/ownership laws and [#756](https://github.com/cntryl/cassie/issues/756) coverage matrix. | Current finite type universe only; private in-memory representation is not inherently a public API. |
-| Implicit Query/Sync visibility, DDL/COPY exceptions and portal lifetime | [#755](https://github.com/cntryl/cassie/issues/755) state tables and independent-session/unnamed/extended-to-simple probes for the user-selected bounded profile. | Selected by [the durable direction](https://github.com/cntryl/cassie/issues/755#issuecomment-5982444561); [finite runtime acceptance](pgwire-transaction-contract.md) is implemented. Exact-revision validation and merge readback gate dependents. |
+| Implicit Query/Sync visibility, DDL/COPY exceptions and portal lifetime | [#755](https://github.com/cntryl/cassie/issues/755) state tables and independent-session/unnamed/extended-to-simple probes for the user-selected bounded profile. | Selected by [the durable direction](https://github.com/cntryl/cassie/issues/755#issuecomment-5982444561); [finite runtime acceptance](pgwire-transaction-contract.md) is complete through [#790](https://github.com/cntryl/cassie/pull/790), including validation and merge/closure readback. Full #780/#819/#833 acceptance remains open. |
 | Hybrid approximation and permitted source generation | [#765](https://github.com/cntryl/cassie/issues/765) candidate/scoring contract and deterministic corpus/source barriers. | Pending probe/finite specification; no globally exact hybrid claim. |
 | Any expanded type/OID/extension, durable layout/recovery encoding or public API | Owning issue must prepare a concrete reviewable contract before implementation. | Not selected by this foundation document. |
 | Native objectives and promotion | [#8](https://github.com/cntryl/cassie/issues/8) retained comparable repetitions, then [#29](https://github.com/cntryl/cassie/issues/29) and [#781](https://github.com/cntryl/cassie/issues/781) reviews. | Existing advisory values remain advisory; no global readiness promotion here. |
@@ -183,6 +200,8 @@ state across Sync. Preserve explicit table COPY staging, keep DDL standalone and
 reject unsupported mixed cycles. A completed standalone DDL is not rolled back
 by a later streamed command. The [transaction contract](pgwire-transaction-contract.md)
 records portal lifetime and the executed finite independent-session and handoff
-cases. Broader qualification remains #757/#763/#780. These cases do not add
-transactional DDL, stronger isolation or database-image transaction semantics;
-exact-revision validation, review and merge/closure readback gate dependent work.
+cases. The selected portal and statement-view qualification is separately
+accepted through #851/#871; full #780/#819/#833 acceptance remains open.
+These finite cases do not add transactional DDL, stronger isolation or
+database-image transaction semantics. Dependent work consumes only its named
+completed prerequisites and retains the wider integration obligations.

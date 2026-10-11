@@ -2332,9 +2332,19 @@ mod database_connect_grants {
                 Some("analytics".to_string()),
             )
             .expect("reader session");
+        let hits_before_warm = cassie.metrics()["execution_result_cache"]["hits"]
+            .as_u64()
+            .expect("cache hits before warmup");
         cassie
             .execute_sql(&reader, "SELECT 1", Vec::new())
             .expect("granted query");
+        cassie
+            .execute_sql(&reader, "SELECT 1", Vec::new())
+            .expect("repeated granted query");
+        let hits_after_warm = cassie.metrics()["execution_result_cache"]["hits"]
+            .as_u64()
+            .expect("cache hits after warmup");
+        assert_eq!(hits_after_warm, hits_before_warm + 1);
 
         // Act
         for _ in 0..2 {
@@ -2349,6 +2359,9 @@ mod database_connect_grants {
         let revoked = cassie
             .execute_sql(&reader, "SELECT 1", Vec::new())
             .expect_err("active session must lose access");
+        let hits_after_revoked_query = cassie.metrics()["execution_result_cache"]["hits"]
+            .as_u64()
+            .expect("cache hits after revoked query");
         cassie
             .execute_sql(
                 &admin,
@@ -2360,6 +2373,7 @@ mod database_connect_grants {
 
         // Assert
         assert!(matches!(revoked, CassieError::InsufficientPrivilege));
+        assert_eq!(hits_after_revoked_query, hits_after_warm);
         assert!(restored.is_ok());
     }
 

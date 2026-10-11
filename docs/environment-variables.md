@@ -142,7 +142,7 @@ default. Minimum-bounded settings clamp smaller values to their minimum.
 | --- | --- | --- | --- |
 | `CASSIE_EXECUTION_RESULT_CACHE_ENABLED` | Boolean | `true` | Enables the execution-result cache. |
 | `CASSIE_EXECUTION_RESULT_CACHE_MAX_ENTRIES` | Unsigned integer | `64` | Maximum result-cache entries. |
-| `CASSIE_EXECUTION_RESULT_CACHE_MAX_BYTES` | Unsigned bytes | `67108864` | Maximum accounted result-cache bytes. |
+| `CASSIE_EXECUTION_RESULT_CACHE_MAX_BYTES` | Unsigned bytes | `67108864` | Maximum serialized SQL result-cache payload bytes; retained capacity is reported separately. |
 | `CASSIE_PLAN_CACHE_ENTRIES` | Unsigned integer | `128` | Maximum cached plans. |
 | `CASSIE_CF2_PLAN_TTL_SECONDS` | Unsigned seconds | `900` | Stable CF2 plan-cache lifetime. |
 | `CASSIE_CF2_PLAN_CANDIDATE_TTL_SECONDS` | Unsigned seconds | `300` | Candidate CF2 plan-cache lifetime. |

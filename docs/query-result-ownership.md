@@ -3,7 +3,9 @@
 This is the selected A+O implementation contract for
 [#766](https://github.com/cntryl/cassie/issues/766), approved by the user on
 2026-10-11. It records the source-breaking Rust API and budget/lifetime choices
-before implementation. **Implementation and actual acceptance are pending.**
+before implementation. The managed result, REST, EXPLAIN and HTTP APIs below
+implement those choices. Acceptance records must bind actual tests, ordered
+validation and independent review to an immutable revision.
 The canonical resource requirements remain in
 [Performance Contracts](performance-contracts.md); delivery and closure follow
 [PostgreSQL 18 Delivery](postgresql18-delivery.md).
@@ -73,10 +75,12 @@ or release-at-public-return exception is selected.
 
 ## Selected Rust result APIs
 
-These signatures define the intended public surface; they are not a claim that
-the current library implements them. Manual serialization preserves the existing
+These signatures describe the implemented candidate surface. They do not establish
+final support or delivery acceptance. Manual serialization preserves the existing
 `columns`, `rows` and `command` shape. Construction and replacement are fallible;
 private producers may transfer both already-admitted data and its reservation.
+The temporary builder borrows live controls; finished results retain only narrow
+reservations and their payloads.
 
 ```rust
 #[derive(Debug, Clone)]
@@ -90,7 +94,7 @@ impl QueryResult {
 
     pub fn try_builder(
         controls: &QueryExecutionControls,
-    ) -> Result<QueryResultBuilder, CassieError>;
+    ) -> Result<QueryResultBuilder<'_>, CassieError>;
 
     pub fn try_clone_for_query(
         &self, controls: &QueryExecutionControls,
@@ -111,8 +115,8 @@ impl QueryResult {
     pub fn into_owned_rows(self) -> OwnedQueryRows;
 }
 
-pub struct QueryResultBuilder { /* private accounted construction */ }
-impl QueryResultBuilder {
+pub struct QueryResultBuilder<'a> { /* temporary accounted construction */ }
+impl QueryResultBuilder<'_> {
     pub fn try_push_column(&mut self, column: &ColumnMeta) -> Result<(), CassieError>;
     pub fn try_push_row(&mut self, row: &[Value]) -> Result<(), CassieError>;
     pub fn try_set_command(&mut self, command: &str) -> Result<(), CassieError>;
@@ -137,13 +141,22 @@ SQL uses a private controlled `Result<Option<QueryResult>, CassieError>` lookup
 before hit publication. Direct cache facade calls retain an existing managed
 owner and do not create an implicit SQL query context.
 
+Existing Rust consumers migrate field access such as `result.rows` and
+`result.command` to borrowed `rows()` and `command()` getters. Result struct
+literals migrate to `try_builder`, fallible push/set methods and `finish`.
+Replacement uses `try_with_*`; moving rows uses `into_owned_rows()` and a borrowed
+`as_slice()`, preserving ownership through the consumer. Explicit copies made by
+a host from a borrowed slice remain host allocations. Engine producers and
+frontend consumers must not use such copies to escape their reservations.
+
 ## Selected REST and EXPLAIN APIs
 
-Public REST/explain result types also become managed. Public field literals,
-field moves and mutation migrate to borrowed getters, fallible builders and
+The candidate REST/explain result types are also managed. Public field literals,
+field moves and mutation migrate to borrowed getters, controlled conversions and
 owner-preserving transfers. Structured-plan builders admit nested capacity;
-engine code cannot return an unowned nested plan clone. Nested plan data may
-remain borrowed views with their existing types.
+engine code cannot return an unowned nested plan clone. Nested plan data remain
+borrowed views with their existing types. `QueryExplainOutput::into_parts()`
+transfers two managed owners rather than detaching their nested buffers.
 
 ```rust
 #[derive(Debug, Clone, serde::Serialize)]
@@ -230,6 +243,50 @@ An admitted private byte owner transfers buffer plus reservation into
 allocation. The owner survives body/frame/Bytes clones: dropping a body cannot
 release a buffer still held by a polled frame. Final frame retirement, disconnect,
 conversion failure and cancellation release their actual owners exactly once.
+
+## Observations and remaining boundaries
+
+`query.current_accounted_memory_bytes` observes the live tracker of the latest
+recorded query through a weak reference. It follows later owner retirement rather
+than copying a completion-time value, and does not retain the tracker or request.
+It is not a sum across concurrent queries or all cached producer payloads. A zero
+latest-requester value can coexist with an older cache producer's live physical
+allocation. `query.peak_accounted_memory_bytes` retains the maximum observed
+per-query peak, including later admissions on that observed tracker; it is not a
+process RSS measurement or a sum of simultaneous query peaks.
+
+`execution_result_cache.bytes` remains the configured serialized-payload size.
+`execution_result_cache.accounted_retained_bytes` observes resident SQL cache
+payload, key, owner and backing-container capacity separately, counting shared
+physical payloads once. Requester exposure is a separate query-budget charge.
+Dropping a public result, DTO or body proves release only for owners that actually
+retire; retained aliases, cache entries and HTTP frames can keep storage live.
+
+The SQL execution-result lookup key admits its user, database and
+search-path buffers while scoped to the query context. JSON parameter hashing
+streams the same serialized bytes into the existing hasher without a temporary
+serialized String. Optional key or cache-storage admission denial records
+`memory_budget` and preserves independently admitted query execution; required
+hit, conversion and encoding admissions still fail before success output.
+Vector execution-result cache keys and containers have the same selected lifetime
+obligation and remain under #766 until their actual retirement evidence passes.
+They are not part of the wider input-cache exclusions below.
+
+Existing compiled-plan key construction, query parsing, binding/source metadata,
+feedback and rollup discovery remain wider input-allocation boundaries. Embedding
+and normalized-vector input caches are separate from execution-result payloads.
+This slice does not claim complete resource qualification for those paths. Final
+EXPLAIN name/text copies are admitted; existing identifier canonicalization runs
+under a source-derived scratch reservation while its infallible allocation
+internals remain unchanged. Borrowed JSON clone estimates preadmit the complete
+conversion, without claiming that the existing recursive clone is allocator-
+fallible or fully interruptible. Wider resource/restart qualification remains
+open under #849 without replacing any mandatory #766 result-owner obligation.
+
+Controlled frontend conversion and encoding borrow the live request's controls.
+Public `TryFrom` uses the source view's active narrow tracker and creates no new
+request or cancellation/deadline scope. Existing schema, validate and unrelated
+administrative DTO/HTTP paths retain their separate resource boundaries.
 
 ## Implementation and acceptance boundary
 

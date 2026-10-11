@@ -100,7 +100,17 @@ impl Fixture {
             let rows = cassie
                 .execute_sql(&session, &format!("SELECT * FROM {table}"), vec![])
                 .expect("the complete matching full source must fit");
-            assert_eq!(rows.rows.len(), count);
+            assert_eq!(rows.row_count(), count);
+            assert!(
+                cassie
+                    .runtime
+                    .snapshot()
+                    .query
+                    .current_accounted_memory_bytes
+                    > 0,
+                "the live result retains its physical admission"
+            );
+            drop(rows);
             assert_eq!(
                 cassie
                     .runtime

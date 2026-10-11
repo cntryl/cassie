@@ -11,7 +11,7 @@ pub(super) fn repair_materialized_projection_version(
     version_id: &str,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
-) -> Result<QueryResult, QueryError> {
+) -> Result<(), QueryError> {
     let mut metadata = cassie
         .catalog
         .get_materialized_projection(name)
@@ -51,7 +51,7 @@ pub(super) fn repair_materialized_projection_version(
                 }
             }
             persist_projection_metadata(cassie, metadata)?;
-            Ok(empty_command("ALTER MATERIALIZED PROJECTION"))
+            Ok(())
         }
         Err(error) => {
             if let Some(version) = metadata
@@ -120,12 +120,13 @@ pub(super) fn build_projection_version(
         last_error: None,
         verification: catalog::ProjectionRebuildVerificationMeta::default(),
     });
+    let output = empty_command("ALTER MATERIALIZED PROJECTION", controls)?;
     persist_projection_metadata(cassie, metadata.clone())?;
 
     match build_specific_version(cassie, &mut metadata, &version_id, user_functions, controls) {
         Ok(()) => {
             persist_projection_metadata(cassie, metadata)?;
-            Ok(empty_command("ALTER MATERIALIZED PROJECTION"))
+            Ok(output)
         }
         Err(error) => {
             if let Some(version) = metadata
@@ -147,6 +148,7 @@ pub(super) fn drop_materialized_projection_version(
     cassie: &Cassie,
     name: &str,
     version_id: &str,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let metadata = cassie
         .catalog
@@ -168,13 +170,14 @@ pub(super) fn drop_materialized_projection_version(
             "projection version '{version_id}' does not exist"
         )));
     };
+    let output = empty_command("DROP MATERIALIZED PROJECTION VERSION", controls)?;
     let projection = metadata.collection.clone();
     cassie
         .midge
         .with_collection_gates(std::slice::from_ref(&projection), || {
             drop_materialized_projection_version_gated(cassie, metadata, index, &projection)
         })?;
-    Ok(empty_command("DROP MATERIALIZED PROJECTION VERSION"))
+    Ok(output)
 }
 
 /// Removes one projection version while holding the projection's catalog gate,

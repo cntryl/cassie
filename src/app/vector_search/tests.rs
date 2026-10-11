@@ -32,12 +32,12 @@ fn should_reject_vector_result_cancelled_during_final_conversion() {
     let conversion_calls = Cell::new(0);
 
     // Act
-    let result = cassie.finalize_vector_search(accounted, &controls, |result| {
+    let result = cassie.finalize_vector_search(accounted, &controls, |result, _| {
         assert_eq!(controls.current_query_memory_bytes(), retained_bytes);
         assert!(!controls.is_cancelled());
         conversion_calls.set(conversion_calls.get() + 1);
         cancellation.cancel();
-        assert_eq!(result.rows, vec![vec![Value::Int64(7)]]);
+        assert_eq!(result.rows(), vec![vec![Value::Int64(7)]]);
         Ok(result)
     });
     let after = cassie.runtime.snapshot();
@@ -65,10 +65,14 @@ fn accounted_result(controls: &QueryExecutionControls) -> AccountedVectorResult 
             .reserve_query_memory(1024)
             .expect("metadata admission"),
         row_memory: Some(controls.reserve_query_memory(1024).expect("row admission")),
-        result: QueryResult {
-            columns: vec![ColumnMeta::from_data_type("value", &DataType::BigInt)],
-            rows: vec![vec![Value::Int64(7)]],
-            command: "SELECT".to_owned(),
+        result: {
+            let mut result = QueryResult::try_builder(controls).expect("builder");
+            result
+                .try_push_column(&ColumnMeta::from_data_type("value", &DataType::BigInt))
+                .expect("column");
+            result.try_push_row(&[Value::Int64(7)]).expect("row");
+            result.try_set_command("SELECT").expect("command");
+            result.finish().expect("result")
         },
         diagnostics: VectorSearchDiagnostics {
             normalization: Some((1, 0)),
@@ -87,30 +91,25 @@ fn should_enforce_cached_vector_result_controls_before_retained_copy() {
     ));
     let cassie = Cassie::new_with_data_dir_and_config(&path, CassieRuntimeConfig::default())
         .expect("ephemeral Cassie");
-    let key = super::VectorSearchResultCacheKey {
-        catalog_version: cassie.catalog.version(),
-        provider: "local".to_owned(),
-        model: "cached-controls".to_owned(),
-        dimensions: 3,
-        collection: "docs".to_owned(),
-        field: "embedding".to_owned(),
-        metric: "l2".to_owned(),
-        limit: 10,
-        offset: 0,
-        query: "query".to_owned(),
-    };
+    let producer = cached_result_controls(usize::MAX, 1_048_576);
+    let key = cached_result_key(&cassie, &producer);
+    let lookup_key = key.key.clone();
     let expected_rows = vec![vec![Value::Int64(7)], vec![Value::Int64(8)]];
-    let cached = std::sync::Arc::new(QueryResult {
-        columns: vec![ColumnMeta::from_data_type("value", &DataType::BigInt)],
-        rows: expected_rows.clone(),
-        command: "SELECT".to_owned(),
-    });
-    cassie
+    let mut result = QueryResult::try_builder(&producer).expect("builder");
+    result
+        .try_push_column(&ColumnMeta::from_data_type("value", &DataType::BigInt))
+        .expect("column");
+    for row in &expected_rows {
+        result.try_push_row(row).expect("row");
+    }
+    result.try_set_command("SELECT").expect("command");
+    let cached = result.finish().expect("result");
+    cassie.cache_vector_search_result_controlled(key, &cached, &producer);
+    let cache_present = cassie
         .vector_search_result_cache
         .lock()
-        .insert(key.clone(), std::sync::Arc::clone(&cached));
-    let cache_present = cassie.vector_search_result_cache.lock().contains_key(&key);
-    let original_owners = std::sync::Arc::strong_count(&cached);
+        .contains_key(&lookup_key);
+    let original_producer_bytes = producer.current_query_memory_bytes();
     let controls = [
         cached_result_controls(1, 1),
         cached_result_controls(2, 1),
@@ -121,12 +120,12 @@ fn should_enforce_cached_vector_result_controls_before_retained_copy() {
     // Act
     let [row_cap, memory_cap, successful] = controls
         .each_ref()
-        .map(|controls| cassie.cached_vector_search_result_controlled(&key, controls));
+        .map(|controls| cassie.cached_vector_search_result_controlled(&lookup_key, controls));
     let successful = successful
         .expect("sufficient controls")
         .expect("actual cache hit");
     let admitted_bytes = controls[2].current_query_memory_bytes();
-    let copied_rows = successful.result.rows.clone();
+    let copied_rows = successful.result.rows().to_vec();
     drop(successful);
     let released = controls
         .each_ref()
@@ -135,8 +134,12 @@ fn should_enforce_cached_vector_result_controls_before_retained_copy() {
         controls[0].peak_query_memory_bytes(),
         controls[1].peak_query_memory_bytes(),
     ];
-    let final_owners = std::sync::Arc::strong_count(&cached);
-    let cache_preserved = cassie.vector_search_result_cache.lock().contains_key(&key);
+    let final_producer_bytes = producer.current_query_memory_bytes();
+    let cache_preserved = cassie
+        .vector_search_result_cache
+        .lock()
+        .get(&lookup_key)
+        .is_some_and(|resident| resident.shares_storage(&cached));
     let after = cassie.runtime.snapshot();
     drop(cassie);
     if path.exists() {
@@ -174,8 +177,31 @@ fn should_enforce_cached_vector_result_controls_before_retained_copy() {
         "requested limit 10 is legal for two actual rows"
     );
     assert_eq!(released, [0, 0, 0]);
-    assert_eq!(final_owners, original_owners);
+    assert_eq!(final_producer_bytes, original_producer_bytes);
     assert_eq!(after.vector.count, before.vector.count);
+}
+
+fn cached_result_key(
+    cassie: &Cassie,
+    producer: &QueryExecutionControls,
+) -> super::AdmittedVectorResultKey {
+    super::AdmittedVectorResultKey::new(
+        cassie.catalog.version(),
+        "local",
+        "cached-controls",
+        3,
+        super::VectorSearchInput {
+            collection: "docs",
+            vector_field: "embedding",
+            query: "query",
+            metric: Some(super::DistanceMetric::L2),
+            limit: 10,
+            offset: 0,
+        },
+        super::DistanceMetric::L2,
+        producer,
+    )
+    .expect("key admission")
 }
 
 fn cached_result_controls(max_result_rows: usize, memory_budget: usize) -> QueryExecutionControls {

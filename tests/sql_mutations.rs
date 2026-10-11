@@ -72,7 +72,8 @@ mod copy_transaction_boundaries {
                 vec![],
             )
             .expect("select rows")
-            .rows
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -237,7 +238,8 @@ mod copy_array_text_input {
                 vec![],
             )
             .expect("read copied arrays")
-            .rows;
+            .rows()
+            .to_vec();
         assert_eq!(
             rows,
             vec![
@@ -299,7 +301,8 @@ mod copy_csv_null_fields {
                 vec![],
             )
             .expect("read copied rows")
-            .rows;
+            .rows()
+            .to_vec();
         assert_eq!(
             rows,
             vec![
@@ -370,7 +373,8 @@ mod alter_add_column_constraints {
                 vec![],
             )
             .expect("read defaulted and generated values")
-            .rows;
+            .rows()
+            .to_vec();
         let null_not_null = cassie.execute_sql(
             &session,
             "INSERT INTO alter_add_column_constraints (id, required_value) VALUES (2, NULL)",
@@ -404,7 +408,7 @@ mod alter_add_column_constraints {
         // Assert
         assert_eq!(
             (
-                inserted.command.as_str(),
+                inserted.command(),
                 rows,
                 null_not_null.is_err(),
                 duplicate_unique.is_err(),
@@ -452,7 +456,8 @@ mod dml_statement_atomicity {
         cassie
             .execute_sql(session, sql, vec![])
             .expect("select rows")
-            .rows
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -925,9 +930,9 @@ mod dml_statement_atomicity {
         .expect("execute upsert");
 
         // Assert
-        assert_eq!(result.command, "INSERT 0 3");
+        assert_eq!(result.command(), "INSERT 0 3");
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::Int64(3), Value::String("third".to_string())],
                 vec![Value::Int64(2), Value::String("updated".to_string())],
@@ -1125,7 +1130,7 @@ mod foreign_key_concurrency {
         concurrent_child(&cassie, &writer).expect("concurrent child write sees the parent");
         let commit = cassie
             .execute_sql(&session, "COMMIT", vec![])
-            .map(|result| result.command);
+            .map(|result| result.command().to_owned());
         let parents = cassie
             .midge
             .scan_documents(&support::canonical_test_collection(
@@ -1309,7 +1314,7 @@ mod foreign_key_concurrency {
                 Err(cassie::app::CassieError::ForeignKeyViolation { .. })
             ),
             "commit of an orphaned COPY row was not rejected: {:?}",
-            commit.map(|result| result.command)
+            commit.map(|result| result.command().to_owned())
         );
         assert!(
             children.is_empty(),
@@ -1437,7 +1442,8 @@ mod integration_sql_constraints {
                 vec![],
             )
             .expect("select rows")
-            .rows;
+            .rows()
+            .to_vec();
 
         // Assert
         assert!(inserted.is_ok(), "explicit NULL must satisfy the CHECKs");
@@ -1666,7 +1672,7 @@ mod integration_sql_constraints {
             .expect("document inserted");
 
         // Assert
-        assert_eq!(create.command, "CREATE TABLE");
+        assert_eq!(create.command(), "CREATE TABLE");
         assert_eq!(
             inserted.payload.get("status").expect("status is defaulted"),
             &serde_json::Value::String("pending".to_string())
@@ -1981,7 +1987,7 @@ mod integration_sql_constraints {
                     vec![],
                 )
                 .unwrap();
-            assert_eq!(selected.rows.len(), 1);
+            assert_eq!(selected.rows().len(), 1);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2241,8 +2247,8 @@ mod integration_sql_constraints {
             .unwrap();
 
         // Assert
-        assert_eq!(result.command, "INSERT 0 1");
-        assert_eq!(result.rows, vec![vec![Value::String("beta".to_string())]]);
+        assert_eq!(result.command(), "INSERT 0 1");
+        assert_eq!(result.rows(), vec![vec![Value::String("beta".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -2294,8 +2300,8 @@ mod integration_sql_constraints {
             .unwrap();
 
         // Assert
-        assert_eq!(result.command, "INSERT 0 0");
-        assert_eq!(rows.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(result.command(), "INSERT 0 0");
+        assert_eq!(rows.rows(), vec![vec![Value::String("alpha".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -2371,11 +2377,14 @@ mod integration_sql_delete {
                 .unwrap();
 
             // Assert
-            assert_eq!(deleted.command, "DELETE 1");
-            assert_eq!(deleted.rows.len(), 1);
-            assert!(matches!(&deleted.rows[0][0], Value::String(id) if !id.is_empty()));
-            assert_eq!(deleted.rows[0][1], Value::String("alpha".to_string()));
-            assert_eq!(selected.rows, vec![vec![Value::String("beta".to_string())]]);
+            assert_eq!(deleted.command(), "DELETE 1");
+            assert_eq!(deleted.rows().len(), 1);
+            assert!(matches!(&deleted.rows()[0][0], Value::String(id) if !id.is_empty()));
+            assert_eq!(deleted.rows()[0][1], Value::String("alpha".to_string()));
+            assert_eq!(
+                selected.rows(),
+                vec![vec![Value::String("beta".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2420,8 +2429,11 @@ mod integration_sql_delete {
                 .unwrap();
 
             // Assert
-            assert_eq!(deleted.columns[0].name, "normalized");
-            assert_eq!(deleted.rows, vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(deleted.columns()[0].name, "normalized");
+            assert_eq!(
+                deleted.rows(),
+                vec![vec![Value::String("alpha".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2469,9 +2481,12 @@ mod integration_sql_delete {
                 .unwrap();
 
             // Assert
-            assert_eq!(deleted.command, "DELETE 0");
-            assert_eq!(deleted.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
-            assert_eq!(selected.rows.len(), 1);
+            assert_eq!(deleted.command(), "DELETE 0");
+            assert_eq!(
+                deleted.rows(),
+                [] as [std::vec::Vec<cassie::types::Value>; 0]
+            );
+            assert_eq!(selected.rows().len(), 1);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2506,7 +2521,7 @@ mod integration_sql_delete {
                     vec![],
                 )
                 .unwrap();
-            let row_id = match &inserted.rows[0][0] {
+            let row_id = match &inserted.rows()[0][0] {
                 Value::String(value) => value.clone(),
                 _ => panic!("expected row id"),
             };
@@ -2661,7 +2676,7 @@ mod integration_sql_drop_constraint {
         let rows = cassie
             .execute_sql(&session, "SELECT email FROM drop_readd_unique", vec![])
             .expect("read rows");
-        assert_eq!(rows.rows.len(), 1);
+        assert_eq!(rows.rows().len(), 1);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -2737,7 +2752,7 @@ mod integration_sql_drop_constraint {
         let rows = recovered
             .execute_sql(&session, "SELECT email FROM drop_unique_recovery", vec![])
             .expect("read rows");
-        assert_eq!(rows.rows.len(), 1);
+        assert_eq!(rows.rows().len(), 1);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -2871,7 +2886,7 @@ mod integration_sql_drop_constraint {
         let rows = cassie
             .execute_sql(&session, "SELECT email FROM restart_drop_unique", vec![])
             .expect("read rows");
-        assert_eq!(rows.rows.len(), 2);
+        assert_eq!(rows.rows().len(), 2);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -2992,7 +3007,7 @@ mod integration_sql_foreign_keys {
             committed.expect("commit transaction");
             post_commit_child.expect("committed parent key must remain referenceable");
             assert_eq!(
-                rows.rows,
+                rows.rows(),
                 vec![
                     vec![Value::Int64(1)],
                     vec![Value::Int64(2)],
@@ -3140,7 +3155,7 @@ mod integration_sql_foreign_keys {
             .unwrap_err()
             .to_string()
             .contains("foreign key constraint"));
-        assert!(constraints.rows.iter().any(|row| {
+        assert!(constraints.rows().iter().any(|row| {
             row == &vec![Value::String("FOREIGN KEY".to_string())]
         }));
 
@@ -3229,10 +3244,10 @@ mod integration_sql_foreign_keys {
             .unwrap();
 
         // Assert
-        assert_eq!(delete_parent.command, "DELETE 1");
-        assert_eq!(cascade_children.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(delete_parent.command(), "DELETE 1");
+        assert_eq!(cascade_children.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
         assert_eq!(
-            null_children.rows,
+            null_children.rows(),
             vec![vec![
                 Value::Null,
                 Value::String("nullable".to_string())
@@ -3324,16 +3339,16 @@ mod integration_sql_foreign_keys {
             .unwrap();
 
         // Assert
-        assert_eq!(update_parent.command, "UPDATE 1");
+        assert_eq!(update_parent.command(), "UPDATE 1");
         assert_eq!(
-            cascade_children.rows,
+            cascade_children.rows(),
             vec![vec![
                 Value::Int64(2),
                 Value::String("cascade".to_string())
             ]]
         );
         assert_eq!(
-            null_children.rows,
+            null_children.rows(),
             vec![vec![
                 Value::Null,
                 Value::String("nullable".to_string())
@@ -3396,17 +3411,17 @@ mod integration_sql_foreign_keys {
 
             // Assert
             assert_eq!(
-                grandchild.rows,
+                grandchild.rows(),
                 vec![vec![Value::String("y".to_string())]],
                 "a cascaded child update must recurse to its own dependents"
             );
             assert_eq!(
-                staged_grandchild.rows,
+                staged_grandchild.rows(),
                 vec![vec![Value::String("z".to_string())]],
                 "recursive cascades must remain visible in the updating transaction"
             );
             assert_eq!(
-                committed_grandchild.rows,
+                committed_grandchild.rows(),
                 vec![vec![Value::String("z".to_string())]],
                 "the transaction must commit the entire recursive cascade"
             );
@@ -3455,7 +3470,7 @@ mod integration_sql_foreign_keys {
                 .expect("read update grandchild");
 
             // Assert
-            assert_eq!(updated_grandchild.rows, vec![vec![Value::Null]]);
+            assert_eq!(updated_grandchild.rows(), vec![vec![Value::Null]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -3497,7 +3512,7 @@ mod integration_sql_foreign_keys {
                 .expect("read delete grandchild");
 
             // Assert
-            assert_eq!(grandchild.rows, vec![vec![Value::Null]]);
+            assert_eq!(grandchild.rows(), vec![vec![Value::Null]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -3562,9 +3577,9 @@ mod integration_sql_idempotent_ddl {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.command, "CREATE TABLE");
+            assert_eq!(result.command(), "CREATE TABLE");
             assert_eq!(cassie.midge.schema_epoch().unwrap(), epoch);
-            assert_eq!(rows.rows, vec![vec![Value::String("alpha".into())]]);
+            assert_eq!(rows.rows(), vec![vec![Value::String("alpha".into())]]);
             assert!(cassie
                 .execute_sql(&session, "CREATE TABLE stable_docs (id INT)", vec![])
                 .is_err());
@@ -3618,7 +3633,7 @@ mod integration_sql_idempotent_ddl {
             let after = cassie.catalog.get_index(&collection, "stable_idx").unwrap();
 
             // Assert
-            assert_eq!(result.command, "CREATE INDEX");
+            assert_eq!(result.command(), "CREATE INDEX");
             assert_eq!(cassie.midge.schema_epoch().unwrap(), epoch);
             assert_eq!(after.fields, before.fields);
             assert_eq!(after.unique, before.unique);
@@ -3704,12 +3719,12 @@ mod integration_sql_insert_select {
             .unwrap();
 
         // Assert
-        assert_eq!(inserted.command, "INSERT 0 2");
-        assert_eq!(inserted.rows.len(), 2);
-        assert_eq!(inserted.rows[0][0], Value::String("apple".to_string()));
-        assert_eq!(inserted.rows[0][1], Value::Int64(1));
-        assert_eq!(inserted.rows[1][0], Value::String("banana".to_string()));
-        assert_eq!(inserted.rows[1][1], Value::Int64(2));
+        assert_eq!(inserted.command(), "INSERT 0 2");
+        assert_eq!(inserted.rows().len(), 2);
+        assert_eq!(inserted.rows()[0][0], Value::String("apple".to_string()));
+        assert_eq!(inserted.rows()[0][1], Value::Int64(1));
+        assert_eq!(inserted.rows()[1][0], Value::String("banana".to_string()));
+        assert_eq!(inserted.rows()[1][1], Value::Int64(2));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -3773,7 +3788,7 @@ mod integration_sql_insert_select {
             .unwrap_err()
             .to_string()
             .contains("column/value counts mismatch"));
-        assert_eq!(target_rows.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(target_rows.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -3826,8 +3841,8 @@ mod integration_sql_insert_select {
             .unwrap();
 
         // Assert
-        assert_eq!(inserted.rows.len(), 1);
-        assert_eq!(inserted.rows[0][0], Value::String("pending".to_string()));
+        assert_eq!(inserted.rows().len(), 1);
+        assert_eq!(inserted.rows()[0][0], Value::String("pending".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -3883,12 +3898,12 @@ mod integration_sql_insert_values {
             .unwrap();
 
         // Assert
-        assert_eq!(result.command, "INSERT 0 1");
-        assert_eq!(result.columns[0].name, "title");
-        assert_eq!(result.columns[1].name, "body");
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
-        assert_eq!(result.rows[0][1], Value::String("first".to_string()));
+        assert_eq!(result.command(), "INSERT 0 1");
+        assert_eq!(result.columns()[0].name, "title");
+        assert_eq!(result.columns()[1].name, "body");
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(result.rows()[0][0], Value::String("alpha".to_string()));
+        assert_eq!(result.rows()[0][1], Value::String("first".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -3958,10 +3973,10 @@ mod integration_sql_insert_values {
                 .unwrap();
 
             // Assert
-            assert_eq!(autocommit.rows, vec![expected.clone()]);
-            assert_eq!(staged.rows, vec![expected.clone()]);
-            assert_eq!(updated.rows, vec![expected.clone()]);
-            assert_eq!(stored.rows, vec![expected.clone(), expected]);
+            assert_eq!(autocommit.rows(), vec![expected.clone()]);
+            assert_eq!(staged.rows(), vec![expected.clone()]);
+            assert_eq!(updated.rows(), vec![expected.clone()]);
+            assert_eq!(stored.rows(), vec![expected.clone(), expected]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -4006,9 +4021,9 @@ mod integration_sql_insert_values {
                 .unwrap();
 
             // Assert
-            assert_eq!(selected.rows.len(), 1);
-            assert_eq!(selected.rows[0][0], Value::String("alpha".to_string()));
-            assert_eq!(selected.rows[0][1], Value::Int64(7));
+            assert_eq!(selected.rows().len(), 1);
+            assert_eq!(selected.rows()[0][0], Value::String("alpha".to_string()));
+            assert_eq!(selected.rows()[0][1], Value::Int64(7));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -4046,9 +4061,9 @@ mod integration_sql_insert_values {
             .unwrap();
 
         // Assert
-        assert_eq!(inserted.command, "INSERT 0 2");
+        assert_eq!(inserted.command(), "INSERT 0 2");
         assert_eq!(
-            inserted.rows,
+            inserted.rows(),
             vec![
                 vec![Value::String("alpha".to_string()), Value::Int64(1)],
                 vec![Value::String("beta".to_string()), Value::Int64(2)]
@@ -4091,9 +4106,9 @@ mod integration_sql_insert_values {
                 .unwrap();
 
             // Assert
-            assert_eq!(inserted.columns[0].name, "_id");
-            assert_eq!(inserted.rows.len(), 1);
-            assert!(matches!(&inserted.rows[0][0], Value::String(id) if !id.is_empty()));
+            assert_eq!(inserted.columns()[0].name, "_id");
+            assert_eq!(inserted.rows().len(), 1);
+            assert!(matches!(&inserted.rows()[0][0], Value::String(id) if !id.is_empty()));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -4131,12 +4146,12 @@ mod integration_sql_insert_values {
             .unwrap();
 
         // Assert
-        assert_eq!(inserted.columns[0].name, "_id");
-        assert_eq!(inserted.columns[1].name, "title");
-        assert_eq!(inserted.columns[2].name, "body");
-        assert!(matches!(&inserted.rows[0][0], Value::String(id) if !id.is_empty()));
-        assert_eq!(inserted.rows[0][1], Value::String("alpha".to_string()));
-        assert_eq!(inserted.rows[0][2], Value::String("first".to_string()));
+        assert_eq!(inserted.columns()[0].name, "_id");
+        assert_eq!(inserted.columns()[1].name, "title");
+        assert_eq!(inserted.columns()[2].name, "body");
+        assert!(matches!(&inserted.rows()[0][0], Value::String(id) if !id.is_empty()));
+        assert_eq!(inserted.rows()[0][1], Value::String("alpha".to_string()));
+        assert_eq!(inserted.rows()[0][2], Value::String("first".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -4174,9 +4189,9 @@ mod integration_sql_insert_values {
             .unwrap();
 
         // Assert
-        assert_eq!(inserted.columns[0].name, "normalized");
+        assert_eq!(inserted.columns()[0].name, "normalized");
         assert_eq!(
-            inserted.rows,
+            inserted.rows(),
             vec![vec![Value::String("alpha".to_string())]]
         );
 
@@ -4332,8 +4347,8 @@ mod integration_sql_insert_values {
             .unwrap();
 
         // Assert
-        assert_eq!(inserted.rows.len(), 1);
-        assert_eq!(inserted.rows[0][0], Value::String("pending".to_string()));
+        assert_eq!(inserted.rows().len(), 1);
+        assert_eq!(inserted.rows()[0][0], Value::String("pending".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -4371,8 +4386,8 @@ mod integration_sql_insert_values {
             .unwrap();
 
         // Assert
-        assert_eq!(inserted.rows.len(), 1);
-        assert_eq!(inserted.rows[0][0], Value::String("done".to_string()));
+        assert_eq!(inserted.rows().len(), 1);
+        assert_eq!(inserted.rows()[0][0], Value::String("done".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -4418,7 +4433,7 @@ mod integration_sql_insert_values {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::Vector(Vector::new(vec![1.0, 2.0, 3.0]))]]
         );
 
@@ -4591,7 +4606,7 @@ mod integration_sql_insert_values {
                 legacy_entries,
                 [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
             );
-            assert_eq!(selected.rows[0][0], Value::String("alpha".to_string()));
+            assert_eq!(selected.rows()[0][0], Value::String("alpha".to_string()));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -4636,9 +4651,9 @@ mod integration_sql_insert_values {
                 .unwrap();
 
             // Assert
-            assert_eq!(selected.rows.len(), 1);
-            assert_eq!(selected.rows[0][0], Value::String("alpha".to_string()));
-            assert_eq!(selected.rows[0][1], Value::Null);
+            assert_eq!(selected.rows().len(), 1);
+            assert_eq!(selected.rows()[0][0], Value::String("alpha".to_string()));
+            assert_eq!(selected.rows()[0][1], Value::Null);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -4714,7 +4729,7 @@ mod integration_sql_insert_values {
 
             // Assert
             assert_eq!(
-                cast_offset.rows[0][0],
+                cast_offset.rows()[0][0],
                 Value::String("2024-01-01T07:00:00.000000Z".to_string())
             );
             assert!(
@@ -4788,7 +4803,7 @@ mod integration_sql_transaction_storage_failures {
                 .execute_sql(&session, "SELECT id FROM write_row_failpoint", vec![])
                 .unwrap();
             assert_eq!(
-                before_retry.rows,
+                before_retry.rows(),
                 [] as [std::vec::Vec<cassie::types::Value>; 0]
             );
             assert!(failed.to_string().contains("injected test failure"));
@@ -4809,7 +4824,7 @@ mod integration_sql_transaction_storage_failures {
                 )
                 .unwrap();
             assert_eq!(
-                after_retry.rows,
+                after_retry.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -4866,7 +4881,7 @@ mod integration_sql_transaction_storage_failures {
                 vec![],
             )
             .unwrap();
-        assert_eq!(before_retry.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(before_retry.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
         assert!(failed.to_string().contains("injected test failure"));
 
         cassie
@@ -4883,7 +4898,7 @@ mod integration_sql_transaction_storage_failures {
                 vec![],
             )
             .unwrap();
-        assert_eq!(after_retry.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(after_retry.rows(), vec![vec![Value::String("alpha".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -4938,7 +4953,7 @@ mod integration_sql_transaction_storage_failures {
                 vec![],
             )
             .unwrap();
-        assert_eq!(before_retry.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(before_retry.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
         assert!(failed.to_string().contains("injected test failure"));
 
         cassie
@@ -4955,7 +4970,7 @@ mod integration_sql_transaction_storage_failures {
                 vec![],
             )
             .unwrap();
-        assert_eq!(after_retry.rows, vec![vec![Value::String("acme".to_string())]]);
+        assert_eq!(after_retry.rows(), vec![vec![Value::String("acme".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -5010,7 +5025,7 @@ mod integration_sql_transaction_storage_failures {
                 vec![],
             )
             .unwrap();
-        assert_eq!(before_retry.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(before_retry.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
         assert!(failed.to_string().contains("injected test failure"));
 
         cassie
@@ -5027,7 +5042,7 @@ mod integration_sql_transaction_storage_failures {
                 vec![],
             )
             .unwrap();
-        assert_eq!(after_retry.rows, vec![vec![Value::String("direct".to_string())]]);
+        assert_eq!(after_retry.rows(), vec![vec![Value::String("direct".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -5083,7 +5098,7 @@ mod integration_sql_transaction_storage_failures {
                 )
                 .unwrap();
             assert_eq!(
-                before_retry.rows,
+                before_retry.rows(),
                 [] as [std::vec::Vec<cassie::types::Value>; 0]
             );
             assert!(
@@ -5106,7 +5121,7 @@ mod integration_sql_transaction_storage_failures {
                 )
                 .unwrap();
             assert_eq!(
-                after_retry.rows,
+                after_retry.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -5164,7 +5179,7 @@ mod integration_sql_transaction_storage_failures {
                 )
                 .unwrap();
             assert_eq!(
-                before_retry.rows,
+                before_retry.rows(),
                 [] as [std::vec::Vec<cassie::types::Value>; 0]
             );
             assert!(
@@ -5187,7 +5202,7 @@ mod integration_sql_transaction_storage_failures {
                 )
                 .unwrap();
             assert_eq!(
-                after_retry.rows,
+                after_retry.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -5259,7 +5274,7 @@ mod integration_sql_transaction_visibility {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 [] as [std::vec::Vec<cassie::types::Value>; 0]
             );
 
@@ -5308,7 +5323,7 @@ mod integration_sql_transaction_visibility {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -5359,7 +5374,7 @@ mod integration_sql_transaction_visibility {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -5403,7 +5418,7 @@ mod integration_sql_transaction_visibility {
                 vec![],
             )
             .unwrap();
-            let row_id = match &inserted.rows[0][0] {
+            let row_id = match &inserted.rows()[0][0] {
                 Value::String(value) => value.clone(),
                 _ => panic!("expected row id"),
             };
@@ -5501,9 +5516,9 @@ mod integration_sql_transactions {
             let after = session.transaction_status();
 
             // Assert
-            assert_eq!(begin.command, "BEGIN");
+            assert_eq!(begin.command(), "BEGIN");
             assert_eq!(during, "in_transaction");
-            assert_eq!(commit.command, "COMMIT");
+            assert_eq!(commit.command(), "COMMIT");
             assert_eq!(after, "idle");
 
             let _ = std::fs::remove_dir_all(path);
@@ -5531,7 +5546,7 @@ mod integration_sql_transactions {
             let after = session.transaction_status();
 
             // Assert
-            assert_eq!(rollback.command, "ROLLBACK");
+            assert_eq!(rollback.command(), "ROLLBACK");
             assert_eq!(after, "idle");
 
             let _ = std::fs::remove_dir_all(path);
@@ -5610,22 +5625,22 @@ mod integration_sql_transactions {
 
             // Assert
             assert_eq!(
-                savepoint_path.rows,
+                savepoint_path.rows(),
                 vec![vec![Value::String("public".to_string())]]
             );
             assert_eq!(
-                savepoint_application_name.rows,
+                savepoint_application_name.rows(),
                 vec![vec![Value::String("before_savepoint".to_string())]]
             );
             assert_eq!(
-                search_path.rows,
+                search_path.rows(),
                 vec![vec![Value::String("public".to_string())]]
             );
             assert_eq!(
-                application_name.rows,
+                application_name.rows(),
                 vec![vec![Value::String(String::new())]]
             );
-            assert_eq!(selected.rows, vec![vec![Value::Int64(1)]]);
+            assert_eq!(selected.rows(), vec![vec![Value::Int64(1)]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -5668,7 +5683,7 @@ mod integration_sql_transactions {
             // Assert
             assert_eq!(session.transaction_status(), "idle");
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -5760,7 +5775,7 @@ mod integration_sql_transactions {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -5886,7 +5901,7 @@ mod integration_sql_transactions {
             // Assert
             assert_eq!(status, "in_transaction");
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -5976,7 +5991,7 @@ mod integration_sql_transactions {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 [] as [std::vec::Vec<cassie::types::Value>; 0]
             );
 
@@ -6074,7 +6089,8 @@ mod integration_sql_transactions {
             let collected_from_a = cassie
                 .execute_sql(&session, "SELECT id FROM tx_multi_a", vec![])
                 .unwrap()
-                .rows;
+                .rows()
+                .to_vec();
             assert_eq!(collected_from_a.len(), 1);
             let collected_from_b = cassie
                 .execute_sql(
@@ -6083,7 +6099,8 @@ mod integration_sql_transactions {
                     vec![],
                 )
                 .unwrap()
-                .rows;
+                .rows()
+                .to_vec();
             assert_eq!(
                 collected_from_b,
                 vec![vec![Value::String("alice@example.com".into())]]
@@ -6134,7 +6151,7 @@ mod integration_sql_transactions {
             let after_epoch = cassie.midge.data_epoch().unwrap();
 
             // Assert
-            assert_eq!(deleted.command, "DELETE 0");
+            assert_eq!(deleted.command(), "DELETE 0");
             assert_eq!(before_epoch, after_epoch);
             let rows = cassie
                 .execute_sql(
@@ -6143,7 +6160,7 @@ mod integration_sql_transactions {
                     vec![],
                 )
                 .unwrap();
-            assert_eq!(rows.rows, vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(rows.rows(), vec![vec![Value::String("alpha".to_string())]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -6195,8 +6212,8 @@ mod integration_sql_transactions {
                 vec![],
             )
             .unwrap();
-        assert_eq!(replaced.command, "INSERT 0 1");
-        assert_eq!(rows.rows, vec![vec![Value::String("beta".to_string())]]);
+        assert_eq!(replaced.command(), "INSERT 0 1");
+        assert_eq!(rows.rows(), vec![vec![Value::String("beta".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -6243,7 +6260,7 @@ mod integration_sql_transactions {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 [] as [std::vec::Vec<cassie::types::Value>; 0]
             );
 
@@ -6300,7 +6317,7 @@ mod integration_sql_transactions {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -6357,7 +6374,7 @@ mod integration_sql_transactions {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -6412,7 +6429,10 @@ mod integration_sql_transactions {
                 .unwrap();
 
             // Assert
-            assert_eq!(selected.rows, vec![vec![Value::String("beta".to_string())]]);
+            assert_eq!(
+                selected.rows(),
+                vec![vec![Value::String("beta".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -6466,7 +6486,7 @@ mod integration_sql_transactions {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 [] as [std::vec::Vec<cassie::types::Value>; 0]
             );
 
@@ -6529,7 +6549,7 @@ mod integration_sql_update {
 
             // Assert
             assert_eq!(
-                rows.rows,
+                rows.rows(),
                 vec![
                     vec![Value::Int64(1), Value::Int64(3), Value::Null],
                     vec![Value::Int64(2), Value::Int64(2), Value::Int64(1)],
@@ -6579,7 +6599,7 @@ mod integration_sql_update {
 
             // Assert
             assert_eq!(
-                rows.rows,
+                rows.rows(),
                 vec![
                     vec![Value::Int64(2), Value::Int64(1)],
                     vec![Value::Int64(3), Value::Null],
@@ -6645,10 +6665,10 @@ mod integration_sql_update {
                 "non-finite float values must be rejected as non-finite: {unexpected:#?}"
             );
             assert_eq!(
-                stored.rows,
+                stored.rows(),
                 vec![vec![Value::Int64(1), Value::Float64(5.5)]]
             );
-            assert_eq!(copied.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(copied.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -6720,8 +6740,8 @@ mod integration_sql_update {
             .unwrap();
 
         // Assert
-        assert_eq!(updated.rows, vec![vec![Value::String("bravo".to_string())]]);
-        assert_eq!(deleted.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(updated.rows(), vec![vec![Value::String("bravo".to_string())]]);
+        assert_eq!(deleted.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -6781,13 +6801,13 @@ mod integration_sql_update {
             .unwrap();
 
         // Assert
-        assert_eq!(updated.command, "UPDATE 1");
-        assert_eq!(updated.rows.len(), 1);
-        assert!(matches!(&updated.rows[0][0], Value::String(id) if !id.is_empty()));
-        assert_eq!(updated.rows[0][1], Value::String("alpha".to_string()));
-        assert_eq!(updated.rows[0][2], Value::String("done".to_string()));
-        assert_eq!(selected.rows[0][1], Value::String("done".to_string()));
-        assert_eq!(selected.rows[1][1], Value::String("old".to_string()));
+        assert_eq!(updated.command(), "UPDATE 1");
+        assert_eq!(updated.rows().len(), 1);
+        assert!(matches!(&updated.rows()[0][0], Value::String(id) if !id.is_empty()));
+        assert_eq!(updated.rows()[0][1], Value::String("alpha".to_string()));
+        assert_eq!(updated.rows()[0][2], Value::String("done".to_string()));
+        assert_eq!(selected.rows()[0][1], Value::String("done".to_string()));
+        assert_eq!(selected.rows()[1][1], Value::String("old".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -6832,8 +6852,8 @@ mod integration_sql_update {
             .unwrap();
 
         // Assert
-        assert_eq!(updated.columns[0].name, "normalized");
-        assert_eq!(updated.rows, vec![vec![Value::String("beta".to_string())]]);
+        assert_eq!(updated.columns()[0].name, "normalized");
+        assert_eq!(updated.rows(), vec![vec![Value::String("beta".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -6868,7 +6888,7 @@ mod integration_sql_update {
                 vec![],
             )
             .unwrap();
-        let original_id = match &inserted.rows[0][0] {
+        let original_id = match &inserted.rows()[0][0] {
             Value::String(value) => value.clone(),
             _ => panic!("expected row id"),
         };
@@ -6883,7 +6903,7 @@ mod integration_sql_update {
             .unwrap();
 
         // Assert
-        assert_eq!(updated.rows[0][0], Value::String(original_id));
+        assert_eq!(updated.rows()[0][0], Value::String(original_id));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -6935,7 +6955,7 @@ mod integration_sql_update {
             // Assert
             assert!(updated.is_err());
             assert!(updated.unwrap_err().to_string().contains("cannot be null"));
-            assert_eq!(selected.rows[0][0], Value::String("alpha".to_string()));
+            assert_eq!(selected.rows()[0][0], Value::String("alpha".to_string()));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -6980,8 +7000,8 @@ mod integration_sql_update {
             .unwrap();
 
         // Assert
-        assert_eq!(updated.command, "UPDATE 0");
-        assert_eq!(updated.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(updated.command(), "UPDATE 0");
+        assert_eq!(updated.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -7111,7 +7131,7 @@ mod integration_sql_upsert {
                 let rows = cassie
                     .execute_sql(&session, &format!("SELECT v FROM {table}"), vec![])
                     .unwrap();
-                assert_eq!(rows.rows, vec![vec![Value::Int64(2)]], "table {table}");
+                assert_eq!(rows.rows(), vec![vec![Value::Int64(2)]], "table {table}");
             }
             let float_nothing = cassie.execute_sql(&session, "INSERT INTO canonical_float VALUES (1, 3) ON CONFLICT (k) DO NOTHING", vec![]);
             assert!(float_nothing.is_ok(), "FLOAT DO NOTHING should suppress conflict");
@@ -7119,14 +7139,14 @@ mod integration_sql_upsert {
             assert!(date_nothing.is_ok(), "DATE DO NOTHING should suppress conflict");
             let timestamp_nothing = cassie.execute_sql(&session, "INSERT INTO canonical_timestamp VALUES ('2024-01-01 00:00:00', 3) ON CONFLICT (k) DO NOTHING", vec![]);
             assert!(timestamp_nothing.is_ok(), "TIMESTAMP DO NOTHING should suppress conflict");
-            assert_eq!(float_nothing.unwrap().command, "INSERT 0 0");
-            assert_eq!(date_nothing.unwrap().command, "INSERT 0 0");
-            assert_eq!(timestamp_nothing.unwrap().command, "INSERT 0 0");
+            assert_eq!(float_nothing.unwrap().command(), "INSERT 0 0");
+            assert_eq!(date_nothing.unwrap().command(), "INSERT 0 0");
+            assert_eq!(timestamp_nothing.unwrap().command(), "INSERT 0 0");
             for table in ["canonical_float", "canonical_date", "canonical_timestamp"] {
                 let rows = cassie
                     .execute_sql(&session, &format!("SELECT v FROM {table}"), vec![])
                     .unwrap();
-                assert_eq!(rows.rows, vec![vec![Value::Int64(2)]], "table {table}");
+                assert_eq!(rows.rows(), vec![vec![Value::Int64(2)]], "table {table}");
             }
 
             let _ = std::fs::remove_dir_all(path);
@@ -7158,8 +7178,8 @@ mod integration_sql_upsert {
             ).unwrap();
 
             // Assert
-            assert_eq!(result.command, "INSERT 0 1");
-            assert_eq!(result.rows, vec![vec![Value::String("one".into()), Value::String("keep".into())]]);
+            assert_eq!(result.command(), "INSERT 0 1");
+            assert_eq!(result.rows(), vec![vec![Value::String("one".into()), Value::String("keep".into())]]);
             let _ = std::fs::remove_dir_all(path);
         });
     }
@@ -7190,7 +7210,7 @@ mod integration_sql_upsert {
             assert!(unknown.unwrap_err().to_string().contains("excluded.missing"));
             assert!(duplicate.unwrap_err().to_string().contains("duplicated"));
             assert!(non_unique.unwrap_err().to_string().contains("does not match"));
-            assert_eq!(rows.rows, vec![vec![Value::String("alpha".into())]]);
+            assert_eq!(rows.rows(), vec![vec![Value::String("alpha".into())]]);
             let _ = std::fs::remove_dir_all(path);
         });
     }
@@ -7223,9 +7243,9 @@ mod integration_sql_upsert {
             let committed = cassie.execute_sql(&session, "SELECT title FROM upsert_tx", vec![]).unwrap();
 
             // Assert
-            assert_eq!(during.rows, vec![vec![Value::String("beta".into())]]);
-            assert_eq!(rolled_back.rows, vec![vec![Value::String("alpha".into())]]);
-            assert_eq!(committed.rows, vec![vec![Value::String("gamma".into())]]);
+            assert_eq!(during.rows(), vec![vec![Value::String("beta".into())]]);
+            assert_eq!(rolled_back.rows(), vec![vec![Value::String("alpha".into())]]);
+            assert_eq!(committed.rows(), vec![vec![Value::String("gamma".into())]]);
             let _ = std::fs::remove_dir_all(path);
         });
     }
@@ -7292,7 +7312,7 @@ mod integration_sql_upsert {
                 .to_string()
                 .contains("still references"));
             assert_eq!(
-                parents.rows,
+                parents.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -7359,7 +7379,7 @@ mod integration_sql_upsert {
                 .unwrap();
 
             // Assert
-            assert_eq!(children.rows, vec![vec![Value::Int64(2)]]);
+            assert_eq!(children.rows(), vec![vec![Value::Int64(2)]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -7441,10 +7461,10 @@ mod integration_sql_upsert {
                 .to_string()
                 .contains("still references"));
             assert_eq!(
-                parents.rows,
+                parents.rows(),
                 vec![vec![Value::String("committed".to_string())]]
             );
-            assert_eq!(children.rows, vec![vec![Value::Int64(1)]]);
+            assert_eq!(children.rows(), vec![vec![Value::Int64(1)]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -7503,7 +7523,7 @@ mod integration_sql_upsert_concurrency {
         let rows = cassie
             .execute_sql(&setup, "SELECT email FROM racing_upserts", vec![])
             .expect("read winner");
-        assert_eq!(rows.rows.len(), 1);
+        assert_eq!(rows.rows().len(), 1);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7552,11 +7572,11 @@ mod integration_sql_upsert_concurrency {
         assert!(results.iter().all(Result::is_ok));
         assert!(results
             .iter()
-            .all(|result| result.as_ref().expect("upsert").rows.len() == 1));
+            .all(|result| result.as_ref().expect("upsert").rows().len() == 1));
         let rows = cassie
             .execute_sql(&setup, "SELECT value FROM racing_update_upserts", vec![])
             .expect("read resolved row");
-        assert_eq!(rows.rows.len(), 1);
+        assert_eq!(rows.rows().len(), 1);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7606,7 +7626,7 @@ mod integration_sql_upsert_concurrency {
         let rows = cassie
             .execute_sql(&setup, "SELECT email FROM transaction_upserts", vec![])
             .expect("read winner");
-        assert_eq!(rows.rows.len(), 1);
+        assert_eq!(rows.rows().len(), 1);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7661,7 +7681,7 @@ mod integration_sql_upsert_concurrency {
                 vec![],
             )
             .expect("read resolved row");
-        assert_eq!(rows.rows, vec![vec![cassie::types::Value::Int64(2)]]);
+        assert_eq!(rows.rows(), vec![vec![cassie::types::Value::Int64(2)]]);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7707,7 +7727,7 @@ mod integration_sql_upsert_concurrency {
         let rows = cassie
             .execute_sql(&session, "SELECT email FROM savepoint_upserts", vec![])
             .expect("read rows");
-        assert_eq!(rows.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(rows.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7739,7 +7759,11 @@ mod migration_ddl_sequences {
     }
 
     fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).unwrap().rows
+        cassie
+            .execute_sql(session, sql, vec![])
+            .unwrap()
+            .rows()
+            .to_vec()
     }
 
     fn create_sequence_default_schema(cassie: &Cassie, session: &CassieSession) {
@@ -8282,7 +8306,7 @@ mod migration_ddl_sequences {
 
         // Assert
         assert_eq!(
-            rows.rows,
+            rows.rows(),
             vec![
                 vec![
                     Value::Int64(1),
@@ -8297,7 +8321,7 @@ mod migration_ddl_sequences {
             ]
         );
         assert_eq!(
-            columns.rows,
+            columns.rows(),
             vec![
                 vec![
                     Value::String("serial_id".to_string()),
@@ -8469,16 +8493,16 @@ mod transaction_commit_boundary {
                 .expect("read maintenance debt");
 
             // Assert
-            assert_eq!(commit.command, "COMMIT");
+            assert_eq!(commit.command(), "COMMIT");
             assert!(retry.is_err(), "a durable COMMIT must not be retryable");
-            assert_eq!(rollback.command, "ROLLBACK");
+            assert_eq!(rollback.command(), "ROLLBACK");
             assert_eq!(session.transaction_status(), "idle");
             assert_eq!(
-                rows.rows,
+                rows.rows(),
                 vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]
             );
             assert_eq!(
-                debt.rows,
+                debt.rows(),
                 vec![vec![Value::String("materialized_projection".to_string())]]
             );
 
@@ -8570,19 +8594,19 @@ mod transaction_commit_boundary {
                 .expect("read recovered maintenance debt");
 
             // Assert
-            assert_eq!(commit.command, "COMMIT");
+            assert_eq!(commit.command(), "COMMIT");
             assert!(retry.is_err(), "a durable COMMIT must not be retryable");
             assert_eq!(session.transaction_status(), "idle");
             assert_eq!(
-                source_rows.rows,
+                source_rows.rows(),
                 vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]
             );
             assert_eq!(
-                debt.rows,
+                debt.rows(),
                 vec![vec![Value::String("rollup".to_string())]]
             );
             assert_eq!(
-                rollup_rows.rows,
+                rollup_rows.rows(),
                 vec![vec![
                     Value::String("2026-01-01T00:00:00Z".to_string()),
                     Value::String("acme".to_string()),
@@ -8590,7 +8614,7 @@ mod transaction_commit_boundary {
                     Value::Int64(30),
                 ]]
             );
-            assert_eq!(remaining_debt.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(remaining_debt.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -8676,7 +8700,7 @@ mod transaction_semantics {
                 .expect("read committed should be supported");
 
             // Assert
-            assert_eq!(result.command, "BEGIN");
+            assert_eq!(result.command(), "BEGIN");
             assert_eq!(session.transaction_status(), "in_transaction");
             cassie
                 .execute_sql(session, "ROLLBACK", vec![])
@@ -8799,7 +8823,7 @@ mod transaction_semantics {
                     vec![],
                 )
                 .expect("read source after rollback");
-            assert_eq!(rows.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(rows.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
             assert!(!cassie
                 .catalog
                 .relation_exists("transaction_semantics_rejected"));
@@ -8832,7 +8856,7 @@ mod transaction_semantics {
                     vec![],
                 )
                 .expect("read staged COPY row");
-            assert_eq!(staged.rows, vec![vec![Value::String("copied".into())]]);
+            assert_eq!(staged.rows(), vec![vec![Value::String("copied".into())]]);
             cassie
                 .execute_sql(session, "COMMIT", vec![])
                 .expect("commit COPY");
@@ -8843,7 +8867,7 @@ mod transaction_semantics {
                     vec![],
                 )
                 .expect("read source after COPY rollback");
-            assert_eq!(rows.rows, vec![vec![Value::String("copied".into())]]);
+            assert_eq!(rows.rows(), vec![vec![Value::String("copied".into())]]);
         });
     }
 }
@@ -8950,7 +8974,7 @@ mod transaction_staging {
             let rows = cassie
                 .execute_sql(session, "SELECT id FROM transaction_stage_b", vec![])
                 .expect("read deleted collection");
-            assert_eq!(rows.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(rows.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
         });
     }
 
@@ -8984,7 +9008,7 @@ mod transaction_staging {
 
             // Assert
             assert_eq!(
-                first_rows.rows,
+                first_rows.rows(),
                 [] as [std::vec::Vec<cassie::types::Value>; 0]
             );
             assert_eq!(session.transaction_status(), "idle");
@@ -9037,7 +9061,7 @@ mod transaction_staging {
                 .expect("read committed retry");
 
             // Assert
-            assert_eq!(rows.rows, vec![vec![Value::String("beta".to_string())]]);
+            assert_eq!(rows.rows(), vec![vec![Value::String("beta".to_string())]]);
         });
     }
 
@@ -9104,8 +9128,11 @@ mod transaction_staging {
         let child = cassie
             .execute_sql(&session, "SELECT id FROM transaction_cascade_child", vec![])
             .expect("read child after rollback");
-        assert_eq!(parent.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
-        assert_eq!(child.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(
+            parent.rows(),
+            [] as [std::vec::Vec<cassie::types::Value>; 0]
+        );
+        assert_eq!(child.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -9177,8 +9204,8 @@ mod transaction_staging {
                 vec![],
             )
             .expect("read child after rollback");
-        assert_eq!(parent.rows, vec![vec![Value::String("two".to_string())]]);
-        assert_eq!(child.rows, vec![vec![Value::String("two".to_string())]]);
+        assert_eq!(parent.rows(), vec![vec![Value::String("two".to_string())]]);
+        assert_eq!(child.rows(), vec![vec![Value::String("two".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -9230,22 +9257,22 @@ mod unique_ddl_reservations {
 
         // Assert
         assert_eq!(
-            explicit.rows,
+            explicit.rows(),
             vec![vec![Value::Int64(1), Value::Null, Value::Int64(42)]]
         );
-        assert_eq!(wildcard.rows.len(), 1);
+        assert_eq!(wildcard.rows().len(), 1);
         let column_position = |name: &str| {
             wildcard
-                .columns
+                .columns()
                 .iter()
                 .position(|column| column.name == name)
                 .expect("wildcard column")
         };
-        assert_eq!(wildcard.rows[0][column_position("a")], Value::Int64(1));
-        assert_eq!(wildcard.rows[0][column_position("b")], Value::Null);
-        assert_eq!(wildcard.rows[0][column_position("c")], Value::Int64(42));
+        assert_eq!(wildcard.rows()[0][column_position("a")], Value::Int64(1));
+        assert_eq!(wildcard.rows()[0][column_position("b")], Value::Null);
+        assert_eq!(wildcard.rows()[0][column_position("c")], Value::Int64(42));
         assert_eq!(
-            stale_alias.rows,
+            stale_alias.rows(),
             [] as [std::vec::Vec<cassie::types::Value>; 0]
         );
         let _ = std::fs::remove_dir_all(path);
@@ -9371,16 +9398,16 @@ mod unique_ddl_reservations {
 
         // Assert
         assert_eq!(
-            explicit.rows,
+            explicit.rows(),
             vec![vec![
                 Value::String("r1".to_string()),
                 Value::Null,
                 Value::Null,
             ]]
         );
-        assert_eq!(wildcard.rows, explicit.rows);
+        assert_eq!(wildcard.rows(), explicit.rows());
         assert_eq!(
-            predicate.rows,
+            predicate.rows(),
             [] as [std::vec::Vec<cassie::types::Value>; 0]
         );
 
@@ -9395,7 +9422,7 @@ mod unique_ddl_reservations {
                 vec![],
             )
             .expect("select re-added columns after restart");
-        assert_eq!(after_restart.rows, explicit.rows);
+        assert_eq!(after_restart.rows(), explicit.rows());
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -9448,7 +9475,10 @@ mod unique_ddl_reservations {
                 vec![],
             )
             .expect("read rows");
-        assert_eq!(rows.rows, vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
+        assert_eq!(
+            rows.rows(),
+            vec![vec![Value::Float64(1.0), Value::Int64(1)]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -9502,7 +9532,7 @@ mod unique_ddl_reservations {
             )
             .expect("read rows");
         assert_eq!(
-            rows.rows,
+            rows.rows(),
             vec![vec![
                 Value::String("2024-01-01T00:00:00.000000Z".to_string()),
                 Value::Int64(1)
@@ -9546,7 +9576,7 @@ mod unique_ddl_reservations {
                 vec![],
             )
             .expect("read existing rows");
-        assert_eq!(rows.rows.len(), 2);
+        assert_eq!(rows.rows().len(), 2);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -9582,7 +9612,7 @@ mod unique_ddl_reservations {
                 vec![],
             )
             .expect("read existing rows");
-        assert_eq!(rows.rows.len(), 2);
+        assert_eq!(rows.rows().len(), 2);
         let _ = std::fs::remove_dir_all(path);
     }
 }
@@ -9689,8 +9719,8 @@ mod unique_reservations {
             activate_duplicate_key.is_err(),
             "an update entering the predicate must enforce uniqueness"
         );
-        assert_eq!(active_rows.rows.len(), 2);
-        assert_eq!(inactive_rows.rows.len(), 3);
+        assert_eq!(active_rows.rows().len(), 2);
+        assert_eq!(inactive_rows.rows().len(), 3);
         assert!(
             partial_index_creation.is_ok(),
             "index backfill ignores duplicate rows outside its predicate"
@@ -9815,9 +9845,9 @@ mod unique_reservations {
             .expect("select rows");
 
         // Assert
-        assert_eq!(inserted.command, "INSERT 0 1");
+        assert_eq!(inserted.command(), "INSERT 0 1");
         assert_eq!(
-            rows.rows,
+            rows.rows(),
             vec![vec![Value::String("reuse@example.com".to_string())]]
         );
 
@@ -9868,7 +9898,7 @@ mod unique_reservations {
             )
             .expect("read committed row");
         assert_eq!(
-            rows.rows,
+            rows.rows(),
             vec![vec![Value::String("reuse@example.com".to_string())]]
         );
         let _ = std::fs::remove_dir_all(path);
@@ -9927,7 +9957,7 @@ mod unique_reservations {
 
         // Assert
         assert_eq!(
-            rows_in_transaction.rows,
+            rows_in_transaction.rows(),
             vec![
                 vec![Value::Int64(1), Value::String("b".to_string())],
                 vec![Value::Int64(2), Value::String("a".to_string())],
@@ -9942,7 +9972,7 @@ mod unique_reservations {
             duplicate_a.is_err(),
             "rotation must retain the 'a' reservation"
         );
-        assert_eq!(rows_after_commit.rows, rows_in_transaction.rows);
+        assert_eq!(rows_after_commit.rows(), rows_in_transaction.rows());
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -10000,7 +10030,7 @@ mod unique_reservations {
 
         // Assert
         assert_eq!(
-            rows_in_transaction.rows,
+            rows_in_transaction.rows(),
             vec![
                 vec![Value::Int64(1), Value::String("b".to_string())],
                 vec![Value::Int64(2), Value::String("a".to_string())],
@@ -10015,7 +10045,7 @@ mod unique_reservations {
             duplicate_a.is_err(),
             "rotation must retain the 'a' index reservation"
         );
-        assert_eq!(rows_after_commit.rows, rows_in_transaction.rows);
+        assert_eq!(rows_after_commit.rows(), rows_in_transaction.rows());
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -10066,7 +10096,7 @@ mod unique_reservations {
             "rollback must preserve unique reservations"
         );
         assert_eq!(
-            rows.rows,
+            rows.rows(),
             vec![
                 vec![Value::Int64(1), Value::String("a".to_string())],
                 vec![Value::Int64(2), Value::String("b".to_string())],
@@ -10200,7 +10230,10 @@ mod unique_reservations {
                 vec![],
             )
             .expect("read rows");
-        assert_eq!(rows.rows, vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
+        assert_eq!(
+            rows.rows(),
+            vec![vec![Value::Float64(1.0), Value::Int64(1)]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -10252,7 +10285,10 @@ mod unique_reservations {
                 vec![],
             )
             .expect("read rows");
-        assert_eq!(rows.rows, vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
+        assert_eq!(
+            rows.rows(),
+            vec![vec![Value::Float64(1.0), Value::Int64(1)]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 }
@@ -10304,7 +10340,7 @@ mod foreign_key_ddl_lifecycle {
     }
 
     fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        run(cassie, session, sql).expect("select").rows
+        run(cassie, session, sql).expect("select").rows().to_vec()
     }
 
     fn assert_foreign_key_error(result: Result<QueryResult, CassieError>, context: &str) {
@@ -10811,7 +10847,8 @@ mod foreign_key_integrity {
         cassie
             .execute_sql(session, sql, vec![])
             .unwrap_or_else(|error| panic!("{sql}: {error}"))
-            .rows
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -11169,7 +11206,7 @@ mod on_conflict_resolution {
     fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
         cassie
             .execute_sql(session, sql, vec![])
-            .map(|result| result.rows)
+            .map(|result| result.rows().to_vec())
             .unwrap_or_default()
     }
 
@@ -11473,7 +11510,8 @@ mod composite_unique_constraints {
                 vec![],
             )
             .expect("select ids")
-            .rows
+            .rows()
+            .to_vec()
     }
 
     fn int_ids(values: &[i64]) -> Vec<Vec<Value>> {
@@ -11527,7 +11565,7 @@ mod composite_unique_constraints {
                 vec![],
             )
             .expect("table constraints")
-            .rows;
+            .rows().to_vec();
 
         // Assert
         assert!(accepted.iter().all(|ok| *ok), "partial overlaps are legal");
@@ -11640,7 +11678,7 @@ mod composite_unique_constraints {
                 vec![],
             )
             .expect("table constraints")
-            .rows;
+            .rows().to_vec();
         drop(session);
         drop(cassie);
         let reopened = Cassie::new_with_data_dir(&path).expect("reopen");
@@ -11713,7 +11751,8 @@ mod composite_unique_constraints {
         let notes = cassie
             .execute_sql(&session, "SELECT id, note FROM h ORDER BY id", vec![])
             .expect("select notes")
-            .rows;
+            .rows()
+            .to_vec();
 
         // Assert
         assert_eq!(
@@ -11779,7 +11818,8 @@ mod char_unique_trailing_blanks {
         let matched = cassie
             .execute_sql(&session, "SELECT id, c FROM f7 WHERE c = 'x'", vec![])
             .expect("select f7")
-            .rows;
+            .rows()
+            .to_vec();
 
         // Assert
         assert!(
@@ -11881,7 +11921,8 @@ mod alter_column_declared_case {
                 vec![],
             )
             .expect("select notes")
-            .rows;
+            .rows()
+            .to_vec();
 
         // Assert
         assert!(set_default.is_ok(), "SET DEFAULT names the column Note");

@@ -426,7 +426,8 @@ fn execute_rows(
     cassie
         .execute_sql(session, sql, vec![])
         .unwrap_or_else(|error| panic!("execute adaptive evidence query {sql}: {error}"))
-        .rows
+        .rows()
+        .to_vec()
 }
 
 fn config_json(config: &CassieRuntimeConfig) -> JsonValue {
@@ -548,7 +549,7 @@ fn explain(cassie: &Cassie, session: &cassie::app::CassieSession, sql: &str) -> 
     cassie
         .execute_sql(session, &format!("EXPLAIN {sql}"), vec![])
         .expect("explain adaptive evidence query")
-        .rows[0][0]
+        .rows()[0][0]
         .as_str()
         .expect("textual adaptive evidence plan")
         .to_string()

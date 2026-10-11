@@ -18,10 +18,10 @@ fn should_preserve_null_safe_join_multiplicity() {
     // Assert
     let expected = [(1, 10), (1, 30), (2, 20), (3, 10), (3, 30)]
         .map(|(l, r)| vec![Value::Int64(l), Value::Int64(r)]);
-    assert_eq!(result.rows, expected);
+    assert_eq!(result.rows(), expected);
     assert_eq!(
         result
-            .columns
+            .columns()
             .iter()
             .map(|column| column.name.as_str())
             .collect::<Vec<_>>(),
@@ -45,8 +45,11 @@ fn should_preserve_null_safe_dml_predicates() {
         .execute("DELETE FROM dml_source WHERE n IS DISTINCT FROM 7 RETURNING id")
         .expect("null-safe delete filter");
     // Assert
-    assert_eq!(update.rows, vec![vec![Value::Int64(1), Value::Bool(true)]]);
-    assert_eq!(delete.rows, vec![vec![Value::Int64(1)]]);
+    assert_eq!(
+        update.rows(),
+        vec![vec![Value::Int64(1), Value::Bool(true)]]
+    );
+    assert_eq!(delete.rows(), vec![vec![Value::Int64(1)]]);
     assert_eq!(
         fixture.rows("SELECT id FROM dml_source ORDER BY id"),
         vec![vec![Value::Int64(2)]]
@@ -70,7 +73,7 @@ fn should_preserve_null_safe_residual_results_with_an_index() {
         .expect("residual NULL-safe scan");
     // Assert
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![
             vec![Value::Int64(1)],
             vec![Value::Int64(3)],
@@ -102,7 +105,18 @@ fn should_preserve_null_safe_transaction_overlay_visibility() {
         Vec::<Vec<Value>>::new()
     );
     let snapshot = fixture.cassie.metrics();
-    assert_eq!(snapshot["query"]["current_accounted_memory_bytes"], 0);
+    assert_eq!(snapshot["execution_result_cache"]["entries"], 1);
+    assert!(
+        snapshot["query"]["current_accounted_memory_bytes"]
+            .as_u64()
+            .expect("retained query bytes")
+            > 0
+    );
+    assert_eq!(
+        snapshot["query"]["current_accounted_memory_bytes"],
+        snapshot["execution_result_cache"]["accounted_retained_bytes"],
+        "the final cold SELECT retains exactly its cache-owned capacity"
+    );
     assert_eq!(snapshot["runtime"]["running_queries"], 0);
     assert_eq!(snapshot["runtime"]["active_operator_workers"], 0);
 }
@@ -194,7 +208,7 @@ fn should_preserve_null_safe_keyset_residual_limit() {
     let result = fixture.execute("SELECT id FROM keyset_source WHERE id>0 AND n IS NOT DISTINCT FROM NULL ORDER BY id LIMIT 2").expect("post-key residual must precede LIMIT");
     // Assert
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![Value::Int64(3)], vec![Value::Int64(5)]]
     );
     let after = fixture.cassie.metrics();
@@ -202,5 +216,13 @@ fn should_preserve_null_safe_keyset_residual_limit() {
         "null-safe keyset-context before={} after={}",
         before["read_paths"], after["read_paths"]
     );
+    assert!(
+        after["query"]["current_accounted_memory_bytes"]
+            .as_u64()
+            .expect("live result memory")
+            > 0
+    );
+    drop(result);
+    let after = fixture.cassie.metrics();
     assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
 }

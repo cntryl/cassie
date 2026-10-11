@@ -282,11 +282,11 @@ fn should_preserve_public_positional_prefix_metadata() {
                 .execute_sql(&session, &sql, vec![])
                 .expect("public prefix SQL");
             // Assert
-            assert_eq!(result.rows, vec![vec![Value::Null, Value::Int64(2)]]);
-            assert_eq!(result.columns[0].name, prefix);
-            assert_eq!(result.columns[0].type_oid, 34025);
-            assert_eq!(result.columns[1].name, "tail");
-            assert_eq!(result.columns[1].type_oid, 20);
+            assert_eq!(result.rows(), vec![vec![Value::Null, Value::Int64(2)]]);
+            assert_eq!(result.columns()[0].name, prefix);
+            assert_eq!(result.columns()[0].type_oid, 34025);
+            assert_eq!(result.columns()[1].name, "tail");
+            assert_eq!(result.columns()[1].type_oid, 20);
         }
         let error = cassie
             .execute_sql(

@@ -247,11 +247,11 @@ fn should_preserve_public_lateral_outer_direct_output() {
                 .expect("supported lateral projection");
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![vec![Value::String(payload.clone()), Value::Null]]
             );
-            assert_eq!(result.columns[0].type_oid, 25);
-            assert_eq!(result.columns[1].type_oid, 34025);
+            assert_eq!(result.columns()[0].type_oid, 25);
+            assert_eq!(result.columns()[1].type_oid, 34025);
         }
     });
 }

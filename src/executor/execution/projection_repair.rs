@@ -1,6 +1,8 @@
+use crate::runtime::QueryExecutionControls;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{catalog, Cassie, ColumnMeta, DataType, QueryError, QueryResult, Value};
+use super::command_output::Cell;
+use super::{catalog, Cassie, DataType, QueryError, QueryResult};
 use crate::sql::ast::{
     ProjectionDiffTarget, ProjectionRepairScope, ProjectionVerificationMode,
     RepairProjectionStatement, VerifyProjectionStatement,
@@ -28,20 +30,17 @@ pub(super) fn plan_repair_projection(
     cassie: &Cassie,
     target: &ProjectionDiffTarget,
     scope: ProjectionRepairScope,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let mut plan = build_repair_plan(cassie, target, scope)?;
     plan.post_verification_state = "pending".to_string();
-    Ok(repair_result(
-        "PLAN REPAIR PROJECTION",
-        "planned",
-        "",
-        &plan,
-    ))
+    repair_result("PLAN REPAIR PROJECTION", "planned", "", &plan, controls)
 }
 
 pub(super) fn repair_projection(
     cassie: &Cassie,
     statement: &RepairProjectionStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let mut plan = build_repair_plan(cassie, &statement.target, statement.scope)?;
     if !plan.executable {
@@ -51,38 +50,38 @@ pub(super) fn repair_projection(
         )));
     }
 
-    execute_repair_action(cassie, &plan)?;
-    let verification = super::materialized_projection::verify_projection(
-        cassie,
-        &VerifyProjectionStatement {
-            name: statement.target.name.clone(),
-            version_id: statement.target.version_id.clone(),
-            mode: ProjectionVerificationMode::Full,
-        },
-    )?;
-    plan.post_verification_state = verification
-        .rows
-        .first()
-        .and_then(|row| row.first())
-        .and_then(|value| match value {
-            Value::String(state) => Some(state.clone()),
-            _ => None,
-        })
-        .unwrap_or_else(|| "unknown".to_string());
-    if plan.post_verification_state != "verified" {
-        return Err(QueryError::General(format!(
-            "repair scope '{}' failed post-verification with state '{}'",
-            statement.scope.as_str(),
-            plan.post_verification_state
-        )));
-    }
-
+    plan.post_verification_state = "verified".to_string();
     let report_id = format!(
         "repair-{}-{}-{}",
         plan.projection_name,
         statement.scope.as_str(),
         now_ms()
     );
+    let output = repair_result(
+        "REPAIR PROJECTION",
+        "completed",
+        &report_id,
+        &plan,
+        controls,
+    )?;
+    execute_repair_action(cassie, &plan, controls)?;
+    let state = super::materialized_projection::verify_projection_state(
+        cassie,
+        &VerifyProjectionStatement {
+            name: statement.target.name.clone(),
+            version_id: statement.target.version_id.clone(),
+            mode: ProjectionVerificationMode::Full,
+        },
+        controls,
+    )?;
+    if state != catalog::ProjectionVerificationState::Verified {
+        return Err(QueryError::General(format!(
+            "repair scope '{}' failed post-verification with state '{}'",
+            statement.scope.as_str(),
+            state.as_str()
+        )));
+    }
+
     let report = catalog::ProjectionRepairReportMeta {
         report_id: report_id.clone(),
         created_ms: now_ms(),
@@ -116,12 +115,7 @@ pub(super) fn repair_projection(
             Ok::<(), QueryError>(())
         })?;
 
-    Ok(repair_result(
-        "REPAIR PROJECTION",
-        "completed",
-        &report_id,
-        &plan,
-    ))
+    Ok(output)
 }
 
 fn build_repair_plan(
@@ -207,7 +201,11 @@ fn build_repair_plan(
     })
 }
 
-fn execute_repair_action(cassie: &Cassie, plan: &RepairPlan) -> Result<(), QueryError> {
+fn execute_repair_action(
+    cassie: &Cassie,
+    plan: &RepairPlan,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
     match plan.scope {
         ProjectionRepairScope::Row | ProjectionRepairScope::Range => cassie
             .midge
@@ -219,12 +217,18 @@ fn execute_repair_action(cassie: &Cassie, plan: &RepairPlan) -> Result<(), Query
             .with_collection_write_gates(std::slice::from_ref(&plan.target_collection), || {
                 execute_index_repair(cassie, &plan.target_collection)
             }),
-        ProjectionRepairScope::ProjectionVersion => execute_projection_version_repair(cassie, plan),
-        ProjectionRepairScope::FullRebuild => execute_full_rebuild_repair(cassie, plan),
+        ProjectionRepairScope::ProjectionVersion => {
+            execute_projection_version_repair(cassie, plan, controls)
+        }
+        ProjectionRepairScope::FullRebuild => execute_full_rebuild_repair(cassie, plan, controls),
     }
 }
 
-fn execute_projection_version_repair(cassie: &Cassie, plan: &RepairPlan) -> Result<(), QueryError> {
+fn execute_projection_version_repair(
+    cassie: &Cassie,
+    plan: &RepairPlan,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
     let metadata = cassie
         .catalog
         .get_materialized_projection(&plan.projection_name)
@@ -266,7 +270,6 @@ fn execute_projection_version_repair(cassie: &Cassie, plan: &RepairPlan) -> Resu
             false,
         )
     };
-    let controls = cassie.runtime.query_controls(std::time::Instant::now());
     cassie
         .midge
         .with_collection_write_gates(&gated_collections, || {
@@ -275,13 +278,16 @@ fn execute_projection_version_repair(cassie: &Cassie, plan: &RepairPlan) -> Resu
                 &plan.projection_name,
                 version_id,
                 &user_functions,
-                &controls,
+                controls,
             )
-            .map(|_| ())
         })
 }
 
-fn execute_full_rebuild_repair(cassie: &Cassie, plan: &RepairPlan) -> Result<(), QueryError> {
+fn execute_full_rebuild_repair(
+    cassie: &Cassie,
+    plan: &RepairPlan,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
     let metadata = cassie
         .catalog
         .get_materialized_projection(&plan.projection_name)
@@ -308,18 +314,16 @@ fn execute_full_rebuild_repair(cassie: &Cassie, plan: &RepairPlan) -> Result<(),
             false,
         )
     };
-    let controls = cassie.runtime.query_controls(std::time::Instant::now());
     cassie
         .midge
         .with_collection_write_gates(&gated_collections, || {
-            super::materialized_projection::refresh_materialized_projection(
+            super::materialized_projection::refresh_materialized_projection_data(
                 cassie,
                 None,
                 &plan.projection_name,
                 &user_functions,
-                &controls,
+                controls,
             )
-            .map(|_| ())
         })
 }
 
@@ -411,36 +415,48 @@ fn verification_command(target: &ProjectionDiffTarget) -> String {
     }
 }
 
-fn repair_result(command: &str, state: &str, report_id: &str, plan: &RepairPlan) -> QueryResult {
-    QueryResult {
-        columns: vec![
-            ColumnMeta::text("state"),
-            ColumnMeta::text("projection_name"),
-            ColumnMeta::text("scope"),
-            ColumnMeta::text("target_collection"),
-            ColumnMeta::text("action"),
-            ColumnMeta::from_data_type("executable", &DataType::Boolean),
-            ColumnMeta::text("verification_required"),
-            ColumnMeta::text("post_verification_state"),
-            ColumnMeta::text("report_id"),
-            ColumnMeta::text("affected_objects"),
-            ColumnMeta::text("last_error"),
+fn repair_result(
+    command: &str,
+    state: &str,
+    report_id: &str,
+    plan: &RepairPlan,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let mut result = super::command_output::columns(
+        command,
+        &[
+            ("state", DataType::Text),
+            ("projection_name", DataType::Text),
+            ("scope", DataType::Text),
+            ("target_collection", DataType::Text),
+            ("action", DataType::Text),
+            ("executable", DataType::Boolean),
+            ("verification_required", DataType::Text),
+            ("post_verification_state", DataType::Text),
+            ("report_id", DataType::Text),
+            ("affected_objects", DataType::Text),
+            ("last_error", DataType::Text),
         ],
-        rows: vec![vec![
-            Value::String(state.to_string()),
-            Value::String(plan.projection_name.clone()),
-            Value::String(plan.scope.as_str().to_string()),
-            Value::String(plan.target_collection.clone()),
-            Value::String(plan.action.clone()),
-            Value::Bool(plan.executable),
-            Value::String(plan.verification_required.clone()),
-            Value::String(plan.post_verification_state.clone()),
-            Value::String(report_id.to_string()),
-            Value::String(plan.affected_objects.join(",")),
-            Value::String(plan.last_error.clone().unwrap_or_default()),
-        ]],
-        command: command.to_string(),
-    }
+        controls,
+    )?;
+    super::command_output::push_row(
+        &mut result,
+        &[
+            Cell::Text(state),
+            Cell::Text(&plan.projection_name),
+            Cell::Text(plan.scope.as_str()),
+            Cell::Text(&plan.target_collection),
+            Cell::Text(&plan.action),
+            Cell::Bool(plan.executable),
+            Cell::Text(&plan.verification_required),
+            Cell::Text(&plan.post_verification_state),
+            Cell::Text(report_id),
+            Cell::Joined(&plan.affected_objects),
+            Cell::Text(plan.last_error.as_deref().unwrap_or_default()),
+        ],
+        controls,
+    )?;
+    Ok(result.finish()?)
 }
 
 fn now_ms() -> u64 {
@@ -449,3 +465,7 @@ fn now_ms() -> u64 {
         .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+#[path = "projection_repair_admission_tests.rs"]
+mod admission_tests;

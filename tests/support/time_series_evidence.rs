@@ -112,7 +112,18 @@ impl TimeSeriesWidthEvidence {
                     .unwrap_or_default()
                     > 0
             );
-            assert_eq!(case.metrics["query"]["current_accounted_memory_bytes"], 0);
+            assert_eq!(case.metrics["execution_result_cache"]["entries"], 1);
+            assert!(
+                case.metrics["query"]["current_accounted_memory_bytes"]
+                    .as_u64()
+                    .expect("retained query bytes")
+                    > 0
+            );
+            assert_eq!(
+                case.metrics["query"]["current_accounted_memory_bytes"],
+                case.metrics["execution_result_cache"]["accounted_retained_bytes"],
+                "the final cold SELECT retains exactly its cache-owned capacity"
+            );
             assert_eq!(case.metrics["runtime"]["active_operator_workers"], 0);
         }
     }
@@ -265,7 +276,8 @@ fn run_read_scenarios(
             ],
         )
         .expect("bounded time-series evidence query")
-        .rows;
+        .rows()
+        .to_vec();
     let negative_epoch = query_rows(
         cassie,
         session,
@@ -326,7 +338,8 @@ fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Va
     cassie
         .execute_sql(session, sql, vec![])
         .expect("execute time-series evidence query")
-        .rows
+        .rows()
+        .to_vec()
 }
 
 fn explain(cassie: &Cassie, session: &CassieSession, lower: &str, upper: &str) -> String {
@@ -339,7 +352,7 @@ fn explain(cassie: &Cassie, session: &CassieSession, lower: &str, upper: &str) -
             vec![],
         )
         .expect("explain time-series evidence query")
-        .rows[0][0]
+        .rows()[0][0]
         .as_str()
         .expect("textual time-series evidence plan")
         .to_string()

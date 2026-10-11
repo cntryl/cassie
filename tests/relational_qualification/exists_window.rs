@@ -35,7 +35,7 @@ fn should_resolve_window_exists_against_selected_frame_input() {
             _ => [Value::Null, Value::Bool(true)],
         };
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::Int64(1), values[0].clone()],
                 vec![Value::Int64(2), values[1].clone()]
@@ -44,11 +44,11 @@ fn should_resolve_window_exists_against_selected_frame_input() {
         );
         assert_eq!(
             (
-                result.columns[1].name.as_str(),
-                result.columns[1].type_oid,
-                result.columns[1].typlen,
-                result.columns[1].atttypmod,
-                result.columns[1].format_code
+                result.columns()[1].name.as_str(),
+                result.columns()[1].type_oid,
+                result.columns()[1].typlen,
+                result.columns()[1].atttypmod,
+                result.columns()[1].format_code
             ),
             ("matched", 16, 1, -1, 0)
         );

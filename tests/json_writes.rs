@@ -117,11 +117,11 @@ fn should_normalize_json_text_writes() {
 
         // Assert
         assert_eq!(
-            distinct.rows,
+            distinct.rows(),
             vec![vec![Value::Json(serde_json::json!({"a": 1}))]]
         );
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::Json(serde_json::json!({"c": 3}))]]
         );
 
@@ -220,7 +220,7 @@ fn should_distinguish_json_document_null_from_sql_null() {
 
         // Assert
         assert_eq!(
-            rows.rows,
+            rows.rows(),
             vec![
                 vec![
                     Value::String("bound-json-null".to_string()),
@@ -254,7 +254,7 @@ fn should_distinguish_json_document_null_from_sql_null() {
                 ],
             ]
         );
-        assert_eq!(count.rows, vec![vec![Value::Int64(3)]]);
+        assert_eq!(count.rows(), vec![vec![Value::Int64(3)]]);
     });
 }
 
@@ -343,10 +343,10 @@ fn should_omit_sql_null_fields_from_raw_documents() {
                 vec![],
             )
             .expect("read row identities");
-        let Value::String(json_id) = &identities.rows[0][1] else {
+        let Value::String(json_id) = &identities.rows()[0][1] else {
             panic!("row identity should be text");
         };
-        let Value::String(sql_id) = &identities.rows[1][1] else {
+        let Value::String(sql_id) = &identities.rows()[1][1] else {
             panic!("row identity should be text");
         };
         let json_document = cassie::rest::documents::get(cassie, "json_null_raw", json_id)
@@ -383,7 +383,7 @@ fn should_return_json_null_from_insert_returning() {
 
         // Assert
         assert_eq!(
-            returned.rows,
+            returned.rows(),
             vec![vec![Value::Json(serde_json::Value::Null)]]
         );
     });
@@ -421,7 +421,7 @@ fn should_preserve_json_null_in_upsert() {
             .expect("read upserted value");
 
         // Assert
-        assert_eq!(row.rows, vec![vec![Value::Json(serde_json::Value::Null)]]);
+        assert_eq!(row.rows(), vec![vec![Value::Json(serde_json::Value::Null)]]);
     });
 }
 
@@ -469,7 +469,7 @@ fn should_distinguish_null_values_after_update() {
 
         // Assert
         assert_eq!(
-            rows.rows,
+            rows.rows(),
             vec![
                 vec![
                     Value::String("to-json-null".to_string()),
@@ -531,7 +531,7 @@ fn should_preserve_json_null_distinction_after_restart() {
 
         // Assert
         assert_eq!(
-            rows.rows,
+            rows.rows(),
             vec![
                 vec![Value::String("json-null".to_string()), Value::Json(serde_json::Value::Null), Value::Bool(false)],
                 vec![Value::String("sql-null".to_string()), Value::Null, Value::Bool(true)],
@@ -636,13 +636,13 @@ fn should_preserve_json_null_in_column_storage_paths() {
                 Value::Bool(true),
             ],
         ];
-        assert_eq!(column_store_rows.rows, expected_rows);
-        assert_eq!(indexed_rows.rows, expected_rows);
+        assert_eq!(column_store_rows.rows(), expected_rows);
+        assert_eq!(indexed_rows.rows(), expected_rows);
         assert_eq!(
-            indexed_null_filter.rows,
+            indexed_null_filter.rows(),
             vec![vec![Value::String("sql-null".to_string())]]
         );
-        assert_eq!(indexed_json_count.rows, vec![vec![Value::Int64(1)]]);
+        assert_eq!(indexed_json_count.rows(), vec![vec![Value::Int64(1)]]);
 
         drop(session);
         drop(cassie);
@@ -709,7 +709,7 @@ fn should_enforce_uniqueness_for_json_null_but_allow_multiple_sql_nulls() {
         assert!(duplicate_json_null.is_err());
         assert!(upsert_json_null.is_ok(), "{upsert_json_null:?}");
         assert_eq!(
-            upserted_json_null.rows,
+            upserted_json_null.rows(),
             vec![vec![
                 Value::String("replacement-json-null".to_string()),
                 Value::Json(serde_json::Value::Null),
@@ -869,7 +869,7 @@ fn should_assign_sql_null_when_foreign_key_delete_uses_set_null() {
                 vec![],
             )
             .expect("read cascaded SQL NULL");
-        assert_eq!(child.rows, vec![vec![Value::Null, Value::Bool(true)]]);
+        assert_eq!(child.rows(), vec![vec![Value::Null, Value::Bool(true)]]);
     });
 }
 
@@ -923,7 +923,7 @@ fn should_assign_sql_null_when_foreign_key_update_uses_set_null() {
                 vec![],
             )
             .expect("read set-null child");
-        assert_eq!(child.rows, vec![vec![Value::Null, Value::Bool(true)]]);
+        assert_eq!(child.rows(), vec![vec![Value::Null, Value::Bool(true)]]);
     });
 }
 
@@ -977,7 +977,7 @@ fn should_cascade_sql_null_when_parent_json_null_becomes_sql_null() {
                 vec![],
             )
             .expect("read cascaded SQL NULL");
-        assert_eq!(child.rows, vec![vec![Value::Null, Value::Bool(true)]]);
+        assert_eq!(child.rows(), vec![vec![Value::Null, Value::Bool(true)]]);
     });
 }
 

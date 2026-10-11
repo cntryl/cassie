@@ -666,11 +666,11 @@ fn execute_column_evidence(context: &workloads::BenchContext) -> usize {
             .execute_sql(&context.session, COLUMN_SQL, vec![])
             .expect("Tier 3 column representative query");
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![EXPECTED_COLUMN_ROW.to_vec()],
             "Tier 3 column aggregate result"
         );
-        result_rows += result.rows.len();
+        result_rows += result.rows().len();
     }
     std::hint::black_box(result_rows)
 }
@@ -699,18 +699,19 @@ fn execute_vector_evidence(
         .cassie
         .execute_sql(&context.session, VECTOR_SQL, vector_params())
         .expect("Tier 3 vector representative query");
-    assert_eq!(result.rows.len(), 20, "Tier 3 vector result cardinality");
-    assert_vector_ordering(&result.rows);
+    assert_eq!(result.rows().len(), 20, "Tier 3 vector result cardinality");
+    assert_vector_ordering(result.rows());
     let mut expected = expected_rows.borrow_mut();
     if let Some(expected) = expected.as_ref() {
         assert_eq!(
-            result.rows, *expected,
+            result.rows(),
+            *expected,
             "Tier 3 vector result must remain deterministic"
         );
     } else {
-        *expected = Some(result.rows.clone());
+        *expected = Some(result.rows().to_vec());
     }
-    std::hint::black_box(result.rows.len())
+    std::hint::black_box(result.rows().len())
 }
 
 fn assert_vector_ordering(rows: &[Vec<Value>]) {

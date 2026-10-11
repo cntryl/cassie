@@ -60,7 +60,11 @@ impl Drop for CaptureHook {
 }
 
 fn execute(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-    cassie.execute_sql(session, sql, vec![]).expect("SQL").rows
+    cassie
+        .execute_sql(session, sql, vec![])
+        .expect("SQL")
+        .rows()
+        .to_vec()
 }
 
 #[test]
@@ -698,11 +702,13 @@ fn should_reuse_supplied_statement_controls_in_direct_executor_reads() {
     let captured =
         crate::executor::run_with_controls(&cassie, &physical, vec![], &captured_controls)
             .expect("captured direct read")
-            .rows;
+            .rows()
+            .to_vec();
     drop(captured_controls);
     let fresh = crate::executor::run_with_controls(&cassie, &physical, vec![], &controls)
         .expect("fresh direct read")
-        .rows;
+        .rows()
+        .to_vec();
     let released = controls.current_query_memory_bytes();
     drop(cassie);
     std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
@@ -756,17 +762,20 @@ fn should_recapture_direct_reads_for_another_engine() {
     // Act
     let read = crate::executor::run_with_controls(&second, &physical, vec![], &supplied)
         .expect("second engine read")
-        .rows;
+        .rows()
+        .to_vec();
     let breakdown =
         crate::executor::run_with_execution_breakdown(&second, physical.as_ref().clone(), vec![])
             .expect("second engine breakdown")
             .result
-            .rows;
+            .rows()
+            .to_vec();
     let remaining = controls.current_query_memory_bytes();
     execute(&second, &second_session, "UPDATE engine_rows SET n = 30");
     let fresh = crate::executor::run_with_controls(&second, &physical, vec![], &controls)
         .expect("fresh second engine")
-        .rows;
+        .rows()
+        .to_vec();
     drop(supplied);
     let released = controls.current_query_memory_bytes();
     drop(first);
@@ -817,7 +826,8 @@ fn should_recapture_direct_reads_for_another_session() {
         &supplied,
     )
     .expect("second session read")
-    .rows;
+    .rows()
+    .to_vec();
     drop(supplied);
     let released = controls.current_query_memory_bytes();
     execute(&cassie, &first, "ROLLBACK");

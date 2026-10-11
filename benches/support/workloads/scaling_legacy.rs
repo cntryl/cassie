@@ -142,12 +142,12 @@ pub fn execute_legacy_query(
         .execute_sql(&context.session, sql, params)
         .expect("execute legacy scaling query");
     assert_eq!(
-        result.rows.len(),
+        result.rows().len(),
         expected_rows,
         "legacy scaling query cardinality"
     );
     assert_scaling_resource_bounds(context);
-    std::hint::black_box(result.rows.len())
+    std::hint::black_box(result.rows().len())
 }
 
 pub fn prepare_recursive_cte_scaling(context: &BenchContext) {
@@ -317,7 +317,8 @@ pub fn prepare_projection_lifecycle(context: &BenchContext) {
         )
         .expect("prepare scaling projection");
     assert_eq!(
-        result.command, "CREATE MATERIALIZED PROJECTION",
+        result.command(),
+        "CREATE MATERIALIZED PROJECTION",
         "projection setup creation must complete"
     );
 }
@@ -381,7 +382,7 @@ pub fn prepare_projection_repair(context: &BenchContext) {
         )
         .expect("prepare scaling projection repair report");
     assert_eq!(
-        verification.rows[0][0],
+        verification.rows()[0][0],
         Value::String("failed".to_string()),
         "projection repair setup must retain a failed integrity report"
     );
@@ -397,10 +398,10 @@ pub fn projection_repair_existing(context: &BenchContext) -> Ready<usize> {
         )
         .expect("repair existing scaling projection");
     assert_scaling_resource_bounds(context);
-    assert_eq!(result.command, "REPAIR PROJECTION");
-    assert_eq!(result.rows[0][0], Value::String("completed".to_string()));
-    assert_eq!(result.rows[0][7], Value::String("verified".to_string()));
-    ready(std::hint::black_box(result.rows.len()))
+    assert_eq!(result.command(), "REPAIR PROJECTION");
+    assert_eq!(result.rows()[0][0], Value::String("completed".to_string()));
+    assert_eq!(result.rows()[0][7], Value::String("verified".to_string()));
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 pub fn prepare_time_series_lifecycle_context(
@@ -493,11 +494,11 @@ pub fn projection_refresh_existing(context: &BenchContext) -> Ready<usize> {
     );
     assert_scaling_resource_bounds(context);
     assert!(
-        !result.command.is_empty(),
+        !result.command().is_empty(),
         "projection refresh command report"
     );
     ready(std::hint::black_box(usize::from(
-        !result.command.is_empty(),
+        !result.command().is_empty(),
     )))
 }
 
@@ -517,8 +518,8 @@ pub fn projection_verify_existing(context: &BenchContext) -> Ready<usize> {
         "scaling projection verification must record a verification"
     );
     assert_scaling_resource_bounds(context);
-    assert_eq!(result.rows.len(), 1, "projection verification report");
-    ready(std::hint::black_box(result.rows.len()))
+    assert_eq!(result.rows().len(), 1, "projection verification report");
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 fn assert_fixture_boundaries(context: &BenchContext, expected_rows: usize) {

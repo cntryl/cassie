@@ -60,13 +60,13 @@ fn should_match_literal_frame_endpoints() {
         println!(
             "frame {}: row_count={} column_count={}",
             case.name,
-            result.rows.len(),
-            result.columns.len()
+            result.rows().len(),
+            result.columns().len()
         );
-        assert_eq!(result.rows.len(), case.rows.len(), "{}", case.name);
+        assert_eq!(result.rows().len(), case.rows.len(), "{}", case.name);
         assert!(
             result
-                .rows
+                .rows()
                 .iter()
                 .zip(&case.rows)
                 .all(|(row, literal)| matches_row(row, literal)),
@@ -75,7 +75,7 @@ fn should_match_literal_frame_endpoints() {
         );
         assert_eq!(
             result
-                .columns
+                .columns()
                 .iter()
                 .map(|c| c.name.as_str())
                 .collect::<Vec<_>>(),
@@ -83,7 +83,7 @@ fn should_match_literal_frame_endpoints() {
         );
         assert_eq!(
             result
-                .columns
+                .columns()
                 .iter()
                 .map(|c| c.type_oid)
                 .collect::<Vec<_>>(),

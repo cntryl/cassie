@@ -118,8 +118,8 @@ fn should_restore_unchanged_paged_database_image_exactly() {
         .expect("restored query");
     // Assert
     assert!(chunks > 1);
-    assert_eq!(result.rows, vec![vec![Value::Int64(1)]; 300]);
-    assert_eq!(result.columns[0].type_oid, 20);
+    assert_eq!(result.rows(), vec![vec![Value::Int64(1)]; 300]);
+    assert_eq!(result.columns()[0].type_oid, 20);
     assert!(backup.next_chunk().expect("completed EOF").is_none());
 }
 
@@ -146,7 +146,7 @@ fn should_reject_atomic_source_update_between_paged_database_image_chunks() {
         .expect("atomic update");
 
     // Assert
-    assert_eq!(update.command, "UPDATE 300");
+    assert_eq!(update.command(), "UPDATE 300");
     assert_eq!(
         fixture
             .cassie
@@ -161,7 +161,7 @@ fn should_reject_atomic_source_update_between_paged_database_image_chunks() {
         .cassie
         .execute_sql(&fixture.session, "SELECT v FROM docs", vec![])
         .expect("source preserved");
-    assert_eq!(source.rows, vec![vec![Value::Int64(2)]; 300]);
+    assert_eq!(source.rows(), vec![vec![Value::Int64(2)]; 300]);
 }
 
 #[test]

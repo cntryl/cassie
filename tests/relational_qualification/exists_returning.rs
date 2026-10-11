@@ -29,12 +29,12 @@ fn should_resolve_update_returning_exists_against_captured_view_with_new_row() {
     // Assert
     let result = result.expect("UPDATE RETURNING resolves both EXISTS forms");
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![Value::Int64(2), Value::Bool(true), Value::Bool(false)]]
     );
     assert_eq!(
         result
-            .columns
+            .columns()
             .iter()
             .map(|column| (
                 column.name.as_str(),
@@ -85,18 +85,18 @@ fn should_resolve_insert_select_returning_exists_against_one_captured_view() {
     // Assert
     let inserted = inserted.expect("INSERT RETURNING uses the pre-command view");
     assert_eq!(
-        inserted.rows,
+        inserted.rows(),
         vec![
             vec![Value::Int64(9), Value::Bool(true), Value::Bool(false)],
             vec![Value::Int64(10), Value::Bool(true), Value::Bool(false)],
         ]
     );
-    assert_eq!(inserted.columns[1].type_oid, 16);
-    assert_eq!(inserted.columns[2].type_oid, 16);
+    assert_eq!(inserted.columns()[1].type_oid, 16);
+    assert_eq!(inserted.columns()[2].type_oid, 16);
     assert_eq!(
         next_statement
             .expect("next statement captures a fresh view")
-            .rows,
+            .rows(),
         vec![vec![Value::Bool(true)]]
     );
     fixture
@@ -129,8 +129,11 @@ fn should_resolve_delete_returning_exists_against_deleted_old_row() {
 
     // Assert
     let result = result.expect("DELETE RETURNING correlates with the deleted old row");
-    assert_eq!(result.rows, vec![vec![Value::Int64(2), Value::Bool(true)]]);
-    assert_eq!(result.columns[1].type_oid, 16);
+    assert_eq!(
+        result.rows(),
+        vec![vec![Value::Int64(2), Value::Bool(true)]]
+    );
+    assert_eq!(result.columns()[1].type_oid, 16);
 }
 
 #[test]
@@ -165,13 +168,13 @@ fn should_use_prior_staged_view_for_update_returning_in_transaction() {
     assert_eq!(
         updated
             .expect("UPDATE RETURNING reads prior staged view")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(2), Value::Bool(true), Value::Bool(false)]]
     );
     assert_eq!(
         update_followup
             .expect("next UPDATE command sees fresh view")
-            .rows,
+            .rows(),
         vec![vec![Value::Bool(true)]]
     );
     fixture
@@ -212,13 +215,13 @@ fn should_use_prior_staged_view_for_delete_returning_in_transaction() {
     assert_eq!(
         deleted
             .expect("DELETE RETURNING sees prior staged row")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(3), Value::Bool(true)]]
     );
     assert_eq!(
         delete_followup
             .expect("next DELETE command sees fresh view")
-            .rows,
+            .rows(),
         vec![vec![Value::Bool(false)]]
     );
     fixture
@@ -249,7 +252,10 @@ fn should_skip_unselected_returning_exists_branch() {
         vec![],
     );
     // Assert
-    let mut skipped_rows = skipped.expect("unselected EXISTS branch is lazy").rows;
+    let mut skipped_rows = skipped
+        .expect("unselected EXISTS branch is lazy")
+        .rows()
+        .to_vec();
     skipped_rows.sort_by_key(|row| match row.first() {
         Some(Value::Int64(id)) => *id,
         _ => panic!("expected integer id in UPDATE RETURNING row"),
@@ -296,7 +302,7 @@ fn should_rollback_update_when_returning_exists_errors() {
         .to_string()
         .contains("division by zero"));
     assert_eq!(
-        after_error.expect("read after failed statement").rows,
+        after_error.expect("read after failed statement").rows(),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
 }
@@ -407,14 +413,14 @@ fn should_restore_prior_staged_writes_after_savepoint_rollback() {
     assert_eq!(
         recovered_rows
             .expect("savepoint restores prior staged writes")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
     committed.expect("commit recovered prior writes");
     assert_eq!(
         committed_rows
             .expect("observer sees committed prior writes")
-            .rows,
+            .rows(),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
 }

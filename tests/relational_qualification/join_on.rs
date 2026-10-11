@@ -21,11 +21,12 @@ fn run_case(sql: &str, expected: &[Vec<Value>]) {
         .cassie
         .execute_sql(&fixture.session, sql, vec![])
         .expect("actual pair ON predicate");
-    assert_eq!(result.rows, expected);
+    assert_eq!(result.rows(), expected);
     assert_eq!(
         fixture.cassie.metrics()["joins"]["last_strategy"],
         "nested_loop"
     );
+    drop(result);
     assert_eq!(
         fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"],
         0

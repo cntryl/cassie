@@ -46,7 +46,7 @@ fn controls_for_budget(cassie: &Cassie, budget: usize) -> QueryExecutionControls
 fn retire_result(result: Result<QueryResult, QueryError>) -> Result<Vec<Vec<Value>>, QueryError> {
     match result {
         Ok(result) => {
-            let rows = result.rows.clone();
+            let rows = result.rows().to_vec().clone();
             drop(result);
             Ok(rows)
         }

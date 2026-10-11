@@ -122,9 +122,9 @@ pub struct Portal {
 
 #[derive(Debug)]
 pub struct PortalSuspended {
-    pub columns: Vec<crate::executor::ColumnMeta>,
-    pub rows: Vec<Vec<crate::types::Value>>,
-    pub command: String,
+    /// The complete immutable payload remains owned while any page is retained.
+    pub result: crate::executor::QueryResult,
+    pub row_offset: usize,
     pub row_description_sent: bool,
     pub streaming: bool,
     pub rows_emitted: usize,

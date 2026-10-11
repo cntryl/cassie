@@ -11,5 +11,5 @@ pub fn neighbor_rows(cassie: &Cassie, session: &CassieSession, direction: &str) 
             vec![],
         )
         .expect("read graph neighbors")
-        .rows
+        .rows().to_vec()
 }

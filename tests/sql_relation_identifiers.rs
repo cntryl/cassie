@@ -71,13 +71,16 @@ fn should_preserve_quoted_dotted_relation_identity_after_restart() {
         .expect("read relation with escaped quote and trailing space after restart");
 
     // Assert
-    assert_eq!(dotted_rows.rows, vec![vec![cassie::types::Value::Int64(7)]]);
     assert_eq!(
-        qualified_rows.rows,
+        dotted_rows.rows(),
+        vec![vec![cassie::types::Value::Int64(7)]]
+    );
+    assert_eq!(
+        qualified_rows.rows(),
         vec![vec![cassie::types::Value::Int64(9)]]
     );
     assert_eq!(
-        escaped_rows.rows,
+        escaped_rows.rows(),
         vec![vec![cassie::types::Value::Int64(5)]]
     );
     drop(session);
@@ -312,13 +315,13 @@ fn should_preserve_qualified_dotted_field_values_outside_wire_profile() {
         .execute("SELECT output_identifier_rows.\"a.b\" AS dotted FROM output_identifier_rows")
         .expect("execute qualified dotted field outside wire profile");
     // Assert
-    assert_eq!(bare.rows, vec![vec![cassie::types::Value::Int64(42)]]);
+    assert_eq!(bare.rows(), vec![vec![cassie::types::Value::Int64(42)]]);
     assert_eq!(
-        qualified_gate.rows,
+        qualified_gate.rows(),
         vec![vec![cassie::types::Value::Bool(false)]]
     );
     assert_eq!(
-        qualified_dotted.rows,
+        qualified_dotted.rows(),
         vec![vec![cassie::types::Value::Int64(42)]]
     );
 }

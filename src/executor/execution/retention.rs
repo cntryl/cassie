@@ -1,3 +1,4 @@
+use super::command_output::empty as empty_result;
 use time::OffsetDateTime;
 
 use super::{
@@ -8,6 +9,7 @@ use super::{
 pub(super) fn create_retention_policy(
     cassie: &Cassie,
     statement: &crate::sql::ast::CreateRetentionPolicyStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_not_exists
         && cassie
@@ -15,7 +17,7 @@ pub(super) fn create_retention_policy(
             .get_retention_policy(&statement.name)
             .is_some()
     {
-        return Ok(empty_result("CREATE RETENTION POLICY"));
+        return empty_result("CREATE RETENTION POLICY", controls);
     }
 
     let metadata = crate::catalog::RetentionPolicyMeta::new(
@@ -24,17 +26,19 @@ pub(super) fn create_retention_policy(
         statement.timestamp_field.clone(),
         statement.retention_duration.clone(),
     );
+    let output = empty_result("CREATE RETENTION POLICY", controls)?;
     cassie
         .midge
         .put_retention_policy(&metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_retention_policy(metadata);
-    Ok(empty_result("CREATE RETENTION POLICY"))
+    Ok(output)
 }
 
 pub(super) fn alter_retention_policy(
     cassie: &Cassie,
     statement: &crate::sql::ast::AlterRetentionPolicyStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let mut metadata = cassie
         .catalog
@@ -50,33 +54,36 @@ pub(super) fn alter_retention_policy(
         .clone_from(&statement.retention_duration);
     metadata.state = crate::catalog::RetentionPolicyState::Ready;
     metadata.last_error = None;
+    let output = empty_result("ALTER RETENTION POLICY", controls)?;
     cassie
         .midge
         .put_retention_policy(&metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_retention_policy(metadata);
-    Ok(empty_result("ALTER RETENTION POLICY"))
+    Ok(output)
 }
 
 pub(super) fn drop_retention_policy(
     cassie: &Cassie,
     name: &str,
     if_exists: bool,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if cassie.catalog.get_retention_policy(name).is_none() {
         if if_exists {
-            return Ok(empty_result("DROP RETENTION POLICY"));
+            return empty_result("DROP RETENTION POLICY", controls);
         }
         return Err(QueryError::General(format!(
             "retention policy '{name}' does not exist"
         )));
     }
+    let output = empty_result("DROP RETENTION POLICY", controls)?;
     cassie
         .midge
         .delete_retention_policy(name)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.unregister_retention_policy(name);
-    Ok(empty_result("DROP RETENTION POLICY"))
+    Ok(output)
 }
 
 pub(super) fn enforce_retention_policy(
@@ -96,6 +103,8 @@ pub(super) fn enforce_retention_policy(
             ))
         })?;
 
+    let mut output = QueryResult::try_builder(controls)?;
+    super::command_output::set_counted(&mut output, "ENFORCE RETENTION", u64::MAX)?;
     let result = enforce(cassie, &metadata, &statement.at, user_functions, controls);
     match result {
         Ok((deleted, skipped, enforced_ms)) => {
@@ -112,11 +121,8 @@ pub(super) fn enforce_retention_policy(
                 .put_retention_policy(&metadata)
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_retention_policy(metadata);
-            Ok(QueryResult {
-                columns: Vec::new(),
-                rows: Vec::new(),
-                command: format!("ENFORCE RETENTION {deleted}"),
-            })
+            super::command_output::set_counted(&mut output, "ENFORCE RETENTION", deleted)?;
+            Ok(output.finish()?)
         }
         Err(error) => {
             let message = error.to_string();
@@ -246,14 +252,6 @@ fn row_id(row: &BatchRow) -> Result<String, QueryError> {
         _ => Err(QueryError::General(
             "scanned row is missing internal row id".to_string(),
         )),
-    }
-}
-
-fn empty_result(command: &str) -> QueryResult {
-    QueryResult {
-        columns: Vec::new(),
-        rows: Vec::new(),
-        command: command.to_string(),
     }
 }
 

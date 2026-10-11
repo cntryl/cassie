@@ -22,6 +22,7 @@ use crate::rest::static_files::AdminUiStaticFiles;
 
 mod auth_routes;
 mod collection_routes;
+mod query_response;
 mod request_execution;
 mod security;
 
@@ -574,11 +575,18 @@ async fn dispatch_admin_query_routes(
                 body,
                 "rest_admin_query_execute",
                 |cassie, session, body, cancellation| {
-                    crate::rest::query::execute_with_session_and_cancellation(
+                    crate::rest::query::execute_converted(
                         cassie,
                         session,
                         body,
                         cancellation,
+                        |result, controls| {
+                            query_response::try_query_json_response(
+                                StatusCode::OK,
+                                &result,
+                                controls,
+                            )
+                        },
                     )
                 },
             )
@@ -601,6 +609,7 @@ async fn dispatch_admin_query_routes(
                         body,
                         cancellation,
                     )
+                    .map(|value| json_response(StatusCode::OK, &value))
                 },
             )
             .await
@@ -616,11 +625,18 @@ async fn dispatch_admin_query_routes(
                 body,
                 "rest_admin_query_explain",
                 |cassie, session, body, cancellation| {
-                    crate::rest::query::explain_with_session_and_cancellation(
+                    crate::rest::query::explain_converted(
                         cassie,
                         session,
                         body,
                         cancellation,
+                        |result, controls| {
+                            query_response::try_explain_json_response(
+                                StatusCode::OK,
+                                &result,
+                                controls,
+                            )
+                        },
                     )
                 },
             )
@@ -630,7 +646,7 @@ async fn dispatch_admin_query_routes(
     }
 }
 
-async fn run_admin_query_operation<T>(
+async fn run_admin_query_operation(
     context: RouteDispatchContext<'_>,
     cassie: Arc<Cassie>,
     body: &RestBytes,
@@ -640,13 +656,10 @@ async fn run_admin_query_operation<T>(
             &CassieSession,
             &[u8],
             &crate::runtime::QueryCancellationHandle,
-        ) -> Result<T, crate::app::CassieError>
+        ) -> Result<Response<RestBody>, crate::app::CassieError>
         + Send
         + 'static,
-) -> Result<Option<Response<RestBody>>, (StatusCode, String)>
-where
-    T: serde::Serialize + Send + 'static,
-{
+) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
     let body = body.clone();
     let database = body_database(body.as_ref())?;
     let session = database_scoped_session(&cassie, context.request_context, &database)?;
@@ -681,7 +694,7 @@ where
     if let Some(registration) = registration {
         registration.finish();
     }
-    result.map(|value| Some(json_response(StatusCode::OK, &value)))
+    result.map(Some)
 }
 
 fn query_database(query: Option<&str>) -> Result<String, (StatusCode, String)> {

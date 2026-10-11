@@ -33,15 +33,15 @@ fn should_preserve_conditional_scalar_origin_under_alias_bounds() {
     for (sql, result) in queries.iter().zip(results) {
         let result = result.expect(sql);
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::Float64(9_007_199_254_740_991.0)]]
         );
-        assert_eq!(result.columns[0].data_type, "float");
+        assert_eq!(result.columns()[0].data_type, "float");
     }
     assert_eq!(
         nonfinite
             .expect("one complete-bound normalization pass")
-            .rows,
+            .rows(),
         vec![vec![Value::Float64(f64::INFINITY)]]
     );
     assert!(explicit_cast
@@ -74,17 +74,18 @@ fn should_preserve_typed_join_collection_identity_with_evaluated_alias_bounds() 
     let base = native.execute_with_params(base_sql, vec![Value::Int64(3), Value::Int64(1)]);
 
     // Assert
-    assert_eq!(actual.columns, expected.columns);
-    assert_eq!(actual.rows, expected.rows);
-    assert_eq!(actual.rows, base.rows);
-    assert_eq!(ordinary.rows, base.rows);
+    assert_eq!(actual.columns(), expected.columns());
+    assert_eq!(actual.rows(), expected.rows());
+    assert_eq!(actual.rows(), base.rows());
+    assert_eq!(ordinary.rows(), base.rows());
     assert_eq!(ordinary_strategy, "typed_hash");
-    assert_eq!(actual.rows.len(), 3);
+    assert_eq!(actual.rows().len(), 3);
     assert_eq!(alias_strategy, "typed_hash");
     assert_eq!(
         native.cassie.metrics()["joins"]["last_strategy"],
         "typed_hash"
     );
+    drop((actual, ordinary, base));
     assert_eq!(
         native.cassie.metrics()["query"]["current_accounted_memory_bytes"],
         0
@@ -127,7 +128,10 @@ fn should_preserve_indexed_reads_when_qualified_order_conflicts_with_an_output_l
         .expect("counter");
 
     // Assert
-    assert_eq!(actual.expect("alias namespace and accelerator").rows, base);
+    assert_eq!(
+        actual.expect("alias namespace and accelerator").rows(),
+        base
+    );
     assert_eq!(
         base_plan.expect("base plan").read.access_path,
         ReadAccessPath::OrderedBoundedScan
@@ -168,17 +172,17 @@ fn should_preserve_quoted_physical_fields_in_alias_indexed_projection() {
         )
         .expect("exact physical field handoff");
     // Assert
-    assert_eq!(actual.rows, base);
+    assert_eq!(actual.rows(), base);
     assert_eq!(
-        actual.rows,
+        actual.rows(),
         vec![
             vec![Value::Int64(2), Value::Int64(10)],
             vec![Value::Int64(1), Value::Int64(20)]
         ]
     );
-    assert_eq!(actual.columns[0].name, "Amount Value");
-    assert_eq!(actual.columns[1].name, "actual");
-    assert_eq!(actual.columns[1].data_type, "bigint");
+    assert_eq!(actual.columns()[0].name, "Amount Value");
+    assert_eq!(actual.columns()[1].name, "actual");
+    assert_eq!(actual.columns()[1].data_type, "bigint");
     assert_eq!(
         diagnostic.expect("plan").read.access_path,
         ReadAccessPath::OrderedBoundedScan
@@ -209,7 +213,7 @@ fn should_keep_literal_table_qualifiers_distinct_from_internal_alias_carriers() 
         vec![Value::Int64(2),Value::Int64(0)]);
     // Assert
     assert_eq!(
-        actual.expect("both admitted SQL namespaces").rows,
+        actual.expect("both admitted SQL namespaces").rows(),
         vec![
             vec![Value::Int64(12), Value::Int64(22)],
             vec![Value::Int64(11), Value::Int64(21)],
@@ -247,7 +251,7 @@ fn should_preserve_quoted_alias_namespace_ownership() {
     // Assert
     let actual = actual.expect("quoted ownership, nested shadows and carrier-like user names");
     assert_eq!(
-        actual.rows,
+        actual.rows(),
         vec![
             vec![
                 Value::Int64(12),
@@ -263,7 +267,7 @@ fn should_preserve_quoted_alias_namespace_ownership() {
             ],
         ]
     );
-    assert_eq!(actual.columns[0].name, "key");
+    assert_eq!(actual.columns()[0].name, "key");
     assert!(wrong_case
         .expect_err("quoted R does not admit lower r")
         .to_string()
@@ -275,16 +279,16 @@ fn should_preserve_quoted_alias_namespace_ownership() {
     {
         let result = result.expect(sql);
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::Int64(11)], vec![Value::Int64(12)]],
             "{sql}"
         );
-        assert_eq!(result.columns.len(), 1, "{sql}");
-        assert_eq!(result.columns[0].name, name, "{sql}");
-        assert_eq!(result.columns[0].type_oid, 23, "{sql}");
-        assert_eq!(result.columns[0].typlen, 4, "{sql}");
-        assert_eq!(result.columns[0].atttypmod, -1, "{sql}");
-        assert_eq!(result.columns[0].format_code, 0, "{sql}");
+        assert_eq!(result.columns().len(), 1, "{sql}");
+        assert_eq!(result.columns()[0].name, name, "{sql}");
+        assert_eq!(result.columns()[0].type_oid, 23, "{sql}");
+        assert_eq!(result.columns()[0].typlen, 4, "{sql}");
+        assert_eq!(result.columns()[0].atttypmod, -1, "{sql}");
+        assert_eq!(result.columns()[0].format_code, 0, "{sql}");
     }
 }
 
@@ -316,14 +320,14 @@ fn should_preserve_cte_alias_fields_when_cte_names_collide_with_private_qualifie
     for (sql, result) in queries.iter().zip(results) {
         let result = result.expect(sql);
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::Int64(12), Value::Int64(22)],
                 vec![Value::Int64(11), Value::Int64(21)]
             ]
         );
-        assert_eq!(result.columns[0].name, "key");
-        assert_eq!(result.columns[1].name, "id");
+        assert_eq!(result.columns()[0].name, "key");
+        assert_eq!(result.columns()[1].name, "id");
     }
 }
 
@@ -385,7 +389,7 @@ fn should_keep_outer_alias_distinct_from_nested_physical_carrier_name() {
     let actual = fixture.execute("SELECT r.id FROM left_records r WHERE EXISTS (SELECT 1 FROM __cassie_relation_alias_72 WHERE __cassie_relation_alias_72.id=r.id)");
     // Assert
     assert_eq!(
-        actual.expect("existing single-source correlation").rows,
+        actual.expect("existing single-source correlation").rows(),
         Vec::<Vec<Value>>::new()
     );
 }
@@ -419,7 +423,7 @@ fn should_reject_raw_dml_inner_private_qualifiers_before_mutation() {
             "undeclared inner qualifier must fail: {sql}: {actual:?}"
         );
         assert_eq!(
-            readback.expect("unmutated source").rows,
+            readback.expect("unmutated source").rows(),
             vec![vec![Value::Int64(0)]]
         );
     }
@@ -459,7 +463,7 @@ fn should_admit_raw_alias_namespaces_before_definition_binding() {
     assert!(bound_inputs.iter().all(Result::is_err));
     valid_definition.expect("legal alias definition remains admitted");
     assert_eq!(
-        valid_rows.expect("legal view read").rows,
+        valid_rows.expect("legal view read").rows(),
         vec![vec![Value::Int64(11)]]
     );
 }

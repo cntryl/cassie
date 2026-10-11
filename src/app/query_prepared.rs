@@ -88,7 +88,7 @@ impl Cassie {
         match &result {
             Ok(result) => self
                 .runtime
-                .record_query_success(elapsed, result.rows.len()),
+                .record_query_success(elapsed, result.row_count()),
             Err(error) => {
                 self.runtime.record_query_error(elapsed, error);
                 if session.is_transaction_active() {

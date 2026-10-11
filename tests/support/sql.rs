@@ -141,7 +141,7 @@ pub fn clear_time_series_sidecars(cassie: &Cassie, collection: &str, index_name:
 }
 
 pub fn explain_plan_text(result: &cassie::executor::QueryResult) -> &str {
-    match &result.rows[0][0] {
+    match &result.rows()[0][0] {
         cassie::types::Value::String(plan) => plan,
         _ => panic!("expected textual plan"),
     }

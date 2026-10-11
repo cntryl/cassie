@@ -78,9 +78,7 @@ mod rest_normalized_query_controls {
         );
         set_query_scan_cancellation_after_entries(None);
         let after = cassie.metrics();
-        let error = result
-            .err()
-            .expect("query must reject the first record overlap");
+        let error = result.expect_err("query must reject the first record overlap");
 
         // Assert
         assert!(matches!(error, CassieError::ResourceLimit(_)), "{error:?}");
@@ -349,7 +347,7 @@ mod column_store_query_controls {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![vec![Value::String("doc-0000".to_owned())]]
             );
             assert_eq!(
@@ -357,6 +355,13 @@ mod column_store_query_controls {
                 1,
                 "LIMIT must enumerate exactly one live marker"
             );
+            assert!(
+                fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+                    .as_u64()
+                    .expect("live result memory")
+                    > 0
+            );
+            drop(result);
             fixture.assert_cleanup();
         }
     }
@@ -390,7 +395,7 @@ mod column_store_query_controls {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![
                     Value::String("doc-0000".to_owned()),
@@ -407,6 +412,13 @@ mod column_store_query_controls {
             3,
             "two outputs plus the staged delete must consume three persisted markers"
         );
+        assert!(
+            fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+                .as_u64()
+                .expect("live result memory")
+                > 0
+        );
+        drop(result);
         fixture.assert_cleanup();
         fixture
             .cassie
@@ -821,6 +833,15 @@ mod scalar_index_resource_controls {
     }
 
     fn seed_indexed_rows(cassie: &Cassie, session: &cassie::app::CassieSession, table: &str) {
+        seed_indexed_rows_with_first_id_prefix(cassie, session, table, "");
+    }
+
+    fn seed_indexed_rows_with_first_id_prefix(
+        cassie: &Cassie,
+        session: &cassie::app::CassieSession,
+        table: &str,
+        first_id_prefix: &str,
+    ) {
         cassie
             .execute_sql(
                 session,
@@ -833,7 +854,11 @@ mod scalar_index_resource_controls {
                 .midge
                 .put_document(
                     table,
-                    Some(format!("row-{score:04}")),
+                    Some(if score == 0 {
+                        format!("{first_id_prefix}row-{score:04}")
+                    } else {
+                        format!("row-{score:04}")
+                    }),
                     serde_json::json!({"score": score, "label": format!("label-{score:04}")}),
                 )
                 .expect("seed indexed row");
@@ -871,10 +896,11 @@ mod scalar_index_resource_controls {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::Int64(0)], vec![Value::Int64(1)]]
         );
         assert_eq!(visited, 2, "the native index scan must stop at LIMIT 2");
+        drop(result);
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
@@ -887,27 +913,67 @@ mod scalar_index_resource_controls {
     fn should_reject_scalar_index_hit_before_retaining_it_given_low_memory() {
         // Arrange
         let _hook_guard = query_scan_control_test_guard();
-        let (cassie, path) = configured_cassie("low-memory", 64);
+        let (cassie, path) = configured_cassie("low-memory", 64 * 1_024);
         let session = cassie.create_session("tester", None);
-        seed_indexed_rows(&cassie, &session, "controlled_scalar_memory");
+        seed_indexed_rows_with_first_id_prefix(
+            &cassie,
+            &session,
+            "controlled_scalar_memory",
+            &"x".repeat(4_096),
+        );
+        // Bootstrap all 32 rows/index once; only score 0 has a deliberately oversized ID.
+        drop(session);
+        drop(cassie);
 
         // Act
-        let error = cassie
-        .execute_sql(
-            &session,
-            "SELECT score FROM controlled_scalar_memory WHERE score >= 0 ORDER BY score LIMIT 1",
-            vec![],
-        )
-        .expect_err("one retained scalar hit should exceed the query budget");
+        let observations = [64, 2 * 1_024].map(|memory_budget| {
+            let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+            config.limits.query_memory_budget_bytes = memory_budget;
+            config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+            config.limits.parallel_scan_workers = 1;
+            let cassie =
+                Cassie::new_with_data_dir_and_config(&path, config).expect("low-memory cassie");
+            cassie.startup().expect("reopen indexed store");
+            let session = cassie.create_session("tester", None);
+            let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
+            let before = cassie.metrics();
+            let outcome = cassie.execute_sql(
+                &session,
+                "SELECT score FROM controlled_scalar_memory WHERE score >= 0 ORDER BY score LIMIT 1",
+                vec![],
+            );
+            let visited = cassie
+                .midge
+                .query_scan_entries_for_diagnostics()
+                .saturating_sub(before_entries);
+            // Retire even an unexpected successful payload before fixture cleanup/assertions.
+            let error = outcome.err();
+            let after = cassie.metrics();
+            drop(session);
+            drop(cassie);
+            (memory_budget, error, visited, before, after)
+        });
+        let cleanup = std::fs::remove_dir_all(path);
 
         // Assert
-        assert!(matches!(error, CassieError::ResourceLimit(_)));
-        assert_eq!(
-            cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
-            Some(0)
-        );
-
-        let _ = std::fs::remove_dir_all(path);
+        for ((memory_budget, error, visited, before, after), expected_entries) in
+            observations.into_iter().zip([0, 1])
+        {
+            let error = error.expect("the selected scalar frontier must exceed its query budget");
+            assert!(matches!(error, CassieError::ResourceLimit(_)));
+            assert_eq!(
+                visited, expected_entries,
+                "budget{memory_budget} must reject at its source-backed frontier: {error}"
+            );
+            assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+            assert_eq!(after["runtime"]["running_queries"], 0);
+            assert_eq!(after["runtime"]["active_operator_workers"], 0);
+            assert_eq!(
+                after["query"]["rows_returned_total"],
+                before["query"]["rows_returned_total"]
+            );
+        }
+        cleanup.expect("retire scalar fixture");
     }
 
     #[test]
@@ -1087,20 +1153,22 @@ mod vector_ann_concurrency {
 
         // Assert
         assert_eq!(
-            resolved.rows, expected.rows,
+            resolved.rows(),
+            expected.rows(),
             "paused reader keeps its source view"
         );
         assert_ne!(
-            resolved.rows, exact.rows,
+            resolved.rows(),
+            exact.rows(),
             "next statement sees the committed mutation"
         );
         assert_eq!(
-            resolved.rows[0][0],
+            resolved.rows()[0][0],
             cassie::types::Value::String("row-0000".into())
         );
-        assert_eq!(resolved.rows[0][1], cassie::types::Value::Float64(0.0));
+        assert_eq!(resolved.rows()[0][1], cassie::types::Value::Float64(0.0));
         assert!(exact
-            .rows
+            .rows()
             .iter()
             .all(|row| row[0] != cassie::types::Value::String("row-0000".into())));
         assert_ne!(
@@ -1184,20 +1252,22 @@ mod vector_ann_concurrency {
 
         // Assert
         assert_eq!(
-            resolved.rows, expected.rows,
+            resolved.rows(),
+            expected.rows(),
             "paused reader keeps its source view"
         );
         assert_ne!(
-            resolved.rows, exact.rows,
+            resolved.rows(),
+            exact.rows(),
             "next statement sees the committed mutation"
         );
         assert_eq!(
-            resolved.rows[0][0],
+            resolved.rows()[0][0],
             cassie::types::Value::String("row-0000".into())
         );
-        assert_eq!(resolved.rows[0][1], cassie::types::Value::Float64(0.0));
+        assert_eq!(resolved.rows()[0][1], cassie::types::Value::Float64(0.0));
         assert!(exact
-            .rows
+            .rows()
             .iter()
             .all(|row| row[0] != cassie::types::Value::String("row-0000".into())));
         assert_ne!(
@@ -1347,7 +1417,7 @@ mod vector_ann_concurrency {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 5);
+        assert_eq!(result.rows().len(), 5);
         assert_eq!(
             after["vector"]["hnsw_executions"].as_u64(),
             before["vector"]["hnsw_executions"]
@@ -1362,8 +1432,9 @@ mod vector_ann_concurrency {
             after["vector"]["exact_reranks_total"].as_u64().unwrap()
                 > before["vector"]["exact_reranks_total"].as_u64().unwrap()
         );
+        drop(result);
         assert_eq!(
-            after["query"]["current_accounted_memory_bytes"].as_u64(),
+            cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
         );
         let _ = std::fs::remove_dir_all(path);
@@ -1421,7 +1492,7 @@ mod vector_ann_concurrency {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 5);
+        assert_eq!(result.rows().len(), 5);
         assert_eq!(
             after["vector"]["ivfflat_executions"].as_u64(),
             before["vector"]["ivfflat_executions"]
@@ -1440,8 +1511,9 @@ mod vector_ann_concurrency {
                     .as_u64()
                     .unwrap()
         );
+        drop(result);
         assert_eq!(
-            after["query"]["current_accounted_memory_bytes"].as_u64(),
+            cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
         );
         let _ = std::fs::remove_dir_all(path);
@@ -1568,7 +1640,8 @@ mod rest_request_cancellation {
 
         // Assert
         assert!(matches!(error, CassieError::QueryCancelled));
-        assert_eq!(result.rows, vec![vec![cassie::types::Value::Int64(0)]]);
+        assert_eq!(result.rows(), vec![vec![cassie::types::Value::Int64(0)]]);
+        drop(result);
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
@@ -1613,7 +1686,7 @@ mod rest_request_cancellation {
 
         // Assert
         assert!(matches!(error, CassieError::QueryCancelled));
-        assert_eq!(rows.rows, vec![vec![cassie::types::Value::Int64(0)]]);
+        assert_eq!(rows.rows(), vec![vec![cassie::types::Value::Int64(0)]]);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -1719,14 +1792,14 @@ mod graph_resilience {
         );
 
         // Act
-        let rows = cassie
+        let rows_result = cassie
             .execute_sql(
                 &session,
                 "SELECT node_type, node_id, cost, depth FROM graph_shortest_path('social', 'root', 'start', 'goal', 'finish', 3, 'out', 'knows', 1)",
                 vec![],
             )
-            .expect("shortest path")
-            .rows;
+            .expect("shortest path");
+        let rows = rows_result.rows();
 
         // Assert
         assert_eq!(
@@ -1760,14 +1833,14 @@ mod graph_resilience {
         );
 
         // Act
-        let rows = cassie
+        let rows_result = cassie
             .execute_sql(
                 &session,
                 "SELECT edge_id, cost, node_id FROM graph_neighbors('social', 'person', 'alice', 'both', 'knows', 4)",
                 vec![],
             )
-            .expect("weighted neighbors")
-            .rows;
+            .expect("weighted neighbors");
+        let rows = rows_result.rows();
 
         // Assert
         assert_eq!(
@@ -1817,14 +1890,14 @@ mod graph_resilience {
         );
 
         // Act
-        let rows = cassie
+        let rows_result = cassie
             .execute_sql(
                 &session,
                 "SELECT edge_id, node_id FROM graph_neighbors('social', 'person', 'alice', 'both', 'knows', 10)",
                 vec![],
             )
-            .expect("self-loop neighbors")
-            .rows;
+            .expect("self-loop neighbors");
+        let rows = rows_result.rows();
 
         // Assert
         assert_eq!(
@@ -1846,7 +1919,7 @@ mod graph_resilience {
         let path = data_dir("graph_low_memory");
         let runtime = current_thread_runtime();
         runtime.block_on(async {
-        let cassie = configured_cassie(&path, 64);
+        let cassie = configured_cassie(&path, 64 * 1_024);
         let session = cassie.create_session("tester", None);
         execute(&cassie, &session, "CREATE GRAPH social");
         let edges = (0..8)
@@ -1863,6 +1936,11 @@ mod graph_resilience {
             .midge
             .put_fresh_graph_documents("social_edges", edges)
             .expect("seed graph edges");
+        // Bootstrap under an ample budget, then reopen the same durable graph at the target cap.
+        drop(session);
+        drop(cassie);
+        let cassie = configured_cassie(&path, 64);
+        let session = cassie.create_session("tester", None);
         let before = cassie.metrics();
 
         // Act
@@ -1904,7 +1982,7 @@ mod graph_resilience {
         let path = data_dir("graph_shortest_path_low_memory");
         let runtime = current_thread_runtime();
         runtime.block_on(async {
-            let cassie = configured_cassie(&path, 64);
+            let cassie = configured_cassie(&path, 64 * 1_024);
             let session = cassie.create_session("tester", None);
             execute(&cassie, &session, "CREATE GRAPH social");
             let edges = (0..8)
@@ -1921,6 +1999,11 @@ mod graph_resilience {
                 .midge
                 .put_fresh_graph_documents("social_edges", edges)
                 .expect("seed graph edges");
+            // Bootstrap under an ample budget, then reopen the same durable graph at the target cap.
+            drop(session);
+            drop(cassie);
+            let cassie = configured_cassie(&path, 64);
+            let session = cassie.create_session("tester", None);
             let before = cassie.metrics();
 
             // Act
@@ -2039,24 +2122,24 @@ mod graph_resilience {
         );
 
         // Act
-        let overlay = cassie
+        let overlay_result = cassie
             .execute_sql(
                 &session,
                 "SELECT edge_id, node_id, cost FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 10)",
                 vec![],
             )
-            .expect("transaction overlay traversal")
-            .rows;
+            .expect("transaction overlay traversal");
+        let overlay = overlay_result.rows();
         let overlay_metrics = cassie.metrics();
         execute(&cassie, &session, "COMMIT");
-        let native = cassie
+        let native_result = cassie
             .execute_sql(
                 &session,
                 "SELECT edge_id, node_id, cost FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 10)",
                 vec![],
             )
-            .expect("native traversal")
-            .rows;
+            .expect("native traversal");
+        let native = native_result.rows();
 
         // Assert
         assert_eq!(overlay, native);
@@ -2110,14 +2193,14 @@ mod graph_resilience {
             &session,
             "ALTER SCHEMA reporting RENAME TO reporting_archive",
         );
-        let renamed = cassie
+        let renamed_result = cassie
             .execute_sql(
                 &session,
                 "SELECT edge_id FROM graph_neighbors('reporting_archive.social', 'person', 'alice', 'out', 'knows', 10)",
                 vec![],
             )
-            .expect("renamed graph traversal")
-            .rows;
+            .expect("renamed graph traversal");
+        let renamed = renamed_result.rows();
         let old_name = cassie.execute_sql(
             &session,
             "SELECT edge_id FROM graph_neighbors('reporting.social', 'person', 'alice', 'out', 'knows', 10)",
@@ -2154,37 +2237,37 @@ mod graph_resilience {
             &session,
             "INSERT INTO social_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('e1', 'person', 'alice', 'person', 'bob', 'knows', 1)",
         );
-        let before_drop = cassie
+        let before_drop_result = cassie
             .execute_sql(
                 &session,
                 "SELECT edge_id FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 10)",
                 vec![],
             )
-            .expect("graph traversal before edge collection drop")
-            .rows;
+            .expect("graph traversal before edge collection drop");
+        let before_drop = before_drop_result.rows();
 
         // Act
         execute(&cassie, &session, "DROP TABLE social_edges");
-        let after_drop = cassie
+        let after_drop_result = cassie
             .execute_sql(
                 &session,
                 "SELECT edge_id FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 10)",
                 vec![],
             )
-            .expect("graph traversal after edge collection drop")
-            .rows;
+            .expect("graph traversal after edge collection drop");
+        let after_drop = after_drop_result.rows();
         drop(cassie);
         let restarted = Cassie::new_with_data_dir(&path).expect("restarted cassie");
         restarted.startup().expect("startup after edge collection drop");
         let restarted_session = restarted.create_session("tester", None);
-        let after_restart = restarted
+        let after_restart_result = restarted
             .execute_sql(
                 &restarted_session,
                 "SELECT edge_id FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 10)",
                 vec![],
             )
-            .expect("graph traversal after dropped collection restart")
-            .rows;
+            .expect("graph traversal after dropped collection restart");
+        let after_restart = after_restart_result.rows();
 
         // Assert
         assert_eq!(before_drop, vec![vec![Value::String("e1".into())]]);
@@ -2219,24 +2302,24 @@ mod graph_resilience {
                     vec![],
                 )
                 .expect("traversal before restart")
-                .rows
+                .into_owned_rows()
         };
 
         // Act
         let restarted = Cassie::new_with_data_dir(&path).expect("restarted cassie");
         restarted.startup().expect("restart startup");
         let session = restarted.create_session("tester", None);
-        let after_restart = restarted
+        let after_restart_result = restarted
             .execute_sql(
                 &session,
                 "SELECT edge_id, node_id, cost FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 10)",
                 vec![],
             )
-            .expect("traversal after restart")
-            .rows;
+            .expect("traversal after restart");
+        let after_restart = after_restart_result.rows();
 
         // Assert
-        assert_eq!(after_restart, before_restart);
+        assert_eq!(after_restart, before_restart.as_slice());
         let _ = std::fs::remove_dir_all(path);
     });
     }
@@ -2289,14 +2372,14 @@ mod graph_resilience {
         restarted.startup().expect("startup rebuild");
         let restarted_session = restarted.create_session("tester", None);
         let before_entries = restarted.midge.query_scan_entries_for_diagnostics();
-        let rows = restarted
+        let rows_result = restarted
             .execute_sql(
                 &restarted_session,
                 "SELECT edge_id FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 1)",
                 vec![],
             )
-            .expect("rebuilt native traversal")
-            .rows;
+            .expect("rebuilt native traversal");
+        let rows = rows_result.rows();
         let visited = restarted
             .midge
             .query_scan_entries_for_diagnostics()
@@ -2357,14 +2440,14 @@ mod graph_resilience {
             .unwrap_or_default();
 
         // Act
-        let rows = cassie
+        let rows_result = cassie
             .execute_sql(
                 &session,
                 "SELECT edge_id FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 1)",
                 vec![],
             )
-            .expect("bounded filtered graph scan")
-            .rows;
+            .expect("bounded filtered graph scan");
+        let rows = rows_result.rows();
         let after = cassie.metrics();
         let visited = cassie
             .midge
@@ -2381,8 +2464,9 @@ mod graph_resilience {
         assert_eq!(visited, 66 * 5 + 2, "authoritative source, complete sidecar and selected member");
         assert_eq!(after["graph"]["last_reads"].as_u64(), Some(visited));
         assert!(reads <= visited * 2 + 4, "linear storage-read bound, got {reads}");
+        drop(rows_result);
         assert_eq!(
-            after["query"]["current_accounted_memory_bytes"].as_u64(),
+            cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
         );
         let _ = std::fs::remove_dir_all(path);
@@ -2551,8 +2635,9 @@ mod query_resource_controls {
             .saturating_sub(before);
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_eq!(visited, 1, "LIMIT 1 must consume one native row");
+        drop(result);
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
@@ -2609,7 +2694,7 @@ mod query_resource_controls {
             .saturating_sub(before);
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_eq!(
             visited, 2,
             "outer and inner scans should each consume one row"
@@ -2656,9 +2741,9 @@ mod query_resource_controls {
             .expect("overlay query");
 
         // Assert
-        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows().len(), 2);
         assert!(result
-            .rows
+            .rows()
             .contains(&vec![Value::String("staged".to_string())]));
         cassie
             .execute_sql(&session, "ROLLBACK", vec![])
@@ -2707,7 +2792,7 @@ mod query_resource_controls {
             .saturating_sub(before);
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_eq!(
             visited, 1,
             "overlay LIMIT must not clone the persisted collection"
@@ -2759,7 +2844,7 @@ mod query_resource_controls {
             let input = cassie
                 .execute_sql(&session, &format!("SELECT payload FROM {table}"), vec![])
                 .expect("each complete join input must fit the shared query budget");
-            assert_eq!(input.rows.len(), 16);
+            assert_eq!(input.rows().len(), 16);
         }
         let before_positive_entries = cassie.midge.query_scan_entries_for_diagnostics();
         let positive = cassie
@@ -2769,11 +2854,12 @@ mod query_resource_controls {
                 vec![],
             )
             .expect("both qualified retained inputs and a rejected candidate must fit");
-        assert_eq!(positive.rows, Vec::<Vec<Value>>::new());
+        assert_eq!(positive.rows(), Vec::<Vec<Value>>::new());
         assert_eq!(
             cassie.midge.query_scan_entries_for_diagnostics() - before_positive_entries,
             32
         );
+        drop(positive);
         let positive_metrics = cassie.metrics();
         assert_eq!(positive_metrics["joins"]["last_strategy"], "nested_loop");
         let positive_peak = positive_metrics["query"]["peak_accounted_memory_bytes"]
@@ -2865,7 +2951,7 @@ mod query_resource_controls {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert!(
             visited <= 2,
             "LIMIT 1 cross join should consume at most one row from each input, visited {visited}"
@@ -2882,6 +2968,7 @@ mod query_resource_controls {
         assert!(peak <= u64::try_from(FIXTURE_BUDGET_BYTES).expect("fixture memory budget"));
         assert_eq!(metrics["runtime"]["running_queries"], 0);
         assert_eq!(metrics["runtime"]["active_operator_workers"], 0);
+        drop(result);
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
@@ -2980,7 +3067,7 @@ mod query_resource_controls {
     fn should_reject_unindexed_heap_top_k_before_exceeding_memory_budget() {
         // Arrange
         let _hook_guard = query_scan_control_test_guard();
-        let (cassie, path) = configured_cassie("heap-top-k-memory", 8 * 1_024);
+        let (cassie, path) = configured_cassie("heap-top-k-memory", 9 * 1_024);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -2997,9 +3084,10 @@ mod query_resource_controls {
                 vec![],
             )
             .expect("complete top-k input must fit before ordering-key retention");
-        assert_eq!(input.rows.len(), 4);
+        assert_eq!(input.rows().len(), 4);
+        drop(input);
         // A computed order declines the simple-column shortcut. Two retained keys
-        // contain 2 * 256 * 21 TEXT bytes, exceeding 8 KiB after the narrow input fits.
+        // contain 2 * 256 * 21 TEXT bytes, exceeding 9 KiB after the narrow input fits.
         let key_arguments = vec!["payload"; 256].join(", ");
         let sql = format!(
             "SELECT payload FROM controlled_heap_top_k_memory ORDER BY concat({key_arguments}) LIMIT 2"
@@ -3040,7 +3128,7 @@ mod query_resource_controls {
                 vec![],
             )
             .expect("projection input must fit before output expansion");
-        assert_eq!(input.rows.len(), 1);
+        assert_eq!(input.rows().len(), 1);
         // Keep source decode/handoff below the cap while reserving sixteen payload copies.
         let projection_arguments = vec!["payload"; 16].join(", ");
         let sql = format!(
@@ -3480,15 +3568,16 @@ mod specialized_query_controls {
             .cassie
             .execute_sql(&fixture.session, family.query(), vec![])
             .expect("exact controlled fallback")
-            .rows;
+            .rows()
+            .to_vec();
         if matches!(family, AnalyticalFamily::Graph) {
             let overlay_metrics = fixture.cassie.metrics();
             execute(&fixture.cassie, &fixture.session, "COMMIT");
-            let committed = fixture
+            let committed_result = fixture
                 .cassie
                 .execute_sql(&fixture.session, family.query(), vec![])
-                .expect("committed native graph query")
-                .rows;
+                .expect("committed native graph query");
+            let committed = committed_result.rows();
             assert_eq!(rows, committed, "graph overlay/native equivalence");
             return FallbackEvidence {
                 rows,
@@ -3715,9 +3804,9 @@ mod specialized_query_controls {
             let final_metrics = &fallback.final_metrics;
 
             // Assert
-            assert_eq!(first.rows, second.rows, "{} ordering", family.label());
+            assert_eq!(first.rows(), second.rows(), "{} ordering", family.label());
             if matches!(family, AnalyticalFamily::Graph) {
-                assert_ne!(fallback.rows, first.rows, "graph overlay visibility");
+                assert_ne!(fallback.rows, first.rows(), "graph overlay visibility");
                 assert!(
                     fallback.rows.iter().any(|row| {
                         row.first() == Some(&cassie::types::Value::String("edge-extra".to_string()))
@@ -3727,14 +3816,14 @@ mod specialized_query_controls {
             } else {
                 assert_eq!(
                     fallback.rows,
-                    first.rows,
+                    first.rows(),
                     "{} exact fallback",
                     family.label()
                 );
             }
             if matches!(family, AnalyticalFamily::ColumnAggregate) {
                 assert_eq!(
-                    first.rows,
+                    first.rows(),
                     vec![vec![
                         cassie::types::Value::Int64(64),
                         cassie::types::Value::Int64(2016),
@@ -3742,7 +3831,7 @@ mod specialized_query_controls {
                     ]]
                 );
             } else {
-                assert_eq!(first.rows.len(), RESULT_LIMIT);
+                assert_eq!(first.rows().len(), RESULT_LIMIT);
             }
             assert_success_metrics(family, &before_metrics, &selected_metrics);
             assert!(
@@ -3760,6 +3849,7 @@ mod specialized_query_controls {
                     family.label()
                 );
             }
+            drop((first, second));
             assert_query_cleanup(&fixture.cassie);
             fixture.cleanup();
         }
@@ -4062,9 +4152,14 @@ mod specialized_query_controls_retrieval {
         metrics[family][name].as_u64().unwrap_or_default()
     }
 
-    fn assert_query_cleanup(cassie: &Cassie) {
+    fn assert_query_execution_retired(cassie: &Cassie) -> serde_json::Value {
         let metrics = cassie.metrics();
         assert_eq!(metric(&metrics, "runtime", "running_queries"), 0);
+        metrics
+    }
+
+    fn assert_query_cleanup(cassie: &Cassie) {
+        let metrics = assert_query_execution_retired(cassie);
         assert_eq!(
             metric(&metrics, "query", "current_accounted_memory_bytes"),
             0
@@ -4375,12 +4470,13 @@ mod specialized_query_controls_retrieval {
 
             // Assert
             evidence.entered(RetrievalPhase::Assertions);
-            assert_eq!(first.rows, second.rows, "{} ordering", case.label());
-            assert_eq!(first.rows.len(), RESULT_LIMIT);
-            let ids = result_ids(&first.rows);
+            assert_eq!(first.rows(), second.rows(), "{} ordering", case.label());
+            assert_eq!(first.rows().len(), RESULT_LIMIT);
+            let ids = result_ids(first.rows());
             assert!(ids.windows(2).all(|pair| pair[0] != pair[1]));
             assert_selected_metrics(case, &before, &selected, controlled_reads);
-            assert_query_cleanup(&fixture.cassie);
+            let retained = assert_query_execution_retired(&fixture.cassie);
+            assert!(metric(&retained, "query", "current_accounted_memory_bytes") > 0);
 
             if case.uses_persisted_retrieval() {
                 let selected_reads = selected_read_count(case, &selected);
@@ -4397,17 +4493,24 @@ mod specialized_query_controls_retrieval {
                     .expect("exact fallback query");
                 evidence.returned(RetrievalPhase::ExactFallback);
                 let after_fallback = fixture.cassie.metrics();
-                assert_eq!(fallback.rows, first.rows, "{} exact fallback", case.label());
+                assert_eq!(
+                    fallback.rows(),
+                    first.rows(),
+                    "{} exact fallback",
+                    case.label()
+                );
                 assert_eq!(
                     selected_read_count(case, &after_fallback),
                     selected_reads,
                     "{} exact fallback published discarded retrieval reads",
                     case.label()
                 );
-                assert_query_cleanup(&fixture.cassie);
+                drop(fallback);
             }
             evidence.returned(RetrievalPhase::Assertions);
             evidence.entered(RetrievalPhase::QueryLocalsRetirement);
+            drop((first, second));
+            assert_query_cleanup(&fixture.cassie);
         }
         paths
     }
@@ -4495,7 +4598,8 @@ mod specialized_query_controls_retrieval {
             .execute_sql(&reader, &fixture.query(), vec![])
             .expect("reader retrieval");
         evidence.returned(RetrievalPhase::SelectedFirst);
-        assert_query_cleanup(&fixture.cassie);
+        let retained = assert_query_execution_retired(&fixture.cassie);
+        assert!(metric(&retained, "query", "current_accounted_memory_bytes") > 0);
         drop(reader);
 
         // Act
@@ -4505,7 +4609,7 @@ mod specialized_query_controls_retrieval {
         // Assert
         evidence.entered(RetrievalPhase::Assertions);
         assert_eq!(escaped_reader.user, "reader");
-        assert_eq!(result.rows.len(), RESULT_LIMIT);
+        assert_eq!(result.rows().len(), RESULT_LIMIT);
         assert!(!std::path::Path::new(&path).exists());
         assert!(
             !warnings.contains("Midge graceful shutdown did not complete"),

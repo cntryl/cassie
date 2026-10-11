@@ -63,22 +63,6 @@ impl MidgeRowCursor {
             .collect())
     }
 
-    pub(crate) fn next_page(
-        &mut self,
-        midge: &Midge,
-        max_rows: usize,
-        controls: &QueryExecutionControls,
-    ) -> Result<(Vec<DocumentRef>, bool), CassieError> {
-        let mut page = self.next_accounted_page(midge, max_rows, controls)?;
-        let has_more = page.has_more();
-        let mut documents = Vec::with_capacity(page.len().min(STORAGE_SCAN_PAGE_ENTRIES));
-        while let Some(document) = page.pop_document() {
-            documents.push(document.into_unaccounted_document());
-        }
-        debug_assert!(page.is_empty());
-        Ok((documents, has_more))
-    }
-
     pub(crate) fn next_accounted_page(
         &mut self,
         midge: &Midge,

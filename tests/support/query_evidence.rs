@@ -143,7 +143,7 @@ fn execute_pages(cassie: &Cassie, table: &str, row_count: usize) -> QueryResults
                     vec![],
                 )
                 .expect("execute query evidence page")
-                .rows
+                .rows().to_vec()
         })
         .collect::<Vec<_>>();
     let full = cassie
@@ -155,7 +155,7 @@ fn execute_pages(cassie: &Cassie, table: &str, row_count: usize) -> QueryResults
             vec![],
         )
         .expect("execute full query evidence result")
-        .rows;
+        .rows().to_vec();
     let empty = cassie
         .execute_sql(
             &session,
@@ -165,7 +165,7 @@ fn execute_pages(cassie: &Cassie, table: &str, row_count: usize) -> QueryResults
             vec![],
         )
         .expect("execute empty query evidence result")
-        .rows;
+        .rows().to_vec();
     let rewritten = cassie
         .execute_sql(
             &session,
@@ -175,7 +175,7 @@ fn execute_pages(cassie: &Cassie, table: &str, row_count: usize) -> QueryResults
             vec![],
         )
         .expect("execute predicate-equivalent query evidence result")
-        .rows;
+        .rows().to_vec();
     cassie
         .execute_sql(&session, "ROLLBACK", vec![])
         .expect("rollback query evidence transaction");

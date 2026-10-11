@@ -114,7 +114,7 @@ mod auth {
                     .execute_sql(&session, &query, vec![])
                     .expect("identity function query");
                 let value = result
-                    .rows
+                    .rows()
                     .first()
                     .and_then(|row| row.first())
                     .cloned()
@@ -159,7 +159,7 @@ mod auth {
                 .expect("pg_roles query");
 
             // Assert
-            assert_eq!(result.rows, vec![vec![Value::String("root".to_string())]]);
+            assert_eq!(result.rows(), vec![vec![Value::String("root".to_string())]]);
         });
 
         let _ = std::fs::remove_dir_all(path);
@@ -203,7 +203,7 @@ mod auth {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![
                     vec![Value::String("alice".to_string())],
                     vec![Value::String("root".to_string())],
@@ -256,7 +256,7 @@ mod auth {
             // Assert
             assert_eq!(alice.user, "alice");
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![vec![
                     Value::String("alice".to_string()),
                     Value::String("alice".to_string()),
@@ -407,7 +407,7 @@ mod auth {
                 .expect("pg_roles query");
 
             assert_eq!(
-                roles.rows,
+                roles.rows(),
                 vec![vec![Value::String("root".to_string())]],
                 "dropped role should be removed from the catalog"
             );
@@ -664,7 +664,7 @@ mod catalog_introspection {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("catalog_tables_docs".to_string())]]
             );
 
@@ -718,7 +718,7 @@ mod catalog_introspection {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![
                     vec![
                         Value::String("title".to_string()),
@@ -797,17 +797,17 @@ mod catalog_introspection {
 
             // Assert
             assert_eq!(
-                renamed.rows,
+                renamed.rows(),
                 vec![vec![Value::String("catalog_lifecycle_after".to_string())]]
             );
             assert_eq!(
-                columns.rows,
+                columns.rows(),
                 vec![vec![
                     Value::String("catalog_lifecycle_after".to_string()),
                     Value::String("title".to_string()),
                 ]]
             );
-            assert_eq!(dropped.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(dropped.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -854,7 +854,7 @@ mod catalog_introspection {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("catalog_email_idx".to_string())]]
             );
 
@@ -894,13 +894,13 @@ mod catalog_introspection {
                 .unwrap();
 
             // Assert
-            assert_eq!(selected.rows.len(), 1);
+            assert_eq!(selected.rows().len(), 1);
             assert_eq!(
-                selected.rows[0][0],
+                selected.rows()[0][0],
                 Value::String("catalog_primary_key_docs_pkey".to_string())
             );
             assert_eq!(
-                selected.rows[0][1],
+                selected.rows()[0][1],
                 Value::String(
                     "CREATE UNIQUE INDEX catalog_primary_key_docs_pkey ON catalog_primary_key_docs (id)"
                         .to_string()
@@ -952,7 +952,7 @@ mod catalog_introspection {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![
                     Value::String("catalog_title_score_idx".to_string()),
                     Value::String(
@@ -1021,7 +1021,7 @@ mod catalog_introspection {
 
             // Assert
             assert_eq!(
-                storage.rows,
+                storage.rows(),
                 vec![vec![
                     Value::String("catalog_column_store_docs".to_string()),
                     Value::String("column-store".to_string()),
@@ -1029,7 +1029,7 @@ mod catalog_introspection {
                 ]]
             );
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![
                     Value::String("d1".to_string()),
                     Value::String("alpha".to_string()),
@@ -1070,7 +1070,7 @@ mod catalog_introspection {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![
                     vec![Value::String("analytics".to_string())],
                     vec![Value::String("information_schema".to_string())],
@@ -1117,7 +1117,7 @@ mod catalog_introspection {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![
                     vec![Value::String("CHECK".to_string())],
                     vec![Value::String("UNIQUE".to_string())]
@@ -1149,7 +1149,10 @@ mod catalog_introspection {
                 .unwrap();
 
             // Assert
-            assert_eq!(selected.rows, vec![vec![Value::String("root".to_string())]]);
+            assert_eq!(
+                selected.rows(),
+                vec![vec![Value::String("root".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -1185,7 +1188,7 @@ mod catalog_introspection {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![
                     vec![
                         Value::String("bigint".to_string()),
@@ -1308,9 +1311,9 @@ mod catalog_introspection {
                 .unwrap();
 
             // Assert
-            assert_eq!(tables.rows, vec![vec![Value::String("VIEW".to_string())]]);
-            assert_eq!(views.rows, vec![vec![Value::String("catalog_views_ready".to_string())]]);
-            assert_eq!(classes.rows, vec![vec![Value::String("v".to_string())]]);
+            assert_eq!(tables.rows(), vec![vec![Value::String("VIEW".to_string())]]);
+            assert_eq!(views.rows(), vec![vec![Value::String("catalog_views_ready".to_string())]]);
+            assert_eq!(classes.rows(), vec![vec![Value::String("v".to_string())]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -1894,7 +1897,11 @@ mod catalog_orm_metadata {
 
     fn query_rows(cassie: &Cassie, sql: &str) -> Vec<Vec<Value>> {
         let session = cassie.create_session("tester", None);
-        cassie.execute_sql(&session, sql, vec![]).unwrap().rows
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .unwrap()
+            .rows()
+            .to_vec()
     }
 
     fn collect_orm_metadata_rows(cassie: &Cassie) -> OrmMetadataRows {
@@ -1978,10 +1985,10 @@ mod catalog_probes {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.columns[0].name, "version");
-            assert_eq!(result.rows.len(), 1);
+            assert_eq!(result.columns()[0].name, "version");
+            assert_eq!(result.rows().len(), 1);
             assert!(matches!(
-                &result.rows[0][0],
+                &result.rows()[0][0],
                 Value::String(version) if version.starts_with("PostgreSQL 16.0 compatible Cassie ")
             ));
 
@@ -2009,9 +2016,9 @@ mod catalog_probes {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.columns[0].name, "pg_catalog.version");
-            assert_eq!(result.rows.len(), 1);
-            let Value::String(version) = &result.rows[0][0] else {
+            assert_eq!(result.columns()[0].name, "pg_catalog.version");
+            assert_eq!(result.rows().len(), 1);
+            let Value::String(version) = &result.rows()[0][0] else {
                 panic!("pg_catalog.version should return text");
             };
             assert!(version.starts_with("PostgreSQL 16.0"));
@@ -2041,9 +2048,9 @@ mod catalog_probes {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.columns[0].name, "current_schema");
-            assert_eq!(result.rows.len(), 1);
-            assert_eq!(result.rows[0][0], Value::String("public".to_string()));
+            assert_eq!(result.columns()[0].name, "current_schema");
+            assert_eq!(result.rows().len(), 1);
+            assert_eq!(result.rows()[0][0], Value::String("public".to_string()));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2069,9 +2076,9 @@ mod catalog_probes {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.columns[0].name, "current_database");
-            assert_eq!(result.rows.len(), 1);
-            assert_eq!(result.rows[0][0], Value::String("catalogdb".to_string()));
+            assert_eq!(result.columns()[0].name, "current_database");
+            assert_eq!(result.rows().len(), 1);
+            assert_eq!(result.rows()[0][0], Value::String("catalogdb".to_string()));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2097,7 +2104,7 @@ mod catalog_probes {
             // Assert
             let result = result.unwrap();
             assert_eq!(
-                result.columns,
+                result.columns(),
                 vec![cassie::executor::ColumnMeta {
                     name: "search_path".to_string(),
                     data_type: "text".to_string(),
@@ -2108,7 +2115,10 @@ mod catalog_probes {
                     nullable: true,
                 }]
             );
-            assert_eq!(result.rows, vec![vec![Value::String("public".to_string())]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::String("public".to_string())]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2137,13 +2147,13 @@ mod catalog_probes {
                 .unwrap();
 
             // Assert
-            assert_eq!(isolation.columns[0].name, "transaction_isolation");
+            assert_eq!(isolation.columns()[0].name, "transaction_isolation");
             assert_eq!(
-                isolation.rows,
+                isolation.rows(),
                 vec![vec![Value::String("read committed".to_string())]]
             );
-            assert_eq!(strings.columns[0].name, "standard_conforming_strings");
-            assert_eq!(strings.rows, vec![vec![Value::String("on".to_string())]]);
+            assert_eq!(strings.columns()[0].name, "standard_conforming_strings");
+            assert_eq!(strings.rows(), vec![vec![Value::String("on".to_string())]]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2168,9 +2178,12 @@ mod catalog_probes {
 
             // Assert
             let result = result.unwrap();
-            assert_eq!(result.command, "SET");
-            assert_eq!(result.columns, [] as [cassie::executor::ColumnMeta; 0]);
-            assert_eq!(result.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(result.command(), "SET");
+            assert_eq!(result.columns(), [] as [cassie::executor::ColumnMeta; 0]);
+            assert_eq!(
+                result.rows(),
+                [] as [std::vec::Vec<cassie::types::Value>; 0]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2929,7 +2942,11 @@ mod database_scope {
         session: &cassie::app::CassieSession,
         sql: &str,
     ) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).unwrap().rows
+        cassie
+            .execute_sql(session, sql, vec![])
+            .unwrap()
+            .rows()
+            .to_vec()
     }
 
     fn seed_projection_catalog_filtering_fixtures(
@@ -3017,11 +3034,11 @@ mod database_scope {
             assert!(cassie.catalog.database_exists("postgres"));
             assert!(cassie.catalog.namespace_exists("postgres.public"));
             assert_eq!(
-                databases.rows,
+                databases.rows(),
                 vec![vec![Value::String("postgres".to_string())]]
             );
             assert_eq!(
-                schemata.rows,
+                schemata.rows(),
                 vec![
                     vec![Value::String("information_schema".to_string())],
                     vec![Value::String("pg_catalog".to_string())],
@@ -3298,7 +3315,7 @@ mod database_scope {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![
                     Value::String("public".to_string()),
@@ -3461,7 +3478,7 @@ mod database_scope {
             vec![vec![Value::String("carol".to_string()), Value::Int64(1)]]
         );
         for (sql, read) in cross_database_reads {
-            let leaked_rows = read.map_or(0, |result| result.rows.len());
+            let leaked_rows = read.map_or(0, |result| result.rows().len());
             assert_eq!(
                 leaked_rows, 0,
                 "analytics session must not traverse the postgres graph: {sql}"
@@ -3542,8 +3559,8 @@ mod integration_sql_catalog {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.rows.len(), 1);
-            assert_eq!(result.columns[0].name, "title");
+            assert_eq!(result.rows().len(), 1);
+            assert_eq!(result.columns()[0].name, "title");
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -3573,7 +3590,7 @@ mod integration_sql_catalog {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.command, "CREATE SCHEMA");
+            assert_eq!(result.command(), "CREATE SCHEMA");
             assert!(cassie.catalog.namespace_exists("analytics"));
             assert!(cassie
                 .midge
@@ -3614,7 +3631,7 @@ mod integration_sql_catalog {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.command, "ALTER SCHEMA");
+            assert_eq!(result.command(), "ALTER SCHEMA");
             assert!(!cassie.catalog.namespace_exists("reporting"));
             assert!(cassie.catalog.namespace_exists("reporting_archive"));
             assert!(!cassie
@@ -3656,7 +3673,7 @@ mod integration_sql_catalog {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.command, "DROP SCHEMA");
+            assert_eq!(result.command(), "DROP SCHEMA");
             assert!(!cassie.catalog.namespace_exists("reporting"));
             assert!(!cassie
                 .midge
@@ -3691,7 +3708,7 @@ mod integration_sql_catalog {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.command, "CREATE SCHEMA");
+            assert_eq!(result.command(), "CREATE SCHEMA");
             let namespaced = cassie.midge.list_namespaces();
             assert_eq!(namespaced.len(), initial.len());
             assert!(namespaced.iter().any(|name| name == "analytics"));
@@ -3748,10 +3765,10 @@ mod integration_sql_catalog {
                 .unwrap();
 
             // Assert
-            assert_eq!(result.command, "ALTER TABLE");
-            assert_eq!(selected.rows.len(), 1);
-            assert_eq!(selected.rows[0][0], Value::String("d1".to_string()));
-            assert_eq!(selected.rows[0][1], Value::String("alpha".to_string()));
+            assert_eq!(result.command(), "ALTER TABLE");
+            assert_eq!(selected.rows().len(), 1);
+            assert_eq!(selected.rows()[0][0], Value::String("d1".to_string()));
+            assert_eq!(selected.rows()[0][1], Value::String("alpha".to_string()));
             let schema = cassie
                 .catalog
                 .get_schema(&relation)
@@ -3789,7 +3806,7 @@ mod integration_sql_catalog {
                 .map_err(|error| error.to_string());
             let probed = cassie
                 .execute_sql(&session, probe, vec![])
-                .map(|result| result.rows.len())
+                .map(|result| result.rows().len())
                 .map_err(|error| error.to_string());
             (acted, probed)
         });
@@ -4685,7 +4702,7 @@ mod schema_epoch_safety {
                 sidecars_before,
                 [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
             );
-            let cassie::types::Value::String(plan) = &new_plan.rows[0][0] else {
+            let cassie::types::Value::String(plan) = &new_plan.rows()[0][0] else {
                 panic!("expected explain text");
             };
             assert!(plan.contains("index=none"), "plan={plan}");
@@ -4889,14 +4906,14 @@ mod schema_epoch_safety {
             );
 
             // Assert
-            assert_eq!(saved.columns[1].name, "title");
+            assert_eq!(saved.columns()[1].name, "title");
             assert_eq!(
-                saved.rows[0][1],
+                saved.rows()[0][1],
                 cassie::types::Value::String("alpha".to_string())
             );
-            assert_eq!(current.columns[1].name, "headline");
+            assert_eq!(current.columns()[1].name, "headline");
             assert_eq!(
-                current.rows[0][1],
+                current.rows()[0][1],
                 cassie::types::Value::String("alpha".to_string())
             );
             assert!(old_name.is_err());
@@ -4963,12 +4980,12 @@ mod schema_epoch_safety {
             );
 
             // Assert
-            assert_eq!(saved.columns[1].name, "title");
+            assert_eq!(saved.columns()[1].name, "title");
             assert_eq!(
-                saved.rows[0][1],
+                saved.rows()[0][1],
                 cassie::types::Value::String("alpha".to_string())
             );
-            assert_eq!(current.columns.len(), 1);
+            assert_eq!(current.columns().len(), 1);
             assert!(dropped.is_err());
 
             let _ = std::fs::remove_dir_all(path);
@@ -5028,7 +5045,7 @@ mod schema_epoch_safety {
             // Assert
             assert_eq!(
                 saved
-                    .columns
+                    .columns()
                     .iter()
                     .map(|column| column.name.as_str())
                     .collect::<Vec<_>>(),
@@ -5036,7 +5053,7 @@ mod schema_epoch_safety {
             );
             assert_eq!(
                 current
-                    .columns
+                    .columns()
                     .iter()
                     .map(|column| column.name.as_str())
                     .collect::<Vec<_>>(),
@@ -5152,7 +5169,7 @@ mod schema_operation_recovery {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![
                 cassie::types::Value::String("alpha".to_string()),
                 cassie::types::Value::Null,
@@ -5344,7 +5361,7 @@ mod schema_operation_recovery {
             vec![],
         )
         .expect("read graph adjacency before drop");
-        assert_eq!(before_drop.rows.len(), 1);
+        assert_eq!(before_drop.rows().len(), 1);
         let edge_collection = canonical_test_collection(&cassie, "drop_graph_recovery_edges");
         cassie
             .midge
@@ -5375,7 +5392,7 @@ mod schema_operation_recovery {
 
         // Assert
         assert_eq!(
-            after_drop.rows,
+            after_drop.rows(),
             [] as [std::vec::Vec<cassie::types::Value>; 0]
         );
         let after_second_restart = restarted_again
@@ -5386,7 +5403,7 @@ mod schema_operation_recovery {
         )
         .expect("read graph adjacency after second restart");
         assert_eq!(
-            after_second_restart.rows,
+            after_second_restart.rows(),
             [] as [std::vec::Vec<cassie::types::Value>; 0]
         );
 
@@ -5765,19 +5782,19 @@ mod udf_database_scope {
                 )
                 .expect("create tenant_b function");
             assert_eq!(
-                own_function.rows,
+                own_function.rows(),
                 [] as [std::vec::Vec<cassie::types::Value>; 0]
             );
             let result = cassie
                 .execute_sql(&tenant_b, "SELECT rate(2)", vec![])
                 .expect("execute tenant_b function");
-            assert_eq!(result.columns[0].data_type, "text");
-            assert_eq!(result.rows, vec![vec![Value::String("2".to_string())]]);
+            assert_eq!(result.columns()[0].data_type, "text");
+            assert_eq!(result.rows(), vec![vec![Value::String("2".to_string())]]);
 
             let result = cassie
                 .execute_sql(&tenant_a, "SELECT rate(2)", vec![])
                 .expect("execute tenant_a function");
-            assert_eq!(result.rows, vec![vec![Value::Int64(2000)]]);
+            assert_eq!(result.rows(), vec![vec![Value::Int64(2000)]]);
         });
 
         let _ = std::fs::remove_dir_all(path);
@@ -5840,8 +5857,8 @@ mod udf_database_scope {
                 .expect("resolve first-schema function");
 
             // Assert
-            assert_eq!(second_first.rows, vec![vec![Value::Int64(22)]]);
-            assert_eq!(first_first.rows, vec![vec![Value::Int64(12)]]);
+            assert_eq!(second_first.rows(), vec![vec![Value::Int64(22)]]);
+            assert_eq!(first_first.rows(), vec![vec![Value::Int64(12)]]);
         });
 
         let _ = std::fs::remove_dir_all(path);
@@ -5937,14 +5954,14 @@ mod schema_scope_storage {
                 .unwrap();
 
             // Assert
-            assert_eq!(postgres_rows.rows.len(), 1);
-            assert_eq!(tenant_rows.rows.len(), 1);
+            assert_eq!(postgres_rows.rows().len(), 1);
+            assert_eq!(tenant_rows.rows().len(), 1);
             assert_eq!(
-                postgres_rows.rows[0][0],
+                postgres_rows.rows()[0][0],
                 Value::String("postgres-row".to_string())
             );
             assert_eq!(
-                tenant_rows.rows[0][0],
+                tenant_rows.rows()[0][0],
                 Value::String("tenant-row".to_string())
             );
 
@@ -6035,7 +6052,7 @@ mod schema_scope_storage {
             .expect("renamed column index should be registered");
 
         // Assert
-        assert_eq!(rows.rows.len(), 8);
+        assert_eq!(rows.rows().len(), 8);
         assert!(cassie.midge.root_hash(&current).unwrap().is_none());
         assert!(cassie.midge.root_hash(&next).unwrap().is_some());
         assert!(cassie
@@ -6190,7 +6207,7 @@ mod schema_scope_storage {
             assert_eq!(
                 function_call
                     .expect("tenant function remains available")
-                    .rows,
+                    .rows(),
                 vec![vec![Value::Int64(42)]]
             );
             assert!(procedure_call.is_ok(), "tenant procedure remains available");
@@ -6292,14 +6309,14 @@ mod session_settings {
 
         // Assert
         assert_eq!(
-            shown.rows[0][0],
+            shown.rows()[0][0],
             Value::String("DBeaver 26.1.3".to_string())
         );
         assert_eq!(
-            current.rows[0][0],
+            current.rows()[0][0],
             Value::String("DBeaver 26.1.3".to_string())
         );
-        assert_eq!(catalog.rows, current.rows);
+        assert_eq!(catalog.rows(), current.rows());
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -6326,7 +6343,7 @@ mod session_settings {
 
         // Assert
         assert_eq!(
-            configured.rows,
+            configured.rows(),
             vec![vec![Value::String("hex".to_string())]]
         );
         assert_eq!(session.setting("datestyle").unwrap(), "ISO, MDY");
@@ -6380,13 +6397,13 @@ mod session_settings {
             .expect("version functions");
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert!(
-            matches!(&result.rows[0][0], Value::String(value) if value.starts_with("PostgreSQL 16.0 compatible Cassie"))
+            matches!(&result.rows()[0][0], Value::String(value) if value.starts_with("PostgreSQL 16.0 compatible Cassie"))
         );
-        assert_eq!(result.rows[0][0], result.rows[0][1]);
+        assert_eq!(result.rows()[0][0], result.rows()[0][1]);
         assert_eq!(
-            result.rows[0][2],
+            result.rows()[0][2],
             Value::String(env!("CARGO_PKG_VERSION").to_string())
         );
         let _ = std::fs::remove_dir_all(path);
@@ -6492,7 +6509,7 @@ mod views {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("alpha".to_string()), Value::Int64(7),]]
             );
             assert!(dropped.is_err());
@@ -6587,7 +6604,7 @@ mod views {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("alpha".to_string())]]
             );
 
@@ -6636,7 +6653,7 @@ mod views {
 
             // Assert
             assert_eq!(
-                selected.rows,
+                selected.rows(),
                 vec![vec![Value::String("alpha".to_string()), Value::Int64(7)]]
             );
 
@@ -7212,7 +7229,8 @@ mod search_path_resolution {
         let rows = cassie
             .execute_sql(&session, "SELECT id FROM reporting.archive", vec![])
             .expect("renamed table stays in reporting")
-            .rows;
+            .rows()
+            .to_vec();
         assert_eq!(rows, vec![vec![Value::Int64(7)]]);
         assert!(cassie
             .execute_sql(&session, "SELECT id FROM public.archive", vec![])
@@ -7305,7 +7323,8 @@ mod search_path_resolution {
                 vec![],
             )
             .expect("query pg_class")
-            .rows;
+            .rows()
+            .to_vec();
 
         // Assert
         assert!(rows.is_empty(), "unqualified pg_class must be the catalog");
@@ -7325,7 +7344,8 @@ mod search_path_resolution {
         let current = cassie
             .execute_sql(&session, "SELECT current_schema()", vec![])
             .expect("current_schema")
-            .rows;
+            .rows()
+            .to_vec();
         assert_eq!(current, vec![vec![Value::String("public".into())]]);
         run(&cassie, &session, "CREATE TABLE lands_in_public (id INT)");
         assert!(cassie
@@ -7394,7 +7414,7 @@ mod search_path_resolution {
                     .expect("current schema");
 
                 // Assert
-                assert_eq!(result.rows, vec![vec![expected]]);
+                assert_eq!(result.rows(), vec![vec![expected]]);
             }
         }
         run(
@@ -7406,7 +7426,7 @@ mod search_path_resolution {
             cassie
                 .execute_sql(&session, "SELECT current_schema()", vec![])
                 .expect("before create")
-                .rows,
+                .rows(),
             vec![vec![Value::String("public".into())]]
         );
         run(&cassie, &session, "CREATE SCHEMA future_schema");
@@ -7414,7 +7434,7 @@ mod search_path_resolution {
             cassie
                 .execute_sql(&session, "SELECT current_schema()", vec![])
                 .expect("after create")
-                .rows,
+                .rows(),
             vec![vec![Value::String("future_schema".into())]]
         );
         run(&cassie, &session, "SET search_path TO tester, public");
@@ -7422,7 +7442,7 @@ mod search_path_resolution {
             cassie
                 .execute_sql(&session, "SELECT current_schema()", vec![])
                 .expect("before drop")
-                .rows,
+                .rows(),
             vec![vec![Value::String("tester".into())]]
         );
         run(&cassie, &session, "DROP SCHEMA tester");
@@ -7430,14 +7450,14 @@ mod search_path_resolution {
             cassie
                 .execute_sql(&session, "SELECT current_schema()", vec![])
                 .expect("after drop")
-                .rows,
+                .rows(),
             vec![vec![Value::String("public".into())]]
         );
         assert_eq!(
             cassie
                 .execute_sql(&session, "SELECT pg_catalog.current_schema()", vec![])
                 .expect("qualified current schema")
-                .rows,
+                .rows(),
             vec![vec![Value::String("public".into())]]
         );
         let _ = std::fs::remove_dir_all(path);

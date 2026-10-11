@@ -2,9 +2,8 @@ use std::collections::BinaryHeap;
 use std::mem::size_of;
 
 use crate::app::CassieError;
-use crate::executor::{ColumnMeta, QueryResult};
+use crate::executor::QueryResult;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::types::Value;
 
 use super::{compare_scored_vector_candidates, ScoredVectorCandidate};
 
@@ -151,50 +150,6 @@ fn size_overflow() -> CassieError {
 
 pub(super) fn json_bytes(value: &serde_json::Value) -> Result<usize, CassieError> {
     crate::runtime::accounted::json::retained_bytes(value)
-}
-
-pub(super) fn result_bytes(result: &QueryResult) -> Result<usize, CassieError> {
-    let columns = result.columns.iter().try_fold(0usize, |bytes, column| {
-        checked_add(
-            bytes,
-            checked_add(
-                2 * size_of::<ColumnMeta>(),
-                checked_add(column.name.len(), column.data_type.len())?,
-            )?,
-        )
-    })?;
-    result.rows.iter().try_fold(
-        checked_add(
-            columns,
-            checked_add(2 * size_of::<QueryResult>(), result.command.len())?,
-        )?,
-        |bytes, row| {
-            row.iter().try_fold(
-                checked_add(
-                    bytes,
-                    checked_add(
-                        2 * size_of::<Vec<Value>>(),
-                        checked_mul(
-                            row.len(),
-                            size_of::<Value>() + size_of::<serde_json::Value>(),
-                        )?,
-                    )?,
-                )?,
-                |bytes, value| {
-                    let variable = match value {
-                        Value::String(text) => text.len(),
-                        Value::Vector(vector) => checked_mul(
-                            vector.values.len(),
-                            size_of::<f32>() + size_of::<serde_json::Value>(),
-                        )?,
-                        Value::Json(value) => json_bytes(value)?,
-                        _ => 0,
-                    };
-                    checked_add(bytes, variable)
-                },
-            )
-        },
-    )
 }
 
 pub(super) fn type_name_bytes(data_type: &crate::types::DataType) -> Result<usize, CassieError> {

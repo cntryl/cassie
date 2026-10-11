@@ -353,7 +353,7 @@ pub use schema_write_control::{
 mod schema_ops_tests;
 mod sequences;
 mod streaming_scans;
-pub(crate) use streaming_scans::{AccountedDocument, MidgeRowCursor};
+pub(crate) use streaming_scans::{AccountedDocument, AccountedDocumentPage, MidgeRowCursor};
 pub(crate) mod time_series_indexes;
 mod vector_indexes;
 pub(crate) use vector_indexes::PersistedIvfFlatTrainingSnapshot;

@@ -24,6 +24,7 @@ Other documents may explain subsystem design or operator workflows. They must de
 - [Query Promotion Evidence](query-promotion-evidence.md)
 - [Compatibility Probe Contract](compatibility-probe-contract.md)
 - [Performance Contracts](performance-contracts.md)
+- [Query Result Ownership](query-result-ownership.md)
 - [HNSW Release Evidence](hnsw-release-evidence.md)
 - [IVFFlat Release Evidence](ivfflat-release-evidence.md)
 - [Production Readiness](production-readiness.md)

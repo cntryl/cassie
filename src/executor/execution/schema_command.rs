@@ -1,10 +1,11 @@
+use super::command_output::empty as empty_command;
 use super::{catalog, virtual_views, Cassie, FieldSchema, QueryError, QueryResult, QueryStatement};
 use crate::app::{CassieError, CatalogObjectKind};
+use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
     CreateDatabaseStatement, CreateGraphStatement, CreateSchemaStatement, CreateViewStatement,
-    DropDatabaseStatement, DropIndexStatement, DropSchemaStatement, DropTableStatement,
-    DropViewStatement,
+    DropDatabaseStatement, DropSchemaStatement, DropTableStatement, DropViewStatement,
 };
 use crate::types::DataType;
 
@@ -14,18 +15,23 @@ mod schema_constraint_helpers;
 mod schema_foreign_keys;
 #[path = "schema_graph_rename.rs"]
 mod schema_graph_rename;
+#[path = "schema_index_command.rs"]
+mod schema_index_command;
 #[path = "schema_sequence_rename.rs"]
 mod schema_sequence_rename;
+pub(super) use schema_index_command::drop_index;
 
 pub(super) fn create_graph(
     cassie: &Cassie,
     statement: &CreateGraphStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let graph = catalog::GraphMeta::new(&statement.name);
     if statement.if_not_exists && cassie.catalog.graph_exists_exact(&statement.name) {
-        return Ok(empty_command("CREATE GRAPH"));
+        return empty_command("CREATE GRAPH", controls);
     }
 
+    let output = empty_command("CREATE GRAPH", controls)?;
     super::graph_command::create_graph_collection(
         cassie,
         &graph.node_collection,
@@ -46,18 +52,19 @@ pub(super) fn create_graph(
     refresh_table_cardinality_stats(cassie, &format!("{}_nodes", statement.name))?;
     refresh_table_cardinality_stats(cassie, &format!("{}_edges", statement.name))?;
 
-    Ok(empty_command("CREATE GRAPH"))
+    Ok(output)
 }
 
 pub(super) fn create_view(
     cassie: &Cassie,
     session: Option<&crate::app::CassieSession>,
     statement: &CreateViewStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     cassie
         .midge
         .with_collection_gates(std::slice::from_ref(&statement.name), || {
-            create_view_gated(cassie, session, statement)
+            create_view_gated(cassie, session, statement, controls)
         })
 }
 
@@ -65,12 +72,13 @@ fn create_view_gated(
     cassie: &Cassie,
     session: Option<&crate::app::CassieSession>,
     statement: &CreateViewStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_not_exists
         && (cassie.catalog.relation_exists(&statement.name)
             || virtual_views::schema(&statement.name).is_some())
     {
-        return Ok(empty_command("CREATE VIEW"));
+        return empty_command("CREATE VIEW", controls);
     }
     if cassie.catalog.relation_exists(&statement.name)
         || virtual_views::schema(&statement.name).is_some()
@@ -99,22 +107,24 @@ fn create_view_gated(
     let metadata =
         crate::catalog::ViewMeta::new(statement.name.clone(), statement.query.clone(), schema);
 
+    let output = empty_command("CREATE VIEW", controls)?;
     cassie
         .midge
         .put_view(&metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_view(metadata);
 
-    Ok(empty_command("CREATE VIEW"))
+    Ok(output)
 }
 
 pub(super) fn drop_view(
     cassie: &Cassie,
     statement: &DropViewStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let Some(view) = cassie.catalog.get_view(&statement.name) else {
         if statement.if_exists {
-            return Ok(empty_command("DROP VIEW"));
+            return empty_command("DROP VIEW", controls);
         }
         return Err(QueryError::General(format!(
             "view '{}' does not exist",
@@ -122,6 +132,7 @@ pub(super) fn drop_view(
         )));
     };
 
+    let output = empty_command("DROP VIEW", controls)?;
     // Storage and catalog removal use exact keys, so drop the stored view name
     // rather than the name as it was typed.
     cassie
@@ -130,18 +141,20 @@ pub(super) fn drop_view(
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.unregister_view(&view.name);
 
-    Ok(empty_command("DROP VIEW"))
+    Ok(output)
 }
 
 pub(super) fn drop_table(
     cassie: &Cassie,
     statement: &DropTableStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_exists && !cassie.catalog.exists(&statement.table) {
-        return Ok(empty_command("DROP TABLE"));
+        return empty_command("DROP TABLE", controls);
     }
     schema_foreign_keys::reject_referenced_table_drop(cassie, &statement.table)?;
 
+    let output = empty_command("DROP TABLE", controls)?;
     cassie
         .midge
         .defer_drop_collection(&statement.table, cassie.runtime.schema_epoch())
@@ -152,54 +165,61 @@ pub(super) fn drop_table(
         .unregister_collection(&statement.table)
         .map_err(|error| QueryError::General(error.to_string()))?;
 
-    Ok(empty_command("DROP TABLE"))
+    Ok(output)
 }
 
 pub(super) fn alter_table(
     cassie: &Cassie,
     statement: &AlterTableStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let is_column_store = cassie
         .catalog
         .collection_storage_mode(&statement.table)
         .is_some_and(crate::catalog::collections::CollectionStorageMode::uses_column_store_storage);
+    let output = empty_command("ALTER TABLE", controls)?;
     execute_alter_table_operation(cassie, statement, is_column_store)?;
 
-    Ok(empty_command("ALTER TABLE"))
+    Ok(output)
 }
 
 pub(super) fn create_schema(
     cassie: &Cassie,
     statement: &CreateSchemaStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_not_exists && cassie.catalog.namespace_exists(&statement.schema) {
-        return Ok(empty_command("CREATE SCHEMA"));
+        return empty_command("CREATE SCHEMA", controls);
     }
 
+    let output = empty_command("CREATE SCHEMA", controls)?;
     cassie
         .midge
         .create_namespace(&statement.schema)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_namespace(&statement.schema, None);
 
-    Ok(empty_command("CREATE SCHEMA"))
+    Ok(output)
 }
 
 pub(super) fn create_database(
     cassie: &Cassie,
     statement: &CreateDatabaseStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    let output = empty_command("CREATE DATABASE", controls)?;
     let _database = cassie.create_logical_database(&statement.name, statement.if_not_exists)?;
 
-    Ok(empty_command("CREATE DATABASE"))
+    Ok(output)
 }
 
 pub(super) fn drop_schema(
     cassie: &Cassie,
     statement: &DropSchemaStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_exists && !cassie.catalog.namespace_exists(&statement.schema) {
-        return Ok(empty_command("DROP SCHEMA"));
+        return empty_command("DROP SCHEMA", controls);
     }
     if !schema_is_empty(cassie, &statement.schema) {
         return Err(QueryError::General(format!(
@@ -208,22 +228,24 @@ pub(super) fn drop_schema(
         )));
     }
 
+    let output = empty_command("DROP SCHEMA", controls)?;
     cassie
         .midge
         .drop_namespace(&statement.schema)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.unregister_namespace(&statement.schema);
 
-    Ok(empty_command("DROP SCHEMA"))
+    Ok(output)
 }
 
 pub(super) fn drop_database(
     cassie: &Cassie,
     session: Option<&crate::app::CassieSession>,
     statement: &DropDatabaseStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_exists && !cassie.catalog.database_exists(&statement.name) {
-        return Ok(empty_command("DROP DATABASE"));
+        return empty_command("DROP DATABASE", controls);
     }
     let Some(session) = session else {
         return Err(QueryError::General(
@@ -246,6 +268,7 @@ pub(super) fn drop_database(
         )));
     }
 
+    let output = empty_command("DROP DATABASE", controls)?;
     let public_schema =
         crate::catalog::canonical_schema_name(&statement.name, crate::catalog::DEFAULT_SCHEMA);
     cassie.midge.drop_namespace(&public_schema)?;
@@ -253,12 +276,13 @@ pub(super) fn drop_database(
     cassie.catalog.unregister_namespace(&public_schema);
     cassie.catalog.unregister_database(&statement.name);
 
-    Ok(empty_command("DROP DATABASE"))
+    Ok(output)
 }
 
 pub(super) fn alter_schema(
     cassie: &Cassie,
     statement: &AlterSchemaStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let next_schema = match &statement.operation {
         AlterSchemaOperation::RenameTo { schema } => schema.clone(),
@@ -271,6 +295,7 @@ pub(super) fn alter_schema(
         )));
     }
 
+    let output = empty_command("ALTER SCHEMA", controls)?;
     cassie
         .midge
         .rename_namespace(&target_schema, &next_schema)
@@ -278,47 +303,7 @@ pub(super) fn alter_schema(
     rename_schema_descendants(cassie, &target_schema, &next_schema)?;
     cassie.hydrate_catalog()?;
 
-    Ok(empty_command("ALTER SCHEMA"))
-}
-
-pub(super) fn drop_index(
-    cassie: &Cassie,
-    statement: &DropIndexStatement,
-) -> Result<QueryResult, QueryError> {
-    let index = cassie.catalog.get_index(&statement.table, &statement.name);
-
-    if statement.if_exists && index.is_none() {
-        return Ok(empty_command("DROP INDEX"));
-    }
-
-    if let Some(index) = index.as_ref() {
-        schema_foreign_keys::reject_referenced_unique_index_drop(cassie, &statement.table, index)?;
-        schema_constraint_helpers::reject_constraint_index_drop(
-            cassie,
-            &statement.table,
-            &index.name,
-        )?;
-        if matches!(index.kind, catalog::IndexKind::Vector) {
-            cassie
-                .catalog
-                .unregister_vector_index(&statement.table, &index.field);
-        }
-    }
-
-    cassie
-        .midge
-        .defer_drop_index(
-            &statement.table,
-            &statement.name,
-            cassie.runtime.schema_epoch(),
-        )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie
-        .catalog
-        .unregister_index(&statement.table, &statement.name);
-    refresh_table_cardinality_stats(cassie, &statement.table)?;
-
-    Ok(empty_command("DROP INDEX"))
+    Ok(output)
 }
 
 fn execute_alter_table_operation(
@@ -967,12 +952,4 @@ fn rewrite_schema_qualified_sql(raw: &str, current_schema: &str, next_schema: &s
             &format!("\"{current_local}\"."),
             &format!("\"{next_local}\"."),
         )
-}
-
-fn empty_command(command: &str) -> QueryResult {
-    QueryResult {
-        columns: Vec::new(),
-        rows: Vec::new(),
-        command: command.to_string(),
-    }
 }

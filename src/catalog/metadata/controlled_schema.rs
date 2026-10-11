@@ -1,11 +1,11 @@
 use std::mem::size_of;
 
+use crate::catalog::FieldMeta;
+use crate::types::Schema;
+
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
-use super::{
-    name_matches, view_schema_to_collection_schema, CassieError, Catalog, CollectionSchema,
-    DataType, FieldMeta,
-};
+use super::{name_matches, CassieError, Catalog, CollectionSchema, DataType};
 
 impl Catalog {
     pub(crate) fn contains_declared_stored_field(&self, collection: &str, field: &str) -> bool {
@@ -100,4 +100,20 @@ fn data_type_heap_bytes(data_type: &DataType) -> Result<usize, CassieError> {
 
 fn overflow() -> CassieError {
     CassieError::ResourceLimit("controlled catalog schema accounting overflow".to_owned())
+}
+
+pub(super) fn view_schema_to_collection_schema(name: &str, schema: &Schema) -> CollectionSchema {
+    CollectionSchema {
+        collection: name.to_string(),
+        fields: schema
+            .fields
+            .iter()
+            .map(|field| FieldMeta {
+                name: field.name.clone(),
+                data_type: field.data_type.clone(),
+                is_indexed: false,
+                boost: None,
+            })
+            .collect(),
+    }
 }

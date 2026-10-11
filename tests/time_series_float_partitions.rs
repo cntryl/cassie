@@ -26,7 +26,7 @@ mod time_series_float_partitions {
             )
             .expect("query time-series partition predicate");
         let mut ids = result
-            .rows
+            .rows()
             .iter()
             .map(|row| match row[0] {
                 Value::Int64(id) => id,

@@ -36,7 +36,7 @@ fn command_outcome(
             execute_projection_command_group(cassie, session, command, user_functions, controls)
         })
         .or_else(|| execute_retention_sequence_group(cassie, command, user_functions, controls))
-        .or_else(|| execute_schema_object_group(cassie, session, command))
+        .or_else(|| execute_schema_object_group(cassie, session, command, controls))
         .or_else(|| {
             execute_routine_group(cassie, session, command, params, user_functions, controls)
         })
@@ -53,10 +53,10 @@ fn execute_session_or_dml_command(
 ) -> Option<CommandExecution> {
     match command {
         LogicalCommand::Show(statement) => Some(CommandExecution::new(
-            super::session_command::execute_show(session, statement),
+            super::session_command::execute_show(session, statement, controls),
         )),
         LogicalCommand::Set(statement) => Some(CommandExecution::new(
-            super::session_command::execute_set(session, statement),
+            super::session_command::execute_set(session, statement, controls),
         )),
         LogicalCommand::Copy(_) => Some(CommandExecution::new(Err(QueryError::General(
             "COPY requires pgwire COPY FROM STDIN data stream".to_string(),
@@ -104,7 +104,7 @@ fn execute_projection_command_group(
             super::rollups::refresh_rollup(cassie, &statement.name, user_functions, controls),
         )),
         LogicalCommand::DropRollup(statement) => Some(CommandExecution::invalidating(
-            super::rollups::drop_rollup(cassie, &statement.name, statement.if_exists),
+            super::rollups::drop_rollup(cassie, &statement.name, statement.if_exists, controls),
         )),
         LogicalCommand::CreateMaterializedProjection(statement) => {
             Some(CommandExecution::invalidating(
@@ -134,6 +134,7 @@ fn execute_projection_command_group(
                     cassie,
                     &statement.name,
                     statement.if_exists,
+                    controls,
                 ),
             ))
         }
@@ -153,27 +154,29 @@ fn execute_projection_command_group(
                     cassie,
                     &statement.name,
                     &statement.version_id,
+                    controls,
                 ),
             ))
         }
         LogicalCommand::VerifyProjection(statement) => Some(CommandExecution::new(
-            super::materialized_projection::verify_projection(cassie, statement),
+            super::materialized_projection::verify_projection(cassie, statement, controls),
         )),
         LogicalCommand::DiffProjection(statement) => Some(CommandExecution::new(
-            super::projection_diff::diff_projection(cassie, statement),
+            super::projection_diff::diff_projection(cassie, statement, controls),
         )),
         LogicalCommand::CompareProjection(statement) => Some(CommandExecution::new(
-            super::projection_diff::compare_projection(cassie, statement),
+            super::projection_diff::compare_projection(cassie, statement, controls),
         )),
         LogicalCommand::PlanRepairProjection(statement) => Some(CommandExecution::new(
             super::projection_repair::plan_repair_projection(
                 cassie,
                 &statement.target,
                 statement.scope,
+                controls,
             ),
         )),
         LogicalCommand::RepairProjection(statement) => Some(CommandExecution::new(
-            super::projection_repair::repair_projection(cassie, statement),
+            super::projection_repair::repair_projection(cassie, statement, controls),
         )),
         _ => None,
     }
@@ -187,22 +190,27 @@ fn execute_retention_sequence_group(
 ) -> Option<CommandExecution> {
     match command {
         LogicalCommand::CreateRetentionPolicy(statement) => Some(CommandExecution::invalidating(
-            super::retention::create_retention_policy(cassie, statement),
+            super::retention::create_retention_policy(cassie, statement, controls),
         )),
         LogicalCommand::AlterRetentionPolicy(statement) => Some(CommandExecution::invalidating(
-            super::retention::alter_retention_policy(cassie, statement),
+            super::retention::alter_retention_policy(cassie, statement, controls),
         )),
         LogicalCommand::DropRetentionPolicy(statement) => Some(CommandExecution::invalidating(
-            super::retention::drop_retention_policy(cassie, &statement.name, statement.if_exists),
+            super::retention::drop_retention_policy(
+                cassie,
+                &statement.name,
+                statement.if_exists,
+                controls,
+            ),
         )),
         LogicalCommand::EnforceRetentionPolicy(statement) => Some(CommandExecution::new(
             super::retention::enforce_retention_policy(cassie, statement, user_functions, controls),
         )),
         LogicalCommand::CreateSequence(statement) => Some(CommandExecution::invalidating(
-            super::sequence_command::create_sequence(cassie, statement),
+            super::sequence_command::create_sequence(cassie, statement, controls),
         )),
         LogicalCommand::DropSequence(statement) => Some(CommandExecution::invalidating(
-            super::sequence_command::drop_sequence(cassie, statement),
+            super::sequence_command::drop_sequence(cassie, statement, controls),
         )),
         _ => None,
     }
@@ -212,61 +220,62 @@ fn execute_schema_object_group(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     command: &LogicalCommand,
+    controls: &QueryExecutionControls,
 ) -> Option<CommandExecution> {
     match command {
         LogicalCommand::CreateTable(statement) => Some(CommandExecution::creation(
-            super::schema_creation::create_table(cassie, statement),
+            super::schema_creation::create_table(cassie, statement, controls),
         )),
         LogicalCommand::CreateGraph(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::create_graph(cassie, statement),
+            super::schema_command::create_graph(cassie, statement, controls),
         )),
         LogicalCommand::CreateDatabase(statement) => Some(CommandExecution::new(
-            super::schema_command::create_database(cassie, statement),
+            super::schema_command::create_database(cassie, statement, controls),
         )),
         LogicalCommand::DropDatabase(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::drop_database(cassie, session, statement),
+            super::schema_command::drop_database(cassie, session, statement, controls),
         )),
         LogicalCommand::CreateView(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::create_view(cassie, session, statement),
+            super::schema_command::create_view(cassie, session, statement, controls),
         )),
         LogicalCommand::DropView(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::drop_view(cassie, statement),
+            super::schema_command::drop_view(cassie, statement, controls),
         )),
         LogicalCommand::DropTable(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::drop_table(cassie, statement),
+            super::schema_command::drop_table(cassie, statement, controls),
         )),
         LogicalCommand::AlterTable(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::alter_table(cassie, statement),
+            super::schema_command::alter_table(cassie, statement, controls),
         )),
         LogicalCommand::CreateSchema(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::create_schema(cassie, statement),
+            super::schema_command::create_schema(cassie, statement, controls),
         )),
         LogicalCommand::DropSchema(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::drop_schema(cassie, statement),
+            super::schema_command::drop_schema(cassie, statement, controls),
         )),
         LogicalCommand::AlterSchema(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::alter_schema(cassie, statement),
+            super::schema_command::alter_schema(cassie, statement, controls),
         )),
         LogicalCommand::CreateRole(statement) => Some(CommandExecution::invalidating(
-            super::role_command::create_role(cassie, session, statement),
+            super::role_command::create_role(cassie, session, statement, controls),
         )),
         LogicalCommand::AlterRole(statement) => Some(CommandExecution::invalidating(
-            super::role_command::alter_role(cassie, statement),
+            super::role_command::alter_role(cassie, statement, controls),
         )),
         LogicalCommand::DropRole(statement) => Some(CommandExecution::invalidating(
-            super::role_command::drop_role(cassie, statement),
+            super::role_command::drop_role(cassie, statement, controls),
         )),
         LogicalCommand::GrantDatabaseConnect(statement) => Some(CommandExecution::invalidating(
-            super::role_command::grant_database_connect(cassie, session, statement),
+            super::role_command::grant_database_connect(cassie, session, statement, controls),
         )),
         LogicalCommand::RevokeDatabaseConnect(statement) => Some(CommandExecution::invalidating(
-            super::role_command::revoke_database_connect(cassie, session, statement),
+            super::role_command::revoke_database_connect(cassie, session, statement, controls),
         )),
         LogicalCommand::CreateIndex(statement) => Some(CommandExecution::creation(
-            super::schema_creation::create_index(cassie, statement),
+            super::schema_creation::create_index(cassie, statement, controls),
         )),
         LogicalCommand::DropIndex(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::drop_index(cassie, statement),
+            super::schema_command::drop_index(cassie, statement, controls),
         )),
         _ => None,
     }
@@ -282,16 +291,16 @@ fn execute_routine_group(
 ) -> Option<CommandExecution> {
     match command {
         LogicalCommand::CreateFunction(statement) => {
-            Some(execute_create_function_command(cassie, statement))
+            Some(execute_create_function_command(cassie, statement, controls))
         }
         LogicalCommand::DropFunction(statement) => {
-            Some(execute_drop_function_command(cassie, statement))
+            Some(execute_drop_function_command(cassie, statement, controls))
         }
-        LogicalCommand::CreateProcedure(statement) => {
-            Some(execute_create_procedure_command(cassie, statement))
-        }
+        LogicalCommand::CreateProcedure(statement) => Some(execute_create_procedure_command(
+            cassie, statement, controls,
+        )),
         LogicalCommand::DropProcedure(statement) => {
-            Some(execute_drop_procedure_command(cassie, statement))
+            Some(execute_drop_procedure_command(cassie, statement, controls))
         }
         LogicalCommand::CallProcedure(statement) => Some(execute_call_procedure_command(
             cassie,
@@ -339,14 +348,11 @@ impl CommandExecution {
 fn execute_create_function_command(
     cassie: &Cassie,
     statement: &crate::sql::ast::CreateFunctionStatement,
+    controls: &QueryExecutionControls,
 ) -> CommandExecution {
     CommandExecution::invalidating((|| {
         if statement.if_not_exists && cassie.catalog.get_function(&statement.name).is_some() {
-            return Ok(QueryResult {
-                columns: Vec::new(),
-                rows: Vec::new(),
-                command: "CREATE FUNCTION".to_string(),
-            });
+            return super::command_output::empty("CREATE FUNCTION", controls);
         }
 
         let metadata = FunctionMeta {
@@ -364,58 +370,46 @@ fn execute_create_function_command(
             body: statement.body.clone(),
         };
 
+        let output = super::command_output::empty("CREATE FUNCTION", controls)?;
         cassie
             .midge
             .put_function(&metadata)
             .map_err(|error| QueryError::General(error.to_string()))?;
         cassie.catalog.register_function(metadata);
 
-        Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            command: "CREATE FUNCTION".to_string(),
-        })
+        Ok(output)
     })())
 }
 
 fn execute_drop_function_command(
     cassie: &Cassie,
     statement: &crate::sql::ast::DropFunctionStatement,
+    controls: &QueryExecutionControls,
 ) -> CommandExecution {
     CommandExecution::invalidating((|| {
         if statement.if_exists && cassie.catalog.get_function(&statement.name).is_none() {
-            return Ok(QueryResult {
-                columns: Vec::new(),
-                rows: Vec::new(),
-                command: "DROP FUNCTION".to_string(),
-            });
+            return super::command_output::empty("DROP FUNCTION", controls);
         }
 
+        let output = super::command_output::empty("DROP FUNCTION", controls)?;
         cassie
             .midge
             .delete_function(&statement.name)
             .map_err(|error| QueryError::General(error.to_string()))?;
         cassie.catalog.unregister_function(&statement.name);
 
-        Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            command: "DROP FUNCTION".to_string(),
-        })
+        Ok(output)
     })())
 }
 
 fn execute_create_procedure_command(
     cassie: &Cassie,
     statement: &crate::sql::ast::CreateProcedureStatement,
+    controls: &QueryExecutionControls,
 ) -> CommandExecution {
     CommandExecution::invalidating((|| {
         if statement.if_not_exists && cassie.catalog.get_procedure(&statement.name).is_some() {
-            return Ok(QueryResult {
-                columns: Vec::new(),
-                rows: Vec::new(),
-                command: "CREATE PROCEDURE".to_string(),
-            });
+            return super::command_output::empty("CREATE PROCEDURE", controls);
         }
 
         let metadata = ProcedureMeta {
@@ -431,44 +425,35 @@ fn execute_create_procedure_command(
             body: statement.body.clone(),
         };
 
+        let output = super::command_output::empty("CREATE PROCEDURE", controls)?;
         cassie
             .midge
             .put_procedure(&metadata)
             .map_err(|error| QueryError::General(error.to_string()))?;
         cassie.catalog.register_procedure(metadata);
 
-        Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            command: "CREATE PROCEDURE".to_string(),
-        })
+        Ok(output)
     })())
 }
 
 fn execute_drop_procedure_command(
     cassie: &Cassie,
     statement: &crate::sql::ast::DropProcedureStatement,
+    controls: &QueryExecutionControls,
 ) -> CommandExecution {
     CommandExecution::invalidating((|| {
         if statement.if_exists && cassie.catalog.get_procedure(&statement.name).is_none() {
-            return Ok(QueryResult {
-                columns: Vec::new(),
-                rows: Vec::new(),
-                command: "DROP PROCEDURE".to_string(),
-            });
+            return super::command_output::empty("DROP PROCEDURE", controls);
         }
 
+        let output = super::command_output::empty("DROP PROCEDURE", controls)?;
         cassie
             .midge
             .delete_procedure(&statement.name)
             .map_err(|error| QueryError::General(error.to_string()))?;
         cassie.catalog.unregister_procedure(&statement.name);
 
-        Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            command: "DROP PROCEDURE".to_string(),
-        })
+        Ok(output)
     })())
 }
 
@@ -508,6 +493,7 @@ fn execute_call_procedure_command(
             })
             .collect::<Result<Vec<_>, _>>()?;
 
+        let output = super::command_output::empty("CALL", controls)?;
         call_session
             .enter_procedure_call(&statement.name)
             .map_err(|error| QueryError::General(error.to_string()))?;
@@ -521,11 +507,7 @@ fn execute_call_procedure_command(
         call_session.leave_procedure_call();
         body_result.map_err(|error| QueryError::General(error.to_string()))?;
 
-        Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            command: "CALL".to_string(),
-        })
+        Ok(output)
     })())
 }
 

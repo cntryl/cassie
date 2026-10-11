@@ -124,7 +124,7 @@ fn should_select_no_mutation_rows_for_false_unknown_predicates() {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             Vec::<Vec<Value>>::new(),
             "false predicates produce no RETURNING rows: {sql}"
         );
@@ -153,13 +153,13 @@ fn should_preserve_canonical_boolean_assignment_values_through_returning() {
         let stored = fixture.rows("SELECT flag FROM bool_canonical_writes WHERE id = 1");
 
         // Assert
-        assert_eq!(inserted.rows, vec![vec![Value::Bool(false)]]);
-        assert_eq!(inserted.columns[0].type_oid, 16);
+        assert_eq!(inserted.rows(), vec![vec![Value::Bool(false)]]);
+        assert_eq!(inserted.columns()[0].type_oid, 16);
         assert_eq!(
-            updated.rows,
+            updated.rows(),
             vec![vec![Value::Bool(true), Value::Bool(false)]]
         );
-        assert!(updated.columns.iter().all(|column| column.type_oid == 16));
+        assert!(updated.columns().iter().all(|column| column.type_oid == 16));
         assert_eq!(stored, vec![vec![Value::Bool(true)]]);
     }
 }
@@ -204,7 +204,9 @@ fn should_use_declared_types_for_conflict_boolean_aliases() {
     assert!(matches!(typed_text, Err(CassieError::Planner(_))));
     assert_eq!(after_text, vec![vec![Value::Int64(10), Value::Bool(false)]]);
     assert_eq!(
-        false_boolean.expect("declared excluded Boolean FALSE").rows,
+        false_boolean
+            .expect("declared excluded Boolean FALSE")
+            .rows(),
         Vec::<Vec<Value>>::new()
     );
     assert_eq!(
@@ -212,7 +214,7 @@ fn should_use_declared_types_for_conflict_boolean_aliases() {
         vec![vec![Value::Int64(10), Value::Bool(false)]]
     );
     assert_eq!(
-        true_boolean.expect("declared excluded Boolean TRUE").rows,
+        true_boolean.expect("declared excluded Boolean TRUE").rows(),
         vec![vec![Value::Int64(77)]]
     );
 }
@@ -242,10 +244,10 @@ fn should_contextualize_unknown_boolean_insert_select_assignments() {
         let control = control.expect("supported INSERT SELECT Boolean control");
         let contextual =
             contextual.expect("direct unknown SQL literal uses destination Boolean context");
-        assert_eq!(control.rows, vec![vec![Value::Bool(false)]]);
-        assert_eq!(contextual.rows, vec![vec![Value::Bool(false)]]);
-        assert_eq!(control.columns[0].type_oid, 16);
-        assert_eq!(contextual.columns[0].type_oid, 16);
+        assert_eq!(control.rows(), vec![vec![Value::Bool(false)]]);
+        assert_eq!(contextual.rows(), vec![vec![Value::Bool(false)]]);
+        assert_eq!(control.columns()[0].type_oid, 16);
+        assert_eq!(contextual.columns()[0].type_oid, 16);
         assert_eq!(
             stored,
             vec![
@@ -288,7 +290,7 @@ fn should_reject_typed_boolean_insert_select_assignments_before_empty_execution(
         assert_eq!(
             control
                 .expect("typed Boolean projection is a supported empty source")
-                .rows,
+                .rows(),
             Vec::<Vec<Value>>::new()
         );
         for (sql, result) in statements.into_iter().zip(results) {
@@ -328,7 +330,7 @@ fn should_validate_typed_boolean_assignment_parameters_before_empty_mutations() 
         assert_eq!(
             boolean
                 .expect("typed Boolean assignment on empty input")
-                .rows,
+                .rows(),
             Vec::<Vec<Value>>::new(),
             "{sql}"
         );
@@ -375,10 +377,10 @@ fn should_validate_window_parameter_types_at_boolean_insert_destinations() {
     // Assert
     let boolean = boolean.expect("supported first_value INSERT SELECT with declared Boolean input");
     let null = null.expect("NULL remains assignable to a nullable Boolean target");
-    assert_eq!(boolean.rows, Vec::<Vec<Value>>::new());
-    assert_eq!(null.rows, Vec::<Vec<Value>>::new());
-    assert_eq!(boolean.columns[0].type_oid, 16);
-    assert_eq!(null.columns[0].type_oid, 16);
+    assert_eq!(boolean.rows(), Vec::<Vec<Value>>::new());
+    assert_eq!(null.rows(), Vec::<Vec<Value>>::new());
+    assert_eq!(boolean.columns()[0].type_oid, 16);
+    assert_eq!(null.columns()[0].type_oid, 16);
     assert!(
         matches!(text, Err(CassieError::Planner(_))),
         "typed TEXT window output must reject before the empty source"
@@ -415,12 +417,12 @@ fn should_validate_exported_wildcard_parameter_types_at_boolean_insert_destinati
 
         // Assert
         assert_eq!(
-            boolean.expect("supported wildcard Boolean source").rows,
+            boolean.expect("supported wildcard Boolean source").rows(),
             Vec::<Vec<Value>>::new(),
             "{sql}"
         );
         assert_eq!(
-            null.expect("NULL wildcard output stays assignable").rows,
+            null.expect("NULL wildcard output stays assignable").rows(),
             Vec::<Vec<Value>>::new(),
             "{sql}"
         );
@@ -462,7 +464,7 @@ fn should_preserve_lateral_wildcard_boolean_insert_types() {
     assert_eq!(
         control
             .expect("the standalone wildcard LATERAL source is supported")
-            .rows,
+            .rows(),
         vec![vec![
             Value::Int64(1),
             Value::Bool(false),
@@ -472,10 +474,10 @@ fn should_preserve_lateral_wildcard_boolean_insert_types() {
     let empty = empty.expect("a supported empty LATERAL Boolean wildcard source stays assignable");
     let boolean =
         boolean.expect("a supported LATERAL Boolean wildcard source keeps its outer type");
-    assert_eq!(empty.rows, Vec::<Vec<Value>>::new());
-    assert_eq!(empty.columns[0].type_oid, 16);
-    assert_eq!(boolean.rows, vec![vec![Value::Bool(false)]]);
-    assert_eq!(boolean.columns[0].type_oid, 16);
+    assert_eq!(empty.rows(), Vec::<Vec<Value>>::new());
+    assert_eq!(empty.columns()[0].type_oid, 16);
+    assert_eq!(boolean.rows(), vec![vec![Value::Bool(false)]]);
+    assert_eq!(boolean.columns()[0].type_oid, 16);
     assert!(
         matches!(integer, Err(CassieError::Planner(_))),
         "typed INT wildcard output must reject: {integer_sql}"
@@ -516,8 +518,8 @@ fn should_preserve_lateral_wildcard_boolean_scope_precedence() {
     // Assert
     let outer =
         outer.expect("qualified outer Boolean output stays assignable despite an inner INT name");
-    assert_eq!(outer.rows, vec![vec![Value::Bool(false)]]);
-    assert_eq!(outer.columns[0].type_oid, 16);
+    assert_eq!(outer.rows(), vec![vec![Value::Bool(false)]]);
+    assert_eq!(outer.columns()[0].type_oid, 16);
     assert!(
         matches!(inner, Err(CassieError::Planner(_))),
         "inner INT must precede bare outer Boolean spelling: {inner_sql}"

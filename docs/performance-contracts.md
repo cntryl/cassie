@@ -19,7 +19,41 @@ Missing access-path evidence is a failed contract, not permission to infer the i
 
 The required end state uses one shared tracker for query-owned materialization: sorts, distinct sets, hash tables, aggregate state, recursive working sets, graph frontiers, search candidates, portal buffers, and execution-result-cache payloads. Operators must reserve before allocation and release on drop. Exceeding the configured query budget returns SQLSTATE `54000`.
 
-Execution-result caching currently enforces separate entry and serialized-payload byte limits. Cache copies do not yet reserve through the shared query-memory tracker. That selected ownership obligation remains open under [#766](https://github.com/cntryl/cassie/issues/766), alongside the final resource qualification in [#849](https://github.com/cntryl/cassie/issues/849). Replacement, eviction and independent-result tests establish the configured cache bounds; they do not establish shared-tracker coverage or release of backing container capacity.
+Execution-result caching keeps its separate entry and serialized-payload byte limits. Immutable result payloads, resident keys and backing directories retain narrow reservations through their actual last owner. A distinct requesting query admits its own result exposure before a cache hit. [#766](https://github.com/cntryl/cassie/issues/766) owns current-surface qualification and closeout; [#849](https://github.com/cntryl/cassie/issues/849) retains final resource and restart qualification. Serialized cache limits do not measure retained capacity or process RSS.
+
+On 2026-10-11 the user selected the A+O
+[Query Result Ownership](query-result-ownership.md) contract for the next #766
+batch. The implemented APIs use immutable shared QueryResult, REST and EXPLAIN
+payloads and owned transfers retain narrow memory reservations through final
+owner drop, including encoded HTTP frame buffers. They retain no full query
+controls, statement-read snapshots, cancellation, request or session scopes.
+
+Physical payload/key/container allocations remain charged to their producing
+query's tracker while retained. Each different requesting query separately
+admits the exposed result footprint before a hit; its new conversion/encoding
+buffers charge its active admitted tracker, never an unrelated cache producer.
+Same-query aliases share admission. Account actual backing capacity and old/new
+overlap before allocation; clear does not release retained map/deque capacity.
+Required construction, conversion, encoding or hit admission returns `54000`
+before denied allocation or partial success output. Optional result-cache insertion
+may skip before extra allocation with `memory_budget` bypass, preserving the
+valid admitted query result. Failed admission records no successful hit.
+
+Preserve the existing serialized-payload byte setting and `bytes` observation.
+The `execution_result_cache.accounted_retained_bytes` observation reports SQL cache
+retained capacity separately; physically shared allocations count once while
+requester exposure is a distinct query charge. Release evidence follows live
+owners, not a stale last-query snapshot. No public-return transfer exception or
+cache-wide budget is selected. #766 remains open until actual current-surface
+ownership and release acceptance is complete; #849 retains its wider final
+resource/restart qualification.
+
+`query.current_accounted_memory_bytes` observes the latest recorded query's
+tracker through a weak reference. It can remain positive after execution while
+its result or cache owners are live, and follows their actual release. It is not
+a sum of concurrent or previously recorded queries. The cumulative
+`query.peak_accounted_memory_bytes` keeps the largest observed individual-query
+peak, including later frontend buffer growth observed through that tracker.
 
 `CASSIE_QUERY_MEMORY_BUDGET_BYTES` configures the per-query accounted-memory budget (default `10485760`); the unreleased temporary-spill name is not accepted. `CASSIE_MAX_RESULT_ROWS` configures the result-row cap (default `100000`). Cassie does not promise disk spilling: operators either stay within accounted memory or fail with `54000`.
 

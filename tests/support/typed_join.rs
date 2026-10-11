@@ -1,6 +1,6 @@
 //! Isolated configured joins for typed-versus-existing execution comparisons.
 use cassie::app::{Cassie, CassieSession};
-use cassie::config::CassieRuntimeConfig;
+use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use cassie::executor::QueryResult;
 
 pub struct JoinFixture {
@@ -19,6 +19,7 @@ impl JoinFixture {
         crate::support_sql::use_local_storage();
         let path = crate::support_sql::data_dir("typed-join-differential");
         let mut config = CassieRuntimeConfig::default();
+        config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         config.limits.vectorized_joins_enabled = native;
         config.limits.vectorized_join_batch_size = 2;
         let cassie =

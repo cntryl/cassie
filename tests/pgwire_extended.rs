@@ -3505,7 +3505,7 @@ mod pgwire_portal_streaming {
         let selected = cassie
             .execute_sql(&session, &format!("SELECT id FROM {table}"), vec![])
             .expect("select row id");
-        let cassie::types::Value::String(row_id) = selected.rows[0][0].clone() else {
+        let cassie::types::Value::String(row_id) = selected.rows()[0][0].clone() else {
             panic!("row id should be text");
         };
         (cassie, row_id)

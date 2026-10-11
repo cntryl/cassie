@@ -2849,7 +2849,7 @@ mod benchmark_harness_contract {
             .expect("execute HTTP benchmark query");
 
         // Assert
-        assert_eq!(result.rows.len(), 20);
+        assert_eq!(result.rows().len(), 20);
         workloads::assert_explain_contains(&context, query, vec![], "access_path=index_seek");
         let data_dir = context.data_dir.clone();
         context.cassie.shutdown();
@@ -2922,7 +2922,7 @@ mod benchmark_harness_contract {
             .expect("execute component query");
 
         // Assert
-        assert_eq!(result.rows.len(), 10);
+        assert_eq!(result.rows().len(), 10);
         workloads::assert_explain_contains(&context, query, vec![], "access_path=index_seek");
         let data_dir = context.data_dir.clone();
         context.cassie.shutdown();
@@ -4103,7 +4103,7 @@ mod benchmark_kernels {
             .expect("read benchmark full-text maintenance debt"));
         assert_eq!(fulltext_state.total_documents, 16);
         assert_eq!(fulltext_state.documents_with_text, 16);
-        assert_eq!(fulltext_rows.rows.len(), 6);
+        assert_eq!(fulltext_rows.rows().len(), 6);
         assert_eq!(
             index_names,
             [
@@ -4269,7 +4269,7 @@ mod benchmark_kernels {
         // Assert
         assert_eq!(cardinality, 1);
         assert_eq!(
-            report.rows,
+            report.rows(),
             vec![vec![
                 cassie::types::Value::String("completed".to_string()),
                 cassie::types::Value::String("verified".to_string()),
@@ -4333,7 +4333,7 @@ mod benchmark_kernels {
                 vec![],
             )
             .expect("inspect mutation-lane cleanup");
-        assert_eq!(remaining.rows.len().cmp(&0), std::cmp::Ordering::Equal);
+        assert_eq!(remaining.rows().len().cmp(&0), std::cmp::Ordering::Equal);
         let data_dir = context.data_dir.clone();
         context.cassie.shutdown();
         drop(context);
@@ -4950,7 +4950,8 @@ mod benchmark_kernels {
                 ],
             )
             .expect("expand graph across fixture batch boundary")
-            .rows;
+            .rows()
+            .to_vec();
         let graph_after = context.cassie.metrics();
         assert_eq!(
             graph_rows,
@@ -7034,20 +7035,20 @@ mod poc_quickstart {
         // Assert
         assert_eq!(health["ready"].as_bool(), Some(true));
         assert_eq!(
-            orders.rows,
+            orders.rows(),
             vec![
                 vec![Value::String("first order".to_string()), Value::Int64(42)],
                 vec![Value::String("second order".to_string()), Value::Int64(99)],
             ]
         );
         assert_eq!(
-            totals.rows,
+            totals.rows(),
             vec![
                 vec![Value::String("closed".to_string()), Value::Int64(1)],
                 vec![Value::String("open".to_string()), Value::Int64(2)],
             ]
         );
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         let expected_index = canonical_relation_name("postgres", "public", "poc_orders_lookup_idx");
@@ -8616,7 +8617,7 @@ mod benchmark_scaling_query_deadline_contract {
         // Act
         let accepts_approximate_ann_cardinality = hybrid.contains("query_up_to(")
             && hybrid.contains("HYBRID_SCALING_SQL")
-            && workloads.contains("(1..=maximum_rows).contains(&result.rows.len())");
+            && workloads.contains("(1..=maximum_rows).contains(&result.rows().len())");
 
         // Assert
         assert!(accepts_approximate_ann_cardinality);
@@ -8912,7 +8913,7 @@ mod benchmark_tier3_mixed_storage {
             .expect("read persisted mixed fixture");
 
         // Assert
-        assert_eq!(result.rows.len(), 16);
+        assert_eq!(result.rows().len(), 16);
         reopened.shutdown();
         std::fs::remove_dir_all(path).expect("clean mixed fixture");
     }

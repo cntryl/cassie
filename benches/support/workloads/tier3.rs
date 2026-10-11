@@ -61,11 +61,11 @@ pub fn execute_expected_query(
         .execute_sql(&context.session, sql, params)
         .expect("Tier 3 representative query");
     assert_eq!(
-        result.rows.len(),
+        result.rows().len(),
         expected_rows,
         "Tier 3 representative query returned unexpected cardinality"
     );
-    std::hint::black_box(result.rows.len())
+    std::hint::black_box(result.rows().len())
 }
 
 pub fn assert_explain_contains(
@@ -79,7 +79,7 @@ pub fn assert_explain_contains(
         .cassie
         .execute_sql(&context.session, &explain_sql, params)
         .expect("Tier 3 representative EXPLAIN");
-    let Some(Value::String(plan)) = explain.rows.first().and_then(|row| row.first()) else {
+    let Some(Value::String(plan)) = explain.rows().first().and_then(|row| row.first()) else {
         panic!("Tier 3 representative EXPLAIN must return a textual plan");
     };
     assert!(
@@ -301,7 +301,7 @@ pub fn mixed_query_ingest_retrieval(context: &BenchContext, nonce: u64) -> usize
             vec![Value::String("approved".to_string()), Value::Int64(90)],
         )
         .expect("Tier 3 mixed relational query");
-    assert_eq!(query.rows.len(), 20, "Tier 3 mixed query cardinality");
+    assert_eq!(query.rows().len(), 20, "Tier 3 mixed query cardinality");
 
     let marker = format!("tier3-mixed-marker-{nonce}");
     let id = context
@@ -340,12 +340,12 @@ pub fn mixed_query_ingest_retrieval(context: &BenchContext, nonce: u64) -> usize
         .expect("Tier 3 mixed cleanup");
 
     assert_eq!(
-        retrieval.rows,
+        retrieval.rows(),
         vec![vec![Value::String(marker)]],
         "Tier 3 mixed point retrieval must observe the ingested document"
     );
-    assert_eq!(search.rows.len(), 5, "Tier 3 mixed retrieval cardinality");
-    assert_eq!(cleanup.command, "DELETE 1", "Tier 3 mixed cleanup count");
+    assert_eq!(search.rows().len(), 5, "Tier 3 mixed retrieval cardinality");
+    assert_eq!(cleanup.command(), "DELETE 1", "Tier 3 mixed cleanup count");
     assert!(
         context
             .cassie
@@ -355,5 +355,5 @@ pub fn mixed_query_ingest_retrieval(context: &BenchContext, nonce: u64) -> usize
             .is_none(),
         "Tier 3 mixed cleanup must remove the ingested document"
     );
-    std::hint::black_box(query.rows.len() + retrieval.rows.len() + search.rows.len() + 1)
+    std::hint::black_box(query.rows().len() + retrieval.rows().len() + search.rows().len() + 1)
 }

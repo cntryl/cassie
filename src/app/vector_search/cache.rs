@@ -1,9 +1,9 @@
 use std::mem::size_of;
 
 use super::accounting::{
-    check_controls, check_result_rows, checked_add, checked_mul, result_bytes,
-    AccountedVectorResult,
+    check_controls, check_result_rows, checked_add, checked_mul, AccountedVectorResult,
 };
+use super::result_cache::AdmittedVectorResultKey;
 use super::{
     Arc, Cassie, CassieError, Embedding, NormalizedVectorCacheEntry, NormalizedVectorCacheKey,
     NormalizedVectorRecord, ProjectedVectorSearch, QueryEmbeddingCacheKey, VectorIndexRecord,
@@ -98,10 +98,11 @@ impl Cassie {
         let Some(cached) = cached else {
             return Ok(None);
         };
-        check_result_rows(cached.rows.len(), controls)?;
-        let memory = controls.reserve_query_memory(result_bytes(&cached)?)?;
+        check_result_rows(cached.row_count(), controls)?;
+        let result = cached.try_clone_for_query(controls)?;
+        let memory = controls.reserve_query_memory(0)?;
         Ok(Some(AccountedVectorResult {
-            result: cached.as_ref().clone(),
+            result,
             memory,
             row_memory: None,
             diagnostics: super::VectorSearchDiagnostics::default(),
@@ -110,36 +111,21 @@ impl Cassie {
 
     pub(super) fn cache_vector_search_result_controlled(
         &self,
-        key: VectorSearchResultCacheKey,
+        key: AdmittedVectorResultKey,
         result: &crate::executor::QueryResult,
         controls: &QueryExecutionControls,
     ) {
-        if self.catalog.version() != key.catalog_version {
+        if self.catalog.version() != key.key.catalog_version {
             return;
         }
-        let mut cache = self.vector_search_result_cache.lock();
-        let Ok(bytes) = result_bytes(result)
-            .and_then(cache_value_bytes::<crate::executor::QueryResult>)
-            .and_then(|bytes| {
-                checked_add(
-                    bytes,
-                    cache_node_bytes::<
-                        VectorSearchResultCacheKey,
-                        Arc<crate::executor::QueryResult>,
-                    >(cache.len())?,
-                )
-            })
-        else {
-            return;
-        };
-        let Ok(_cache_memory) = controls.reserve_query_memory(bytes) else {
-            return;
-        };
-        cache.retain(|cached, _| cached.catalog_version == key.catalog_version);
-        if cache.len() >= 256 {
-            cache.pop_first();
+        let stored = self
+            .vector_search_result_cache
+            .lock()
+            .insert(key, result, controls);
+        if matches!(stored, Err(CassieError::ResourceLimit(_))) {
+            self.runtime
+                .record_execution_result_cache_bypass("memory_budget");
         }
-        cache.insert(key, Arc::new(result.clone()));
     }
 
     pub(super) fn cached_normalized_vectors_controlled(

@@ -319,7 +319,7 @@ mod metrics_adaptive {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_eq!(
             after["adaptive_candidates"]["decisions"]
                 .as_u64()
@@ -437,7 +437,7 @@ mod metrics_adaptive {
             .unwrap();
 
         // Assert
-        let plan = result.rows[0][0].as_str().unwrap_or_default();
+        let plan = result.rows()[0][0].as_str().unwrap_or_default();
         assert!(
             plan.contains("candidate_budget=2"),
             "explain should include adaptive candidate budget: {plan}"
@@ -494,7 +494,7 @@ mod metrics_adaptive {
 
         // Act
         let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
-        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+        let plan = explain.rows()[0][0].as_str().unwrap().to_string();
         let after = cassie.metrics();
 
         // Assert
@@ -571,7 +571,7 @@ mod metrics_adaptive {
 
         // Act
         let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
-        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+        let plan = explain.rows()[0][0].as_str().unwrap().to_string();
         let after = cassie.metrics();
 
         // Assert
@@ -659,7 +659,7 @@ mod metrics_adaptive {
             let evaluation_plan = cassie
                 .execute_sql(&session, explain_sql, vec![])
                 .unwrap()
-                .rows[0][0]
+                .rows()[0][0]
                 .as_str()
                 .unwrap()
                 .to_string();
@@ -686,7 +686,7 @@ mod metrics_adaptive {
             let disabled_plan = cassie
                 .execute_sql(&session, explain_sql, vec![])
                 .unwrap()
-                .rows[0][0]
+                .rows()[0][0]
                 .as_str()
                 .unwrap()
                 .to_string();
@@ -705,9 +705,9 @@ mod metrics_adaptive {
                 )),
                 "plan={evaluation_plan}"
             );
-            assert_eq!(selected.rows.len(), 8);
+            assert_eq!(selected.rows().len(), 8);
             assert!(selected
-                .rows
+                .rows()
                 .iter()
                 .all(|row| { row == &vec![cassie::types::Value::String("alpha".into())] }));
             assert!(disabled_plan.contains("operator_feedback_reason=disabled"));
@@ -763,7 +763,7 @@ mod metrics_adaptive {
 
         // Act
         let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
-        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+        let plan = explain.rows()[0][0].as_str().unwrap().to_string();
 
         // Assert
         assert!(plan.contains(base_index), "plan={plan}");
@@ -812,7 +812,7 @@ mod metrics_adaptive {
 
         // Act
         let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
-        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+        let plan = explain.rows()[0][0].as_str().unwrap().to_string();
 
         // Assert
         assert!(plan.contains(base_index), "plan={plan}");
@@ -868,7 +868,7 @@ mod metrics_adaptive {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![
                 vec![
                     cassie::types::Value::String("ada".to_string()),
@@ -935,7 +935,7 @@ mod metrics_adaptive {
                 let input = cassie
                     .execute_sql(&session, input_sql, vec![])
                     .expect("each complete replacement input must fit");
-                assert_eq!(input.rows.len(), 2);
+                assert_eq!(input.rows().len(), 2);
             }
             let sql = format!(
                 "SELECT u.name, o.total \
@@ -1103,7 +1103,7 @@ mod metrics_adaptive {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(selected.rows.len(), 2);
+        assert_eq!(selected.rows().len(), 2);
         assert_eq!(
             after["adaptive_candidates"]["operator_switch_attempts"]
                 .as_u64()
@@ -1149,7 +1149,7 @@ mod metrics_adaptive {
                 vec![],
             )
             .unwrap();
-        let plan = explained.rows[0][0].as_str().unwrap_or_default();
+        let plan = explained.rows()[0][0].as_str().unwrap_or_default();
 
         // Assert
         assert!(plan.contains("operator_switch_enabled=true"), "plan={plan}");
@@ -1200,7 +1200,7 @@ mod metrics_adaptive {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(selected.rows.len(), 2);
+        assert_eq!(selected.rows().len(), 2);
         assert_eq!(
             after["adaptive_candidates"]["operator_switch_skips"]
                 .as_u64()
@@ -1632,7 +1632,7 @@ mod metrics_feedback {
                 .expect("scan feedback should be recorded");
 
             // Assert
-            assert_eq!(result.rows.len(), 1);
+            assert_eq!(result.rows().len(), 1);
             assert_eq!(record.executions, 1);
             assert_eq!(record.rows_out_total, 1);
             assert_eq!(record.errors_total, 0);
@@ -1702,11 +1702,11 @@ mod metrics_feedback {
                 .expect("selected index feedback should be recorded");
 
             // Assert
-            assert_eq!(result.rows.len(), 1);
+            assert_eq!(result.rows().len(), 1);
             assert_eq!(record.executions, 1);
             assert_eq!(record.rows_out_total, 1);
             assert_eq!(key.operator_family, "index_read");
-            let cassie::types::Value::String(plan) = &explained.rows[0][0] else {
+            let cassie::types::Value::String(plan) = &explained.rows()[0][0] else {
                 panic!("expected explain string");
             };
             assert!(plan.contains("index_feedback=enabled"));
@@ -1763,7 +1763,7 @@ mod metrics_feedback {
             let after_second = cassie.metrics();
 
             // Assert
-            assert_eq!(first.rows, second.rows);
+            assert_eq!(first.rows(), second.rows());
             assert_eq!(
                 after_second["feedback"]["hits"].as_u64(),
                 after_first["feedback"]["hits"].as_u64()
@@ -2016,7 +2016,7 @@ mod metrics_feedback {
                     vec![],
                 )
                 .unwrap()
-                .rows[0][0]
+                .rows()[0][0]
                 .as_str()
                 .unwrap()
                 .to_string();
@@ -2217,7 +2217,7 @@ mod metrics_feedback {
                     vec![],
                 )
                 .unwrap();
-            let plan = explain.rows[0][0].as_str().unwrap().to_string();
+            let plan = explain.rows()[0][0].as_str().unwrap().to_string();
             let record = cassie
                 .feedback_record_for_diagnostics(&key)
                 .expect("low-confidence feedback");
@@ -2259,7 +2259,7 @@ mod metrics_feedback {
             let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
 
             let baseline = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
-            let baseline_plan = baseline.rows[0][0].as_str().unwrap().to_string();
+            let baseline_plan = baseline.rows()[0][0].as_str().unwrap().to_string();
             assert!(baseline_plan.contains(base_index), "plan={baseline_plan}");
 
             for _ in 0..4 {
@@ -2284,7 +2284,7 @@ mod metrics_feedback {
 
             // Act
             let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
-            let plan = explain.rows[0][0].as_str().unwrap().to_string();
+            let plan = explain.rows()[0][0].as_str().unwrap().to_string();
 
             // Assert
             assert!(plan.contains(preferred_index), "plan={plan}");
@@ -2341,7 +2341,7 @@ mod metrics_feedback {
 
             // Act
             let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
-            let plan = explain.rows[0][0].as_str().unwrap().to_string();
+            let plan = explain.rows()[0][0].as_str().unwrap().to_string();
 
             // Assert
             assert!(plan.contains(base_index), "plan={plan}");
@@ -2393,7 +2393,7 @@ mod metrics_feedback {
                     vec![],
                 )
                 .unwrap();
-            let plan = explain.rows[0][0].as_str().unwrap().to_string();
+            let plan = explain.rows()[0][0].as_str().unwrap().to_string();
 
             // Assert
             assert!(plan.contains("operator_feedback=ignored"), "plan={plan}");
@@ -2507,7 +2507,7 @@ mod metrics_feedback {
                     vec![],
                 )
                 .unwrap();
-            let plan = explain.rows[0][0].as_str().unwrap().to_string();
+            let plan = explain.rows()[0][0].as_str().unwrap().to_string();
             let metrics = cassie.metrics();
 
             // Assert
@@ -2643,7 +2643,7 @@ mod metrics_joins {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("ada".to_string()), Value::Int64(42)]]
         );
         let metrics = cassie.metrics();
@@ -2706,7 +2706,7 @@ mod metrics_joins {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![
                 vec![Value::String("ada".to_string()), Value::Int64(42)],
                 vec![Value::String("grace".to_string()), Value::Int64(7)]
@@ -2747,7 +2747,7 @@ mod metrics_joins {
                 let input = cassie
                     .execute_sql(&session, input_sql, vec![])
                     .expect("the complete spill input must fit");
-                assert_eq!(input.rows.len(), 1);
+                assert_eq!(input.rows().len(), 1);
             }
 
             let before = cassie.metrics();
@@ -2892,8 +2892,8 @@ mod metrics_plan_pgwire {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(first.rows.len(), 1);
-            assert_eq!(second.rows.len(), 1);
+            assert_eq!(first.rows().len(), 1);
+            assert_eq!(second.rows().len(), 1);
             assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(1));
             assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(1));
             assert!(
@@ -3570,8 +3570,8 @@ mod metrics_runtime {
             let metrics = cassie.metrics();
 
             // Assert
-            assert_eq!(result.rows.len(), 1);
-            assert_eq!(second.rows.len(), 1);
+            assert_eq!(result.rows().len(), 1);
+            assert_eq!(second.rows().len(), 1);
             assert_eq!(metrics["ready"], serde_json::Value::Bool(true));
             assert!(
                 metrics["runtime"]["startup_total"]
@@ -3675,7 +3675,7 @@ mod metrics_runtime {
                     vec![],
                 )
                 .unwrap();
-            let plan = explain.rows[0][0].as_str().unwrap().to_string();
+            let plan = explain.rows()[0][0].as_str().unwrap().to_string();
             let metrics = cassie.metrics();
 
             // Assert
@@ -4139,7 +4139,7 @@ mod metrics_runtime_projections {
         assert_eq!(metadata.hashes.root.row_count, 3);
         assert_eq!(metadata.verification.state, ProjectionVerificationState::Verified);
         assert_eq!(
-            verification.rows[0][0],
+            verification.rows()[0][0],
             cassie::types::Value::String("verified".to_string())
         );
 
@@ -4546,7 +4546,7 @@ mod metrics_search {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_eq!(
             after["vector"]["candidate_count_total"]
                 .as_u64()
@@ -4635,7 +4635,7 @@ mod metrics_search {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_prefilter_metrics(&before, &after);
 
         let _ = std::fs::remove_dir_all(path);
@@ -4713,7 +4713,7 @@ mod metrics_search {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_eq!(
             after["search"]["candidate_count_total"]
                 .as_u64()
@@ -4812,7 +4812,7 @@ mod metrics_search {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows().len(), 1);
         assert_eq!(
             after["search"]["candidate_count_total"]
                 .as_u64()
@@ -4860,7 +4860,7 @@ mod metrics_search {
 
         // Assert
         let ids = result
-            .rows
+            .rows()
             .iter()
             .map(|row| row[0].as_str().unwrap_or_default().to_string())
             .collect::<Vec<_>>();
@@ -4936,9 +4936,9 @@ mod metrics_search {
         let after_third = cassie.metrics();
 
         // Assert
-        assert_eq!(first.rows.len(), 1);
-        assert_eq!(second.rows.len(), 2);
-        assert_eq!(third.rows.len(), 1);
+        assert_eq!(first.rows().len(), 1);
+        assert_eq!(second.rows().len(), 2);
+        assert_eq!(third.rows().len(), 1);
         assert_fulltext_scoring_cache_metrics(
             &before,
             &after_first,

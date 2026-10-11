@@ -19,6 +19,7 @@ use std::time::Duration;
 
 mod controlled_source;
 mod conversion;
+pub(crate) use conversion::{projected_lookup_bytes, projected_row_bytes};
 mod ordered_projection_accounting;
 mod typed;
 

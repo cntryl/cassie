@@ -54,20 +54,20 @@ fn should_preserve_projected_wildcard_identity_at_the_core_result_boundary() {
         .collect::<Vec<_>>();
 
     // Assert
-    let identity = outputs[0].rows[0][0].clone();
+    let identity = outputs[0].rows()[0][0].clone();
     assert!(matches!(&identity, Value::String(value) if !value.is_empty()));
     for ((sql, names), output) in cases.into_iter().zip(outputs) {
         assert_eq!(
             output
-                .columns
+                .columns()
                 .iter()
                 .map(|column| column.name.as_str())
                 .collect::<Vec<_>>(),
             names,
             "{sql}"
         );
-        assert_eq!(output.rows.len(), 1, "{sql}");
-        assert_eq!(output.rows[0].len(), output.columns.len(), "{sql}");
+        assert_eq!(output.rows().len(), 1, "{sql}");
+        assert_eq!(output.rows()[0].len(), output.columns().len(), "{sql}");
         let expected = match names.as_slice() {
             ["id", "label", "n"] => vec![
                 identity.clone(),
@@ -84,7 +84,7 @@ fn should_preserve_projected_wildcard_identity_at_the_core_result_boundary() {
             ],
             _ => panic!("unknown fixed core counterprobe shape"),
         };
-        assert_eq!(output.rows, vec![expected], "{sql}");
+        assert_eq!(output.rows(), vec![expected], "{sql}");
     }
     let _ = std::fs::remove_dir_all(path);
 }

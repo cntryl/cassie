@@ -59,11 +59,11 @@ fn should_canonicalize_boolean_prefixes_in_create_defaults() {
         .execute("INSERT INTO bool_default_create (id) VALUES (1) RETURNING yes_flag, no_flag")
         .expect("apply canonical defaults");
     assert_eq!(
-        inserted.rows,
+        inserted.rows(),
         vec![vec![Value::Bool(true), Value::Bool(false)]]
     );
-    assert_eq!(inserted.columns[0].type_oid, 16);
-    assert_eq!(inserted.columns[1].type_oid, 16);
+    assert_eq!(inserted.columns()[0].type_oid, 16);
+    assert_eq!(inserted.columns()[1].type_oid, 16);
 }
 
 #[test]

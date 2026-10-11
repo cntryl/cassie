@@ -27,6 +27,7 @@ impl Cassie {
         &self,
         session: &CassieSession,
         statement: &TransactionStatement,
+        controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
         if session.is_implicit_transaction()
             && matches!(
@@ -42,37 +43,25 @@ impl Cassie {
             ));
         }
         let command = match &statement.action {
-            TransactionAction::Begin => {
-                session.begin_transaction(statement.isolation)?;
-                "BEGIN"
-            }
-            TransactionAction::Commit => {
-                self.commit_transaction(session)?;
-                "COMMIT"
-            }
-            TransactionAction::Rollback => {
-                session.rollback_transaction();
-                "ROLLBACK"
-            }
-            TransactionAction::Savepoint { name } => {
-                session.create_savepoint(name)?;
-                "SAVEPOINT"
-            }
-            TransactionAction::RollbackTo { name } => {
-                session.rollback_to_savepoint(name)?;
-                "ROLLBACK"
-            }
-            TransactionAction::Release { name } => {
-                session.release_savepoint(name)?;
-                "RELEASE"
-            }
+            TransactionAction::Begin => "BEGIN",
+            TransactionAction::Commit => "COMMIT",
+            TransactionAction::Rollback | TransactionAction::RollbackTo { .. } => "ROLLBACK",
+            TransactionAction::Savepoint { .. } => "SAVEPOINT",
+            TransactionAction::Release { .. } => "RELEASE",
         };
+        let mut result = QueryResult::try_builder(controls)?;
+        result.try_set_command(command)?;
+        let output = result.finish()?;
 
-        Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            command: command.to_string(),
-        })
+        match &statement.action {
+            TransactionAction::Begin => session.begin_transaction(statement.isolation)?,
+            TransactionAction::Commit => self.commit_transaction(session)?,
+            TransactionAction::Rollback => session.rollback_transaction(),
+            TransactionAction::Savepoint { name } => session.create_savepoint(name)?,
+            TransactionAction::RollbackTo { name } => session.rollback_to_savepoint(name)?,
+            TransactionAction::Release { name } => session.release_savepoint(name)?,
+        }
+        Ok(output)
     }
 
     pub(crate) fn commit_transaction(&self, session: &CassieSession) -> Result<(), CassieError> {
@@ -105,3 +94,7 @@ impl Cassie {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "query_transactions/output_admission_tests.rs"]
+mod output_admission_tests;

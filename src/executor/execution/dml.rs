@@ -225,11 +225,11 @@ fn build_dml_result(
     mut returning_rows: Vec<BatchRow>,
 ) -> Result<QueryResult, QueryError> {
     if context.returning.is_empty() {
-        return Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            command: format!("{} {affected_count}", context.command_prefix),
-        });
+        return super::command_output::counted(
+            context.command_prefix,
+            affected_count,
+            context.controls,
+        );
     }
     #[cfg(test)]
     dml_returning_tests::observe(
@@ -293,29 +293,7 @@ fn build_dml_result(
         column_schema.as_ref(),
         context.user_functions,
     );
-    #[cfg(test)]
-    let mut returning_row_index = 0;
-    Ok(QueryResult {
-        columns,
-        rows: projected
-            .into_iter()
-            .map(|row| {
-                #[cfg(test)]
-                {
-                    dml_returning_tests::observe(
-                        dml_returning_tests::Phase::Materializing(returning_row_index),
-                        context.controls,
-                        affected_count,
-                        std::slice::from_ref(&row),
-                        1,
-                    );
-                    returning_row_index += 1;
-                }
-                row.into_values()
-            })
-            .collect(),
-        command: format!("{} {affected_count}", context.command_prefix),
-    })
+    dml_returning::finish(context, affected_count, &columns, projected)
 }
 
 fn row_id_from_batch_row(row: &BatchRow) -> Result<String, QueryError> {

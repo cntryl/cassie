@@ -108,8 +108,8 @@ fn execute_graph_evidence(context: &workloads::BenchContext) -> usize {
         .into_iter()
         .map(|node| vec![Value::String(node.to_string())])
         .collect::<Vec<_>>();
-    assert_eq!(result.rows, expected, "Tier 3 graph expansion result");
-    std::hint::black_box(result.rows.len())
+    assert_eq!(result.rows(), expected, "Tier 3 graph expansion result");
+    std::hint::black_box(result.rows().len())
 }
 
 fn graph_params() -> Vec<Value> {

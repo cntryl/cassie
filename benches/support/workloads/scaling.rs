@@ -101,7 +101,7 @@ pub fn column_query(ctx: &BenchContext) -> Ready<usize> {
         .expect("column scaling query");
     let after = ctx.cassie.metrics();
     assert!(
-        matches!(result.rows.len(), 500 | 1_000),
+        matches!(result.rows().len(), 500 | 1_000),
         "column scaling result cardinality"
     );
     assert!(
@@ -117,7 +117,7 @@ pub fn column_query(ctx: &BenchContext) -> Ready<usize> {
         metric_delta(&before, &after, "column_batches", "materialized_values") > 0,
         "column scaling query must decode selected projection values"
     );
-    ready(std::hint::black_box(result.rows.len()))
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 pub fn column_dml(ctx: &BenchContext, nonce: usize, dataset_rows: usize) -> Ready<usize> {
@@ -163,7 +163,7 @@ pub fn worker_query(ctx: &BenchContext, expected_workers: usize) -> Ready<usize>
         .cassie
         .execute_sql(&ctx.session, WORKER_SCALING_SQL, vec![])
         .expect("worker saturation query");
-    assert_eq!(result.rows.len(), 2, "worker query result cardinality");
+    assert_eq!(result.rows().len(), 2, "worker query result cardinality");
     let after = ctx.cassie.metrics();
     if expected_workers > 1 {
         assert!(
@@ -187,7 +187,7 @@ pub fn worker_query(ctx: &BenchContext, expected_workers: usize) -> Ready<usize>
         );
     }
     assert_scaling_resource_bounds(ctx);
-    ready(std::hint::black_box(result.rows.len()))
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 fn metric_delta(
@@ -238,8 +238,8 @@ pub fn vector_top_k_ids(ctx: &BenchContext) -> Vec<String> {
     ctx.cassie
         .execute_sql(&ctx.session, VECTOR_SCALING_SQL, vector_params())
         .expect("benchmark vector recall query")
-        .rows
-        .into_iter()
+        .rows()
+        .iter()
         .map(|row| {
             row.first()
                 .and_then(Value::as_str)
@@ -512,7 +512,7 @@ pub fn bounded_mixed_operation(ctx: &BenchContext, nonce: usize) -> Ready<usize>
             vec![Value::String(format!("soak-marker-{nonce}"))],
         )
         .expect("bounded mixed relational query");
-    assert_eq!(loaded.rows.len(), 1, "mixed relational cardinality");
+    assert_eq!(loaded.rows().len(), 1, "mixed relational cardinality");
     let text_rows = full_text_query(ctx).into_inner();
     let vector_rows = vector_query(ctx).into_inner();
     let deleted = ctx
@@ -541,7 +541,7 @@ fn query(ctx: &BenchContext, sql: &str, params: Vec<Value>, expected_rows: usize
         .execute_sql(&ctx.session, sql, params)
         .expect("benchmark query");
     assert_eq!(
-        result.rows.len(),
+        result.rows().len(),
         expected_rows,
         "benchmark query result cardinality"
     );
@@ -551,7 +551,7 @@ fn query(ctx: &BenchContext, sql: &str, params: Vec<Value>, expected_rows: usize
         "benchmark query used the execution-result cache"
     );
     assert_scaling_resource_bounds(ctx);
-    ready(std::hint::black_box(result.rows.len()))
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 fn query_up_to(
@@ -566,7 +566,7 @@ fn query_up_to(
         .execute_sql(&ctx.session, sql, params)
         .expect("benchmark query");
     assert!(
-        (1..=maximum_rows).contains(&result.rows.len()),
+        (1..=maximum_rows).contains(&result.rows().len()),
         "benchmark query result cardinality"
     );
     let after = ctx.cassie.metrics();
@@ -575,7 +575,7 @@ fn query_up_to(
         "benchmark query used the execution-result cache"
     );
     assert_scaling_resource_bounds(ctx);
-    ready(std::hint::black_box(result.rows.len()))
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 pub fn assert_scaling_resource_bounds(ctx: &BenchContext) {

@@ -237,7 +237,7 @@ async fn execute_offset_portal_page(
         }
     };
     let window = PortalFetchWindow::new(result_cap, request.rows_emitted, request.max_rows);
-    let remains_suspended = result.rows.len() > window.page_rows();
+    let remains_suspended = result.row_count() > window.page_rows();
     let suspended_cancellation = if remains_suspended {
         Some(cancellation.suspend())
     } else {
@@ -302,14 +302,16 @@ async fn execute_cursor_portal_page(
         request.max_rows,
     );
     let requested_rows = window.page_rows();
+    let prepared = request.prepared.clone();
     let fetched = run_pgwire_blocking(Arc::clone(&cassie), "pgwire_portal_page", move |cassie| {
-        let page = cursor.next_page(&cassie.midge, requested_rows, &controls)?;
-        let reservation = controls.reserve_query_memory(portal_page_bytes(&page.0)?)?;
+        let page = cursor.next_accounted_page(&cassie.midge, requested_rows, &controls)?;
+        let remains_suspended = page.has_more();
+        let result = portal_document_result(&cassie, &spec, &prepared, &columns, page, &controls)?;
         let peak_bytes = controls.peak_query_memory_bytes();
-        Ok((cursor, page, reservation, peak_bytes))
+        Ok((cursor, result, remains_suspended, peak_bytes))
     })
     .await;
-    let (cursor, (documents, remains_suspended), _page_memory, peak_bytes) = match fetched {
+    let (cursor, result, remains_suspended, peak_bytes) = match fetched {
         Ok(fetched) => fetched,
         Err(error) => {
             request.state.clear_portal_execution(request.portal_name);
@@ -317,9 +319,6 @@ async fn execute_cursor_portal_page(
         }
     };
     cassie.runtime.record_query_peak_memory(peak_bytes);
-    let rows = portal_document_rows(&cassie, &spec, request.prepared, documents);
-    // The page writer fills in the rows this Execute returned.
-    let command = "SELECT".to_string();
     let suspended_cancellation = if remains_suspended {
         Some(cancellation.suspend())
     } else {
@@ -333,11 +332,7 @@ async fn execute_cursor_portal_page(
         &portal_name,
         request.portal,
         StreamingPortalResult {
-            result: QueryResult {
-                columns,
-                rows,
-                command,
-            },
+            result,
             cancellation: suspended_cancellation,
             has_more: remains_suspended,
             rows_emitted: request.rows_emitted,
@@ -352,88 +347,126 @@ async fn execute_cursor_portal_page(
     Ok(())
 }
 
-fn portal_page_bytes(
-    documents: &[crate::midge::adapter::DocumentRef],
-) -> Result<usize, CassieError> {
-    documents.iter().try_fold(0usize, |total, document| {
-        let payload_bytes = serde_json::to_vec(&document.payload)
-            .map_err(|error| CassieError::Parse(error.to_string()))?
-            .len();
-        Ok(total
-            .saturating_add(document.id.len())
-            .saturating_add(payload_bytes))
-    })
-}
-
-fn portal_document_rows(
+fn portal_document_result(
     cassie: &Cassie,
     spec: &PortalReadSpec,
     prepared: &PreparedStatement,
-    documents: Vec<crate::midge::adapter::DocumentRef>,
-) -> Vec<Vec<Value>> {
+    columns: &[crate::executor::ColumnMeta],
+    mut documents: crate::midge::adapter::AccountedDocumentPage,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, CassieError> {
     let schema = cassie.catalog.get_schema(&spec.collection);
     let Some(QueryStatement::Select(select)) =
         prepared.parsed.as_ref().map(|parsed| &parsed.statement)
     else {
-        return Vec::new();
+        return Err(CassieError::Execution(
+            "streaming portal requires a select statement".to_owned(),
+        ));
     };
-    // A bare `id` reference against a table with no declared `id` field
-    // means Cassie's reserved internal identity, stored physically only
-    // under `_id` (see `scan::push_row_identity`); this path builds rows
-    // directly from the prepared statement's own (unrewritten) projection
-    // instead of a rewritten `LogicalPlan`, so it resolves that mapping
-    // itself rather than via `planner::logical::rewrite_reserved_id_references`.
-    let schema_has_id = schema
-        .as_ref()
-        .is_some_and(crate::catalog::CollectionSchema::declares_id);
-    documents
-        .into_iter()
-        .map(|document| {
-            let row = crate::executor::scan::projected_document_to_row(
-                &document,
+    let mut builder = QueryResult::try_builder(controls)?;
+    for column in columns {
+        builder.try_push_column(column)?;
+    }
+    builder.try_set_command("SELECT")?;
+    // The existing conversion and lookup builders parse SQL identifiers. Admit
+    // their bounded scratch before either the sizing pass or conversion runs.
+    let _identifiers =
+        controls.reserve_query_memory(portal_identifier_bytes(spec, select, schema.as_ref())?)?;
+    while let Some(document) = documents.pop_document() {
+        controls.check_interruption()?;
+        let document = document.document();
+        let scratch = crate::executor::retained_memory::add(
+            crate::executor::scan::projected_row_bytes(
+                document,
                 &spec.source_fields,
                 schema.as_ref(),
-            );
-            select
-                .projection
-                .iter()
-                .flat_map(|item| match item {
-                    // `*` expands in declared schema order, as the
-                    // RowDescription does, regardless of the order the
-                    // explicit columns pushed fields into the read.
-                    SelectItem::Wildcard => (!schema_has_id)
-                        .then_some(ROW_IDENTITY_COLUMN)
-                        .into_iter()
-                        .chain(
-                            schema
-                                .iter()
-                                .flat_map(|schema| schema.fields.iter())
-                                .map(|field| field.name.as_str()),
-                        )
-                        .map(|name| portal_row_value(&row, name))
-                        .collect::<Vec<_>>(),
-                    SelectItem::Column { name, .. }
-                    | SelectItem::Expr {
-                        expr: crate::sql::ast::Expr::Column(name),
-                        ..
-                    } => {
-                        let lookup_name = if is_identity_reference(name, schema_has_id) {
-                            ROW_IDENTITY_COLUMN
-                        } else {
-                            name.as_str()
-                        };
-                        vec![portal_row_value(&row, lookup_name)]
-                    }
-                    _ => Vec::new(),
-                })
-                .collect()
-        })
-        .collect()
+            )?,
+            crate::executor::scan::projected_lookup_bytes(&spec.source_fields, schema.as_ref())?,
+        )?;
+        let _projection = controls.reserve_query_memory(scratch)?;
+        let row = crate::executor::scan::projected_document_to_row(
+            document,
+            &spec.source_fields,
+            schema.as_ref(),
+        );
+        builder.try_push_values(portal_projection_values(select, &row, schema.as_ref()))?;
+    }
+    builder.finish()
 }
 
-/// Reads an exact SQL column key from a projected row.
-fn portal_row_value(row: &crate::executor::batch::BatchRow, name: &str) -> Value {
-    row.get(name).cloned().unwrap_or(Value::Null)
+fn portal_identifier_bytes(
+    spec: &PortalReadSpec,
+    select: &crate::sql::ast::SelectStatement,
+    schema: Option<&crate::catalog::CollectionSchema>,
+) -> Result<usize, CassieError> {
+    use crate::executor::retained_memory::{add, mul};
+
+    let catalog_longest = schema
+        .into_iter()
+        .flat_map(|schema| &schema.fields)
+        .map(|field| field.name.len())
+        .max()
+        .unwrap_or(0);
+    let source_longest = spec
+        .source_fields
+        .iter()
+        .map(String::len)
+        .max()
+        .unwrap_or(0);
+    let projection_longest = select
+        .projection
+        .iter()
+        .filter_map(|item| match item {
+            SelectItem::Column { name, .. }
+            | SelectItem::Expr {
+                expr: crate::sql::ast::Expr::Column(name),
+                ..
+            } => Some(name.len()),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0);
+    let longest = catalog_longest
+        .max(source_longest)
+        .max(projection_longest)
+        .max(ROW_IDENTITY_COLUMN.len());
+    add(512, add(mul(longest, 32)?, mul(catalog_longest, 8)?)?)
+}
+
+fn portal_projection_values<'a>(
+    select: &'a crate::sql::ast::SelectStatement,
+    row: &'a crate::executor::batch::BatchRow,
+    schema: Option<&'a crate::catalog::CollectionSchema>,
+) -> impl Iterator<Item = &'a Value> + Clone {
+    let schema_has_id = schema.is_some_and(crate::catalog::CollectionSchema::declares_id);
+    select.projection.iter().flat_map(move |item| {
+        let wildcard = matches!(item, SelectItem::Wildcard);
+        let column = match item {
+            SelectItem::Column { name, .. }
+            | SelectItem::Expr {
+                expr: crate::sql::ast::Expr::Column(name),
+                ..
+            } => Some(if is_identity_reference(name, schema_has_id) {
+                ROW_IDENTITY_COLUMN
+            } else {
+                name.as_str()
+            }),
+            _ => None,
+        };
+        // Match the RowDescription's declared schema order for wildcard fields.
+        (wildcard && !schema_has_id)
+            .then_some(ROW_IDENTITY_COLUMN)
+            .into_iter()
+            .chain(
+                schema
+                    .into_iter()
+                    .flat_map(|schema| &schema.fields)
+                    .filter(move |_| wildcard)
+                    .map(|field| field.name.as_str()),
+            )
+            .chain(column)
+            .map(move |name| row.get(name).unwrap_or(&Value::Null))
+    })
 }
 
 pub(super) fn streamable_portal_query(prepared: &PreparedStatement, max_rows: usize) -> bool {

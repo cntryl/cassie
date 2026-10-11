@@ -32,6 +32,8 @@ mod errors;
 mod extended;
 #[path = "connection/readers.rs"]
 mod readers;
+#[path = "connection/result_frames.rs"]
+mod result_frames;
 #[path = "connection/simple_execution.rs"]
 mod simple_execution;
 #[path = "connection/simple_query.rs"]
@@ -71,7 +73,7 @@ use writers::{
 };
 
 pub(crate) fn benchmark_encode_data_row(
-    row: Vec<crate::types::Value>,
+    row: &[crate::types::Value],
     columns: &[crate::executor::ColumnMeta],
     result_formats: &[i16],
 ) -> io::Result<Vec<u8>> {
@@ -639,6 +641,14 @@ async fn execute_simple_statement(
     match query_result {
         Ok(result) => match write_simple_query_result(write_half, result).await {
             Ok(()) => Ok(true),
+            Err(error) if writers::query_memory_error(&error).is_some() => {
+                session.mark_transaction_failed();
+                let error = writers::query_memory_error(&error).expect("query memory error");
+                write_error_response(write_half, &cassie_pg_error(error))
+                    .await
+                    .map(|()| false)
+                    .map_err(|_| ())
+            }
             Err(error) if writers::is_backend_frame_too_large(&error) => {
                 session.mark_transaction_failed();
                 let resource_limit = CassieError::ResourceLimit(error.to_string());

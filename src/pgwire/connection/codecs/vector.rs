@@ -5,13 +5,13 @@ use crate::types::schema::vector_dimensions_for_oid;
 use crate::types::Value;
 use crate::vector::text::visit_components;
 
-pub(super) fn encode_vector(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
+pub(super) fn encode_vector(value: &Value, type_oid: i64) -> io::Result<Vec<u8>> {
     let dimensions =
         vector_dimensions_for_oid(type_oid).ok_or_else(|| unsupported_codec(type_oid))?;
-    if let Value::String(text) = &value {
+    if let Value::String(text) = value {
         return encode_text_vector(text, dimensions);
     }
-    let length = match &value {
+    let length = match value {
         Value::Vector(vector) => vector.values.len(),
         Value::Json(serde_json::Value::Array(values)) => values.len(),
         _ => return invalid_value("vector"),
@@ -22,7 +22,7 @@ pub(super) fn encode_vector(value: Value, type_oid: i64) -> io::Result<Vec<u8>> 
     let mut encoded = vector_output_buffer(dimensions)?;
     match value {
         Value::Vector(vector) => {
-            for component in vector.values {
+            for component in &vector.values {
                 if !component.is_finite() {
                     return Err(invalid_data("vector"));
                 }

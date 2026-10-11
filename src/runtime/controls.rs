@@ -2,6 +2,7 @@ use super::{
     Arc, AtomicBool, AtomicUsize, CassieError, CassieRuntimeLimits, Duration, Instant, Ordering,
     RuntimeState,
 };
+use std::sync::Weak;
 
 #[derive(Debug, Clone)]
 pub struct QueryCancellationHandle(
@@ -50,10 +51,29 @@ impl RuntimeState {
     pub(crate) fn record_query_memory(&self, controls: &QueryExecutionControls) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query.current_accounted_memory_bytes = controls.current_query_memory_bytes() as u64;
+        *self
+            .query_memory_observation
+            .lock()
+            .expect("query memory observation") =
+            QueryMemoryObservation(Arc::downgrade(&controls.memory));
         metrics.query.peak_accounted_memory_bytes = metrics
             .query
             .peak_accounted_memory_bytes
             .max(controls.peak_query_memory_bytes() as u64);
+    }
+}
+
+/// Observes only the latest recorded query without retaining its tracker or request scope.
+#[derive(Debug, Default)]
+pub(super) struct QueryMemoryObservation(Weak<QueryMemoryTracker>);
+
+impl QueryMemoryObservation {
+    pub(super) fn current_and_peak_bytes(&self) -> (usize, usize) {
+        self.0.upgrade().map_or((0, 0), |tracker| {
+            let current = tracker.used.load(Ordering::Acquire);
+            let peak = tracker.peak.load(Ordering::Acquire).max(current);
+            (current, peak)
+        })
     }
 }
 
@@ -83,6 +103,28 @@ pub struct QueryMemoryReservation {
 }
 
 impl QueryMemoryReservation {
+    /// Creates a separate narrow lease against the same query tracker.
+    pub(crate) fn try_sibling(&self, bytes: usize) -> Result<Self, CassieError> {
+        reserve_tracker_memory(&self.tracker, bytes)?;
+        Ok(Self {
+            tracker: Arc::clone(&self.tracker),
+            bytes,
+        })
+    }
+
+    pub(crate) fn shares_tracker(&self, controls: &QueryExecutionControls) -> bool {
+        Arc::ptr_eq(&self.tracker, &controls.memory)
+    }
+
+    /// Transfers an already-live reservation without releasing or reserving its bytes again.
+    pub(crate) fn absorb(&mut self, mut other: Self) {
+        assert!(Arc::ptr_eq(&self.tracker, &other.tracker));
+        self.bytes = self
+            .bytes
+            .checked_add(other.bytes)
+            .expect("admitted memory sum");
+        other.bytes = 0;
+    }
     #[must_use]
     pub(crate) const fn bytes(&self) -> usize {
         self.bytes
@@ -126,6 +168,15 @@ impl Drop for QueryMemoryReservation {
 }
 
 impl QueryExecutionControls {
+    pub(crate) fn check_interruption(&self) -> Result<(), CassieError> {
+        if self.is_cancelled() {
+            return Err(CassieError::QueryCancelled);
+        }
+        if self.is_timed_out() {
+            return Err(CassieError::DeadlineExceeded);
+        }
+        Ok(())
+    }
     pub(crate) fn with_statement_read(
         &self,
         owner: Option<Arc<crate::midge::adapter::StatementDataRead>>,
@@ -326,5 +377,115 @@ mod tests {
         // Assert
         assert!(overflow.is_err());
         assert_eq!(reservation.bytes(), 1);
+    }
+
+    #[test]
+    fn should_observe_query_memory_until_the_last_result_alias_is_dropped() {
+        // Arrange
+        let runtime = super::RuntimeState::new(CassieRuntimeLimits::default());
+        let controls = controls_with_budget(1_048_576);
+        let tracker = std::sync::Arc::downgrade(&controls.memory);
+        let mut builder = crate::executor::QueryResult::try_builder(&controls).expect("builder");
+        builder
+            .try_push_row(&[crate::types::Value::String("retained output".repeat(32))])
+            .expect("row");
+        let result = builder.finish().expect("result");
+        let alias = result.clone();
+        runtime.record_query_memory(&controls);
+
+        // Act
+        let retained = runtime.snapshot().query.current_accounted_memory_bytes;
+        drop(controls);
+        drop(result);
+        let aliased = runtime.snapshot().query.current_accounted_memory_bytes;
+        drop(alias);
+        let retired = runtime.snapshot().query.current_accounted_memory_bytes;
+        let tracker_retired = tracker.upgrade().is_none();
+
+        // Assert
+        assert!(retained > 0);
+        assert_eq!(aliased, retained);
+        assert_eq!(retired, 0);
+        assert!(tracker_retired);
+    }
+
+    #[test]
+    fn should_observe_memory_peak_when_a_retained_output_lease_grows() {
+        // Arrange
+        let runtime = super::RuntimeState::new(CassieRuntimeLimits::default());
+        let controls = controls_with_budget(1_048_576);
+        let mut builder = crate::executor::QueryResult::try_builder(&controls).expect("builder");
+        builder
+            .try_push_row(&[crate::types::Value::String("output".to_owned())])
+            .expect("row");
+        let result = builder.finish().expect("result");
+        runtime.record_query_memory(&controls);
+        let recorded_peak = runtime.snapshot().query.peak_accounted_memory_bytes;
+
+        // Act
+        // Frontend frame copies reserve sibling leases after query execution is recorded.
+        let scratch = result
+            .admission()
+            .try_sibling(8192)
+            .expect("frontend scratch");
+        let live = runtime.snapshot().query;
+        let tracker_peak = controls.peak_query_memory_bytes() as u64;
+        drop(scratch);
+        drop(result);
+        drop(controls);
+        let retired = runtime.snapshot().query;
+
+        // Assert
+        assert!(live.current_accounted_memory_bytes > recorded_peak);
+        assert!(live.peak_accounted_memory_bytes >= live.current_accounted_memory_bytes);
+        assert_eq!(live.peak_accounted_memory_bytes, tracker_peak);
+        assert_eq!(retired.current_accounted_memory_bytes, 0);
+        assert_eq!(retired.peak_accounted_memory_bytes, tracker_peak);
+    }
+
+    #[test]
+    fn should_retire_cancellation_scope_while_managed_rows_keep_only_memory_alive() {
+        // Arrange
+        let cancellation = super::QueryCancellationHandle::new();
+        let cancellation_owner = std::sync::Arc::downgrade(&cancellation.0);
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation.clone(),
+        );
+        let tracker = std::sync::Arc::downgrade(&controls.memory);
+        let mut builder = crate::executor::QueryResult::try_builder(&controls).expect("builder");
+        builder
+            .try_push_column(&crate::executor::ColumnMeta::text("owned"))
+            .expect("metadata");
+        builder
+            .try_push_row(&[
+                crate::types::Value::String("variable payload".repeat(32)),
+                crate::types::Value::Json(serde_json::json!({"nested": ["retained", 7]})),
+                crate::types::Value::Vector(crate::types::Vector::new(vec![0.5; 128])),
+            ])
+            .expect("variable-width values");
+        let rows = builder.finish().expect("result").into_owned_rows();
+        let alias = rows.clone();
+
+        // Act
+        drop(controls);
+        drop(cancellation);
+        drop(rows);
+        let request_retired = cancellation_owner.upgrade().is_none();
+        let memory_live = tracker
+            .upgrade()
+            .expect("narrow retained tracker")
+            .used
+            .load(super::Ordering::Acquire);
+        let retained_values = alias.as_slice()[0].len();
+        drop(alias);
+        let tracker_retired = tracker.upgrade().is_none();
+
+        // Assert
+        assert!(request_retired);
+        assert!(memory_live > 0);
+        assert_eq!(retained_values, 3);
+        assert!(tracker_retired);
     }
 }

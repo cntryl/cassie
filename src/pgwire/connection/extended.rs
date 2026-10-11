@@ -501,7 +501,7 @@ async fn handle_execute(
         .await;
     }
     if let Some(command) = portal.completed_command.as_deref() {
-        return write_completed_portal(write_half, command).await;
+        return write_completed_portal(write_half, command, &state.portal_memory_controls).await;
     }
 
     let prepared = prepared_for_portal(state, &portal)?;
@@ -554,7 +554,7 @@ async fn handle_execute(
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
     transaction_boundary::close_completed_owner(state, runtime, session, was_in_transaction);
     let window = PortalFetchWindow::new(result_cap, 0, max_rows);
-    let suspended_cancellation = if window.page_rows() < result.rows.len() {
+    let suspended_cancellation = if window.page_rows() < result.row_count() {
         Some(cancellation.suspend())
     } else {
         drop(cancellation);
@@ -812,6 +812,9 @@ impl ExtendedQueryError {
     }
 
     fn protocol_from_io(error: &io::Error) -> Self {
+        if let Some(error) = super::writers::query_memory_error(error) {
+            return Self::cassie(error);
+        }
         if super::writers::is_backend_frame_too_large(error) {
             return Self::cassie(&CassieError::ResourceLimit(error.to_string()));
         }

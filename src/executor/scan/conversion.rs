@@ -54,7 +54,7 @@ pub(super) struct ConvertedBatches {
     pub(super) memory: QueryMemoryReservation,
 }
 
-pub(super) fn projected_row_bytes(
+pub(crate) fn projected_row_bytes(
     document: &DocumentRef,
     fields: &[String],
     schema: Option<&CollectionSchema>,
@@ -82,7 +82,7 @@ pub(super) fn projected_value_heap(
     })
 }
 
-pub(super) fn projected_lookup_bytes(
+pub(crate) fn projected_lookup_bytes(
     fields: &[String],
     schema: Option<&CollectionSchema>,
 ) -> Result<usize, CassieError> {

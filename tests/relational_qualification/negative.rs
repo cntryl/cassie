@@ -81,7 +81,7 @@ fn should_reject_selected_invalid_relational_inputs() {
             .cassie
             .execute_sql(&fixture.session, "SELECT id FROM r WHERE id=1", vec![])
             .expect("statement cleanup canary")
-            .rows
+            .rows()
             .len(),
         1
     );

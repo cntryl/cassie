@@ -151,12 +151,12 @@ pub fn assert_seed_carriers(fixture: &Fixture) {
             .execute_sql(&fixture.session, &sql, vec![])
             .expect("seed readback");
         assert_eq!(
-            result.rows.len(),
+            result.rows().len(),
             seed.expected_cells.len(),
             "{}",
             seed.table
         );
-        let actual_rows = result.rows;
+        let actual_rows = result.rows();
         let mut matched = vec![false; actual_rows.len()];
         for expected in seed.expected_cells {
             let index = actual_rows

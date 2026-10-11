@@ -71,7 +71,7 @@ fn should_preserve_signed_zero_float_partition_rows() {
         let before = cassie.metrics();
         // Act
         let results = [0.0, -0.0, 1.0].map(|partition| {
-            let rows = |table: &str| cassie.execute_sql(&session, &format!("SELECT amount FROM {table} WHERE tenant = $1 AND event_at >= '1969-12-31T23:59:59Z' AND event_at < '1970-01-01T00:00:01Z' ORDER BY amount"), vec![Value::Float64(partition)]).expect("range query").rows;
+            let rows = |table: &str| cassie.execute_sql(&session, &format!("SELECT amount FROM {table} WHERE tenant = $1 AND event_at >= '1969-12-31T23:59:59Z' AND event_at < '1970-01-01T00:00:01Z' ORDER BY amount"), vec![Value::Float64(partition)]).expect("range query").rows().to_vec();
             (rows("zero_baseline"), rows("zero_indexed"))
         });
         let after = cassie.metrics();
@@ -140,7 +140,8 @@ fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
                     vec![],
                 )
                 .expect("query DST boundary rows")
-                .rows
+                .rows()
+                .to_vec()
         };
         let baseline = query("dst_day_baseline");
         let buckets = cassie
@@ -151,7 +152,8 @@ fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
                 vec![],
             )
             .expect("bucket timestamps by fixed UTC days")
-            .rows;
+            .rows()
+            .to_vec();
         let before = cassie.metrics();
 
         // Act

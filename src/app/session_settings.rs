@@ -87,12 +87,15 @@ pub(crate) struct SessionSettings {
 
 impl SessionSettings {
     pub(crate) fn get(&self, name: &str) -> Result<String, CassieError> {
+        Ok(self.get_ref(name)?.to_owned())
+    }
+
+    pub(crate) fn get_ref(&self, name: &str) -> Result<&str, CassieError> {
         let spec = find(name)?;
         Ok(self
             .mutable
             .get(spec.name)
-            .cloned()
-            .unwrap_or_else(|| spec.default.to_string()))
+            .map_or(spec.default, String::as_str))
     }
 
     pub(crate) fn set(&mut self, name: &str, value: &str) -> Result<String, CassieError> {
@@ -111,10 +114,9 @@ pub(crate) fn all() -> &'static [SettingSpec] {
 }
 
 fn find(name: &str) -> Result<&'static SettingSpec, CassieError> {
-    let normalized = name.trim().to_ascii_lowercase();
     SETTINGS
         .iter()
-        .find(|spec| spec.name == normalized)
+        .find(|spec| spec.name.eq_ignore_ascii_case(name.trim()))
         .ok_or_else(|| {
             CassieError::InvalidParameterValue(format!(
                 "unrecognized configuration parameter \"{name}\""

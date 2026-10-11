@@ -109,7 +109,10 @@ mod index_publication_recovery {
                 .get_index(&collection, &index.name)
                 .expect("read published index")
                 .is_some());
-            assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::String("alpha".to_string())]]
+            );
         });
 
         let _ = std::fs::remove_dir_all(path);
@@ -180,7 +183,7 @@ mod index_publication_recovery {
             .expect("read published index")
             .is_some());
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::String("alpha beta".to_string())]]
         );
 
@@ -413,11 +416,11 @@ mod integration_sql_scalar_index_lexkey {
 
             // Assert
             assert_eq!(
-                scores.rows,
+                scores.rows(),
                 vec![vec![Value::Int64(-2)], vec![Value::Int64(0)]]
             );
             assert_eq!(
-                ratings.rows,
+                ratings.rows(),
                 vec![vec![Value::Float64(-1.25)], vec![Value::Float64(0.5)]]
             );
 
@@ -677,7 +680,11 @@ mod integration_sql_scalar_index_lexkey {
         sql: &str,
         params: Vec<Value>,
     ) -> Vec<Vec<Value>> {
-        let mut rows = cassie.execute_sql(session, sql, params).expect(sql).rows;
+        let mut rows = cassie
+            .execute_sql(session, sql, params)
+            .expect(sql)
+            .rows()
+            .to_vec();
         rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
         rows
     }
@@ -795,7 +802,7 @@ mod integration_sql_scalar_index_lexkey {
                 mismatches.is_empty(),
                 "indexed FLOAT results diverge from unindexed results: {mismatches:#?}"
             );
-            let Value::String(plan) = &explain.rows[0][0] else {
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("index=float_index_first_x_idx"));
@@ -880,11 +887,11 @@ mod integration_sql_scalar_index_lexkey {
 
             // Assert
             let expected = vec![vec![Value::Int64(1)]];
-            assert_eq!(baseline_integer.rows, expected);
-            assert_eq!(indexed_integer.rows, baseline_integer.rows);
-            assert_eq!(baseline_float.rows, expected);
-            assert_eq!(indexed_float.rows, baseline_float.rows);
-            let Value::String(plan) = &explain.rows[0][0] else {
+            assert_eq!(baseline_integer.rows(), expected);
+            assert_eq!(indexed_integer.rows(), baseline_integer.rows());
+            assert_eq!(baseline_float.rows(), expected);
+            assert_eq!(indexed_float.rows(), baseline_float.rows());
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("index=whole_float_rating_idx"));
@@ -959,10 +966,11 @@ mod integration_sql_scalar_index_lexkey {
                         vec![],
                     )
                     .expect("query indexed integer column");
-                if baseline.rows != indexed.rows {
+                if baseline.rows() != indexed.rows() {
                     divergent.push(format!(
                         "{predicate}: unindexed {:?} but indexed {:?}",
-                        baseline.rows, indexed.rows
+                        baseline.rows(),
+                        indexed.rows()
                     ));
                 }
             }
@@ -1036,10 +1044,11 @@ mod integration_sql_scalar_index_lexkey {
                         parameter,
                     )
                     .expect("query indexed BIGINT column");
-                if baseline.rows != indexed.rows {
+                if baseline.rows() != indexed.rows() {
                     divergent.push(format!(
                         "{predicate}: unindexed {:?} but indexed {:?}",
-                        baseline.rows, indexed.rows
+                        baseline.rows(),
+                        indexed.rows()
                     ));
                 }
             }
@@ -1115,13 +1124,13 @@ mod integration_sql_scalar_index_lexkey {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![
                     vec![Value::String("a\u{0}a".to_string())],
                     vec![Value::String("aa".to_string())],
                 ]
             );
-            let Value::String(plan) = &explain.rows[0][0] else {
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("index=scalar_lexkey_tenant_label_idx"));
@@ -1176,8 +1185,8 @@ mod integration_sql_scalar_index_lexkey {
         cassie
             .execute_sql(session, sql, vec![])
             .expect(sql)
-            .rows
-            .into_iter()
+            .rows()
+            .iter()
             .map(|row| match row.first() {
                 Some(Value::Int64(seq)) => *seq,
                 other => panic!("expected integer seq, got {other:?}"),
@@ -1248,13 +1257,13 @@ mod integration_sql_scalar_index_lexkey {
                 "timestamp results are not chronological: {mismatches:#?}"
             );
             assert_eq!(
-                min_max.rows,
+                min_max.rows(),
                 vec![vec![
                     Value::String("2024-01-01T12:00:00.000000Z".to_string()),
                     Value::String("2024-01-01T12:00:00.750000Z".to_string()),
                 ]]
             );
-            let Value::String(plan) = &explain.rows[0][0] else {
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("index=same_second_ts_idx"), "{plan}");
@@ -1318,7 +1327,7 @@ mod integration_sql_scalar_indexes {
             .unwrap();
 
         // Assert
-        let Value::String(plan) = &result.rows[0][0] else {
+        let Value::String(plan) = &result.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("index_aware=true"));
@@ -1384,8 +1393,8 @@ mod integration_sql_scalar_indexes {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::String("a@example.com".to_string())]]);
-        let Value::String(plan) = &explain.rows[0][0] else {
+        assert_eq!(result.rows(), vec![vec![Value::String("a@example.com".to_string())]]);
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("index=sql_covering_scalar_projection_email_idx"));
@@ -1468,8 +1477,8 @@ mod integration_sql_scalar_indexes {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
-        let Value::String(plan) = &explain.rows[0][0] else {
+        assert_eq!(result.rows(), vec![vec![Value::String("alpha".to_string())]]);
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("index=sql_covering_scalar_fallback_email_idx"));
@@ -1570,7 +1579,7 @@ mod integration_sql_scalar_indexes {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![
                     Value::String("doc-2".to_string()),
@@ -1582,7 +1591,7 @@ mod integration_sql_scalar_indexes {
                 ],
             ]
         );
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("covered_index=true"));
@@ -1646,7 +1655,7 @@ mod integration_sql_scalar_indexes {
             index.include_fields,
             vec!["title".to_string(), "body".to_string()]
         );
-        let Value::String(indexdef) = &introspection.rows[0][0] else {
+        let Value::String(indexdef) = &introspection.rows()[0][0] else {
             panic!("expected textual index definition");
         };
         assert!(indexdef.contains("INCLUDE (title, body)"));
@@ -1707,8 +1716,8 @@ mod integration_sql_scalar_indexes {
             .unwrap();
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
-        let Value::String(plan) = &explain.rows[0][0] else {
+        assert_eq!(result.rows(), vec![vec![Value::String("alpha".to_string())]]);
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("covered_index=true"));
@@ -1777,11 +1786,11 @@ mod integration_sql_scalar_indexes {
 
         // Assert
         assert!(index.predicate.is_some());
-        let Value::String(selected_plan) = &selected.rows[0][0] else {
+        let Value::String(selected_plan) = &selected.rows()[0][0] else {
             panic!("expected selected plan text");
         };
         assert!(selected_plan.contains("sql_partial_index_restart_title_idx"));
-        let Value::String(fallback_plan) = &fallback.rows[0][0] else {
+        let Value::String(fallback_plan) = &fallback.rows()[0][0] else {
             panic!("expected fallback plan text");
         };
         assert!(fallback_plan.contains("index=none"));
@@ -1844,7 +1853,7 @@ mod integration_sql_scalar_indexes {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("beta".to_string())]]
         );
 
@@ -1920,10 +1929,10 @@ mod integration_sql_scalar_indexes {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("beta".to_string())]]
         );
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("access_path=prefix_scan"));
@@ -1993,13 +2002,13 @@ mod integration_sql_scalar_indexes {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("beta".to_string())],
                 vec![Value::String("delta".to_string())],
             ]
         );
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("access_path=range_scan"));
@@ -2077,13 +2086,13 @@ mod integration_sql_scalar_indexes {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("gamma".to_string())],
                 vec![Value::String("beta".to_string())],
             ]
         );
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("tenant_filtered_page_lookup_idx"), "plan={plan}");
@@ -2167,13 +2176,13 @@ mod integration_sql_scalar_indexes {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("alpha".to_string())],
                 vec![Value::String("beta".to_string())],
             ]
         );
-        let Value::String(plan) = &explain.rows[0][0] else {
+        let Value::String(plan) = &explain.rows()[0][0] else {
             panic!("expected textual plan");
         };
         assert!(plan.contains("access_path=ordered_bounded_scan"));
@@ -2255,7 +2264,8 @@ mod integration_sql_scalar_indexes {
                                 vec![Value::Float64(parameter)],
                             )
                             .expect("range query with non-finite parameter")
-                            .rows
+                            .rows()
+                            .to_vec()
                     };
                     let full_scan = run("non_finite_param_plain");
                     let indexed = run("non_finite_param_indexed");
@@ -2300,14 +2310,14 @@ mod integration_sql_scalar_indexes {
             );
 
             // Act
-            let rows = cassie
+            let result = cassie
                 .execute_sql(
                     &session,
                     "SELECT x FROM unused_non_finite_indexed WHERE x > 4.5",
                     vec![Value::Float64(f64::NAN)],
                 )
-                .expect("range query with an unbound non-finite parameter")
-                .rows;
+                .expect("range query with an unbound non-finite parameter");
+            let rows = result.rows();
             let metrics = cassie.metrics();
 
             // Assert
@@ -2357,7 +2367,8 @@ mod integration_sql_scalar_indexes {
                             vec![Value::Null],
                         )
                         .expect("range query with NULL parameter")
-                        .rows;
+                        .rows()
+                        .to_vec();
                     results.push((format!("{table}: x {op} NULL"), rows));
                 }
             }
@@ -2408,7 +2419,8 @@ mod integration_sql_scalar_indexes {
                         vec![],
                     )
                     .expect("ordered limit query")
-                    .rows
+                    .rows()
+                    .to_vec()
             };
             let indexed_asc = run("order_null_keys_indexed", "ASC");
             let plain_asc = run("order_null_keys_plain", "ASC");
@@ -2474,7 +2486,8 @@ mod integration_sql_scalar_indexes {
                         vec![],
                     )
                     .expect("composite range query")
-                    .rows;
+                    .rows()
+                    .to_vec();
                 rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
                 rows
             };
@@ -2530,10 +2543,10 @@ mod integration_sql_scalar_indexes {
 
             // Assert
             assert_eq!(
-                result.rows,
+                result.rows(),
                 vec![vec![Value::Int64(9)], vec![Value::Int64(5)]]
             );
-            let Value::String(plan) = &explain.rows[0][0] else {
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("access_path=ordered_bounded_scan"));
@@ -2580,7 +2593,7 @@ mod integration_sql_scalar_indexes {
                 let rows = cassie
                     .execute_sql(&session, sql, vec![Value::String("open".to_string())])
                     .expect(sql)
-                    .rows;
+                    .rows().to_vec();
                 let Value::String(plan) = cassie
                     .execute_sql(
                         &session,
@@ -2588,7 +2601,7 @@ mod integration_sql_scalar_indexes {
                         vec![Value::String("open".to_string())],
                     )
                     .expect("explain")
-                    .rows[0][0]
+                    .rows()[0][0]
                     .clone()
                 else {
                     panic!("expected textual plan");
@@ -2667,7 +2680,10 @@ mod integration_sql_scalar_indexes {
                 .expect("ordered limit query after dropping NOT NULL");
 
             // Assert
-            assert_eq!(result.rows, vec![vec![Value::Null], vec![Value::Int64(9)]]);
+            assert_eq!(
+                result.rows(),
+                vec![vec![Value::Null], vec![Value::Int64(9)]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2713,7 +2729,10 @@ mod index_field_case {
 
         // Assert
         assert!(created.is_ok(), "CREATE INDEX on AMOUNT must succeed");
-        assert_eq!(filtered.rows, vec![vec![Value::String("bob".to_string())]]);
+        assert_eq!(
+            filtered.rows(),
+            vec![vec![Value::String("bob".to_string())]]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -2764,15 +2783,15 @@ mod index_field_case {
             .expect("explain case-distinct sibling field");
 
         // Assert
-        let Value::String(lower_plan) = &lower_plan.rows[0][0] else {
+        let Value::String(lower_plan) = &lower_plan.rows()[0][0] else {
             panic!("expected textual lower-field plan");
         };
-        let Value::String(sibling_plan) = &sibling_plan.rows[0][0] else {
+        let Value::String(sibling_plan) = &sibling_plan.rows()[0][0] else {
             panic!("expected textual sibling-field plan");
         };
         assert!(lower_plan.contains("scalar_case_distinct_lower_idx"));
         assert_eq!(
-            sibling.rows,
+            sibling.rows(),
             vec![
                 vec![Value::Int64(20)],
                 vec![Value::Int64(30)],
@@ -2891,7 +2910,7 @@ mod index_field_case {
 
         // Assert
         assert!(created.is_ok(), "expression index over NAME must succeed");
-        assert_eq!(filtered.rows, vec![vec![Value::Int64(7)]]);
+        assert_eq!(filtered.rows(), vec![vec![Value::Int64(7)]]);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -2938,15 +2957,15 @@ mod index_field_case {
 
         // Assert
         assert_eq!(
-            indexed.rows,
+            indexed.rows(),
             vec![vec![Value::String("indexed".to_string())]]
         );
         assert_eq!(
-            sibling.rows,
+            sibling.rows(),
             vec![vec![Value::String("indexed".to_string())]]
         );
         let sibling_plan = sibling_plan
-            .rows
+            .rows()
             .iter()
             .flatten()
             .filter_map(Value::as_str)
@@ -3053,14 +3072,14 @@ mod composite_scalar_index_correctness {
             assert!(insert.is_ok(), "insert JSON object after index");
             assert!(insert_array.is_ok(), "insert JSON array after index");
             assert_eq!(
-                selected.expect("query indexed JSON object").rows,
+                selected.expect("query indexed JSON object").rows(),
                 vec![vec![Value::String("after".to_string())]]
             );
             assert_eq!(
-                selected_array.expect("query indexed JSON array").rows,
+                selected_array.expect("query indexed JSON array").rows(),
                 vec![vec![Value::String("array".to_string())]]
             );
-            let Value::String(plan) = &equality_explain.rows[0][0] else {
+            let Value::String(plan) = &equality_explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("access_path=index_seek"));
@@ -3421,7 +3440,7 @@ mod composite_scalar_index_correctness {
 
             // Assert
             let range_ids = range
-                .rows
+                .rows()
                 .iter()
                 .filter_map(|row| match row.first() {
                     Some(Value::String(id)) => Some(id.clone()),
@@ -3429,7 +3448,7 @@ mod composite_scalar_index_correctness {
                 })
                 .collect::<std::collections::BTreeSet<_>>();
             let range_scan_ids = range_scan
-                .rows
+                .rows()
                 .iter()
                 .filter_map(|row| match row.first() {
                     Some(Value::String(id)) => Some(id.clone()),
@@ -3437,7 +3456,7 @@ mod composite_scalar_index_correctness {
                 })
                 .collect::<std::collections::BTreeSet<_>>();
             assert_eq!(range_ids, range_scan_ids);
-            let Value::String(plan) = &range_explain.rows[0][0] else {
+            let Value::String(plan) = &range_explain.rows()[0][0] else {
                 panic!("expected textual JSON range plan");
             };
             assert!(plan.contains("access_path=range_scan"));
@@ -3486,11 +3505,11 @@ mod composite_scalar_index_correctness {
                 .expect("explain JSON order");
 
             // Assert
-            let Value::String(plan) = &order_explain.rows[0][0] else {
+            let Value::String(plan) = &order_explain.rows()[0][0] else {
                 panic!("expected textual JSON order plan");
             };
             assert!(plan.contains("access_path=ordered_bounded_scan"));
-            assert_eq!(ordered.rows, ordered_scan.rows);
+            assert_eq!(ordered.rows(), ordered_scan.rows());
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -5880,7 +5899,7 @@ mod operational_ownership {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![
                 Value::String("node-a".to_string()),
                 Value::String("operational_restart_docs".to_string()),
@@ -5947,7 +5966,7 @@ mod operational_ownership {
 
         // Assert
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![
                 vec![
                     Value::String("tenant-a".to_string()),
@@ -5960,7 +5979,7 @@ mod operational_ownership {
             ]
         );
         assert_eq!(
-            routed_tenant.rows,
+            routed_tenant.rows(),
             vec![vec![Value::String("bravo".to_string())]]
         );
 
@@ -6027,14 +6046,14 @@ mod operational_ownership {
 
         // Assert: exactly one row survives, holding the last write.
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![
                 Value::Int64(3),
                 Value::String("released".to_string()),
                 Value::Int64(3_000),
             ]]
         );
-        assert_eq!(all_for_assignment.rows.len(), 1);
+        assert_eq!(all_for_assignment.rows().len(), 1);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -6087,7 +6106,7 @@ mod operational_ownership {
         // number of writes, for both the in-memory catalog and the
         // persisted store.
         assert_eq!(listed.len(), tenants.len());
-        assert_eq!(selected.rows.len(), tenants.len());
+        assert_eq!(selected.rows().len(), tenants.len());
         assert!(listed.iter().all(|meta| meta.generation == 4));
 
         drop(cassie);
@@ -6298,11 +6317,11 @@ mod snapshot_restore {
         // Assert
         assert_eq!(restored_manifest.generated_ms, 2_468);
         assert_eq!(
-            selected.rows,
+            selected.rows(),
             vec![vec![Value::String("alpha".to_string()), Value::Int64(10)]]
         );
         assert_eq!(
-            checkpoint.rows,
+            checkpoint.rows(),
             vec![vec![
                 Value::String("checkpoint-1".to_string()),
                 Value::String("event-1".to_string()),
@@ -6925,7 +6944,8 @@ mod scalar_index_redundant_bounds {
                 vec![],
             )
             .unwrap()
-            .rows
+            .rows()
+            .to_vec()
     }
 
     fn query_expression_rows(
@@ -6941,7 +6961,8 @@ mod scalar_index_redundant_bounds {
                 vec![],
             )
             .unwrap()
-            .rows
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -7001,7 +7022,7 @@ mod scalar_index_redundant_bounds {
             for (predicate, indexed, baseline) in comparisons {
                 assert_eq!(indexed, baseline, "indexed result diverged for {predicate}");
             }
-            let Value::String(plan) = &explain.rows[0][0] else {
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("repeated_column_indexed_score_idx"));
@@ -7064,7 +7085,7 @@ mod scalar_index_redundant_bounds {
             // Assert
             assert_eq!(indexed_lower, baseline_lower);
             assert_eq!(indexed_upper, baseline_upper);
-            let Value::String(plan) = &explain.rows[0][0] else {
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("repeated_expression_indexed_lower_idx"));
@@ -7130,7 +7151,7 @@ mod scalar_index_redundant_bounds {
             for (predicate, indexed, baseline) in comparisons {
                 assert_eq!(indexed, baseline, "indexed result diverged for {predicate}");
             }
-            let Value::String(plan) = &explain.rows[0][0] else {
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("contradictory_column_indexed_score_idx"));
@@ -7206,12 +7227,12 @@ mod scalar_index_redundant_bounds {
             for (predicate, indexed, baseline) in comparisons {
                 assert_eq!(indexed, baseline, "indexed result diverged for {predicate}");
             }
-            assert_eq!(indexed_projection.rows, baseline_projection.rows);
+            assert_eq!(indexed_projection.rows(), baseline_projection.rows());
             assert_eq!(
-                indexed_projection.rows,
+                indexed_projection.rows(),
                 vec![vec![Value::String("label-beta".to_string())]]
             );
-            let Value::String(plan) = &explain.rows[0][0] else {
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("contradictory_expression_indexed_lower_idx"));
@@ -7268,9 +7289,9 @@ mod scalar_index_redundant_bounds {
                 .unwrap();
 
             // Assert
-            assert_eq!(indexed.rows, baseline.rows);
-            assert_eq!(indexed.rows, vec![vec![Value::String("label-11".to_string())]]);
-            let Value::String(plan) = &explain.rows[0][0] else {
+            assert_eq!(indexed.rows(), baseline.rows());
+            assert_eq!(indexed.rows(), vec![vec![Value::String("label-11".to_string())]]);
+            let Value::String(plan) = &explain.rows()[0][0] else {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("residual_limit_idx"));
@@ -7330,7 +7351,7 @@ mod column_index_declared_id {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::Int64(42), Value::String("q".to_string())]]
         );
 
@@ -7366,7 +7387,7 @@ mod column_index_declared_id {
             .expect("filter declared id through column index");
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::String("q".to_string())]]);
+        assert_eq!(result.rows(), vec![vec![Value::String("q".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7503,7 +7524,7 @@ mod uuid_bytea_scalar_indexes {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::String("written".to_string())]]
         );
         let _ = std::fs::remove_dir_all(path);
@@ -7550,7 +7571,7 @@ mod uuid_bytea_scalar_indexes {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![vec![Value::String("written".to_string())]]
         );
         let _ = std::fs::remove_dir_all(path);
@@ -7708,7 +7729,11 @@ mod column_name_reuse_resolution {
     }
 
     fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect(sql)
+            .rows()
+            .to_vec()
     }
 
     #[test]
@@ -7993,9 +8018,9 @@ mod scalar_read_equivalence {
         statement: &str,
     ) -> Vec<Value> {
         let mut values = sql(cassie, session, statement)
-            .rows
-            .into_iter()
-            .map(|row| row.into_iter().next().expect("identity"))
+            .rows()
+            .iter()
+            .map(|row| row.first().expect("identity").clone())
             .collect::<Vec<_>>();
         values.sort_by_key(|value| format!("{value:?}"));
         values
@@ -8132,7 +8157,7 @@ mod scalar_read_equivalence {
             ];
             // Assert
             for result in results {
-                assert_eq!(result.rows, vec![vec![Value::String("match".into())]]);
+                assert_eq!(result.rows(), vec![vec![Value::String("match".into())]]);
             }
         });
     }
@@ -8227,7 +8252,7 @@ mod scalar_read_equivalence {
                 // Act
                 let indexed = sql(cassie, session, query);
                 // Assert
-                assert_eq!(indexed.rows, baseline.rows);
+                assert_eq!(indexed.rows(), baseline.rows());
             },
         );
     }
@@ -8311,7 +8336,7 @@ mod scalar_read_equivalence {
                 session,
                 "SELECT id FROM timestamp_text ORDER BY code LIMIT 4",
             );
-            assert_eq!(ordered.rows, ordered_baseline.rows);
+            assert_eq!(ordered.rows(), ordered_baseline.rows());
         });
     }
 }

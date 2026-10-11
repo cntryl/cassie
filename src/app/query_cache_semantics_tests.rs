@@ -2,6 +2,7 @@
 use super::*;
 use crate::planner::physical::PhysicalPlan;
 use crate::sql::ast::{Expr, SelectItem};
+use crate::types::Value;
 
 const SQL: &str = "SELECT COALESCE(9007199254740993, 0.0) - 9007199254740992 AS value";
 
@@ -55,25 +56,27 @@ fn probe(layer: Layer) -> Evidence {
         Cassie::new_with_data_dir_and_config(path.to_str().expect("path"), config).expect("Cassie");
     let session = cassie.create_session("tester", None);
     let parsed = crate::sql::parser::parse_statement(SQL).expect("parsed SQL");
+    let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
     let current_key = cassie
-        .query_cache_context(
+        .query_cache_context_with_controls(
             &session,
             &parsed,
             crate::runtime::sql_fingerprint(&parsed),
             &[],
-            ExecutionMode::SimpleQuery,
-            &[],
+            (ExecutionMode::SimpleQuery, &[]),
+            &controls,
         )
+        .expect("admitted cache context")
         .cache_key
         .expect("cacheable");
     let mut old_key = current_key.clone();
     old_key.cost_model_version = 3;
     let old = legacy_plan(&cassie, &session, &parsed);
-    let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
     let old_rows = cassie
         .execute_physical_statement(&session, &old, vec![], &controls)
         .expect("legacy engine path")
-        .rows;
+        .rows()
+        .to_vec();
     match layer {
         Layer::L1 => cassie
             .runtime
@@ -106,7 +109,8 @@ fn probe(layer: Layer) -> Evidence {
     let rows = cassie
         .execute_sql(&session, SQL, vec![])
         .expect("actual cached query path")
-        .rows;
+        .rows()
+        .to_vec();
     let (resolved, _) = cassie
         .resolve_physical_plan_with_parameter_oids(
             parsed,

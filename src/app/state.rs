@@ -1,9 +1,9 @@
 use super::auth::LazyPasswordHash;
 use super::auth_rate_limit::AuthRateLimiter;
+use super::vector_search::VectorResultCache;
 use super::{
     Arc, AtomicBool, BTreeMap, Catalog, Midge, Mutex, NormalizedVectorCacheEntry,
-    NormalizedVectorCacheKey, QueryEmbeddingCacheKey, QueryResult, RuntimeState, Serialize,
-    VectorSearchResultCacheKey,
+    NormalizedVectorCacheKey, QueryEmbeddingCacheKey, RuntimeState, Serialize,
 };
 use crate::embeddings::EmbeddingProvider;
 
@@ -24,8 +24,7 @@ pub struct Cassie {
     pub(super) normalized_vector_cache:
         Arc<Mutex<BTreeMap<NormalizedVectorCacheKey, Arc<NormalizedVectorCacheEntry>>>>,
     pub(super) query_embedding_cache: Arc<Mutex<BTreeMap<QueryEmbeddingCacheKey, Arc<Vec<f32>>>>>,
-    pub(super) vector_search_result_cache:
-        Arc<Mutex<BTreeMap<VectorSearchResultCacheKey, Arc<QueryResult>>>>,
+    pub(super) vector_search_result_cache: Arc<Mutex<VectorResultCache>>,
     pub(crate) auth_user: String,
     pub(crate) auth_password: String,
     pub(crate) bootstrap_password_hash: LazyPasswordHash,

@@ -34,7 +34,7 @@ fn should_preserve_joined_delimited_outer_fields_in_where_exists() {
     ];
     for ((sql, result), expected) in queries.iter().zip(results).zip(expected) {
         let result = result.unwrap_or_else(|error| panic!("{sql}: {error}"));
-        assert_eq!(result.rows, expected, "{sql}");
+        assert_eq!(result.rows(), expected, "{sql}");
     }
 }
 
@@ -65,7 +65,7 @@ fn should_distinguish_joined_case_specific_literal_fields() {
     // Assert
     for ((sql, result), id) in queries.iter().zip(results).zip([1, 2]) {
         let result = result.unwrap_or_else(|error| panic!("{sql}: {error}"));
-        assert_eq!(result.rows, vec![vec![Value::Int64(id)]], "{sql}");
+        assert_eq!(result.rows(), vec![vec![Value::Int64(id)]], "{sql}");
     }
 }
 
@@ -89,7 +89,7 @@ fn should_prefer_inner_literal_field_over_joined_outer_fields() {
 
     // Assert
     assert_eq!(
-        result.expect("inner literal namespace").rows,
+        result.expect("inner literal namespace").rows(),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
 }

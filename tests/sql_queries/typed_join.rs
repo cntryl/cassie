@@ -24,10 +24,10 @@ fn should_preserve_explicit_schema_ownership_before_shared_relation_aliases() {
     let expected = scalar.execute(loaded);
 
     // Assert
-    assert_eq!(actual.columns, expected.columns);
-    assert_eq!(actual.rows, expected.rows);
-    assert_eq!(actual.rows, vec![vec![Value::Int64(1), Value::Int64(9)]]);
-    assert_eq!(bounded_rows.rows, actual.rows);
+    assert_eq!(actual.columns(), expected.columns());
+    assert_eq!(actual.rows(), expected.rows());
+    assert_eq!(actual.rows(), vec![vec![Value::Int64(1), Value::Int64(9)]]);
+    assert_eq!(bounded_rows.rows(), actual.rows());
     assert_eq!(bounded_strategy, "vectorized");
     assert_eq!(
         native.cassie.metrics()["joins"]["last_strategy"],
@@ -57,18 +57,19 @@ fn should_match_existing_typed_outer_join_row_semantics() {
 
     // Assert
     for (typed, expected) in native_results.iter().zip(&scalar_results) {
-        assert_eq!(typed.columns, expected.columns);
-        assert_eq!(typed.rows, expected.rows);
+        assert_eq!(typed.columns(), expected.columns());
+        assert_eq!(typed.rows(), expected.rows());
     }
-    assert_eq!(native_results[0].rows.len(), 6);
-    assert_eq!(native_results[1].rows.len(), 9);
+    assert_eq!(native_results[0].rows().len(), 6);
+    assert_eq!(native_results[1].rows().len(), 9);
     assert!(native_results[1]
-        .rows
+        .rows()
         .contains(&vec![Value::String("exact".into()), Value::Null]));
     assert_eq!(
         native.cassie.metrics()["joins"]["last_strategy"],
         "typed_hash"
     );
+    drop(native_results);
     assert_eq!(
         native.cassie.metrics()["query"]["current_accounted_memory_bytes"],
         0
@@ -99,13 +100,13 @@ fn should_preserve_outer_join_fallback_shapes() {
 
     // Assert
     for (typed, expected) in native_results.iter().zip(&scalar_results) {
-        assert_eq!(typed.columns, expected.columns);
-        assert_eq!(typed.rows, expected.rows);
+        assert_eq!(typed.columns(), expected.columns());
+        assert_eq!(typed.rows(), expected.rows());
     }
-    assert_eq!(native_results[0].rows.len(), 3);
-    assert_eq!(native_results[1].rows.len(), 3);
+    assert_eq!(native_results[0].rows().len(), 3);
+    assert_eq!(native_results[1].rows().len(), 3);
     assert!(native_results[1]
-        .rows
+        .rows()
         .iter()
         .all(|row| row[1] == Value::Null));
 }
@@ -128,9 +129,9 @@ fn should_preserve_quoted_boolean_join_key_semantics() {
     let expected = scalar.execute(sql);
 
     // Assert
-    assert_eq!(actual.columns, expected.columns);
-    assert_eq!(actual.rows, expected.rows);
-    assert_eq!(actual.rows.len(), 4);
+    assert_eq!(actual.columns(), expected.columns());
+    assert_eq!(actual.rows(), expected.rows());
+    assert_eq!(actual.rows().len(), 4);
     assert_eq!(
         native.cassie.metrics()["joins"]["last_strategy"],
         "typed_hash"
@@ -170,15 +171,15 @@ fn should_preserve_staged_outer_join_row_semantics() {
     let expected = scalar.execute(sql);
 
     // Assert
-    assert_eq!(actual.columns, expected.columns);
-    assert_eq!(actual.rows, expected.rows);
-    assert_eq!(actual.rows.len(), 3);
+    assert_eq!(actual.columns(), expected.columns());
+    assert_eq!(actual.rows(), expected.rows());
+    assert_eq!(actual.rows().len(), 3);
     assert!(actual
-        .rows
+        .rows()
         .iter()
         .any(|row| row[2] == Value::Json(serde_json::Value::Null)));
     assert_eq!(
-        actual.rows.last().unwrap(),
+        actual.rows().last().unwrap(),
         &vec![Value::Int64(2), Value::Null, Value::Null]
     );
     assert_eq!(

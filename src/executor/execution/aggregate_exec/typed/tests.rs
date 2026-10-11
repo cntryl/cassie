@@ -600,7 +600,7 @@ fn should_handoff_encoded_numeric_predicates_to_typed_aggregates_without_objects
         .execute_sql(&session, sql, vec![])
         .expect("public typed predicate dispatch");
     assert_eq!(
-        public.rows,
+        public.rows(),
         vec![vec![
             Value::Int64(2),
             Value::Int64(1),
@@ -608,7 +608,7 @@ fn should_handoff_encoded_numeric_predicates_to_typed_aggregates_without_objects
             Value::Int64(9_007_199_254_740_993)
         ]]
     );
-    assert_eq!(public.columns[0].type_oid, 20);
+    assert_eq!(public.columns()[0].type_oid, 20);
     assert_eq!(
         cassie.runtime.snapshot().column_batches.materialized_values,
         after.column_batches.materialized_values
@@ -810,7 +810,7 @@ fn should_keep_excluded_aggregate_combinations_on_existing_fallback() {
             .expect("existing fallback");
         // Assert
         assert!(declined.is_none(), "{sql}");
-        assert_eq!(result.rows, vec![vec![expected]], "{sql}");
+        assert_eq!(result.rows(), vec![vec![expected]], "{sql}");
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
     let grouped_sql = "SELECT n,COUNT(*) AS counted FROM fallback GROUP BY n";
@@ -824,9 +824,9 @@ fn should_keep_excluded_aggregate_combinations_on_existing_fallback() {
     let grouped = cassie
         .execute_sql(&session, grouped_sql, vec![])
         .expect("grouped fallback");
-    assert_eq!(grouped.rows.len(), 3);
+    assert_eq!(grouped.rows().len(), 3);
     assert!(grouped
-        .rows
+        .rows()
         .contains(&vec![Value::Int64(2), Value::Int64(2)]));
     assert_eq!(controls.current_query_memory_bytes(), 0);
     drop((session, cassie));
@@ -865,9 +865,9 @@ fn should_preserve_encoded_aggregate_identities_without_non_null_inputs() {
     ] {
         let result = cassie.execute_sql(&session,&format!("SELECT COUNT(*),COUNT(n),SUM(n),AVG(n),MIN(n),MAX(n) FROM fallback WHERE {predicate}"),vec![]).expect("native empty/null handoff");
         // Assert
-        assert_eq!(result.rows, vec![expected]);
-        assert_eq!(result.columns[0].type_oid, 20);
-        assert_eq!(result.columns[1].type_oid, 20);
+        assert_eq!(result.rows(), vec![expected]);
+        assert_eq!(result.columns()[0].type_oid, 20);
+        assert_eq!(result.columns()[1].type_oid, 20);
     }
     drop((session, cassie));
     std::fs::remove_dir_all(path).expect("cleanup");
@@ -906,8 +906,8 @@ fn should_preserve_session_visibility_through_encoded_aggregation() {
         )
         .expect("committed snapshot");
     // Assert
-    assert_eq!(own.rows, vec![vec![Value::Int64(18)]]);
-    assert_eq!(committed.rows, vec![vec![Value::Int64(7)]]);
+    assert_eq!(own.rows(), vec![vec![Value::Int64(18)]]);
+    assert_eq!(committed.rows(), vec![vec![Value::Int64(7)]]);
     assert!(
         cassie.runtime.snapshot().column_batches.scans > before.column_batches.scans,
         "unmodified session can use encoded owner"

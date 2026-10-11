@@ -87,17 +87,17 @@ fn should_match_homogeneous_join_literals_with_selected_kernel_counters() {
 
             // Assert
             for result in [direct, aliased] {
-                assert_eq!(result.rows.len(), case.expected_rows.len());
+                assert_eq!(result.rows().len(), case.expected_rows.len());
                 assert!(
                     result
-                        .rows
+                        .rows()
                         .iter()
                         .zip(&case.expected_rows)
                         .all(|(actual, expected)| matches_row(actual, expected)),
                     "{} enabled{enabled}",
                     case.invariant
                 );
-                assert!(result.columns.iter().all(|column| column.type_oid == 20
+                assert!(result.columns().iter().all(|column| column.type_oid == 20
                     && column.typlen == 8
                     && column.atttypmod == -1));
             }

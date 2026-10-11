@@ -54,9 +54,12 @@ fn should_decline_offset_projection_substitution_while_using_unrestricted_twin()
                 vec![Value::Int64(3), Value::Null],
             ];
             let baseline = sql(cassie, session, BASE_QUERY);
-            assert_eq!(baseline.rows, expected);
+            let baseline_rows = baseline.rows().to_vec();
+            let baseline_columns = baseline.columns().to_vec();
+            drop(baseline);
+            assert_eq!(baseline_rows, expected);
             assert_eq!(
-                baseline.columns,
+                baseline_columns,
                 vec![
                     ColumnMeta {
                         name: "n".into(),
@@ -92,17 +95,15 @@ fn should_decline_offset_projection_substitution_while_using_unrestricted_twin()
             let before = optimized_count(cassie);
             let base = sql(cassie, session, BASE_QUERY);
             let after = optimized_count(cassie);
-            assert_retired(cassie);
             let direct = sql(cassie, session, "SELECT n,note FROM ap_offset ORDER BY n");
-            assert_retired(cassie);
 
             // Assert: the restricted candidate omits row one, but the base never does.
-            assert_eq!(base.rows, baseline.rows, "{label}");
-            assert_eq!(base.columns, baseline.columns, "{label}");
+            assert_eq!(base.rows(), baseline_rows, "{label}");
+            assert_eq!(base.columns(), baseline_columns, "{label}");
             assert_eq!(after, before + optimized_delta, "{label}");
-            assert_eq!(direct.columns, baseline.columns, "{label}");
+            assert_eq!(direct.columns(), baseline_columns, "{label}");
             assert_eq!(
-                direct.rows,
+                direct.rows(),
                 if suffix.is_empty() {
                     expected
                 } else {
@@ -110,6 +111,8 @@ fn should_decline_offset_projection_substitution_while_using_unrestricted_twin()
                 },
                 "{label}"
             );
+            drop((base, direct));
+            assert_retired(cassie);
         });
     }
 }

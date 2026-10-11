@@ -75,9 +75,9 @@ fn should_preserve_cte_scalar_boundary_null_descriptors() {
             crate::executor::typed_batch::relational_diagnostics::last_path(),
             Some(("distinct", "native_primitive_keys"))
         );
-        assert_eq!(cte.rows, direct.rows);
-        assert_eq!(cte.columns, direct.columns);
-        assert_eq!(direct.columns[0].type_oid, 20);
+        assert_eq!(cte.rows(), direct.rows());
+        assert_eq!(cte.columns(), direct.columns());
+        assert_eq!(direct.columns()[0].type_oid, 20);
     });
 }
 
@@ -170,8 +170,8 @@ fn should_preserve_aliased_cte_null_descriptors_without_native_promotion() {
             .expect("plain CTE scalar authority");
         // Assert
         assert_eq!(path, Some(("distinct", "scalar_cte_materialization")));
-        assert_eq!(aliased.rows, plain.rows);
-        assert_eq!(aliased.columns, plain.columns);
-        assert_eq!(aliased.columns[0].type_oid, 20);
+        assert_eq!(aliased.rows(), plain.rows());
+        assert_eq!(aliased.columns(), plain.columns());
+        assert_eq!(aliased.columns()[0].type_oid, 20);
     });
 }

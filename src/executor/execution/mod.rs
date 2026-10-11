@@ -44,7 +44,10 @@ fn primary_key_indexes(
         .collect()
 }
 
+mod command_output;
+mod query_result;
 mod types;
+pub use query_result::{OwnedQueryRows, QueryResultBuilder};
 use types::ExecutionBreakdownDurations;
 pub use types::{
     ColumnMeta, ExecutionBreakdownMicros, ExecutionBreakdownOutput, QueryError, QueryResult,

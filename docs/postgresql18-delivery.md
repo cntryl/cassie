@@ -114,8 +114,8 @@ witnesses, and independent final review found no material findings. Required
 GitHub rules and the merged tree were verified; optional checks were pending
 at merge. This is a structural prerequisite, not parameter semantic parity.
 
-The next finite #904 bundle admits transient parameter metadata for nonempty
-wire Parse against fresh shared request controls, after authorization and
+The finite #904 prerequisite accepted in [PR #933](https://github.com/cntryl/cassie/pull/933)
+admits transient parameter metadata for nonempty wire Parse against fresh shared request controls, after authorization and
 before normalization, inference or prepared-statement publication. A checked
 borrowed AST traversal and fallible allocations reuse the existing inference
 visitor. Allocation failures use a private Parse error route (`53200`), logical
@@ -190,45 +190,74 @@ witnesses address changed behavior, interactions and mandatory adversarial gaps.
 Preserve raw logs with one concise acceptance matrix. Optional hosted workflows
 do not delay delivery under the recorded local-first policy.
 
-The active batch combines the already defined Parse-only resource prerequisite
-under [#904](https://github.com/cntryl/cassie/issues/904) with complete current
-cache/authorization qualification under
-[#766](https://github.com/cntryl/cassie/issues/766). Its published definition
-records all ten CACHE/AUTH invariants and their exact remaining acceptance.
-The completed #763, #871, #886 and #882 foundations make #766 independent of the
-staged Parse merge. No new public API, persistent format or permission model is
-selected. Original parameter occurrence/coercion gaps remain open under #904.
+The Parse-only resource prerequisite under
+[#904](https://github.com/cntryl/cassie/issues/904) and current cache/authorization
+qualification under [#766](https://github.com/cntryl/cassie/issues/766) are
+accepted through [PR #933](https://github.com/cntryl/cassie/pull/933), merged
+2026-10-11 as `ade53364ab2bea6d951d9ed9781b9a23ddae99f8`, tree
+`3afa8cae42caa350cb85f9f003b718880d052d6a`. The completed #763, #871, #886
+and #882 foundations made #766 independent of the staged Parse merge. That
+accepted batch changed no public API, persistent format or permission model.
 
-| Invariants | Remaining qualification |
+| Invariants | Accepted finite qualification and remaining boundary |
 | --- | --- |
-| CACHE-01/02 | Bind existing cross-session/context and warm-cache revocation evidence to the final source; values and authority remain request-specific. |
-| CACHE-03 | Prove two actual warm readers observe committed changes after a postcommit publication error, then verify cold restart. |
-| CACHE-04 | Prove warm-hit to transaction/savepoint bypass transitions; record current provider callgraph boundaries precisely. |
-| CACHE-05 | Verify foreign-context persisted plans and variable-width replacement/eviction with configured byte/entry bounds. Shared-tracker coverage of cache copies remains open and prevents owner closure. |
-| AUTH-01 | Verify current access before first execution, Describe and materialized/streaming portal resumption, with denial cleanup. |
-| AUTH-02 | Qualify current read-only CALL wrappers and reuse existing network, COPY and administrative-image boundaries. |
-| AUTH-03 | Check actual wire/REST known, unknown and throttled authentication errors and captured logs for credential canaries. |
-| AUTH-04 | Qualify opaque-session revoke, rotation, NOLOGIN, deletion and expiry through the actual REST query endpoint; images use existing pgwire COPY controls under AUTH-01/02/05. |
-| AUTH-05 | Reuse the current listener, credentials, transport and admission-permit cleanup matrix. |
+| CACHE-01/02 | Existing cross-session/context and warm-cache authority controls remain qualified. |
+| CACHE-03 | Two warm readers observe committed changes after a Data-applied publication error; an actual reader also sees old rows/hit before commit, and cold restart preserves new rows/epoch without provider calls. |
+| CACHE-04 | Actual warm-hit to transaction/savepoint bypass controls pass; current provider callgraph boundaries remain explicit. |
+| CACHE-05 | Complete embedded persisted-plan key is validated; foreign context rejects/deletes and real app execution rebuilds authoritatively. Configured byte/entry and replacement/eviction controls pass. Shared-tracker result ownership remains unimplemented. |
+| AUTH-01 | Materialized portal resume rechecks current access, with denial/cancellation cleanup; streaming and existing execute/Describe controls pass. |
+| AUTH-02 | Read-only CALL causes no side effects; existing network, COPY and administrative-image boundaries remain qualified. |
+| AUTH-03 | Actual known/unknown/throttled wire and REST failures and bounded complete captured logs pass plaintext/stored-hash redaction checks. |
+| AUTH-04 | Revoke, rotation, NOLOGIN, deletion and expiry invalidate opaque sessions through the actual REST query endpoint; images retain pgwire COPY controls under AUTH-01/02/05. |
+| AUTH-05 | Existing listener, credentials, transport and admission-permit cleanup controls remain qualified. |
 
-The interim Parse full gate was deliberately cancelled while full tests were
-running; its partial receipt is preserved and supplies no full-gate acceptance.
-Focused Parse proof includes the wire rejection/recovery test and 21 private
-tests, including the mandatory 1,152-byte sequential-pass and 1,151-byte denial
-ownership probes. These staged commits still require final batch validation,
-review, squash and merged-tree readback. Close #766 only after every selected
-invariant and issue criterion is complete. Full #904/#793/#791/#848/#849 remain
-open. The pending transaction-error API and external stress collector decisions
-are outside this batch; their dependent work remains pending.
+The complete ordered local gate passed all 27 commands: 3,898 tests, zero
+failures and nine existing ignores across 35 result groups and 34 actual Cargo
+executables. Independent final review accepted the exact source. Actual mandatory
+Parse ownership and portal-authorization probes, plus the two final persisted-plan
+and postcommit operational probes, passed without rescoring waivers. The latter
+postcommit probe retained 20 actual records and 45 checks. Final rules and the
+merged tree were read back; at merge, optional hosted checks were five passed,
+one neutral and eight pending. Pending checks were not counted as passed.
 
-The focused #766 increments passed 19 checks, including 14 new cases and five
-existing cache controls; the additional network credential-redaction test also
-passed. These local repairs prevent materialized portal rows after revocation and
-reject foreign-context persisted plans. Review identified missing shared-tracker
-coverage of result-cache copies in the standing
-[memory contract](performance-contracts.md). That selected CACHE-05 obligation
-keeps #766 open. This batch uses `Refs #766`; it does not transfer the obligation
-to another issue or select a new public result/lease API.
+The earlier interim Parse gate remains cancelled; its partial receipt supplies
+no full-gate acceptance. Full #904/#793/#791/#848/#849 and the original parameter
+occurrence/coercion gaps remain open. #933 uses `Refs #766`: its finite repairs
+and configured cache-bound tests do not prove lifetime ownership of cache copies.
+
+### Selected CACHE-05 ownership batch
+
+On 2026-10-11 the user approved A+O from the concrete independently reviewed
+proposal: immutable shared results plus originating-query physical ownership
+and separate requesting-query exposure admission. The selected
+[Query Result Ownership](query-result-ownership.md) contract records exact
+source-breaking QueryResult, REST and EXPLAIN APIs before implementation.
+It covers owned-row transfers and encoded HTTP bytes through their final frame
+owner, with reservation-only leases that retain no full controls, statement-read
+snapshot, cancellation, request or session scope.
+
+New conversion/encoding allocations charge the active admitted requesting view;
+old shared physical storage retains its producer lease. Required allocation/hit
+admission fails with `54000` before output; optional cache insertion may skip
+with `memory_budget`. Existing serialized cache-byte limits remain distinct from
+retained-capacity accounting. Complete backing-container and old/new overlap
+ownership is required; public return does not release a live allocation's lease.
+
+The implementation candidate is present for the remaining #766 current-surface
+acceptance, including SQL and vector execution-result cache keys and backing
+directories. The selected [ownership contract](query-result-ownership.md) defines
+that coverage; [performance contracts](performance-contracts.md#query-memory-and-results)
+define retained-capacity and latest-query memory observations.
+Small local tests-first commits retain the implementation evidence. Actual
+ownership acceptance requires the final ordered gate, independent review and
+guarded squash/readback; the candidate alone closes nothing. The current
+disposition and completed delivery evidence are retained in
+[#766](https://github.com/cntryl/cassie/issues/766).
+No SQL type, AST, persistent format, transaction-error API or permission-model
+change is selected. The pending transaction-error API and external stress
+collector decisions remain outside this batch. Keep #766 open until all selected
+criteria, actual ownership witnesses, review, required rules and merged-tree
+readback are complete; do not move its mandatory tracker obligation to #849.
 
 ## Accepted primitive receive increments
 

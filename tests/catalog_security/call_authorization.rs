@@ -35,7 +35,7 @@ fn should_reject_read_only_call_before_a_procedure_can_write_rows() {
         .cassie
         .execute_sql(&admin, "CALL auth_store('allowed')", vec![])
         .expect("positive control: procedure exists and writes");
-    assert_eq!(allowed.command, "CALL");
+    assert_eq!(allowed.command(), "CALL");
     let expected = vec![vec![Value::String("allowed".into())]];
     assert_eq!(
         fixture
@@ -46,7 +46,7 @@ fn should_reject_read_only_call_before_a_procedure_can_write_rows() {
                 vec![]
             )
             .expect("baseline")
-            .rows,
+            .rows(),
         expected
     );
     let reader = fixture
@@ -70,7 +70,7 @@ fn should_reject_read_only_call_before_a_procedure_can_write_rows() {
                 vec![]
             )
             .expect("post-denial rows")
-            .rows,
+            .rows(),
         expected,
         "denial occurs before any procedure side effect"
     );

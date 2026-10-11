@@ -17,6 +17,11 @@ use std::mem::size_of;
 mod accounting;
 mod ann;
 mod cache;
+mod result_cache;
+use result_cache::AdmittedVectorResultKey;
+pub(super) use result_cache::VectorResultCache;
+#[cfg(test)]
+mod cache_ownership_tests;
 #[cfg(test)]
 mod tests;
 
@@ -70,14 +75,14 @@ impl Cassie {
                 limit,
                 offset,
             },
-            Ok,
+            |result, _| Ok(result),
         )
     }
 
     pub(crate) fn run_controlled_vector_search<T>(
         &self,
         input: VectorSearchInput<'_>,
-        convert: impl FnOnce(QueryResult) -> Result<T, CassieError>,
+        convert: impl FnOnce(QueryResult, &QueryExecutionControls) -> Result<T, CassieError>,
     ) -> Result<T, CassieError> {
         let controls = QueryExecutionControls::from_limits(&self.runtime.limits(), Instant::now());
         let result = self
@@ -91,7 +96,7 @@ impl Cassie {
         &self,
         accounted: AccountedVectorResult,
         controls: &QueryExecutionControls,
-        convert: impl FnOnce(QueryResult) -> Result<T, CassieError>,
+        convert: impl FnOnce(QueryResult, &QueryExecutionControls) -> Result<T, CassieError>,
     ) -> Result<T, CassieError> {
         let AccountedVectorResult {
             result,
@@ -99,7 +104,7 @@ impl Cassie {
             row_memory,
             diagnostics,
         } = accounted;
-        let converted = convert(result).and_then(|result| {
+        let converted = convert(result, controls).and_then(|result| {
             check_controls(controls)?;
             Ok(result)
         });
@@ -132,10 +137,11 @@ impl Cassie {
             .ok_or_else(|| CassieError::CollectionNotFound(input.collection.to_owned()))?;
         if input.limit == 0 {
             return Ok(AccountedVectorResult {
-                result: QueryResult {
-                    columns: vector_search_columns(&schema),
-                    rows: Vec::new(),
-                    command: "SELECT".to_owned(),
+                result: {
+                    let _metadata =
+                        controls.reserve_query_memory(vector_metadata_bytes(&schema)?)?;
+                    let columns = vector_search_columns(&schema);
+                    build_vector_query_result(controls, &columns, &[])?
                 },
                 memory: controls.reserve_query_memory(0)?,
                 row_memory: None,
@@ -151,33 +157,19 @@ impl Cassie {
         let result_cache = if result_cache_enabled {
             let provider = self.embedding_provider.provider_name();
             let model = self.embedding_provider.model_name();
-            let memory = cache::reserve_cache_key::<VectorSearchResultCacheKey>(
-                controls,
-                &[
-                    provider,
-                    model,
-                    input.collection,
-                    input.vector_field,
-                    metric.as_str(),
-                    input.query,
-                ],
-            )?;
-            let key = VectorSearchResultCacheKey {
+            let key = AdmittedVectorResultKey::new(
                 catalog_version,
-                provider: provider.to_owned(),
-                model: model.to_owned(),
-                dimensions: self.embedding_provider.dimensions(),
-                collection: input.collection.to_owned(),
-                field: input.vector_field.to_owned(),
-                metric: metric.as_str().to_owned(),
-                limit: input.limit,
-                offset: input.offset,
-                query: input.query.to_owned(),
-            };
-            if let Some(result) = self.cached_vector_search_result_controlled(&key, controls)? {
+                provider,
+                model,
+                self.embedding_provider.dimensions(),
+                input,
+                metric,
+                controls,
+            )?;
+            if let Some(result) = self.cached_vector_search_result_controlled(&key.key, controls)? {
                 return Ok(result);
             }
-            Some((key, memory))
+            Some(key)
         } else {
             None
         };
@@ -196,7 +188,7 @@ impl Cassie {
             controls,
         };
         let result = self.execute_projected_vector_search(&index, &request)?;
-        if let Some((key, _key_memory)) = result_cache {
+        if let Some(key) = result_cache {
             self.cache_vector_search_result_controlled(key, &result.result, controls);
         }
         Ok(result)
@@ -270,7 +262,7 @@ impl Cassie {
         )?;
         result.diagnostics.normalization = Some((0, candidates));
         result.diagnostics.execution =
-            Some((started_at.elapsed(), candidates, result.result.rows.len()));
+            Some((started_at.elapsed(), candidates, result.result.row_count()));
         Ok(result)
     }
 
@@ -326,7 +318,7 @@ impl Cassie {
             .len()
             .saturating_sub(request.offset)
             .min(request.limit);
-        if result.result.rows.len() != expected_rows {
+        if result.result.row_count() != expected_rows {
             return Ok(None);
         }
         result.diagnostics.normalization = Some((entry.ids.len(), 0));
@@ -339,30 +331,9 @@ impl Cassie {
         selected: impl IntoIterator<Item = String>,
     ) -> Result<AccountedVectorResult, CassieError> {
         let mut rows = AccountedVec::try_new(request.controls)?;
-        let identity_label_bytes = if request.schema.declares_id() { 3 } else { 2 };
-        let initial_bytes = 2 * size_of::<QueryResult>()
-            + "SELECT".len()
-            + 2 * size_of::<crate::executor::ColumnMeta>()
-            + identity_label_bytes
-            + "text".len();
-        let column_bytes = request
-            .schema
-            .fields
-            .iter()
-            .filter(|field| !crate::types::row_identity::is_row_identity_column(&field.name))
-            .try_fold(initial_bytes, |bytes, field| {
-                checked_add(
-                    bytes,
-                    checked_add(
-                        2 * size_of::<crate::executor::ColumnMeta>(),
-                        checked_add(
-                            field.name.len(),
-                            accounting::type_name_bytes(&field.data_type)?,
-                        )?,
-                    )?,
-                )
-            })?;
-        let metadata_memory = request.controls.reserve_query_memory(column_bytes)?;
+        let metadata_memory = request
+            .controls
+            .reserve_query_memory(vector_metadata_bytes(request.schema)?)?;
         for id in selected {
             check_controls(request.controls)?;
             let Some(document) = self.midge.get_retrieval_document_controlled(
@@ -381,14 +352,15 @@ impl Cassie {
         let columns = vector_search_columns(request.schema);
         let (rows, row_memory) = rows.into_parts();
         check_controls(request.controls)?;
+        let result = build_vector_query_result(request.controls, &columns, &rows)?;
+        drop(rows);
+        drop(columns);
+        drop(row_memory);
+        drop(metadata_memory);
         Ok(AccountedVectorResult {
-            result: QueryResult {
-                columns,
-                rows,
-                command: "SELECT".to_owned(),
-            },
-            memory: metadata_memory,
-            row_memory: Some(row_memory),
+            result,
+            memory: request.controls.reserve_query_memory(0)?,
+            row_memory: None,
             diagnostics: VectorSearchDiagnostics::default(),
         })
     }
@@ -429,4 +401,45 @@ fn result_row_bytes(
             checked_add(bytes, variable)
         },
     )
+}
+
+fn build_vector_query_result(
+    controls: &QueryExecutionControls,
+    columns: &[crate::executor::ColumnMeta],
+    rows: &[Vec<Value>],
+) -> Result<QueryResult, CassieError> {
+    let mut builder = QueryResult::try_builder(controls)?;
+    for column in columns {
+        builder.try_push_column(column)?;
+    }
+    for row in rows {
+        builder.try_push_row(row)?;
+    }
+    builder.try_set_command("SELECT")?;
+    builder.finish()
+}
+
+fn vector_metadata_bytes(schema: &CollectionSchema) -> Result<usize, CassieError> {
+    let identity_label_bytes = if schema.declares_id() { 3 } else { 2 };
+    let initial = 2 * size_of::<QueryResult>()
+        + "SELECT".len()
+        + 2 * size_of::<crate::executor::ColumnMeta>()
+        + identity_label_bytes
+        + "text".len();
+    schema
+        .fields
+        .iter()
+        .filter(|field| !crate::types::row_identity::is_row_identity_column(&field.name))
+        .try_fold(initial, |bytes, field| {
+            checked_add(
+                bytes,
+                checked_add(
+                    2 * size_of::<crate::executor::ColumnMeta>(),
+                    checked_add(
+                        field.name.len(),
+                        accounting::type_name_bytes(&field.data_type)?,
+                    )?,
+                )?,
+            )
+        })
 }

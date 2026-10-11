@@ -36,9 +36,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Cassie POC read model");
     println!("data_dir={data_dir}");
     println!("health.ready={}", cassie.health()["ready"]);
-    println!("open_orders={}", render_rows(&orders.rows));
-    println!("tenant_totals={}", render_rows(&totals.rows));
-    println!("plan={}", render_value(&explain.rows[0][0]));
+    println!("open_orders={}", render_rows(orders.rows()));
+    println!("tenant_totals={}", render_rows(totals.rows()));
+    println!("plan={}", render_value(&explain.rows()[0][0]));
     println!(
         "queries_recorded={}",
         cassie.metrics()["query"]["count"]

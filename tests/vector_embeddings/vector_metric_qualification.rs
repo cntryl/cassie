@@ -33,7 +33,7 @@ fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() 
     for _ in 0..2 {
         let warm =
             cassie::rest::search::vector_search(&cassie, "vectors", body).expect("warm search");
-        assert_eq!(warm.rows[0][0].as_str(), Some("id0000"));
+        assert_eq!(warm.rows()[0][0].as_str(), Some("id0000"));
     }
     assert!(
         cassie.metrics()["vector"]["normalized_candidate_count_total"]
@@ -85,14 +85,15 @@ fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() 
     let cold = cassie::rest::search::vector_search(&cassie, "vectors", body).expect("cold control");
 
     // Assert
-    assert_eq!(cold.rows[0][0].as_str(), Some("id0500"));
+    assert_eq!(cold.rows()[0][0].as_str(), Some("id0500"));
     assert_eq!(
-        serde_json::to_value(&refreshed.columns).expect("warm descriptors"),
-        serde_json::to_value(&cold.columns).expect("cold descriptors")
+        serde_json::to_value(refreshed.columns()).expect("warm descriptors"),
+        serde_json::to_value(cold.columns()).expect("cold descriptors")
     );
-    assert_eq!(refreshed.rows, cold.rows);
-    assert_eq!(stale.rows, cold.rows);
-    assert_eq!(missing.rows, cold.rows);
+    assert_eq!(refreshed.rows(), cold.rows());
+    assert_eq!(stale.rows(), cold.rows());
+    assert_eq!(missing.rows(), cold.rows());
+    drop((stale, missing, refreshed, cold));
     assert_eq!(
         cassie.metrics()["query"]["current_accounted_memory_bytes"],
         0
@@ -115,8 +116,8 @@ fn should_match_zero_vector_order_across_query_paths() {
                     let direction = if descending { "DESC" } else { "ASC" };
                     let result = cassie.execute_sql(&session, &format!("SELECT _id, embedding {operator} $1 AS distance FROM vectors WHERE embedding IS NOT NULL ORDER BY distance {direction} LIMIT 5"), vec![Value::Vector(cassie::types::Vector::new(query.clone()))]).expect("SQL");
                     // Assert
-                    assert_eq!(result.rows.len(), expected.len(), "{metric} {options:?} {name}");
-                    for (row,(id,distance)) in result.rows.iter().zip(&expected) {
+                    assert_eq!(result.rows().len(), expected.len(), "{metric} {options:?} {name}");
+                    for (row,(id,distance)) in result.rows().iter().zip(&expected) {
                         assert_eq!(row[0], Value::String(id.clone()), "{metric} {options:?} {name} {direction}");
                         let Value::Float64(actual) = row[1] else { panic!("distance must be f64") };
                         assert!((actual-distance).abs() < 1e-12, "{actual} != {distance}");
@@ -126,13 +127,13 @@ fn should_match_zero_vector_order_across_query_paths() {
                     let body = serde_json::to_vec(&serde_json::json!({"field":"embedding","query":name,"metric":metric,"limit":5})).expect("body");
                     let result = cassie::rest::search::vector_search(&cassie,"vectors",&body).expect("REST");
                     let expected = oracle(metric,&query,false);
-                    let identity = result.columns.iter().position(|column| column.name == "_id").expect("identity");
-                    assert_eq!(result.rows.iter().map(|row| row[identity].as_str().expect("id")).collect::<Vec<_>>(), expected.iter().map(|row| row.0.as_str()).collect::<Vec<_>>(), "REST {metric} {options:?} {name}");
+                    let identity = result.columns().iter().position(|column| column.name == "_id").expect("identity");
+                    assert_eq!(result.rows().iter().map(|row| row[identity].as_str().expect("id")).collect::<Vec<_>>(), expected.iter().map(|row| row.0.as_str()).collect::<Vec<_>>(), "REST {metric} {options:?} {name}");
                 }
             }
             if metric == "l2" {
                 let result = cassie.execute_sql(&session,"SELECT _id, vector_distance(embedding, $1) AS distance FROM vectors ORDER BY distance ASC LIMIT 5",vec![Value::Vector(cassie::types::Vector::new(vec![0.0;3]))]).expect("native L2 SQL");
-                assert_eq!(result.rows.iter().map(|row| row[0].as_str().expect("identity")).collect::<Vec<_>>(),oracle(metric,&[0.0;3],false).iter().map(|row| row.0.as_str()).collect::<Vec<_>>());
+                assert_eq!(result.rows().iter().map(|row| row[0].as_str().expect("identity")).collect::<Vec<_>>(),oracle(metric,&[0.0;3],false).iter().map(|row| row.0.as_str()).collect::<Vec<_>>());
             }
             if let Some(options) = options {
                 if metric != "l2" && !options.contains("hnsw") {
@@ -142,7 +143,7 @@ fn should_match_zero_vector_order_across_query_paths() {
                 if options.contains("ivfflat") && metric == "l2" { assert!(cassie.metrics()["vector"]["ivfflat_executions"].as_u64().expect("IVF counter") > 0); }
                 let before = provider.0.load(Ordering::SeqCst);
                 let body = br#"{"field":"embedding","query":"unavailable","limit":0}"#;
-                assert_eq!(cassie::rest::search::vector_search(&cassie,"vectors",body).expect("zero REST").rows, Vec::<Vec<serde_json::Value>>::new());
+                assert_eq!(cassie::rest::search::vector_search(&cassie,"vectors",body).expect("zero REST").rows(), Vec::<Vec<serde_json::Value>>::new());
                 assert_eq!(provider.0.load(Ordering::SeqCst),before);
             }
             assert_eq!(cassie.metrics()["query"]["current_accounted_memory_bytes"],0);
@@ -231,14 +232,14 @@ fn should_match_zero_vector_oracle_when_rest_normalized_sidecars_are_missing() {
             let result =
                 cassie::rest::search::vector_search(&cassie, "vectors", &body).expect("raw REST");
             let identity = result
-                .columns
+                .columns()
                 .iter()
                 .position(|column| column.name == "_id")
                 .expect("identity");
             // Assert
             assert_eq!(
                 result
-                    .rows
+                    .rows()
                     .iter()
                     .map(|row| row[identity].as_str().expect("id"))
                     .collect::<Vec<_>>(),
@@ -283,7 +284,7 @@ fn should_search_explicit_sql_vectors_without_sources_when_normalized_sidecars_a
             .execute_sql(&session, "SELECT embedding FROM vectors", vec![])
             .expect("stored SQL vector");
         assert_eq!(
-            stored.rows,
+            stored.rows(),
             vec![vec![Value::Vector(cassie::types::Vector::new(vec![
                 0.0;
                 3
@@ -298,10 +299,11 @@ fn should_search_explicit_sql_vectors_without_sources_when_normalized_sidecars_a
         let result = cassie::rest::search::vector_search(&cassie, "vectors", &body).expect("REST");
         // Assert
         assert_eq!(
-            result.rows.len(),
+            result.rows().len(),
             1,
             "{metric} must find explicit SQL vector despite absent source"
         );
+        drop((stored, result));
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"],
             0
@@ -331,10 +333,10 @@ fn should_preserve_restarted_vector_ordering() {
             .execute_sql(&cassie.create_session("tester", None), &query, vec![])
             .expect("after restart");
         // Assert
-        assert_eq!(before.rows, after.rows);
+        assert_eq!(before.rows(), after.rows());
         assert_eq!(
             after
-                .rows
+                .rows()
                 .iter()
                 .map(|row| row[0].as_str().expect("id").to_owned())
                 .collect::<Vec<_>>(),
@@ -361,7 +363,7 @@ fn should_match_vector_expression_order_on_generic_sql_path() {
     for result in [&result, &direct] {
         assert_eq!(
             result
-                .rows
+                .rows()
                 .iter()
                 .map(|row| row[0].as_str().expect("id"))
                 .collect::<Vec<_>>(),
@@ -422,7 +424,7 @@ fn should_fall_back_to_authoritative_vectors_for_partial_sidecars_or_missing_sta
                 .expect("fallback REST");
             let after = cassie.metrics();
             // Assert
-            assert_eq!(result.rows.len(), 5);
+            assert_eq!(result.rows().len(), 5);
             assert_eq!(
                 after["vector"]["normalized_fallback_count_total"]
                     .as_u64()
@@ -432,7 +434,11 @@ fn should_fall_back_to_authoritative_vectors_for_partial_sidecars_or_missing_sta
                         .expect("fallback counter"),
                 5
             );
-            assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+            drop(result);
+            assert_eq!(
+                cassie.metrics()["query"]["current_accounted_memory_bytes"],
+                0
+            );
             drop(cassie);
             std::fs::remove_dir_all(path).expect("cleanup");
         }
@@ -487,14 +493,14 @@ fn should_score_all_vectors_when_partial_sidecar_count_matches_source_cardinalit
         .expect("body");
         let result = cassie::rest::search::vector_search(&cassie, "vectors", &body).expect("REST");
         let identity = result
-            .columns
+            .columns()
             .iter()
             .position(|column| column.name == "_id")
             .expect("identity");
         // Assert
         assert_eq!(
             result
-                .rows
+                .rows()
                 .iter()
                 .map(|row| row[identity].as_str().expect("id"))
                 .collect::<Vec<_>>(),
@@ -503,6 +509,7 @@ fn should_score_all_vectors_when_partial_sidecar_count_matches_source_cardinalit
                 .map(|row| row.0.as_str())
                 .collect::<Vec<_>>()
         );
+        drop(result);
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"],
             0
@@ -527,8 +534,8 @@ fn should_preserve_vector_window_boundary_contract() {
         let rest = cassie::rest::search::vector_search(&cassie, "vectors", &body)
             .expect("empty REST window");
         // Assert
-        assert_eq!(result.rows, Vec::<Vec<Value>>::new());
-        assert_eq!(rest.rows, Vec::<Vec<serde_json::Value>>::new());
+        assert_eq!(result.rows(), Vec::<Vec<Value>>::new());
+        assert_eq!(rest.rows(), Vec::<Vec<serde_json::Value>>::new());
     }
     let body = serde_json::to_vec(
         &serde_json::json!({"field":"embedding","query":"zero","limit":1,"offset":usize::MAX}),

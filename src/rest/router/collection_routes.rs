@@ -77,11 +77,22 @@ pub(super) async fn dispatch_collection_routes(
                 started_at,
                 "rest_embedding_search",
                 move |cassie| {
-                    crate::rest::search::vector_search(&cassie, &collection, body.as_ref())
+                    crate::rest::search::vector_search_converted(
+                        &cassie,
+                        &collection,
+                        body.as_ref(),
+                        |result, controls| {
+                            super::query_response::try_query_json_response(
+                                StatusCode::OK,
+                                &result,
+                                controls,
+                            )
+                        },
+                    )
                 },
             )
             .await
-            .map(|value| Some(json_response(StatusCode::OK, &value)))
+            .map(Some)
         }
         _ => Ok(None),
     }

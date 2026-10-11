@@ -1,10 +1,14 @@
+use crate::midge::adapter::RowHashRecord;
+use crate::runtime::QueryExecutionControls;
 use std::collections::BTreeMap;
 
-use super::{Cassie, ColumnMeta, QueryError, QueryResult, Value};
+use super::command_output::Cell;
+use super::{Cassie, QueryError, QueryResult};
 
 pub(super) fn diff_projection(
     cassie: &Cassie,
     statement: &crate::sql::ast::DiffProjectionStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let left_root = cassie
         .midge
@@ -14,218 +18,274 @@ pub(super) fn diff_projection(
         .midge
         .root_hash(&statement.right.name)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let columns = diff_columns();
-
-    let (left_root, right_root) =
-        match resolve_diff_roots(columns.as_slice(), left_root.as_ref(), right_root.as_ref()) {
-            Ok(roots) => roots,
-            Err(result) => return Ok(result),
-        };
-    if let Some(result) = root_terminal_result(columns.as_slice(), left_root, right_root) {
+    let (left_root, right_root) = match (left_root.as_ref(), right_root.as_ref()) {
+        (Some(left), Some(right)) => (left, right),
+        (None, right) => {
+            return terminal_diff_result(
+                controls,
+                "unverifiable",
+                None,
+                right.map(|root| root.digest.as_str()),
+                "missing-left-root",
+            )
+        }
+        (Some(left), None) => {
+            return terminal_diff_result(
+                controls,
+                "unverifiable",
+                Some(&left.digest),
+                None,
+                "missing-right-root",
+            )
+        }
+    };
+    if let Some(result) = root_terminal_result(controls, left_root, right_root)? {
         return Ok(result);
     }
 
     let left = row_hash_map(cassie, &statement.left.name)?;
     let right = row_hash_map(cassie, &statement.right.name)?;
-    let row_ids = left
-        .keys()
-        .chain(right.keys())
-        .cloned()
-        .collect::<std::collections::BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
+    let slots = crate::executor::retained_memory::add(left.len(), right.len())?;
+    let _key_memory = controls.reserve_query_memory(crate::executor::retained_memory::mul(
+        slots,
+        std::mem::size_of::<&String>(),
+    )?)?;
+    let mut row_ids = Vec::new();
+    row_ids.try_reserve_exact(slots).map_err(|error| {
+        crate::app::CassieError::ResourceLimit(format!(
+            "unable to retain projection diff keys: {error}"
+        ))
+    })?;
+    row_ids.extend(left.keys().chain(right.keys()));
+    row_ids.sort_unstable();
+    row_ids.dedup();
 
-    let limit = statement.limit.unwrap_or(usize::MAX);
-    let (mut rows, next_cursor) =
-        diff_rows(row_ids, statement.after.as_deref(), limit, &left, &right);
+    let (count, next_cursor) = diff_page(&row_ids, &left, &right, statement, controls)?;
     let complete = next_cursor.is_none();
-    append_diff_paging(&mut rows, next_cursor.as_deref(), complete);
-    if rows.is_empty() {
-        let cursor = next_cursor.as_deref();
-        let mut row = diff_row(
-            "__range__",
-            "unverifiable",
-            Some(left_root.digest.as_str()),
-            Some(right_root.digest.as_str()),
-            "range-or-root-mismatch-without-row-diff",
-        );
-        row.push(cursor.map_or(Value::Null, |value| Value::String(value.to_string())));
-        row.push(Value::Bool(complete));
-        rows.push(row);
+    let mut result = diff_result_builder(controls)?;
+    let mut emitted = 0;
+    for row_id in row_ids {
+        super::check_timeout(controls)?;
+        if emitted >= count {
+            break;
+        }
+        if statement
+            .after
+            .as_deref()
+            .is_some_and(|after| row_id.as_str() <= after)
+        {
+            continue;
+        }
+        if let Some(change) = diff_row_change(left.get(row_id), right.get(row_id)) {
+            push_diff_row(
+                &mut result,
+                controls,
+                &DiffRow {
+                    row_id,
+                    change: change.change,
+                    left_digest: change.left_digest,
+                    right_digest: change.right_digest,
+                    state: change.state,
+                    cursor: next_cursor,
+                    complete,
+                },
+            )?;
+            emitted += 1;
+        }
     }
-    Ok(QueryResult {
-        columns,
-        rows,
-        command: "DIFF PROJECTION".to_string(),
-    })
+    if emitted == 0 {
+        push_diff_row(
+            &mut result,
+            controls,
+            &DiffRow {
+                row_id: "__range__",
+                change: "unverifiable",
+                left_digest: Some(&left_root.digest),
+                right_digest: Some(&right_root.digest),
+                state: "range-or-root-mismatch-without-row-diff",
+                cursor: next_cursor,
+                complete,
+            },
+        )?;
+    }
+    Ok(result.finish()?)
 }
 
-fn resolve_diff_roots<'a>(
-    columns: &[ColumnMeta],
-    left_root: Option<&'a crate::midge::adapter::RootHashRecord>,
-    right_root: Option<&'a crate::midge::adapter::RootHashRecord>,
-) -> Result<
-    (
-        &'a crate::midge::adapter::RootHashRecord,
-        &'a crate::midge::adapter::RootHashRecord,
-    ),
-    QueryResult,
-> {
-    match (left_root, right_root) {
-        (Some(left_root), Some(right_root)) => Ok((left_root, right_root)),
-        (None, right_root) => Err(terminal_diff_result(
-            columns,
-            "__root__",
-            "unverifiable",
-            None,
-            right_root.map(|root| root.digest.as_str()),
-            "missing-left-root",
-        )),
-        (Some(left_root), None) => Err(terminal_diff_result(
-            columns,
-            "__root__",
-            "unverifiable",
-            Some(left_root.digest.as_str()),
-            None,
-            "missing-right-root",
-        )),
+fn diff_page<'a>(
+    row_ids: &[&'a String],
+    left: &BTreeMap<String, RowHashRecord>,
+    right: &BTreeMap<String, RowHashRecord>,
+    statement: &crate::sql::ast::DiffProjectionStatement,
+    controls: &QueryExecutionControls,
+) -> Result<(usize, Option<&'a str>), QueryError> {
+    let limit = statement.limit.unwrap_or(usize::MAX);
+    let mut count = 0;
+    let mut last_emitted = None;
+    let mut next_cursor = None;
+    for row_id in row_ids.iter().copied() {
+        super::check_timeout(controls)?;
+        if statement
+            .after
+            .as_deref()
+            .is_some_and(|after| row_id.as_str() <= after)
+        {
+            continue;
+        }
+        if count >= limit {
+            next_cursor = last_emitted;
+            break;
+        }
+        if diff_row_change(left.get(row_id), right.get(row_id)).is_some() {
+            count += 1;
+            last_emitted = Some(row_id.as_str());
+        }
     }
+    Ok((count, next_cursor))
 }
 
 fn root_terminal_result(
-    columns: &[ColumnMeta],
-    left_root: &crate::midge::adapter::RootHashRecord,
-    right_root: &crate::midge::adapter::RootHashRecord,
-) -> Option<QueryResult> {
-    if left_root.algorithm != right_root.algorithm
-        || left_root.range_hash_version != right_root.range_hash_version
-        || left_root.root_hash_version != right_root.root_hash_version
+    controls: &QueryExecutionControls,
+    left: &crate::midge::adapter::RootHashRecord,
+    right: &crate::midge::adapter::RootHashRecord,
+) -> Result<Option<QueryResult>, QueryError> {
+    let outcome = if left.algorithm != right.algorithm
+        || left.range_hash_version != right.range_hash_version
+        || left.root_hash_version != right.root_hash_version
     {
-        return Some(terminal_diff_result(
-            columns,
-            "__root__",
-            "unverifiable",
-            Some(left_root.digest.as_str()),
-            Some(right_root.digest.as_str()),
-            "incompatible-hash-metadata",
-        ));
-    }
-    if left_root.state != crate::midge::adapter::StoredHashState::Current
-        || right_root.state != crate::midge::adapter::StoredHashState::Current
+        Some(("unverifiable", "incompatible-hash-metadata"))
+    } else if left.state != crate::midge::adapter::StoredHashState::Current
+        || right.state != crate::midge::adapter::StoredHashState::Current
     {
-        return Some(terminal_diff_result(
-            columns,
-            "__root__",
-            "unverifiable",
-            Some(left_root.digest.as_str()),
-            Some(right_root.digest.as_str()),
-            "stale-root",
-        ));
-    }
-    if left_root.digest == right_root.digest {
-        return Some(terminal_diff_result(
-            columns,
-            "__root__",
-            "equal",
-            Some(left_root.digest.as_str()),
-            Some(right_root.digest.as_str()),
-            "verified",
-        ));
-    }
-    None
+        Some(("unverifiable", "stale-root"))
+    } else if left.digest == right.digest {
+        Some(("equal", "verified"))
+    } else {
+        None
+    };
+    outcome
+        .map(|(change, state)| {
+            terminal_diff_result(
+                controls,
+                change,
+                Some(&left.digest),
+                Some(&right.digest),
+                state,
+            )
+        })
+        .transpose()
 }
 
 fn terminal_diff_result(
-    columns: &[ColumnMeta],
-    row_id: &str,
+    controls: &QueryExecutionControls,
     change: &str,
     left_digest: Option<&str>,
     right_digest: Option<&str>,
     state: &str,
-) -> QueryResult {
-    QueryResult {
-        columns: columns.to_vec(),
-        rows: vec![terminal_diff_row(
-            row_id,
+) -> Result<QueryResult, QueryError> {
+    let mut result = diff_result_builder(controls)?;
+    push_diff_row(
+        &mut result,
+        controls,
+        &DiffRow {
+            row_id: "__root__",
             change,
             left_digest,
             right_digest,
             state,
-        )],
-        command: "DIFF PROJECTION".to_string(),
-    }
+            cursor: None,
+            complete: true,
+        },
+    )?;
+    Ok(result.finish()?)
 }
 
-fn diff_rows(
-    row_ids: Vec<String>,
-    after: Option<&str>,
-    limit: usize,
-    left: &BTreeMap<String, crate::midge::adapter::RowHashRecord>,
-    right: &BTreeMap<String, crate::midge::adapter::RowHashRecord>,
-) -> (Vec<Vec<Value>>, Option<String>) {
-    let mut rows = Vec::new();
-    let mut next_cursor = None;
-    let mut last_emitted = None;
-
-    for row_id in row_ids {
-        if after.is_some_and(|after| row_id.as_str() <= after) {
-            continue;
-        }
-        if rows.len() >= limit {
-            next_cursor = last_emitted;
-            break;
-        }
-        if let Some(row) = diff_row_change(&row_id, left.get(&row_id), right.get(&row_id)) {
-            last_emitted = Some(row_id);
-            rows.push(row);
-        }
-    }
-
-    (rows, next_cursor)
+fn diff_result_builder(
+    controls: &QueryExecutionControls,
+) -> Result<super::QueryResultBuilder<'_>, QueryError> {
+    super::command_output::columns(
+        "DIFF PROJECTION",
+        &[
+            ("row_id", crate::types::DataType::Text),
+            ("change", crate::types::DataType::Text),
+            ("left_digest", crate::types::DataType::Text),
+            ("right_digest", crate::types::DataType::Text),
+            ("state", crate::types::DataType::Text),
+            ("next_cursor", crate::types::DataType::Text),
+            ("complete", crate::types::DataType::Boolean),
+        ],
+        controls,
+    )
 }
 
-fn diff_row_change(
-    row_id: &str,
-    left: Option<&crate::midge::adapter::RowHashRecord>,
-    right: Option<&crate::midge::adapter::RowHashRecord>,
-) -> Option<Vec<Value>> {
+struct DiffRow<'a> {
+    row_id: &'a str,
+    change: &'a str,
+    left_digest: Option<&'a str>,
+    right_digest: Option<&'a str>,
+    state: &'a str,
+    cursor: Option<&'a str>,
+    complete: bool,
+}
+
+fn push_diff_row(
+    result: &mut super::QueryResultBuilder<'_>,
+    controls: &QueryExecutionControls,
+    row: &DiffRow<'_>,
+) -> Result<(), QueryError> {
+    super::command_output::push_row(
+        result,
+        &[
+            Cell::Text(row.row_id),
+            Cell::Text(row.change),
+            Cell::OptionalText(row.left_digest),
+            Cell::OptionalText(row.right_digest),
+            Cell::Text(row.state),
+            Cell::OptionalText(row.cursor),
+            Cell::Bool(row.complete),
+        ],
+        controls,
+    )
+}
+
+struct DiffChange<'a> {
+    change: &'static str,
+    left_digest: Option<&'a str>,
+    right_digest: Option<&'a str>,
+    state: &'static str,
+}
+
+fn diff_row_change<'a>(
+    left: Option<&'a crate::midge::adapter::RowHashRecord>,
+    right: Option<&'a crate::midge::adapter::RowHashRecord>,
+) -> Option<DiffChange<'a>> {
     match (left, right) {
         (Some(left), Some(right)) if left.digest == right.digest => None,
-        (Some(left), Some(right)) => Some(diff_row(
-            row_id,
-            "changed",
-            Some(left.digest.as_str()),
-            Some(right.digest.as_str()),
-            "different-row-hash",
-        )),
-        (Some(left), None) => Some(diff_row(
-            row_id,
-            "removed",
-            Some(left.digest.as_str()),
-            None,
-            "missing-right-row",
-        )),
-        (None, Some(right)) => Some(diff_row(
-            row_id,
-            "added",
-            None,
-            Some(right.digest.as_str()),
-            "missing-left-row",
-        )),
+        (Some(left), Some(right)) => Some(DiffChange {
+            change: "changed",
+            left_digest: Some(&left.digest),
+            right_digest: Some(&right.digest),
+            state: "different-row-hash",
+        }),
+        (Some(left), None) => Some(DiffChange {
+            change: "removed",
+            left_digest: Some(&left.digest),
+            right_digest: None,
+            state: "missing-right-row",
+        }),
+        (None, Some(right)) => Some(DiffChange {
+            change: "added",
+            left_digest: None,
+            right_digest: Some(&right.digest),
+            state: "missing-left-row",
+        }),
         (None, None) => None,
-    }
-}
-
-fn append_diff_paging(rows: &mut [Vec<Value>], cursor: Option<&str>, complete: bool) {
-    for row in rows {
-        row.push(cursor.map_or(Value::Null, |value| Value::String(value.to_string())));
-        row.push(Value::Bool(complete));
     }
 }
 
 pub(super) fn compare_projection(
     cassie: &Cassie,
     statement: &crate::sql::ast::CompareProjectionStatement,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let manifest: serde_json::Value = serde_json::from_str(&statement.manifest)
         .map_err(|error| QueryError::General(format!("invalid projection manifest: {error}")))?;
@@ -290,6 +350,7 @@ pub(super) fn compare_projection(
             Some(state.to_string())
         },
     };
+    let output = comparison_result(&report, manifest_digest, mismatches, controls)?;
     let gated_projection = report.target.clone();
     cassie
         .midge
@@ -306,25 +367,40 @@ pub(super) fn compare_projection(
     cassie
         .runtime
         .record_projection_integrity_verification(statement.target.name.clone(), state != "equal");
-    Ok(QueryResult {
-        columns: vec![
-            ColumnMeta::text("target"),
-            ColumnMeta::text("state"),
-            ColumnMeta::text("root_digest"),
-            ColumnMeta::text("manifest_digest"),
-            ColumnMeta::from_data_type("mismatches", &crate::types::DataType::Int),
-            ColumnMeta::text("report_id"),
+    Ok(output)
+}
+
+fn comparison_result(
+    report: &crate::catalog::ProjectionComparisonReportMeta,
+    manifest_digest: &str,
+    mismatches: i64,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let mut result = super::command_output::columns(
+        "COMPARE PROJECTION",
+        &[
+            ("target", crate::types::DataType::Text),
+            ("state", crate::types::DataType::Text),
+            ("root_digest", crate::types::DataType::Text),
+            ("manifest_digest", crate::types::DataType::Text),
+            ("mismatches", crate::types::DataType::Int),
+            ("report_id", crate::types::DataType::Text),
         ],
-        rows: vec![vec![
-            Value::String(statement.target.name.clone()),
-            Value::String(state.to_string()),
-            actual_digest.map_or(Value::Null, Value::String),
-            Value::String(manifest_digest.to_string()),
-            Value::Int64(mismatches),
-            Value::String(report.report_id),
-        ]],
-        command: "COMPARE PROJECTION".to_string(),
-    })
+        controls,
+    )?;
+    super::command_output::push_row(
+        &mut result,
+        &[
+            Cell::Text(&report.target),
+            Cell::Text(&report.state),
+            Cell::OptionalText(report.root_digest.as_deref()),
+            Cell::Text(manifest_digest),
+            Cell::Int(mismatches),
+            Cell::Text(&report.report_id),
+        ],
+        controls,
+    )?;
+    Ok(result.finish()?)
 }
 
 fn manifest_hash_metadata_matches(
@@ -418,45 +494,4 @@ fn row_hash_map(
         .into_iter()
         .map(|record| (record.row_id.clone(), record))
         .collect())
-}
-
-fn diff_columns() -> Vec<ColumnMeta> {
-    vec![
-        ColumnMeta::text("row_id"),
-        ColumnMeta::text("change"),
-        ColumnMeta::text("left_digest"),
-        ColumnMeta::text("right_digest"),
-        ColumnMeta::text("state"),
-        ColumnMeta::text("next_cursor"),
-        ColumnMeta::from_data_type("complete", &crate::types::DataType::Boolean),
-    ]
-}
-
-fn diff_row(
-    row_id: &str,
-    change: &str,
-    left_digest: Option<&str>,
-    right_digest: Option<&str>,
-    state: &str,
-) -> Vec<Value> {
-    vec![
-        Value::String(row_id.to_string()),
-        Value::String(change.to_string()),
-        left_digest.map_or(Value::Null, |digest| Value::String(digest.to_string())),
-        right_digest.map_or(Value::Null, |digest| Value::String(digest.to_string())),
-        Value::String(state.to_string()),
-    ]
-}
-
-fn terminal_diff_row(
-    row_id: &str,
-    change: &str,
-    left_digest: Option<&str>,
-    right_digest: Option<&str>,
-    state: &str,
-) -> Vec<Value> {
-    let mut row = diff_row(row_id, change, left_digest, right_digest, state);
-    row.push(Value::Null);
-    row.push(Value::Bool(true));
-    row
 }

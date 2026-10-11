@@ -192,7 +192,7 @@ fn should_sample_row_count_stats_to_reduce_larger_bounded_join_without_field_sta
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 500);
+        assert_eq!(result.rows().len(), 500);
         assert_eq!(
             metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]),
             1_000
@@ -257,7 +257,7 @@ fn should_use_fanout_stats_to_reduce_larger_bounded_join_build_side() {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 500);
+        assert_eq!(result.rows().len(), 500);
         assert_eq!(
             metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]),
             1_000
@@ -319,7 +319,7 @@ fn should_probe_indexed_right_source_for_bounded_inner_join() {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("user-000".to_string()), Value::Int64(0)],
                 vec![Value::String("user-001".to_string()), Value::Int64(1)],
@@ -381,7 +381,7 @@ fn should_keep_existing_left_index_probe_when_estimates_tie() {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows().len(), 2);
         let expected_users = canonical_collection("bounded_tie_users");
         let expected_index = canonical_collection("bounded_tie_users_key_idx");
         assert_eq!(
@@ -433,7 +433,7 @@ fn should_select_smaller_build_side_for_late_match_bounded_inner_join() {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("user-000".to_string()), Value::Int64(0)],
                 vec![Value::String("user-001".to_string()), Value::Int64(1)],
@@ -491,7 +491,7 @@ fn should_use_bounded_row_count_probe_when_cardinality_stats_are_missing() {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("user-000".to_string()), Value::Int64(0)],
                 vec![Value::String("user-001".to_string()), Value::Int64(1)],
@@ -557,7 +557,7 @@ fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_l
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows().len(), 2);
         assert_eq!(
             metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]),
             6
@@ -621,7 +621,7 @@ fn should_keep_existing_streaming_join_when_left_probe_exceeds_temp_budget() {
 
         // Assert
         assert_eq!(
-            result.rows,
+            result.rows(),
             vec![
                 vec![Value::String("user-000".to_string()), Value::Int64(0)],
                 vec![Value::String("user-001".to_string()), Value::Int64(1)],
@@ -700,8 +700,8 @@ fn should_not_apply_bounded_side_selection_to_left_join_or_ordered_join() {
         let after = cassie.metrics();
 
         // Assert
-        assert_eq!(left_join.rows.len(), 2);
-        assert_eq!(ordered_join.rows.len(), 2);
+        assert_eq!(left_join.rows().len(), 2);
+        assert_eq!(ordered_join.rows().len(), 2);
         assert_eq!(
             metric_delta(&after, &before, &["read_paths", "index_seek_scans"]),
             0

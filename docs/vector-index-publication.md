@@ -118,3 +118,29 @@ and startup cleanup in `pub-006` under
 [#764](https://github.com/cntryl/cassie/issues/764). The broader ANN, corruption,
 concurrent generation, maintenance, lifecycle and native release matrix remains
 tracked there; #764 and its downstream #765 qualification stay open.
+
+## Orphan-Only Cold Startup Qualification
+
+The finite [#918](https://github.com/cntryl/cassie/issues/918) witness qualifies
+startup with no pending intent, two unreferenced Schema staging records and one
+Data applied marker. One staged value is opaque invalid JSON: the existing
+orphan-disposal rule removes unreferenced keys without decoding their values;
+referenced malformed staged rows retain their fail-closed contract.
+
+`tests/vector_embeddings/publication_orphans.rs` must prove exact durable
+artifact presence before the first startup and absence immediately after each
+of two cold startups, before any manual replay or cleanup. Complete row payloads,
+canonical row bytes, collection generation and Data epoch must remain unchanged.
+No vector or SQL metadata may appear, and provider calls must remain zero. The
+second startup must be idempotent, with all owners retired before directory
+removal. The two existing live-intent recovery witnesses remain unchanged as
+published-state controls.
+
+Execution record, 2026-10-11: the orphan witness and both unchanged live-intent
+controls passed in [hosted storage qualification](https://github.com/cntryl/cassie/actions/runs/38088951196/job/114321247347)
+at tested merge [`65dcae93`](https://github.com/cntryl/cassie/commit/65dcae93c16ba3ae2e81fe101c6d446ba48d2110),
+for PR head [`6c2cde77`](https://github.com/cntryl/cassie/commit/6c2cde77c9c747a37ae181a0dc14d1e07bf45721).
+[PR #920](https://github.com/cntryl/cassie/pull/920) tracks the separate
+retained-executable startup probe, complete ordered local validation and final
+integration status. This finite witness adds no format, API or support promotion;
+broader parent #764 acceptance and downstream #765 qualification remain open.

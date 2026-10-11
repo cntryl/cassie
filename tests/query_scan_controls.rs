@@ -833,6 +833,15 @@ mod scalar_index_resource_controls {
     }
 
     fn seed_indexed_rows(cassie: &Cassie, session: &cassie::app::CassieSession, table: &str) {
+        seed_indexed_rows_with_first_id_prefix(cassie, session, table, "");
+    }
+
+    fn seed_indexed_rows_with_first_id_prefix(
+        cassie: &Cassie,
+        session: &cassie::app::CassieSession,
+        table: &str,
+        first_id_prefix: &str,
+    ) {
         cassie
             .execute_sql(
                 session,
@@ -845,7 +854,11 @@ mod scalar_index_resource_controls {
                 .midge
                 .put_document(
                     table,
-                    Some(format!("row-{score:04}")),
+                    Some(if score == 0 {
+                        format!("{first_id_prefix}row-{score:04}")
+                    } else {
+                        format!("row-{score:04}")
+                    }),
                     serde_json::json!({"score": score, "label": format!("label-{score:04}")}),
                 )
                 .expect("seed indexed row");
@@ -902,42 +915,65 @@ mod scalar_index_resource_controls {
         let _hook_guard = query_scan_control_test_guard();
         let (cassie, path) = configured_cassie("low-memory", 64 * 1_024);
         let session = cassie.create_session("tester", None);
-        seed_indexed_rows(&cassie, &session, "controlled_scalar_memory");
-        // Bootstrap schema and index before reopening the same store at the target cap.
+        seed_indexed_rows_with_first_id_prefix(
+            &cassie,
+            &session,
+            "controlled_scalar_memory",
+            &"x".repeat(4_096),
+        );
+        // Bootstrap all32 rows/index once; only score0 has a deliberately oversized ID.
         drop(session);
         drop(cassie);
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.limits.query_memory_budget_bytes = 64;
-        config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-        config.limits.parallel_scan_workers = 1;
-        let cassie =
-            Cassie::new_with_data_dir_and_config(&path, config).expect("low-memory cassie");
-        cassie.startup().expect("reopen indexed store");
-        let session = cassie.create_session("tester", None);
-        let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
 
         // Act
-        let error = cassie
-        .execute_sql(
-            &session,
-            "SELECT score FROM controlled_scalar_memory WHERE score >= 0 ORDER BY score LIMIT 1",
-            vec![],
-        )
-        .expect_err("one retained scalar hit should exceed the query budget");
-        let visited = cassie
-            .midge
-            .query_scan_entries_for_diagnostics()
-            .saturating_sub(before_entries);
+        let observations = [64, 1_024].map(|memory_budget| {
+            let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+            config.limits.query_memory_budget_bytes = memory_budget;
+            config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+            config.limits.parallel_scan_workers = 1;
+            let cassie =
+                Cassie::new_with_data_dir_and_config(&path, config).expect("low-memory cassie");
+            cassie.startup().expect("reopen indexed store");
+            let session = cassie.create_session("tester", None);
+            let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
+            let before = cassie.metrics();
+            let outcome = cassie.execute_sql(
+                &session,
+                "SELECT score FROM controlled_scalar_memory WHERE score >= 0 ORDER BY score LIMIT 1",
+                vec![],
+            );
+            let visited = cassie
+                .midge
+                .query_scan_entries_for_diagnostics()
+                .saturating_sub(before_entries);
+            // Retire even an unexpected successful payload before fixture cleanup/assertions.
+            let error = outcome.err();
+            let after = cassie.metrics();
+            drop(session);
+            drop(cassie);
+            (memory_budget, error, visited, before, after)
+        });
+        let cleanup = std::fs::remove_dir_all(path);
 
         // Assert
-        assert!(matches!(error, CassieError::ResourceLimit(_)));
-        assert_eq!(visited, 1, "reject the first native scalar-index hit");
-        assert_eq!(
-            cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
-            Some(0)
-        );
-
-        let _ = std::fs::remove_dir_all(path);
+        for ((memory_budget, error, visited, before, after), expected_entries) in
+            observations.into_iter().zip([0, 1])
+        {
+            let error = error.expect("the selected scalar frontier must exceed its query budget");
+            assert!(matches!(error, CassieError::ResourceLimit(_)));
+            assert_eq!(
+                visited, expected_entries,
+                "budget{memory_budget} must reject at its source-backed frontier: {error}"
+            );
+            assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+            assert_eq!(after["runtime"]["running_queries"], 0);
+            assert_eq!(after["runtime"]["active_operator_workers"], 0);
+            assert_eq!(
+                after["query"]["rows_returned_total"],
+                before["query"]["rows_returned_total"]
+            );
+        }
+        cleanup.expect("retire scalar fixture");
     }
 
     #[test]

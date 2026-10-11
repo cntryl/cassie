@@ -6664,6 +6664,15 @@ mod vector_query_stability {
     }
 
     fn seed_vector_collection(cassie: &Cassie, collection: &str, rows: usize) {
+        seed_vector_collection_with_first_id(cassie, collection, rows, "row-0000");
+    }
+
+    fn seed_vector_collection_with_first_id(
+        cassie: &Cassie,
+        collection: &str,
+        rows: usize,
+        first_id: &str,
+    ) {
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -6679,7 +6688,11 @@ mod vector_query_stability {
                 let coordinate = index.to_string().parse::<f64>().expect("f64 index") / 100.0;
                 let content = format!("row-{index:04}");
                 (
-                    Some(content.clone()),
+                    Some(if index == 0 {
+                        first_id.to_owned()
+                    } else {
+                        content.clone()
+                    }),
                     serde_json::json!({
                         "content": content,
                         "status": if index % 2 == 0 { "even" } else { "odd" },
@@ -7060,46 +7073,57 @@ mod vector_query_stability {
         let path = data_dir("vector_exact_memory_budget");
         let cassie = vector_cassie_with_memory_budget(&path, 64 * 1_024);
         let collection = "vector_exact_memory_budget";
-        seed_vector_collection(&cassie, collection, 20);
+        // Only the first storage identity changes; the twenty payloads and scores remain.
+        // Its lexically first raw key alone exceeds the deeper target admission budget.
+        seed_vector_collection_with_first_id(&cassie, collection, 20, &"0".repeat(4_096));
         drop(cassie);
-        let cassie = vector_cassie_with_memory_budget(&path, 32);
-        cassie.startup().expect("reopen seeded vector collection");
-        let session = cassie.create_session("tester", None);
-        let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
-        let before = cassie.metrics();
+        let mut observations = Vec::new();
 
         // Act
-        let outcome = cassie.execute_sql(
-            &session,
-            &vector_query(collection, false),
-            query_params(true, false),
-        );
-        let visited = cassie
-            .midge
-            .query_scan_entries_for_diagnostics()
-            .saturating_sub(before_entries);
-        let after = cassie.metrics();
-        let error = outcome.err();
-        drop(session);
-        drop(cassie);
+        for (budget, expected_visited) in [(32, 0), (2 * 1_024, 1)] {
+            let cassie = vector_cassie_with_memory_budget(&path, budget);
+            cassie.startup().expect("reopen seeded vector collection");
+            let session = cassie.create_session("tester", None);
+            let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
+            let before = cassie.metrics();
+            let outcome = cassie.execute_sql(
+                &session,
+                &vector_query(collection, false),
+                query_params(true, false),
+            );
+            let visited = cassie
+                .midge
+                .query_scan_entries_for_diagnostics()
+                .saturating_sub(before_entries);
+            let after = cassie.metrics();
+            let error = outcome.err();
+            drop(session);
+            drop(cassie);
+            observations.push((budget, expected_visited, visited, error, before, after));
+        }
         let cleanup = std::fs::remove_dir_all(path);
 
         // Assert
-        let error = error.expect("exact vector query should exceed the memory budget");
-        assert!(matches!(error, CassieError::ResourceLimit(_)));
-        assert!(
-            error.to_string().contains("query memory budget"),
-            "unexpected error: {error}"
-        );
-        assert_eq!(visited, 1, "reject within the exact vector source scan");
-        assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
-        assert_eq!(after["runtime"]["running_queries"], 0);
-        assert_eq!(after["runtime"]["active_operator_workers"], 0);
-        assert_eq!(after["vector"]["count"], before["vector"]["count"]);
-        assert_eq!(
-            after["query"]["rows_returned_total"],
-            before["query"]["rows_returned_total"]
-        );
+        for (budget, expected_visited, visited, error, before, after) in observations {
+            let error = error.expect("exact vector query must reject its retained frontier");
+            assert!(matches!(error, CassieError::ResourceLimit(_)));
+            assert!(
+                error.to_string().contains("query memory budget"),
+                "unexpected error at budget{budget}: {error}"
+            );
+            assert_eq!(
+                visited, expected_visited,
+                "budget{budget}: statement-owner denial precedes scanning; deeper denial enters the exact vector source"
+            );
+            assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+            assert_eq!(after["runtime"]["running_queries"], 0);
+            assert_eq!(after["runtime"]["active_operator_workers"], 0);
+            assert_eq!(after["vector"]["count"], before["vector"]["count"]);
+            assert_eq!(
+                after["query"]["rows_returned_total"],
+                before["query"]["rows_returned_total"]
+            );
+        }
         cleanup.expect("retire vector fixture");
     }
 

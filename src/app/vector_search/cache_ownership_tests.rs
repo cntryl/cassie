@@ -256,3 +256,102 @@ fn should_preserve_vector_cache_producer_ownership_during_payload_replacement() 
     );
     assert_eq!(requester_released, 0);
 }
+
+#[test]
+fn should_transfer_vector_cache_directory_ownership_during_cross_producer_growth() {
+    // Arrange
+    let fixture = Fixture::new();
+    let cassie = fixture.cassie();
+    let producer = controls();
+    let requester = controls();
+    let original = result(&producer);
+    let original_payload = original.retained_bytes();
+    cassie.cache_vector_search_result_controlled(
+        key(cassie, &producer, "old-0"),
+        &original,
+        &producer,
+    );
+    let capacity = cassie.vector_search_result_cache.lock().capacity();
+    for index in 1..capacity {
+        let query = format!("old-{index}");
+        cassie.cache_vector_search_result_controlled(
+            key(cassie, &producer, &query),
+            &original,
+            &producer,
+        );
+    }
+    let original_keys = cassie
+        .vector_search_result_cache
+        .lock()
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    let old_directory = cassie.vector_search_result_cache.lock().directory_bytes();
+    let producer_before = producer.current_query_memory_bytes();
+    let replacement = result(&requester);
+    let replacement_payload = replacement.retained_bytes();
+    let incoming = key(cassie, &requester, "new-growth");
+    let lookup_key = incoming.key.clone();
+    let inline_key = std::mem::size_of::<super::VectorSearchResultCacheKey>();
+    let incoming_heap = requester.current_query_memory_bytes() - replacement_payload - inline_key;
+
+    // Act
+    cassie.cache_vector_search_result_controlled(incoming, &replacement, &requester);
+    let cache = cassie.vector_search_result_cache.lock();
+    let new_capacity = cache.capacity();
+    let new_directory = cache.directory_bytes();
+    let retained_entries = cache.len();
+    let old_payloads_preserved = original_keys.iter().all(|key| {
+        cache
+            .get(key)
+            .is_some_and(|result| result.shares_storage(&original))
+    });
+    let new_payload_preserved = cache
+        .get(&lookup_key)
+        .is_some_and(|result| result.shares_storage(&replacement));
+    drop(cache);
+    let producer_after_growth = producer.current_query_memory_bytes();
+    let requester_after_growth = requester.current_query_memory_bytes();
+    let retired = std::mem::take(&mut *cassie.vector_search_result_cache.lock());
+    drop(retired);
+    let producer_after_cache = producer.current_query_memory_bytes();
+    let requester_after_cache = requester.current_query_memory_bytes();
+    drop(original);
+    drop(replacement);
+    let producer_released = producer.current_query_memory_bytes();
+    let requester_released = requester.current_query_memory_bytes();
+    drop(fixture);
+
+    // Assert
+    assert!(
+        capacity > 0,
+        "the probe must fill an actual initial directory"
+    );
+    assert_eq!(original_keys.len(), capacity);
+    assert!(old_directory > 0);
+    assert_eq!(new_capacity, capacity * 2);
+    assert_eq!(new_directory, old_directory * 2);
+    assert_eq!(retained_entries, capacity + 1);
+    assert!(old_payloads_preserved);
+    assert!(new_payload_preserved);
+    assert_eq!(
+        producer_after_growth,
+        producer_before - old_directory,
+        "old directory backing retires while resident P keys and payload stay owned"
+    );
+    assert_eq!(
+        requester_after_growth,
+        replacement_payload + incoming_heap + new_directory,
+        "Q owns only its new key, physical payload and complete replacement directory"
+    );
+    assert_eq!(
+        producer_after_cache, original_payload,
+        "dropping the cache releases P keys, retaining only the actual external payload alias"
+    );
+    assert_eq!(
+        requester_after_cache, replacement_payload,
+        "dropping the cache releases Q key and directory, retaining its external payload alias"
+    );
+    assert_eq!(producer_released, 0);
+    assert_eq!(requester_released, 0);
+}

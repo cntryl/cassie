@@ -175,6 +175,13 @@ impl VectorResultCache {
     }
 
     #[cfg(test)]
+    pub(super) fn directory_bytes(&self) -> usize {
+        self.directory_memory
+            .as_ref()
+            .map_or(0, QueryMemoryReservation::bytes)
+    }
+
+    #[cfg(test)]
     pub(super) fn len(&self) -> usize {
         self.entries.len()
     }

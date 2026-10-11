@@ -44,7 +44,7 @@ fn corrupt_first_row_hash(cassie: &Cassie, collection: &str) {
         )
         .expect("write stale hash");
     transaction
-        .commit(cntryl_midge::WriteOptions::sync())
+        .commit(cassie.midge.write_options_sync())
         .expect("durable stale hash");
 }
 

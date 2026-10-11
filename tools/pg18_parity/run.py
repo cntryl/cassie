@@ -8,32 +8,68 @@ import pathlib
 import re
 import subprocess
 import sys
+import uuid
 
 from .comparison import compare, qualify
 from .libpq import Libpq
 from .reference import reference
 
 
+class FixtureError(RuntimeError):
+    def __init__(self, side, index, results):
+        super().__init__("corpus fixture did not complete successfully")
+        self.side = side
+        self.index = index
+        self.results = results
+
+
+def prepare(connection, cell, side):
+    for index, sql in enumerate(cell.get("setup", [])):
+        results = connection.query(sql)
+        if (len(results) != 1 or results[0]["status"] not in (1, 2)
+                or results[0]["sqlstate"] is not None):
+            raise FixtureError(side, index, results)
+
+
+def instantiate(cell):
+    sql = [cell["sql"], *cell.get("setup", [])]
+    if not any("{fixture}" in statement for statement in sql):
+        return cell
+    namespace = "p18_" + uuid.uuid4().hex
+    return {**cell, "fixture_namespace": namespace,
+            "sql": cell["sql"].replace("{fixture}", namespace),
+            "setup": [statement.replace("{fixture}", namespace) for statement in cell.get("setup", [])]}
+
+
 def run_cells(libpq, reference_dsn, cassie_dsn, cells):
     outcomes = []
     for cell in cells:
         for mode in cell["modes"]:
-            identity = f"{cell['id']}:{mode}"
+            prepared = instantiate(cell)
+            context = {"id": f"{cell['id']}:{mode}", "owner": cell["owner"]}
+            if "fixture_namespace" in prepared:
+                context["fixture_namespace"] = prepared["fixture_namespace"]
             try:
                 with libpq.connect(reference_dsn) as oracle, libpq.connect(cassie_dsn) as cassie:
-                    expected = oracle.query(cell["sql"], mode, cell.get("parameters", []))
-                    actual = cassie.query(cell["sql"], mode, cell.get("parameters", []))
+                    prepare(oracle, prepared, "reference")
+                    prepare(cassie, prepared, "cassie")
+                    expected = oracle.query(prepared["sql"], mode, cell.get("parameters", []))
+                    actual = cassie.query(prepared["sql"], mode, cell.get("parameters", []))
                 differences = []
                 if len(expected) != len(actual):
                     differences.append("result_count")
                 else:
                     for index, (left, right) in enumerate(zip(expected, actual)):
                         differences += [f"{index}:{name}" for name in compare(left, right, ordered=cell["ordered"])]
-                outcomes.append({"id": identity, "owner": cell["owner"],
+                outcomes.append({**context,
                                  "outcome": "failed" if differences else "passed",
                                  "differences": differences, "reference": expected, "cassie": actual})
+            except FixtureError as error:
+                outcomes.append({**context, "outcome": "failed",
+                                 "stage": "setup", "side": error.side, "setup_index": error.index,
+                                 "results": error.results})
             except (ConnectionError, TimeoutError, NotImplementedError) as error:
-                outcomes.append({"id": identity, "owner": cell["owner"], "outcome": "unavailable",
+                outcomes.append({**context, "outcome": "unavailable",
                                  "reason": str(error)})
     return outcomes
 
@@ -52,8 +88,9 @@ def main():
     if not dsn:
         parser.error("Cassie connection environment variable is missing")
     corpus = pathlib.Path(__file__).resolve().parents[2] / "tests/corpus/postgresql18"
-    paths = {name: corpus / (name + ".json") for name in ["reference", "bootstrap", "inventory"]}
-    manifest, cells, inventory = [json.loads(paths[name].read_text()) for name in paths]
+    paths = {name: corpus / (name + ".json") for name in ["reference", "bootstrap", "returning", "inventory"]}
+    manifest, bootstrap, returning, inventory = [json.loads(paths[name].read_text()) for name in paths]
+    cells = bootstrap + returning
     required = {f"{cell['id']}:{mode}" for cell in cells for mode in cell["modes"]}
     receipt = {
         "schema": "cassie-pg18-differential.v1", "qualification": "incomplete",

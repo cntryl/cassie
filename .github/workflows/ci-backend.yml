@@ -69,6 +69,8 @@ jobs:
 
       - name: Validate PostgreSQL differential comparison policy
         run: python3 tests/pg18_parity/test_comparison.py
+      - name: Check PostgreSQL corpus fixture execution
+        run: python3 tests/pg18_parity/test_fixtures.py
 
       - name: Cargo clippy pedantic
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic

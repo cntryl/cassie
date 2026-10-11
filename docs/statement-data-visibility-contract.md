@@ -47,7 +47,7 @@ upgrade or public API change is selected.
 
 ## Mutation and commit authority
 
-DML acquisition is limited to source materialization: INSERT SELECT, UPDATE
+DML source acquisition covers INSERT SELECT, UPDATE
 matched rows and predicates, and DELETE matched rows and predicates. Their
 joins and EXISTS reads share that owner. The source scope ends before mutation
 preparation, uniqueness/FK checks, write staging and commit validation, which
@@ -61,6 +61,40 @@ fresh gated commit state used to validate foreign keys and parent references
 savepoint, session-setting and post-durable maintenance laws (TX-01 through
 TX-09) remain required. Read sharing cannot hide writes from the existing
 same-statement mutation or constraint machinery.
+
+Subqueries in `INSERT`, `UPDATE` and `DELETE` `RETURNING` expressions use the
+same pre-command Data view and immutable snapshot of prior transaction writes
+as other DML source reads. That view excludes writes staged by the current
+command. Correlation still supplies the command's returned row: the inserted
+or updated new row, or the deleted old row. Every row produced by one
+multirow command uses the same captured view; a later command captures a fresh
+view and can observe the earlier command's committed or staged writes. Install
+this view only for `RETURNING` source reads, keeping mutation preparation,
+constraint checks, staging and commit under their existing authorities.
+
+For this selected `RETURNING` phase, both independent and correlated EXISTS
+occurrences run only when scalar evaluation reaches them for an actual returned
+row. Dead CASE branches, an unselected COALESCE argument, and zero affected rows
+do not execute their subqueries. A reached occurrence preserves its normal
+error. This row-reached law is distinct from the existing eager folding of
+independent occurrences in SELECT and the selected non-DML phases.
+
+This governs runtime evaluation, after binding and planning. PostgreSQL can
+reject immutable constant expressions while planning a dynamically dead CASE
+branch or a zero-row command. Its planning-time `1/0` behavior remains an open
+parity gap in [#922](https://github.com/cntryl/cassie/issues/922); it is not an
+exception to the PostgreSQL 18 delivery contract. Runtime laziness witnesses
+use row-dependent division so they do not confuse those phases. Likewise,
+PostgreSQL can discard irrelevant EXISTS target expressions; Cassie's existing
+target evaluation gap remains owned by [#923](https://github.com/cntryl/cassie/issues/923).
+
+`RETURNING` remains atomic under the existing publish-after-complete-success
+wrapper. If expression evaluation fails, the command must preserve its current
+rollback, failed-transaction and savepoint behavior and must not publish a
+partial result or partially staged command. Lazy scalar selection, exact
+descriptors, admission, cancellation and owner retirement remain required.
+This finite selection does not establish uniform behavior for every DML family
+or expression form beyond the separately qualified cases.
 
 ## Portals and termination
 
@@ -552,6 +586,8 @@ the input owner through output consumption. Complete ordered local validation,
 exact-head hosted checks, independent review, merge and issue readback belong to
 the PR record. These selected phases do not qualify EXISTS in window
 partition or window ordering expressions, generic set-output scope, or arbitrary
-correlated grammar. #869's RETURNING acquisition choice remains unresolved and
-is not specified here. Support, native release, and production readiness remain
-unchanged.
+correlated grammar. At that #868 checkpoint, #869's RETURNING acquisition choice
+was unresolved. The selected pre-command view and row-reached evaluation law
+are now specified in the mutation and commit authority section above; the
+historical #868 evidence does not qualify them. Support, native release, and
+production readiness remain unchanged.

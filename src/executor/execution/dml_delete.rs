@@ -35,12 +35,29 @@ fn execute_delete_with_held_referential_gates(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
+    let returning_read_controls = if super::super::exists_projection::contains(&statement.returning)
+    {
+        Some(
+            crate::executor::execution::entrypoints::statement_read_controls(
+                cassie, session, controls,
+            )?,
+        )
+    } else {
+        None
+    };
+    let statement_read_controls = returning_read_controls.as_ref().unwrap_or(controls);
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
 
-    let matched_rows =
-        matched_delete_rows(cassie, session, statement, params, user_functions, controls)?;
+    let matched_rows = matched_delete_rows(
+        cassie,
+        session,
+        statement,
+        params,
+        user_functions,
+        statement_read_controls,
+    )?;
 
     let mut deleted_count = 0usize;
     let mut returning_rows = Vec::new();
@@ -98,6 +115,7 @@ fn execute_delete_with_held_referential_gates(
             user_functions,
             command_prefix: "DELETE",
             controls,
+            statement_read_controls,
         },
         deleted_count,
         returning_rows,

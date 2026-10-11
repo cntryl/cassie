@@ -12,6 +12,11 @@ use crate::types::row_identity::ROW_IDENTITY_COLUMN;
 mod dml_delete;
 #[path = "dml_insert.rs"]
 mod dml_insert;
+#[path = "dml_returning.rs"]
+mod dml_returning;
+#[cfg(test)]
+#[path = "dml_returning_tests.rs"]
+mod dml_returning_tests;
 #[path = "dml_update.rs"]
 mod dml_update;
 
@@ -211,6 +216,7 @@ struct DmlResultContext<'a> {
     user_functions: &'a HashMap<String, FunctionMeta>,
     command_prefix: &'a str,
     controls: &'a QueryExecutionControls,
+    statement_read_controls: &'a QueryExecutionControls,
 }
 
 fn build_dml_result(
@@ -224,6 +230,17 @@ fn build_dml_result(
             rows: Vec::new(),
             command: format!("{} {affected_count}", context.command_prefix),
         });
+    }
+    #[cfg(test)]
+    dml_returning_tests::observe(
+        dml_returning_tests::Phase::Entry,
+        context.controls,
+        affected_count,
+        &returning_rows,
+        returning_rows.capacity(),
+    );
+    if super::exists_projection::contains(context.returning) {
+        return dml_returning::build(context, affected_count, returning_rows);
     }
     let column_schema = context.cassie.catalog.get_schema(context.table);
     let has_arrays = column_schema.as_ref().is_some_and(|schema| {
@@ -263,14 +280,40 @@ fn build_dml_result(
         context.user_functions,
         context.session,
     )?;
+    #[cfg(test)]
+    dml_returning_tests::observe(
+        dml_returning_tests::Phase::Projected,
+        context.controls,
+        affected_count,
+        &projected,
+        projected.capacity(),
+    );
     let columns = dml_returning_columns(
         context.returning,
         column_schema.as_ref(),
         context.user_functions,
     );
+    #[cfg(test)]
+    let mut returning_row_index = 0;
     Ok(QueryResult {
         columns,
-        rows: projected.into_iter().map(BatchRow::into_values).collect(),
+        rows: projected
+            .into_iter()
+            .map(|row| {
+                #[cfg(test)]
+                {
+                    dml_returning_tests::observe(
+                        dml_returning_tests::Phase::Materializing(returning_row_index),
+                        context.controls,
+                        affected_count,
+                        std::slice::from_ref(&row),
+                        1,
+                    );
+                    returning_row_index += 1;
+                }
+                row.into_values()
+            })
+            .collect(),
         command: format!("{} {affected_count}", context.command_prefix),
     })
 }

@@ -30,6 +30,17 @@ pub(in crate::executor::execution) fn execute_update(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
+    let returning_read_controls = if super::super::exists_projection::contains(&statement.returning)
+    {
+        Some(
+            crate::executor::execution::entrypoints::statement_read_controls(
+                cassie, session, controls,
+            )?,
+        )
+    } else {
+        None
+    };
+    let statement_read_controls = returning_read_controls.as_ref().unwrap_or(controls);
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
@@ -40,7 +51,7 @@ pub(in crate::executor::execution) fn execute_update(
         statement.filter.as_ref(),
         params,
         user_functions,
-        controls,
+        statement_read_controls,
     )?;
     let mut returning_rows = Vec::new();
     let prepare_context = PrepareUpdateContext {
@@ -80,6 +91,7 @@ pub(in crate::executor::execution) fn execute_update(
             user_functions,
             command_prefix: "UPDATE",
             controls,
+            statement_read_controls,
         },
         updated_count,
         returning_rows,

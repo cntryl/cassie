@@ -294,7 +294,7 @@ fn should_reuse_physical_admission_when_a_requester_view_returns_to_its_producer
 #[test]
 fn should_preserve_source_at_the_metadata_replacement_overlap_budget_frontier() {
     // Arrange
-    let columns = [ColumnMeta::text(&"replacement metadata".repeat(64))];
+    let columns = [ColumnMeta::text("replacement metadata".repeat(64))];
     let calibration = controls(1_048_576);
     let original = result(&calibration);
     let replacement = original

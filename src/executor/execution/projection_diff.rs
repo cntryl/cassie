@@ -1,6 +1,8 @@
+use crate::midge::adapter::RowHashRecord;
 use crate::runtime::QueryExecutionControls;
 use std::collections::BTreeMap;
 
+use super::command_output::Cell;
 use super::{Cassie, QueryError, QueryResult};
 
 pub(super) fn diff_projection(
@@ -58,6 +60,64 @@ pub(super) fn diff_projection(
     row_ids.sort_unstable();
     row_ids.dedup();
 
+    let (count, next_cursor) = diff_page(&row_ids, &left, &right, statement, controls)?;
+    let complete = next_cursor.is_none();
+    let mut result = diff_result_builder(controls)?;
+    let mut emitted = 0;
+    for row_id in row_ids {
+        super::check_timeout(controls)?;
+        if emitted >= count {
+            break;
+        }
+        if statement
+            .after
+            .as_deref()
+            .is_some_and(|after| row_id.as_str() <= after)
+        {
+            continue;
+        }
+        if let Some(change) = diff_row_change(left.get(row_id), right.get(row_id)) {
+            push_diff_row(
+                &mut result,
+                controls,
+                &DiffRow {
+                    row_id,
+                    change: change.change,
+                    left_digest: change.left_digest,
+                    right_digest: change.right_digest,
+                    state: change.state,
+                    cursor: next_cursor,
+                    complete,
+                },
+            )?;
+            emitted += 1;
+        }
+    }
+    if emitted == 0 {
+        push_diff_row(
+            &mut result,
+            controls,
+            &DiffRow {
+                row_id: "__range__",
+                change: "unverifiable",
+                left_digest: Some(&left_root.digest),
+                right_digest: Some(&right_root.digest),
+                state: "range-or-root-mismatch-without-row-diff",
+                cursor: next_cursor,
+                complete,
+            },
+        )?;
+    }
+    Ok(result.finish()?)
+}
+
+fn diff_page<'a>(
+    row_ids: &[&'a String],
+    left: &BTreeMap<String, RowHashRecord>,
+    right: &BTreeMap<String, RowHashRecord>,
+    statement: &crate::sql::ast::DiffProjectionStatement,
+    controls: &QueryExecutionControls,
+) -> Result<(usize, Option<&'a str>), QueryError> {
     let limit = statement.limit.unwrap_or(usize::MAX);
     let mut count = 0;
     let mut last_emitted = None;
@@ -80,54 +140,7 @@ pub(super) fn diff_projection(
             last_emitted = Some(row_id.as_str());
         }
     }
-    let complete = next_cursor.is_none();
-    let mut result = diff_result_builder(controls)?;
-    let mut emitted = 0;
-    for row_id in row_ids {
-        super::check_timeout(controls)?;
-        if emitted >= count {
-            break;
-        }
-        if statement
-            .after
-            .as_deref()
-            .is_some_and(|after| row_id.as_str() <= after)
-        {
-            continue;
-        }
-        if let Some(change) = diff_row_change(left.get(row_id), right.get(row_id)) {
-            push_diff_row(
-                &mut result,
-                controls,
-                DiffRow {
-                    row_id,
-                    change: change.change,
-                    left_digest: change.left_digest,
-                    right_digest: change.right_digest,
-                    state: change.state,
-                    cursor: next_cursor,
-                    complete,
-                },
-            )?;
-            emitted += 1;
-        }
-    }
-    if emitted == 0 {
-        push_diff_row(
-            &mut result,
-            controls,
-            DiffRow {
-                row_id: "__range__",
-                change: "unverifiable",
-                left_digest: Some(&left_root.digest),
-                right_digest: Some(&right_root.digest),
-                state: "range-or-root-mismatch-without-row-diff",
-                cursor: next_cursor,
-                complete,
-            },
-        )?;
-    }
-    Ok(result.finish()?)
+    Ok((count, next_cursor))
 }
 
 fn root_terminal_result(
@@ -173,7 +186,7 @@ fn terminal_diff_result(
     push_diff_row(
         &mut result,
         controls,
-        DiffRow {
+        &DiffRow {
             row_id: "__root__",
             change,
             left_digest,
@@ -217,9 +230,8 @@ struct DiffRow<'a> {
 fn push_diff_row(
     result: &mut super::QueryResultBuilder<'_>,
     controls: &QueryExecutionControls,
-    row: DiffRow<'_>,
+    row: &DiffRow<'_>,
 ) -> Result<(), QueryError> {
-    use super::command_output::Cell;
     super::command_output::push_row(
         result,
         &[
@@ -338,32 +350,7 @@ pub(super) fn compare_projection(
             Some(state.to_string())
         },
     };
-    let mut result = super::command_output::columns(
-        "COMPARE PROJECTION",
-        &[
-            ("target", crate::types::DataType::Text),
-            ("state", crate::types::DataType::Text),
-            ("root_digest", crate::types::DataType::Text),
-            ("manifest_digest", crate::types::DataType::Text),
-            ("mismatches", crate::types::DataType::Int),
-            ("report_id", crate::types::DataType::Text),
-        ],
-        controls,
-    )?;
-    use super::command_output::Cell;
-    super::command_output::push_row(
-        &mut result,
-        &[
-            Cell::Text(&statement.target.name),
-            Cell::Text(state),
-            Cell::OptionalText(actual_digest.as_deref()),
-            Cell::Text(manifest_digest),
-            Cell::Int(mismatches),
-            Cell::Text(&report.report_id),
-        ],
-        controls,
-    )?;
-    let output = result.finish()?;
+    let output = comparison_result(&report, manifest_digest, mismatches, controls)?;
     let gated_projection = report.target.clone();
     cassie
         .midge
@@ -381,6 +368,39 @@ pub(super) fn compare_projection(
         .runtime
         .record_projection_integrity_verification(statement.target.name.clone(), state != "equal");
     Ok(output)
+}
+
+fn comparison_result(
+    report: &crate::catalog::ProjectionComparisonReportMeta,
+    manifest_digest: &str,
+    mismatches: i64,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let mut result = super::command_output::columns(
+        "COMPARE PROJECTION",
+        &[
+            ("target", crate::types::DataType::Text),
+            ("state", crate::types::DataType::Text),
+            ("root_digest", crate::types::DataType::Text),
+            ("manifest_digest", crate::types::DataType::Text),
+            ("mismatches", crate::types::DataType::Int),
+            ("report_id", crate::types::DataType::Text),
+        ],
+        controls,
+    )?;
+    super::command_output::push_row(
+        &mut result,
+        &[
+            Cell::Text(&report.target),
+            Cell::Text(&report.state),
+            Cell::OptionalText(report.root_digest.as_deref()),
+            Cell::Text(manifest_digest),
+            Cell::Int(mismatches),
+            Cell::Text(&report.report_id),
+        ],
+        controls,
+    )?;
+    Ok(result.finish()?)
 }
 
 fn manifest_hash_metadata_matches(

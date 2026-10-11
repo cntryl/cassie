@@ -1,4 +1,5 @@
 //! Verification report preparation shared by public VERIFY and private repair work.
+use super::super::command_output::Cell;
 use super::super::{check_timeout, command_output};
 use super::{
     catalog, now_ms, persist_projection_metadata, Cassie, QueryError, QueryExecutionControls,
@@ -31,7 +32,6 @@ pub(in crate::executor::execution) fn verify_projection(
         ],
         controls,
     )?;
-    use command_output::Cell;
     command_output::push_row(
         &mut result,
         &[

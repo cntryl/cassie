@@ -103,9 +103,11 @@ fn should_admit_transaction_output_before_committing_staged_rows() {
         execute(&writer, "SELECT id FROM admission_rows").rows(),
         &[vec![Value::Int64(1)]]
     );
-    assert!(execute(&observer, "SELECT id FROM admission_rows")
-        .rows()
-        .is_empty());
+    let empty: &[Vec<Value>] = &[];
+    assert_eq!(
+        execute(&observer, "SELECT id FROM admission_rows").rows(),
+        empty
+    );
 
     // Act
     let (result, controls) = fixture.denied(&writer, TransactionAction::Commit);

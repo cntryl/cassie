@@ -116,7 +116,7 @@ impl QueryResult {
         if columns == self.columns() {
             return self.try_clone_for_query(controls);
         }
-        self.try_rebuild(controls, columns, self.rows(), self.command())
+        Self::try_rebuild(controls, columns, self.rows(), self.command())
     }
 
     /// # Errors
@@ -126,7 +126,7 @@ impl QueryResult {
         controls: &QueryExecutionControls,
         rows: &[Vec<Value>],
     ) -> Result<Self, CassieError> {
-        self.try_rebuild(controls, self.columns(), rows, self.command())
+        Self::try_rebuild(controls, self.columns(), rows, self.command())
     }
 
     /// # Errors
@@ -139,7 +139,7 @@ impl QueryResult {
         if command == self.command() {
             return self.try_clone_for_query(controls);
         }
-        self.try_rebuild(controls, self.columns(), self.rows(), command)
+        Self::try_rebuild(controls, self.columns(), self.rows(), command)
     }
 
     /// Transfers rows without detaching their physical or requesting-query owners.
@@ -180,7 +180,6 @@ impl QueryResult {
     }
 
     fn try_rebuild(
-        &self,
         controls: &QueryExecutionControls,
         columns: &[ColumnMeta],
         rows: &[Vec<Value>],
@@ -269,7 +268,7 @@ impl QueryResultBuilder<'_> {
         let mut replacement = String::new();
         replacement
             .try_reserve_exact(command.len())
-            .map_err(allocation_error)?;
+            .map_err(|error| allocation_error(&error))?;
         if replacement.capacity() > command.len() {
             return Err(CassieError::ResourceLimit(
                 "allocator exceeded admitted command capacity".to_owned(),

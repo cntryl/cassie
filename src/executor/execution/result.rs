@@ -106,7 +106,10 @@ pub(super) fn build_select_result(
         }))?;
     }
     result.try_set_command("SELECT")?;
-    Ok(result.finish()?)
+    let output = result.finish()?;
+    // Retire the source rows only after the complete managed output is admitted.
+    drop(rows);
+    Ok(output)
 }
 
 fn materialized_projection_schema(

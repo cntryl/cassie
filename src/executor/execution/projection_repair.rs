@@ -1,7 +1,8 @@
 use crate::runtime::QueryExecutionControls;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{catalog, Cassie, DataType, QueryError, QueryResult, Value};
+use super::command_output::Cell;
+use super::{catalog, Cassie, DataType, QueryError, QueryResult};
 use crate::sql::ast::{
     ProjectionDiffTarget, ProjectionRepairScope, ProjectionVerificationMode,
     RepairProjectionStatement, VerifyProjectionStatement,
@@ -438,7 +439,6 @@ fn repair_result(
         ],
         controls,
     )?;
-    use super::command_output::Cell;
     super::command_output::push_row(
         &mut result,
         &[

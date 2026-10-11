@@ -243,3 +243,35 @@ publication, lifecycle, generation and range obligations, and retained native
 paired-codec objectives keep their individual evidence requirements. #768 remains
 open; the earlier #890 decoder evidence is neither duplicated nor expanded into
 a complete parent claim.
+
+
+## Current PostgreSQL 18 integration contract
+
+The final integration reuses draft [PR #919](https://github.com/cntryl/cassie/pull/919)
+head `c48fe00377b35ff340467158ffc2844613d2d739` with accepted main
+`4a35dc373c4ac449184d42001055b447b3c53dc4`. The existing three test bodies
+and production encoder remain unchanged. The earlier focused and documentation
+checkpoints above describe their recorded revisions; they do not qualify this
+new composition.
+
+The direct completed prerequisites are #758 at
+`06195f0fc9c1e63a5236903976c07f480176dd8a`, #763 at
+`ce72a23f2d0a3cdb9a811107aec7629151fcd319`, and #880 at
+`8c118df18a08b38767005ea1c7152a5487520e29`. Accepted main includes all three.
+Their relevant typed aggregation, statement-view, resource and portal controls
+also passed in PR #884's complete 3,839-test gate, with exact test names retained
+in the integration evidence. Final codec qualification must execute its own
+complete ordered gate and the six exact new/companion names, matching all
+nineteen literal records and preserving the binaries actually executed.
+
+Current integration results, source/log/binary hashes, adversarial probe
+dispositions and exact-head hosted checks are recorded in PR #919 before merge.
+A historical pass or a source-only review cannot satisfy those obligations.
+The final merged commit and #903 closure must be read back; #768, #761 and #791
+retain their remaining acceptance obligations.
+
+This CBC2 qualification covers the existing stored format. The approved v3
+transition and PostgreSQL 18 type expansion keep their separate #793/#904
+implementation, migration and final integration gates. These three boundary
+tests make no v3 runtime codec, PostgreSQL support, native performance or
+storage lifecycle claim.

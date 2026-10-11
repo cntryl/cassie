@@ -1,4 +1,4 @@
-//! PostgreSQL18 boolrecv semantics, independent packet literals and legacy adapters.
+//! PostgreSQL 18 Boolean receive semantics, independent packet literals and legacy adapters.
 use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 
@@ -81,7 +81,7 @@ fn should_recover_from_boolean_binary_width_errors_after_sync() {
 
     // Assert
     assert_eq!(batches.len(), cases.len() * 2);
-    for ((_, state), pair) in cases.into_iter().zip(batches.chunks_exact(2)) {
+    for ((_, state), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0) {
         let rejected = &pair[0];
         assert_eq!(wire::error_code(rejected).as_deref(), Some(state));
         assert_eq!(rejected.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
@@ -358,5 +358,8 @@ fn should_persist_boolean_binary_normalization_across_recovery_boundaries() {
         );
     }
     assert_eq!(wire::error_code(&stages[0][5]).as_deref(), Some("22P03"));
-    assert!(fixture::data_row_payloads(&stages[0][5]).is_empty());
+    assert_eq!(
+        fixture::data_row_payloads(&stages[0][5]),
+        Vec::<Vec<u8>>::new()
+    );
 }

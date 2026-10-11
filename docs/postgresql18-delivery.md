@@ -75,6 +75,15 @@ support functions and range/index integration are staged obligations under
 #830/#912/#842, not blockers on unrelated built-in primitives. This breaks the
 former range → constraint → table → composite cycle.
 
+The [#925 structural prerequisite](https://github.com/cntryl/cassie/issues/925)
+extracts projection virtual-catalog descriptors and row builders into the
+private `src/catalog/virtual_views_projections.rs` module before #904 extends
+the catalog runtime. Public entrypoints and database visibility stay in
+`src/catalog/virtual_views.rs`. This extraction preserves existing behavior;
+it does not implement the shared registry or qualify new SQL types, catalog
+publication or durable formats. Record its merged commit and existing catalog,
+database-scope and projection witnesses before consuming it as completed.
+
 Record an implementation prerequisite as `owner; completed commit; exact tests;
 passed result; remaining integration obligations` before dependent work starts.
 A closed issue without that evidence is insufficient. #793 specifies contracts;

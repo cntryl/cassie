@@ -182,8 +182,8 @@ fn main() {
                         .cassie
                         .execute_physical_plan_for_diagnostics(&context.session, plan)
                         .expect("execute Tier 2 column scan");
-                    assert_eq!(result.rows.len(), scenario.expected_rows);
-                    completed_rows = completed_rows.saturating_add(result.rows.len());
+                    assert_eq!(result.rows().len(), scenario.expected_rows);
+                    completed_rows = completed_rows.saturating_add(result.rows().len());
                 }
                 u64::try_from(completed_rows).expect("result cardinality should fit u64")
             });

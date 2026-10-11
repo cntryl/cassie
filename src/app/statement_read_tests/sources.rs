@@ -385,7 +385,7 @@ fn should_execute_table_free_nested_exists_without_a_database_snapshot() {
     ).expect("table-free reads do not require a storage database");
     // Assert
     assert_eq!(
-        result.rows,
+        result.rows().to_vec(),
         vec![vec![
             Value::String(fixture.cassie.default_database.clone()),
             Value::Bool(true),
@@ -415,9 +415,18 @@ fn should_execute_direct_table_free_metadata_without_a_database_snapshot() {
         &controls,
     )
     .expect("direct metadata read does not require a storage database");
+    let rows = result.rows().to_vec();
+    let live_bytes = controls.current_query_memory_bytes();
+    let result_bytes = result.retained_bytes();
+    let no_statement_read = controls.statement_read().is_none();
+    drop(result);
+    let retired_bytes = controls.current_query_memory_bytes();
     // Assert
-    assert_eq!(result.rows, vec![vec![Value::String("catalogdb".into())]]);
-    assert_eq!(controls.current_query_memory_bytes(), 0);
+    assert_eq!(rows, vec![vec![Value::String("catalogdb".into())]]);
+    assert!(no_statement_read);
+    assert!(live_bytes > 0);
+    assert_eq!(live_bytes, result_bytes);
+    assert_eq!(retired_bytes, 0);
 }
 
 #[test]
@@ -462,13 +471,13 @@ fn should_capture_nested_data_before_table_free_query_execution() {
                 .cassie
                 .execute_sql(&reader, sql, vec![])
                 .expect("captured nested Data")
-                .rows;
+                .rows().to_vec();
             drop(hook);
             let fresh = fixture
                 .cassie
                 .execute_sql(&reader, sql, vec![])
                 .expect("fresh nested Data")
-                .rows;
+                .rows().to_vec();
             (captured, fresh, fired.load(Ordering::SeqCst), set)
         })
         .collect::<Vec<_>>();

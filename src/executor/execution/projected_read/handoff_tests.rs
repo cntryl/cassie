@@ -111,9 +111,9 @@ fn collection_handoff(use_breakdown: bool) {
     let public = cassie
         .execute_sql(&session, &sql, vec![])
         .expect("public ordinary TEXT query");
-    assert_eq!(public.rows.len(), 1);
-    assert_eq!(public.rows[0].len(), 17);
-    assert!(public.columns.iter().all(|column| column.type_oid == 25));
+    assert_eq!(public.rows().len(), 1);
+    assert_eq!(public.rows()[0].len(), 17);
+    assert!(public.columns().iter().all(|column| column.type_oid == 25));
     drop(public);
     let statement = crate::sql::parse_statement(&sql).expect("SQL");
     let plan = super::super::build_logical_plan_in_session(&cassie, Some(&session), &statement)
@@ -222,11 +222,11 @@ fn should_preserve_unpromoted_scalar_expression_projection_values() {
         .expect("unpromoted scalar expression must preserve SQL errors instead of panic")
         .expect("existing scalar CONCAT query");
     assert_eq!(
-        result.rows,
+        result.rows(),
         vec![vec![Value::String(format!(
             "{}{literal}",
             "s".repeat(65_536)
         ))]]
     );
-    assert_eq!(result.columns[0].type_oid, 25);
+    assert_eq!(result.columns()[0].type_oid, 25);
 }

@@ -85,6 +85,7 @@ fn should_preserve_typed_join_collection_identity_with_evaluated_alias_bounds() 
         native.cassie.metrics()["joins"]["last_strategy"],
         "typed_hash"
     );
+    drop((actual, ordinary, base));
     assert_eq!(
         native.cassie.metrics()["query"]["current_accounted_memory_bytes"],
         0

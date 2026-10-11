@@ -138,7 +138,7 @@ pub fn mixed_ingest_query(ctx: &BenchContext) -> Ready<usize> {
             vec![Value::String("benchmark-title".to_string())],
         )
         .expect("mixed ingest query");
-    ready(std::hint::black_box(written + result.rows.len()))
+    ready(std::hint::black_box(written + result.rows().len()))
 }
 
 pub async fn concurrent_queries(ctx: &BenchContext, concurrency: usize) -> usize {
@@ -156,7 +156,7 @@ pub async fn concurrent_queries(ctx: &BenchContext, concurrency: usize) -> usize
                     )],
                 )
                 .expect("concurrent query")
-                .rows
+                .rows()
                 .len()
         });
     }
@@ -194,7 +194,7 @@ fn projection_refresh_workflow_now(ctx: &BenchContext) -> usize {
             vec![],
         )
         .expect("refresh projection")
-        .command
+        .command()
         .len();
     let after = ctx.cassie.metrics();
     let writes = projection_counter_delta(&after, &before, "write_rebuild_target_puts");
@@ -213,7 +213,7 @@ pub fn projection_rebuild_verification(ctx: &BenchContext) -> Ready<usize> {
             vec![],
         )
         .expect("verify projection")
-        .rows
+        .rows()
         .len();
     ready(rows)
 }
@@ -236,7 +236,7 @@ pub fn projection_version_swap(ctx: &BenchContext, _nonce: usize) -> Ready<usize
             vec![],
         )
         .expect("activate projection version")
-        .command
+        .command()
         .len();
     let after = ctx.cassie.metrics();
     let activations = projection_counter_delta(&after, &before, "write_activation_metadata_writes");
@@ -333,13 +333,13 @@ pub fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
         .cassie
         .execute_sql(&ctx.session, create, vec![])
         .expect("create index")
-        .command
+        .command()
         .len();
     let dropped = ctx
         .cassie
         .execute_sql(&ctx.session, drop, vec![])
         .expect("drop index")
-        .command
+        .command()
         .len();
     let after = ctx.cassie.metrics();
     let row_puts = projection_counter_delta(&after, &before, "write_rebuild_target_puts");
@@ -376,7 +376,7 @@ pub fn time_series_window_scan(ctx: &BenchContext) -> Ready<usize> {
         .unwrap_or_default();
     std::hint::black_box(buckets);
     std::hint::black_box(bucket_native_hits);
-    ready(std::hint::black_box(result.rows.len()))
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 fn rebuild_index_statements(nonce: usize) -> (&'static str, &'static str) {
@@ -421,9 +421,9 @@ pub fn time_series_retention_enforcement(ctx: &BenchContext) -> Ready<usize> {
         0,
         "time-series retention must not record an error"
     );
-    assert!(!result.command.is_empty(), "retention command report");
+    assert!(!result.command().is_empty(), "retention command report");
     ready(std::hint::black_box(usize::from(
-        !result.command.is_empty(),
+        !result.command().is_empty(),
     )))
 }
 
@@ -442,9 +442,9 @@ pub fn time_series_rollup_refresh(ctx: &BenchContext) -> Ready<usize> {
         counter_delta(&after, &before, "rollups", "refreshes") > 0,
         "time-series rollup must record a refresh"
     );
-    assert!(!result.command.is_empty(), "rollup command report");
+    assert!(!result.command().is_empty(), "rollup command report");
     ready(std::hint::black_box(usize::from(
-        !result.command.is_empty(),
+        !result.command().is_empty(),
     )))
 }
 
@@ -507,17 +507,17 @@ pub fn assert_time_series_rollup_state(ctx: &BenchContext) {
         )
         .expect("read authoritative time-series aggregates");
     let rollup_total = rollup_rows
-        .rows
+        .rows()
         .iter()
         .map(|row| row[2].as_i64().expect("rollup count"))
         .sum::<i64>();
     let rollup_amount = rollup_rows
-        .rows
+        .rows()
         .iter()
         .map(|row| row[3].as_i64().expect("rollup sum"))
         .sum::<i64>();
-    let source_total = source.rows[0][0].as_i64().expect("source count");
-    let source_amount = source.rows[0][1].as_i64().expect("source sum");
+    let source_total = source.rows()[0][0].as_i64().expect("source count");
+    let source_amount = source.rows()[0][1].as_i64().expect("source sum");
     assert_eq!(rollup_total, source_total, "rollup count aggregate");
     assert_eq!(rollup_amount, source_amount, "rollup sum aggregate");
 }

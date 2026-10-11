@@ -116,7 +116,7 @@ mod graph_transaction_semantics {
                 vec![],
             )
             .expect("expand transaction overlay")
-            .rows();
+            .rows().to_vec();
 
         // Assert
         assert_eq!(
@@ -201,7 +201,7 @@ mod graph_transaction_semantics {
                 vec![],
             )
             .expect("expand after rollback")
-            .rows();
+            .rows().to_vec();
 
         // Assert
         assert_eq!(rows, vec![vec![Value::String("bob".into())]]);
@@ -235,7 +235,7 @@ mod graph_transaction_semantics {
                 vec![],
             )
             .expect("shortest path through transaction overlay")
-            .rows();
+            .rows().to_vec();
 
         // Assert
         assert_eq!(
@@ -335,7 +335,7 @@ mod graph_transaction_semantics {
                 vec![],
             )
             .expect("read graph neighbors")
-            .rows()
+            .rows().to_vec()
     }
 
     #[test]
@@ -397,7 +397,7 @@ mod graph_transaction_semantics {
                     vec![],
                 )
                 .expect("expand graph")
-                .rows();
+                .rows().to_vec();
 
             // Assert
             assert_eq!(
@@ -2958,7 +2958,7 @@ mod time_series_rollups {
             assert!(cassie.catalog.get_rollup(&rollup_name).is_none());
             assert!(cassie.midge.collection_schema(&output_name).is_none());
             assert!(matches!(
-                source_rows.rows().as_slice(),
+                source_rows.rows(),
                 [row] if matches!(row.get(2), Some(Value::Float64(value)) if value.is_infinite())
             ));
 
@@ -3039,7 +3039,7 @@ mod time_series_rollups {
 
             // Assert
             assert!(matches!(
-                previous_output.rows().as_slice(),
+                previous_output.rows(),
                 [row] if matches!(row.first(), Some(Value::Float64(value)) if value.is_finite() && *value > 9.9e307)
             ));
             assert_eq!(output_after.rows(), previous_output.rows());
@@ -3047,7 +3047,7 @@ mod time_series_rollups {
             assert!(!metadata.is_fresh(source_generation));
             assert_eq!(debt.rows(), vec![vec![Value::String("rollup".to_string())]]);
             assert!(matches!(
-                authoritative.rows().as_slice(),
+                authoritative.rows(),
                 [row] if matches!(row.get(2), Some(Value::Float64(value)) if value.is_infinite())
             ));
 
@@ -3674,7 +3674,7 @@ mod time_series_rollups {
                 "SELECT total, amount_sum, small_sum FROM __cassie_rollup_ev_hourly",
                 vec![],
             )
-            .map(|result| result.rows())
+            .map(|result| result.rows().to_vec())
             .unwrap_or_default();
 
         // Assert
@@ -3923,7 +3923,7 @@ mod graph_backing_table_ddl {
         cassie
             .execute_sql(session, NEIGHBORS, vec![])
             .expect("graph traversal")
-            .rows()
+            .rows().to_vec()
     }
 
     fn restart(cassie: Cassie, path: &str) -> (Cassie, CassieSession) {
@@ -4221,7 +4221,7 @@ mod graph_function_correctness {
         cassie
             .execute_sql(session, sql, vec![])
             .expect("read graph function")
-            .rows()
+            .rows().to_vec()
     }
 
     fn with_graph(

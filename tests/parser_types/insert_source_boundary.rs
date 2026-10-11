@@ -53,7 +53,7 @@ fn should_reject_source_prefix_before_catalog_lookup_or_writes() {
             .cassie
             .execute_sql(&observer, "SELECT flag FROM prefix_dst", vec![])
             .expect("fresh observer")
-            .rows();
+            .rows().to_vec();
         (result, rows)
     });
 
@@ -162,7 +162,7 @@ fn should_reject_insert_source_prefix_on_pgwire_without_writing() {
         }
         let observer = fixture.cassie.create_session("wire_observer", None);
         let rows = fixture.cassie.execute_sql(&observer, "SELECT flag FROM prefix_dst", vec![])
-            .expect("fresh observer before valid command").rows();
+            .expect("fresh observer before valid command").rows().to_vec();
         wire::write_frames(&mut writer, vec![wire::simple_query_frame(
             "INSERT INTO prefix_dst(flag)/* SELECT /* nested */ VALUES */VALUES (true) RETURNING flag"
         )]).await;

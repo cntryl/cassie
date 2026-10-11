@@ -3226,7 +3226,7 @@ mod executor_parallel {
         );
         let result = cassie
             .execute_sql(&session, sql, vec![])
-            .map(|result| result.rows())
+            .map(|result| result.rows().to_vec())
             .map_err(|error| error.to_string());
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
@@ -5772,7 +5772,7 @@ mod join_scope_and_shape {
             let wildcard = sql(cassie,session,"SELECT * FROM shadow_users JOIN LATERAL (SELECT * FROM shadow_orders WHERE k=shadow_users.k) AS x ON true ORDER BY shadow_users.name");
             assert_eq!(wildcard.columns().len(), 6);
             assert_eq!(wildcard.rows().len(), 2);
-            for row in &wildcard.rows() {
+            for row in wildcard.rows() {
                 assert_eq!(row.len(), 6, "{row:?}");
             }
             let single = sql(cassie,session,"SELECT shadow_users.name,x.outer_key FROM shadow_users JOIN LATERAL (SELECT shadow_users.k AS outer_key) AS x ON true ORDER BY shadow_users.name");
@@ -5808,7 +5808,7 @@ mod join_scope_and_shape {
                 // Assert
                 assert_eq!(result.columns().len(), 6, "{statement}");
                 assert_eq!(result.rows().len(), 2, "{statement}");
-                for row in &result.rows() {
+                for row in result.rows() {
                     assert_eq!(row.len(), result.columns().len(), "{statement}: {row:?}");
                 }
             }
@@ -5827,7 +5827,7 @@ mod join_scope_and_shape {
             }
             let result=sql(cassie,session,"WITH empty AS (SELECT k,total FROM shape_right) SELECT * FROM shape_left LEFT JOIN empty ON shape_left.k=empty.k");
             assert_eq!(result.columns().len(), 5);
-            for row in &result.rows() {
+            for row in result.rows() {
                 assert_eq!(row.len(), 5, "{row:?}");
             }
             sql(
@@ -5861,7 +5861,7 @@ mod join_scope_and_shape {
             // Assert
             assert_eq!(result.columns().len(), 4);
             assert_eq!(result.rows().len(), 3);
-            for row in &result.rows() {
+            for row in result.rows() {
                 assert_eq!(row.len(), 4, "{row:?}");
             }
             assert_eq!(result.rows()[0][3], Value::Int64(42));
@@ -5891,7 +5891,7 @@ mod join_scope_and_shape {
                         // Assert
                         assert_eq!(result.columns().len(), 6);
                         assert_eq!(result.rows().len(), 2);
-                        for row in &result.rows() {
+                        for row in result.rows() {
                             assert_eq!(row.len(), 6, "{row:?}");
                             assert_eq!(
                                 &row[2..],
@@ -6350,7 +6350,7 @@ mod typed_array_ordering {
                 let mut rows = cassie
                     .execute_sql(session, query, vec![bound.clone()])
                     .expect("ARRAY DML RETURNING")
-                    .rows();
+                    .rows().to_vec();
                 rows.sort_by_key(|row| row[0].as_str().expect("item text").to_owned());
                 assert_eq!(
                     rows,
@@ -6495,7 +6495,7 @@ mod typed_relational_phase_equivalence {
                             vec![Value::String("a".into()), Value::Int64(3), Value::Int64(1)]
                         ]
                     );
-                    assert_eq!(grouped_page.rows(), grouped_all.rows()[1..2]);
+                    assert_eq!(grouped_page.rows(), &grouped_all.rows()[1..2]);
                     assert_eq!(
                         winners_all.rows(),
                         vec![
@@ -6504,7 +6504,7 @@ mod typed_relational_phase_equivalence {
                             vec![Value::String("c".into()), Value::Int64(7), Value::Int64(1)]
                         ]
                     );
-                    assert_eq!(winners_page.rows(), winners_all.rows()[1..2]);
+                    assert_eq!(winners_page.rows(), &winners_all.rows()[1..2]);
                     assert_eq!(zero.rows(), [] as [Vec<Value>; 0]);
                     assert_eq!(
                         grouped_page
@@ -6637,8 +6637,8 @@ mod typed_alias_bound_integration {
                         vec![Value::Int64(50)]
                     ]
                 );
-                assert_eq!(page.rows(), all.rows()[1..2]);
-                assert_eq!(prefix.rows(), all.rows()[..2]);
+                assert_eq!(page.rows(), &all.rows()[1..2]);
+                assert_eq!(prefix.rows(), &all.rows()[..2]);
                 assert_eq!(unlimited.rows(), all.rows());
                 assert_eq!(zero.rows(), [] as [Vec<Value>; 0]);
                 assert_eq!(

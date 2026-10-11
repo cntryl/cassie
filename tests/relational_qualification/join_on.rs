@@ -26,6 +26,7 @@ fn run_case(sql: &str, expected: &[Vec<Value>]) {
         fixture.cassie.metrics()["joins"]["last_strategy"],
         "nested_loop"
     );
+    drop(result);
     assert_eq!(
         fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"],
         0

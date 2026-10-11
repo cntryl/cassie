@@ -38,7 +38,7 @@ mod derived_result_metadata {
         result
             .columns()
             .into_iter()
-            .map(|column| (column.name, column.type_oid))
+            .map(|column| (column.name.clone(), column.type_oid))
             .collect()
     }
 
@@ -179,11 +179,11 @@ mod derived_predicate_typing {
 
         let base_literal = fixture
             .execute("SELECT k FROM d WHERE k = '1'")
-            .map(|result| result.rows())
+            .map(|result| result.rows().to_vec())
             .ok();
         let cte_literal = fixture
             .execute("WITH c AS (SELECT * FROM d) SELECT k FROM c WHERE k = '1'")
-            .map(|result| result.rows())
+            .map(|result| result.rows().to_vec())
             .ok();
 
         // Assert

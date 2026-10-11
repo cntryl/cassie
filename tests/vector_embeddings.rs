@@ -70,7 +70,8 @@ mod ann_candidate_exhaustion {
                 - before["vector"]["count"].as_u64().unwrap(),
             1
         );
-        assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+        drop((indexed, exact));
+        assert_eq!(cassie.metrics()["query"]["current_accounted_memory_bytes"], 0);
         drop(cassie);
         std::fs::remove_dir_all(path).expect("cleanup fixture");
     }
@@ -228,7 +229,8 @@ mod ann_candidate_exhaustion {
                 "discarded HNSW attempt published {metric}"
             );
         }
-        assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+        drop((indexed, indexed_offset, exact, exact_offset));
+        assert_eq!(cassie.metrics()["query"]["current_accounted_memory_bytes"], 0);
         drop(cassie);
         std::fs::remove_dir_all(path).expect("cleanup fixture");
     }
@@ -2003,11 +2005,13 @@ mod hnsw_indexes {
             Value::String("near".to_string()),
             Value::String("far".to_string()),
         ];
-        let exact_rows = exact.expect("exact top-k should skip NULL vectors").rows();
-        let fallback_rows = fallback
-            .expect("non-streaming exact top-k should skip NULL vectors")
-            .rows();
-        let indexed_rows = indexed.expect("HNSW top-k should skip NULL vectors").rows();
+        let exact = exact.expect("exact top-k should skip NULL vectors");
+        let exact_rows = exact.rows();
+        let fallback = fallback
+            .expect("non-streaming exact top-k should skip NULL vectors");
+        let fallback_rows = fallback.rows();
+        let indexed = indexed.expect("HNSW top-k should skip NULL vectors");
+        let indexed_rows = indexed.rows();
         assert_eq!(exact_rows.len(), expected.len());
         assert_eq!(fallback_rows.len(), expected.len());
         assert_eq!(indexed_rows.len(), expected.len());
@@ -2058,7 +2062,7 @@ mod hnsw_indexes {
         );
 
         // Assert
-        let rows = result.map(|result| result.rows()).ok();
+        let rows = result.as_ref().map(|result| result.rows()).ok();
         assert_eq!(
             rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
             Some(Value::String("near".to_string()))
@@ -2969,7 +2973,7 @@ mod integration_sql_hybrid_query {
                 hybrid_params("red"),
             )
             .expect("hybrid query")
-            .rows()
+            .rows().to_vec()
     }
 
     #[test]
@@ -5078,7 +5082,7 @@ mod ivfflat_indexes {
         );
 
         // Assert
-        let rows = result.map(|result| result.rows()).ok();
+        let rows = result.as_ref().map(|result| result.rows()).ok();
         assert_eq!(
             rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
             Some(Value::String("near".to_string()))
@@ -7402,7 +7406,7 @@ mod vector_source_column_lifecycle {
                 vec![],
             )
             .expect("read embeddings")
-            .rows()
+            .rows().to_vec()
     }
 
     #[test]
@@ -7578,14 +7582,14 @@ mod vector_parameter_finiteness {
             "UPDATE vector_param_json SET doc = $1",
             vec![Value::Vector(Vector::new(vec![2.0, f32::NEG_INFINITY]))],
         );
-        let rows = cassie
+        let result = cassie
             .execute_sql(
                 &session,
                 "SELECT label, doc FROM vector_param_json",
                 Vec::new(),
             )
-            .expect("select rows")
-            .rows();
+            .expect("select rows");
+        let rows = result.rows();
 
         // Assert
         assert!(infinite.is_err(), "infinite component must be rejected");
@@ -7647,7 +7651,7 @@ mod vector_write_path {
         let Ok(result) = cassie.execute_sql(&session, sql, params) else {
             panic!("statement failed: {sql}");
         };
-        result.rows()
+        result.rows().to_vec()
     }
 
     fn error_text(cassie: &Cassie, sql: &str, params: Vec<Value>) -> String {
@@ -8531,7 +8535,7 @@ mod vector_read_equivalence {
                     .rows()
                     .iter()
                     .all(|row| row.len() == bounded.columns().len()));
-                assert_eq!(bounded.rows(), baseline.rows()[..2]);
+                assert_eq!(bounded.rows(), &baseline.rows()[..2]);
             }
         });
     }

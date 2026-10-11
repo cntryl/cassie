@@ -72,7 +72,7 @@ mod copy_transaction_boundaries {
                 vec![],
             )
             .expect("select rows")
-            .rows()
+            .rows().to_vec()
     }
 
     #[test]
@@ -237,7 +237,7 @@ mod copy_array_text_input {
                 vec![],
             )
             .expect("read copied arrays")
-            .rows();
+            .rows().to_vec();
         assert_eq!(
             rows,
             vec![
@@ -299,7 +299,7 @@ mod copy_csv_null_fields {
                 vec![],
             )
             .expect("read copied rows")
-            .rows();
+            .rows().to_vec();
         assert_eq!(
             rows,
             vec![
@@ -370,7 +370,8 @@ mod alter_add_column_constraints {
                 vec![],
             )
             .expect("read defaulted and generated values")
-            .rows();
+            .rows()
+            .to_vec();
         let null_not_null = cassie.execute_sql(
             &session,
             "INSERT INTO alter_add_column_constraints (id, required_value) VALUES (2, NULL)",
@@ -404,7 +405,7 @@ mod alter_add_column_constraints {
         // Assert
         assert_eq!(
             (
-                inserted.command().as_str(),
+                inserted.command(),
                 rows,
                 null_not_null.is_err(),
                 duplicate_unique.is_err(),
@@ -452,7 +453,7 @@ mod dml_statement_atomicity {
         cassie
             .execute_sql(session, sql, vec![])
             .expect("select rows")
-            .rows()
+            .rows().to_vec()
     }
 
     #[test]
@@ -1125,7 +1126,7 @@ mod foreign_key_concurrency {
         concurrent_child(&cassie, &writer).expect("concurrent child write sees the parent");
         let commit = cassie
             .execute_sql(&session, "COMMIT", vec![])
-            .map(|result| result.command());
+            .map(|result| result.command().to_owned());
         let parents = cassie
             .midge
             .scan_documents(&support::canonical_test_collection(
@@ -1309,7 +1310,7 @@ mod foreign_key_concurrency {
                 Err(cassie::app::CassieError::ForeignKeyViolation { .. })
             ),
             "commit of an orphaned COPY row was not rejected: {:?}",
-            commit.map(|result| result.command())
+            commit.map(|result| result.command().to_owned())
         );
         assert!(
             children.is_empty(),
@@ -1437,7 +1438,7 @@ mod integration_sql_constraints {
                 vec![],
             )
             .expect("select rows")
-            .rows();
+            .rows().to_vec();
 
         // Assert
         assert!(inserted.is_ok(), "explicit NULL must satisfy the CHECKs");
@@ -6074,7 +6075,7 @@ mod integration_sql_transactions {
             let collected_from_a = cassie
                 .execute_sql(&session, "SELECT id FROM tx_multi_a", vec![])
                 .unwrap()
-                .rows();
+                .rows().to_vec();
             assert_eq!(collected_from_a.len(), 1);
             let collected_from_b = cassie
                 .execute_sql(
@@ -6083,7 +6084,7 @@ mod integration_sql_transactions {
                     vec![],
                 )
                 .unwrap()
-                .rows();
+                .rows().to_vec();
             assert_eq!(
                 collected_from_b,
                 vec![vec![Value::String("alice@example.com".into())]]
@@ -7739,7 +7740,7 @@ mod migration_ddl_sequences {
     }
 
     fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).unwrap().rows()
+        cassie.execute_sql(session, sql, vec![]).unwrap().rows().to_vec()
     }
 
     fn create_sequence_default_schema(cassie: &Cassie, session: &CassieSession) {
@@ -10304,7 +10305,7 @@ mod foreign_key_ddl_lifecycle {
     }
 
     fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        run(cassie, session, sql).expect("select").rows()
+        run(cassie, session, sql).expect("select").rows().to_vec()
     }
 
     fn assert_foreign_key_error(result: Result<QueryResult, CassieError>, context: &str) {
@@ -10811,7 +10812,7 @@ mod foreign_key_integrity {
         cassie
             .execute_sql(session, sql, vec![])
             .unwrap_or_else(|error| panic!("{sql}: {error}"))
-            .rows()
+            .rows().to_vec()
     }
 
     #[test]
@@ -11169,7 +11170,7 @@ mod on_conflict_resolution {
     fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
         cassie
             .execute_sql(session, sql, vec![])
-            .map(|result| result.rows())
+            .map(|result| result.rows().to_vec())
             .unwrap_or_default()
     }
 
@@ -11473,7 +11474,7 @@ mod composite_unique_constraints {
                 vec![],
             )
             .expect("select ids")
-            .rows()
+            .rows().to_vec()
     }
 
     fn int_ids(values: &[i64]) -> Vec<Vec<Value>> {
@@ -11527,7 +11528,7 @@ mod composite_unique_constraints {
                 vec![],
             )
             .expect("table constraints")
-            .rows();
+            .rows().to_vec();
 
         // Assert
         assert!(accepted.iter().all(|ok| *ok), "partial overlaps are legal");
@@ -11640,7 +11641,7 @@ mod composite_unique_constraints {
                 vec![],
             )
             .expect("table constraints")
-            .rows();
+            .rows().to_vec();
         drop(session);
         drop(cassie);
         let reopened = Cassie::new_with_data_dir(&path).expect("reopen");
@@ -11713,7 +11714,7 @@ mod composite_unique_constraints {
         let notes = cassie
             .execute_sql(&session, "SELECT id, note FROM h ORDER BY id", vec![])
             .expect("select notes")
-            .rows();
+            .rows().to_vec();
 
         // Assert
         assert_eq!(
@@ -11779,7 +11780,7 @@ mod char_unique_trailing_blanks {
         let matched = cassie
             .execute_sql(&session, "SELECT id, c FROM f7 WHERE c = 'x'", vec![])
             .expect("select f7")
-            .rows();
+            .rows().to_vec();
 
         // Assert
         assert!(
@@ -11881,7 +11882,7 @@ mod alter_column_declared_case {
                 vec![],
             )
             .expect("select notes")
-            .rows();
+            .rows().to_vec();
 
         // Assert
         assert!(set_default.is_ok(), "SET DEFAULT names the column Note");

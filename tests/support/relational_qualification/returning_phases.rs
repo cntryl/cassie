@@ -31,7 +31,7 @@ pub fn column(name: &str, boolean: bool) -> ColumnMeta {
     }
 }
 
-pub fn assert_result(mut actual: QueryResult, boolean: bool, empty: bool) {
+pub fn assert_result(actual: QueryResult, boolean: bool, empty: bool) {
     let mut columns = Vec::new();
     if !empty {
         columns.push(column("id", false));
@@ -39,7 +39,8 @@ pub fn assert_result(mut actual: QueryResult, boolean: bool, empty: bool) {
     columns.push(column("selected", boolean));
     assert_eq!(actual.columns(), columns, "literal static descriptors");
     assert_eq!(actual.command(), if empty { "UPDATE 0" } else { "UPDATE 2" });
-    actual.rows().sort_by_key(|row| match row.first() {
+    let mut actual_rows = actual.rows().to_vec();
+    actual_rows.sort_by_key(|row| match row.first() {
         Some(Value::Int64(id)) => *id,
         other => panic!("BIGINT id: {other:?}"),
     });
@@ -56,7 +57,7 @@ pub fn assert_result(mut actual: QueryResult, boolean: bool, empty: bool) {
             vec![Value::Int64(2), selected],
         ]
     };
-    assert_eq!(actual.rows(), expected, "exact returned multiset");
+    assert_eq!(actual_rows, expected, "exact returned multiset");
 }
 
 pub fn assert_original_rows(fixture: &Fixture) {

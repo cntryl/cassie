@@ -3184,7 +3184,7 @@ mod own_qualified_references {
     }
 
     fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows()
+        cassie.execute_sql(session, sql, vec![]).expect(sql).rows().to_vec()
     }
 
     fn two_rows(label: &str) -> (Cassie, CassieSession, String) {
@@ -8095,7 +8095,7 @@ mod relational_semantic_correctness {
                 .expect("join signed-zero rows");
 
             // Assert
-            let mut rows = result.rows();
+            let mut rows = result.rows().to_vec();
             rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
             assert_eq!(
                 rows,
@@ -10555,7 +10555,7 @@ mod type_cast_promotion_evidence {
                 cassie
                     .execute_sql(&session, &format!("SELECT {expr}"), vec![])
                     .unwrap_or_else(|error| panic!("{expr} should cast: {error}"))
-                    .rows()
+                    .rows().to_vec()
             })
             .collect::<Vec<_>>();
 
@@ -11127,7 +11127,7 @@ mod reserved_id_row_identity_column {
                 vec![],
             )
             .expect("reference rows")
-            .rows();
+            .rows().to_vec();
         expected.sort_by(|left, right| {
             let key = |row: &Vec<Value>| match (&row[0], &row[1]) {
                 (Value::Int64(score), Value::String(identity)) => (*score, identity.clone()),
@@ -11300,9 +11300,9 @@ mod order_by_ordinals {
             let by_first = "SELECT g, v FROM scores ORDER BY 1 DESC";
 
             // Act
-            let ascending = run(cassie, session, ascending).rows();
-            let descending = run(cassie, session, descending).rows();
-            let by_first = run(cassie, session, by_first).rows();
+            let ascending = run(cassie, session, ascending).rows().to_vec();
+            let descending = run(cassie, session, descending).rows().to_vec();
+            let by_first = run(cassie, session, by_first).rows().to_vec();
 
             // Assert
             assert_eq!(
@@ -11327,7 +11327,7 @@ mod order_by_ordinals {
             let sql = "SELECT g, v * 2 AS doubled FROM scores ORDER BY 2 DESC LIMIT 2";
 
             // Act
-            let rows = run(cassie, session, sql).rows();
+            let rows = run(cassie, session, sql).rows().to_vec();
 
             // Assert
             assert_eq!(rows, vec![row("c", 18), row("a", 10)]);
@@ -11346,7 +11346,7 @@ mod order_by_ordinals {
             let sql = "SELECT g, SUM(v) AS s FROM scores GROUP BY g ORDER BY 1 DESC";
 
             // Act
-            let rows = run(cassie, session, sql).rows();
+            let rows = run(cassie, session, sql).rows().to_vec();
 
             // Assert
             assert_eq!(
@@ -11367,7 +11367,7 @@ mod order_by_ordinals {
             let outcomes = [by_ordinal, by_alias].map(|sql| {
                 cassie
                     .execute_sql(session, sql, vec![])
-                    .map(|result| result.rows())
+                    .map(|result| result.rows().to_vec())
                     .map_err(|error| error.to_string())
             });
 
@@ -11383,7 +11383,7 @@ mod order_by_ordinals {
             let sql = "SELECT g, v FROM scores WHERE v < 4 UNION ALL SELECT g, v FROM scores WHERE v > 4 ORDER BY 2 DESC";
 
             // Act
-            let rows = run(cassie, session, sql).rows();
+            let rows = run(cassie, session, sql).rows().to_vec();
 
             // Assert
             assert_eq!(
@@ -11400,7 +11400,7 @@ mod order_by_ordinals {
             let sql = "SELECT g AS k, v FROM scores WHERE v < 4 UNION ALL SELECT g, v FROM scores WHERE v > 4 ORDER BY 1 DESC";
 
             // Act
-            let rows = run(cassie, session, sql).rows();
+            let rows = run(cassie, session, sql).rows().to_vec();
 
             // Assert
             assert_eq!(
@@ -11476,7 +11476,7 @@ mod identifier_case_resolution {
     }
 
     fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows()
+        cassie.execute_sql(session, sql, vec![]).expect(sql).rows().to_vec()
     }
 
     fn mixed_case_scores(label: &str) -> (Cassie, CassieSession, String) {

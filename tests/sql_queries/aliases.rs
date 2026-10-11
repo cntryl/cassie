@@ -140,7 +140,7 @@ fn should_preserve_quoted_alias_identity_labels() {
         .map(|row| vec![row[1].clone(), row[0].clone(), row[0].clone()])
         .collect();
     assert_eq!(payload_id.expect("ordinary id alias").rows(), expected);
-    let mut actual = wildcard.expect("ordinary _id output label").rows();
+    let mut actual = wildcard.expect("ordinary _id output label").rows().to_vec();
     actual.sort_by(|left, right| left[1].as_i64().cmp(&right[1].as_i64()));
     assert_eq!(actual, original);
 }
@@ -237,8 +237,8 @@ fn should_preserve_indexed_alias_pagination_context() {
     );
 
     // Assert
-    assert_eq!(first.expect("indexed first bounds").rows(), original[1..3]);
-    assert_eq!(second.expect("fresh bounds").rows(), original[3..4]);
+    assert_eq!(first.expect("indexed first bounds").rows(), &original[1..3]);
+    assert_eq!(second.expect("fresh bounds").rows(), &original[3..4]);
     let explained = explained.expect("resolved bound explain");
     let Value::String(plan) = &explained.rows()[0][0] else {
         panic!("text plan");
@@ -267,12 +267,12 @@ fn should_preserve_indexed_alias_pagination_context() {
         .projected_scan_fields
         .iter()
         .all(|field| field != "key"));
-    assert_eq!(cached.expect("literal bounds").rows(), original[..2]);
+    assert_eq!(cached.expect("literal bounds").rows(), &original[..2]);
     assert!(literal_cache_hit);
     assert!(!dynamic_cache_hit);
     assert_eq!(
         authorized.expect("reader alias namespace").rows(),
-        original[1..3]
+        &original[1..3]
     );
     assert!(matches!(
         denied,

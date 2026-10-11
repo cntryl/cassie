@@ -171,7 +171,7 @@ fn should_deduplicate_supported_schema_vector_identities() {
         ]
     );
     let mut oids = std::collections::BTreeSet::new();
-    for row in &all_types.rows() {
+    for row in all_types.rows() {
         let Value::Int64(oid) = &row[0] else {
             panic!("registry OID is not an integer");
         };

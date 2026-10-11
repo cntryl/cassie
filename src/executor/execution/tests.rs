@@ -286,9 +286,9 @@ fn should_report_execution_breakdown_for_projected_filtered_read() {
         run_with_execution_breakdown(&cassie, physical, vec![]).expect("execution breakdown");
 
     // Assert
-    assert_eq!(output.result.rows.len(), 1);
+    assert_eq!(output.result.rows().len(), 1);
     assert_eq!(
-        output.result.rows[0],
+        output.result.rows()[0],
         vec![
             Value::String("doc-1".to_string()),
             Value::String("alpha".to_string()),
@@ -341,9 +341,9 @@ fn should_report_execution_breakdown_for_point_lookup_read() {
         run_with_execution_breakdown(&cassie, physical, vec![]).expect("execution breakdown");
 
     // Assert
-    assert_eq!(output.result.rows.len(), 1);
+    assert_eq!(output.result.rows().len(), 1);
     assert_eq!(
-        output.result.rows[0],
+        output.result.rows()[0],
         vec![
             Value::String("doc-1".to_string()),
             Value::String("alpha".to_string()),

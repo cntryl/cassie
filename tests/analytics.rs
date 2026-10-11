@@ -979,7 +979,7 @@ mod analytical_projections {
                 .execute_sql(&session, statement, vec![])
                 .expect(statement);
         }
-        let read = |sql: &str| cassie.execute_sql(&session, sql, vec![]).expect(sql).rows();
+        let read = |sql: &str| cassie.execute_sql(&session, sql, vec![]).expect(sql).rows().to_vec();
 
         // Act
         let projected = read("SELECT total, tag FROM alias_p ORDER BY tag");
@@ -3268,7 +3268,7 @@ mod column_batch_resilience {
                 vec![],
             )
             .expect("query ALP codec-version fixture")
-            .rows()
+            .rows().to_vec()
     }
 
     fn fsst_codec_rows(fixture: &AmountFixture, table: &str, predicate: &str) -> Vec<Vec<Value>> {
@@ -3280,7 +3280,7 @@ mod column_batch_resilience {
                 vec![],
             )
             .expect("query FSST fixture")
-            .rows()
+            .rows().to_vec()
     }
 
     fn sum_amount(fixture: &AmountFixture, table: &str) -> Result<Vec<Vec<Value>>, String> {
@@ -3299,7 +3299,7 @@ mod column_batch_resilience {
                 &format!("SELECT SUM(amount) AS {alias} FROM {table}"),
                 vec![],
             )
-            .map(|result| result.rows())
+            .map(|result| result.rows().to_vec())
             .map_err(|error| error.to_string())
     }
 
@@ -5442,7 +5442,7 @@ mod derived_state_recovery {
             vec![],
         )
         .expect("query after recovery")
-        .rows();
+        .rows().to_vec();
         let collection =
             canonical_test_collection(&restarted, "derived_state_add_column_batch_docs");
         let index = canonical_test_index(
@@ -6858,7 +6858,7 @@ mod projection_lifecycle {
     }
 
     fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).unwrap().rows()
+        cassie.execute_sql(session, sql, vec![]).unwrap().rows().to_vec()
     }
 
     fn seed_materialized_projection_version_fixture(
@@ -10547,7 +10547,7 @@ mod read_model_optimization_round {
                     vec![],
                 )
                 .unwrap()
-                .rows();
+                .rows().to_vec();
             rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
 
             // Assert
@@ -11186,14 +11186,14 @@ mod derived_read_equivalence {
                 ];
                 let baseline = queries
                     .iter()
-                    .map(|query| sql(cassie, session, query).rows())
+                    .map(|query| sql(cassie, session, query))
                     .collect::<Vec<_>>();
                 sql(cassie, session, &format!("CREATE MATERIALIZED PROJECTION {table}_projection WITH (analytical = true) AS SELECT tenant,{value} AS amount FROM {table}"));
                 // Act
                 for (query, expected) in queries.iter().zip(baseline) {
                     let rewritten = sql(cassie, session, query);
                     // Assert
-                    assert_eq!(rewritten.rows(), expected, "{query}");
+                    assert_eq!(rewritten.rows(), expected.rows(), "{query}");
                 }
             }
         });
@@ -11219,14 +11219,14 @@ mod derived_read_equivalence {
             ];
             let baseline = queries
                 .iter()
-                .map(|query| sql(cassie, session, query).rows())
+                .map(|query| sql(cassie, session, query))
                 .collect::<Vec<_>>();
             sql(cassie, session, "CREATE MATERIALIZED PROJECTION ap_identity_projection WITH (analytical = true) AS SELECT tenant,amount FROM ap_identity");
             // Act
             for (query, expected) in queries.iter().zip(baseline) {
                 let rewritten = sql(cassie, session, query);
                 // Assert
-                assert_eq!(rewritten.rows(), expected, "{query}");
+                assert_eq!(rewritten.rows(), expected.rows(), "{query}");
             }
         });
     }

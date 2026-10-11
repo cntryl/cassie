@@ -25,12 +25,13 @@ pub fn sql(fixture: &Fixture, statement: &str) -> QueryResult {
 }
 
 pub fn assert_result(
-    mut actual: QueryResult,
+    actual: QueryResult,
     command: &str,
     columns: &[(&str, bool)],
     expected: &[Vec<Value>],
 ) {
-    actual.rows().sort_by_key(|row| match row.first() {
+    let mut actual_rows = actual.rows().to_vec();
+    actual_rows.sort_by_key(|row| match row.first() {
         Some(Value::Int64(id)) => *id,
         other => panic!("literal BIGINT id: {other:?}"),
     });
@@ -43,7 +44,7 @@ pub fn assert_result(
             .collect::<Vec<_>>(),
         "every literal ColumnMeta field"
     );
-    assert_eq!(actual.rows().as_slice(), expected, "exact returned multiset");
+    assert_eq!(actual_rows.as_slice(), expected, "exact returned multiset");
 }
 
 pub fn assert_fresh_rows(

@@ -436,7 +436,7 @@ mod sql_text_utf8_offsets {
                     session,
                     &format!("SELECT name FROM utf8_names WHERE name = '{name}'"),
                 )
-                .rows()
+                .rows().to_vec()
             });
 
             // Assert
@@ -508,7 +508,7 @@ mod sql_text_utf8_offsets {
             ];
 
             // Act
-            let created = statements.map(|sql| run(cassie, session, sql).command());
+            let created = statements.map(|sql| run(cassie, session, sql).command().to_owned());
             run(
                 cassie,
                 session,
@@ -5507,7 +5507,7 @@ mod ddl_check_literals {
     }
 
     pub(super) fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows()
+        cassie.execute_sql(session, sql, vec![]).expect(sql).rows().to_vec()
     }
 
     #[test]
@@ -5823,7 +5823,7 @@ mod typed_parameter_canonicalization {
         cassie
             .execute_sql(&session, sql, vec![string(param)])
             .expect("parameterized query")
-            .rows()
+            .rows().to_vec()
     }
 
     #[test]

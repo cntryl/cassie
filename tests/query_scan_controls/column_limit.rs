@@ -15,6 +15,7 @@ fn should_stop_encoded_projection_at_limit_before_retaining_later_segments() {
     // Assert
     let result = result.expect("LIMIT must not retain unused encoded segments");
     assert_eq!(result.rows(), vec![vec![Value::String(payload)]]);
+    drop(result);
     assert_eq!(
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
@@ -35,6 +36,7 @@ fn should_read_all_encoded_projection_rows_without_retaining_all_segment_scratch
     // Assert
     let result = result.expect("bounded output must not require retaining all encoded scratch");
     assert_eq!(result.rows(), vec![vec![Value::String(payload)]; 8]);
+    drop(result);
     assert_eq!(
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)

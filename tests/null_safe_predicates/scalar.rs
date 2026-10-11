@@ -24,7 +24,7 @@ fn should_return_boolean_for_every_null_safe_truth_table_pair() {
             vec![vec![Value::Bool(distinct), Value::Bool(!distinct)]]
         );
         assert_eq!(result.columns().len(), 2);
-        for column in &result.columns() {
+        for column in result.columns() {
             assert_eq!(
                 (column.type_oid, column.typlen, column.atttypmod),
                 (16, 1, -1)

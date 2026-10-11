@@ -426,7 +426,7 @@ fn execute_rows(
     cassie
         .execute_sql(session, sql, vec![])
         .unwrap_or_else(|error| panic!("execute adaptive evidence query {sql}: {error}"))
-        .rows()
+        .rows().to_vec()
 }
 
 fn config_json(config: &CassieRuntimeConfig) -> JsonValue {

@@ -62,7 +62,7 @@ pub fn plan_cache_hit(ctx: &BenchContext) -> Ready<usize> {
         .cassie
         .execute_sql(&ctx.session, sql, params)
         .expect("plan cache hit");
-    ready(std::hint::black_box(result.rows.len()))
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 pub fn plan_cache_miss(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
@@ -71,7 +71,7 @@ pub fn plan_cache_miss(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
         .cassie
         .execute_sql(&ctx.session, &statement.sql, statement.params)
         .expect("plan cache miss");
-    ready(std::hint::black_box(result.rows.len()))
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 pub fn execute_sql(ctx: &BenchContext, sql: &str) -> Ready<usize> {
@@ -83,7 +83,7 @@ pub fn execute_sql_with_params(ctx: &BenchContext, sql: &str, params: Vec<Value>
         .cassie
         .execute_sql(&ctx.session, sql, params)
         .expect("execute sql");
-    ready(std::hint::black_box(result.rows.len()))
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 pub fn recursive_cte_query(ctx: &BenchContext, upper_bound: usize) -> Ready<usize> {
@@ -93,8 +93,8 @@ pub fn recursive_cte_query(ctx: &BenchContext, upper_bound: usize) -> Ready<usiz
         .execute_sql(&ctx.session, &statement.sql, statement.params)
         .expect("execute recursive CTE benchmark");
     let expected_rows = recursive_cte_result_rows(upper_bound);
-    assert_eq!(result.rows.len(), expected_rows);
-    ready(std::hint::black_box(result.rows.len()))
+    assert_eq!(result.rows().len(), expected_rows);
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 #[must_use]
@@ -154,9 +154,9 @@ pub fn window_frame_query(ctx: &BenchContext, expected_rows: usize) -> Ready<usi
             vec![],
         )
         .expect("execute window frame benchmark");
-    assert_eq!(result.rows.len(), expected_rows);
-    assert!(result.rows.iter().all(|row| row.len() == 4));
-    ready(std::hint::black_box(result.rows.len()))
+    assert_eq!(result.rows().len(), expected_rows);
+    assert!(result.rows().iter().all(|row| row.len() == 4));
+    ready(std::hint::black_box(result.rows().len()))
 }
 
 pub fn simple_10k_query_breakdown(ctx: &BenchContext) -> Ready<QueryBreakdownMicros> {
@@ -209,7 +209,7 @@ pub fn simple_10k_query_breakdown(ctx: &BenchContext) -> Ready<QueryBreakdownMic
     let encode_us = micros(encode_started.elapsed());
     let execution_breakdown = execute_output.breakdown;
 
-    std::hint::black_box(total_result.rows.len());
+    std::hint::black_box(total_result.rows().len());
     std::hint::black_box(encoded.len());
 
     ready(QueryBreakdownMicros {

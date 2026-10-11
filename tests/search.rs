@@ -2444,7 +2444,7 @@ mod scored_field_case {
     }
 
     fn scores(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).expect(sql).rows()
+        cassie.execute_sql(session, sql, vec![]).expect(sql).rows().to_vec()
     }
 
     #[test]
@@ -2547,7 +2547,7 @@ mod scored_field_case {
         );
 
         // Assert
-        let upper = upper.map(|result| result.rows()).ok();
+        let upper = upper.map(|result| result.rows().to_vec()).ok();
         assert_eq!(upper, Some(lower));
         let _ = std::fs::remove_dir_all(path);
     }
@@ -2599,19 +2599,21 @@ mod scored_read_equivalence {
                 "CREATE INDEX partial_search_body ON partial_search USING fulltext(body)",
             );
             let query = "SELECT body,status,search_score(body,'alpha') AS score FROM partial_search WHERE search(body,'alpha') AND status = 'active'";
-            let mut baseline = sql(cassie, session, query);
-            baseline.rows().sort_by_key(|row| format!("{row:?}"));
+            let baseline = sql(cassie, session, query);
+            let mut baseline_rows = baseline.rows().to_vec();
+            baseline_rows.sort_by_key(|row| format!("{row:?}"));
             sql(
                 cassie,
                 session,
                 "CREATE INDEX partial_search_status ON partial_search(status) WHERE tier = 'gold'",
             );
             // Act
-            let mut narrowed = sql(cassie, session, query);
-            narrowed.rows().sort_by_key(|row| format!("{row:?}"));
+            let narrowed = sql(cassie, session, query);
+            let mut narrowed_rows = narrowed.rows().to_vec();
+            narrowed_rows.sort_by_key(|row| format!("{row:?}"));
             // Assert
             assert_eq!(baseline.rows().len(), 2);
-            assert_eq!(narrowed.rows(), baseline.rows());
+            assert_eq!(narrowed_rows, baseline_rows);
         });
     }
 
@@ -2689,19 +2691,21 @@ mod scored_read_equivalence {
                 "CREATE INDEX canonical_search_body ON canonical_search USING fulltext(body)",
             );
             let query = "SELECT body,search_score(body,'alpha') AS score FROM canonical_search WHERE search(body,'alpha') AND code = '2024-01-01T00:00:00Z'";
-            let mut baseline = sql(cassie, session, query);
-            baseline.rows().sort_by_key(|row| format!("{row:?}"));
+            let baseline = sql(cassie, session, query);
+            let mut baseline_rows = baseline.rows().to_vec();
+            baseline_rows.sort_by_key(|row| format!("{row:?}"));
             sql(
                 cassie,
                 session,
                 "CREATE INDEX canonical_search_code ON canonical_search(code)",
             );
             // Act
-            let mut narrowed = sql(cassie, session, query);
-            narrowed.rows().sort_by_key(|row| format!("{row:?}"));
+            let narrowed = sql(cassie, session, query);
+            let mut narrowed_rows = narrowed.rows().to_vec();
+            narrowed_rows.sort_by_key(|row| format!("{row:?}"));
             // Assert
             assert_eq!(baseline.rows().len(), 2);
-            assert_eq!(narrowed.rows(), baseline.rows());
+            assert_eq!(narrowed_rows, baseline_rows);
         });
     }
 }
@@ -2726,7 +2730,7 @@ mod fulltext_analyzer_consistency {
         cassie
             .execute_sql(&session, sql, params)
             .expect("statement should execute")
-            .rows()
+            .rows().to_vec()
     }
 
     fn scored_ids(rows: &[Vec<Value>]) -> Vec<(String, f64)> {

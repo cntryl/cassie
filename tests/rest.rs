@@ -302,9 +302,17 @@ mod vector_memory_controls {
         let cached =
             cassie::rest::search::vector_search(&cassie, "docs", request).expect("cached search");
         let metrics = cassie.metrics();
+        let row_count = cold.rows().len();
+        let matching_rows = cold.rows() == cached.rows();
+        let serializable = serde_json::to_value(&cached).is_ok();
+        drop(cold);
+        drop(cached);
+        let after_result_retirement = cassie.metrics();
+        drop(cassie);
+        std::fs::remove_dir_all(path).expect("cleanup fixture");
 
         // Assert
-        assert_eq!(cold.rows().len(), 10);
+        assert_eq!(row_count, 10);
         assert_eq!(
             after_cold["vector"]["count"]
                 .as_u64()
@@ -319,17 +327,25 @@ mod vector_memory_controls {
             metrics["vector"]["count"], after_cold["vector"]["count"],
             "second L2 request must use the result cache rather than execute the row scorer"
         );
-        assert_eq!(cold.rows(), cached.rows());
-        assert!(serde_json::to_value(cached).is_ok());
+        assert!(matching_rows);
+        assert!(serializable);
         assert!(
             metrics["query"]["peak_accounted_memory_bytes"]
                 .as_u64()
                 .expect("peak")
                 > 0
         );
-        assert_eq!(metrics["query"]["current_accounted_memory_bytes"], 0);
-        drop(cassie);
-        std::fs::remove_dir_all(path).expect("cleanup fixture");
+        assert!(
+            metrics["query"]["current_accounted_memory_bytes"]
+                .as_u64()
+                .expect("live result memory")
+                > 0
+        );
+        assert_eq!(
+            after_result_retirement["query"]["current_accounted_memory_bytes"],
+            0,
+            "retiring DTOs must release the latest requesting query's owned buffers"
+        );
     }
 
     #[test]
@@ -380,15 +396,22 @@ mod vector_memory_controls {
             br#"{"field":"embedding","query":"query","metric":"l2","limit":1}"#,
         )
         .expect("controlled local search");
-
-        // Assert
-        assert_eq!(result.rows()[0][0], serde_json::json!("row-00"));
-        assert_eq!(
-            cassie.metrics()["query"]["current_accounted_memory_bytes"],
-            0
-        );
+        let matching_row = result.rows()[0][0] == serde_json::json!("row-00");
+        let live = cassie.metrics();
+        drop(result);
+        let retired = cassie.metrics();
         drop(cassie);
         std::fs::remove_dir_all(path).expect("cleanup fixture");
+
+        // Assert
+        assert!(matching_row);
+        assert!(
+            live["query"]["current_accounted_memory_bytes"]
+                .as_u64()
+                .expect("live result memory")
+                > 0
+        );
+        assert_eq!(retired["query"]["current_accounted_memory_bytes"], 0);
     }
 }
 // Shared fixtures live in tests/support; former test targets remain named modules.
@@ -902,7 +925,7 @@ mod rest {
             cassie
                 .execute_sql(&session, sql, Vec::new())
                 .expect("select")
-                .rows()
+                .rows().to_vec()
         };
 
         // Assert

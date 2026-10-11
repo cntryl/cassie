@@ -69,6 +69,7 @@ fn should_match_existing_typed_outer_join_row_semantics() {
         native.cassie.metrics()["joins"]["last_strategy"],
         "typed_hash"
     );
+    drop(native_results);
     assert_eq!(
         native.cassie.metrics()["query"]["current_accounted_memory_bytes"],
         0

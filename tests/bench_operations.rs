@@ -4950,7 +4950,7 @@ mod benchmark_kernels {
                 ],
             )
             .expect("expand graph across fixture batch boundary")
-            .rows();
+            .rows().to_vec();
         let graph_after = context.cassie.metrics();
         assert_eq!(
             graph_rows,

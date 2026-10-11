@@ -1894,7 +1894,7 @@ mod catalog_orm_metadata {
 
     fn query_rows(cassie: &Cassie, sql: &str) -> Vec<Vec<Value>> {
         let session = cassie.create_session("tester", None);
-        cassie.execute_sql(&session, sql, vec![]).unwrap().rows()
+        cassie.execute_sql(&session, sql, vec![]).unwrap().rows().to_vec()
     }
 
     fn collect_orm_metadata_rows(cassie: &Cassie) -> OrmMetadataRows {
@@ -2929,7 +2929,7 @@ mod database_scope {
         session: &cassie::app::CassieSession,
         sql: &str,
     ) -> Vec<Vec<Value>> {
-        cassie.execute_sql(session, sql, vec![]).unwrap().rows()
+        cassie.execute_sql(session, sql, vec![]).unwrap().rows().to_vec()
     }
 
     fn seed_projection_catalog_filtering_fixtures(
@@ -7212,7 +7212,7 @@ mod search_path_resolution {
         let rows = cassie
             .execute_sql(&session, "SELECT id FROM reporting.archive", vec![])
             .expect("renamed table stays in reporting")
-            .rows();
+            .rows().to_vec();
         assert_eq!(rows, vec![vec![Value::Int64(7)]]);
         assert!(cassie
             .execute_sql(&session, "SELECT id FROM public.archive", vec![])
@@ -7305,7 +7305,7 @@ mod search_path_resolution {
                 vec![],
             )
             .expect("query pg_class")
-            .rows();
+            .rows().to_vec();
 
         // Assert
         assert!(rows.is_empty(), "unqualified pg_class must be the catalog");
@@ -7325,7 +7325,7 @@ mod search_path_resolution {
         let current = cassie
             .execute_sql(&session, "SELECT current_schema()", vec![])
             .expect("current_schema")
-            .rows();
+            .rows().to_vec();
         assert_eq!(current, vec![vec![Value::String("public".into())]]);
         run(&cassie, &session, "CREATE TABLE lands_in_public (id INT)");
         assert!(cassie

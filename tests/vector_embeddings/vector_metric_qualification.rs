@@ -93,6 +93,7 @@ fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() 
     assert_eq!(refreshed.rows(), cold.rows());
     assert_eq!(stale.rows(), cold.rows());
     assert_eq!(missing.rows(), cold.rows());
+    drop((stale, missing, refreshed, cold));
     assert_eq!(
         cassie.metrics()["query"]["current_accounted_memory_bytes"],
         0
@@ -302,6 +303,7 @@ fn should_search_explicit_sql_vectors_without_sources_when_normalized_sidecars_a
             1,
             "{metric} must find explicit SQL vector despite absent source"
         );
+        drop((stored, result));
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"],
             0
@@ -432,7 +434,8 @@ fn should_fall_back_to_authoritative_vectors_for_partial_sidecars_or_missing_sta
                         .expect("fallback counter"),
                 5
             );
-            assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+            drop(result);
+            assert_eq!(cassie.metrics()["query"]["current_accounted_memory_bytes"], 0);
             drop(cassie);
             std::fs::remove_dir_all(path).expect("cleanup");
         }
@@ -503,6 +506,7 @@ fn should_score_all_vectors_when_partial_sidecar_count_matches_source_cardinalit
                 .map(|row| row.0.as_str())
                 .collect::<Vec<_>>()
         );
+        drop(result);
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"],
             0

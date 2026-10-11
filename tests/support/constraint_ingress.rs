@@ -50,7 +50,7 @@ impl Fixture {
     }
 
     pub(super) fn rows(&self, sql: &str) -> Vec<Vec<Value>> {
-        self.execute(sql).expect("select rows").rows()
+        self.execute(sql).expect("select rows").rows().to_vec()
     }
 
     pub(super) fn copy(&self, columns: &[&str], payload: &[u8]) -> Result<usize, CassieError> {

@@ -80,7 +80,7 @@ fn should_match_positive_variant_literal_rows() {
             );
         }
         if case.comparison == "bag" {
-            let mut remaining = result.rows();
+            let mut remaining = result.rows().to_vec();
             for row in &case.rows {
                 let index = remaining
                     .iter()

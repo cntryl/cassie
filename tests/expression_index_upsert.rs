@@ -35,7 +35,7 @@ fn rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> 
     cassie
         .execute_sql(session, sql, vec![])
         .expect("query rows")
-        .rows()
+        .rows().to_vec()
 }
 
 fn seed_expression_index(cassie: &Cassie, session: &CassieSession, row_count: usize) {

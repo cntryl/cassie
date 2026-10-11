@@ -266,3 +266,7 @@ fn read_catalog<'a, T>(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "function_input_tests.rs"]
+mod tests;

@@ -23,7 +23,6 @@ struct WidthObservation {
     width: &'static str,
     indexed: ScenarioResults,
     baseline: ScenarioResults,
-    retained_metrics: JsonValue,
     metrics: JsonValue,
     plan: String,
     sidecars_before_retention: usize,
@@ -113,20 +112,18 @@ impl TimeSeriesWidthEvidence {
                     .unwrap_or_default()
                     > 0
             );
+            assert_eq!(case.metrics["execution_result_cache"]["entries"], 1);
             assert!(
-                case.retained_metrics["execution_result_cache"]["entries"]
-                    .as_u64()
-                    .expect("retained cache entries")
-                    > 0
-            );
-            assert!(
-                case.retained_metrics["query"]["current_accounted_memory_bytes"]
+                case.metrics["query"]["current_accounted_memory_bytes"]
                     .as_u64()
                     .expect("retained query bytes")
                     > 0
             );
-            assert_eq!(case.metrics["execution_result_cache"]["entries"], 0);
-            assert_eq!(case.metrics["query"]["current_accounted_memory_bytes"], 0);
+            assert_eq!(
+                case.metrics["query"]["current_accounted_memory_bytes"],
+                case.metrics["execution_result_cache"]["accounted_retained_bytes"],
+                "the final cold SELECT retains exactly its cache-owned capacity"
+            );
             assert_eq!(case.metrics["runtime"]["active_operator_workers"], 0);
         }
     }
@@ -182,8 +179,6 @@ fn observe_width(case: &WidthCase) -> WidthObservation {
     baseline_results.after_retention = all_rows(&baseline, &baseline_session);
     let sidecars_after_retention = time_series_sidecar_records(&indexed, TABLE, INDEX).len();
     let rows_after_retention = indexed_results.after_retention.len();
-    let retained_metrics = indexed.metrics();
-    indexed.runtime.invalidate_execution_result_cache();
     let metrics = indexed.metrics();
 
     drop(indexed_session);
@@ -197,7 +192,6 @@ fn observe_width(case: &WidthCase) -> WidthObservation {
         width: case.width,
         indexed: indexed_results,
         baseline: baseline_results,
-        retained_metrics,
         metrics,
         plan,
         sidecars_before_retention,

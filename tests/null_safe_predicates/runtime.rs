@@ -104,23 +104,19 @@ fn should_preserve_null_safe_transaction_overlay_visibility() {
         fixture.rows("SELECT id FROM overlay_source WHERE n IS DISTINCT FROM 7"),
         Vec::<Vec<Value>>::new()
     );
-    let retained = fixture.cassie.metrics();
+    let snapshot = fixture.cassie.metrics();
+    assert_eq!(snapshot["execution_result_cache"]["entries"], 1);
     assert!(
-        retained["execution_result_cache"]["entries"]
-            .as_u64()
-            .expect("cache entry count")
-            > 0
-    );
-    assert!(
-        retained["query"]["current_accounted_memory_bytes"]
+        snapshot["query"]["current_accounted_memory_bytes"]
             .as_u64()
             .expect("retained query bytes")
             > 0
     );
-    fixture.cassie.runtime.invalidate_execution_result_cache();
-    let snapshot = fixture.cassie.metrics();
-    assert_eq!(snapshot["execution_result_cache"]["entries"], 0);
-    assert_eq!(snapshot["query"]["current_accounted_memory_bytes"], 0);
+    assert_eq!(
+        snapshot["query"]["current_accounted_memory_bytes"],
+        snapshot["execution_result_cache"]["accounted_retained_bytes"],
+        "the final cold SELECT retains exactly its cache-owned capacity"
+    );
     assert_eq!(snapshot["runtime"]["running_queries"], 0);
     assert_eq!(snapshot["runtime"]["active_operator_workers"], 0);
 }

@@ -2067,7 +2067,10 @@ mod hnsw_indexes {
         );
 
         // Assert
-        let rows = result.as_ref().map(cassie::executor::QueryResult::rows).ok();
+        let rows = result
+            .as_ref()
+            .map(cassie::executor::QueryResult::rows)
+            .ok();
         assert_eq!(
             rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
             Some(Value::String("near".to_string()))
@@ -5087,7 +5090,10 @@ mod ivfflat_indexes {
         );
 
         // Assert
-        let rows = result.as_ref().map(cassie::executor::QueryResult::rows).ok();
+        let rows = result
+            .as_ref()
+            .map(cassie::executor::QueryResult::rows)
+            .ok();
         assert_eq!(
             rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
             Some(Value::String("near".to_string()))
@@ -6985,9 +6991,7 @@ mod vector_query_stability {
             .expect("indexed IVFFlat query");
 
         // Assert
-        let exact_ids = result_ids(exact.rows())
-            .into_iter()
-            .collect::<HashSet<_>>();
+        let exact_ids = result_ids(exact.rows()).into_iter().collect::<HashSet<_>>();
         let overlap = result_ids(indexed.rows())
             .into_iter()
             .filter(|id| exact_ids.contains(id))

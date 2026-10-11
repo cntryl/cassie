@@ -1,6 +1,8 @@
 // Consolidated integration suite: bench_operations.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
+#[path = "bench_operations/ann_recall_validation.rs"]
+mod ann_recall_validation;
 #[path = "../benches/support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "../benches/support/stress.rs"]

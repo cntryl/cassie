@@ -1,10 +1,15 @@
-use crate::app::{Cassie, CassieError, CassieSession, QueryExplainOutput, QueryExplainPlan};
+use crate::app::{Cassie, CassieError, CassieSession};
 use crate::catalog::IndexKind;
 use crate::catalog::RelationId;
-use crate::executor::{ColumnMeta, QueryResult};
-use crate::runtime::QueryCancellationHandle;
+use crate::executor::ColumnMeta;
+use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use crate::sql::ast::{QueryStatement, TransactionAction};
-use crate::types::json::try_value_to_json;
+
+mod owned;
+pub use owned::{RestQueryExplainResponse, RestQueryResult};
+
+#[cfg(test)]
+mod owned_tests;
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -27,7 +32,7 @@ pub struct QueryExplainRequest {
     pub operation_id: Option<uuid::Uuid>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct RestColumnMeta {
     pub name: String,
@@ -37,23 +42,6 @@ pub struct RestColumnMeta {
     pub atttypmod: i32,
     pub format_code: i16,
     pub nullable: bool,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct RestQueryResult {
-    pub columns: Vec<RestColumnMeta>,
-    pub rows: Vec<Vec<serde_json::Value>>,
-    pub command: String,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct RestQueryExplainResponse {
-    pub columns: Vec<RestColumnMeta>,
-    pub rows: Vec<Vec<serde_json::Value>>,
-    pub command: String,
-    pub plan: QueryExplainPlan,
 }
 
 #[derive(serde::Serialize)]
@@ -125,11 +113,25 @@ pub fn execute_with_session_and_cancellation(
     body: &[u8],
     cancellation: &QueryCancellationHandle,
 ) -> Result<RestQueryResult, CassieError> {
+    execute_converted(cassie, session, body, cancellation, |result, _| Ok(result))
+}
+
+pub(crate) fn execute_converted<T>(
+    cassie: &Cassie,
+    session: &CassieSession,
+    body: &[u8],
+    cancellation: &QueryCancellationHandle,
+    convert: impl FnOnce(RestQueryResult, &QueryExecutionControls) -> Result<T, CassieError>,
+) -> Result<T, CassieError> {
     let request: QueryExecuteRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
-    cassie
-        .execute_sql_with_cancellation(session, request.sql.as_str(), Vec::new(), cancellation)
-        .and_then(RestQueryResult::try_from)
+    cassie.execute_sql_with_cancellation_converted(
+        session, request.sql.as_str(), Vec::new(), cancellation,
+        |result, controls| {
+            let result = RestQueryResult::try_from_result_with_controls(result, controls)?;
+            convert(result, controls)
+        },
+    )
 }
 
 /// # Errors
@@ -205,11 +207,25 @@ pub(crate) fn explain_with_session_and_cancellation(
     body: &[u8],
     cancellation: &QueryCancellationHandle,
 ) -> Result<RestQueryExplainResponse, CassieError> {
+    explain_converted(cassie, session, body, cancellation, |result, _| Ok(result))
+}
+
+pub(crate) fn explain_converted<T>(
+    cassie: &Cassie,
+    session: &CassieSession,
+    body: &[u8],
+    cancellation: &QueryCancellationHandle,
+    convert: impl FnOnce(RestQueryExplainResponse, &QueryExecutionControls) -> Result<T, CassieError>,
+) -> Result<T, CassieError> {
     let request: QueryExplainRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
-    cassie
-        .explain_sql_with_cancellation(session, request.sql.as_str(), Vec::new(), cancellation)
-        .and_then(RestQueryExplainResponse::try_from)
+    cassie.explain_sql_with_cancellation_converted(
+        session, request.sql.as_str(), Vec::new(), cancellation,
+        |result, controls| {
+            let result = RestQueryExplainResponse::try_from_output_with_controls(result, controls)?;
+            convert(result, controls)
+        },
+    )
 }
 
 #[must_use]
@@ -541,53 +557,14 @@ impl From<ColumnMeta> for RestColumnMeta {
     }
 }
 
-impl TryFrom<QueryResult> for RestQueryResult {
-    type Error = CassieError;
-
-    fn try_from(result: QueryResult) -> Result<Self, Self::Error> {
-        let rows = result
-            .rows
-            .into_iter()
-            .map(|row| {
-                row.into_iter()
-                    .map(try_value_to_json)
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(rest_json_conversion_error)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self {
-            columns: result
-                .columns
-                .into_iter()
-                .map(RestColumnMeta::from)
-                .collect(),
-            rows,
-            command: result.command,
-        })
-    }
-}
-
-impl TryFrom<QueryExplainOutput> for RestQueryExplainResponse {
-    type Error = CassieError;
-
-    fn try_from(output: QueryExplainOutput) -> Result<Self, Self::Error> {
-        let result = RestQueryResult::try_from(output.result)?;
-        Ok(Self {
-            columns: result.columns,
-            rows: result.rows,
-            command: result.command,
-            plan: output.plan,
-        })
-    }
-}
-
 fn rest_json_conversion_error(error: &'static str) -> CassieError {
     CassieError::Execution(format!("REST query result {error}"))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{QueryResult, RestQueryResult};
+    use super::RestQueryResult;
+    use crate::executor::QueryResult;
     use crate::types::Value;
 
     #[test]
@@ -597,22 +574,27 @@ mod tests {
 
         // Act
         let outputs = shapes.map(|(row_count, column_count)| {
-            RestQueryResult::try_from(QueryResult {
-                columns: Vec::new(),
-                rows: vec![vec![Value::Int64(1); column_count]; row_count],
-                command: "SELECT".to_owned(),
-            })
+            let controls = crate::runtime::QueryExecutionControls::from_limits(
+                &crate::config::CassieRuntimeLimits::default(),
+                std::time::Instant::now(),
+            );
+            let mut builder = QueryResult::try_builder(&controls).expect("result builder");
+            for _ in 0..row_count {
+                builder.try_push_row(&vec![Value::Int64(1); column_count]).expect("row");
+            }
+            builder.try_set_command("SELECT").expect("command");
+            RestQueryResult::try_from(builder.finish().expect("managed result"))
             .expect("finite output")
         });
 
         // Assert
         for (output, (row_count, column_count)) in outputs.iter().zip(shapes) {
-            assert_eq!(output.rows.len(), row_count);
+            assert_eq!(output.rows().len(), row_count);
             assert!(
-                output.rows.capacity() <= row_count,
+                output.row_capacity() <= row_count,
                 "outer row capacity exceeds the query reservation"
             );
-            for row in &output.rows {
+            for row in output.rows() {
                 assert_eq!(row.len(), column_count);
                 assert!(
                     row.capacity() <= column_count,

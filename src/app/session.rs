@@ -3,6 +3,7 @@ pub(crate) use statement_read::{SessionReadScope, StatementOverlay};
 
 #[path = "session/transaction_origin.rs"]
 mod transaction_origin;
+mod owned_setting;
 
 use super::session_settings::SessionSettings;
 use super::{

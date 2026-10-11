@@ -104,17 +104,17 @@ impl Cassie {
             );
         }
         if let QueryStatement::Transaction(statement) = &parsed.statement {
-            return self.execute_transaction_statement(session, statement);
+            return self.execute_transaction_statement(session, statement, controls);
         }
 
-        let mut cache_context = self.query_cache_context(
+        let mut cache_context = self.query_cache_context_with_controls(
             session,
             &parsed,
             sql_fingerprint,
             &params,
-            mode,
-            parameter_type_oids,
-        );
+            (mode, parameter_type_oids),
+            controls,
+        )?;
         if bound_parameters {
             // Physical access paths depend on actual bounds, while the plan key
             // deliberately contains parameter shapes rather than values.
@@ -144,12 +144,12 @@ impl Cassie {
         let result_cache_bypass = self.execution_result_cache_bypass_reason(session, &physical);
         if let Some(reason) = result_cache_bypass {
             self.runtime.record_execution_result_cache_bypass(reason);
-        } else if let Some(mut cached) = self.try_execution_result_cache(&cache_context) {
+        } else if let Some(mut cached) = self.try_execution_result_cache(&cache_context, controls)? {
             if let Some(key) = cache_context.cache_key.as_ref() {
                 self.observe_query_plan_usage(key, &physical, &provenance)?;
             }
             if let Some(columns) = output_columns {
-                cached.columns = columns;
+                cached = cached.try_with_columns(controls, &columns)?;
             }
             return Ok(cached);
         }
@@ -172,7 +172,7 @@ impl Cassie {
 
         let mut result = execution?;
         if let Some(columns) = output_columns {
-            result.columns = columns;
+            result = result.try_with_columns(controls, &columns)?;
         }
 
         Self::validate_result_limit(&result, controls)?;

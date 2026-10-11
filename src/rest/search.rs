@@ -33,6 +33,15 @@ pub fn vector_search(
     collection: &str,
     body: &[u8],
 ) -> Result<RestQueryResult, CassieError> {
+    vector_search_converted(cassie, collection, body, |result, _| Ok(result))
+}
+
+pub(crate) fn vector_search_converted<T>(
+    cassie: &Cassie,
+    collection: &str,
+    body: &[u8],
+    convert: impl FnOnce(RestQueryResult, &crate::runtime::QueryExecutionControls) -> Result<T, CassieError>,
+) -> Result<T, CassieError> {
     let request: SearchRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
 
@@ -63,6 +72,9 @@ pub fn vector_search(
             limit,
             offset,
         },
-        RestQueryResult::try_from,
+        |result, controls| {
+            let result = RestQueryResult::try_from_result_with_controls(result, controls)?;
+            convert(result, controls)
+        },
     )
 }

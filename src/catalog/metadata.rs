@@ -7,17 +7,19 @@ use parking_lot::RwLock;
 use crate::app::CassieError;
 use crate::catalog::{
     local_name, name_matches, parse_name, CollectionCardinalityStats, CollectionMeta,
-    CollectionSchema, CollectionStorageMode, DatabaseMeta, FieldConstraint, FieldMeta,
-    FunctionMeta, GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta, NamespaceMeta,
-    OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
-    ProjectionConsistencyReportMeta, ProjectionMeta, ProjectionRepairReportMeta,
-    RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
+    CollectionSchema, CollectionStorageMode, DatabaseMeta, FieldConstraint, FunctionMeta,
+    GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta, NamespaceMeta, OperationalAssignmentMeta,
+    ProcedureMeta, ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
+    ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
-use crate::types::{DataType, Schema};
+use crate::types::DataType;
 
 #[path = "metadata/controlled_schema.rs"]
 mod controlled_schema;
+use controlled_schema::view_schema_to_collection_schema;
+#[path = "metadata/explain_metadata.rs"]
+mod explain_metadata;
 
 #[derive(Debug, Clone)]
 pub struct Catalog {
@@ -978,21 +980,5 @@ impl Catalog {
 impl Default for Catalog {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-fn view_schema_to_collection_schema(name: &str, schema: &Schema) -> CollectionSchema {
-    CollectionSchema {
-        collection: name.to_string(),
-        fields: schema
-            .fields
-            .iter()
-            .map(|field| FieldMeta {
-                name: field.name.clone(),
-                data_type: field.data_type.clone(),
-                is_indexed: false,
-                boost: None,
-            })
-            .collect(),
     }
 }

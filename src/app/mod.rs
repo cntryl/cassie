@@ -114,6 +114,8 @@ mod operational;
 mod portal_reads;
 pub(crate) use portal_reads::PortalReadSpec;
 mod query;
+mod query_cache_keys;
+mod query_lifecycle;
 mod query_bound;
 mod query_describe;
 mod query_explain;
@@ -147,3 +149,5 @@ pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};
 
 #[cfg(test)]
 mod statement_read_tests;
+#[cfg(test)]
+mod query_result_cache_key_tests;

@@ -16,6 +16,7 @@ pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,
     pub(super) cache_key: Option<PlanCacheKey>,
     pub(super) exec_cache_key: Option<crate::runtime::ExecutionResultCacheKey>,
+    _key_memory: Option<crate::runtime::QueryMemoryReservation>,
 }
 
 pub(super) struct QueryFeedbackCapture {
@@ -255,46 +256,6 @@ impl Cassie {
         self.describe_parsed_statement(parsed, sql_fingerprint)
     }
 
-    fn execute_sql_with_mode_and_cancellation(
-        &self,
-        session: &CassieSession,
-        sql: &str,
-        params: Vec<crate::types::Value>,
-        mode: ExecutionMode,
-        cancellation: QueryCancellationHandle,
-    ) -> Result<QueryResult, CassieError> {
-        let query_started = Instant::now();
-        let Some(running_guard) = self.runtime.try_begin_running_query() else {
-            return Err(CassieError::Execution(
-                "query admission exhausted".to_string(),
-            ));
-        };
-        let controls = QueryExecutionControls::with_cancellation(
-            &self.runtime.limits(),
-            query_started,
-            cancellation,
-        );
-        let result = self.execute_sql_core(session, sql, params, mode, &controls);
-        let elapsed = query_started.elapsed();
-        self.runtime.record_query_memory(&controls);
-
-        match &result {
-            Ok(result) => self
-                .runtime
-                .record_query_success(elapsed, result.rows.len()),
-            Err(error) => {
-                self.runtime.record_query_error(elapsed, error);
-                if session.is_transaction_active() {
-                    session.mark_transaction_failed();
-                }
-            }
-        }
-
-        drop(running_guard);
-        let _ = self.run_deferred_schema_cleanup();
-        result
-    }
-
     pub(crate) fn execute_sql_with_controls(
         &self,
         session: &CassieSession,
@@ -306,46 +267,7 @@ impl Cassie {
         self.execute_sql_core(session, sql, params, mode, controls)
     }
 
-    pub(crate) fn explain_sql_with_cancellation(
-        &self,
-        session: &CassieSession,
-        sql: &str,
-        params: Vec<crate::types::Value>,
-        cancellation: &QueryCancellationHandle,
-    ) -> Result<QueryExplainOutput, CassieError> {
-        let query_started = Instant::now();
-        let Some(running_guard) = self.runtime.try_begin_running_query() else {
-            return Err(CassieError::Execution(
-                "query admission exhausted".to_string(),
-            ));
-        };
-        let controls = QueryExecutionControls::with_cancellation(
-            &self.runtime.limits(),
-            query_started,
-            cancellation.clone(),
-        );
-        let result = self.explain_sql_core(session, sql, params, &controls);
-        let elapsed = query_started.elapsed();
-        self.runtime.record_query_memory(&controls);
-
-        match &result {
-            Ok(output) => self
-                .runtime
-                .record_query_success(elapsed, output.result.rows.len()),
-            Err(error) => {
-                self.runtime.record_query_error(elapsed, error);
-                if session.is_transaction_active() {
-                    session.mark_transaction_failed();
-                }
-            }
-        }
-
-        drop(running_guard);
-        let _ = self.run_deferred_schema_cleanup();
-        result
-    }
-
-    fn explain_sql_core(
+    pub(super) fn explain_sql_core(
         &self,
         session: &CassieSession,
         sql: &str,
@@ -396,7 +318,7 @@ impl Cassie {
         )
     }
 
-    fn execute_sql_core(
+    pub(super) fn execute_sql_core(
         &self,
         session: &CassieSession,
         sql: &str,
@@ -449,16 +371,19 @@ impl Cassie {
         Ok(())
     }
 
-    pub(super) fn query_cache_context(
+    pub(super) fn query_cache_context_with_controls(
         &self,
         session: &CassieSession,
         parsed: &crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
         params: &[crate::types::Value],
-        mode: ExecutionMode,
-        parameter_type_oids: &[i32],
-    ) -> QueryCacheContext {
+        parameter_context: (ExecutionMode, &[i32]),
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryCacheContext, CassieError> {
+        controls.check_interruption()?;
+        let (mode, parameter_type_oids) = parameter_context;
         let is_select = Self::is_query_cacheable(&parsed.statement);
+        // Existing compiled-plan inputs remain separate from the admitted SQL result key.
         let cache_key = is_select.then(|| {
             self.plan_cache_key_from_fingerprint(
                 sql_fingerprint,
@@ -468,30 +393,37 @@ impl Cassie {
                 &session.search_path(),
             )
         });
-        let exec_cache_key = is_select.then(|| crate::runtime::ExecutionResultCacheKey {
-            sql_fingerprint,
-            params_hash: crate::runtime::hash_params(params),
-            schema_epoch: self.runtime.schema_epoch(),
-            data_epoch: self.runtime.data_epoch(),
-            user: session.user.clone(),
-            database: session.database.clone(),
-            search_path: session.search_path(),
-            settings_fingerprint: session.settings_fingerprint(),
-            mode,
-        });
-        QueryCacheContext {
+        let (exec_cache_key, key_memory) = if is_select {
+            match self.admitted_execution_result_cache_key(
+                session, sql_fingerprint, params, mode, controls,
+            ) {
+                Ok((key, memory)) => (Some(key), Some(memory)),
+                Err(CassieError::ResourceLimit(_)) => {
+                    self.runtime.record_execution_result_cache_bypass("memory_budget");
+                    (None, None)
+                }
+                Err(error) => return Err(error),
+            }
+        } else {
+            (None, None)
+        };
+        let context = QueryCacheContext {
             is_select,
             cache_key,
             exec_cache_key,
-        }
+            _key_memory: key_memory,
+        };
+        controls.check_interruption()?;
+        Ok(context)
     }
 
     pub(super) fn try_execution_result_cache(
         &self,
         cache_context: &QueryCacheContext,
-    ) -> Option<QueryResult> {
-        let exec_cache_key = cache_context.exec_cache_key.as_ref()?;
-        self.runtime.execution_result_cache_lookup(exec_cache_key)
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<QueryResult>, CassieError> {
+        let Some(exec_cache_key) = cache_context.exec_cache_key.as_ref() else { return Ok(None); };
+        self.runtime.execution_result_cache_lookup_with_controls(exec_cache_key, controls)
     }
 
     pub(super) fn execution_result_cache_bypass_reason(
@@ -645,12 +577,12 @@ impl Cassie {
         result: &QueryResult,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
-        if result.rows.len() <= controls.max_result_rows {
+        if result.row_count() <= controls.max_result_rows {
             return Ok(());
         }
         Err(CassieError::ResourceLimit(format!(
             "query result row limit exceeded: {} > {}",
-            result.rows.len(),
+            result.row_count(),
             controls.max_result_rows
         )))
     }
@@ -678,7 +610,7 @@ impl Cassie {
             .explain_statement_output_with_parameter_oids(
                 session, statement, parameters, analyze, controls,
             )?
-            .result)
+            .into_parts().0)
     }
 
     fn explain_statement_output(
@@ -721,8 +653,8 @@ impl Cassie {
             &self.binding_context_for_session(Some(session)),
             parameter_type_oids,
         )?;
-        let mut plan = super::query_explain::plan_line(self, &physical);
-        let mut structured = super::query_explain::structured_plan(self, &physical);
+        let mut plan = super::query_explain::plan_line(self, &physical, controls)?;
+        let mut structured = super::query_explain::structured_plan(self, &physical, controls)?;
 
         if analyze {
             let report = self.run_explain_analyze(
@@ -732,20 +664,15 @@ impl Cassie {
                 controls,
                 &before.expect("analyze snapshot"),
             )?;
-            append_explain_analyze(&mut plan, &physical, &report);
-            structured.analyze = Some(structured_analyze(&physical, &report));
+            append_explain_analyze(&mut plan, &physical, &report, controls)?;
+            structured = structured.try_with_analyze_with(controls, |allocation| structured_analyze(&physical, &report, allocation))?;
         }
 
-        let result = QueryResult {
-            columns: vec![ColumnMeta::text("QUERY PLAN")],
-            rows: vec![vec![Value::String(plan)]],
-            command: "EXPLAIN".to_string(),
-        };
-
-        Ok(QueryExplainOutput {
-            result,
-            plan: structured,
-        })
+        let mut result = QueryResult::try_builder(controls)?;
+        result.try_push_column(&ColumnMeta::text("QUERY PLAN"))?;
+        result.try_push_row(std::slice::from_ref(plan.value()))?;
+        result.try_set_command("EXPLAIN")?;
+        Ok(QueryExplainOutput::new(result.finish()?, structured))
     }
 
     fn run_explain_analyze(

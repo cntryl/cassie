@@ -2,7 +2,6 @@ use super::query_explain::{
     QueryPlanAnalyze, QueryPlanAnalyzeDiagnostics, QueryPlanOperatorActual,
 };
 use crate::app::{CassieError, QueryResult, RuntimeFeedbackObservation};
-use std::fmt::Write as _;
 
 pub(crate) struct RuntimeFeedbackDeltas {
     pub(crate) storage_reads: u64,
@@ -47,11 +46,11 @@ impl RuntimeFeedbackDeltas {
             rows_in: self.storage_reads.saturating_add(self.candidate_count).max(
                 execution
                     .as_ref()
-                    .map_or(0, |result| result.rows.len() as u64),
+                    .map_or(0, |result| result.row_count() as u64),
             ),
             rows_out: execution
                 .as_ref()
-                .map_or(0, |result| result.rows.len() as u64),
+                .map_or(0, |result| result.row_count() as u64),
             elapsed_ms,
             storage_reads: self.storage_reads,
             storage_writes: self.storage_writes,
@@ -155,8 +154,8 @@ impl ExplainAnalyzeDeltas {
                 .runtime
                 .storage_reads
                 .saturating_add(self.runtime.candidate_count)
-                .max(result.rows.len() as u64),
-            rows_out: result.rows.len() as u64,
+                .max(result.row_count() as u64),
+            rows_out: result.row_count() as u64,
             elapsed_ms,
             storage_reads: self.runtime.storage_reads,
             storage_writes: self.runtime.storage_writes,
@@ -215,17 +214,18 @@ fn search_result_delta(
 }
 
 pub(crate) fn append_explain_analyze(
-    plan: &mut String,
+    plan: &mut super::query_explain::PlanText,
     physical: &crate::planner::physical::PhysicalPlan,
     report: &ExplainAnalyzeReport,
-) {
-    let actual_operators = actual_operator_diagnostics(physical, report);
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(), super::CassieError> {
+    plan.try_append(controls, |allocation| {
+    let actual_operators = actual_operator_diagnostics(physical, report, allocation)?;
     let deltas = &report.deltas;
     let runtime = &deltas.runtime;
-    let _ = write!(
-        plan,
+    allocation.format(format_args!(
         " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{},parallel_aggregations_delta:{},parallel_aggregation_fallback_delta:{},parallel_aggregation_workers_delta:{},parallel_aggregation_groups_delta:{},adaptive_plan_decisions_delta:{},adaptive_plan_selected_delta:{},operator_switch_attempts_delta:{},operator_switch_success_delta:{},operator_switch_skips_delta:{},operator_switch_fallbacks_delta:{}",
-        report.result.rows.len(),
+        report.result.row_count(),
         report.elapsed_ms,
         actual_operators,
         deltas.plan_cache_hits,
@@ -245,73 +245,58 @@ pub(crate) fn append_explain_analyze(
         deltas.operator_switch_successes,
         deltas.operator_switch_skips,
         deltas.operator_switch_fallbacks
-    );
+    ))
+    })
 }
 
 fn actual_operator_diagnostics(
     physical: &crate::planner::physical::PhysicalPlan,
     report: &ExplainAnalyzeReport,
-) -> String {
-    if physical.operators.is_empty() {
-        return "Command".to_string();
+    allocation: &mut super::query_explain::allocation::PlanAllocation<'_>,
+) -> Result<String, super::CassieError> {
+    if physical.operators.is_empty() { return allocation.text("Command"); }
+    let mut operators = allocation.vector(physical.operators.len())?;
+    for operator in &physical.operators {
+        operators.push(allocation.format(format_args!(
+            "{operator:?}:rows_in:{} rows_out:{} elapsed_ms:{} storage_reads:{} storage_writes:{} temp_writes:{} candidates:{} results:{}",
+            physical.estimates.scan_rows,
+            report.result.row_count(), report.elapsed_ms,
+            report.deltas.runtime.storage_reads, report.deltas.runtime.storage_writes,
+            report.deltas.runtime.temp_writes, report.deltas.runtime.candidate_count,
+            report.deltas.runtime.result_count,
+        ))?);
     }
-    physical
-        .operators
-        .iter()
-        .map(|operator| {
-            format!(
-                "{operator:?}:rows_in:{} rows_out:{} elapsed_ms:{} storage_reads:{} storage_writes:{} temp_writes:{} candidates:{} results:{}",
-                physical.estimates.scan_rows,
-                report.result.rows.len(),
-                report.elapsed_ms,
-                report.deltas.runtime.storage_reads,
-                report.deltas.runtime.storage_writes,
-                report.deltas.runtime.temp_writes,
-                report.deltas.runtime.candidate_count,
-                report.deltas.runtime.result_count
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("|")
+    allocation.join(operators.iter().map(String::as_str), "|")
 }
 
 pub(crate) fn structured_analyze(
     physical: &crate::planner::physical::PhysicalPlan,
     report: &ExplainAnalyzeReport,
-) -> QueryPlanAnalyze {
-    QueryPlanAnalyze {
-        actual_rows: report.result.rows.len(),
-        actual_ms: report.elapsed_ms,
-        operator_actuals: structured_operator_actuals(physical, report),
-        diagnostics: structured_analyze_diagnostics(report),
-    }
-}
-
-fn structured_operator_actuals(
-    physical: &crate::planner::physical::PhysicalPlan,
-    report: &ExplainAnalyzeReport,
-) -> Vec<QueryPlanOperatorActual> {
+    allocation: &mut super::query_explain::allocation::PlanAllocation<'_>,
+) -> Result<QueryPlanAnalyze, super::CassieError> {
+    let mut operator_actuals = allocation.vector(physical.operators.len().max(1))?;
     if physical.operators.is_empty() {
-        return vec![operator_actual("Command", physical, report)];
+        operator_actuals.push(operator_actual(allocation.text("Command")?, physical, report));
+    } else {
+        for operator in &physical.operators {
+            operator_actuals.push(operator_actual(allocation.format(format_args!("{operator:?}"))?, physical, report));
+        }
     }
-
-    physical
-        .operators
-        .iter()
-        .map(|operator| operator_actual(format!("{operator:?}"), physical, report))
-        .collect()
+    Ok(QueryPlanAnalyze {
+        actual_rows: report.result.row_count(), actual_ms: report.elapsed_ms,
+        operator_actuals, diagnostics: structured_analyze_diagnostics(report),
+    })
 }
 
 fn operator_actual(
-    operator: impl Into<String>,
+    operator: String,
     physical: &crate::planner::physical::PhysicalPlan,
     report: &ExplainAnalyzeReport,
 ) -> QueryPlanOperatorActual {
     QueryPlanOperatorActual {
-        operator: operator.into(),
+        operator,
         rows_in: physical.estimates.scan_rows,
-        rows_out: report.result.rows.len(),
-        elapsed_ms: report.elapsed_ms,
+        rows_out: report.result.row_count(), elapsed_ms: report.elapsed_ms,
         storage_reads: report.deltas.runtime.storage_reads,
         storage_writes: report.deltas.runtime.storage_writes,
         temp_writes: report.deltas.runtime.temp_writes,

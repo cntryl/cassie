@@ -287,25 +287,16 @@ async fn handle_parse(
         .authorize_statement(&parsed.statement)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let controls = runtime.query_controls(std::time::Instant::now());
-    let admitted = session
-        .with_search_path(|search_path| {
-            let scope = crate::catalog::FunctionInputScope {
-                database: session
-                    .current_database()
-                    .unwrap_or(&cassie.default_database),
-                search_path,
-                user: &session.user,
-                enforce_database_scope: cassie.database_catalog_enforced(),
-            };
-            crate::sql::checked_parse_parameter_types_in_scope(
-                &parsed,
-                &parameter_type_oids,
-                &cassie.catalog,
-                &controls,
-                Some(&scope),
-            )
-        })
-        .map_err(ExtendedQueryError::parameter_admission)?;
+    let admitted = with_function_input_scope(&cassie, session, |scope| {
+        crate::sql::checked_parse_parameter_types_in_scope(
+            &parsed,
+            &parameter_type_oids,
+            &cassie.catalog,
+            &controls,
+            Some(scope),
+        )
+    })
+    .map_err(ExtendedQueryError::parameter_admission)?;
     crate::sql::pagination::validate_statement(&mut parsed, Some(admitted.types()))
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
@@ -330,6 +321,24 @@ async fn handle_parse(
 
     let _ = write_parse_complete(write_half).await;
     Ok(())
+}
+
+fn with_function_input_scope<R>(
+    cassie: &Cassie,
+    session: &CassieSession,
+    inspect: impl FnOnce(&crate::catalog::FunctionInputScope<'_>) -> R,
+) -> R {
+    session.with_search_path(|search_path| {
+        let scope = crate::catalog::FunctionInputScope {
+            database: session
+                .current_database()
+                .unwrap_or(&cassie.default_database),
+            search_path,
+            user: &session.user,
+            enforce_database_scope: cassie.database_catalog_enforced(),
+        };
+        inspect(&scope)
+    })
 }
 
 /// Registers `prepared` under its name, closing the portals of any statement

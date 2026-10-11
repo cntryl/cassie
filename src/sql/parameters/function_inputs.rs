@@ -18,7 +18,7 @@ pub(super) fn infer_function_parameter_type_oids(
     catalog: &Catalog,
     inference: &mut ParameterInference,
 ) {
-    if !inference.check() {
+    if !inference.check() || function.args.is_empty() {
         return;
     }
     for argument in &function.args {

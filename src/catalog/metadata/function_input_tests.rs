@@ -9,7 +9,8 @@ use crate::catalog::{Catalog, FunctionArgMeta, FunctionMeta, Volatility};
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use crate::sql::{
-    checked_parse_parameter_types_in_scope, parse_statement, ParameterAdmissionError,
+    checked_parse_parameter_types_in_scope, parse_statement, AdmittedParameterTypes,
+    ParameterAdmissionError,
 };
 use crate::types::DataType;
 
@@ -233,8 +234,8 @@ fn should_cancel_parameter_inference_while_the_function_catalog_is_locked() {
         drop(result);
         let _ = completed.send((cancelled, worker_controls.current_query_memory_bytes()));
     });
-    // The normalized OID, conflict-pass OID/demand and one borrowed search-path slot are all
-    // live only after namespace resolution reaches the held function-catalog lock.
+    // Observe the normalized OID, conflict-pass OID/demand and admitted search-path slot.
+    // This witnesses live lookup scratch, not the exact instant a read-lock attempt starts.
     let lookup_bytes = 2 * size_of::<i32>() + size_of::<u8>() + size_of::<&str>();
     let wait_deadline = Instant::now() + Duration::from_secs(2);
     while controls.current_query_memory_bytes() != lookup_bytes && Instant::now() < wait_deadline {
@@ -330,7 +331,7 @@ fn should_skip_input_metadata_for_functions_without_arguments() {
             &controls,
             Some(&scope),
         )
-        .and_then(|admitted| admitted.into_vec());
+        .and_then(AdmittedParameterTypes::into_vec);
         (result, controls.current_query_memory_bytes())
     });
 

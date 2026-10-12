@@ -1,5 +1,12 @@
 use crate::app::CassieError;
 
+#[path = "errors/parameter_semantic.rs"]
+mod parameter_semantic;
+
+#[cfg(test)]
+#[path = "errors/parameter_semantic_tests.rs"]
+mod parameter_semantic_tests;
+
 #[derive(Debug, Clone, Copy)]
 pub(super) enum PgWireSeverity {
     Error,
@@ -19,7 +26,7 @@ pub(super) fn cassie_pg_error(error: &CassieError) -> PgWireError {
     PgWireError::from_cassie_error(PgWireSeverity::Error, error)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(super) struct PgWireError {
     pub(super) severity: PgWireSeverity,
     pub(super) code: &'static str,
@@ -30,6 +37,8 @@ pub(super) struct PgWireError {
     pub(super) table: Option<String>,
     pub(super) column: Option<String>,
     pub(super) constraint: Option<String>,
+    // Owned strings and the admitted network frame precede their shared lease.
+    semantic_frame: Option<parameter_semantic::AdmittedErrorFrame>,
 }
 
 impl PgWireError {
@@ -48,6 +57,7 @@ impl PgWireError {
             table: None,
             column: None,
             constraint: None,
+            semantic_frame: None,
         }
     }
 

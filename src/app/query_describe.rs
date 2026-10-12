@@ -69,6 +69,17 @@ impl Cassie {
         if let Some(session) = session {
             self.ensure_session_database_access(session)?;
         }
+        let controls = self.runtime.query_controls(std::time::Instant::now());
+        let admitted = super::query_parameters::admit_parameter_types(
+            self,
+            session,
+            &parsed,
+            crate::sql::PrivateParameterTypeInput::Wire(parameter_type_oids),
+            &controls,
+        )?;
+        let parameter_type_oids = admitted
+            .as_ref()
+            .map_or(parameter_type_oids, |types| types.types());
         if matches!(
             parsed.statement,
             crate::sql::ast::QueryStatement::Explain(_)
@@ -82,7 +93,6 @@ impl Cassie {
             return Ok(Vec::new());
         }
 
-        let controls = self.runtime.query_controls(std::time::Instant::now());
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
         }

@@ -105,7 +105,9 @@ use context::{
 pub(crate) use inference::common_case_type;
 pub(crate) use inference::cte_collection_schema_with_functions;
 pub use inference::{cte_collection_schema, infer_select_schema, infer_select_schema_with_context};
-pub(crate) use inference::{infer_expr_type, infer_function_return_type, known_expr_type};
+pub(crate) use inference::{
+    infer_expr_type, infer_function_return_type, integer_literal_type, known_expr_type,
+};
 use projections::{
     bind_alter_materialized_projection_statement, bind_compare_projection_statement,
     bind_create_materialized_projection_statement, bind_diff_projection_statement,

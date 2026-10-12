@@ -117,8 +117,58 @@ The existing public Rust inference facade preserves explicitly supplied OIDs,
 including zero; wire Parse normalizes zero before inference. This compatibility
 control does not qualify invalid overloads or argument types. A generic UNKNOWN
 finalizer, complete callable/operator coercion, occurrence-order inference and
-the remaining Boolean error-phase/descriptor-name differences remain open under
+the remaining Boolean error-phase/descriptor-name differences were unqualified
+at that accepted foundation and remain open under
 [#904](https://github.com/cntryl/cassie/issues/904).
+The accepted [PR #935](https://github.com/cntryl/cassie/pull/935) evidence covers
+156 selected text/binary function paths; at that merged revision the 14
+known-Boolean controls retain ten differences and four matches. That foundation does not qualify every
+callable, overload, operator, or error phase.
+
+## Primitive SELECT occurrence resolution
+
+The [selected occurrence contract](https://github.com/cntryl/cassie/issues/904#issuecomment-6115604094)
+covers the following finite primitive SELECT behavior. Its PR acceptance record
+binds focused, native and complete-gate evidence to the tested revision. The
+complete shared-registry and PostgreSQL parity owners remain open.
+
+The private fold gives each actual parameter use a stable ordinal and creation
+type. Coercion changes that use and the shared slot without retagging earlier
+uses. In covered SELECT queries, CTE/FROM inputs precede targets; Boolean
+arguments transform and coerce one at a time; OFFSET precedes LIMIT; and only
+eligible direct UNKNOWN target outputs finish as TEXT after the clauses.
+For example, `SELECT $1 AS flag WHERE $1` with OID 0/705 must fail Parse with
+`42P08`, while declared OID 16 retains its input identity, including typed NULL.
+`SELECT $1 AS value WHERE FALSE` with unknown input must describe TEXT output.
+A qualified declared/cast/metadata-known TEXT Boolean operand must fail with
+`42804`; a direct string literal still uses contextual Boolean literal coercion.
+The new diagnostics do not replace every existing planner `42601` category.
+
+Column types for this fold require an exact namespace match or a verified
+single-source qualifier. Missing, nonlocal or unrepresented direct-JOIN metadata
+continues through the established binder rather than borrowing another source
+column's unqualified type. Independent selected parameter checks remain active;
+complete joined and outer input-signature resolution remains outside this
+finite qualification.
+
+Parse, selected typed execution, Describe and EXPLAIN share this checked
+private result before pagination, caches or early EXPLAIN. Public Rust Vec/Option
+signatures preserve supplied zero, and untyped embedded NULL remains distinct
+from a wire UNKNOWN declaration. Slots inferred by nonselected operators retain
+their existing error path. Arithmetic results and CASE remain outside the new
+Boolean diagnostics, with existing nonprimitive CASE identities preserved. New occurrence, phase, target and summary
+buffers are admitted against the same query controls, including growth overlap.
+Existing catalog/field discovery remains its separate input-allocation boundary.
+Rejected metadata releases its scratch; admitted semantic-error formatting and
+frames retain their owner through send retirement. Only the transient OID-vector
+owner survives successful metadata handoff; retained prepared metadata remains
+open.
+
+No unused-slot `42P18` policy or statement-wide UNKNOWN finalizer is selected.
+Wider callable/operator metadata, nonselected DML/RETURNING transformations,
+descriptor-name differences and full resource/restart obligations remain open.
+The original .85/.72 acceptance records and full #904/#793/#791/#848/#849 owners
+remain open until their separate criteria pass.
 
 ## Numeric Typing
 

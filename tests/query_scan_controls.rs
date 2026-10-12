@@ -3076,7 +3076,7 @@ mod query_resource_controls {
                 vec![],
             )
             .expect("create table");
-        seed_documents(&cassie, "controlled_heap_top_k_memory", 4, 16);
+        seed_documents(&cassie, "controlled_heap_top_k_memory", 4, 80);
         let input = cassie
             .execute_sql(
                 &session,
@@ -3086,9 +3086,10 @@ mod query_resource_controls {
             .expect("complete top-k input must fit before ordering-key retention");
         assert_eq!(input.rows().len(), 4);
         drop(input);
-        // A computed order declines the simple-column shortcut. Two retained keys
-        // contain 2 * 256 * 21 TEXT bytes, exceeding 9 KiB after the narrow input fits.
-        let key_arguments = vec!["payload"; 256].join(", ");
+        // A computed order declines the simple-column shortcut. Keep metadata
+        // width narrow while two computed keys contain 2 * 64 * 85 TEXT bytes,
+        // exceeding 9 KiB after the complete four-row input fits.
+        let key_arguments = vec!["payload"; 64].join(", ");
         let sql = format!(
             "SELECT payload FROM controlled_heap_top_k_memory ORDER BY concat({key_arguments}) LIMIT 2"
         );

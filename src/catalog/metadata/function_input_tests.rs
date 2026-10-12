@@ -195,11 +195,44 @@ fn should_release_function_lookup_scratch_after_budget_denial() {
     assert_eq!(baseline_controls.current_query_memory_bytes(), 0);
 }
 
+fn wide_function_statement(
+    catalog: &Catalog,
+) -> (crate::sql::ParsedStatement, QueryExecutionControls) {
+    let search_path = vec!["public".to_owned()];
+    let scope = FunctionInputScope {
+        database: "db",
+        search_path: &search_path,
+        user: "reader",
+        enforce_database_scope: true,
+    };
+    let narrow_controls = controls(128 * 1_024);
+    let narrow_statement = parse_statement("SELECT pick($1)").expect("narrow fixture SQL");
+    let narrow = checked_parse_parameter_types_in_scope(
+        &narrow_statement,
+        &[705],
+        catalog,
+        &narrow_controls,
+        Some(&scope),
+    )
+    .expect("uncontended signature baseline");
+    assert_eq!(narrow.types(), [25]);
+    drop(narrow);
+    let projection = std::iter::repeat_n("$1", 512)
+        .chain(std::iter::once("pick($1)"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let wide_statement =
+        parse_statement(&format!("SELECT {projection}")).expect("513 valid projection columns");
+    (wide_statement, narrow_controls)
+}
+
 #[test]
 fn should_cancel_parameter_inference_while_the_function_catalog_is_locked() {
     // Arrange
     let catalog = Catalog::new();
     register_function(&catalog, "db.public.pick", DataType::Text);
+    let (wide_statement, narrow_controls) = wide_function_statement(&catalog);
+    let narrow_peak = narrow_controls.peak_query_memory_bytes();
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits {
@@ -222,9 +255,8 @@ fn should_cancel_parameter_inference_while_the_function_catalog_is_locked() {
             user: "reader",
             enforce_database_scope: true,
         };
-        let statement = parse_statement("SELECT pick($1)").expect("fixture SQL");
         let result = checked_parse_parameter_types_in_scope(
-            &statement,
+            &wide_statement,
             &[705],
             &worker_catalog,
             &worker_controls,
@@ -234,14 +266,13 @@ fn should_cancel_parameter_inference_while_the_function_catalog_is_locked() {
         drop(result);
         let _ = completed.send((cancelled, worker_controls.current_query_memory_bytes()));
     });
-    // Observe the normalized OID, conflict-pass OID/demand and admitted search-path slot.
-    // This witnesses live lookup scratch, not the exact instant a read-lock attempt starts.
-    let lookup_bytes = 2 * size_of::<i32>() + size_of::<u8>() + size_of::<&str>();
+    // A wide live charge above the complete narrow peak proves admitted progress.
+    // It does not identify the exact instruction of the next catalog read attempt.
     let wait_deadline = Instant::now() + Duration::from_secs(2);
-    while controls.current_query_memory_bytes() != lookup_bytes && Instant::now() < wait_deadline {
+    while controls.current_query_memory_bytes() <= narrow_peak && Instant::now() < wait_deadline {
         thread::sleep(Duration::from_millis(1));
     }
-    let reached_lookup = controls.current_query_memory_bytes() == lookup_bytes;
+    let reached_wide_admission = controls.current_query_memory_bytes() > narrow_peak;
 
     // Act
     cancellation.cancel();
@@ -255,8 +286,8 @@ fn should_cancel_parameter_inference_while_the_function_catalog_is_locked() {
 
     // Assert
     assert!(
-        reached_lookup,
-        "worker did not reach borrowed signature lookup"
+        reached_wide_admission,
+        "worker did not retain more metadata than the narrow signature baseline"
     );
     assert!(
         completed_before_release,
@@ -268,6 +299,7 @@ fn should_cancel_parameter_inference_while_the_function_catalog_is_locked() {
         (true, 0)
     );
     assert_eq!(controls.current_query_memory_bytes(), 0);
+    assert_eq!(narrow_controls.current_query_memory_bytes(), 0);
 }
 
 #[test]

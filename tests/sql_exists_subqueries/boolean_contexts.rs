@@ -157,6 +157,7 @@ fn should_reject_outer_numeric_predicates_across_supported_qualifiers() {
 fn should_resolve_outer_boolean_predicates_in_supported_correlated_scope() {
     // Arrange
     let fixture = scoped_correlated_fixture("bool-canonical-outer-flag");
+    let unqualified_fixture = correlated_fixture("bool-unqualified-outer-flag");
     let qualifiers = [
         "postgres.public.bool_scope_outer",
         "public.bool_scope_outer",
@@ -165,17 +166,32 @@ fn should_resolve_outer_boolean_predicates_in_supported_correlated_scope() {
 
     // Act
     let results = qualifiers.map(|qualifier| {
-        fixture.execute(&format!(
-            "SELECT id FROM public.bool_scope_outer WHERE EXISTS (SELECT 1 FROM public.bool_scope_inner WHERE bool_scope_inner.owner_id = bool_scope_outer.id AND {qualifier}.flag) ORDER BY id"
-        ))
+        fixture
+            .execute(&format!(
+                "SELECT id FROM public.bool_scope_outer WHERE EXISTS (SELECT 1 FROM public.bool_scope_inner WHERE bool_scope_inner.owner_id = bool_scope_outer.id AND {qualifier}.flag) ORDER BY id"
+            ))
+            .map(|result| result.rows().to_vec())
     });
-    let inner_shadow = fixture.execute("SELECT id FROM public.bool_scope_outer WHERE EXISTS (SELECT 1 FROM public.bool_scope_inner WHERE bool_scope_inner.owner_id = bool_scope_outer.id AND n) ORDER BY id");
+    let aliased_outer = fixture
+        .execute("SELECT o.id FROM public.bool_scope_outer AS o WHERE EXISTS (SELECT 1 FROM public.bool_scope_inner WHERE bool_scope_inner.owner_id = o.id AND o.flag) ORDER BY o.id")
+        .map(|result| result.rows().to_vec());
+    let unqualified_outer = unqualified_fixture
+        .execute("SELECT id FROM bool_outer WHERE EXISTS (SELECT 1 FROM bool_inner WHERE bool_inner.owner_id = bool_outer.id AND flag) ORDER BY id")
+        .map(|result| result.rows().to_vec());
+    let inner_shadow = fixture
+        .execute("SELECT id FROM public.bool_scope_outer WHERE EXISTS (SELECT 1 FROM public.bool_scope_inner WHERE bool_scope_inner.owner_id = bool_scope_outer.id AND n) ORDER BY id")
+        .map(|result| result.rows().to_vec());
+    let inner_numeric_shadow = fixture
+        .execute("SELECT id FROM public.bool_scope_outer WHERE EXISTS (SELECT 1 FROM public.bool_scope_inner WHERE bool_scope_inner.owner_id = bool_scope_outer.id AND flag) ORDER BY id")
+        .map(|result| result.rows().to_vec());
+    drop(unqualified_fixture);
+    drop(fixture);
 
     // Assert
     for (qualifier, result) in qualifiers.into_iter().zip(results) {
         if qualifier == "bool_scope_outer" {
             assert_eq!(
-                result.expect("local qualified outer BOOLEAN").rows(),
+                result.expect("local qualified outer BOOLEAN"),
                 vec![vec![Value::Int64(1)]]
             );
         } else {
@@ -189,9 +205,19 @@ fn should_resolve_outer_boolean_predicates_in_supported_correlated_scope() {
         }
     }
     assert_eq!(
-        inner_shadow
-            .expect("unqualified n denotes the inner BOOLEAN")
-            .rows(),
+        aliased_outer.expect("aliased outer BOOLEAN"),
+        vec![vec![Value::Int64(1)]]
+    );
+    assert_eq!(
+        unqualified_outer.expect("unshadowed unqualified outer BOOLEAN"),
+        vec![vec![Value::Int64(1)]]
+    );
+    assert_eq!(
+        inner_shadow.expect("unqualified n denotes the inner BOOLEAN"),
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
+    );
+    assert!(
+        matches!(inner_numeric_shadow, Err(CassieError::Planner(_))),
+        "unqualified flag denotes the inner INT: {inner_numeric_shadow:?}"
     );
 }

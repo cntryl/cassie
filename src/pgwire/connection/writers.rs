@@ -79,6 +79,10 @@ pub(super) async fn write_error_response(
     write_half: &mut (impl AsyncWrite + Unpin),
     error: &PgWireError,
 ) -> io::Result<()> {
+    if let Some(frame) = error.encoded_semantic_frame() {
+        write_half.write_all(frame).await?;
+        return write_half.flush().await;
+    }
     let mut payload = Vec::new();
     payload.extend_from_slice(b"S");
     payload.extend_from_slice(error.severity.as_str().as_bytes());

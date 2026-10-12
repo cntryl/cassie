@@ -1,3 +1,8 @@
+#[path = "pgwire_extended/parameter_occurrences.rs"]
+mod pgwire_parameter_occurrences;
+#[path = "support/parameter_occurrence_wire.rs"]
+mod support_parameter_occurrence_wire;
+
 #[path = "pgwire_extended/parameter_signatures.rs"]
 mod pgwire_parameter_signatures;
 #[path = "support/parameter_signature_wire.rs"]

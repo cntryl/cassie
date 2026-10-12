@@ -2,8 +2,9 @@
 //!
 //! The borrowed walk inspects nodes and parameter indices, not literal payload
 //! bytes. Every frame/child and every capacity growth checks interruption. The
-//! existing recursive inference visitor and its other allocations remain outside
-//! this finite traversal/slot-buffer qualification.
+//! Selected SELECT analysis additionally owns admitted occurrence, phase, target
+//! and summary storage. The explicitly nonselected legacy statement visitor and
+//! its other allocations remain outside that finite fold qualification.
 
 use std::mem::size_of;
 
@@ -21,6 +22,7 @@ pub(crate) enum ParameterAdmissionError {
     Cancelled,
     Deadline,
     LegacyConflict(String),
+    Semantic(super::diagnostics::ParameterSemanticDiagnostic),
 }
 
 #[derive(Debug)]
@@ -72,7 +74,7 @@ pub(super) fn check_controls(
     Ok(())
 }
 
-fn memory_error(error: CassieError) -> ParameterAdmissionError {
+pub(super) fn memory_error(error: CassieError) -> ParameterAdmissionError {
     // Only the existing query-memory reservation operations use this adapter.
     let message = match error {
         CassieError::ResourceLimit(message) => message,
@@ -90,6 +92,32 @@ fn capacity_bytes<T>(capacity: usize) -> Result<usize, ParameterAdmissionError> 
 pub(super) struct ReservedVector<T> {
     pub(super) values: Vec<T>,
     pub(super) reservation: QueryMemoryReservation,
+}
+
+impl<T> ReservedVector<T> {
+    pub(super) fn try_push(
+        &mut self,
+        value: T,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), ParameterAdmissionError> {
+        check_controls(controls)?;
+        if self.values.len() == self.values.capacity() {
+            let capacity = self.values.capacity();
+            let growth = if capacity < 8 { 1 } else { capacity };
+            let desired = capacity.checked_add(growth).ok_or_else(|| {
+                ParameterAdmissionError::Memory("parameter fold capacity overflow".to_owned())
+            })?;
+            // A fresh buffer is admitted while the old backing is still live.
+            let mut replacement = reserve_vector(controls, desired)?;
+            check_controls(controls)?;
+            replacement.values.append(&mut self.values);
+            std::mem::swap(self, &mut replacement);
+            // Old backing retires before its old reservation.
+            drop(replacement);
+        }
+        self.values.push(value);
+        Ok(())
+    }
 }
 
 pub(super) fn reserve_vector<T>(

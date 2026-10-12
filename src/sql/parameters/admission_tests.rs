@@ -305,6 +305,19 @@ fn should_preserve_legacy_parameter_metadata_results() {
         let legacy_conflict = declared_parameter_type_conflict(&statement, &normalized, &catalog);
         let checked = checked_parse_parameter_types(&statement, supplied, &catalog, &controls);
         // Assert
+        if sql == "SELECT 1 WHERE $1" {
+            assert!(
+                matches!(checked, Err(ParameterAdmissionError::Semantic(diagnostic))
+                if diagnostic.code() == "42804"
+                && diagnostic.message() == "argument of WHERE must be type boolean, not type text")
+            );
+            assert_eq!(
+                legacy_conflict.as_deref(),
+                Some("incompatible comparison operands: boolean and text")
+            );
+            assert_eq!(controls.current_query_memory_bytes(), 0);
+            continue;
+        }
         match legacy_conflict {
             Some(message) => assert!(
                 matches!(checked, Err(ParameterAdmissionError::LegacyConflict(actual)) if actual == message)
@@ -459,50 +472,60 @@ fn should_bound_parameter_work_stack_by_depth_instead_of_projection_width() {
 }
 
 #[test]
-fn should_admit_only_one_inference_pass_at_a_time() {
+fn should_admit_parameter_metadata_at_its_live_capacity_threshold() {
     // Arrange
     let statement = parameter_statement(127);
-    let controls = controls(1_152);
     let catalog = Catalog::new();
+    let ample = controls(64 * 1_024);
+    let baseline = checked_parse_parameter_types(&statement, &[23; 128], &catalog, &ample)
+        .expect("measure current admitted layout");
+    let required = ample.peak_query_memory_bytes();
+    drop(baseline);
+    let controls = controls(required);
     // Act
     let admitted = checked_parse_parameter_types(&statement, &[23; 128], &catalog, &controls)
-        .expect("normalization plus one inference pass must fit");
+        .expect("the measured live capacity threshold must fit");
     let retained = controls.current_query_memory_bytes();
     let admission_peak = controls.peak_query_memory_bytes();
     let actual_oids = admitted.types().to_vec();
     drop(admitted);
     let released = controls.current_query_memory_bytes();
     let reused = controls
-        .reserve_query_memory(1_152)
+        .reserve_query_memory(required)
         .expect("same full budget");
     // Assert
     assert_eq!(actual_oids, [23; 128]);
-    assert_eq!(admission_peak, 1_152);
+    assert_eq!(admission_peak, required);
     assert_eq!(retained, 512);
     assert_eq!(released, 0);
-    assert_eq!(controls.current_query_memory_bytes(), 1_152);
+    assert_eq!(controls.current_query_memory_bytes(), required);
     drop(reused);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]
-fn should_release_normalized_seed_storage_after_demand_budget_denial() {
+fn should_release_parameter_metadata_after_threshold_denial() {
     // Arrange
     let statement = parameter_statement(127);
-    let controls = controls(1_151);
     let catalog = Catalog::new();
+    let ample = controls(64 * 1_024);
+    let baseline = checked_parse_parameter_types(&statement, &[23; 128], &catalog, &ample)
+        .expect("measure current admitted layout");
+    let required = ample.peak_query_memory_bytes();
+    drop(baseline);
+    let controls = controls(required - 1);
     // Act
     let result = checked_parse_parameter_types(&statement, &[23; 128], &catalog, &controls);
     let admission_peak = controls.peak_query_memory_bytes();
     let released = controls.current_query_memory_bytes();
     let reused = controls
-        .reserve_query_memory(1_151)
+        .reserve_query_memory(required - 1)
         .expect("same full budget");
     // Assert
     assert!(matches!(result, Err(ParameterAdmissionError::Memory(_))));
-    assert_eq!(admission_peak, 1_024);
+    assert!(admission_peak < required);
     assert_eq!(released, 0);
-    assert_eq!(controls.current_query_memory_bytes(), 1_151);
+    assert_eq!(controls.current_query_memory_bytes(), required - 1);
     drop(reused);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

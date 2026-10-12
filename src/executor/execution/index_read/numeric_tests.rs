@@ -43,8 +43,8 @@ fn should_decline_integer_index_for_manually_wrapped_float_comparison() {
         .expect("real index");
     let parsed =
         crate::sql::parse_statement(&format!("SELECT k FROM {}", index.collection)).expect("query");
-    let mut logical = super::super::build_logical_plan(&cassie.catalog, &parsed)
-        .expect("logical plan");
+    let mut logical =
+        super::super::build_logical_plan(&cassie.catalog, &parsed).expect("logical plan");
     logical.filter = Some(Expr::Binary {
         left: Box::new(generated_float(Expr::Column("k".into()))),
         op: BinaryOp::Eq,

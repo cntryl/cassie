@@ -16,6 +16,8 @@ mod alias_integration;
 
 #[path = "sql_queries/conditional_expressions.rs"]
 mod sql_conditional_expressions;
+#[path = "sql_queries/constant_planning.rs"]
+mod sql_constant_planning;
 
 #[path = "sql_queries/coalesce_promotion.rs"]
 mod sql_coalesce_promotion;

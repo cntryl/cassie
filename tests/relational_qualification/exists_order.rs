@@ -91,8 +91,8 @@ fn should_respect_lazy_correlated_order_branch_selection() {
             .execute_sql(&fixture.session, sql, vec![])
             .expect("lazy order setup");
     }
-    let dead="SELECT id FROM lazy_order q ORDER BY CASE WHEN id<0 THEN EXISTS(SELECT 1 FROM lazy_member u WHERE u.id=q.id AND 1/0=0) ELSE FALSE END,id";
-    let reached="SELECT id FROM lazy_order q ORDER BY EXISTS(SELECT 1 FROM lazy_member u WHERE u.id=q.id AND 1/0=0),id";
+    let dead="SELECT id FROM lazy_order q ORDER BY CASE WHEN id<0 THEN EXISTS(SELECT 1 FROM lazy_member u WHERE u.id=q.id AND u.id/0=0) ELSE FALSE END,id";
+    let reached="SELECT id FROM lazy_order q ORDER BY EXISTS(SELECT 1 FROM lazy_member u WHERE u.id=q.id AND u.id/0=0),id";
     // Act
     let dead_result = fixture.cassie.execute_sql(&fixture.session, dead, vec![]);
     let reached_result = fixture

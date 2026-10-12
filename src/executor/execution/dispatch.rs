@@ -614,7 +614,7 @@ pub(super) fn resolve_exists_expr<'a>(
                 } else {
                     (logical, None)
                 };
-            let logical = bounded_exists_logical(logical);
+            let logical = super::exists_target::bounded_exists_logical(logical);
             let mut subquery_context = context.cte_context.copy(context.controls)?;
             let env = plan_execution_env(
                 context.cassie,
@@ -801,15 +801,6 @@ pub(super) fn build_logical_plan_in_session(
     }
 
     Ok(plan)
-}
-
-fn bounded_exists_logical(mut logical: LogicalPlan) -> LogicalPlan {
-    logical.limit = Some(Expr::IntegerLiteral(
-        logical
-            .limit_value()
-            .map_or(1, |limit| i64::from(limit > 0)),
-    ));
-    logical
 }
 
 pub(super) fn check_timeout(controls: &QueryExecutionControls) -> Result<(), QueryError> {

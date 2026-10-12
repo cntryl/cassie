@@ -554,12 +554,17 @@ constant evaluation. A dynamically dead CASE containing constant `1/0`, or
 zero-row `UPDATE ... RETURNING 1/0`, can fail with SQLSTATE `22012` during
 planning. The corresponding row-dependent divisions stay unevaluated. The
 runtime witnesses now use qualified row-dependent divisions; the original
-constant-expression witnesses did not establish PostgreSQL parity. Planning
-behavior remains open in [#922](https://github.com/cntryl/cassie/issues/922),
-consistent with PostgreSQL's [expression evaluation rules](https://www.postgresql.org/docs/18/sql-expressions.html#SYNTAX-EXPRESS-EVAL).
-PostgreSQL also discards irrelevant EXISTS target expressions: division in its
-SELECT list does not establish a reached runtime error. That independent gap
-is owned by [#923](https://github.com/cntryl/cassie/issues/923).
+constant-expression witnesses did not establish PostgreSQL parity. Cassie now
+reports those planning-time folding errors before execution
+([#922](https://github.com/cntryl/cassie/issues/922)), following PostgreSQL's
+[expression evaluation rules](https://www.postgresql.org/docs/18/sql-expressions.html#SYNTAX-EXPRESS-EVAL);
+the planning-phase witnesses are `tests/sql_queries/constant_planning.rs`,
+`tests/sql_mutations/constant_planning.rs` and
+`tests/pgwire_extended/constant_planning.rs`. PostgreSQL also discards
+irrelevant EXISTS target expressions: division in its SELECT list does not
+establish a reached runtime error. Cassie applies the same elision
+([#923](https://github.com/cntryl/cassie/issues/923)), witnessed by
+`tests/sql_exists_subqueries/target_elision.rs`.
 
 The finite witnesses are grouped as follows:
 

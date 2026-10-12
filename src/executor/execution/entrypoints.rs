@@ -51,6 +51,7 @@ fn run_with_execution_breakdown_controls(
 ) -> Result<ExecutionBreakdownOutput, QueryError> {
     let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
     let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
+    super::constant_planning::check_plan(&plan.logical)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, None, &plan.logical);
 
@@ -107,6 +108,7 @@ pub(crate) fn run_with_session_controls(
 ) -> Result<QueryResult, QueryError> {
     let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
     let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
+    super::constant_planning::check_plan(&plan.logical)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, session, &plan.logical);
 

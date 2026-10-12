@@ -53,6 +53,7 @@ pub use types::{
     ColumnMeta, ExecutionBreakdownMicros, ExecutionBreakdownOutput, QueryError, QueryResult,
 };
 
+mod constant_planning;
 mod cte;
 mod dispatch;
 mod entrypoints;
@@ -60,6 +61,7 @@ mod exists_correlated;
 mod exists_phase;
 mod exists_plan;
 mod exists_projection;
+mod exists_target;
 mod outer_names;
 mod result;
 

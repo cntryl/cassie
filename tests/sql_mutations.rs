@@ -31,6 +31,8 @@ mod type_json_array_copy;
 
 #[path = "sql_mutations/skipped_conflict_returning.rs"]
 mod skipped_conflict_returning;
+#[path = "sql_mutations/constant_planning.rs"]
+mod sql_constant_planning;
 
 // Formerly tests/copy_transaction_boundaries.rs.
 mod copy_transaction_boundaries {

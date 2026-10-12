@@ -154,6 +154,8 @@ Create GitHub issues and pull requests as durable engineering records. Use real 
 Agents must work from the current repository source of truth, not from ad hoc architectural judgment.
 Use `gh` CLI to read the current GitHub backlog, issue dependencies, PRs, reviews, and checks. Follow documented priority and dependency order, using the user request plus `docs/product-roadmap.md`, `docs/production-readiness.md`, `docs/performance-contracts.md`, and subsystem docs. Use Jev continuously to judge that current evidence.
 
+Do not create, edit, rename, or delete CI, release, or versioning configuration (`.github/workflows/**`, `GitVersion.yml`, and similar) unless the user explicitly asks for that change in the current request. If a fix seems to need one, say so and stop instead of changing it.
+
 ### Jev
 
 Jev is TypeSafe's System One model. It returns typed judgments and probabilities; it does not store GitHub issues or prove correctness. Read issue/status data with `gh`, then submit that evidence to Jev for triage, grouping, dependency assessment, implementation review, and adversarial review. Confirm its judgments with source, failing/passing tests, and current GitHub state.

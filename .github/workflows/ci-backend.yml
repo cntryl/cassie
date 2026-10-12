@@ -3,8 +3,6 @@ name: CI Backend
 on:
   workflow_dispatch:
   pull_request:
-    paths-ignore:
-      - "ui/**"
   push:
     branches:
       - main

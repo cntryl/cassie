@@ -532,13 +532,7 @@ fn should_recover_named_reparse_across_parameter_rebindings() {
             for ((_, _, has_row, error), frames) in inputs.into_iter().zip(rebindings) {
                 assert_parameter_oids(frames, &[25, 16]);
                 if let Some(state) = error {
-                    assert_eq!(wire::error_code(frames).as_deref(), Some(state));
-                    assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
-                    assert!(!frames
-                        .iter()
-                        .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C')));
-                    assert_descriptors(frames, &[(25, -1), (16, 1)], &["body", "flag"], 0, false);
-                    assert_ready(frames);
+                    assert_rebinding_error(frames, state);
                     continue;
                 }
                 fixture::assert_success(frames);
@@ -567,6 +561,16 @@ fn should_recover_named_reparse_across_parameter_rebindings() {
             }
         }
     }
+}
+
+fn assert_rebinding_error(frames: &fixture::Frames, state: &str) {
+    assert_eq!(wire::error_code(frames).as_deref(), Some(state));
+    assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
+    assert!(!frames
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C')));
+    assert_descriptors(frames, &[(25, -1), (16, 1)], &["body", "flag"], 0, false);
+    assert_ready(frames);
 }
 
 fn tags(frames: &fixture::Frames) -> Vec<u8> {

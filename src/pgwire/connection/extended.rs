@@ -1,6 +1,10 @@
 #[path = "extended/transaction_boundary.rs"]
 mod transaction_boundary;
 
+#[cfg(test)]
+#[path = "extended/parameter_admission_tests.rs"]
+mod parameter_admission_tests;
+
 use std::io;
 use std::str;
 use std::sync::Arc;
@@ -296,13 +300,13 @@ async fn handle_parse(
             Some(scope),
         )
     })
-    .map_err(ExtendedQueryError::parameter_admission)?;
+    .map_err(|error| ExtendedQueryError::parameter_admission(error, &controls))?;
     crate::sql::pagination::validate_statement(&mut parsed, Some(admitted.types()))
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let parameter_types = admitted
         .into_vec()
-        .map_err(ExtendedQueryError::parameter_admission)?;
+        .map_err(|error| ExtendedQueryError::parameter_admission(error, &controls))?;
     let id = state.next_prepared_id();
     store_prepared_statement(
         runtime,
@@ -814,7 +818,10 @@ impl ExtendedQueryError {
         }
     }
 
-    fn parameter_admission(error: crate::sql::ParameterAdmissionError) -> Self {
+    fn parameter_admission(
+        error: crate::sql::ParameterAdmissionError,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Self {
         use crate::sql::ParameterAdmissionError;
 
         let (sqlstate, message) = match error {
@@ -824,6 +831,23 @@ impl ExtendedQueryError {
             ParameterAdmissionError::Deadline => ("57014", "query deadline exceeded".to_string()),
             ParameterAdmissionError::LegacyConflict(message) => {
                 return Self::cassie(&CassieError::Planner(message));
+            }
+            ParameterAdmissionError::Semantic(diagnostic) => {
+                return match PgWireError::parameter_semantic(diagnostic, controls) {
+                    Ok(error) => Self {
+                        pg_error: Box::new(error),
+                        record_protocol_error: false,
+                    },
+                    Err(CassieError::ResourceLimit(message)) => Self {
+                        pg_error: Box::new(PgWireError::new(
+                            PgWireSeverity::Error,
+                            "53200",
+                            message,
+                        )),
+                        record_protocol_error: false,
+                    },
+                    Err(error) => Self::cassie(&error),
+                };
             }
         };
         Self {

@@ -184,7 +184,7 @@ fn should_infer_boolean_parameter_oids_at_each_predicate_sink() {
 }
 
 #[test]
-fn should_describe_contextual_boolean_metadata_before_row_evaluation() {
+fn should_reject_earlier_unknown_output_before_empty_boolean_row_evaluation() {
     // Arrange
     let sql = "SELECT $1 AS predicate FROM bool_wire_empty WHERE $1";
     let cycles = [0, 705].map(|oid| text_cycle(sql, oid, "no")).to_vec();
@@ -194,9 +194,9 @@ fn should_describe_contextual_boolean_metadata_before_row_evaluation() {
 
     // Assert
     for frames in batches {
-        assert_eq!(support::error_code(&frames), None);
-        assert_eq!(parameter_oids(&frames), vec![16]);
-        assert_eq!(result_oids(&frames), vec![16]);
+        // PostgreSQL snapshots the output occurrence before WHERE coerces its sibling.
+        assert_eq!(support::error_code(&frames).as_deref(), Some("42P08"));
+        assert!(!frames.iter().any(|(tag, _)| matches!(*tag, b't' | b'T')));
         assert_eq!(
             support::data_rows(&frames),
             Vec::<Vec<Option<String>>>::new()
@@ -234,25 +234,31 @@ fn should_infer_boolean_parameters_through_supported_query_scopes() {
 fn should_reject_declared_non_boolean_parameters_in_boolean_contexts() {
     // Arrange
     let cases = [
-        ("SELECT 1 WHERE $1", 23, "1"),
-        ("SELECT 1 WHERE $1", 25, "no"),
-        ("SELECT NOT $1", 25, "false"),
-        ("SELECT $1 AND FALSE", 23, "1"),
-        ("SELECT CASE WHEN $1 THEN 1 ELSE 2 END", 25, "no"),
-        ("SELECT n FROM bool_wire_empty WHERE $1", 25, "true"),
+        ("SELECT 1 WHERE $1", 23, "1", "42804"),
+        ("SELECT 1 WHERE $1", 25, "no", "42804"),
+        ("SELECT NOT $1", 25, "false", "42804"),
+        ("SELECT $1 AND FALSE", 23, "1", "42804"),
+        // CASE is outside the selected primitive occurrence error boundary.
+        ("SELECT CASE WHEN $1 THEN 1 ELSE 2 END", 25, "no", "42601"),
+        (
+            "SELECT n FROM bool_wire_empty WHERE $1",
+            25,
+            "true",
+            "42804",
+        ),
     ];
     let cycles = cases
-        .map(|(sql, oid, value)| text_cycle(sql, oid, value))
+        .map(|(sql, oid, value, _)| text_cycle(sql, oid, value))
         .to_vec();
 
     // Act
     let batches = run_cycles("bool-wire-declared-types", cycles);
 
     // Assert
-    for ((sql, oid, _), frames) in cases.into_iter().zip(batches) {
+    for ((sql, oid, _, sqlstate), frames) in cases.into_iter().zip(batches) {
         assert_eq!(
             support::error_code(&frames).as_deref(),
-            Some("42601"),
+            Some(sqlstate),
             "{sql}, OID {oid}"
         );
         assert_eq!(

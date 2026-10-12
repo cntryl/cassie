@@ -10,6 +10,10 @@ use crate::catalog::Catalog;
 use crate::sql::ast::ParsedStatement;
 use crate::types::{DataType, Value};
 
+#[path = "query_parameters/admission.rs"]
+mod admission;
+pub(super) use admission::{admit_parameter_types, prepare_bound_parameters};
+
 pub(super) fn canonicalize_string_parameters(
     parsed: &ParsedStatement,
     catalog: &Catalog,
@@ -18,7 +22,7 @@ pub(super) fn canonicalize_string_parameters(
     if !params.iter().any(|value| matches!(value, Value::String(_))) {
         return;
     }
-    let oids = crate::sql::parameter_type_oids_with_catalog(parsed, &[], catalog);
+    let oids = crate::sql::contextual_string_parameter_type_oids(parsed, catalog);
     for (param, oid) in params.iter_mut().zip(oids) {
         let Value::String(text) = param else {
             continue;
@@ -123,3 +127,7 @@ pub(super) fn validate_plan_parameters(
     }
     crate::sql::binder::validate_boolean_parameter_plan(plan, catalog, context, parameter_types)
 }
+
+#[cfg(test)]
+#[path = "query_parameters/occurrence_admission_tests.rs"]
+mod occurrence_admission_tests;

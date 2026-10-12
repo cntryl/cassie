@@ -80,20 +80,16 @@ impl Cassie {
         let (mut params, declared_oids, wire_output) = parameters;
         self.ensure_session_database_access(session)?;
         Self::ensure_statement_can_execute(session, &parsed, controls)?;
-        let parameter_type_oids =
-            super::query_parameters::effective_parameter_type_oids(&params, declared_oids);
-        let parameter_type_oids = parameter_type_oids.as_slice();
-        super::query_parameters::canonicalize_string_parameters(
-            &parsed,
-            &self.catalog,
-            &mut params,
-        );
-        let bound_parameters = crate::sql::pagination::resolve_statement(
-            &mut parsed,
-            &params,
-            declared_oids,
-            controls,
-        )?;
+        let (parameter_types, bound_parameters) =
+            super::query_parameters::prepare_bound_parameters(
+                self,
+                session,
+                &mut parsed,
+                &mut params,
+                declared_oids,
+                controls,
+            )?;
+        let parameter_type_oids = parameter_types.types();
         if let QueryStatement::Explain(statement) = &parsed.statement {
             return self.explain_statement(
                 session,
@@ -127,12 +123,16 @@ impl Cassie {
             controls,
             parameter_type_oids,
         )?;
-        let output_columns = self.validated_statement_output_columns(
+        let mut output_columns = self.validated_statement_output_columns(
             session,
             &physical.logical,
             (parameter_type_oids, declared_oids, wire_output),
             controls,
         )?;
+        if !wire_output && parameter_types.is_admitted() && !parameter_type_oids.is_empty() {
+            output_columns =
+                Some(self.columns_for_plan(&physical.logical, Some(session), parameter_type_oids));
+        }
         self.record_select_plan_decision(cache_context.is_select, &physical);
 
         let statement_controls =

@@ -649,6 +649,19 @@ impl Cassie {
         controls: &QueryExecutionControls,
     ) -> Result<QueryExplainOutput, CassieError> {
         let (params, parameter_type_oids) = parameters;
+        let admitted = super::query_parameters::admit_parameter_types(
+            self,
+            Some(session),
+            &statement,
+            crate::sql::PrivateParameterTypeInput::Embedded {
+                effective: parameter_type_oids,
+                values: &params,
+            },
+            controls,
+        )?;
+        let parameter_type_oids = admitted
+            .as_ref()
+            .map_or(parameter_type_oids, |types| types.types());
         let before = analyze.then(|| self.runtime.snapshot());
         let physical = self.compile_physical_plan_with_parameter_oids(
             statement,

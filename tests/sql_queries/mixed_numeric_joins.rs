@@ -407,6 +407,171 @@ mod scalar_index_probes {
         }
     }
 
+    const FLOAT_INDEX_SEED: &[&str] = &[
+        "CREATE TABLE mixed_float_scan (id INT,x FLOAT)",
+        "CREATE TABLE mixed_float_indexed (id INT,x FLOAT)",
+        "INSERT INTO mixed_float_scan(id,x) VALUES (1,9007199254740991.0),(2,9007199254740992.0),(3,9007199254740992.0),(4,9007199254740994.0),(5,-9007199254740994.0),(6,-9007199254740992.0),(7,-9007199254740992.0),(8,-9007199254740991.0),(9,NULL),(10,-0.0),(11,0.0)",
+        "INSERT INTO mixed_float_indexed(id,x) VALUES (1,9007199254740991.0),(2,9007199254740992.0),(3,9007199254740992.0),(4,9007199254740994.0),(5,-9007199254740994.0),(6,-9007199254740992.0),(7,-9007199254740992.0),(8,-9007199254740991.0),(9,NULL),(10,-0.0),(11,0.0)",
+        "CREATE INDEX mixed_float_key ON mixed_float_indexed(x)",
+    ];
+
+    // Literal bags after the selected IntegerLiteral-to-FLOAT coercion. No
+    // floating-point comparison in this test computes an expected row.
+    const FLOAT_INDEX_CASES: &[(&str, &[i64], &str)] = &[
+        ("x = 9007199254740993", &[2, 3], "index_seek_scans"),
+        ("9007199254740993 = x", &[2, 3], "index_seek_scans"),
+        (
+            "x < 9007199254740993",
+            &[1, 5, 6, 7, 8, 10, 11],
+            "range_scans",
+        ),
+        (
+            "9007199254740993 > x",
+            &[1, 5, 6, 7, 8, 10, 11],
+            "range_scans",
+        ),
+        (
+            "x <= 9007199254740993",
+            &[1, 2, 3, 5, 6, 7, 8, 10, 11],
+            "range_scans",
+        ),
+        (
+            "9007199254740993 >= x",
+            &[1, 2, 3, 5, 6, 7, 8, 10, 11],
+            "range_scans",
+        ),
+        ("x > 9007199254740993", &[4], "range_scans"),
+        ("9007199254740993 < x", &[4], "range_scans"),
+        ("x >= 9007199254740993", &[2, 3, 4], "range_scans"),
+        ("9007199254740993 <= x", &[2, 3, 4], "range_scans"),
+        ("x = -9007199254740993", &[6, 7], "index_seek_scans"),
+        ("-9007199254740993 = x", &[6, 7], "index_seek_scans"),
+        ("x < -9007199254740993", &[5], "range_scans"),
+        ("-9007199254740993 > x", &[5], "range_scans"),
+        ("x <= -9007199254740993", &[5, 6, 7], "range_scans"),
+        ("-9007199254740993 >= x", &[5, 6, 7], "range_scans"),
+        (
+            "x > -9007199254740993",
+            &[1, 2, 3, 4, 8, 10, 11],
+            "range_scans",
+        ),
+        (
+            "-9007199254740993 < x",
+            &[1, 2, 3, 4, 8, 10, 11],
+            "range_scans",
+        ),
+        (
+            "x >= -9007199254740993",
+            &[1, 2, 3, 4, 6, 7, 8, 10, 11],
+            "range_scans",
+        ),
+        (
+            "-9007199254740993 <= x",
+            &[1, 2, 3, 4, 6, 7, 8, 10, 11],
+            "range_scans",
+        ),
+        ("x = 0", &[10, 11], "collection_scans"),
+        ("0 = x", &[10, 11], "collection_scans"),
+        ("x < 0", &[5, 6, 7, 8], "collection_scans"),
+        ("0 > x", &[5, 6, 7, 8], "collection_scans"),
+        ("x <= 0", &[5, 6, 7, 8, 10, 11], "collection_scans"),
+        ("0 >= x", &[5, 6, 7, 8, 10, 11], "collection_scans"),
+        ("x > 0", &[1, 2, 3, 4], "collection_scans"),
+        ("0 < x", &[1, 2, 3, 4], "collection_scans"),
+        ("x >= 0", &[1, 2, 3, 4, 10, 11], "collection_scans"),
+        ("0 <= x", &[1, 2, 3, 4, 10, 11], "collection_scans"),
+    ];
+
+    struct FloatIndexObservation {
+        rows: Result<(Vec<Vec<Value>>, u64), cassie::app::CassieError>,
+        seeks: u64,
+        ranges: u64,
+        scans: u64,
+        retired: u64,
+    }
+
+    fn observe_float_index_read(
+        fixture: &super::SqlFixture,
+        table: &str,
+        predicate: &str,
+    ) -> FloatIndexObservation {
+        let before = fixture.cassie.metrics();
+        let sql = format!("SELECT id FROM {table} WHERE {predicate}");
+        let rows = fixture.execute(&sql).map(|result| {
+            let rows = result.rows().to_vec();
+            let live = accounted_memory(&fixture.cassie.metrics());
+            drop(result);
+            (rows, live)
+        });
+        let after = fixture.cassie.metrics();
+        FloatIndexObservation {
+            rows,
+            seeks: delta(&before, &after, "read_paths", "index_seek_scans"),
+            ranges: delta(&before, &after, "read_paths", "range_scans"),
+            scans: delta(&before, &after, "read_paths", "collection_scans"),
+            retired: accounted_memory(&after),
+        }
+    }
+
+    #[test]
+    fn should_retain_float_index_reads_for_mixed_integer_literals() {
+        // Arrange
+        let mut config = CassieRuntimeConfig::default();
+        config.limits.query_timeout_ms = 0;
+        config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+        config.limits.adaptive_execution_enabled = false;
+        config.limits.parallel_scan_workers = 1;
+        let fixture =
+            sql_fixture_with_config("mixed-float-index-literals", FLOAT_INDEX_SEED, config);
+
+        // Act
+        let observations = FLOAT_INDEX_CASES
+            .iter()
+            .map(|(predicate, expected, path)| {
+                (
+                    *predicate,
+                    *expected,
+                    *path,
+                    observe_float_index_read(&fixture, "mixed_float_scan", predicate),
+                    observe_float_index_read(&fixture, "mixed_float_indexed", predicate),
+                )
+            })
+            .collect::<Vec<_>>();
+        drop(fixture);
+
+        // Assert
+        for (predicate, expected, path, baseline, indexed) in observations {
+            let expected = expected
+                .iter()
+                .map(|id| vec![Value::Int64(*id)])
+                .collect::<Vec<_>>();
+            let (mut baseline_rows, baseline_live) =
+                baseline.rows.expect("unindexed mixed comparison");
+            let (mut indexed_rows, indexed_live) = indexed.rows.expect("indexed mixed comparison");
+            for rows in [&mut baseline_rows, &mut indexed_rows] {
+                rows.sort_by_key(|row| match row.first() {
+                    Some(Value::Int64(id)) => *id,
+                    _ => panic!("integer row identity"),
+                });
+            }
+            assert_eq!(baseline_rows, expected, "unindexed {predicate}");
+            assert_eq!(indexed_rows, baseline_rows, "indexed {predicate}");
+            assert!(baseline_live > 0 && indexed_live > 0, "{predicate}");
+            assert_eq!((baseline.retired, indexed.retired), (0, 0), "{predicate}");
+            assert!(baseline.scans > 0, "actual unindexed scan: {predicate}");
+            assert_eq!((baseline.seeks, baseline.ranges), (0, 0), "{predicate}");
+            match path {
+                "index_seek_scans" => assert!(indexed.seeks > 0, "actual FLOAT seek: {predicate}"),
+                "range_scans" => assert!(indexed.ranges > 0, "actual FLOAT range: {predicate}"),
+                "collection_scans" => {
+                    assert!(indexed.scans > 0, "signed-zero fallback: {predicate}");
+                    assert_eq!((indexed.seeks, indexed.ranges), (0, 0), "{predicate}");
+                }
+                _ => panic!("known read-path counter"),
+            }
+        }
+    }
+
     #[test]
     fn should_preserve_indexed_mixed_scalar_comparison_completeness() {
         // Arrange

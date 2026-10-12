@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: Detect backend-relevant pull request changes
         id: filter
@@ -28,6 +29,7 @@ jobs:
           script: |
             if (context.eventName !== "pull_request") {
               core.setOutput("backend", "true");
+              core.setOutput("frontend", "false");
               return;
             }
 
@@ -40,7 +42,13 @@ jobs:
             const backendChanged = truncated || files.some(({ filename }) =>
               filename !== "ui" && !filename.startsWith("ui/")
             );
+            const frontendChanged = truncated || files.some(({ filename }) =>
+              filename.startsWith("ui/") ||
+              filename === "Dockerfile" ||
+              filename === "public/openapi.yml"
+            );
             core.setOutput("backend", String(backendChanged));
+            core.setOutput("frontend", String(frontendChanged));
 
   backend-quality:
     needs: changes
@@ -170,26 +178,42 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  frontend-suite:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    uses: ./.github/workflows/ci-frontend.yml
+
   backend:
     name: backend
-    needs: [changes, backend-quality, backend-tests]
+    needs: [changes, backend-quality, backend-tests, frontend-suite]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Require backend quality and every test shard
+      - name: Require every relevant CI suite
         env:
           SCOPE_RESULT: ${{ needs.changes.result }}
           BACKEND_CHANGED: ${{ needs.changes.outputs.backend }}
+          FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
           QUALITY_RESULT: ${{ needs.backend-quality.result }}
           TESTS_RESULT: ${{ needs.backend-tests.result }}
+          FRONTEND_RESULT: ${{ needs.frontend-suite.result }}
         run: |
           if [[ "$SCOPE_RESULT" != "success" ]]; then
             echo "failed to determine whether backend checks apply" >&2
             exit 1
           fi
-          if [[ "$BACKEND_CHANGED" == "false" ]]; then
-            echo "No backend-relevant changes; backend check succeeds without running the backend suite."
-            exit 0
+          if [[ "$BACKEND_CHANGED" != "true" && "$BACKEND_CHANGED" != "false" ]]; then
+            echo "backend change scope was not reported" >&2
+            exit 1
           fi
-          test "$QUALITY_RESULT" = success
-          test "$TESTS_RESULT" = success
+          if [[ "$FRONTEND_CHANGED" != "true" && "$FRONTEND_CHANGED" != "false" ]]; then
+            echo "frontend change scope was not reported" >&2
+            exit 1
+          fi
+          if [[ "$BACKEND_CHANGED" == "true" ]]; then
+            test "$QUALITY_RESULT" = success
+            test "$TESTS_RESULT" = success
+          fi
+          if [[ "$FRONTEND_CHANGED" == "true" ]]; then
+            test "$FRONTEND_RESULT" = success
+          fi

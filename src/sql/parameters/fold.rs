@@ -9,6 +9,8 @@ use super::diagnostics::BooleanConstruct;
 use super::occurrences::{Occurrences, PrivateParameterTypeInput, Summary};
 use super::ParameterAdmissionError;
 
+#[path = "fold_columns.rs"]
+mod columns;
 #[path = "fold_expressions.rs"]
 mod expressions;
 #[path = "fold_functions.rs"]
@@ -50,8 +52,9 @@ struct Frame<'a> {
     occurrence_start: usize,
 }
 
-struct Context {
+struct Context<'a> {
     fields: FieldTypeMap,
+    source: &'a ast::QuerySource,
     target_start: usize,
 }
 
@@ -65,7 +68,7 @@ pub(super) struct Fold<'a, 'c> {
     frames: ReservedVector<Frame<'a>>,
     summaries: ReservedVector<Summary>,
     targets: ReservedVector<Target>,
-    contexts: ReservedVector<Context>,
+    contexts: ReservedVector<Context<'a>>,
     catalog: &'c Catalog,
     controls: &'c QueryExecutionControls,
     scope: Option<&'c FunctionInputScope<'c>>,
@@ -137,6 +140,7 @@ impl<'a, 'c> Fold<'a, 'c> {
             self.contexts.try_push(
                 Context {
                     fields,
+                    source: &select.source,
                     target_start: self.targets.values.len(),
                 },
                 self.controls,

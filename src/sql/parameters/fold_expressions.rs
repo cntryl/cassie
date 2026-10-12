@@ -28,13 +28,9 @@ impl Fold<'_, '_> {
                 Ok(Summary::known(oid(&binder::integer_literal_type(*value))))
             }
             ast::Expr::NumberLiteral(_) => Ok(Summary::known(701)),
-            ast::Expr::Column(name) => Ok(crate::sql::field_type_for_column(
-                self.fields(frame.context),
-                name,
-            )
-            .map_or_else(Summary::unqualified, |data_type| {
-                Summary::known(oid(data_type))
-            })),
+            ast::Expr::Column(name) => Ok(self
+                .column_oid(frame.context, name)
+                .map_or_else(Summary::unqualified, Summary::known)),
             ast::Expr::Cast { data_type, .. } => Ok(Summary::known(oid(data_type))),
             ast::Expr::IsNull { .. } | ast::Expr::Not { .. } | ast::Expr::Exists(_) => {
                 Ok(Summary::known(16))
@@ -118,7 +114,7 @@ impl Fold<'_, '_> {
     ) -> Result<Summary, ParameterAdmissionError> {
         let base = frame.start + usize::from(operand.is_some());
         if let Some(operand_oid) =
-            operand.and_then(|expr| known_operand_oid(expr, self.fields(frame.context)))
+            operand.and_then(|expr| self.known_operand_oid(expr, frame.context))
         {
             for index in 0..branches.len() {
                 check_controls(self.controls)?;
@@ -187,27 +183,4 @@ pub(super) fn common(left: Summary, right: Summary) -> Option<i32> {
         }
     };
     binder::common_case_type(data_type(left)?, data_type(right)?).map(|data_type| oid(&data_type))
-}
-
-// This is the OID projection of known_expr_type's existing operand cases.
-// Borrow nonprimitive Column/Cast types instead of cloning an Array Box.
-fn known_operand_oid(expr: &ast::Expr, fields: &crate::sql::FieldTypeMap) -> Option<i32> {
-    match expr {
-        ast::Expr::Column(name) => crate::sql::field_type_for_column(fields, name).map(oid),
-        ast::Expr::Cast { data_type, .. } => Some(oid(data_type)),
-        ast::Expr::StringLiteral(_) => Some(25),
-        ast::Expr::NumberLiteral(_) => Some(701),
-        ast::Expr::IntegerLiteral(value) => Some(oid(&binder::integer_literal_type(*value))),
-        ast::Expr::BoolLiteral(_) => Some(16),
-        ast::Expr::Null => Some(oid(&crate::types::DataType::Null)),
-        ast::Expr::Param(_)
-        | ast::Expr::Binary { .. }
-        | ast::Expr::Between { .. }
-        | ast::Expr::InList { .. }
-        | ast::Expr::IsNull { .. }
-        | ast::Expr::Not { .. }
-        | ast::Expr::Function(_)
-        | ast::Expr::Exists(_)
-        | ast::Expr::Case { .. } => None,
-    }
 }

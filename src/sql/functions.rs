@@ -1,3 +1,6 @@
+mod inputs;
+pub(crate) use inputs::{input_signature, FunctionInputSignature};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FunctionId {
     Count,
@@ -127,11 +130,12 @@ pub fn registry() -> Vec<ScalarFunction> {
 
 #[must_use]
 pub fn function(name: &str) -> Option<&'static ScalarFunction> {
-    let name = name.to_ascii_lowercase();
     let name = name
-        .strip_prefix("pg_catalog.")
-        .filter(|local_name| *local_name == "pg_show_all_settings")
-        .unwrap_or(&name);
+        .get(..11)
+        .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
+        .and_then(|_| name.get(11..))
+        .filter(|local_name| local_name.eq_ignore_ascii_case("pg_show_all_settings"))
+        .unwrap_or(name);
     SCALAR_FUNCTIONS
         .iter()
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))

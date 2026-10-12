@@ -95,6 +95,31 @@ Cassie's supported Boolean contexts require a Boolean value or SQL NULL. This ap
 
 The CHAR, numeric-width, temporal, and other type boundaries in this document continue to apply. This finite Boolean contract does not extend the supported SQL syntax, transaction profile, or PostgreSQL catalog surface.
 
+## Function parameter inference
+
+Unknown wire parameter OIDs 0 and 705 resolve to TEXT for `lower($1)`,
+`lower(COALESCE($1, NULL))`, `COALESCE(lower($1), CAST(NULL AS TEXT))` and
+`COALESCE($1, NULL)`. A BOOLEAN, INT or BIGINT typed NULL argument supplies
+the corresponding common type for an otherwise unknown COALESCE input.
+`COALESCE($1, TRUE)` uses BOOLEAN, including when its result is a predicate.
+These selected paths retain matching declared input identities and qualify
+NULL values, Statement/Portal descriptors and text/binary results.
+
+SQL-defined functions infer these primitive parameter types from declared
+arguments. A BOOLEAN argument can therefore retain OID 16 when the function
+returns TEXT. The lookup follows the session database and search path, including
+schema-qualified references, without copying stored function bodies. New lookup
+scratch shares transient Parse admission: exhaustion reports `53200`, and
+cancellation/deadline checks retain `57014`. Retained prepared metadata and
+registered CancelRequest during Parse remain separate open obligations.
+
+The existing public Rust inference facade preserves explicitly supplied OIDs,
+including zero; wire Parse normalizes zero before inference. This compatibility
+control does not qualify invalid overloads or argument types. A generic UNKNOWN
+finalizer, complete callable/operator coercion, occurrence-order inference and
+the remaining Boolean error-phase/descriptor-name differences remain open under
+[#904](https://github.com/cntryl/cassie/issues/904).
+
 ## Numeric Typing
 
 The [finite SQL type and wire contract](type-contract.md) lists every current

@@ -20,6 +20,9 @@ mod controlled_schema;
 use controlled_schema::view_schema_to_collection_schema;
 #[path = "metadata/explain_metadata.rs"]
 mod explain_metadata;
+#[path = "metadata/function_inputs.rs"]
+mod function_inputs;
+pub(crate) use function_inputs::FunctionInputScope;
 
 #[derive(Debug, Clone)]
 pub struct Catalog {

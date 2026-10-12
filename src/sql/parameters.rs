@@ -5,6 +5,7 @@ use crate::types::DataType;
 
 mod admission;
 mod count;
+mod function_inputs;
 mod inference;
 
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
@@ -16,19 +17,43 @@ use inference::infer_parameter_type_oids_query;
 
 const UNKNOWN_PARAMETER_TYPE_OID: i32 = 705;
 
-struct ParameterInference {
+struct ParameterInference<'a> {
     oids: Vec<i32>,
     context_demands: Vec<u8>,
     record_context_demands: bool,
+    scope: Option<&'a crate::catalog::FunctionInputScope<'a>>,
+    controls: Option<&'a QueryExecutionControls>,
+    failure: Option<ParameterAdmissionError>,
 }
 
-impl ParameterInference {
+impl ParameterInference<'_> {
     fn new(oids: Vec<i32>) -> Self {
         Self {
             context_demands: vec![0; oids.len()],
             oids,
             record_context_demands: true,
+            scope: None,
+            controls: None,
+            failure: None,
         }
+    }
+
+    fn check(&mut self) -> bool {
+        if self.failure.is_some() {
+            return false;
+        }
+        if let Some(controls) = self.controls {
+            if let Err(error) = check_controls(controls) {
+                self.failure = Some(error);
+                return false;
+            }
+        }
+        true
+    }
+
+    fn finish_pass(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.check();
+        self.failure.take().map_or(Ok(()), Err)
     }
 
     fn is_empty(&self) -> bool {
@@ -88,7 +113,7 @@ fn infer_parameter_types_with_catalog(
     statement: &ParsedStatement,
     provided: &[i32],
     catalog: &crate::catalog::Catalog,
-) -> ParameterInference {
+) -> ParameterInference<'static> {
     let mut inference = ParameterInference::new(parameter_type_oids(statement, provided));
     infer_parameter_type_oids_query(&statement.statement, catalog, &mut inference);
     inference
@@ -138,11 +163,22 @@ fn declared_conflict_for_demands(provided: &[i32], demands: &[u8]) -> Option<Str
 
 // Private Parse admission shares the original inference visitor and conflict
 // projection. Public callers retain their existing Vec/Option contracts.
+#[cfg(test)]
 pub(crate) fn checked_parse_parameter_types(
     statement: &ParsedStatement,
     provided: &[i32],
     catalog: &crate::catalog::Catalog,
     controls: &QueryExecutionControls,
+) -> Result<AdmittedParameterTypes, ParameterAdmissionError> {
+    checked_parse_parameter_types_in_scope(statement, provided, catalog, controls, None)
+}
+
+pub(crate) fn checked_parse_parameter_types_in_scope(
+    statement: &ParsedStatement,
+    provided: &[i32],
+    catalog: &crate::catalog::Catalog,
+    controls: &QueryExecutionControls,
+    scope: Option<&crate::catalog::FunctionInputScope<'_>>,
 ) -> Result<AdmittedParameterTypes, ParameterAdmissionError> {
     let count = checked_parameter_count(statement, controls)?;
     let mut normalized = reserve_vector::<i32>(controls, provided.len())?;
@@ -159,18 +195,20 @@ pub(crate) fn checked_parse_parameter_types(
     {
         // The conflict pass deliberately starts UNKNOWN, independently of
         // supplied OIDs. Both its vectors drop before the second pass begins.
-        let mut first = AccountedInference::new(count, &[], controls)?;
+        let mut first = AccountedInference::new(count, &[], controls, scope)?;
         check_controls(controls)?;
         infer_parameter_type_oids_query(&statement.statement, catalog, &mut first.value);
+        first.value.finish_pass()?;
         if let Some(message) =
             declared_conflict_for_demands(&normalized.values, &first.value.context_demands)
         {
             return Err(ParameterAdmissionError::LegacyConflict(message));
         }
     }
-    let mut actual = AccountedInference::new(count, &normalized.values, controls)?;
+    let mut actual = AccountedInference::new(count, &normalized.values, controls, scope)?;
     check_controls(controls)?;
     infer_parameter_type_oids_query(&statement.statement, catalog, &mut actual.value);
+    actual.value.finish_pass()?;
     let AccountedInference {
         value,
         oid_memory,
@@ -180,23 +218,27 @@ pub(crate) fn checked_parse_parameter_types(
         oids,
         context_demands,
         record_context_demands: _,
+        scope: _,
+        controls: _,
+        failure: _,
     } = value;
     drop(context_demands);
     drop(demand_memory);
     Ok(AdmittedParameterTypes::new(oids, oid_memory, controls))
 }
 
-struct AccountedInference {
-    value: ParameterInference,
+struct AccountedInference<'a> {
+    value: ParameterInference<'a>,
     oid_memory: QueryMemoryReservation,
     demand_memory: QueryMemoryReservation,
 }
 
-impl AccountedInference {
+impl<'a> AccountedInference<'a> {
     fn new(
         count: usize,
         provided: &[i32],
-        controls: &QueryExecutionControls,
+        controls: &'a QueryExecutionControls,
+        scope: Option<&'a crate::catalog::FunctionInputScope<'a>>,
     ) -> Result<Self, ParameterAdmissionError> {
         let mut oids = reserve_vector::<i32>(controls, count)?;
         let mut demands = reserve_vector::<u8>(controls, count)?;
@@ -217,6 +259,9 @@ impl AccountedInference {
                 oids: oids.values,
                 context_demands: demands.values,
                 record_context_demands: true,
+                scope,
+                controls: Some(controls),
+                failure: None,
             },
             oid_memory: oids.reservation,
             demand_memory: demands.reservation,

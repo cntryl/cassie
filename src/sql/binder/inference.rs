@@ -754,7 +754,7 @@ pub(crate) fn infer_expr_type(
     }
 }
 
-pub(super) fn common_case_type(left: DataType, right: DataType) -> Option<DataType> {
+pub(crate) fn common_case_type(left: DataType, right: DataType) -> Option<DataType> {
     if left == DataType::Null {
         return Some(right);
     }

@@ -57,6 +57,25 @@ may still select existing candidate paths with an authoritative residual.
 Encoded/typed paths decline unqualified null-safe kernels before conversion.
 Installing an index or configuring workers does not prove dispatch.
 
+### Native numeric null-safe kernels
+
+The shared typed-batch capability authority admits `IS [NOT] DISTINCT FROM`
+to the native expression kernel under the same rule as native `=`: both
+operands are columns, parameters, numeric literals or SQL NULL, and both
+resolve to SMALLINT/INT/BIGINT/FLOAT or NULL. The kernel applies the NULL table
+first and then uses the same `compare_numeric_values` law as native `=`, so
+NaN equals NaN, signed zero compares equal and integers stay exact. The result
+is a non-NULL BOOLEAN and may feed native AND/OR. Typed aggregate predicates and
+projected-scan field pruning admit the operators on the same terms. BOOLEAN,
+text, JSON, ARRAY, VECTOR, nonnumeric parameters and binder-inserted mixed
+integer/FLOAT input casts keep the scalar fallback, and mixed predicates keep
+the same read path as their ordinary `=`/`<>` counterparts.
+
+Null-safe equality is not yet a hash, merge or index join key. `JOIN ON
+l.n IS NOT DISTINCT FROM r.n` keeps the scalar nested-loop fallback, and no
+index answers a null-safe predicate. Those native join/index kernels remain
+open #798 work.
+
 Existing query controls, applicable admission, ownership and error ordering
 remain in force. This slice does not claim bounded generic scalar expression
 allocation, native CTE promotion or stronger statement visibility.

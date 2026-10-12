@@ -666,6 +666,8 @@ fn collect_projected_filter_columns(expr: &Expr, fields: &mut Vec<String>) -> Op
         Expr::Binary { op, .. } => match op {
             BinaryOp::Eq
             | BinaryOp::NotEq
+            | BinaryOp::IsDistinctFrom
+            | BinaryOp::IsNotDistinctFrom
             | BinaryOp::Lt
             | BinaryOp::Lte
             | BinaryOp::Gt

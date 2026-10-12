@@ -26,3 +26,6 @@ mod runtime;
 
 #[path = "null_safe_predicates/loaded_materializations.rs"]
 mod loaded_materializations;
+
+#[path = "null_safe_predicates/native_paths.rs"]
+mod native_paths;

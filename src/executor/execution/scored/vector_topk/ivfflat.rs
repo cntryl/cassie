@@ -61,7 +61,7 @@ pub(super) fn execute_ivfflat_vector_top_k(
     let (built_generation, records, membership_reads, vector_reads, candidate_memory) =
         batch.into_parts();
 
-    wait_at_ann_rerank_boundary();
+    wait_at_ann_rerank_boundary(cassie);
     if built_generation != manifest_generation
         || !source_generation_matches(cassie, spec, built_generation)?
     {

@@ -218,14 +218,22 @@ pub(super) fn native_value<'a>(
                 };
                 return Ok(value.map_or(Cell::Null, Cell::Boolean));
             }
+            if matches!(op, BinaryOp::IsDistinctFrom | BinaryOp::IsNotDistinctFrom) {
+                // Two NULLs are not distinct and one NULL is distinct; otherwise
+                // the same numeric equality as native `=` decides.
+                let equal = match (is_null(left), is_null(right)) {
+                    (true, true) => true,
+                    (true, false) | (false, true) => false,
+                    (false, false) => numeric_order(left, right)?.is_eq(),
+                };
+                return Ok(Cell::Boolean(
+                    equal == matches!(op, BinaryOp::IsNotDistinctFrom),
+                ));
+            }
             if is_null(left) || is_null(right) {
                 return Ok(Cell::Null);
             }
-            let order = crate::executor::semantic::compare_numeric_values(
-                &numeric(left)?,
-                &numeric(right)?,
-            )
-            .ok_or_else(|| invalid("native comparison requires numeric values"))?;
+            let order = numeric_order(left, right)?;
             Ok(Cell::Boolean(match op {
                 BinaryOp::Eq => order.is_eq(),
                 BinaryOp::NotEq => !order.is_eq(),
@@ -238,6 +246,11 @@ pub(super) fn native_value<'a>(
         }
         _ => Err(invalid("unqualified native expression kernel")),
     }
+}
+
+fn numeric_order(left: Cell<'_>, right: Cell<'_>) -> Result<std::cmp::Ordering, QueryError> {
+    crate::executor::semantic::compare_numeric_values(&numeric(left)?, &numeric(right)?)
+        .ok_or_else(|| invalid("native comparison requires numeric values"))
 }
 
 fn is_null(value: Cell<'_>) -> bool {

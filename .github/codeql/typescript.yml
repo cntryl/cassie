@@ -1,0 +1,4 @@
+# Scan only the admin UI source. ui/tests/, ui/dev/, and config files are excluded.
+name: ui-typescript-src-only
+paths:
+  - ui/src

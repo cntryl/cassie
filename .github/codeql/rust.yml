@@ -1,0 +1,4 @@
+# Scan only the shipped Rust crate. benches/, examples/, fuzz/, and tests/ are not shipped.
+name: rust-src-only
+paths:
+  - src

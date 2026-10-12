@@ -72,7 +72,7 @@ pub(super) fn execute_hnsw_vector_top_k(
     let (built_generation, candidates, candidate_count, ann_reads, candidate_memory) =
         batch.into_parts();
 
-    wait_at_ann_rerank_boundary();
+    wait_at_ann_rerank_boundary(cassie);
     if !source_generation_matches(cassie, spec, built_generation)? {
         record_hnsw_concurrent_source_change(cassie);
         return Ok(None);

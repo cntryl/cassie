@@ -1018,13 +1018,11 @@ mod vector_ann_concurrency {
 
     use cassie::app::Cassie;
     use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig};
-    use parking_lot::RwLock;
 
     use super::support_sql as support;
 
     const TABLE: &str = "ann_concurrent_source";
     const QUERY: &str = "SELECT id, vector_distance(embedding, '[0,0,0]') AS distance FROM ann_concurrent_source ORDER BY distance ASC LIMIT 5";
-    static ANN_RERANK_BARRIER_TEST_GUARD: RwLock<()> = RwLock::new(());
 
     fn fixture(path: &str, index_type: &str) -> Arc<Cassie> {
         fixture_with_memory_budget(path, index_type, None)
@@ -1100,7 +1098,6 @@ mod vector_ann_concurrency {
     #[test]
     fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
         // Arrange
-        let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.write();
         let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
         support::use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -1118,6 +1115,7 @@ mod vector_ann_concurrency {
         let selected = Arc::new(Barrier::new(2));
         let resume = Arc::new(Barrier::new(2));
         cassie::executor::set_vector_ann_rerank_barriers(
+            &cassie,
             Some(Arc::clone(&selected)),
             Some(Arc::clone(&resume)),
         );
@@ -1199,7 +1197,6 @@ mod vector_ann_concurrency {
     #[test]
     fn should_preserve_captured_ivfflat_source_when_replaced_before_reranking() {
         // Arrange
-        let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.write();
         let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
         support::use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -1217,6 +1214,7 @@ mod vector_ann_concurrency {
         let selected = Arc::new(Barrier::new(2));
         let resume = Arc::new(Barrier::new(2));
         cassie::executor::set_vector_ann_rerank_barriers(
+            &cassie,
             Some(Arc::clone(&selected)),
             Some(Arc::clone(&resume)),
         );
@@ -1296,9 +1294,59 @@ mod vector_ann_concurrency {
     }
 
     #[test]
+    fn should_pause_only_the_installing_fixture_at_the_ann_rerank_boundary() {
+        for index_type in ["hnsw", "ivfflat"] {
+            // Arrange
+            support::use_local_storage();
+            std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
+            let owner_path = support::data_dir(&format!("ann-barrier-owner-{index_type}"));
+            let unrelated_path = support::data_dir(&format!("ann-barrier-unrelated-{index_type}"));
+            let owner = fixture(&owner_path, index_type);
+            let unrelated = fixture(&unrelated_path, index_type);
+            let selected = Arc::new(Barrier::new(1));
+            let resume = Arc::new(Barrier::new(1));
+            cassie::executor::set_vector_ann_rerank_barriers(
+                &owner,
+                Some(Arc::clone(&selected)),
+                Some(Arc::clone(&resume)),
+            );
+
+            // Act
+            let unrelated_rows = unrelated
+                .execute_sql(&unrelated.create_session("reader", None), QUERY, vec![])
+                .expect("unrelated ANN query")
+                .rows()
+                .len();
+            let installed_after_unrelated = Arc::strong_count(&selected);
+            let owner_rows = owner
+                .execute_sql(&owner.create_session("reader", None), QUERY, vec![])
+                .expect("owner ANN query")
+                .rows()
+                .len();
+            let installed_after_owner = Arc::strong_count(&selected);
+
+            // Assert
+            assert_eq!(unrelated_rows, 5, "{index_type} unrelated rows");
+            assert_eq!(
+                installed_after_unrelated, 2,
+                "{index_type} unrelated fixture consumed another fixture's rerank barriers"
+            );
+            assert_eq!(owner_rows, 5, "{index_type} owner rows");
+            assert_eq!(
+                installed_after_owner, 1,
+                "{index_type} owner fixture did not consume its rerank barriers"
+            );
+            for (cassie, path) in [(owner, owner_path), (unrelated, unrelated_path)] {
+                cassie.shutdown();
+                drop(cassie);
+                std::fs::remove_dir_all(&path).expect("strict ANN barrier cleanup");
+            }
+        }
+    }
+
+    #[test]
     fn should_cancel_hnsw_candidate_loading_without_publishing_success_metrics() {
         // Arrange
-        let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
         let _guard = cassie::midge::adapter::query_scan_control_test_guard();
         support::use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -1333,7 +1381,6 @@ mod vector_ann_concurrency {
     #[test]
     fn should_cancel_ivfflat_membership_loading_without_publishing_success_metrics() {
         // Arrange
-        let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
         let _guard = cassie::midge::adapter::query_scan_control_test_guard();
         support::use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -1368,7 +1415,6 @@ mod vector_ann_concurrency {
     #[test]
     fn should_reject_hnsw_loading_when_query_memory_is_exhausted() {
         // Arrange
-        let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
         let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
         support::use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -1402,7 +1448,6 @@ mod vector_ann_concurrency {
     #[test]
     fn should_publish_hnsw_metrics_only_after_selecting_the_ann_path() {
         // Arrange
-        let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
         let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
         support::use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -1443,7 +1488,6 @@ mod vector_ann_concurrency {
     #[test]
     fn should_reject_ivfflat_loading_when_query_memory_is_exhausted() {
         // Arrange
-        let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
         let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
         support::use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -1477,7 +1521,6 @@ mod vector_ann_concurrency {
     #[test]
     fn should_publish_ivfflat_metrics_only_after_selecting_the_ann_path() {
         // Arrange
-        let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
         let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
         support::use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");

@@ -13,6 +13,9 @@ mod sliced_selection;
 #[path = "tests/families.rs"]
 pub(super) mod families;
 
+#[path = "tests/null_safe.rs"]
+mod null_safe;
+
 use super::TypedBatch;
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::QueryExecutionControls;

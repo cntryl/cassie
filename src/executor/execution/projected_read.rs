@@ -822,6 +822,8 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
             match op {
                 crate::sql::ast::BinaryOp::Eq
                 | crate::sql::ast::BinaryOp::NotEq
+                | crate::sql::ast::BinaryOp::IsDistinctFrom
+                | crate::sql::ast::BinaryOp::IsNotDistinctFrom
                 | crate::sql::ast::BinaryOp::Lt
                 | crate::sql::ast::BinaryOp::Lte
                 | crate::sql::ast::BinaryOp::Gt

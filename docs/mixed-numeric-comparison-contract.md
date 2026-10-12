@@ -1,11 +1,11 @@
 # Primitive mixed numeric SQL comparison contract
 
 This defines the selected finite [#904](https://github.com/cntryl/cassie/issues/904)
-bundle on accepted #936. Its private implementation has passed twenty focused
-query, join, mutation and pgwire tests after retained PostgreSQL 18.6 baselines
-and behavioral RED evidence. Complete native qualification, adversarial review
-and the final ordered local gate are still required before merge. This finite
-bundle does not establish full type-registry or PostgreSQL parity support.
+bundle on accepted #936, including its private implementation and required
+qualification. Retained PostgreSQL 18.6 baselines, behavioral RED evidence,
+native comparisons, adversarial probes and the complete ordered local gate
+govern acceptance. This finite contract does not establish full type-registry
+or PostgreSQL parity support.
 
 ## Operator input domain
 

@@ -379,3 +379,6 @@ fn should_keep_every_typed_payload_family_alive_after_join_inputs_drop() {
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[path = "numeric_probe_tests.rs"]
+mod numeric_probe_tests;

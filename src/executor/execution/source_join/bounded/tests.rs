@@ -488,3 +488,6 @@ fn should_admit_bounded_side_selection_keys_before_copying_them() {
         "retained phase admission is required: {result:?}"
     );
 }
+
+#[path = "numeric_probe_tests.rs"]
+mod numeric_probe_tests;

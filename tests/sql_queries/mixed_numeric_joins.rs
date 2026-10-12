@@ -361,3 +361,156 @@ fn should_avoid_lossy_mixed_join_index_probes() {
         }
     }
 }
+mod scalar_index_probes {
+    use super::{delta, sql_fixture_with_config};
+    use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
+    use cassie::types::Value;
+
+    const SEED: &[&str] = &[
+        "CREATE TABLE mix_scalar_index (id INT,k BIGINT)",
+        "INSERT INTO mix_scalar_index(id,k) VALUES (1,9007199254740991),(2,9007199254740992),(3,9007199254740993),(4,9007199254740993),(5,NULL),(6,-9007199254740993),(7,-9007199254740992)",
+        "CREATE INDEX mix_scalar_exact_key ON mix_scalar_index(k)",
+    ];
+
+    fn accounted_memory(metrics: &serde_json::Value) -> u64 {
+        metrics["query"]["current_accounted_memory_bytes"]
+            .as_u64()
+            .expect("query owner metric")
+    }
+
+    fn expected_rows(overlay: bool, family: usize) -> Vec<Vec<Value>> {
+        match family {
+            0 => {
+                let mut rows = vec![
+                    vec![Value::Int64(2), Value::Int64(9_007_199_254_740_992)],
+                    vec![Value::Int64(3), Value::Int64(9_007_199_254_740_993)],
+                    vec![Value::Int64(4), Value::Int64(9_007_199_254_740_993)],
+                ];
+                if overlay {
+                    rows.insert(
+                        0,
+                        vec![Value::Int64(1), Value::Int64(9_007_199_254_740_993)],
+                    );
+                }
+                rows
+            }
+            1 => vec![
+                vec![Value::Int64(6), Value::Int64(-9_007_199_254_740_993)],
+                vec![Value::Int64(7), Value::Int64(-9_007_199_254_740_992)],
+            ],
+            2 => vec![vec![Value::Int64(5), Value::Null]],
+            3 => vec![
+                vec![Value::Int64(3), Value::Int64(9_007_199_254_740_993)],
+                vec![Value::Int64(4), Value::Int64(9_007_199_254_740_993)],
+            ],
+            _ => panic!("literal observed family"),
+        }
+    }
+
+    #[test]
+    fn should_preserve_indexed_mixed_scalar_comparison_completeness() {
+        // Arrange
+        let mut config = CassieRuntimeConfig::default();
+        config.limits.query_timeout_ms = 0;
+        config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+        let fixture = sql_fixture_with_config("mixed-scalar-index-completeness", SEED, config);
+        let before_exact = fixture.cassie.metrics();
+        let exact = fixture
+            .execute("SELECT id,k FROM mix_scalar_index WHERE k = 9007199254740993")
+            .expect("genuine exact-index positive");
+        let mut exact_rows = exact.rows().to_vec();
+        exact_rows.sort_by_key(|row| match row[0] {
+            Value::Int64(id) => id,
+            _ => panic!("integer row identity"),
+        });
+        drop(exact);
+        let exact_seeks = delta(
+            &before_exact,
+            &fixture.cassie.metrics(),
+            "read_paths",
+            "index_seek_scans",
+        );
+        let mut observations = Vec::new();
+
+        // Act
+        for overlay in [false, true] {
+            if overlay {
+                fixture.execute("BEGIN").expect("real overlay");
+                fixture
+                    .execute("UPDATE mix_scalar_index SET k=9007199254740993 WHERE id=1")
+                    .expect("stage adjacent integer neighbor");
+            }
+            for reverse in [false, true] {
+                for (parameter, predicate, family) in [
+                    (
+                        Value::Float64(9_007_199_254_740_992.0),
+                        if reverse { "$1 = k" } else { "k = $1" },
+                        0,
+                    ),
+                    (
+                        Value::Float64(-9_007_199_254_740_992.0),
+                        if reverse { "$1 = k" } else { "k = $1" },
+                        1,
+                    ),
+                    (
+                        Value::Null,
+                        if reverse {
+                            "CAST($1 AS FLOAT) IS NOT DISTINCT FROM k"
+                        } else {
+                            "k IS NOT DISTINCT FROM CAST($1 AS FLOAT)"
+                        },
+                        2,
+                    ),
+                ] {
+                    let sql =
+                        format!("SELECT id,k FROM mix_scalar_index WHERE {predicate} ORDER BY id");
+                    let before = fixture.cassie.metrics();
+                    let result = fixture
+                        .cassie
+                        .execute_sql(&fixture.session, &sql, vec![parameter])
+                        .expect("mixed indexed predicate");
+                    let rows = result.rows().to_vec();
+                    let live = accounted_memory(&fixture.cassie.metrics());
+                    drop(result);
+                    let after = fixture.cassie.metrics();
+                    observations.push((
+                        overlay,
+                        family,
+                        rows,
+                        live,
+                        delta(&before, &after, "read_paths", "index_seek_scans"),
+                        delta(&before, &after, "read_paths", "collection_scans"),
+                        accounted_memory(&after),
+                    ));
+                }
+            }
+            if overlay {
+                fixture.execute("ROLLBACK").expect("retire actual overlay");
+            }
+        }
+        drop(fixture);
+
+        // Assert
+        assert!(
+            exact_seeks > 0,
+            "the same physical integer index has a real successful seek"
+        );
+        assert_eq!(exact_rows, expected_rows(false, 3));
+        for (overlay, family, rows, live, seeks, scans, retired) in observations {
+            let expected = expected_rows(overlay, family);
+            assert_eq!(rows, expected, "retained PostgreSQL addendum oracle");
+            assert!(live > 0);
+            assert_eq!(retired, 0);
+            if family != 2 {
+                assert_eq!(
+                    seeks, 0,
+                    "a Float8 equality domain cannot prune to one exact BIGINT key"
+                );
+                assert!(
+                    scans > 0,
+                    "safe fallback actually scans the indexed collection"
+                );
+            }
+        }
+    }
+}

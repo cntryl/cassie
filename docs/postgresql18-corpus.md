@@ -59,7 +59,8 @@ filtered from the runner or counted as supported. The separate Rust
 normalization and savepoint/restart behavior. Legacy bool-array OID 34016 is
 distinct from PostgreSQL 1000; those adapted witnesses cannot establish common
 array descriptor parity. Failed-transaction SQLSTATE qualification remains
-under #780/#848, including the recorded 25P02 versus 22000 discrepancy.
+under #780/#848. The recorded 25P02 versus 22000 discrepancy is corrected in
+source by the #819 typed transaction errors; corpus requalification is pending.
 
 Column descriptors retain authoritative raw name bytes as `name_hex`. `name`
 is a UTF-8 display value, or null when those bytes cannot be displayed as UTF-8;

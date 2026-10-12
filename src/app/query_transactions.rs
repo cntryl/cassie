@@ -1,7 +1,35 @@
 use super::{
     Cassie, CassieError, CassieSession, QueryResult, QueryStatement, TransactionAction,
-    TransactionStatement,
+    TransactionErrorKind, TransactionStatement,
 };
+
+impl CassieError {
+    /// `PostgreSQL` 25P02 for work attempted inside a failed transaction block.
+    pub(crate) fn failed_transaction() -> Self {
+        Self::Transaction {
+            kind: TransactionErrorKind::FailedTransaction,
+            message:
+                "current transaction is aborted, commands ignored until end of transaction block"
+                    .to_owned(),
+        }
+    }
+
+    /// `PostgreSQL` 25P01 for a savepoint control outside a transaction block.
+    pub(crate) fn savepoint_outside_transaction(command: &str) -> Self {
+        Self::Transaction {
+            kind: TransactionErrorKind::NoActiveTransaction,
+            message: format!("{command} can only be used in transaction blocks"),
+        }
+    }
+
+    /// `PostgreSQL` 3B001 for a savepoint name absent from the current block.
+    pub(crate) fn missing_savepoint(name: &str) -> Self {
+        Self::Transaction {
+            kind: TransactionErrorKind::InvalidSavepoint,
+            message: format!("savepoint \"{name}\" does not exist"),
+        }
+    }
+}
 
 impl Cassie {
     pub(crate) fn ensure_transaction_recovery(
@@ -11,14 +39,14 @@ impl Cassie {
         let recovery = matches!(
             &parsed.statement,
             QueryStatement::Transaction(TransactionStatement {
-                action: TransactionAction::Rollback | TransactionAction::RollbackTo { .. },
+                action: TransactionAction::Commit
+                    | TransactionAction::Rollback
+                    | TransactionAction::RollbackTo { .. },
                 ..
             })
         );
         if session.is_transaction_failed() && !recovery {
-            return Err(CassieError::Execution(
-                "transaction is failed; rollback required".to_string(),
-            ));
+            return Err(CassieError::failed_transaction());
         }
         Ok(())
     }
@@ -29,21 +57,22 @@ impl Cassie {
         statement: &TransactionStatement,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
-        if session.is_implicit_transaction()
-            && matches!(
-                statement.action,
-                TransactionAction::Savepoint { .. }
-                    | TransactionAction::RollbackTo { .. }
-                    | TransactionAction::Release { .. }
-            )
-        {
+        let savepoint_control = match statement.action {
+            TransactionAction::Savepoint { .. } => Some("SAVEPOINT"),
+            TransactionAction::RollbackTo { .. } => Some("ROLLBACK TO SAVEPOINT"),
+            TransactionAction::Release { .. } => Some("RELEASE SAVEPOINT"),
+            _ => None,
+        };
+        if let Some(control) = savepoint_control.filter(|_| session.is_implicit_transaction()) {
             session.mark_transaction_failed();
-            return Err(CassieError::Unsupported(
-                "savepoints require an explicit transaction".to_owned(),
-            ));
+            return Err(CassieError::savepoint_outside_transaction(control));
         }
+        // PostgreSQL ends a failed block on COMMIT by rolling it back.
+        let failed_commit = matches!(statement.action, TransactionAction::Commit)
+            && session.is_transaction_failed();
         let command = match &statement.action {
             TransactionAction::Begin => "BEGIN",
+            TransactionAction::Commit if failed_commit => "ROLLBACK",
             TransactionAction::Commit => "COMMIT",
             TransactionAction::Rollback | TransactionAction::RollbackTo { .. } => "ROLLBACK",
             TransactionAction::Savepoint { .. } => "SAVEPOINT",
@@ -55,6 +84,7 @@ impl Cassie {
 
         match &statement.action {
             TransactionAction::Begin => session.begin_transaction(statement.isolation)?,
+            TransactionAction::Commit if failed_commit => session.rollback_transaction(),
             TransactionAction::Commit => self.commit_transaction(session)?,
             TransactionAction::Rollback => session.rollback_transaction(),
             TransactionAction::Savepoint { name } => session.create_savepoint(name)?,
@@ -66,9 +96,7 @@ impl Cassie {
 
     pub(crate) fn commit_transaction(&self, session: &CassieSession) -> Result<(), CassieError> {
         if session.is_transaction_failed() {
-            return Err(CassieError::Execution(
-                "transaction is failed; rollback required".to_string(),
-            ));
+            return Err(CassieError::failed_transaction());
         }
         if !session.is_transaction_active() {
             return Err(CassieError::Execution(

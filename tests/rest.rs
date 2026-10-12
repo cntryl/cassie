@@ -3,6 +3,8 @@
 mod authentication_redaction;
 #[path = "support/authentication_redaction.rs"]
 mod support_authentication_redaction;
+#[path = "rest/transaction_errors.rs"]
+mod transaction_errors;
 
 #[path = "support/retrieval.rs"]
 mod support_retrieval;

@@ -115,9 +115,7 @@ pub(super) async fn try_handle_simple_copy_query(
         return write_copy_error(write_half, &session, &error).await;
     }
     if session.is_transaction_failed() {
-        let error = cassie_pg_error(&CassieError::Execution(
-            "transaction is failed; rollback required".to_string(),
-        ));
+        let error = cassie_pg_error(&CassieError::failed_transaction());
         return write_copy_error(write_half, &session, &error).await;
     }
 

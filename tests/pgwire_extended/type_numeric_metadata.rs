@@ -589,10 +589,13 @@ fn should_preserve_failed_transaction_priority_over_numeric_output_rejection() {
             Some(&b"E"[..])
         );
         let failed = &group[2];
-        assert_eq!(wire::error_code(failed).as_deref(), Some("22000"), "{oid}");
+        assert_eq!(wire::error_code(failed).as_deref(), Some("25P02"), "{oid}");
         let (_, error) = failed.iter().find(|(tag, _)| *tag == b'E').expect("error");
-        assert!(wire::parse_error_fields(error)
-            .contains(&('M', "transaction is failed; rollback required".to_string())));
+        assert!(wire::parse_error_fields(error).contains(&(
+            'M',
+            "current transaction is aborted, commands ignored until end of transaction block"
+                .to_string()
+        )));
         assert_eq!(failed.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
         assert!(!failed
             .iter()

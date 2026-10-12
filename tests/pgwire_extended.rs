@@ -32,6 +32,8 @@ mod coalesce_promotion;
 
 #[path = "support/pgwire_transaction_boundary.rs"]
 mod support_pgwire_transaction_boundary;
+#[path = "pgwire_extended/transaction_errors.rs"]
+mod transaction_errors;
 
 #[path = "pgwire_extended/type_vector_carriers.rs"]
 mod pgwire_type_vector_carriers;

@@ -362,8 +362,8 @@ impl Cassie {
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
         }
-        session.authorize_statement(&parsed.statement)?;
         Self::ensure_transaction_recovery(session, parsed)?;
+        session.authorize_statement(&parsed.statement)?;
         super::transaction_semantics::ensure_supported_transaction_semantics(
             session,
             &parsed.statement,

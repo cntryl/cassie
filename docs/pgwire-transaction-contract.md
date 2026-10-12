@@ -56,7 +56,7 @@ with an unresolved commit. Socket loss cannot undo an already completed commit.
 | Implicit origin, eligible failure | Stop at the first error, skip remaining statements, roll back the entire current segment, original error then `I`. |
 | Explicit Active, success | Retain staged writes, `T`. |
 | Explicit Active, error | Stop immediately, mark failed, `E`. A later textual ROLLBACK in the same frame is not executed. |
-| Explicit Failed, non-recovery statement | Reject without mutations, `E`. |
+| Explicit Failed, non-recovery statement | Reject `25P02` (current transaction is aborted) without mutations, `E`. |
 | Whole-frame syntax/resource or unsupported mixed-operation preflight error | Execute no statement from the frame. Roll back an owning implicit segment; fail an existing explicit block. |
 | Idle, standalone DDL/catalog | Execute outside transaction staging, existing result then `I`. |
 | Explicit origin, DDL/catalog | Reject before mutation; preserve failed-block recovery. |
@@ -81,10 +81,12 @@ qualification are defined in the
 | Explicit Active, COMMIT/ROLLBACK | Finish the block and clear its portals. Later eligible work may start a new implicit segment. |
 | Explicit Failed, ROLLBACK | Discard writes, restore session snapshot, release owned resources, `I`. |
 | Explicit Failed, supported ROLLBACK TO | Preserve existing savepoint recovery, `T`. |
-| Explicit Failed, COMMIT | Preserve rejection `22000`, `E`; require recovery. |
+| Explicit Failed, COMMIT | Roll back the failed block as PostgreSQL does: no error, command tag `ROLLBACK`, `I`. |
 | Idle, COMMIT | Preserve rejection `22000`, `I`. |
 | Idle, ROLLBACK | Preserve idempotent rollback and command tag, `I`. |
-| Implicit, SAVEPOINT/RELEASE/ROLLBACK TO | Reject `0A000` and roll back the implicit segment. |
+| Idle, SAVEPOINT/RELEASE/ROLLBACK TO | Reject `25P01` (can only be used in transaction blocks), `I`. |
+| Implicit, SAVEPOINT/RELEASE/ROLLBACK TO | Reject `25P01` and roll back the implicit segment. |
+| Explicit Active or Failed, RELEASE/ROLLBACK TO missing savepoint | Reject `3B001`; the block is or remains failed, `E`. |
 | Explicit Active, supported savepoint action | Preserve existing semantics and explicit ownership. |
 
 `BEGIN; INSERT 1; COMMIT; INSERT 2; SELECT 1/0` therefore retains 1 and

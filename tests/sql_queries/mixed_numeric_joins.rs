@@ -239,7 +239,10 @@ fn should_match_loaded_mixed_join_rows() {
                 let observed = execute(&fixture, &query(family, left, reverse, true));
 
                 // Assert
-                assert_completed(&observed, "typed_hash", family, left);
+                // Declared id leaves a hidden scan identity outside the LEFT null template;
+                // that existing shape truthfully selects the loaded scalar hash path.
+                let strategy = if left { "vectorized" } else { "typed_hash" };
+                assert_completed(&observed, strategy, family, left);
             }
         }
     }

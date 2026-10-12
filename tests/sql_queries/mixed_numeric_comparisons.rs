@@ -69,7 +69,7 @@ fn should_resolve_mixed_scalar_comparison_domains() {
 }
 
 #[test]
-fn should_preserve_numeric_nulls_and_exact_integer_boundaries() {
+fn should_preserve_numeric_comparison_boundaries() {
     // Arrange
     let fixture = sql_fixture("mixed-numeric-boundaries", &[]);
     let greater = [
@@ -107,6 +107,7 @@ fn should_preserve_numeric_nulls_and_exact_integer_boundaries() {
     });
     let carrier = fixture.rows("SELECT CAST('9007199254740993' AS BIGINT) AS exact_integer, CAST('9007199254740993' AS FLOAT) AS rounded_float");
     let deferred = fixture.rows("SELECT CAST('9007199254740993' AS BIGINT) IN (CAST('9007199254740992' AS FLOAT)) AS membership, CAST('9007199254740993' AS BIGINT) BETWEEN CAST('9007199254740992' AS FLOAT) AND CAST('9007199254740992' AS FLOAT) AS bounded, CASE CAST('9007199254740993' AS BIGINT) WHEN CAST('9007199254740992' AS FLOAT) THEN TRUE ELSE FALSE END AS chosen");
+    let numeric_literals = fixture.rows("SELECT 9007199254740993 IS DISTINCT FROM 9007199254740992.0 AS positive, -9007199254740993 IS DISTINCT FROM -9007199254740992.0 AS negative, 9007199254740993 IS DISTINCT FROM (9007199254740992.0 + 0) AS arithmetic");
 
     // Assert
     for (rows, expected) in results {
@@ -121,4 +122,5 @@ fn should_preserve_numeric_nulls_and_exact_integer_boundaries() {
     );
     // The separate IN/BETWEEN/simple CASE owners retain their current law.
     assert_eq!(deferred, vec![vec![Value::Bool(false); 3]]);
+    assert_eq!(numeric_literals, vec![vec![Value::Bool(true); 3]]);
 }

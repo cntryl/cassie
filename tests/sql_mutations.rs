@@ -1,3 +1,8 @@
+#[path = "support/mixed_numeric_dml.rs"]
+mod support_mixed_numeric_dml;
+#[path = "sql_mutations/mixed_numeric_comparisons.rs"]
+mod mixed_numeric_comparisons;
+
 // Consolidated integration suite: sql_mutations.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 

@@ -46,6 +46,14 @@ its completeness is proved. Keep existing exactness guards, or use an explicitly
 observed authoritative scan/residual fallback; do not remove a guard merely to
 make the probe eligible. No stored index encoding or durable key layout changes.
 
+Preserve safe FLOAT field-index reads for comparisons with integer literals.
+Recognize only the paired binder-generated input conversions, materialize the
+integer bound in the selected float8 domain, and verify the indexed field's
+catalog type is FLOAT before reading keys. Explicit casts, parameters and other
+constant expressions do not acquire eligibility from this recognition. Preserve
+signed-zero and transaction-overlay fallbacks. A manually constructed public
+AST with the same wrapper shape must still decline an integer-field index.
+
 Existing transient query/DML positions follow the selected operator law. This
 finite operator acceptance does not qualify stored-definition compatibility,
 unique/FK equality, exclusion constraints or concurrent enforcement. #769 CON-05

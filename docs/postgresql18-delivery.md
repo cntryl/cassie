@@ -145,7 +145,10 @@ during Parse, retained prepared/cloned vectors, empty-query allocations or
 typed Execute/Describe admission. Those obligations and the confirmed
 occurrence/coercion gaps remain open under #904/#849 and the full owners.
 
-The next #904 foundation selects ten function-input groups from an actual
+The #904 function-input foundation is accepted in [PR #935](https://github.com/cntryl/cassie/pull/935),
+commit `3304f103e6484102b3c60588469009ee240baa7e`, tree
+`75c3c7105e5f226b03d4a657667527c05608887a`: the complete ordered gate
+passed 3,963 tests with nine existing ignores. Its ten function-input groups use an actual
 immutable PostgreSQL 18.6 baseline: three lower/nested-COALESCE forms, unknown
 COALESCE, BOOLEAN/INT/BIGINT typed NULL anchors, a Boolean COALESCE predicate,
 and same-name TEXT/BOOLEAN-input SQL functions in two session schemas. Each
@@ -165,6 +168,58 @@ Invalid overloads/arity, other callable families, a generic UNKNOWN finalizer,
 retained prepared memory and the original occurrence gaps remain open. Public
 Vec/Option signatures, AST/catalog layouts and persistence are unchanged;
 this finite slice cannot close #904/#793/#791/#848/#849.
+The accepted post-fix observations agree on all 120 selected paths plus 36
+scoped/nested-function paths, in both raw protocol and libpq adapters. At that merged foundation, the 14
+known-Boolean controls retain ten differences and four matches. Post-SET
+`search_path` ParameterStatus remains a separately observed difference under
+#780 with #821 integration; successful function results do not qualify it.
+
+The finite occurrence increment is defined in
+[#904's selected contract](https://github.com/cntryl/cassie/issues/904#issuecomment-6115604094).
+Its qualification covers the selected primitive SELECT contexts, including
+existing-path controls, protocol recovery, interruption and memory ownership.
+The PR acceptance record binds those checks to the actual tested revision;
+complete shared-registry acceptance remains separate.
+
+One private fold records each parameter occurrence's creation identity and its
+own coerced identity, separately from the shared parameter slot. It analyzes
+covered CTE/FROM sources before targets, transforms and coerces each Boolean
+argument before its sibling, visits OFFSET before LIMIT, and only then finishes
+eligible direct UNKNOWN target parameters as TEXT. Known input identities
+survive explicit casts with different output identities. An earlier unresolved
+IS NULL child remains an occurrence to check; it is not itself a TEXT target.
+Selected inconsistencies use structured private `42P08` diagnostics, and
+qualified non-Boolean WHERE/NOT/AND/OR operands use `42804` with native-backed
+messages and ordered detail. SQL string literals and NULL remain contextual
+UNKNOWN literals; an embedded string parameter is a known TEXT input.
+Slots inferred through nonselected operators retain their existing consistency
+and error path. Arithmetic results and CASE metadata remain outside the new
+Boolean diagnostics; heap-free common-identity handling preserves existing
+nonprimitive CASE parameter OIDs. Declared primitive inputs and independent
+parameter slots still receive the selected checks.
+
+Checked Parse, selected typed execution, Describe and EXPLAIN must consume the
+same private outcome before pagination, early EXPLAIN or warm caches. Public
+Vec/Option signatures and explicitly supplied zero remain compatible, while
+embedded untyped NULL has separate provenance from a wire UNKNOWN declaration.
+New phase frames, per-occurrence records, summaries and query-local target
+handles share the controls' memory tracker, with admission before growth and
+old/new allocation overlap. Existing catalog/field discovery remains its
+separate input-allocation boundary. Successful metadata handoff retains only
+the OID vector's transient reservation. Rejected metadata releases its scratch;
+a structured semantic error retains its admitted formatting/frame ownership
+until the send completes or fails. Memory denial while constructing that
+private Parse error uses `53200`. Cancellation and deadline paths must retire
+these owners. Retained prepared-vector ownership remains a separate obligation.
+
+The fresh accepted 3304 baseline retains 81 cases / 162 text/binary paths and
+four named recovery workflows across original37/order32/refined12. Their
+matrix and raw-journal observations are unchanged from the historical baseline.
+Original Jev .85/.72 remain open until their recorded obligations are resolved.
+Unused-slot `42P18`, generic UNKNOWN rejection/finalization, wider callable and
+operator resolution, DML/RETURNING transformation and complete resource/restart
+qualification are not accepted by this finite selection. #904/#793/#791/#848/#849
+remain open; the milestone's corpus gate is unchanged.
 
 Reuse #877 for the revised profile/scope and bootstrap infrastructure, #878 for
 the refreshed inventory ledger and #885 for the expanded type decision records.

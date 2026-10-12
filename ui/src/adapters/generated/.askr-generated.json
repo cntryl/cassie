@@ -1,10 +1,4 @@
 {
   "version": 1,
-  "files": [
-    ".askr-generated.json",
-    "schemas.ts",
-    "operations.ts",
-    "api.ts",
-    "index.ts"
-  ]
+  "files": [".askr-generated.json", "schemas.ts", "operations.ts", "api.ts", "index.ts"]
 }

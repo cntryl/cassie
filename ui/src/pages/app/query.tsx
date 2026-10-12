@@ -1,7 +1,7 @@
 import { state } from "@askrjs/askr";
 import { createQuery } from "@askrjs/askr/data";
 import { For, Show } from "@askrjs/askr/control";
-import { defer } from "@askrjs/askr/fx";
+import { scheduleTimeout } from "@askrjs/askr/fx";
 import { task } from "@askrjs/askr/resources";
 import { TriangleAlertIcon } from "@askrjs/lucide";
 import {
@@ -112,7 +112,7 @@ export default function QueryPage() {
     databaseCatalogs.insert(database);
     void databaseCatalogs.activate(database);
     persist([...tabs(), tab], tab.id);
-    defer(() => focusQuery(tab.id));
+    scheduleTimeout(0, () => focusQuery(tab.id));
     setDialogOpen(false);
   }
 
@@ -177,7 +177,7 @@ export default function QueryPage() {
     persist(next.tabs, next.activeTabId);
     workspaceRegistry.remove(tab.id);
     setCloseCandidate(null);
-    defer(() => {
+    scheduleTimeout(0, () => {
       if (next.activeTabId) focusQuery(next.activeTabId);
       else document.getElementById("new-query-button")?.focus();
     });

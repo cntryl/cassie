@@ -1,7 +1,35 @@
-import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDatabaseRequest, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
+import type {
+  CollectionCreateRequest,
+  ConsistencyCheckRequest,
+  CreateCollectionResponse,
+  CreateDatabaseRequest,
+  CreateDocumentResponse,
+  CreateIndexRequest,
+  DatabaseSummary,
+  DeleteDocumentResponse,
+  DocumentPayload,
+  Error,
+  ExportManifestRequest,
+  Health,
+  LogoutResponse,
+  ProjectionCheckReport,
+  ProjectionConsistencyReports,
+  ProjectionManifest,
+  QueryExecuteRequest,
+  QueryExplainRequest,
+  QueryExplainResponse,
+  QueryOperationCancellation,
+  QueryResult,
+  QuerySchemaResponse,
+  QueryValidateRequest,
+  QueryValidateResponse,
+  SearchRequest,
+  Session,
+  VectorIndexResponse,
+} from "./schemas";
 
 export type ListAdminCatalogQuery = {
-  "database": string;
+  database: string;
 };
 
 export type ListAdminCatalogResponse200 = QuerySchemaResponse;
@@ -71,7 +99,7 @@ export type CreateProjectionConsistencyReportError_403 = Error;
 export type CreateProjectionConsistencyReportError_500 = Error;
 
 export type ExportProjectionManifestPath = {
-  "projection": string;
+  projection: string;
 };
 
 export type ExportProjectionManifestBody = ExportManifestRequest;
@@ -89,7 +117,7 @@ export type ExportProjectionManifestError_404 = Error;
 export type ExportProjectionManifestError_500 = Error;
 
 export type CreateProjectionVerificationManifestPath = {
-  "projection": string;
+  projection: string;
 };
 
 export type CreateProjectionVerificationManifestBody = ExportManifestRequest;
@@ -171,7 +199,7 @@ export type CreateAdminQueryExplanationError_503 = Error;
 export type CreateAdminQueryExplanationError_504 = Error;
 
 export type CancelAdminQueryOperationPath = {
-  "operation_id": string;
+  operation_id: string;
 };
 
 export type CancelAdminQueryOperationResponse200 = QueryOperationCancellation;
@@ -285,7 +313,7 @@ export type ExplainAdminQueryError_503 = Error;
 export type ExplainAdminQueryError_504 = Error;
 
 export type GetAdminQuerySchemaQuery = {
-  "database": string;
+  database: string;
 };
 
 export type GetAdminQuerySchemaResponse200 = QuerySchemaResponse;
@@ -335,8 +363,8 @@ export type ValidateAdminQueryError_503 = Error;
 export type ValidateAdminQueryError_504 = Error;
 
 export type LoginRestSessionBody = {
-  "username": string;
-  "password": string;
+  username: string;
+  password: string;
 };
 
 export type LoginRestSessionResponse200 = Session;
@@ -396,7 +424,7 @@ export type CreateCollectionError_409 = Error;
 export type CreateCollectionError_500 = Error;
 
 export type CreateDocumentPath = {
-  "collection": string;
+  collection: string;
 };
 
 export type CreateDocumentBody = DocumentPayload;
@@ -414,8 +442,8 @@ export type CreateDocumentError_404 = Error;
 export type CreateDocumentError_500 = Error;
 
 export type GetDocumentPath = {
-  "collection": string;
-  "id": string;
+  collection: string;
+  id: string;
 };
 
 export type GetDocumentResponse200 = DocumentPayload;
@@ -431,8 +459,8 @@ export type GetDocumentError_404 = Error;
 export type GetDocumentError_500 = Error;
 
 export type DeleteDocumentPath = {
-  "collection": string;
-  "id": string;
+  collection: string;
+  id: string;
 };
 
 export type DeleteDocumentResponse200 = DeleteDocumentResponse;
@@ -448,7 +476,7 @@ export type DeleteDocumentError_404 = Error;
 export type DeleteDocumentError_500 = Error;
 
 export type CreateIndexPath = {
-  "collection": string;
+  collection: string;
 };
 
 export type CreateIndexBody = CreateIndexRequest;
@@ -468,7 +496,7 @@ export type CreateIndexError_409 = Error;
 export type CreateIndexError_500 = Error;
 
 export type VectorSearchPath = {
-  "collection": string;
+  collection: string;
 };
 
 export type VectorSearchBody = SearchRequest;
@@ -493,9 +521,7 @@ export type GetLivenessResponse200 = Health;
 
 export type GetLivenessError_500 = Error;
 
-export type GetMetricsResponse200 = {
-
-};
+export type GetMetricsResponse200 = {};
 
 export type GetMetricsError_500 = Error;
 

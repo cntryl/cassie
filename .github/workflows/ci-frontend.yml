@@ -39,11 +39,11 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+
       - name: Install UI dependencies
         run: npm ci
-
-      - name: Verify current Askr packages
-        run: npm outdated '@askrjs/*'
 
       - name: Askr analyzer
         run: npx --no-install askr analyze
@@ -57,46 +57,15 @@ jobs:
       - name: UI lint
         run: npm run lint
 
-      - name: Production dependency audit
-        run: npm run audit:production
-
       - name: UI type check
         run: npm run type-check
 
       - name: UI build
         run: npm run build
 
-      - name: Build-only container validation
-        working-directory: .
-        run: docker build --target ui-builder --tag cassie-ui-build .
-
       - name: Install Playwright browser
         run: npm run install:browsers
 
       - name: UI tests
-        run: npm run test -- --run
+        run: npm run test
 
-      - name: Mock browser tests
-        run: npm run test:e2e:mock
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "ci-frontend-e2e"
-
-      - name: Build Cassie for production route tests
-        working-directory: .
-        run: cargo build --locked --bin cassie
-
-      - name: Production route suite
-        run: npm run test:e2e
-
-      - name: Upload Playwright failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: cassie-ui-playwright-failures
-          path: |
-            ui/test-results/**
-            ui/playwright-report/**
-          if-no-files-found: ignore

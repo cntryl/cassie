@@ -23,7 +23,7 @@ export interface MonacoCompletionContext {
 export interface MonacoSqlEditorProps {
   tabId: string;
   active: () => boolean;
-  value: string;
+  value: () => string;
   onChange: (value: string) => void;
   disabled?: boolean;
   completionProvider?: (context: MonacoCompletionContext) => MonacoCompletionItem[];
@@ -99,6 +99,12 @@ export function MonacoSqlEditor({
   resource.completionProvider = completionProvider ?? emptyCompletionItems;
   const isEditorUnavailable = editorUnavailable();
   const followsSystemDark = systemDark();
+  // Read every state cell before the test-mode early return below, so askr
+  // does not flag explicitTheme as an unused state variable under vitest.
+  const selectedTheme = explicitTheme();
+  // Read the live draft on every render; a captured snapshot would be
+  // re-applied to the controlled textarea/Monaco model and revert typing.
+  const editorValue = value();
   const systemThemeQuery =
     typeof window !== "undefined" && typeof window.matchMedia === "function"
       ? window.matchMedia("(prefers-color-scheme: dark)")
@@ -172,7 +178,7 @@ export function MonacoSqlEditor({
         <textarea
           aria-label="SQL query"
           class="cassie-query-editor-fallback"
-          value={value}
+          value={editorValue}
           ref={(node: unknown) => {
             resource.fallback = node instanceof HTMLTextAreaElement ? node : null;
           }}
@@ -269,7 +275,6 @@ export function MonacoSqlEditor({
     editorResources.delete(modelUri);
   }
 
-  const selectedTheme = explicitTheme();
   const monacoTheme =
     selectedTheme === "dark" || (!selectedTheme && followsSystemDark) ? "vs-dark" : "vs";
 
@@ -304,7 +309,7 @@ export function MonacoSqlEditor({
     >
       <MonacoEditor
         path={modelUri}
-        value={value}
+        value={editorValue}
         language="sql"
         theme={monacoTheme}
         options={{

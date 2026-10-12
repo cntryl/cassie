@@ -367,7 +367,6 @@ export function QueryWorkspace({
                 tabId={tab.id}
                 database={tab.database}
                 active={active}
-                initialQuery={tab.sql}
                 query={currentQuery}
                 onQueryChange={handleQueryChange}
                 isRunning={isQueryBusy}

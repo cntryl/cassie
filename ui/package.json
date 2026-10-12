@@ -7,7 +7,8 @@
     "dev:mock": "VITE_MOCK_API=true vp dev",
     "build": "vp build",
     "preview": "vp preview",
-    "test": "vp test",
+    "test": "npm run test:unit && npm run test:e2e:mock",
+    "test:unit": "vp test",
     "test:e2e": "playwright test",
     "test:e2e:mock": "playwright test --config playwright.mock.config.ts",
     "install:browsers": "playwright install chromium",
@@ -15,38 +16,32 @@
     "gen:adapters": "askr generate ../public/openapi.yml --output ./src/adapters/generated",
     "gen:adapters:check": "askr generate ../public/openapi.yml --output ./src/adapters/generated --check",
     "type-check": "tsc --noEmit",
-    "fmt:check": "vp fmt . --check --ignore-path .oxfmtignore",
+    "fmt:check": "vp fmt . --check",
     "audit:production": "npm audit --omit=dev --audit-level=moderate",
-    "lint": "vp lint src tests dev vite.config.ts",
+    "lint": "vp lint",
     "lint:fix": "vp lint src tests dev --fix",
-    "fmt": "vp fmt . --ignore-path .oxfmtignore"
+    "fmt": "vp fmt"
   },
   "dependencies": {
-    "@askrjs/askr": "0.3.1",
-    "@askrjs/auth": "0.3.0",
-    "@askrjs/fetch": "0.3.0",
-    "@askrjs/lucide": "0.3.0",
-    "@askrjs/monaco": "0.3.0",
-    "@askrjs/themes": "0.3.0",
-    "@askrjs/ui": "0.3.0",
-    "@askrjs/vite": "0.3.0",
-    "monaco-editor": "0.56.0"
+    "@askrjs/askr": "0.4.4",
+    "@askrjs/auth": "0.4.2",
+    "@askrjs/fetch": "0.4.2",
+    "@askrjs/lucide": "0.4.0",
+    "@askrjs/monaco": "0.4.0",
+    "@askrjs/themes": "0.4.2",
+    "@askrjs/ui": "0.4.3",
+    "@askrjs/vite": "0.4.2"
   },
   "devDependencies": {
-    "@askrjs/cli": "0.3.0",
+    "@askrjs/cli": "0.4.0",
     "@axe-core/playwright": "4.13.0",
-    "@playwright/test": "1.63.0",
-    "@types/node": "^26.5.1",
-    "autoprefixer": "^10.6.0",
-    "jsdom": "^30.0.1",
-    "postcss": "^8.5.28",
+    "@playwright/test": "1.64.0",
+    "@types/node": "^26.6.5",
+    "autoprefixer": "^10.6.1",
+    "jsdom": "^30.1.2",
+    "postcss": "^8.5.29",
     "typescript": "^7.0.2",
-    "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
-    "vite-plus": "0.3.3"
-  },
-  "overrides": {
-    "dompurify": "3.4.13",
-    "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1"
+    "vite-plus": "^1.1.0"
   },
   "engines": {
     "node": ">=24.0.0"

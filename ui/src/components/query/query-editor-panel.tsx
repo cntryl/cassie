@@ -11,7 +11,6 @@ interface QueryEditorPanelProps {
   tabId: string;
   database: string;
   active: () => boolean;
-  initialQuery: string;
   query: () => string;
   onQueryChange: (query: string) => void;
   isRunning: boolean;
@@ -29,7 +28,6 @@ export function QueryEditorPanel({
   tabId,
   database,
   active,
-  initialQuery,
   query,
   onQueryChange,
   isRunning,
@@ -97,7 +95,7 @@ export function QueryEditorPanel({
         <MonacoSqlEditor
           tabId={tabId}
           active={active}
-          value={initialQuery}
+          value={query}
           onChange={onQueryChange}
           disabled={isRunning}
           completionProvider={completionItems}

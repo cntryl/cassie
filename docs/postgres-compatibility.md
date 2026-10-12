@@ -144,6 +144,13 @@ A qualified declared/cast/metadata-known TEXT Boolean operand must fail with
 `42804`; a direct string literal still uses contextual Boolean literal coercion.
 The new diagnostics do not replace every existing planner `42601` category.
 
+Column types for this fold require an exact namespace match or a verified
+single-source qualifier. Missing, nonlocal or unrepresented direct-JOIN metadata
+continues through the established binder rather than borrowing another source
+column's unqualified type. Independent selected parameter checks remain active;
+complete joined and outer input-signature resolution remains outside this
+finite qualification.
+
 Parse, selected typed execution, Describe and EXPLAIN share this checked
 private result before pagination, caches or early EXPLAIN. Public Rust Vec/Option
 signatures preserve supplied zero, and untyped embedded NULL remains distinct

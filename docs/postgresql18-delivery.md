@@ -192,6 +192,14 @@ Selected inconsistencies use structured private `42P08` diagnostics, and
 qualified non-Boolean WHERE/NOT/AND/OR operands use `42804` with native-backed
 messages and ordered detail. SQL string literals and NULL remain contextual
 UNKNOWN literals; an embedded string parameter is a known TEXT input.
+
+A column summary requires an exact namespace match or a verified single-source
+qualifier. Missing, nonlocal or unrepresented direct-JOIN metadata leaves that
+expression with the established binder; it must not inherit another source
+column's type through an unqualified fallback. Independent selected parameter
+checks still apply. This finite fold does not provide a complete joined or outer
+input-signature resolver.
+
 Slots inferred through nonselected operators retain their existing consistency
 and error path. Arithmetic results and CASE metadata remain outside the new
 Boolean diagnostics; heap-free common-identity handling preserves existing

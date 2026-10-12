@@ -111,7 +111,11 @@ where
                 } => {
                     let value = precomputed_key
                         .as_ref()
-                        .and_then(|precomputed_key| row.get(precomputed_key))
+                        .and_then(|precomputed_key| {
+                            row.entries().iter().find_map(|(name, value)| {
+                                (name == precomputed_key).then_some(value)
+                            })
+                        })
                         .cloned()
                         .map_or_else(
                             || {

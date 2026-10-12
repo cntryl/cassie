@@ -74,12 +74,12 @@ pub(super) fn validate_select_with_types(
         }
     }
     if let Some(set) = &mut select.set {
-        let nested = ResultTypes::for_scope_with_parameters(
+        let nested = ResultTypes::for_scope_with_parent(
             &set.right.source,
             &set.right.ctes,
             catalog,
             context,
-            types.cte_schemas(),
+            types,
             types.parameter_types(),
         )?
         .with_resolved_coalesce_domains(types.resolved_coalesce_domains());
@@ -110,12 +110,12 @@ fn validate_source_predicates(
         QuerySource::Subquery {
             select, lateral, ..
         } => {
-            let inner = ResultTypes::for_scope_with_parameters(
+            let inner = ResultTypes::for_scope_with_parent(
                 &select.source,
                 &select.ctes,
                 catalog,
                 context,
-                types.cte_schemas(),
+                types,
                 types.parameter_types(),
             )?
             .with_resolved_coalesce_domains(types.resolved_coalesce_domains());
@@ -211,6 +211,7 @@ fn validate_expression(
                     | BinaryOp::Gte
             ) {
                 canonicalize_boolean_pair(left, right, types)?;
+                coerce_numeric_pair(left, right, types, catalog);
             }
             validate_expression(left, types, catalog, context)?;
             validate_expression(right, types, catalog, context)?;
@@ -281,6 +282,27 @@ fn validate_expression(
     Ok(())
 }
 
+fn coerce_numeric_pair(left: &mut Expr, right: &mut Expr, types: &ResultTypes, catalog: &Catalog) {
+    use crate::sql::numeric_comparison::NumericComparisonDomain;
+
+    let (Some(left_type), Some(right_type)) =
+        (types.expression_type(left), types.expression_type(right))
+    else {
+        return;
+    };
+    // Carrier metadata alone cannot establish a PostgreSQL float8 signature.
+    if (left_type == DataType::Float && !types.proven_float8(left, catalog))
+        || (right_type == DataType::Float && !types.proven_float8(right, catalog))
+    {
+        return;
+    }
+    if NumericComparisonDomain::resolve(&left_type, &right_type) == NumericComparisonDomain::Float8
+    {
+        *left = super::result_coercion::float(std::mem::replace(left, Expr::Null));
+        *right = super::result_coercion::float(std::mem::replace(right, Expr::Null));
+    }
+}
+
 fn canonicalize_boolean_pair(
     left: &mut Expr,
     right: &mut Expr,
@@ -306,12 +328,12 @@ fn validate_nested_statement(
         let names = outer.cte_schemas().keys().cloned().collect();
         let mut scoped = select.clone();
         resolve_nested_sources(&mut scoped, &names, catalog, context)?;
-        let mut types = ResultTypes::for_scope_with_parameters(
+        let mut types = ResultTypes::for_scope_with_parent(
             &scoped.source,
             &scoped.ctes,
             catalog,
             context,
-            outer.cte_schemas(),
+            outer,
             outer.parameter_types(),
         )?
         .with_resolved_coalesce_domains(outer.resolved_coalesce_domains());

@@ -6,12 +6,14 @@ use super::{check_controls, invalid, Column, QueryError, TypedBatch};
 use crate::executor::retained_memory::{add, data_type_clone_bytes, hash_table_bytes, mul};
 use crate::executor::semantic::SemanticValue;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::sql::numeric_comparison::NumericComparisonDomain;
 use crate::types::{DataType, Value};
 
 pub(crate) struct HashJoin<'a> {
     left: &'a TypedBatch,
     right: &'a TypedBatch,
     left_key: usize,
+    domain: NumericComparisonDomain,
     outer: bool,
     batch_size: usize,
     controls: QueryExecutionControls,
@@ -37,15 +39,17 @@ impl<'a> HashJoin<'a> {
         controls: &QueryExecutionControls,
         left: &'a TypedBatch,
         right: &'a TypedBatch,
-        keys: (usize, usize),
+        keys: (usize, usize, NumericComparisonDomain),
         outer: bool,
         batch_size: usize,
         build_probe: impl Fn(usize) -> Result<(), QueryError>,
     ) -> Result<Self, QueryError> {
         check_controls(controls)?;
-        if !supports_keys(left, right, keys) {
+        if !supports_keys(left, right, (keys.0, keys.1)) {
             return Err(invalid("unsupported typed join key domains"));
         }
+        // One key is normalized at a time. This live scratch reservation also
+        // covers temporary FLOAT8 integer formatting before the inline semantic key.
         let bytes = add(
             add(
                 64,
@@ -67,7 +71,7 @@ impl<'a> HashJoin<'a> {
             check_controls(controls)?;
             build_probe(lane)?;
             check_controls(controls)?;
-            if let Some(key) = key(right.cell(keys.1, lane)?) {
+            if let Some(key) = key(right.cell(keys.1, lane)?, keys.2)? {
                 build_rows += 1;
                 if let Some((_, tail)) = build.get_mut(&key) {
                     next[*tail] = Some(lane);
@@ -81,6 +85,7 @@ impl<'a> HashJoin<'a> {
             left,
             right,
             left_key: keys.0,
+            domain: keys.2,
             outer,
             batch_size: batch_size.max(1),
             controls: controls.clone(),
@@ -131,7 +136,7 @@ impl<'a> HashJoin<'a> {
             probe();
             check_controls(&self.controls)?;
             if !self.probing {
-                self.right_lane = key(self.left.cell(self.left_key, self.left_lane)?)
+                self.right_lane = key(self.left.cell(self.left_key, self.left_lane)?, self.domain)?
                     .and_then(|key| self.build.get(&key).map(|(head, _)| *head));
                 self.probing = true;
                 self.matched = self.right_lane.is_some();
@@ -170,7 +175,10 @@ pub(crate) fn supports_keys(left: &TypedBatch, right: &TypedBatch, keys: (usize,
     })
 }
 
-fn key(cell: super::Cell<'_>) -> Option<SemanticValue> {
+fn key(
+    cell: super::Cell<'_>,
+    domain: NumericComparisonDomain,
+) -> Result<Option<SemanticValue>, QueryError> {
     let value = match cell {
         super::Cell::Integer(value) => Value::Int64(value),
         super::Cell::Float(value) => Value::Float64(value),
@@ -178,9 +186,10 @@ fn key(cell: super::Cell<'_>) -> Option<SemanticValue> {
         super::Cell::Scalar(value @ (Value::Int64(_) | Value::Float64(_) | Value::Bool(_))) => {
             value.clone()
         }
-        _ => return None,
+        _ => return Ok(None),
     };
-    Some(SemanticValue::from_value(&value))
+    let value = crate::executor::filter::comparison_key_value(&value, domain)?;
+    Ok(Some(SemanticValue::from_value(value.as_ref())))
 }
 
 fn gather_output(

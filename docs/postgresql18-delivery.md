@@ -53,6 +53,10 @@ comparison while qualifying #869. They remain stage-2 runtime work and final
 integration obligations for #761/#848; they do not invalidate the finite
 RETURNING callback repair or become architectural exclusions. Its runtime
 witnesses use row-dependent errors and PostgreSQL-qualified constraint ordering.
+The next #904 [mixed numeric SQL comparison contract](mixed-numeric-comparison-contract.md)
+reconciles the remaining scalar/join operator-coercion blocker before #761's
+complete relational acceptance. #869's merged finite repair remains accepted;
+query comparison qualification does not complete #769 CON-05 or full #798.
 
 ## Existing-owner extensions and staged dependencies
 

@@ -4,8 +4,11 @@
 //! validation remains the caller's responsibility. This module does not bind,
 //! compile, cache, execute, or change the original `ParameterDescription` OIDs.
 
+#[path = "numeric_outputs/comparison.rs"]
+mod comparison;
 #[path = "numeric_outputs/domain.rs"]
 mod domain;
+pub(super) use comparison::ComparisonTypes;
 #[path = "numeric_outputs/expressions.rs"]
 mod expressions;
 #[path = "numeric_outputs/scope.rs"]
@@ -44,17 +47,23 @@ impl OutputContract {
 
 struct Analyzer<'a> {
     catalog: &'a Catalog,
-    functions: HashMap<String, crate::catalog::FunctionMeta>,
+    functions: &'a HashMap<String, crate::catalog::FunctionMeta>,
     declared_oids: &'a [i32],
-    controls: &'a QueryExecutionControls,
+    controls: Option<&'a QueryExecutionControls>,
 }
 
 impl Analyzer<'_> {
     fn check_controls(&self) -> Result<(), CassieError> {
-        if self.controls.is_cancelled() {
+        if self
+            .controls
+            .is_some_and(QueryExecutionControls::is_cancelled)
+        {
             return Err(CassieError::QueryCancelled);
         }
-        if self.controls.is_timed_out() {
+        if self
+            .controls
+            .is_some_and(QueryExecutionControls::is_timed_out)
+        {
             return Err(CassieError::DeadlineExceeded);
         }
         Ok(())
@@ -70,16 +79,17 @@ pub(crate) fn infer_plan_output_contract(
     declared_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<Option<OutputContract>, CassieError> {
+    let functions = crate::catalog::function_resolution::functions_for_scope(
+        &catalog.list_functions(),
+        &context.database,
+        &context.search_path,
+        context.scopes_database_objects(),
+    );
     let analyzer = Analyzer {
         catalog,
-        functions: crate::catalog::function_resolution::functions_for_scope(
-            &catalog.list_functions(),
-            &context.database,
-            &context.search_path,
-            context.scopes_database_objects(),
-        ),
+        functions: &functions,
         declared_oids,
-        controls,
+        controls: Some(controls),
     };
     analyzer.check_controls()?;
     let fields = if let Some(command) = &logical.command {

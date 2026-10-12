@@ -1,7 +1,7 @@
 use super::{
     accounting, check_timeout, combine_rows, evaluate_join_on, row_join_key, BatchRow,
     EquiJoinKeys, JoinKind, JoinResult, JoinRetentionContext, JoinRetentionPhase, JoinRows,
-    JoinRowsSpec, PendingJoinDiagnostic, QueryError, SourceExecutionEnv,
+    JoinRowsSpec, NumericComparisonDomain, PendingJoinDiagnostic, QueryError, SourceExecutionEnv,
 };
 use crate::executor::semantic::SemanticKey;
 
@@ -24,9 +24,10 @@ pub(super) fn execute_merge_join_with_context(
             &keys.left,
             spec.right_rows,
             &keys.right,
+            keys.domain,
         )?)?;
-    let mut left_keyed = keyed_rows(spec.left_rows, &keys.left, retention)?;
-    let mut right_keyed = keyed_rows(spec.right_rows, &keys.right, retention)?;
+    let mut left_keyed = keyed_rows(env, spec.left_rows, &keys.left, keys.domain, retention)?;
+    let mut right_keyed = keyed_rows(env, spec.right_rows, &keys.right, keys.domain, retention)?;
     keyed_probe();
     check_timeout(env.controls)?;
     // Preserve stable equal-key order; admission includes the native sort scratch.
@@ -158,8 +159,10 @@ impl MergeJoinState {
 }
 
 fn keyed_rows(
+    env: &SourceExecutionEnv<'_>,
     rows: &[BatchRow],
     key_column: &str,
+    domain: NumericComparisonDomain,
     retention: &JoinRetentionContext<'_>,
 ) -> Result<Vec<KeyedRow>, QueryError> {
     let mut keyed = Vec::new();
@@ -167,9 +170,10 @@ fn keyed_rows(
         .try_reserve_exact(rows.len())
         .map_err(|error| allocation_error(&error))?;
     for row in rows {
+        check_timeout(env.controls)?;
         retention.before(JoinRetentionPhase::MergeKeyed)?;
         let row = row.clone();
-        let key = row_join_key(&row, key_column);
+        let key = row_join_key(&row, key_column, domain)?;
         keyed.push(KeyedRow { key, row });
     }
     Ok(keyed)

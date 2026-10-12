@@ -775,6 +775,14 @@ fn field_constraint_shape<'a>(
     op: &BinaryOp,
     right: &'a Expr,
 ) -> Option<(String, BinaryOp)> {
+    if let Some((field, op, _)) =
+        crate::sql::numeric_comparison::generated_float_literal_constraint(left, op, right)
+    {
+        return Some((
+            crate::sql::ColumnIdentifierPath::reference_field_key(field),
+            op,
+        ));
+    }
     match (left, right) {
         (Expr::Column(field), other) if bound_can_be_materialized(other) => Some((
             crate::sql::ColumnIdentifierPath::reference_field_key(field),

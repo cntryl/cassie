@@ -1,6 +1,7 @@
 use super::HashJoin;
 use crate::executor::typed_batch::TypedBatch;
 use crate::runtime::QueryExecutionControls;
+use crate::sql::numeric_comparison::NumericComparisonDomain;
 use crate::types::{DataType, Value};
 
 #[test]
@@ -42,8 +43,16 @@ fn should_preserve_typed_join_row_semantics_in_capped_batches() {
         None,
     )
     .expect("right input");
-    let mut join =
-        HashJoin::new(&controls, &left, &right, (0, 0), true, 2, |_| Ok(())).expect("typed join");
+    let mut join = HashJoin::new(
+        &controls,
+        &left,
+        &right,
+        (0, 0, NumericComparisonDomain::Exact),
+        true,
+        2,
+        |_| Ok(()),
+    )
+    .expect("typed join");
 
     // Act
     let mut values = Vec::new();
@@ -94,7 +103,16 @@ fn should_match_exact_numeric_join_keys() {
             Value::Float64(9_007_199_254_740_992.0),
         ],
     );
-    let mut join = HashJoin::new(&controls, &left, &right, (0, 0), false, 1, |_| Ok(())).unwrap();
+    let mut join = HashJoin::new(
+        &controls,
+        &left,
+        &right,
+        (0, 0, NumericComparisonDomain::Exact),
+        false,
+        1,
+        |_| Ok(()),
+    )
+    .unwrap();
 
     // Act
     let mut rows = Vec::new();
@@ -133,7 +151,16 @@ fn should_extend_empty_typed_right_input_with_complete_outer_schema() {
         None,
     )
     .unwrap();
-    let mut join = HashJoin::new(&controls, &left, &right, (0, 0), true, 1, |_| Ok(())).unwrap();
+    let mut join = HashJoin::new(
+        &controls,
+        &left,
+        &right,
+        (0, 0, NumericComparisonDomain::Exact),
+        true,
+        1,
+        |_| Ok(()),
+    )
+    .unwrap();
 
     // Act
     let mut count = 0;
@@ -148,8 +175,16 @@ fn should_extend_empty_typed_right_input_with_complete_outer_schema() {
     // Assert
     assert_eq!(count, 2);
     let empty = batch(&controls, DataType::Boolean, vec![]);
-    let mut empty_join =
-        HashJoin::new(&controls, &empty, &right, (0, 0), false, 1, |_| Ok(())).unwrap();
+    let mut empty_join = HashJoin::new(
+        &controls,
+        &empty,
+        &right,
+        (0, 0, NumericComparisonDomain::Exact),
+        false,
+        1,
+        |_| Ok(()),
+    )
+    .unwrap();
     assert!(empty_join.next_batch(usize::MAX).unwrap().is_none());
 }
 
@@ -167,10 +202,18 @@ fn should_admit_hash_chain_before_demanding_any_build_lane() {
     let called = std::cell::Cell::new(false);
 
     // Act
-    let result = HashJoin::new(&controls, &left, &right, (0, 0), false, 2, |_| {
-        called.set(true);
-        Ok(())
-    });
+    let result = HashJoin::new(
+        &controls,
+        &left,
+        &right,
+        (0, 0, NumericComparisonDomain::Exact),
+        false,
+        2,
+        |_| {
+            called.set(true);
+            Ok(())
+        },
+    );
 
     // Assert
     assert!(matches!(
@@ -196,12 +239,20 @@ fn should_release_native_hash_state_when_build_is_cancelled() {
     let before = controls.current_query_memory_bytes();
 
     // Act
-    let result = HashJoin::new(&controls, &left, &right, (0, 0), false, 2, |lane| {
-        if lane == 1 {
-            cancellation.cancel();
-        }
-        Ok(())
-    });
+    let result = HashJoin::new(
+        &controls,
+        &left,
+        &right,
+        (0, 0, NumericComparisonDomain::Exact),
+        false,
+        2,
+        |lane| {
+            if lane == 1 {
+                cancellation.cancel();
+            }
+            Ok(())
+        },
+    );
 
     // Assert
     assert!(matches!(
@@ -223,7 +274,16 @@ fn should_release_match_maps_when_hot_key_expansion_is_cancelled() {
     );
     let left = batch(&controls, DataType::BigInt, vec![Value::Int64(1)]);
     let right = batch(&controls, DataType::BigInt, vec![Value::Int64(1); 1024]);
-    let mut join = HashJoin::new(&controls, &left, &right, (0, 0), false, 64, |_| Ok(())).unwrap();
+    let mut join = HashJoin::new(
+        &controls,
+        &left,
+        &right,
+        (0, 0, NumericComparisonDomain::Exact),
+        false,
+        64,
+        |_| Ok(()),
+    )
+    .unwrap();
     let before = controls.current_query_memory_bytes();
     let ticks = std::cell::Cell::new(0);
 
@@ -285,7 +345,16 @@ fn should_keep_every_typed_payload_family_alive_after_join_inputs_drop() {
     values.extend(families.iter().map(|(_, values)| values.clone()));
     let left = TypedBatch::from_columns(&controls, &schema, &values, 3, None).unwrap();
     let right = batch(&controls, DataType::BigInt, vec![Value::Int64(1)]);
-    let mut join = HashJoin::new(&controls, &left, &right, (0, 0), false, 3, |_| Ok(())).unwrap();
+    let mut join = HashJoin::new(
+        &controls,
+        &left,
+        &right,
+        (0, 0, NumericComparisonDomain::Exact),
+        false,
+        3,
+        |_| Ok(()),
+    )
+    .unwrap();
 
     // Act
     let output = join.next_batch(usize::MAX).unwrap().unwrap();
@@ -310,3 +379,6 @@ fn should_keep_every_typed_payload_family_alive_after_join_inputs_drop() {
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[path = "numeric_probe_tests.rs"]
+mod numeric_probe_tests;

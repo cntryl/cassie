@@ -179,7 +179,16 @@ semantic key instead of incidental string ordering from the former lossy
 bridge. Column summaries continue to require row fallback for vector extrema;
 this correction does not enable summary acceleration or change distance metrics.
 
-SMALLINT/INT/BIGINT comparisons retain exact i64 values; exact integral f64 values share numeric semantic keys, and NaN keys canonicalize under the current engine policy. Integer-to-float output rejects inexact conversion. BOOLEAN predicate/type semantics reuse merged #432 qualification; NULL retains SQL three-valued predicate rules and null-key join exclusion, with the existing grouping/distinct null key.
+SMALLINT/INT/BIGINT carriers and integer/integer comparisons retain exact i64
+values. General numeric semantic keys keep their existing exact integer/float
+and NaN policy. The next #904 [mixed numeric SQL comparison contract](mixed-numeric-comparison-contract.md)
+selects operator-local float8 input conversion for mixed integer/FLOAT SQL
+comparisons; it does not change those general keys or stored payloads. Explicit
+nonfinite SQL oracle controls remain required. Integer-to-float output rejects
+inexact conversion under its existing codec law; a selected temporary operator
+input conversion is a separate boundary. BOOLEAN predicate/type semantics reuse
+merged #432 qualification; NULL retains SQL three-valued predicate rules and
+null-key join exclusion, with the existing grouping/distinct null key.
 
 String-backed types retain canonical UTF-8 value keys and existing ordering. Declared UUID, BYTEA and temporal canonicalization establishes their stored spelling. Timestamp normalization/order is by the canonical UTC instant; the existing timestamp-shaped TEXT value rule is retained. No PostgreSQL collation parity is claimed. CHAR removes trailing ASCII blanks. ARRAY uses declared elementwise semantic keys/order, compares the first unequal element and then equal-prefix length, and places NULL elements last. Generic JSON keys do not replace the declared array element type.
 
@@ -203,7 +212,12 @@ Supported binary scalar arrays retain their private OIDs, zero-dimensional empty
 
 ## Exactness and future typed columns
 
-Declared integer widths remain range constrained while the current Value carrier uses i64; values beyond 2^53 must never pass through a lossy f64 conversion. FLOAT remains f64. VECTOR components remain finite f32 with their declared dimension. Temporal binary codecs use PostgreSQL's 2000-01-01 epoch, days for DATE and microseconds for TIME/TIMESTAMP; TIMESTAMP retains Cassie's documented UTC normalization. Character length, UUID/BYTEA canonicalization, JSON document meaning and declared array element identity remain part of each logical type.
+Declared integer widths remain range constrained while the current Value carrier
+uses i64; stored and integer-domain values beyond 2^53 retain their exact bits.
+The selected mixed SQL comparison domain may temporarily convert an integer
+operand to float8 without rewriting its original carrier or output payload.
+This exception does not choose a universal f64 physical representation. FLOAT
+remains f64. VECTOR components remain finite f32 with their declared dimension. Temporal binary codecs use PostgreSQL's 2000-01-01 epoch, days for DATE and microseconds for TIME/TIMESTAMP; TIMESTAMP retains Cassie's documented UTC normalization. Character length, UUID/BYTEA canonicalization, JSON document meaning and declared array element identity remain part of each logical type.
 
 The dependent [#753](https://github.com/cntryl/cassie/issues/753) contract must preserve these logical identities, exactness, units and SQL validity when choosing private typed-column representations. This document does not introduce the common batch API or claim that future typed kernels exist.
 

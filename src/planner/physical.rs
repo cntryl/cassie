@@ -364,14 +364,7 @@ fn query_physical_plan(input: QueryPhysicalPlanInput) -> PhysicalPlan {
 }
 
 pub(super) fn is_equi_join_predicate(expr: &Expr) -> bool {
-    matches!(
-        expr,
-        Expr::Binary {
-            left,
-            op: BinaryOp::Eq,
-            right
-        } if matches!((left.as_ref(), right.as_ref()), (Expr::Column(_), Expr::Column(_)))
-    )
+    crate::sql::numeric_comparison::equality_columns(expr).is_some()
 }
 
 fn top_k_limit(plan: &LogicalPlan) -> Option<usize> {

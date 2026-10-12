@@ -514,6 +514,15 @@ fn concrete_constraint(
     right: &Expr,
     params: &[Value],
 ) -> Option<(String, BinaryOp, serde_json::Value)> {
+    if let Some((field, op, bound)) =
+        crate::sql::numeric_comparison::generated_float_literal_constraint(left, op, right)
+    {
+        return Some((
+            crate::sql::ColumnIdentifierPath::reference_field_key(field),
+            op,
+            serde_json::Value::Number(serde_json::Number::from_f64(bound)?),
+        ));
+    }
     match (left, right) {
         (Expr::Column(field), other) => Some((
             crate::sql::ColumnIdentifierPath::reference_field_key(field),

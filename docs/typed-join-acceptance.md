@@ -3,8 +3,13 @@
 Issue [#759](https://github.com/cntryl/cassie/issues/759) follows completed #756.
 The coherent bundle selects INNER and LEFT, one pure column equality, numeric
 SMALLINT/INT/BIGINT/FLOAT (including mixed widths) and BOOLEAN keys. NULL keys
-never match. Exact numeric equivalence comes from the existing semantic key
-owner, including signed zero, exact integral floats and admitted nonfinite values.
+never match. The original finite implementation used the existing exact numeric
+semantic keys. The next #904 [mixed numeric SQL comparison contract](mixed-numeric-comparison-contract.md)
+supersedes only mixed integer/FLOAT SQL join-key equivalence: resolve one
+operator input domain for both sides while retaining original integer payloads
+and general semantic keys. Signed zero and admitted nonfinite values require
+explicit SQL oracle controls, including NaN ordering; current key behavior alone
+is insufficient. This is a planned correction, not qualified new dispatch.
 
 Build/probe consume complete common TypedBatch inputs, retaining all payload
 columns. Hash values are row positions with a preallocated duplicate chain;
@@ -29,7 +34,8 @@ every hot-key expansion. Final admitted rows can remain materialized under the
 existing query budget; no spilling or streaming portal lifetime is introduced.
 
 Acceptance requires red/green differential witnesses for duplicate/NULL/empty
-keys, outer shape, signed zero and exact mixed numerics, quoted column identity,
+keys, outer shape, signed zero and the selected operator-local mixed numeric
+domain, quoted column identity,
 selection repetition, typed payload preservation, capped fanout, denied admission
 and deterministic mid-build/probe cancellation. Existing residual, nullable
 indexed keys, legality/replay fixtures remain the fallback oracles. Every assigned
@@ -55,8 +61,11 @@ pending; this record claims no completed issue closure.
   native success diagnostics publish only after final output/control handoff.
   Loaded left/right input totals are separate from inserted non-NULL build keys
   and processed probe rows; a one-output cap witnesses 3/3 inputs and 2/1 work.
-- VEX-10: duplicate and NULL keys, exact mixed numerics beyond 2^53, signed-zero
-  payload bits, repeated selections and typed outer payload have local witnesses.
+- VEX-10: duplicate and NULL keys, the original exact mixed numerics beyond 2^53,
+  signed-zero payload bits, repeated selections and typed outer payload have
+  historical local witnesses. The new mixed SQL domain needs fresh scalar/typed
+  and actual join-path qualification; generated CAST fallback is not evidence
+  that native typed/hash/merge keys implement the new law.
 - VEX-11: a fixed admitted build chain replaces per-key growing groups; bounded
   match maps check controls for every hot-key lane. Denied build admission,
   deterministic build cancellation and fanout cancellation release reservations.

@@ -3,6 +3,7 @@ use crate::types::{DataType, Schema};
 
 pub(super) struct ResultTypes {
     schema: Schema,
+    comparison_types: super::numeric_outputs::ComparisonTypes,
     cte_schemas: std::collections::HashMap<String, Schema>,
     parameter_types: Vec<i32>,
     contextual_parameters: bool,
@@ -30,6 +31,16 @@ impl ResultTypes {
             &self.functions,
             &self.parameter_types,
         )
+    }
+
+    pub(super) fn proven_float8(&self, expr: &Expr, catalog: &Catalog) -> bool {
+        !self.has_unresolved_qualified_column(expr)
+            && self.comparison_types.expression(
+                expr,
+                catalog,
+                &self.functions,
+                &self.parameter_types,
+            )
     }
 
     pub(super) fn projection_type(&self, item: &SelectItem) -> Option<DataType> {
@@ -84,6 +95,7 @@ impl ResultTypes {
         self.schema
             .fields
             .extend(outer.schema.fields.iter().cloned());
+        self.comparison_types.extend_outer(&outer.comparison_types);
         self
     }
 
@@ -100,6 +112,7 @@ impl ResultTypes {
                 nullable: true,
             })
             .collect::<Vec<_>>();
+        self.comparison_types.extend_excluded(&excluded);
         self.schema.fields.extend(excluded);
         self
     }
@@ -154,6 +167,37 @@ impl ResultTypes {
         outer: &std::collections::HashMap<String, Schema>,
         parameter_types: &[i32],
     ) -> Result<Self, CassieError> {
+        Self::for_scope_with_origins(source, ctes, catalog, context, outer, parameter_types, None)
+    }
+
+    pub(super) fn for_scope_with_parent(
+        source: &crate::sql::ast::QuerySource,
+        ctes: &[crate::sql::ast::CommonTableExpression],
+        catalog: &Catalog,
+        context: &BindingContext,
+        outer: &Self,
+        parameter_types: &[i32],
+    ) -> Result<Self, CassieError> {
+        Self::for_scope_with_origins(
+            source,
+            ctes,
+            catalog,
+            context,
+            &outer.cte_schemas,
+            parameter_types,
+            Some(&outer.comparison_types),
+        )
+    }
+
+    fn for_scope_with_origins(
+        source: &crate::sql::ast::QuerySource,
+        ctes: &[crate::sql::ast::CommonTableExpression],
+        catalog: &Catalog,
+        context: &BindingContext,
+        outer: &std::collections::HashMap<String, Schema>,
+        parameter_types: &[i32],
+        origins: Option<&super::numeric_outputs::ComparisonTypes>,
+    ) -> Result<Self, CassieError> {
         let functions = crate::catalog::function_resolution::functions_for_scope(
             &catalog.list_functions(),
             &context.database,
@@ -196,8 +240,19 @@ impl ResultTypes {
             }
             Err(error) => return Err(error),
         };
+        let comparison_types = super::numeric_outputs::ComparisonTypes::for_scope(
+            source,
+            ctes,
+            outer,
+            origins,
+            catalog,
+            &functions,
+            parameter_types,
+        )
+        .unwrap_or_default();
         Ok(Self {
             schema,
+            comparison_types,
             cte_schemas: schemas,
             functions,
             parameter_types: parameter_types.to_vec(),

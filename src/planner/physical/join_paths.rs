@@ -1,6 +1,5 @@
 use super::{
-    is_equi_join_predicate, source_contains_join, BinaryOp, Expr, JoinKind, LogicalPlan,
-    QuerySource,
+    is_equi_join_predicate, source_contains_join, Expr, JoinKind, LogicalPlan, QuerySource,
 };
 
 pub(super) fn join_strategy(plan: &LogicalPlan) -> Option<String> {
@@ -89,18 +88,8 @@ fn merge_join_preferred(plan: &LogicalPlan, kind: JoinKind, on: &Expr) -> bool {
 }
 
 fn equi_join_columns(expr: &Expr) -> Option<(String, String)> {
-    let Expr::Binary {
-        left,
-        op: BinaryOp::Eq,
-        right,
-    } = expr
-    else {
-        return None;
-    };
-    let (Expr::Column(left), Expr::Column(right)) = (left.as_ref(), right.as_ref()) else {
-        return None;
-    };
-    Some((left.clone(), right.clone()))
+    crate::sql::numeric_comparison::equality_columns(expr)
+        .map(|(left, right, _)| (left.to_owned(), right.to_owned()))
 }
 
 pub(super) fn expr_contains_exists(expr: &Expr) -> bool {

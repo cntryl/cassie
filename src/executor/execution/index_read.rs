@@ -16,6 +16,10 @@ use crate::planner::physical::{scalar_index_plan_shape, ScalarIndexNullKeys, Sca
 use crate::types::DataType;
 use std::collections::BTreeMap;
 
+#[cfg(test)]
+#[path = "index_read/numeric_tests.rs"]
+mod numeric_tests;
+
 pub(super) fn execute_scalar_index_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -660,6 +664,13 @@ fn scalar_index_requires_semantic_scan(
     plan: &LogicalPlan,
     params: &[Value],
 ) -> bool {
+    if plan
+        .filter
+        .as_ref()
+        .is_some_and(|filter| generated_float_constraint_requires_scan(cassie, collection, filter))
+    {
+        return true;
+    }
     let fields = index.normalized_fields();
     concrete_constraints(plan.filter.as_ref(), params).is_some_and(|constraints| {
         fields.iter().any(|field| {
@@ -679,6 +690,27 @@ fn scalar_index_requires_semantic_scan(
                 })
         })
     })
+}
+
+fn generated_float_constraint_requires_scan(
+    cassie: &Cassie,
+    collection: &str,
+    expr: &Expr,
+) -> bool {
+    if let Expr::Binary { left, op, right } = expr {
+        if let Some((field, _, _)) =
+            crate::sql::numeric_comparison::generated_float_literal_constraint(left, op, right)
+        {
+            if cassie.catalog.field_type(
+                collection,
+                &crate::sql::ColumnIdentifierPath::reference_field_key(field),
+            ) != Some(DataType::Float)
+            {
+                return true;
+            }
+        }
+    }
+    expr.any_child(|child| generated_float_constraint_requires_scan(cassie, collection, child))
 }
 
 fn scalar_index_order_needs_sql_sort(

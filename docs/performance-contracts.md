@@ -123,7 +123,13 @@ Timestamp-shaped expression-index probes also use SQL filtering. Character expre
 ordering declines byte-order shortcuts when its output may have that timestamp shape;
 `lower(...)` output cannot have the required uppercase T/Z markers and retains its bounded path. Full-text scalar prefilters
 require an unpredicated index and the same exact probe comparison. These fallbacks preserve
-query results without changing stored index formats.
+query results without changing stored index formats. The next #904
+[mixed numeric SQL comparison contract](mixed-numeric-comparison-contract.md)
+does not make a rounded FLOAT-domain comparison into one exact BIGINT-key
+lookup: adjacent integer keys may both match. Keep the guard or prove a complete
+candidate path with an authoritative residual before claiming optimization.
+Query qualification does not complete unique/FK/concurrent constraint semantics
+under #769 CON-05.
 
 `EXPLAIN` must identify scans, ordering, filters, estimates, join order and algorithm, legality barriers, fallback reasons, and memory bounds relevant to the selected tree.
 

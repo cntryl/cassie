@@ -6,6 +6,7 @@ use crate::executor::retained_memory::add;
 use crate::midge::adapter::DocumentRef;
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::QueryMemoryReservation;
+use crate::sql::numeric_comparison::NumericComparisonDomain;
 
 use super::super::super::source_collection::{
     qualification_bytes, qualification_scratch, row_qualification_bytes,
@@ -96,10 +97,11 @@ pub(super) fn reserve_probe_key(
     env: &SourceExecutionEnv<'_>,
     row: &BatchRow,
     column: &str,
+    domain: NumericComparisonDomain,
 ) -> Result<QueryMemoryReservation, QueryError> {
     check_timeout(env.controls)?;
     let bytes = add(
-        accounting::join_key_bytes(row, column)?,
+        accounting::join_key_bytes(row, column, domain)?,
         accounting::key_lookup_scratch_bytes(std::slice::from_ref(row), column)?,
     )?;
     Ok(env.controls.reserve_query_memory(bytes)?)

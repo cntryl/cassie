@@ -253,7 +253,10 @@ fn execute_selected(
         let keys = side_selection::sample_join_keys_with_context(
             env,
             &fixture.left,
-            &format!("{}.join_key", fixture.left),
+            (
+                &format!("{}.join_key", fixture.left),
+                super::super::NumericComparisonDomain::Exact,
+            ),
             &fields,
             1,
             retention,
@@ -485,3 +488,6 @@ fn should_admit_bounded_side_selection_keys_before_copying_them() {
         "retained phase admission is required: {result:?}"
     );
 }
+
+#[path = "numeric_probe_tests.rs"]
+mod numeric_probe_tests;

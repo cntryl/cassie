@@ -26,6 +26,9 @@ pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<bool, QueryError> +
 mod coalesce;
 #[path = "filter/conditional.rs"]
 mod conditional;
+#[path = "filter/numeric_comparison.rs"]
+mod numeric_comparison;
+pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]
 mod functions;
 #[path = "filter/like.rs"]
@@ -931,7 +934,13 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
     let value = eval_scalar_with_context(row, expr, context)?;
-    cast_scalar(&value, data_type)
+    if *data_type == DataType::Float
+        && crate::sql::binder::generated_float_coercion_case_operand(expr).is_some()
+    {
+        numeric_comparison::float_scalar(&value)
+    } else {
+        cast_scalar(&value, data_type)
+    }
 }
 
 fn parse_f64_to_i64(value: f64) -> Option<i64> {

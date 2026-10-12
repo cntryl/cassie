@@ -482,9 +482,57 @@ mod scalar_index_probes {
         ("0 <= x", &[1, 2, 3, 4, 10, 11], "collection_scans"),
     ];
 
+    const QUOTED_FLOAT_SEED: &[&str] = &[
+        "CREATE TABLE quoted_float_scan (id INT,\"Float.Key\" FLOAT,tag INT)",
+        "CREATE TABLE quoted_float_indexed (id INT,\"Float.Key\" FLOAT,tag INT)",
+        "INSERT INTO quoted_float_scan VALUES (1,9007199254740991.0,7),(2,9007199254740992.0,7),(3,9007199254740992.0,8),(4,9007199254740992.0,NULL),(5,9007199254740994.0,7),(6,-9007199254740994.0,7),(7,-9007199254740992.0,7),(8,-9007199254740992.0,8),(9,-9007199254740992.0,NULL),(10,-9007199254740991.0,7),(11,NULL,7)",
+        "INSERT INTO quoted_float_indexed VALUES (1,9007199254740991.0,7),(2,9007199254740992.0,7),(3,9007199254740992.0,8),(4,9007199254740992.0,NULL),(5,9007199254740994.0,7),(6,-9007199254740994.0,7),(7,-9007199254740992.0,7),(8,-9007199254740992.0,8),(9,-9007199254740992.0,NULL),(10,-9007199254740991.0,7),(11,NULL,7)",
+        "CREATE INDEX quoted_float_key ON quoted_float_indexed(\"Float.Key\",tag)",
+    ];
+
+    const QUOTED_FLOAT_CASES: &[(&str, bool, &[i64], &str)] = &[
+        (
+            "\"Float.Key\" = 9007199254740993 AND tag = 7",
+            false,
+            &[2],
+            "prefix",
+        ),
+        (
+            "f.tag = 7 AND 9007199254740993 = f.\"Float.Key\"",
+            true,
+            &[2],
+            "prefix",
+        ),
+        (
+            "f.\"Float.Key\" = -9007199254740993 AND f.tag = 7",
+            true,
+            &[7],
+            "prefix",
+        ),
+        (
+            "\"Float.Key\" >= 9007199254740993 AND tag = 7",
+            false,
+            &[2, 5],
+            "range",
+        ),
+        (
+            "7 = f.tag AND -9007199254740993 <= f.\"Float.Key\"",
+            true,
+            &[1, 2, 5, 7, 10],
+            "range",
+        ),
+        (
+            "\"Float.Key\" = 9007199254740993",
+            false,
+            &[2, 3, 4],
+            "scan",
+        ),
+    ];
+
     struct FloatIndexObservation {
         rows: Result<(Vec<Vec<Value>>, u64), cassie::app::CassieError>,
         seeks: u64,
+        prefixes: u64,
         ranges: u64,
         scans: u64,
         retired: u64,
@@ -507,6 +555,7 @@ mod scalar_index_probes {
         FloatIndexObservation {
             rows,
             seeks: delta(&before, &after, "read_paths", "index_seek_scans"),
+            prefixes: delta(&before, &after, "read_paths", "prefix_scans"),
             ranges: delta(&before, &after, "read_paths", "range_scans"),
             scans: delta(&before, &after, "read_paths", "collection_scans"),
             retired: accounted_memory(&after),
@@ -568,6 +617,86 @@ mod scalar_index_probes {
                     assert_eq!((indexed.seeks, indexed.ranges), (0, 0), "{predicate}");
                 }
                 _ => panic!("known read-path counter"),
+            }
+        }
+    }
+
+    #[test]
+    fn should_preserve_quoted_composite_float_index_constraints() {
+        // Arrange
+        let mut config = CassieRuntimeConfig::default();
+        config.limits.query_timeout_ms = 0;
+        config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+        config.limits.adaptive_execution_enabled = false;
+        config.limits.parallel_scan_workers = 1;
+        let fixture =
+            sql_fixture_with_config("quoted-composite-float-index", QUOTED_FLOAT_SEED, config);
+
+        // Act
+        let observations = QUOTED_FLOAT_CASES
+            .iter()
+            .map(|(predicate, aliased, expected, path)| {
+                let suffix = if *aliased { " f" } else { "" };
+                (
+                    *predicate,
+                    *expected,
+                    *path,
+                    observe_float_index_read(
+                        &fixture,
+                        &format!("quoted_float_scan{suffix}"),
+                        predicate,
+                    ),
+                    observe_float_index_read(
+                        &fixture,
+                        &format!("quoted_float_indexed{suffix}"),
+                        predicate,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        drop(fixture);
+
+        // Assert
+        for (predicate, expected, path, baseline, indexed) in observations {
+            let expected = expected
+                .iter()
+                .map(|id| vec![Value::Int64(*id)])
+                .collect::<Vec<_>>();
+            let (mut baseline_rows, baseline_live) =
+                baseline.rows.expect("unindexed compound predicate");
+            let (mut indexed_rows, indexed_live) =
+                indexed.rows.expect("indexed compound predicate");
+            for rows in [&mut baseline_rows, &mut indexed_rows] {
+                rows.sort_by_key(|row| match row.first() {
+                    Some(Value::Int64(id)) => *id,
+                    _ => panic!("integer row identity"),
+                });
+            }
+            assert_eq!(baseline_rows, expected, "unindexed {predicate}");
+            assert_eq!(indexed_rows, baseline_rows, "indexed {predicate}");
+            assert!(baseline_live > 0 && indexed_live > 0, "{predicate}");
+            assert_eq!((baseline.retired, indexed.retired), (0, 0), "{predicate}");
+            assert!(baseline.scans > 0, "actual unindexed scan: {predicate}");
+            assert_eq!(
+                (baseline.seeks, baseline.prefixes, baseline.ranges),
+                (0, 0, 0),
+                "{predicate}"
+            );
+            match path {
+                "prefix" => assert!(indexed.prefixes > 0, "actual composite prefix: {predicate}"),
+                "range" => assert!(indexed.ranges > 0, "actual composite range: {predicate}"),
+                "scan" => {
+                    assert!(
+                        indexed.scans > 0,
+                        "nullable trailing key fallback: {predicate}"
+                    );
+                    assert_eq!(
+                        (indexed.seeks, indexed.prefixes, indexed.ranges),
+                        (0, 0, 0),
+                        "{predicate}"
+                    );
+                }
+                _ => panic!("known compound read path"),
             }
         }
     }

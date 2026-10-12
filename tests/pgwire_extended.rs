@@ -26,6 +26,8 @@ mod statement_visibility;
 
 #[path = "pgwire_extended/conditional_expressions.rs"]
 mod conditional_expressions;
+#[path = "pgwire_extended/constant_planning.rs"]
+mod constant_planning;
 
 #[path = "pgwire_extended/coalesce_promotion.rs"]
 mod coalesce_promotion;

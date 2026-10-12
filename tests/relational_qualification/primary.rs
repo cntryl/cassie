@@ -277,8 +277,8 @@ fn should_preserve_uncorrelated_output_folding() {
     // Arrange
     let fixture = fixture();
     let empty_sql = "SELECT id,EXISTS(SELECT id FROM r WHERE n>=0) AS present FROM r WHERE id<0";
-    let error_sql = "SELECT EXISTS(SELECT n / n FROM r WHERE id=5) AS bad FROM r WHERE id<0";
-    let mixed_sql = "SELECT EXISTS(SELECT n / n FROM r WHERE id=5) AS bad,EXISTS(SELECT i.id FROM r AS i WHERE i.id=o.id) AS present FROM r AS o WHERE o.id<0";
+    let error_sql = "SELECT EXISTS(SELECT 1 FROM r WHERE CASE WHEN id=5 THEN n / n = 1 ELSE false END) AS bad FROM r WHERE id<0";
+    let mixed_sql = "SELECT EXISTS(SELECT 1 FROM r WHERE CASE WHEN id=5 THEN n / n = 1 ELSE false END) AS bad,EXISTS(SELECT i.id FROM r AS i WHERE i.id=o.id) AS present FROM r AS o WHERE o.id<0";
 
     // Act
     let output = fixture.cassie.execute_sql(
@@ -364,7 +364,7 @@ fn should_preserve_occurrence_scope_for_exists_output() {
         "SELECT o.id,EXISTS(SELECT id FROM r WHERE id=0) OR EXISTS(SELECT i.id FROM r AS i WHERE i.id=o.id AND i.n>=0) AS present FROM r AS o ORDER BY o.id",
     ];
     let local_shadow = "SELECT o.id,EXISTS(WITH o AS (SELECT id FROM r WHERE id=3) SELECT id FROM o WHERE id=3) AS present FROM r AS o ORDER BY o.id";
-    let eager_error = "SELECT COALESCE(EXISTS(SELECT i.id FROM r AS i WHERE i.id=o.id),EXISTS(SELECT n / n FROM r WHERE id=5)) AS present FROM r AS o WHERE o.id<0";
+    let eager_error = "SELECT COALESCE(EXISTS(SELECT i.id FROM r AS i WHERE i.id=o.id),EXISTS(SELECT 1 FROM r WHERE CASE WHEN id=5 THEN n / n = 1 ELSE false END)) AS present FROM r AS o WHERE o.id<0";
     let invalid = "SELECT EXISTS(SELECT r.id FROM r AS i WHERE r.id=i.id) AS present FROM r AS o";
 
     // Act
@@ -418,8 +418,8 @@ fn should_skip_dead_correlated_exists_output() {
     // Arrange
     let fixture = fixture();
     let cases = [
-        "SELECT o.id,CASE WHEN o.n=0 THEN false ELSE EXISTS(SELECT i.n / i.n FROM r AS i WHERE i.id=o.id AND i.n>=0) END AS present FROM r AS o WHERE o.id=5",
-        "SELECT o.id,COALESCE(true,EXISTS(SELECT i.n / i.n FROM r AS i WHERE i.id=o.id AND i.n>=0)) AS present FROM r AS o WHERE o.id=5",
+        "SELECT o.id,CASE WHEN o.n=0 THEN false ELSE EXISTS(SELECT 1 FROM r AS i WHERE CASE WHEN i.id=o.id AND i.n>=0 THEN i.n / i.n = 1 ELSE false END) END AS present FROM r AS o WHERE o.id=5",
+        "SELECT o.id,COALESCE(true,EXISTS(SELECT 1 FROM r AS i WHERE CASE WHEN i.id=o.id AND i.n>=0 THEN i.n / i.n = 1 ELSE false END)) AS present FROM r AS o WHERE o.id=5",
     ];
 
     // Act
@@ -442,9 +442,9 @@ fn should_preserve_selected_exists_branch_errors() {
     // Arrange
     let fixture = fixture();
     let cases = [
-        "SELECT CASE WHEN o.n=0 THEN EXISTS(SELECT i.n / i.n FROM r AS i WHERE i.id=o.id) ELSE false END AS present FROM r AS o WHERE o.id=5",
-        "SELECT COALESCE(NULL,EXISTS(SELECT i.n / i.n FROM r AS i WHERE i.id=o.id)) AS present FROM r AS o WHERE o.id=5",
-        "SELECT CASE WHEN true THEN false ELSE EXISTS(SELECT n / n FROM r WHERE id=5) END AS present FROM r AS o WHERE o.id=5",
+        "SELECT CASE WHEN o.n=0 THEN EXISTS(SELECT 1 FROM r AS i WHERE CASE WHEN i.id=o.id THEN i.n / i.n = 1 ELSE false END) ELSE false END AS present FROM r AS o WHERE o.id=5",
+        "SELECT COALESCE(NULL,EXISTS(SELECT 1 FROM r AS i WHERE CASE WHEN i.id=o.id THEN i.n / i.n = 1 ELSE false END)) AS present FROM r AS o WHERE o.id=5",
+        "SELECT CASE WHEN true THEN false ELSE EXISTS(SELECT 1 FROM r WHERE CASE WHEN id=5 THEN n / n = 1 ELSE false END) END AS present FROM r AS o WHERE o.id=5",
     ];
 
     // Act
@@ -488,8 +488,8 @@ fn should_select_correlated_output_with_boolean_parameters() {
     // Arrange
     let fixture = fixture();
     let cases = [
-        "SELECT CASE WHEN $1 THEN false ELSE EXISTS(SELECT i.n / i.n FROM r AS i WHERE i.id=o.id) END AS present FROM r AS o WHERE o.id=5",
-        "SELECT COALESCE($1,EXISTS(SELECT i.n / i.n FROM r AS i WHERE i.id=o.id)) AS present FROM r AS o WHERE o.id=5",
+        "SELECT CASE WHEN $1 THEN false ELSE EXISTS(SELECT 1 FROM r AS i WHERE CASE WHEN i.id=o.id THEN i.n / i.n = 1 ELSE false END) END AS present FROM r AS o WHERE o.id=5",
+        "SELECT COALESCE($1,EXISTS(SELECT 1 FROM r AS i WHERE CASE WHEN i.id=o.id THEN i.n / i.n = 1 ELSE false END)) AS present FROM r AS o WHERE o.id=5",
     ];
 
     // Act

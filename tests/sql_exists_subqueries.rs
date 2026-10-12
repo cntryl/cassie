@@ -10,6 +10,8 @@ mod support_temp_dirs;
 
 #[path = "sql_exists_subqueries/boolean_contexts.rs"]
 mod sql_boolean_exists;
+#[path = "sql_exists_subqueries/target_elision.rs"]
+mod sql_exists_target_elision;
 
 mod exists_in_dml {
     use cassie::types::Value;

@@ -19,7 +19,7 @@ fn should_resolve_exists_against_actual_having_groups() {
     let queries=[
         "SELECT q.id AS id,COUNT(*) AS n FROM having_outer q GROUP BY q.id HAVING EXISTS(SELECT 1 FROM having_inner i WHERE i.id=q.id) ORDER BY q.id",
         "SELECT q.id AS id,COUNT(*) AS n FROM having_outer q GROUP BY q.id HAVING EXISTS(SELECT 1 FROM having_inner i) ORDER BY q.id",
-        "SELECT q.id AS id,COUNT(*) AS n FROM having_outer q GROUP BY q.id HAVING CASE WHEN q.id=1 THEN true ELSE EXISTS(SELECT i.n / i.n FROM having_inner i WHERE i.id=q.id) END ORDER BY q.id",
+        "SELECT q.id AS id,COUNT(*) AS n FROM having_outer q GROUP BY q.id HAVING CASE WHEN q.id=1 THEN true ELSE EXISTS(SELECT 1 FROM having_inner i WHERE CASE WHEN i.id=q.id THEN i.n / i.n = 1 ELSE false END) END ORDER BY q.id",
     ];
     // Act
     let results = queries
@@ -65,13 +65,13 @@ fn should_preserve_having_scalar_selection() {
     }
     // Act
     let skipped=fixture.cassie.execute_sql(&fixture.session,
-        "SELECT q.id AS id FROM having_lazy q GROUP BY q.id HAVING COALESCE(true,EXISTS(SELECT i.n / i.n FROM having_lazy i WHERE i.id=q.id)) ORDER BY q.id",vec![]);
+        "SELECT q.id AS id FROM having_lazy q GROUP BY q.id HAVING COALESCE(true,EXISTS(SELECT 1 FROM having_lazy i WHERE CASE WHEN i.id=q.id THEN i.n / i.n = 1 ELSE false END)) ORDER BY q.id",vec![]);
     let reached=fixture.cassie.execute_sql(&fixture.session,
-        "SELECT q.id AS id FROM having_lazy q GROUP BY q.id HAVING CASE WHEN q.id=1 THEN EXISTS(SELECT i.n / i.n FROM having_lazy i WHERE i.id=q.id) ELSE false END",vec![]);
+        "SELECT q.id AS id FROM having_lazy q GROUP BY q.id HAVING CASE WHEN q.id=1 THEN EXISTS(SELECT 1 FROM having_lazy i WHERE CASE WHEN i.id=q.id THEN i.n / i.n = 1 ELSE false END) ELSE false END",vec![]);
     let empty=fixture.cassie.execute_sql(&fixture.session,
-        "SELECT q.id AS id FROM having_lazy q WHERE q.id<0 GROUP BY q.id HAVING EXISTS(SELECT i.n / i.n FROM having_lazy i WHERE i.id=q.id)",vec![]);
+        "SELECT q.id AS id FROM having_lazy q WHERE q.id<0 GROUP BY q.id HAVING EXISTS(SELECT 1 FROM having_lazy i WHERE CASE WHEN i.id=q.id THEN i.n / i.n = 1 ELSE false END)",vec![]);
     let eager=fixture.cassie.execute_sql(&fixture.session,
-        "SELECT q.id AS id FROM having_lazy q WHERE q.id<0 GROUP BY q.id HAVING EXISTS(SELECT i.n / i.n FROM having_lazy i)",vec![]);
+        "SELECT q.id AS id FROM having_lazy q WHERE q.id<0 GROUP BY q.id HAVING EXISTS(SELECT 1 FROM having_lazy i WHERE i.n / i.n = 1)",vec![]);
     // Assert
     assert_eq!(
         skipped.expect("unreached correlated branch").rows(),

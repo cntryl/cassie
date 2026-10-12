@@ -79,14 +79,23 @@ do not execute their subqueries. A reached occurrence preserves its normal
 error. This row-reached law is distinct from the existing eager folding of
 independent occurrences in SELECT and the selected non-DML phases.
 
-This governs runtime evaluation, after binding and planning. PostgreSQL can
-reject immutable constant expressions while planning a dynamically dead CASE
-branch or a zero-row command. Its planning-time `1/0` behavior remains an open
-parity gap in [#922](https://github.com/cntryl/cassie/issues/922); it is not an
-exception to the PostgreSQL 18 delivery contract. Runtime laziness witnesses
-use row-dependent division so they do not confuse those phases. Likewise,
-PostgreSQL can discard irrelevant EXISTS target expressions; Cassie's existing
-target evaluation gap remains owned by [#923](https://github.com/cntryl/cassie/issues/923).
+This governs runtime evaluation, after binding and planning. PostgreSQL rejects
+immutable constant expressions while planning, even in a dynamically dead CASE
+branch or a zero-row command. Cassie mirrors that phase before each top-level
+execution ([#922](https://github.com/cntryl/cassie/issues/922)): a constant
+`1/0` in a select list, filter, SET, VALUES, ON CONFLICT, RETURNING, referenced
+CTE, FROM subquery or reached EXISTS subquery raises SQLSTATE `22012` before any
+row is read or changed. Folding follows PostgreSQL's pruning order: constant
+FALSE/NULL CASE arms are dropped unprocessed, a constant TRUE arm ends the CASE,
+AND/OR stop at their first deciding constant and COALESCE at its first non-NULL
+constant. Row values, parameters and non-immutable functions are not constant.
+Only arithmetic folding errors (division by zero, bigint and float overflow)
+are reported; view bodies and parameter values bound for custom plans are not
+folded. Runtime laziness witnesses use row-dependent division so they do not
+confuse those phases. EXISTS also discards its target list, GROUP BY,
+DISTINCT, ORDER BY and positive constant LIMIT unless aggregates, window
+functions, HAVING, OFFSET, set operations or another LIMIT make them
+observable ([#923](https://github.com/cntryl/cassie/issues/923)).
 
 `RETURNING` remains atomic under the existing publish-after-complete-success
 wrapper. If expression evaluation fails, the command must preserve its current

@@ -132,8 +132,8 @@ fn should_preserve_nested_exists_branch_selection() {
             .expect("nested lazy setup");
     }
     let queries=[
-        "SELECT o.id,EXISTS(SELECT CASE WHEN m.id=1 THEN false ELSE EXISTS(SELECT i.n / i.n FROM lazy_ancestor i WHERE i.id=o.id) END FROM lazy_ancestor m WHERE m.id=1) AS matched FROM lazy_ancestor o ORDER BY o.id",
-        "SELECT o.id,EXISTS(SELECT COALESCE(true,EXISTS(SELECT i.n / i.n FROM lazy_ancestor i WHERE i.id=o.id)) FROM lazy_ancestor m WHERE m.id=1) AS matched FROM lazy_ancestor o ORDER BY o.id",
+        "SELECT o.id,EXISTS(SELECT CASE WHEN m.id=1 THEN false ELSE EXISTS(SELECT 1 FROM lazy_ancestor i WHERE CASE WHEN i.id=o.id THEN i.n / i.n = 1 ELSE false END) END FROM lazy_ancestor m WHERE m.id=1 OFFSET 0) AS matched FROM lazy_ancestor o ORDER BY o.id",
+        "SELECT o.id,EXISTS(SELECT COALESCE(true,EXISTS(SELECT 1 FROM lazy_ancestor i WHERE CASE WHEN i.id=o.id THEN i.n / i.n = 1 ELSE false END)) FROM lazy_ancestor m WHERE m.id=1 OFFSET 0) AS matched FROM lazy_ancestor o ORDER BY o.id",
         "SELECT o.id,EXISTS(SELECT 1 FROM lazy_ancestor m WHERE m.id=2 AND EXISTS(SELECT 1 FROM lazy_ancestor o WHERE o.id=1)) AS matched FROM lazy_ancestor o ORDER BY o.id",
     ];
     // Act
@@ -154,13 +154,13 @@ fn should_preserve_nested_exists_branch_selection() {
             "{sql}"
         );
     }
-    let reached="SELECT EXISTS(SELECT CASE WHEN m.id=1 THEN EXISTS(SELECT i.n / i.n FROM lazy_ancestor i WHERE i.id=o.id) ELSE false END FROM lazy_ancestor m WHERE m.id=1) FROM lazy_ancestor o WHERE o.id=1";
+    let reached="SELECT EXISTS(SELECT CASE WHEN m.id=1 THEN EXISTS(SELECT 1 FROM lazy_ancestor i WHERE CASE WHEN i.id=o.id THEN i.n / i.n = 1 ELSE false END) ELSE false END FROM lazy_ancestor m WHERE m.id=1 OFFSET 0) FROM lazy_ancestor o WHERE o.id=1";
     let error = fixture
         .cassie
         .execute_sql(&fixture.session, reached, vec![])
         .expect_err("reached ancestor error");
     assert!(error.to_string().contains("division by zero"), "{error}");
-    let eager="SELECT EXISTS(SELECT CASE WHEN true THEN false ELSE EXISTS(SELECT i.n / i.n FROM lazy_ancestor i WHERE i.id=1) END FROM lazy_ancestor m WHERE m.id=1) FROM lazy_ancestor o WHERE o.id<0";
+    let eager="SELECT EXISTS(SELECT CASE WHEN true THEN false ELSE EXISTS(SELECT 1 FROM lazy_ancestor i WHERE CASE WHEN i.id=1 THEN i.n / i.n = 1 ELSE false END) END FROM lazy_ancestor m WHERE m.id=1 OFFSET 0) FROM lazy_ancestor o WHERE o.id<0";
     let error = fixture
         .cassie
         .execute_sql(&fixture.session, eager, vec![])
@@ -214,7 +214,7 @@ fn should_preserve_nested_scope_folding_boundaries() {
     let queries=[
         "SELECT o.id,EXISTS(SELECT 1 FROM folding_middle m WHERE EXISTS(WITH o AS (SELECT id FROM folding_outer WHERE id=1) SELECT 1 FROM o WHERE o.id=1)) AS matched FROM folding_outer o ORDER BY o.id",
         "SELECT o.id,EXISTS(SELECT 1 FROM folding_middle m WHERE EXISTS(SELECT 1 FROM (SELECT id FROM folding_outer WHERE id=1) o WHERE o.id=1)) AS matched FROM folding_outer o ORDER BY o.id",
-        "SELECT o.id,EXISTS(SELECT CASE WHEN m.id=10 THEN false ELSE EXISTS(SELECT i.n / i.n FROM folding_outer i WHERE i.id=o.id) END FROM folding_middle m) AS matched FROM folding_outer o ORDER BY o.id",
+        "SELECT o.id,EXISTS(SELECT CASE WHEN m.id=10 THEN false ELSE EXISTS(SELECT 1 FROM folding_outer i WHERE CASE WHEN i.id=o.id THEN i.n / i.n = 1 ELSE false END) END FROM folding_middle m OFFSET 0) AS matched FROM folding_outer o ORDER BY o.id",
     ];
     // Act
     let results = queries
@@ -222,9 +222,9 @@ fn should_preserve_nested_scope_folding_boundaries() {
         .map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]))
         .collect::<Vec<_>>();
     let empty_correlated=fixture.cassie.execute_sql(&fixture.session,
-        "SELECT EXISTS(SELECT EXISTS(SELECT i.n / i.n FROM folding_outer i WHERE i.id=o.id) FROM folding_middle m) AS matched FROM folding_outer o WHERE o.id<0",vec![]);
+        "SELECT EXISTS(SELECT EXISTS(SELECT 1 FROM folding_outer i WHERE CASE WHEN i.id=o.id THEN i.n / i.n = 1 ELSE false END) FROM folding_middle m OFFSET 0) AS matched FROM folding_outer o WHERE o.id<0",vec![]);
     let empty_uncorrelated=fixture.cassie.execute_sql(&fixture.session,
-        "SELECT EXISTS(SELECT CASE WHEN true THEN false ELSE EXISTS(SELECT i.n / i.n FROM folding_outer i WHERE i.id=1) END FROM folding_middle m) AS matched FROM folding_outer o WHERE o.id<0",vec![]);
+        "SELECT EXISTS(SELECT CASE WHEN true THEN false ELSE EXISTS(SELECT 1 FROM folding_outer i WHERE CASE WHEN i.id=1 THEN i.n / i.n = 1 ELSE false END) END FROM folding_middle m OFFSET 0) AS matched FROM folding_outer o WHERE o.id<0",vec![]);
     // Assert
     for (sql, result) in queries.iter().zip(results) {
         assert_eq!(

@@ -253,7 +253,10 @@ fn execute_selected(
         let keys = side_selection::sample_join_keys_with_context(
             env,
             &fixture.left,
-            &format!("{}.join_key", fixture.left),
+            (
+                &format!("{}.join_key", fixture.left),
+                super::super::NumericComparisonDomain::Exact,
+            ),
             &fields,
             1,
             retention,

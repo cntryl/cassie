@@ -96,7 +96,7 @@ impl IndexedProgress {
                 (spec.right_collection, &spec.keys.left)
             }
         };
-        let _key_memory = reserve_probe_key(env, stream_row, stream_key)?;
+        let _key_memory = reserve_probe_key(env, stream_row, stream_key, spec.keys.domain)?;
         let Some(key_value) = stream_row.get(stream_key).and_then(value_to_json) else {
             return Ok(true);
         };

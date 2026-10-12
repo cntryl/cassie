@@ -14,12 +14,7 @@ pub(super) fn execute_left_build_streaming_bounded_inner_join(
     retention: &JoinRetentionContext<'_>,
 ) -> Result<JoinResult, QueryError> {
     let left_rows = load_collection_rows(env, spec.left_collection)?;
-    let batch_size = env
-        .cassie
-        .runtime
-        .limits()
-        .vectorized_join_batch_size
-        .max(1);
+    let batch_size = vectorized_batch_size(env);
     if left_rows.is_empty() {
         return empty_vectorized_join(env, batch_size);
     }
@@ -30,6 +25,7 @@ pub(super) fn execute_left_build_streaming_bounded_inner_join(
             .reserve_query_memory(accounting::hash_build_bytes::<usize>(
                 left_rows.as_slice(),
                 &spec.keys.left,
+                spec.keys.domain,
             )?)?;
     retention.before(JoinRetentionPhase::BoundedBuild)?;
     let mut build = std::collections::HashMap::<SemanticKey, Vec<usize>>::new();
@@ -45,7 +41,7 @@ pub(super) fn execute_left_build_streaming_bounded_inner_join(
         })?;
     for (index, left_row) in left_rows.as_slice().iter().enumerate() {
         check_timeout(env.controls)?;
-        if let Some(key) = row_join_key(left_row, &spec.keys.left) {
+        if let Some(key) = row_join_key(left_row, &spec.keys.left, spec.keys.domain)? {
             build.entry(key).or_default().push(index);
         }
     }
@@ -84,12 +80,7 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
     spec: &StreamingJoinSpec<'_>,
     retention: &JoinRetentionContext<'_>,
 ) -> Result<JoinResult, QueryError> {
-    let batch_size = env
-        .cassie
-        .runtime
-        .limits()
-        .vectorized_join_batch_size
-        .max(1);
+    let batch_size = vectorized_batch_size(env);
     let Some(right_scan_fields) = collection_scan_fields(env, spec.right_collection) else {
         return empty_vectorized_join(env, batch_size);
     };
@@ -124,8 +115,9 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
                 retention,
             )?;
             probe_rows += 1;
-            let _left_key_memory = reserve_probe_key(env, &left_row, &spec.keys.left)?;
-            let Some(left_key) = row_join_key(&left_row, &spec.keys.left) else {
+            let _left_key_memory =
+                reserve_probe_key(env, &left_row, &spec.keys.left, spec.keys.domain)?;
+            let Some(left_key) = row_join_key(&left_row, &spec.keys.left, spec.keys.domain)? else {
                 return Ok(true);
             };
 
@@ -142,8 +134,11 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
                         retention,
                     )?;
                     build_rows += 1;
-                    let _right_key_memory = reserve_probe_key(env, &right_row, &spec.keys.right)?;
-                    let Some(right_key) = row_join_key(&right_row, &spec.keys.right) else {
+                    let _right_key_memory =
+                        reserve_probe_key(env, &right_row, &spec.keys.right, spec.keys.domain)?;
+                    let Some(right_key) =
+                        row_join_key(&right_row, &spec.keys.right, spec.keys.domain)?
+                    else {
                         return Ok(true);
                     };
                     if left_key != right_key {
@@ -184,6 +179,14 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
             batches: probe_rows,
         },
     ))
+}
+
+fn vectorized_batch_size(env: &SourceExecutionEnv<'_>) -> usize {
+    env.cassie
+        .runtime
+        .limits()
+        .vectorized_join_batch_size
+        .max(1)
 }
 
 fn record_dense_source_reads(
@@ -317,8 +320,8 @@ fn stream_rows(
                 retention,
             )?;
             probe_rows += 1;
-            let _key_memory = reserve_probe_key(env, &row, column)?;
-            let Some(key) = row_join_key(&row, column) else {
+            let _key_memory = reserve_probe_key(env, &row, column, spec.keys.domain)?;
+            let Some(key) = row_join_key(&row, column, spec.keys.domain)? else {
                 return Ok(true);
             };
             if let Some(indexes) = build.index.get(&key) {

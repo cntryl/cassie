@@ -1,9 +1,12 @@
 use super::{
     batch, catalog, check_timeout, combine_rows, execute_query_source, filter, qualify_row,
-    row_lookup_columns, scan, source_contains_lateral, Batch, BatchRow, BinaryOp, CteContext, Expr,
-    JoinKind, QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
+    row_lookup_columns, scan, source_contains_lateral, Batch, BatchRow, CteContext, Expr, JoinKind,
+    QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
 };
 use crate::executor::semantic::SemanticKey;
+#[cfg(test)]
+use crate::sql::ast::BinaryOp;
+use crate::sql::numeric_comparison::{equality_columns, NumericComparisonDomain};
 
 const VECTOR_TO_MERGE_SWITCH_PAIR: &str = "vectorized_join_to_merge_join";
 
@@ -59,6 +62,7 @@ mod spill_fallback_tests;
 struct EquiJoinKeys {
     left: String,
     right: String,
+    domain: NumericComparisonDomain,
 }
 
 #[derive(Clone, Copy)]
@@ -437,10 +441,18 @@ enum VectorizedJoinSelection {
     SwitchToMerge(String),
 }
 
-fn row_join_key(row: &BatchRow, key_column: &str) -> Option<SemanticKey> {
+fn row_join_key(
+    row: &BatchRow,
+    key_column: &str,
+    domain: NumericComparisonDomain,
+) -> Result<Option<SemanticKey>, QueryError> {
     row.get(key_column)
         .filter(|value| !matches!(value, Value::Null))
-        .map(SemanticKey::single)
+        .map(|value| {
+            let value = filter::comparison_key_value(value, domain)?;
+            Ok(SemanticKey::single(value.as_ref()))
+        })
+        .transpose()
 }
 
 fn estimate_vectorized_join_bytes(left_rows: usize, right_rows: usize) -> usize {
@@ -514,25 +526,15 @@ fn merge_join_keys(
     left_columns: &[String],
     right_columns: &[String],
 ) -> Option<EquiJoinKeys> {
-    let Expr::Binary {
-        left,
-        op: BinaryOp::Eq,
-        right,
-    } = on
-    else {
-        return None;
-    };
-    let (Expr::Column(left_name), Expr::Column(right_name)) = (left.as_ref(), right.as_ref())
-    else {
-        return None;
-    };
+    let (left_name, right_name, domain) = equality_columns(on)?;
 
     if column_belongs_to(left_name, left_columns, right_columns)
         && column_belongs_to(right_name, right_columns, left_columns)
     {
         return Some(EquiJoinKeys {
-            left: left_name.clone(),
-            right: right_name.clone(),
+            left: left_name.to_owned(),
+            right: right_name.to_owned(),
+            domain,
         });
     }
 
@@ -540,8 +542,9 @@ fn merge_join_keys(
         && column_belongs_to(left_name, right_columns, left_columns)
     {
         return Some(EquiJoinKeys {
-            left: right_name.clone(),
-            right: left_name.clone(),
+            left: right_name.to_owned(),
+            right: left_name.to_owned(),
+            domain,
         });
     }
 

@@ -1,7 +1,7 @@
-#[path = "support/mixed_numeric.rs"]
-mod support_mixed_numeric;
 #[path = "pgwire_extended/mixed_numeric_comparisons.rs"]
 mod mixed_numeric_comparisons;
+#[path = "support/mixed_numeric.rs"]
+mod support_mixed_numeric;
 
 #[path = "pgwire_extended/parameter_occurrences.rs"]
 mod pgwire_parameter_occurrences;

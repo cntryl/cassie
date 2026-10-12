@@ -46,7 +46,7 @@ impl Analyzer<'_> {
         Ok(output)
     }
 
-    fn cte(
+    pub(super) fn cte(
         &self,
         cte: &CommonTableExpression,
         outer_ctes: &CteScope,
@@ -69,9 +69,10 @@ impl Analyzer<'_> {
                 ));
             };
             // Monotone finite lattice: each candidate type comes from the
-            // finite bound AST/catalog or the two adapter carrier families;
-            // origin has only false->true. This is schema analysis, not row
-            // recursion, and does not inherit a data-dependent depth limit.
+            // finite bound AST/catalog or the two adapter carrier families.
+            // Decoder ambiguity only grows; proven float8 origin only clears.
+            // This is conservative schema analysis, not row recursion, and
+            // does not qualify general recursive/set operator coercion.
             loop {
                 self.check_controls()?;
                 let previous = fields.clone();
@@ -176,6 +177,15 @@ impl Analyzer<'_> {
                 && self.catalog.get_view(name).is_none()
                 && self.catalog.get_materialized_projection(name).is_none()
         });
+        if base_schema.is_none() {
+            // Stored/virtual/materialized descriptors can contain a legacy
+            // FLOAT carrier inferred from NUMERIC. Only a physical catalog
+            // declaration establishes float8 here; derived CTEs above retain
+            // their actual expression facts instead.
+            for field in &mut fields {
+                field.value.proven_float8 = false;
+            }
+        }
         if base_schema
             .as_ref()
             .is_some_and(|schema| !schema.declares_id())

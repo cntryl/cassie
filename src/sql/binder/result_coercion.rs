@@ -28,11 +28,15 @@ pub(crate) fn original_operand(expression: &Expr) -> Option<&Expr> {
     else {
         return None;
     };
+    case_operand(expr)
+}
+
+pub(crate) fn case_operand(expression: &Expr) -> Option<&Expr> {
     let Expr::Case {
         operand: None,
         branches,
         else_expr: Some(original),
-    } = expr.as_ref()
+    } = expression
     else {
         return None;
     };

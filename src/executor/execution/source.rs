@@ -6,9 +6,9 @@ use super::{
     check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan,
     execute_plan_with_outer_row, filter, graph, load_fulltext_index_options, plan_execution_env,
     projection, resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec,
-    AnalyzerConfig, Batch, BatchRow, BinaryOp, Cassie, CassieSession, CteContext,
-    ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan,
-    QueryError, QueryExecutionControls, QuerySource, Value,
+    AnalyzerConfig, Batch, BatchRow, Cassie, CassieSession, CteContext, ExistsResolutionContext,
+    Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, QueryError,
+    QueryExecutionControls, QuerySource, Value,
 };
 
 #[path = "source_join.rs"]

@@ -7,6 +7,7 @@ use crate::executor::retained_memory::{
 };
 use crate::executor::semantic::{SemanticKey, SemanticValue};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::sql::numeric_comparison::NumericComparisonDomain;
 use crate::types::{DataType, Value};
 
 use super::{check_timeout, BatchRow, QueryError};
@@ -182,7 +183,11 @@ fn exact_key_value<'a>(row: &'a BatchRow, column: &str) -> Option<&'a Value> {
         })
 }
 
-pub(super) fn join_key_bytes(row: &BatchRow, column: &str) -> Result<usize, CassieError> {
+pub(super) fn join_key_bytes(
+    row: &BatchRow,
+    column: &str,
+    domain: NumericComparisonDomain,
+) -> Result<usize, CassieError> {
     let Some(value) = exact_key_value(row, column).filter(|value| !value.is_null()) else {
         return Ok(0);
     };
@@ -192,6 +197,7 @@ pub(super) fn join_key_bytes(row: &BatchRow, column: &str) -> Result<usize, Cass
         Value::Json(value) => mul(serialized_json_bytes(value)?, 2)?.max(128),
         // Numeric key normalization formats only integral values within the i64 range.
         Value::Float64(_) => 64,
+        Value::Int64(_) if domain == NumericComparisonDomain::Float8 => 64,
         Value::Null | Value::Bool(_) | Value::Int64(_) => 0,
     };
     add(size_of::<SemanticValue>(), heap)
@@ -236,11 +242,15 @@ pub(super) fn hash_build_capacity(rows: &[BatchRow], column: &str) -> usize {
 }
 
 /// Full table and worst-case singleton group capacities are admitted before any build key.
-pub(super) fn hash_build_bytes<T>(rows: &[BatchRow], column: &str) -> Result<usize, CassieError> {
+pub(super) fn hash_build_bytes<T>(
+    rows: &[BatchRow],
+    column: &str,
+    domain: NumericComparisonDomain,
+) -> Result<usize, CassieError> {
     let mut count = 0;
     let mut bytes = key_lookup_scratch_bytes(rows, column)?;
     for row in rows {
-        let key_bytes = join_key_bytes(row, column)?;
+        let key_bytes = join_key_bytes(row, column, domain)?;
         if key_bytes != 0 {
             count = add(count, 1)?;
             bytes = add(bytes, key_bytes)?;
@@ -256,6 +266,7 @@ pub(super) fn keyed_rows_bytes<T>(
     left_column: &str,
     right: &[BatchRow],
     right_column: &str,
+    domain: NumericComparisonDomain,
 ) -> Result<usize, CassieError> {
     let capacity = add(
         grown_capacity(left.len(), 4)?,
@@ -270,7 +281,7 @@ pub(super) fn keyed_rows_bytes<T>(
     for (rows, column) in [(left, left_column), (right, right_column)] {
         for row in rows {
             bytes = add(bytes, cloned_row_bytes(row)? - size_of::<BatchRow>())?;
-            bytes = add(bytes, join_key_bytes(row, column)?)?;
+            bytes = add(bytes, join_key_bytes(row, column, domain)?)?;
         }
     }
     Ok(bytes)

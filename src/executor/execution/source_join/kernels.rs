@@ -105,6 +105,7 @@ pub(super) fn execute_vectorized_join(
         .reserve_query_memory(accounting::hash_build_bytes::<&BatchRow>(
             spec.right_rows,
             &spec.keys.right,
+            spec.keys.domain,
         )?)?;
     let mut build = std::collections::HashMap::<SemanticKey, Vec<&BatchRow>>::new();
     build
@@ -120,7 +121,7 @@ pub(super) fn execute_vectorized_join(
     for right in spec.right_rows {
         check_timeout(env.controls)?;
         retention.before(JoinRetentionPhase::HashBuild)?;
-        if let Some(key) = row_join_key(right, &spec.keys.right) {
+        if let Some(key) = row_join_key(right, &spec.keys.right, spec.keys.domain)? {
             build.entry(key).or_default().push(right);
         }
     }
@@ -136,7 +137,7 @@ pub(super) fn execute_vectorized_join(
             check_timeout(env.controls)?;
             probe_rows += 1;
             let _probe_memory = env.controls.reserve_query_memory(
-                accounting::join_key_bytes(left, &spec.keys.left)?
+                accounting::join_key_bytes(left, &spec.keys.left, spec.keys.domain)?
                     .checked_add(accounting::key_lookup_scratch_bytes(
                         std::slice::from_ref(left),
                         &spec.keys.left,
@@ -147,7 +148,7 @@ pub(super) fn execute_vectorized_join(
                         )
                     })?,
             )?;
-            let key = row_join_key(left, &spec.keys.left);
+            let key = row_join_key(left, &spec.keys.left, spec.keys.domain)?;
             let right_group = key.as_ref().and_then(|key| build.get(key));
             if let Some(right_group) = right_group {
                 for right in right_group {

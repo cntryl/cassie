@@ -1,10 +1,11 @@
 # Primitive mixed numeric SQL comparison contract
 
-This defines the next finite [#904](https://github.com/cntryl/cassie/issues/904)
-bundle. It does not report implemented or qualified support. Publish the finite
-selection against accepted #936 below, then retain a fresh PostgreSQL 18.6
-query/join and transient-DML baseline before changing runtime or existing
-expectations. Historical observations below are not a current-head RED.
+This defines the selected finite [#904](https://github.com/cntryl/cassie/issues/904)
+bundle on accepted #936. Its private implementation has passed twenty focused
+query, join, mutation and pgwire tests after retained PostgreSQL 18.6 baselines
+and behavioral RED evidence. Complete native qualification, adversarial review
+and the final ordered local gate are still required before merge. This finite
+bundle does not establish full type-registry or PostgreSQL parity support.
 
 ## Operator input domain
 
@@ -51,6 +52,19 @@ unique/FK equality, exclusion constraints or concurrent enforcement. #769 CON-05
 and the full #798/#904 criteria remain open for their actual remaining matrices.
 
 ## Preserved boundaries
+
+The selected derived-source comparison caller also requires exact lookup of
+synthetic precomputed expression keys before evaluating its expression. The
+fresh 20-target provenance baseline at test-only commit
+`d73f7b636a2bbc8402c17ae1d95361d83c826079` retained 60 native paths. Two derived
+comparison projections emitted their source decimal values under BOOLEAN
+descriptors; binary output failed with `08P01`. Source inspection traced this to
+the projection shortcut resolving an arbitrary expression key by its final
+column-name suffix. Include the focused private projection correction and both
+exact PostgreSQL query oracles in this bundle, alongside the type-origin repair.
+This is a prerequisite from #761's existing relational-correctness scope. It
+changes no public row-lookup API or persistent format. Its failed baseline stays
+retained, and qualification still requires fresh successful observations.
 
 Do not change `compare_numeric_values`, `SemanticNumber`, `SemanticKey`, general
 grouping/DISTINCT/set/window keys, recursive JSON equality, ARRAY rules or exact

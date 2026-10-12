@@ -1,9 +1,9 @@
-#[path = "support/mixed_numeric.rs"]
-mod support_mixed_numeric;
 #[path = "sql_queries/mixed_numeric_comparisons.rs"]
 mod mixed_numeric_comparisons;
 #[path = "sql_queries/mixed_numeric_joins.rs"]
 mod mixed_numeric_joins;
+#[path = "support/mixed_numeric.rs"]
+mod support_mixed_numeric;
 
 #[path = "sql_queries/parameter_signatures.rs"]
 mod sql_parameter_signatures;
@@ -8008,7 +8008,10 @@ mod relational_semantic_correctness {
             .expect("scalar join");
 
             // Assert
-            let expected = vec![vec![Value::String("small".into())]];
+            let expected = vec![
+                vec![Value::String("large".into())],
+                vec![Value::String("small".into())],
+            ];
             assert_eq!(keyed.rows(), expected);
             assert_eq!(scalar.rows(), expected);
         });

@@ -43,7 +43,7 @@ pub(super) fn try_execute(
         env.controls,
         &left,
         &right,
-        (left_key, right_key),
+        (left_key, right_key, spec.keys.domain),
         matches!(spec.kind, JoinKind::Left),
         batch_size,
         |_| retention.before(JoinRetentionPhase::HashBuild),

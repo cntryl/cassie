@@ -60,11 +60,12 @@ fn should_match_existing_typed_outer_join_row_semantics() {
         assert_eq!(typed.columns(), expected.columns());
         assert_eq!(typed.rows(), expected.rows());
     }
-    assert_eq!(native_results[0].rows().len(), 6);
+    assert_eq!(native_results[0].rows().len(), 7);
     assert_eq!(native_results[1].rows().len(), 9);
-    assert!(native_results[1]
-        .rows()
-        .contains(&vec![Value::String("exact".into()), Value::Null]));
+    assert!(native_results[1].rows().contains(&vec![
+        Value::String("exact".into()),
+        Value::String("rounded".into()),
+    ]));
     assert_eq!(
         native.cassie.metrics()["joins"]["last_strategy"],
         "typed_hash"

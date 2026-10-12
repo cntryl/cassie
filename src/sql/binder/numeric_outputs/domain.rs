@@ -7,12 +7,14 @@ pub(super) struct OutputType {
     pub(super) data_type: DataType,
     pub(super) candidates: Vec<DataType>,
     pub(super) unresolved_numeric: bool,
+    pub(super) proven_float8: bool,
 }
 
 impl OutputType {
     pub(super) fn fixed(data_type: DataType) -> Self {
         Self {
             candidates: vec![data_type.clone()],
+            proven_float8: data_type == DataType::Float,
             data_type,
             unresolved_numeric: false,
         }
@@ -24,11 +26,13 @@ impl OutputType {
                 data_type: DataType::Float,
                 candidates: vec![DataType::Float],
                 unresolved_numeric: true,
+                proven_float8: false,
             },
             1700 => Self {
                 data_type: DataType::Float,
                 candidates: vec![DataType::BigInt, DataType::Float],
                 unresolved_numeric: true,
+                proven_float8: false,
             },
             oid => {
                 Self::fixed(inference::data_type_for_parameter_oid(oid).unwrap_or(DataType::Null))
@@ -40,6 +44,7 @@ impl OutputType {
     /// an existing candidate/origin. The caller decides which operand emits
     /// values (UNION both, EXCEPT/INTERSECT left only).
     pub(super) fn join(&mut self, other: &Self) {
+        self.proven_float8 &= other.proven_float8;
         // Ordinary set coercion remains outside #752. Broaden a domain only
         // when a decoder-only output origin is actually involved.
         if !(self.unresolved_numeric || other.unresolved_numeric) {
@@ -88,6 +93,7 @@ impl OutputType {
             data_type,
             candidates,
             unresolved_numeric: unresolved && !fixed,
+            proven_float8: arguments.iter().any(|value| value.proven_float8),
         })
     }
 }

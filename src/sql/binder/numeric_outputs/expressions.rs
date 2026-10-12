@@ -44,7 +44,11 @@ impl Analyzer<'_> {
             }
             Expr::Function(function) => self.function(function, lookup)?,
             Expr::StringLiteral(_) => OutputType::fixed(DataType::Text),
-            Expr::NumberLiteral(_) => OutputType::fixed(DataType::Float),
+            Expr::NumberLiteral(_) => {
+                let mut output = OutputType::fixed(DataType::Float);
+                output.proven_float8 = false;
+                output
+            }
             Expr::IntegerLiteral(value) => {
                 OutputType::fixed(inference::integer_literal_type(*value))
             }
@@ -100,7 +104,19 @@ impl Analyzer<'_> {
         // values. Ordinary validation checks their arguments separately;
         // this output analyzer must not resolve the `*` pseudo-column.
         if let Some(data_type) = fixed_function_type(metadata.return_type) {
-            return Ok(OutputType::fixed(data_type));
+            let mut output = OutputType::fixed(data_type);
+            if output.data_type == DataType::Float {
+                // Carrier metadata alone does not resolve overloaded NUMERIC
+                // signatures. AVG(float8) is a selected declared input.
+                output.proven_float8 = name == "avg"
+                    && function
+                        .args
+                        .first()
+                        .map(|argument| self.expression(argument, lookup))
+                        .transpose()?
+                        .is_some_and(|argument| argument.proven_float8);
+            }
+            return Ok(output);
         }
         let arguments = self.function_arguments(function, lookup)?;
         Ok(match metadata.return_type {
@@ -196,12 +212,15 @@ fn arithmetic(left: &OutputType, right: &OutputType) -> OutputType {
         data_type,
         candidates,
         unresolved_numeric,
+        proven_float8: left.proven_float8 || right.proven_float8,
     }
 }
 
 fn numeric_argument(argument: Option<&OutputType>, policy: FunctionReturnType) -> OutputType {
     let Some(argument) = argument else {
-        return OutputType::fixed(DataType::Float);
+        let mut output = OutputType::fixed(DataType::Float);
+        output.proven_float8 = false;
+        return output;
     };
     let mut candidates = Vec::new();
     for kind in &argument.candidates {
@@ -227,6 +246,7 @@ fn numeric_argument(argument: Option<&OutputType>, policy: FunctionReturnType) -
         data_type,
         candidates,
         unresolved_numeric,
+        proven_float8: argument.proven_float8,
     }
 }
 

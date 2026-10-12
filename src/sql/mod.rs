@@ -8,6 +8,7 @@ pub mod binder;
 mod column_identifier;
 pub(crate) mod definition_guard;
 pub mod functions;
+pub(crate) mod numeric_comparison;
 pub(crate) mod pagination;
 mod parameters;
 pub mod parser;

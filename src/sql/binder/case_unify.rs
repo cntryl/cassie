@@ -73,10 +73,7 @@ fn unify_case_results(expr: &Expr, schema: &Schema) -> Expr {
     }
     let widen = |result: &Expr| {
         if result_type(result).is_some_and(|data_type| is_integer(&data_type)) {
-            Expr::Cast {
-                expr: Box::new(result.clone()),
-                data_type: DataType::Float,
-            }
+            super::result_coercion::float(result.clone())
         } else {
             result.clone()
         }

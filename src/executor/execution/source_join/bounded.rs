@@ -334,6 +334,7 @@ fn execute_right_build_streaming_bounded_inner_join(
             .reserve_query_memory(accounting::hash_build_bytes::<usize>(
                 right_rows.as_slice(),
                 &spec.keys.right,
+                spec.keys.domain,
             )?)?;
     retention.before(JoinRetentionPhase::BoundedBuild)?;
     let mut build = std::collections::HashMap::<SemanticKey, Vec<usize>>::new();
@@ -349,7 +350,7 @@ fn execute_right_build_streaming_bounded_inner_join(
         })?;
     for (index, right_row) in right_rows.as_slice().iter().enumerate() {
         check_timeout(env.controls)?;
-        if let Some(key) = row_join_key(right_row, &spec.keys.right) {
+        if let Some(key) = row_join_key(right_row, &spec.keys.right, spec.keys.domain)? {
             build.entry(key).or_default().push(index);
         }
     }

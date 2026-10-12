@@ -6,6 +6,7 @@ use super::{
 };
 use crate::executor::semantic::SemanticKey;
 use crate::runtime::accounted::AccountedVec;
+use crate::sql::numeric_comparison::NumericComparisonDomain;
 
 const FANOUT_BUILD_SIDE_COST_RATIO: u64 = 2;
 const ROW_COUNT_SAMPLE_BUILD_SIDE_RATIO: u64 = 2;
@@ -139,14 +140,14 @@ fn should_build_left_from_bounded_row_counts(
         let left_keys = sample_join_keys(
             env,
             spec.left_collection,
-            &spec.keys.left,
+            (&spec.keys.left, spec.keys.domain),
             &spec.left_scan_fields,
             sample_limit,
         )?;
         let right_keys = sample_join_keys(
             env,
             spec.right_collection,
-            &spec.keys.right,
+            (&spec.keys.right, spec.keys.domain),
             &spec.right_scan_fields,
             sample_limit,
         )?;
@@ -275,14 +276,14 @@ fn should_build_left_from_row_count_sample(
     let left_keys = sample_join_keys(
         env,
         spec.left_collection,
-        &spec.keys.left,
+        (&spec.keys.left, spec.keys.domain),
         &spec.left_scan_fields,
         sample_limit,
     )?;
     let right_keys = sample_join_keys(
         env,
         spec.right_collection,
-        &spec.keys.right,
+        (&spec.keys.right, spec.keys.domain),
         &spec.right_scan_fields,
         sample_limit,
     )?;
@@ -311,7 +312,7 @@ fn join_key_sample_limit(env: &SourceExecutionEnv<'_>, output_budget: usize) -> 
 fn sample_join_keys(
     env: &SourceExecutionEnv<'_>,
     collection: &str,
-    key: &str,
+    key: (&str, NumericComparisonDomain),
     scan_fields: &[String],
     limit: usize,
 ) -> Result<AccountedVec<SemanticKey>, QueryError> {
@@ -328,11 +329,12 @@ fn sample_join_keys(
 pub(super) fn sample_join_keys_with_context(
     env: &SourceExecutionEnv<'_>,
     collection: &str,
-    key: &str,
+    key: (&str, NumericComparisonDomain),
     scan_fields: &[String],
     limit: usize,
     retention: &JoinRetentionContext<'_>,
 ) -> Result<AccountedVec<SemanticKey>, QueryError> {
+    let (key, domain) = key;
     let schema = env.cassie.catalog.get_schema(collection);
     let mut keys = AccountedVec::try_new(env.controls)?;
     let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
@@ -353,10 +355,10 @@ pub(super) fn sample_join_keys_with_context(
                 retention,
             )?;
             retention.enter(JoinRetentionPhase::BoundedSampleKey);
-            let _key_memory = reserve_probe_key(env, &row, key)?;
+            let _key_memory = reserve_probe_key(env, &row, key, domain)?;
             retention.before(JoinRetentionPhase::BoundedSampleKey)?;
-            if let Some(join_key) = row_join_key(&row, key) {
-                let key_bytes = super::accounting::join_key_bytes(&row, key)?;
+            if let Some(join_key) = row_join_key(&row, key, domain)? {
+                let key_bytes = super::accounting::join_key_bytes(&row, key, domain)?;
                 keys.try_push_with(key_bytes, || join_key)?;
             }
             Ok(keys.len() < limit)

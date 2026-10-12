@@ -8,6 +8,8 @@ on:
     paths-ignore:
       - "ui/**"
   push:
+    paths-ignore:
+      - "ui/**"
     branches:
       - main
 
@@ -22,6 +24,7 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    
     steps:
 
       - name: Checkout repository
@@ -52,7 +55,7 @@ jobs:
 
       - name: Cargo check
         run: cargo check --workspace --all-targets --all-features
-        
+
       - name: Cargo build
         run: cargo build --workspace --all-targets --all-features
 

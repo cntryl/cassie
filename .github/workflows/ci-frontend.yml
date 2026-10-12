@@ -14,9 +14,40 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Detect frontend-relevant pull request changes
+        id: filter
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName !== "pull_request") {
+              core.setOutput("frontend", "true");
+              return;
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            const truncated = files.length >= 3000;
+            const frontendChanged = truncated || files.some(({ filename }) =>
+              filename.startsWith("ui/") ||
+              filename === "Dockerfile" ||
+              filename === "public/openapi.yml"
+            );
+            core.setOutput("frontend", String(frontendChanged));
+
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:

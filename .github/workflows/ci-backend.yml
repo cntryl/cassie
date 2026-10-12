@@ -13,9 +13,38 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - name: Detect backend-relevant pull request changes
+        id: filter
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName !== "pull_request") {
+              core.setOutput("backend", "true");
+              return;
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            const truncated = files.length >= 3000;
+            const backendChanged = truncated || files.some(({ filename }) =>
+              filename !== "ui" && !filename.startsWith("ui/")
+            );
+            core.setOutput("backend", String(backendChanged));
+
   backend-quality:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -74,6 +103,8 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
 
   backend-test-matrix:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.shards.outputs.matrix }}
@@ -86,7 +117,8 @@ jobs:
         run: echo "matrix=$(jq -c . .github/backend-test-shards.json)" >> "$GITHUB_OUTPUT"
 
   backend-tests:
-    needs: backend-test-matrix
+    needs: [changes, backend-test-matrix]
+    if: needs.changes.outputs.backend == 'true'
     name: backend tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -140,14 +172,24 @@ jobs:
 
   backend:
     name: backend
-    needs: [backend-quality, backend-tests]
+    needs: [changes, backend-quality, backend-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Require backend quality and every test shard
         env:
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          BACKEND_CHANGED: ${{ needs.changes.outputs.backend }}
           QUALITY_RESULT: ${{ needs.backend-quality.result }}
           TESTS_RESULT: ${{ needs.backend-tests.result }}
         run: |
+          if [[ "$SCOPE_RESULT" != "success" ]]; then
+            echo "failed to determine whether backend checks apply" >&2
+            exit 1
+          fi
+          if [[ "$BACKEND_CHANGED" == "false" ]]; then
+            echo "No backend-relevant changes; backend check succeeds without running the backend suite."
+            exit 0
+          fi
           test "$QUALITY_RESULT" = success
           test "$TESTS_RESULT" = success

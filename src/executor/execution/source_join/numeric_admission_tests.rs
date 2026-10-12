@@ -131,7 +131,7 @@ fn should_admit_normalized_hash_build_keys_at_the_measured_boundary() {
         2 * 64,
         "both integer keys require normalization scratch"
     );
-    assert!(required - 1 >= super::estimate_vectorized_join_bytes(0, 2));
+    assert!(required > super::estimate_vectorized_join_bytes(0, 2));
     assert!(denied.denied);
     assert_eq!(
         denied.build_calls, 0,

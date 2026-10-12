@@ -25,11 +25,11 @@ impl RowAccess for ReadOnceRow {
     }
 }
 
-fn assert_carrier(actual: Value, expected: &Value) {
-    if let (Value::Float64(actual), Value::Float64(expected)) = (&actual, expected) {
+fn assert_carrier(actual: &Value, expected: &Value) {
+    if let (Value::Float64(actual), Value::Float64(expected)) = (actual, expected) {
         assert_eq!(actual.to_bits(), expected.to_bits());
     } else {
-        assert_eq!(&actual, expected);
+        assert_eq!(actual, expected);
     }
 }
 
@@ -99,7 +99,7 @@ fn should_preserve_generated_float_wrapper_evaluation() {
     for (result, expected, reads) in observations {
         assert_eq!(reads, 1, "the original operand is evaluated once");
         if let Some(expected) = expected {
-            assert_carrier(result.expect("admitted numeric carrier"), &expected);
+            assert_carrier(&result.expect("admitted numeric carrier"), &expected);
         } else {
             assert!(result.is_err(), "nonnumeric coercion remains an error");
         }

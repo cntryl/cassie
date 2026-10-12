@@ -41,7 +41,7 @@ jobs:
       - name: Require a version
         run: |
           if [[ -z "${SEMVER}" ]]; then
-            echo "GitVersion returned an empty SemVer" >&2
+            echo "Version workflow returned an empty SemVer" >&2
             exit 1
           fi
 

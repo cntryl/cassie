@@ -18,7 +18,11 @@ const srcDir = fileUrlPath("./src");
 const cassieBackend = "http://localhost:8080";
 
 const config = {
-  fmt: {},
+  fmt: {
+    // Generated adapters must stay byte-identical to `askr generate` output,
+    // which `gen:adapters:check` compares against; formatting them makes CI stale.
+    ignorePatterns: ["src/adapters/generated/**", "test-results/**", "playwright-report/**"],
+  },
   lint: {
     ignorePatterns: ["dist/**", "coverage/**"],
     options: {

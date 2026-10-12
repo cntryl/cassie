@@ -42,4 +42,4 @@ Use this checklist before approving a Cassie release.
    image or repository version tag.
 
 Use the standalone `Containers` workflow for prerelease branch images. It publishes their
-GitVersion SemVer without creating repository release tags.
+SemVer prerelease without creating repository release tags.

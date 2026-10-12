@@ -47,7 +47,7 @@ The Tier 1-6 ownership, timing, fixture, evidence, and full-suite acceptance rul
 ## Container
 
 The `Publish` workflow releases `ghcr.io/cntryl/cassie` from `main`. Its called
-`Containers` workflow publishes the immutable GitVersion `:<semver>` manifest plus
+`Containers` workflow publishes the immutable `:<semver>` manifest plus
 `:main` and `:latest`, then `Publish` creates the matching annotated `v<semver>` source
 tag only after the container succeeds. The standalone `Containers` workflow publishes
 prerelease SemVer images for branch builds without creating a repository release tag.

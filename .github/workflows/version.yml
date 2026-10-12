@@ -5,7 +5,7 @@ on:
   workflow_call:
     outputs:
       semver:
-        description: GitVersion semver output
+        description: SemVer from the cassie package version in Cargo.toml
         value: ${{ jobs.version.outputs.semver }}
 
 permissions:
@@ -17,21 +17,31 @@ jobs:
     timeout-minutes: 10
 
     outputs:
-      semver: ${{ steps.gitversion.outputs.semVer }}
+      semver: ${{ steps.version.outputs.semver }}
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v4
-        with:
-          versionSpec: "6.x"
 
       - name: Determine version
-        id: gitversion
-        uses: gittools/actions/gitversion/execute@v4
+        id: version
+        env:
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          base="$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "cassie") | .version')"
+          if [[ ! "${base}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Cargo.toml version must be MAJOR.MINOR.PATCH; got '${base}'" >&2
+            exit 1
+          fi
 
-      - name: Output version
-        run: echo "semver=${{ steps.gitversion.outputs.semVer }}"
+          version="${base}"
+          if [[ "${REF}" != "refs/heads/main" ]]; then
+            # Branch builds are prereleases so they never claim the stable version.
+            slug="$(printf '%s' "${REF_NAME}" | tr '[:upper:]' '[:lower:]' \
+              | tr -c 'a-z0-9-' '-' | sed -e 's/-\{2,\}/-/g' -e 's/^-//' -e 's/-$//')"
+            version="${base}-${slug}.${RUN_NUMBER}"
+          fi
+
+          echo "semver=${version}" >> "${GITHUB_OUTPUT}"

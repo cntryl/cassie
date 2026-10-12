@@ -112,11 +112,13 @@ Tier config overridable via `BENCH_TIER*` env vars (see `benches/support/criteri
 ## Containers
 
 Multi-arch image published to `ghcr.io/cntryl/cassie`. Built via GitHub Actions (`containers.yml`):
-`linux/amd64` and `linux/arm64`, tagged with GitVersion semver and branch name.
+`linux/amd64` and `linux/arm64`, tagged with the Cargo.toml SemVer (`main` builds use the stable
+version; branch builds add a `-<branch>.<run>` prerelease suffix).
 
 ## Versioning
 
-GitVersion `ContinuousDeployment` mode, next version `0.2.0`. Branch naming conventions in `GitVersion.yml`.
+The version is `[package].version` in `Cargo.toml` (currently `0.2.0`). `.github/workflows/version.yml`
+reads it and derives the branch prerelease suffix.
 
 ## Constraints
 

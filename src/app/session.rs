@@ -196,9 +196,7 @@ impl CassieSession {
     pub(crate) fn fork_statement_batch(&self) -> Result<StatementMutationBatch, CassieError> {
         let transaction = self.transaction.lock();
         if transaction.status == SessionTransactionStatus::Failed {
-            return Err(CassieError::Execution(
-                "transaction is failed; rollback required".to_string(),
-            ));
+            return Err(CassieError::failed_transaction());
         }
 
         let base_transaction_active = transaction.status == SessionTransactionStatus::InTransaction;
@@ -447,10 +445,12 @@ impl CassieSession {
 
     pub(crate) fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
-        if transaction.status != SessionTransactionStatus::InTransaction {
-            return Err(CassieError::Execution(
-                "SAVEPOINT requires an active transaction".to_string(),
-            ));
+        match transaction.status {
+            SessionTransactionStatus::InTransaction => {}
+            SessionTransactionStatus::Failed => return Err(CassieError::failed_transaction()),
+            SessionTransactionStatus::Idle => {
+                return Err(CassieError::savepoint_outside_transaction("SAVEPOINT"));
+            }
         }
         if transaction.savepoints.len() >= MAX_SAVEPOINTS_PER_TRANSACTION {
             return Err(CassieError::ResourceLimit(
@@ -475,8 +475,8 @@ impl CassieSession {
             transaction.status,
             SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed
         ) {
-            return Err(CassieError::Execution(
-                "ROLLBACK TO SAVEPOINT requires an active transaction".to_string(),
+            return Err(CassieError::savepoint_outside_transaction(
+                "ROLLBACK TO SAVEPOINT",
             ));
         }
 
@@ -486,9 +486,7 @@ impl CassieSession {
             .iter()
             .rposition(|savepoint| savepoint.name == normalized)
         else {
-            return Err(CassieError::Execution(format!(
-                "savepoint '{name}' does not exist"
-            )));
+            return Err(CassieError::missing_savepoint(&normalized));
         };
 
         transaction.writes = transaction.savepoints[index].writes.clone();
@@ -503,10 +501,14 @@ impl CassieSession {
 
     pub(crate) fn release_savepoint(&self, name: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
-        if transaction.status != SessionTransactionStatus::InTransaction {
-            return Err(CassieError::Execution(
-                "RELEASE SAVEPOINT requires an active transaction".to_string(),
-            ));
+        match transaction.status {
+            SessionTransactionStatus::InTransaction => {}
+            SessionTransactionStatus::Failed => return Err(CassieError::failed_transaction()),
+            SessionTransactionStatus::Idle => {
+                return Err(CassieError::savepoint_outside_transaction(
+                    "RELEASE SAVEPOINT",
+                ));
+            }
         }
 
         let normalized = name.to_ascii_lowercase();
@@ -515,9 +517,7 @@ impl CassieSession {
             .iter()
             .rposition(|savepoint| savepoint.name == normalized)
         else {
-            return Err(CassieError::Execution(format!(
-                "savepoint '{name}' does not exist"
-            )));
+            return Err(CassieError::missing_savepoint(&normalized));
         };
 
         transaction.savepoints.truncate(index);

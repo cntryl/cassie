@@ -229,9 +229,7 @@ fn validate_copy_request(
     statement: &CopyStatement,
 ) -> Result<(), CassieError> {
     if session.is_transaction_failed() {
-        return Err(CassieError::Execution(
-            "transaction is failed; rollback required".to_string(),
-        ));
+        return Err(CassieError::failed_transaction());
     }
     if statement.format != CopyFormat::Csv {
         return Err(CassieError::Unsupported(

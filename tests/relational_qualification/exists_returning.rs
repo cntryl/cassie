@@ -352,7 +352,7 @@ fn should_reject_reads_after_returning_error_until_savepoint_rollback() {
     assert!(rejected_read
         .expect_err("failed transaction rejects ordinary reads")
         .to_string()
-        .contains("rollback required"));
+        .contains("current transaction is aborted"));
     rollback_to.expect("rollback to savepoint recovers transaction");
     assert_eq!(status_after_savepoint_rollback, "in_transaction");
     fixture

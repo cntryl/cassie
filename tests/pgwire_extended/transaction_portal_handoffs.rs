@@ -517,16 +517,19 @@ fn should_fail_explicit_transactions_when_extended_preparation_fails() {
             wire::data_rows(&result.after),
             vec![vec![Some("0".to_owned())]]
         );
-        assert_eq!(wire::error_code(&result.tail[0]).as_deref(), Some("22000"));
+        assert_eq!(wire::error_code(&result.tail[0]).as_deref(), Some("25P02"));
         assert_eq!(
             result.tail[0].last().map(|frame| frame.1.as_slice()),
             Some(&b"E"[..])
         );
         assert_eq!(
+            result.tail[1],
+            vec![(b'C', b"ROLLBACK\0".to_vec()), (b'Z', b"I".to_vec())]
+        );
+        assert_eq!(
             result.tail[2].last().map(|frame| frame.1.as_slice()),
             Some(&b"I"[..])
         );
-        assert_eq!(wire::error_code(&result.tail[1]).as_deref(), Some("22000"));
         assert_eq!(wire::error_code(&result.tail[3]), None);
         assert_eq!(
             wire::data_rows(&result.tail[3]),

@@ -1,4 +1,4 @@
-use super::{EmbeddingError, QueryError};
+use super::{EmbeddingError, QueryError, TransactionErrorKind};
 use crate::catalog::local_name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,6 +117,13 @@ pub enum CassieError {
     #[error("execution error: {0}")]
     Execution(String),
 
+    /// A typed transaction or lock failure shared by embedded, wire and REST paths.
+    #[error("{message}")]
+    Transaction {
+        kind: TransactionErrorKind,
+        message: String,
+    },
+
     #[error("query timeout exceeded")]
     DeadlineExceeded,
 
@@ -202,6 +209,14 @@ impl CassieError {
                 bad_request_descriptor("42601", message.clone())
             }
             Self::Planner(message) => planner_descriptor(message),
+            Self::Transaction { kind, message } => CassieErrorDescriptor {
+                http_status: kind.http_status(),
+                sql_state: kind.sql_state(),
+                message: message.clone(),
+                table: None,
+                column: None,
+                constraint: None,
+            },
             Self::DeadlineExceeded => timeout_descriptor(),
             Self::QueryCancelled => cancellation_descriptor(),
             Self::ResourceLimit(message) => resource_limit_descriptor(message.clone()),
@@ -807,6 +822,38 @@ mod tests {
                 .storage_retry_kind(),
             Some(StorageRetryKind::Unavailable)
         );
+    }
+
+    #[test]
+    fn should_map_transaction_error_kinds_independently_of_message_text() {
+        // Arrange
+        let kinds = [
+            (TransactionErrorKind::InvalidState, "25000", 400),
+            (TransactionErrorKind::ActiveTransaction, "25001", 400),
+            (TransactionErrorKind::NoActiveTransaction, "25P01", 400),
+            (TransactionErrorKind::FailedTransaction, "25P02", 400),
+            (TransactionErrorKind::ReadOnlyTransaction, "25006", 400),
+            (TransactionErrorKind::InvalidSavepoint, "3B001", 400),
+            (TransactionErrorKind::SerializationFailure, "40001", 409),
+            (TransactionErrorKind::DeadlockDetected, "40P01", 409),
+            (TransactionErrorKind::LockNotAvailable, "55P03", 409),
+        ];
+
+        // Act
+        let descriptors = kinds.map(|(kind, _, _)| {
+            CassieError::Transaction {
+                kind,
+                message: "division by zero".to_string(),
+            }
+            .descriptor()
+        });
+
+        // Assert
+        for ((_, sql_state, http_status), descriptor) in kinds.iter().zip(descriptors) {
+            assert_eq!(descriptor.sql_state, *sql_state);
+            assert_eq!(descriptor.http_status, *http_status);
+            assert_eq!(descriptor.message, "division by zero");
+        }
     }
 
     #[test]

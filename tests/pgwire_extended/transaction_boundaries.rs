@@ -548,7 +548,7 @@ fn should_reject_savepoints_in_an_implicit_segment() {
     );
 
     // Assert
-    assert_eq!(wire::error_code(&result.boundary).as_deref(), Some("0A000"));
+    assert_eq!(wire::error_code(&result.boundary).as_deref(), Some("25P01"));
     assert_eq!(
         result.boundary.last().map(|frame| frame.1.as_slice()),
         Some(&b"I"[..])

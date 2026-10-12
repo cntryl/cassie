@@ -34,6 +34,9 @@ mod skipped_conflict_returning;
 #[path = "sql_mutations/constant_planning.rs"]
 mod sql_constant_planning;
 
+#[path = "sql_mutations/transaction_errors.rs"]
+mod transaction_errors;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 mod copy_transaction_boundaries {
     use cassie::app::{Cassie, CassieSession};
@@ -5846,7 +5849,7 @@ mod integration_sql_transactions {
             assert!(savepoint
                 .unwrap_err()
                 .to_string()
-                .contains("active transaction"));
+                .contains("can only be used in transaction blocks"));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -6047,7 +6050,7 @@ mod integration_sql_transactions {
             assert!(selected
                 .unwrap_err()
                 .to_string()
-                .contains("rollback required"));
+                .contains("current transaction is aborted"));
 
             let _ = std::fs::remove_dir_all(path);
         });

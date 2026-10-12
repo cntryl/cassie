@@ -5,12 +5,19 @@ use crate::types::DataType;
 
 mod admission;
 mod count;
+mod diagnostics;
+mod fold;
 mod function_inputs;
 mod inference;
+#[cfg(test)]
+mod occurrence_tests;
+mod occurrences;
 
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use admission::{check_controls, checked_parameter_count, reserve_vector};
 pub(crate) use admission::{AdmittedParameterTypes, ParameterAdmissionError};
+pub(crate) use diagnostics::ParameterSemanticDiagnostic;
+pub(crate) use occurrences::PrivateParameterTypeInput;
 
 pub use count::parameter_count;
 use inference::infer_parameter_type_oids_query;
@@ -106,7 +113,33 @@ pub fn parameter_type_oids_with_catalog(
     provided: &[i32],
     catalog: &crate::catalog::Catalog,
 ) -> Vec<i32> {
+    if uses_occurrence_fold(&statement.statement) {
+        if let Some(occurrences) = public_fold(statement, provided, catalog) {
+            let mut oids = occurrences.into_slots().values;
+            for (oid, supplied) in oids.iter_mut().zip(provided) {
+                if *supplied == 0 {
+                    *oid = 0;
+                }
+            }
+            return oids;
+        }
+        return parameter_type_oids(statement, provided);
+    }
     infer_parameter_types_with_catalog(statement, provided, catalog).oids
+}
+
+/// Returns the original contextual targets for bound-string normalization.
+///
+/// UUID and temporal normalization need inferred coercion targets rather than
+/// the declared input identity. This legacy normalization boundary keeps its
+/// original inference and allocations; it must not start a fresh uncontrolled
+/// occurrence fold after checked request admission.
+#[must_use]
+pub(crate) fn contextual_string_parameter_type_oids(
+    statement: &ParsedStatement,
+    catalog: &crate::catalog::Catalog,
+) -> Vec<i32> {
+    infer_parameter_types_with_catalog(statement, &[], catalog).oids
 }
 
 fn infer_parameter_types_with_catalog(
@@ -132,13 +165,17 @@ pub fn declared_parameter_type_conflict(
     provided: &[i32],
     catalog: &crate::catalog::Catalog,
 ) -> Option<String> {
+    if uses_occurrence_fold(&statement.statement) {
+        let occurrences = public_fold(statement, &[], catalog)?;
+        return declared_conflict_for_demands(provided, &occurrences.demands.values);
+    }
     let inference = infer_parameter_types_with_catalog(statement, &[], catalog);
     declared_conflict_for_demands(provided, &inference.context_demands)
 }
 
 fn declared_conflict_for_demands(provided: &[i32], demands: &[u8]) -> Option<String> {
     let boolean_oid = i32::try_from(DataType::Boolean.type_oid()).ok()?;
-    if let Some(index) = demands.iter().position(|demand| *demand == 3) {
+    if let Some(index) = demands.iter().position(|demand| demand & 3 == 3) {
         return Some(format!(
             "parameter ${} has incompatible boolean and numeric contexts",
             index + 1
@@ -174,6 +211,55 @@ pub(crate) fn checked_parse_parameter_types(
 }
 
 pub(crate) fn checked_parse_parameter_types_in_scope(
+    statement: &ParsedStatement,
+    provided: &[i32],
+    catalog: &crate::catalog::Catalog,
+    controls: &QueryExecutionControls,
+    scope: Option<&crate::catalog::FunctionInputScope<'_>>,
+) -> Result<AdmittedParameterTypes, ParameterAdmissionError> {
+    checked_parameter_types_in_scope(
+        statement,
+        PrivateParameterTypeInput::Wire(provided),
+        catalog,
+        controls,
+        scope,
+    )
+}
+
+pub(crate) fn checked_parameter_types_in_scope(
+    statement: &ParsedStatement,
+    input: PrivateParameterTypeInput<'_>,
+    catalog: &crate::catalog::Catalog,
+    controls: &QueryExecutionControls,
+    scope: Option<&crate::catalog::FunctionInputScope<'_>>,
+) -> Result<AdmittedParameterTypes, ParameterAdmissionError> {
+    if !uses_occurrence_fold(&statement.statement) {
+        return checked_legacy_parameter_types(
+            statement,
+            occurrences::input_oids(input),
+            catalog,
+            controls,
+            scope,
+        );
+    }
+    let count = checked_parameter_count(statement, controls)?;
+    let result =
+        fold::Fold::new(count, input, catalog, controls, scope, true)?.run(&statement.statement)?;
+    if let Some(message) =
+        declared_conflict_for_demands(occurrences::input_oids(input), &result.demands.values)
+    {
+        return Err(ParameterAdmissionError::LegacyConflict(message));
+    }
+    let slots = result.into_slots();
+    check_controls(controls)?;
+    Ok(AdmittedParameterTypes::new(
+        slots.values,
+        slots.reservation,
+        controls,
+    ))
+}
+
+fn checked_legacy_parameter_types(
     statement: &ParsedStatement,
     provided: &[i32],
     catalog: &crate::catalog::Catalog,
@@ -225,6 +311,42 @@ pub(crate) fn checked_parse_parameter_types_in_scope(
     drop(context_demands);
     drop(demand_memory);
     Ok(AdmittedParameterTypes::new(oids, oid_memory, controls))
+}
+
+fn uses_occurrence_fold(mut query: &crate::sql::QueryStatement) -> bool {
+    while let crate::sql::QueryStatement::Explain(explain) = query {
+        query = &explain.statement.statement;
+    }
+    matches!(query, crate::sql::QueryStatement::Select(_))
+}
+
+fn public_fold<'a>(
+    statement: &'a ParsedStatement,
+    provided: &'a [i32],
+    catalog: &crate::catalog::Catalog,
+) -> Option<occurrences::Occurrences<'a>> {
+    // The compatibility facade has no error or resource-control parameter.
+    // Runtime callers always use checked_parameter_types_in_scope instead.
+    let controls = QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits {
+            query_memory_budget_bytes: usize::MAX,
+            query_timeout_ms: 0,
+            ..crate::config::CassieRuntimeLimits::default()
+        },
+        std::time::Instant::now(),
+    );
+    let count = checked_parameter_count(statement, &controls).ok()?;
+    fold::Fold::new(
+        count,
+        PrivateParameterTypeInput::Wire(provided),
+        catalog,
+        &controls,
+        None,
+        false,
+    )
+    .ok()?
+    .run(&statement.statement)
+    .ok()
 }
 
 struct AccountedInference<'a> {

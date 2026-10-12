@@ -54,3 +54,41 @@ pub(crate) fn equality_columns(expression: &Expr) -> Option<(&str, &str, Numeric
         }
     }
 }
+
+/// A narrow field-index candidate from the binder's paired input conversions.
+/// The runtime must still verify the field's catalog type before reading keys:
+/// callers can manually construct the same public AST shape for an integer field.
+pub(crate) fn generated_float_literal_constraint<'a>(
+    left: &'a Expr,
+    op: &BinaryOp,
+    right: &'a Expr,
+) -> Option<(&'a str, BinaryOp, f64)> {
+    let left = super::binder::generated_float_coercion_operand(left)?;
+    let right = super::binder::generated_float_coercion_operand(right)?;
+    let (field, integer, op) = match (left, right) {
+        (Expr::Column(field), Expr::IntegerLiteral(integer)) => (field, integer, op.clone()),
+        (Expr::IntegerLiteral(integer), Expr::Column(field)) => {
+            let reversed = match op {
+                BinaryOp::Eq => BinaryOp::Eq,
+                BinaryOp::Lt => BinaryOp::Gt,
+                BinaryOp::Lte => BinaryOp::Gte,
+                BinaryOp::Gt => BinaryOp::Lt,
+                BinaryOp::Gte => BinaryOp::Lte,
+                _ => return None,
+            };
+            (field, integer, reversed)
+        }
+        _ => return None,
+    };
+    matches!(
+        op,
+        BinaryOp::Eq | BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte
+    )
+    .then(|| {
+        (
+            field.as_str(),
+            op,
+            crate::types::numeric::i64_to_f64(*integer),
+        )
+    })
+}

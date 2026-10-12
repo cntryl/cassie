@@ -302,7 +302,7 @@ const EXPECTED_51: ExpectedSnapshot = ExpectedSnapshot {
 };
 const EXPECTED_52: ExpectedSnapshot = ExpectedSnapshot {
     columns: COLUMNS_3,
-    rows: r#"[]"#,
+    rows: "[]",
     command: "ROLLBACK",
 };
 

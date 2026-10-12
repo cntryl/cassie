@@ -347,3 +347,6 @@ mod tests;
 
 #[cfg(test)]
 mod encoded_tests;
+
+#[cfg(test)]
+mod null_safe_tests;

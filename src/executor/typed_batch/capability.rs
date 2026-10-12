@@ -60,6 +60,8 @@ pub(crate) fn expression(
                 }
                 BinaryOp::Eq
                 | BinaryOp::NotEq
+                | BinaryOp::IsDistinctFrom
+                | BinaryOp::IsNotDistinctFrom
                 | BinaryOp::Lt
                 | BinaryOp::Lte
                 | BinaryOp::Gt
@@ -102,6 +104,8 @@ fn operand_type(expr: &Expr, schema: &[(String, DataType)], params: &[Value]) ->
                 | BinaryOp::Or
                 | BinaryOp::Eq
                 | BinaryOp::NotEq
+                | BinaryOp::IsDistinctFrom
+                | BinaryOp::IsNotDistinctFrom
                 | BinaryOp::Lt
                 | BinaryOp::Lte
                 | BinaryOp::Gt

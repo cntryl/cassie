@@ -5,26 +5,32 @@ type AnnRerankBarriers = (
     std::sync::Arc<std::sync::Barrier>,
 );
 
-static ANN_RERANK_BARRIERS: std::sync::OnceLock<std::sync::Mutex<Option<AnnRerankBarriers>>> =
-    std::sync::OnceLock::new();
+// The weak storage owner scopes the pause to the installing engine; a query
+// against any other engine in the process passes the boundary untouched.
+type InstalledAnnRerankBarriers = (std::sync::Weak<crate::midge::Midge>, AnnRerankBarriers);
 
-pub(crate) fn install_ann_rerank_barriers(barriers: Option<AnnRerankBarriers>) {
-    *ANN_RERANK_BARRIERS
-        .get_or_init(|| std::sync::Mutex::new(None))
-        .lock()
-        .expect("ANN rerank barrier lock") = barriers;
+static ANN_RERANK_BARRIERS: std::sync::Mutex<Option<InstalledAnnRerankBarriers>> =
+    std::sync::Mutex::new(None);
+
+pub(crate) fn install_ann_rerank_barriers(cassie: &Cassie, barriers: Option<AnnRerankBarriers>) {
+    *ANN_RERANK_BARRIERS.lock().expect("ANN rerank barrier lock") =
+        barriers.map(|barriers| (std::sync::Arc::downgrade(&cassie.midge), barriers));
 }
 
-pub(super) fn wait_at_ann_rerank_boundary() {
-    let barriers = ANN_RERANK_BARRIERS
-        .get_or_init(|| std::sync::Mutex::new(None))
-        .lock()
-        .expect("ANN rerank barrier lock")
-        .clone();
+pub(super) fn wait_at_ann_rerank_boundary(cassie: &Cassie) {
+    let barriers = {
+        let mut installed = ANN_RERANK_BARRIERS.lock().expect("ANN rerank barrier lock");
+        if installed.as_ref().is_some_and(|(owner, _)| {
+            std::ptr::eq(owner.as_ptr(), std::sync::Arc::as_ptr(&cassie.midge))
+        }) {
+            installed.take().map(|(_, barriers)| barriers)
+        } else {
+            None
+        }
+    };
     if let Some((selected, resume)) = barriers {
         selected.wait();
         resume.wait();
-        install_ann_rerank_barriers(None);
     }
 }
 

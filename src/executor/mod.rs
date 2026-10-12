@@ -173,13 +173,16 @@ pub(crate) fn pause_before_rollup_ready_metadata(name: &str, source_generation: 
     );
 }
 
+/// Pauses the next HNSW or IVFFlat query on `cassie` before reranking.
+/// Queries against other engines in the same process never observe it.
 #[doc(hidden)]
 pub fn set_vector_ann_rerank_barriers(
+    cassie: &crate::app::Cassie,
     selected: Option<std::sync::Arc<std::sync::Barrier>>,
     resume: Option<std::sync::Arc<std::sync::Barrier>>,
 ) {
     let barriers = selected.zip(resume);
-    execution::install_ann_rerank_barriers(barriers);
+    execution::install_ann_rerank_barriers(cassie, barriers);
 }
 pub(crate) use execution::rollup_rewrite_name_for_plan;
 pub(crate) use execution::{

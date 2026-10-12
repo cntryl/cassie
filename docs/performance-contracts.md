@@ -499,6 +499,36 @@ A workload-targeted artifact can satisfy only that exact registered scenario fea
 It is not evidence for the rest of its shard, does not create a complete manifest,
 and cannot support shard-wide or repository-wide readiness claims.
 
+### Offline selected-shard artifact validation
+
+After downloading the selected shard JSON files, validate every file locally with the pinned
+`cntryl-stress` canonical validator and the Tier 2 column-shard acceptance checks:
+
+```sh
+cargo run --locked --example validate_benchmark_artifacts -- \
+  --expected-source-commit <full-commit-sha> \
+  --expected-run-id <dispatch-run-id> \
+  target/downloaded-shard-amd64/tier2_subsystem_column_scan/latest.json \
+  target/downloaded-shard-arm64/tier2_subsystem_column_scan/latest.json
+```
+
+The command exits nonzero if a file cannot be loaded, its run and raw samples disagree, its
+serialized summaries do not recompute from raw samples, its CPU identity is unknown, or its
+release provenance is incomplete or differs from the expected source commit and run ID. It accepts
+only the native Linux disk deployment profiles and checks each profile against the artifact's
+recorded Linux architecture. It prints the source commit, run ID, deployment profile, OS, CPU
+identity, and each recorded benchmark row's trust and quality. For `tier2_subsystem_column_scan`,
+it also requires exactly the eight registered scenario IDs, passing correctness, usable gate trust
+and quality, and all four declared paired p95 ratios. `GATE-CANDIDATE` identifies a row with usable
+row-level evidence; the selected-shard pass additionally requires those owner checks to pass.
+Diagnostic, experimental, invalid, and unavailable rows remain distinct. Record unselected
+shards as `SKIPPED` from the selection manifest; a missing artifact for a selected shard is
+`UNAVAILABLE`, never an inferred skip. Use `--skipped-cell <id>` only when the selection manifest
+confirms that the cell was not selected; `--unavailable-cell <id>` records an expected selected
+cell without a downloaded artifact and fails the command. Keep downloaded inputs unchanged and
+retain the validator output with the evidence record. At least one selected artifact must be
+validated for the command to pass.
+
 ## Benchmark Scope Boundary
 
 Benchmark source and test files remain under 1,000 lines. Cassie's suite does not add coverage for Midge durability, WAL, snapshot, or recovery mechanics; those remain Midge responsibilities. Benchmark completion does not by itself close deployment-profile or disk-backed production evidence.

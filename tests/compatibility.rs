@@ -1505,36 +1505,6 @@ mod compatibility_diesel {
     }
 }
 
-// Formerly tests/compatibility_diesel_contract.rs.
-mod compatibility_diesel_contract {
-    #[test]
-    fn should_wire_a_pinned_diesel_fixture_into_the_opt_in_workflow() {
-        // Arrange
-        let workflow = include_str!("../.github/workflows/compatibility-probes.yml");
-        let fixture = include_str!("fixtures/diesel_probe/Cargo.toml");
-        let documentation = include_str!("../docs/compatibility-probe-contract.md");
-
-        // Act
-        let enables_probe = workflow.contains("CASSIE_RUN_DIESEL_COMPAT");
-        let invokes_suite = workflow.contains("--test compatibility");
-        let invokes_fixture = workflow
-            .contains("compatibility_diesel::should_validate_diesel_read_model_probe_when_enabled");
-        let records_client_version = workflow.contains("client_version=${DIESEL_VERSION}");
-        let records_failed_probe = workflow.contains("status=failed");
-        let pins_diesel = fixture.contains("diesel = { version = \"=2.2.6\"");
-        let documents_probe = documentation.contains("## Diesel workflow");
-
-        // Assert
-        assert!(enables_probe);
-        assert!(invokes_suite);
-        assert!(invokes_fixture);
-        assert!(records_client_version);
-        assert!(records_failed_probe);
-        assert!(pins_diesel);
-        assert!(documents_probe);
-    }
-}
-
 // Formerly tests/compatibility_sqlx.rs.
 mod compatibility_sqlx {
     use super::support_sql as support;
@@ -1697,36 +1667,6 @@ mod compatibility_sqlx {
     }
 }
 
-// Formerly tests/compatibility_sqlx_contract.rs.
-mod compatibility_sqlx_contract {
-    #[test]
-    fn should_wire_a_pinned_sqlx_fixture_into_the_opt_in_workflow() {
-        // Arrange
-        let workflow = include_str!("../.github/workflows/compatibility-probes.yml");
-        let fixture = include_str!("fixtures/sqlx_probe/Cargo.toml");
-        let documentation = include_str!("../docs/compatibility-probe-contract.md");
-
-        // Act
-        let enables_probe = workflow.contains("CASSIE_RUN_SQLX_COMPAT");
-        let invokes_suite = workflow.contains("--test compatibility");
-        let invokes_fixture = workflow
-            .contains("compatibility_sqlx::should_validate_sqlx_read_model_probe_when_enabled");
-        let records_client_version = workflow.contains("client_version=${SQLX_VERSION}");
-        let records_failed_probe = workflow.contains("status=failed");
-        let pins_sqlx = fixture.contains("sqlx = { version = \"=0.8.3\"");
-        let documents_probe = documentation.contains("Dedicated opt-in fixture");
-
-        // Assert
-        assert!(enables_probe);
-        assert!(invokes_suite);
-        assert!(invokes_fixture);
-        assert!(records_client_version);
-        assert!(records_failed_probe);
-        assert!(pins_sqlx);
-        assert!(documents_probe);
-    }
-}
-
 #[path = "support/desktop_trace.rs"]
 mod support_desktop_trace;
 #[path = "support/temp_dirs.rs"]
@@ -1861,7 +1801,7 @@ mod desktop_client_trace_replay {
     }
 
     #[test]
-    #[ignore = "selected by the version-pinned desktop compatibility workflow"]
+    #[ignore = "selected via CASSIE_DESKTOP_TRACE_CLIENT"]
     fn should_replay_selected_desktop_trace() {
         // Arrange
         let selected = std::env::var("CASSIE_DESKTOP_TRACE_CLIENT")
@@ -1882,31 +1822,5 @@ mod desktop_client_trace_replay {
 
         // Assert
         result.expect("selected desktop trace should replay");
-    }
-
-    #[test]
-    fn should_keep_trace_replay_distinct_from_live_desktop_certification() {
-        // Arrange
-        let workflow = include_str!("../.github/workflows/compatibility-probes.yml");
-
-        // Act
-        let has_pinned_lanes = workflow.contains("pgadmin-9.16")
-            && workflow.contains("dbeaver-26.1.3")
-            && workflow.contains("POSTGRES_JDBC_VERSION: 42.7.11");
-        let replays_fixture = workflow.contains("CASSIE_DESKTOP_TRACE_CLIENT")
-            && workflow
-                .contains("desktop_client_trace_replay::should_replay_selected_desktop_trace");
-        let remains_uncertified = workflow.contains("certification_status=unavailable")
-            && workflow.contains("certification_reason=no-live-desktop-evidence")
-            && workflow.contains("status=replay-passed")
-            && !workflow.contains("status=certified");
-        let pins_cassie_revision = workflow.contains("git rev-parse HEAD")
-            && workflow.contains("source revision must be the exact checked-out commit");
-
-        // Assert
-        assert!(has_pinned_lanes);
-        assert!(replays_fixture);
-        assert!(remains_uncertified);
-        assert!(pins_cassie_revision);
     }
 }

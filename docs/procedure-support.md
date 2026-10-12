@@ -35,7 +35,7 @@ use transactions through the normal pgwire statement flow.
 
 ## Evidence
 
-- `executor_commands` and `procedure_support_contract` in `tests/executor.rs` cover argument
+- `executor_commands` in `tests/executor.rs` covers argument
   substitution, execution after restart, transaction control rejection, recursive-call rejection,
   and the published unsupported-language boundary.
 - `compatibility_matrix` in `tests/compatibility.rs` covers the supported create/call/read workflow

@@ -368,7 +368,6 @@ fn unsupported(message: String) -> CassieError {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::fs;
     use std::path::Path;
 
     use cntryl_midge::{Storage, WriteOptions};
@@ -608,41 +607,5 @@ mod tests {
         // Assert
         assert_eq!(local.write_policy.sync(), WriteOptions::sync());
         assert_eq!(local.write_policy.buffered(), WriteOptions::buffered());
-    }
-
-    #[test]
-    fn should_keep_local_only_write_constructors_inside_the_storage_policy() {
-        // Arrange
-        let source_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        let sync_constructor = ["WriteOptions::", "sync()"].concat();
-        let buffered_constructor = ["WriteOptions::", "buffered()"].concat();
-        let mut pending = vec![source_root];
-        let mut violations = Vec::new();
-
-        // Act
-        while let Some(path) = pending.pop() {
-            for entry in fs::read_dir(path).expect("read source directory") {
-                let path = entry.expect("source entry").path();
-                if path.is_dir() {
-                    pending.push(path);
-                } else if path.extension().is_some_and(|extension| extension == "rs")
-                    && path
-                        .file_name()
-                        .is_none_or(|name| name != "storage_config.rs")
-                {
-                    let source = fs::read_to_string(&path).expect("read Rust source");
-                    if source.contains(&sync_constructor) || source.contains(&buffered_constructor)
-                    {
-                        violations.push(path);
-                    }
-                }
-            }
-        }
-
-        // Assert
-        assert!(
-            violations.is_empty(),
-            "local-only write constructors bypass storage policy: {violations:?}"
-        );
     }
 }

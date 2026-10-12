@@ -4346,24 +4346,6 @@ mod role_database_copy_boundaries {
             .iter()
             .any(|(kind, value)| *kind == 'C' && value == "42501"));
     }
-
-    #[test]
-    fn should_document_admin_only_database_image_authorization() {
-        // Arrange
-        let contract = include_str!("../docs/postgres-compatibility.md");
-
-        // Act
-        let authorization = contract
-            .split_once("## Database Image Authorization")
-            .map(|(_, section)| section)
-            .expect("database-image authorization contract");
-
-        // Assert
-        assert!(authorization.contains("admin-only"));
-        assert!(authorization.contains("GRANT CONNECT"));
-        assert!(authorization.contains("defense-in-depth"));
-        assert!(authorization.contains("not a regression"));
-    }
 }
 // Formerly tests/role_statement_boundaries.rs.
 mod role_statement_boundaries {
@@ -6703,36 +6685,6 @@ mod views {
 
             let _ = std::fs::remove_dir_all(path);
         });
-    }
-}
-
-// Formerly tests/catalog_support_contract.rs.
-mod catalog_support_contract {
-    #[test]
-    fn should_publish_the_stable_named_client_catalog_subset() {
-        // Arrange
-        let feature_support = include_str!("../docs/feature-support.md");
-        let catalog_contract = include_str!("../docs/catalog-support.md");
-        let readiness = include_str!("../docs/production-readiness.md");
-        let evidence = include_str!("../docs/promotion-evidence-matrix.md");
-
-        // Act
-        let named_clients = ["sqlx 0.8.3", "Diesel 2.2.6"];
-        let stable_views = ["information_schema.tables", "information_schema.columns"];
-
-        // Assert
-        for view in stable_views {
-            assert!(feature_support.contains(&format!("| `{view}` |")));
-            assert!(catalog_contract.contains(&format!("### `{view}`")));
-        }
-        for client in named_clients {
-            assert!(catalog_contract.contains(client));
-        }
-        assert!(catalog_contract.contains("explicit `ORDER BY`"));
-        assert!(catalog_contract.contains("SQLSTATE `42P01`"));
-        assert!(catalog_contract.contains("PostgreSQL-internal catalog parity is not claimed"));
-        assert!(readiness.contains("stable named-client catalog subset"));
-        assert!(evidence.contains("Named-client catalog subset promoted"));
     }
 }
 

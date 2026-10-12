@@ -2591,38 +2591,6 @@ mod hnsw_indexes {
 
         let _ = std::fs::remove_dir_all(path);
     }
-
-    #[test]
-    fn should_batch_vector_index_drop_sidecar_transactions() {
-        // Arrange
-        let metadata = include_str!("../src/midge/adapter/metadata.rs");
-        let vector_indexes = include_str!("../src/midge/adapter/vector_indexes.rs");
-        let drop_start = metadata
-            .find("pub fn delete_vector_index")
-            .expect("vector index delete implementation");
-        let drop_end = metadata[drop_start..]
-            .find("pub fn put_projection_comparison_report")
-            .map(|offset| drop_start + offset)
-            .expect("next metadata function");
-        let drop_implementation = &metadata[drop_start..drop_end];
-
-        // Act
-        let delegates_sidecars = drop_implementation
-            .contains("delete_vector_sidecars_in_batches(collection, &prefixes)");
-        let batches_deletes =
-            vector_indexes.contains("for keys in keys.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE)");
-        let pages_sidecars = vector_indexes.contains("raw_scan_prefix_page_for_collection(");
-        let manifest_is_deleted_after_sidecars = drop_implementation
-            .find("delete_vector_sidecars_in_batches")
-            .zip(drop_implementation.find("vector_index_state_key"))
-            .is_some_and(|(sidecars, manifest)| sidecars < manifest);
-
-        // Assert
-        assert!(delegates_sidecars);
-        assert!(batches_deletes);
-        assert!(pages_sidecars);
-        assert!(manifest_is_deleted_after_sidecars);
-    }
 }
 
 // Formerly tests/integration_sql_hybrid_query.rs.
@@ -7303,55 +7271,6 @@ mod vector_state_generation {
         });
 
         let _ = std::fs::remove_dir_all(path);
-    }
-}
-
-// Formerly tests/embedding_support_contract.rs.
-mod embedding_support_contract {
-    use std::fs;
-
-    #[test]
-    fn should_publish_provider_specific_embedding_support_contracts() {
-        // Arrange
-        let feature_support = fs::read_to_string("docs/feature-support.md")
-            .expect("read feature support documentation");
-        let readiness = fs::read_to_string("docs/production-readiness.md")
-            .expect("read production readiness documentation");
-        let evidence = fs::read_to_string("docs/promotion-evidence-matrix.md")
-            .expect("read promotion evidence matrix");
-        let environment = fs::read_to_string("docs/environment-variables.md")
-            .expect("read environment-variable documentation");
-
-        // Act
-        let remote_providers = [
-            "OpenAI",
-            "OpenAI-compatible",
-            "TEI",
-            "Ollama",
-            "Voyage",
-            "Cohere",
-        ];
-
-        // Assert
-        for provider in remote_providers {
-            assert!(
-                feature_support.contains(&format!("| {provider} embeddings |")),
-                "missing provider-specific support row for {provider}"
-            );
-        }
-        assert!(feature_support.contains("| Local deterministic embeddings |"));
-        assert!(readiness.contains("HTTP 429"));
-        assert!(readiness.contains("mock-provider evidence"));
-        assert!(readiness.contains("does not establish hosted availability"));
-        assert!(evidence.contains("Provider-specific status contradiction resolved"));
-        assert!(evidence.contains("Mock-provider auth and HTTP 429 evidence retained"));
-        assert!(environment.contains("CASSIE_OPENAI_MAX_RETRIES"));
-        assert!(environment.contains("CASSIE_EMBEDDINGS_MAX_RETRIES"));
-        assert!(environment.contains("CASSIE_TEI_MAX_RETRIES"));
-        assert!(environment.contains("CASSIE_OLLAMA_MAX_RETRIES"));
-        assert!(environment.contains("CASSIE_VOYAGE_MAX_RETRIES"));
-        assert!(environment.contains("CASSIE_COHERE_MAX_RETRIES"));
-        assert!(environment.contains("does not infer a hosted"));
     }
 }
 

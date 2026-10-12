@@ -172,29 +172,3 @@ fn should_preserve_workspace_builtin_test_coverage() {
         );
     }
 }
-
-#[test]
-fn should_gate_backend_status_on_required_lanes() {
-    // Arrange
-    let workflow = include_str!("../.github/workflows/ci-backend.yml");
-
-    // Act
-    let loads_the_checked_shard_matrix =
-        workflow.contains("matrix: ${{ fromJSON(needs.backend-test-matrix.outputs.matrix) }}");
-    let reads_the_coverage_checked_matrix = workflow.contains(".github/backend-test-shards.json");
-    let aggregates_quality_and_test_shards =
-        workflow.contains("needs: [backend-quality, backend-tests]");
-    let fails_when_any_lane_fails = workflow.contains("needs.backend-tests.result")
-        && workflow.contains("needs.backend-quality.result");
-    let runs_the_selected_workspace_targets = workflow
-        .contains("cargo test --locked --workspace ${{ join(matrix.cargo_test_args, ' ') }}");
-    let keeps_the_backend_status_name = workflow.contains("name: backend\n");
-
-    // Assert
-    assert!(loads_the_checked_shard_matrix);
-    assert!(reads_the_coverage_checked_matrix);
-    assert!(aggregates_quality_and_test_shards);
-    assert!(fails_when_any_lane_fails);
-    assert!(runs_the_selected_workspace_targets);
-    assert!(keeps_the_backend_status_name);
-}

@@ -692,3 +692,7 @@ mod tests {
 #[cfg(test)]
 #[path = "source_join/qualification_tests.rs"]
 mod qualification_tests;
+
+#[cfg(test)]
+#[path = "source_join/numeric_admission_tests.rs"]
+mod numeric_admission_tests;

@@ -295,3 +295,29 @@ const NUMERIC_EXPRESSION_ORIGINS: &[(&str, [Option<bool>; 8])] = &[
     ("WITH decimal_source AS (SELECT 9007199254740992.0 AS n) SELECT CAST(9007199254740993 AS BIGINT) = (CAST((decimal_source.n) AS FLOAT)) AS eq, CAST(9007199254740993 AS BIGINT) <> (CAST((decimal_source.n) AS FLOAT)) AS ne, CAST(9007199254740993 AS BIGINT) < (CAST((decimal_source.n) AS FLOAT)) AS lt, CAST(9007199254740993 AS BIGINT) <= (CAST((decimal_source.n) AS FLOAT)) AS le, CAST(9007199254740993 AS BIGINT) > (CAST((decimal_source.n) AS FLOAT)) AS gt, CAST(9007199254740993 AS BIGINT) >= (CAST((decimal_source.n) AS FLOAT)) AS ge, CAST(9007199254740993 AS BIGINT) IS NOT DISTINCT FROM (CAST((decimal_source.n) AS FLOAT)) AS same, CAST(9007199254740993 AS BIGINT) IS DISTINCT FROM (CAST((decimal_source.n) AS FLOAT)) AS different FROM decimal_source", NUMERIC_ORIGIN_PATTERN_1),
     ("WITH float_source AS (SELECT CAST(9007199254740992.0 AS FLOAT) AS n) SELECT CAST(9007199254740993 AS BIGINT) = (float_source.n) AS eq, CAST(9007199254740993 AS BIGINT) <> (float_source.n) AS ne, CAST(9007199254740993 AS BIGINT) < (float_source.n) AS lt, CAST(9007199254740993 AS BIGINT) <= (float_source.n) AS le, CAST(9007199254740993 AS BIGINT) > (float_source.n) AS gt, CAST(9007199254740993 AS BIGINT) >= (float_source.n) AS ge, CAST(9007199254740993 AS BIGINT) IS NOT DISTINCT FROM (float_source.n) AS same, CAST(9007199254740993 AS BIGINT) IS DISTINCT FROM (float_source.n) AS different FROM float_source", NUMERIC_ORIGIN_PATTERN_1),
 ];
+
+#[test]
+fn should_preserve_float_origins_in_nested_cte_predicates() {
+    // Arrange
+    let fixture = sql_fixture("nested-cte-float-origins", &[]);
+    let cases = [
+        ("WITH f AS (SELECT CAST(9007199254740992.0 AS FLOAT) AS n) SELECT EXISTS(SELECT 1 FROM f WHERE CAST(9007199254740993 AS BIGINT) = f.n) AS matched", true),
+        ("WITH f AS (SELECT 9007199254740992.0 AS n) SELECT EXISTS(SELECT 1 FROM f WHERE CAST(9007199254740993 AS BIGINT) = f.n) AS matched", false),
+    ];
+
+    // Act
+    let observations = cases.map(|(sql, expected)| {
+        let rows = fixture.execute(sql).map(|result| result.rows().to_vec());
+        (sql, expected, rows)
+    });
+    drop(fixture);
+
+    // Assert
+    for (sql, expected, rows) in observations {
+        assert_eq!(
+            rows.expect("nested CTE predicate"),
+            vec![vec![Value::Bool(expected)]],
+            "{sql}"
+        );
+    }
+}

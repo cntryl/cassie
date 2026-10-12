@@ -42,3 +42,7 @@ pub(crate) fn case_operand(expression: &Expr) -> Option<&Expr> {
     };
     branches.is_empty().then_some(original.as_ref())
 }
+
+#[cfg(test)]
+#[path = "result_coercion_tests.rs"]
+mod tests;

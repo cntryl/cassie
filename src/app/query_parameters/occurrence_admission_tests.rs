@@ -102,10 +102,69 @@ fn repeated_parameter_sql() -> String {
     format!("SELECT {projection}")
 }
 
+type BooleanOutcome = (Vec<Vec<Value>>, i64);
+
+fn boolean_outcome(
+    fixture: &Fixture,
+    session: &CassieSession,
+    value: Value,
+    declared: &[i32],
+    controls: &QueryExecutionControls,
+) -> Result<BooleanOutcome, CassieError> {
+    let result = fixture.execute(session, BOOLEAN_SQL, value, declared, controls)?;
+    let outcome = (result.rows().to_vec(), result.columns()[0].type_oid);
+    drop(result);
+    Ok(outcome)
+}
+
+fn cache_hits(fixture: &Fixture) -> (u64, u64) {
+    let metrics = fixture.cassie().runtime.snapshot();
+    (metrics.plan_cache.hits, metrics.execution_result_cache.hits)
+}
+
+fn cached_null_outcomes(
+    fixture: &Fixture,
+    session: &CassieSession,
+    null_controls: &QueryExecutionControls,
+    typed_controls: &QueryExecutionControls,
+) -> (Vec<BooleanOutcome>, [(u64, u64); 3]) {
+    let first = boolean_outcome(fixture, session, Value::Null, &[], null_controls)
+        .expect("untyped embedded NULL keeps contextual compatibility");
+    let before_repeat = cache_hits(fixture);
+    let repeated = boolean_outcome(fixture, session, Value::Null, &[], null_controls)
+        .expect("repeat untyped NULL through actual caches");
+    let after_repeat = cache_hits(fixture);
+    let typed = boolean_outcome(fixture, session, Value::Null, &[16], typed_controls)
+        .expect("declared Boolean NULL through warmed caches");
+    let repeated_typed = boolean_outcome(fixture, session, Value::Null, &[16], typed_controls)
+        .expect("repeat declared Boolean NULL through actual caches");
+    let after_typed = cache_hits(fixture);
+    (
+        vec![first, repeated, typed, repeated_typed],
+        [before_repeat, after_repeat, after_typed],
+    )
+}
+
+fn describe_unknown_failures(
+    fixture: &Fixture,
+    session: &CassieSession,
+) -> [Option<(bool, String)>; 2] {
+    [0, 705].map(|oid| {
+        let parsed = parse_statement(BOOLEAN_SQL).expect("same SQL for wire UNKNOWN description");
+        let fingerprint = crate::runtime::sql_fingerprint(&parsed);
+        planner_failure(fixture.cassie().describe_parsed_statement_for_session(
+            session,
+            parsed,
+            fingerprint,
+            &[oid],
+        ))
+    })
+}
+
 #[test]
 fn should_preserve_embedded_parameter_provenance() {
     // Arrange
-    let fixture = Fixture::new(false);
+    let fixture = Fixture::new(true);
     let session = fixture.cassie().create_session("root", None);
     let accepted_controls = controls(AMPLE_BUDGET);
     let null_controls = controls(AMPLE_BUDGET);
@@ -114,35 +173,17 @@ fn should_preserve_embedded_parameter_provenance() {
     let text_null_controls = controls(AMPLE_BUDGET);
 
     // Act
-    let boolean = fixture
-        .execute(
-            &session,
-            BOOLEAN_SQL,
-            Value::Bool(true),
-            &[],
-            &accepted_controls,
-        )
-        .expect("concrete embedded Boolean");
-    let boolean_rows = boolean.rows().to_vec();
-    let boolean_oid = boolean.columns()[0].type_oid;
-    drop(boolean);
-    let null = fixture
-        .execute(&session, BOOLEAN_SQL, Value::Null, &[], &null_controls)
-        .expect("untyped embedded NULL keeps contextual compatibility");
-    let null_is_empty = null.rows().is_empty();
-    drop(null);
-    let typed_null = fixture
-        .execute(
-            &session,
-            BOOLEAN_SQL,
-            Value::Null,
-            &[16],
-            &typed_null_controls,
-        )
-        .expect("declared Boolean NULL");
-    let typed_null_is_empty = typed_null.rows().is_empty();
-    let typed_null_oid = typed_null.columns()[0].type_oid;
-    drop(typed_null);
+    let boolean = boolean_outcome(
+        &fixture,
+        &session,
+        Value::Bool(true),
+        &[],
+        &accepted_controls,
+    )
+    .expect("concrete embedded Boolean");
+    let (nulls, [before_repeat, after_repeat, after_typed]) =
+        cached_null_outcomes(&fixture, &session, &null_controls, &typed_null_controls);
+    let before_rejections = cache_hits(&fixture);
     let text = planner_failure(fixture.execute(
         &session,
         BOOLEAN_SQL,
@@ -157,16 +198,44 @@ fn should_preserve_embedded_parameter_provenance() {
         &[25],
         &text_null_controls,
     ));
+    let unknown = describe_unknown_failures(&fixture, &session);
+    let after_rejections = cache_hits(&fixture);
+    let recovered = boolean_outcome(
+        &fixture,
+        &session,
+        Value::Bool(true),
+        &[],
+        &accepted_controls,
+    )
+    .expect("concrete Boolean recovers through its existing cache entry");
+    let after_recovery = cache_hits(&fixture);
     drop((session, fixture));
 
     // Assert
-    assert_eq!(boolean_rows, vec![vec![Value::Bool(true)]]);
-    assert_eq!(boolean_oid, 16);
-    assert!(null_is_empty);
-    assert!(typed_null_is_empty);
-    assert_eq!(typed_null_oid, 16);
+    assert_eq!(boolean, (vec![vec![Value::Bool(true)]], 16));
+    assert_eq!(recovered, boolean);
+    for (rows, oid) in nulls {
+        assert_eq!(rows, Vec::<Vec<Value>>::new());
+        assert_eq!(oid, 16);
+    }
+    assert_eq!(after_repeat, (before_repeat.0 + 1, before_repeat.1 + 1));
+    assert_eq!(after_typed, (after_repeat.0 + 2, after_repeat.1 + 2));
     assert_eq!(text, Some((true, WHERE_ERROR.to_owned())));
     assert_eq!(text_null, Some((true, WHERE_ERROR.to_owned())));
+    for error in unknown {
+        assert_eq!(
+            error,
+            Some((
+                true,
+                "inconsistent types deduced for parameter $1".to_owned()
+            ))
+        );
+    }
+    assert_eq!(after_rejections, before_rejections);
+    assert_eq!(
+        after_recovery,
+        (after_rejections.0 + 1, after_rejections.1 + 1)
+    );
     for owner in [
         accepted_controls,
         null_controls,

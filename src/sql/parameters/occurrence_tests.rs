@@ -196,6 +196,17 @@ fn should_preserve_selected_diagnostics_on_independent_parameter_slots() {
             "42804",
         ),
         ("SELECT 1 WHERE ($1 = 1) AND $2", vec![0, 25], "42804"),
+        ("SELECT 1 WHERE $2 AND ($1 = 1)", vec![0, 25], "42804"),
+        (
+            "SELECT 1 FROM (SELECT 1 AS id) AS l JOIN (SELECT 1 AS id) AS r ON $1 = 1 WHERE $2",
+            vec![0, 25],
+            "42804",
+        ),
+        (
+            "SELECT 1 FROM (SELECT 1 AS id HAVING $1 = 1) AS source WHERE $2",
+            vec![0, 25],
+            "42804",
+        ),
         ("SELECT $1 = 1, $2, CAST($2 AS INT)", vec![0, 0], "42P08"),
     ];
     let catalog = Catalog::new();

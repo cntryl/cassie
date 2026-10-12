@@ -1,8 +1,10 @@
 # Finite null-safe query predicates
 
 The user selected this finite #798 query/DML slice on 2026-10-08. It resolves
-#792 only for this slice. Local implementation and focused qualification are in progress;
-#798 remains open for excluded persisted-definition compatibility.
+#792 only for this slice. PR [#867](https://github.com/cntryl/cassie/pull/867)
+merged its finite implementation at `ad0a001a65fae23726cd184fedf1f973d649e60c`.
+#798 remains open for persisted-definition compatibility and native null-safe
+kernels. The earlier iteration records below remain historical evidence.
 
 ## Grammar and transient API
 
@@ -25,13 +27,18 @@ An unsupported nonNULL pair produces an error, never incidental NULL or an
 invented Boolean. Existing cast/division/overflow/codec errors remain visible,
 including a right-operand error when the left operand is NULL.
 
-Preserve existing exact integer/mixed numeric equality, signed-zero equality,
-canonical scalar/temporal carriers, recursive JSON equality and finite VECTOR
-input/dimension rules. Existing compatible one-dimensional scalar ARRAY
-equality distinguishes a SQL NULL array, an empty array and NULL element slots.
-ARRAY(VECTOR) wire output and array-of-array grammar remain excluded. Declared
-ARRAY metadata is not inferred from an arbitrary JSON shape. No existing `=`
-law is changed to implement these operators.
+Preserve exact integer/integer equality, scalar/temporal carriers, recursive
+JSON equality and finite VECTOR input/dimension rules. The next #904
+[mixed numeric SQL comparison contract](mixed-numeric-comparison-contract.md)
+supersedes only the earlier exact integer/FLOAT predicate law: nonNULL null-safe
+numeric operands use the same resolved operator input domain as ordinary `=`.
+This is a planned correction, not completed support. Signed zero and admitted
+nonfinite FLOAT inputs require explicit operator oracle controls; general key
+semantics do not prove their SQL behavior. Existing compatible one-dimensional
+scalar ARRAY equality distinguishes a SQL NULL array, an empty array and NULL
+element slots. ARRAY(VECTOR) wire output and array-of-array grammar remain
+excluded. Declared ARRAY metadata is not inferred from an arbitrary JSON shape.
+No other equality law or persisted-operator admission changes.
 
 Result metadata is BOOLEAN OID16, typlen1, typmod-1 even for NULL operands.
 ParameterDescription retains original bound OIDs. Existing input adapters
@@ -84,9 +91,10 @@ NS04 compares actual row/index/residual/keyset/join/overlay paths. NS05 covers
 applicable controls, retained ownership and failure cleanup. NS06 rejects all
 supported durable definition routes before mutation and preserves old goldens.
 
-Use generic typed fixtures and an actual version-pinned PostgreSQL oracle only
-for compatible cases; exact mixed/rich current laws use independent literal
-expectations. Named existing tests, helper mappings and Jev judgments are not
+Earlier exact mixed/rich literal expectations remain bound to their original
+finite baseline. The next selected mixed SQL operator law requires actual
+version-pinned PostgreSQL outcomes and independent literal controls; old exact
+mixed expectations cannot adjudicate that correction. Named existing tests, helper mappings and Jev judgments are not
 acceptance. Focused RED/GREEN, paths, source/log hashes, remaining gaps and
 required ordered gates are recorded with source/log hashes in isolated evidence.
 
@@ -108,6 +116,8 @@ including SQL NULL rows; JSON null remains distinct from SQL NULL. The existing
 Eq AST encoding golden is unchanged. Unsuitable fixture attempts remain separate
 from the genuine repair RED/GREEN evidence.
 
-This is focused qualification, not completed acceptance. Complete ordered
-build/test/Clippy/fmt/validators, review,
-publication and exact-head hosted validation are pending. #798 remains open.
+The preceding paragraphs record focused iteration before PR #867's final
+acceptance. That merged record reports all 20 ordered local stages passed,
+3,633 passed/0 failed/9 ignored and all 13 hosted checks passed. Preserve those
+source-bound results. They do not qualify the newly planned mixed SQL operator
+correction or complete #798's remaining persisted/native obligations.

@@ -204,6 +204,13 @@ else in `float8`. The rules below are stable and deliberately chosen to stay clo
 - `MIN`/`MAX` keep their argument's declared type.
 - `CASE` unifies its result branches like PostgreSQL: integer branches stay integer, an integer branch beside a float branch widens the whole expression (and its values) to `float8`, and mixing text with a numeric branch is an error.
 
+Mixed integer/FLOAT SQL comparison remains an open #904 correction. Its next
+[finite contract](mixed-numeric-comparison-contract.md) requires PostgreSQL
+operator-signature coercion before scalar/join/null-safe comparison, while
+preserving exact integer carriers and general semantic keys. The historical
+BIGINT/FLOAT blocker has not been rerun or fixed by this documentation. Existing
+IN/BETWEEN/simple CASE and full constraint acceptance remain separate.
+
 A CTE reports the types of the query that defines it, in both `SELECT` results and a pre-execution
 `Describe`. Column aliases on the CTE (`WITH totals (name, seen) AS ...`) rename the columns while
 keeping those types, a later CTE sees the types of the ones before it, and a recursive CTE takes its

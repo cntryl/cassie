@@ -295,3 +295,55 @@ fn should_preserve_legacy_array_case_parameter_identities() {
     }
     assert_eq!(public, [vec![34_023], vec![34_023], vec![0]]);
 }
+
+#[test]
+fn should_preserve_source_local_column_types_during_parameter_admission() {
+    // Arrange
+    let catalog = Catalog::new();
+    for (name, data_type) in [
+        ("postgres.public.fold_scope_bool", crate::types::DataType::Boolean),
+        ("postgres.public.fold_scope_int", crate::types::DataType::Int),
+    ] {
+        catalog.register_collection(name, vec![("flag".to_string(), data_type)]);
+    }
+    let controls = controls(1_024 * 1_024);
+    let cases = [
+        ("SELECT COALESCE(postgres.public.fold_scope_bool.flag, $1) FROM postgres.public.fold_scope_bool", vec![705], vec![16]),
+        ("SELECT COALESCE(public.fold_scope_bool.flag, $1) FROM postgres.public.fold_scope_bool", vec![705], vec![16]),
+        ("SELECT COALESCE(fold_scope_bool.flag, $1) FROM postgres.public.fold_scope_bool", vec![705], vec![16]),
+        ("SELECT COALESCE(postgres.public.fold_scope_int.flag, $1) FROM postgres.public.fold_scope_int", vec![705], vec![23]),
+        ("SELECT COALESCE(public.fold_scope_int.flag, $1) FROM postgres.public.fold_scope_int", vec![705], vec![23]),
+        ("SELECT COALESCE(fold_scope_int.flag, $1) FROM postgres.public.fold_scope_int", vec![705], vec![23]),
+        ("SELECT COALESCE(o.flag, $1) FROM postgres.public.fold_scope_bool AS o JOIN postgres.public.fold_scope_int AS i ON TRUE", vec![705], vec![16]),
+        ("SELECT COALESCE(i.flag, $1) FROM postgres.public.fold_scope_bool AS o JOIN postgres.public.fold_scope_int AS i ON TRUE", vec![705], vec![23]),
+        ("SELECT CASE postgres.public.fold_scope_bool.flag WHEN $1 THEN 1 ELSE 0 END FROM postgres.public.fold_scope_bool", vec![705], vec![16]),
+        ("SELECT CASE postgres.public.fold_scope_int.flag WHEN $1 THEN 1 ELSE 0 END FROM postgres.public.fold_scope_int", vec![705], vec![23]),
+        ("SELECT 1 FROM postgres.public.fold_scope_bool JOIN postgres.public.fold_scope_int ON TRUE WHERE fold_scope_bool.flag", vec![], vec![]),
+        ("SELECT 1 FROM postgres.public.fold_scope_bool WHERE EXISTS (SELECT 1 FROM postgres.public.fold_scope_int WHERE postgres.public.fold_scope_bool.flag AND TRUE)", vec![], vec![]),
+    ];
+
+    // Act
+    let outcomes = cases.map(|(sql, provided, expected)| {
+        let statement = parse_statement(sql).expect("existing scoped column syntax");
+        let outcome = checked_parse_parameter_types(&statement, &provided, &catalog, &controls)
+            .map(|admitted| {
+                let oids = admitted.types().to_vec();
+                drop(admitted);
+                oids
+            });
+        (sql, outcome, expected, controls.current_query_memory_bytes())
+    });
+    let own_integer = parse_statement("SELECT 1 FROM postgres.public.fold_scope_int WHERE public.fold_scope_int.flag")
+        .expect("own qualified integer syntax");
+    let rejected = checked_parse_parameter_types(&own_integer, &[], &catalog, &controls);
+    let rejected_current = controls.current_query_memory_bytes();
+
+    // Assert
+    for (sql, outcome, expected, released) in outcomes {
+        assert_eq!(outcome.unwrap_or_else(|error| panic!("{sql}: {error:?}")), expected);
+        assert_eq!(released, 0, "{sql}");
+    }
+    assert!(matches!(rejected, Err(ParameterAdmissionError::Semantic(ref diagnostic)) if diagnostic.code() == "42804"));
+    assert_eq!(rejected_current, 0);
+    assert!(controls.peak_query_memory_bytes() > 0);
+}

@@ -205,10 +205,21 @@ checks still apply. This finite fold does not provide a complete joined or outer
 input-signature resolver.
 
 Slots inferred through nonselected operators retain their existing consistency
-and error path. Arithmetic results and CASE metadata remain outside the new
-Boolean diagnostics; heap-free common-identity handling preserves existing
+and error path. Arithmetic results and CASE output metadata remain outside the
+new Boolean diagnostics; heap-free common-identity handling preserves existing
 nonprimitive CASE parameter OIDs. Declared primitive inputs and independent
 parameter slots still receive the selected checks.
+
+### Searched CASE Boolean diagnostics
+
+For a searched `CASE`, validate each `WHEN` condition as a Boolean context
+during Parse. A qualified non-BOOLEAN input, including a declared primitive
+parameter, returns PostgreSQL 18.6 SQLSTATE `42804` with
+`argument of CASE/WHEN must be type boolean, not type <name>` before statement
+metadata is published. Unknown parameter OID `0` or `705` continues to infer
+BOOLEAN from the condition; contextual UNKNOWN literals keep their existing
+rules. This increment does not change simple `CASE` operand matching,
+branch/result common-type inference, or CASE output metadata.
 
 Checked Parse, selected typed execution, Describe and EXPLAIN must consume the
 same private outcome before pagination, early EXPLAIN or warm caches. Public

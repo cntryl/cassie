@@ -252,6 +252,7 @@ impl<'a> Occurrences<'a> {
                 | BooleanConstruct::Not
                 | BooleanConstruct::And
                 | BooleanConstruct::Or
+                | BooleanConstruct::CaseWhen
         );
         if !selected_construct {
             if let Some(ordinal) = summary.occurrence {

@@ -311,9 +311,10 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
         Node::Expr(ast::Expr::Case {
             operand, branches, ..
         }) => {
-            child.qualified = false;
             if operand.is_none() && index % 2 == 1 && index <= branches.len() * 2 {
-                child.expected = Expected::Type(16, true);
+                child.expected = Expected::Boolean(BooleanConstruct::CaseWhen);
+            } else {
+                child.qualified = false;
             }
         }
         Node::Expr(

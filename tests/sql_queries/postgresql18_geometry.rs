@@ -46,3 +46,32 @@ fn should_evaluate_circle_area_containment() {
         ]]
     );
 }
+
+#[test]
+fn should_calculate_box_area() {
+    // Arrange
+    let fixture = sql_fixture("issue-907-box-area", &[]);
+    let sql = "SELECT area(box(point(0,0), point(4,3))) = 12";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(result.expect("box area").rows(), &[vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_calculate_box_center() {
+    // Arrange
+    let fixture = sql_fixture("issue-907-box-center", &[]);
+    let sql = "SELECT center(box(point(0,0), point(4,3)))::text = '(2,1.5)'";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("box center").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}

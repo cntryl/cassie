@@ -80,3 +80,19 @@ fn should_extract_xmltable_rows_with_explicit_namespace_mapping() {
         ]
     );
 }
+
+#[test]
+fn should_aggregate_xml_values_while_skipping_null_inputs() {
+    // Arrange
+    let fixture = sql_fixture("issue-906-xmlagg-null-input", &[]);
+    let sql = "SELECT XMLSERIALIZE(CONTENT XMLAGG(value) AS TEXT) FROM (VALUES (XMLELEMENT(NAME item, 'one')), (NULL::xml)) AS input(value)";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("XMLAGG skips NULL inputs").rows(),
+        &[vec![Value::String("<item>one</item>".to_owned())]]
+    );
+}

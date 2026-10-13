@@ -181,3 +181,51 @@ fn should_normalize_values_across_remaining_multirange_families() {
         ]]
     );
 }
+
+#[test]
+fn should_aggregate_builtin_ranges_into_a_multirange() {
+    // Arrange
+    // Until range types are admitted as table columns, table creation masks
+    // this aggregate result assertion and records the prerequisite explicitly.
+    let fixture = sql_fixture("issue-905-range-union-aggregate", &[]);
+    fixture
+        .execute("CREATE TABLE issue_905_range_union_input (value int4range)")
+        .expect("create a range-valued aggregate input table");
+    fixture
+        .execute("INSERT INTO issue_905_range_union_input VALUES ('[1,5)'::int4range), ('[2,7)'::int4range), ('[3,4)'::int4range)")
+        .expect("insert PostgreSQL range aggregate inputs");
+    let sql = "SELECT range_agg(value)::text FROM issue_905_range_union_input";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("range aggregate").rows(),
+        &[vec![Value::String("{[1,7)}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_intersect_ranges_with_a_range_aggregate() {
+    // Arrange
+    // Until range types are admitted as table columns, table creation masks
+    // this aggregate result assertion and records the prerequisite explicitly.
+    let fixture = sql_fixture("issue-905-range-intersection-aggregate", &[]);
+    fixture
+        .execute("CREATE TABLE issue_905_range_intersection_input (value int4range)")
+        .expect("create a range-valued intersection input table");
+    fixture
+        .execute("INSERT INTO issue_905_range_intersection_input VALUES ('[1,5)'::int4range), ('[2,7)'::int4range), ('[3,4)'::int4range)")
+        .expect("insert PostgreSQL range intersection inputs");
+    let sql = "SELECT range_intersect_agg(value)::text FROM issue_905_range_intersection_input";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("range-intersection aggregate").rows(),
+        &[vec![Value::String("[3,4)".to_owned())]]
+    );
+}

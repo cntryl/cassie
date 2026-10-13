@@ -411,3 +411,56 @@ fn should_resolve_regprocedure_signature_aliases_including_missing_overloads() {
         vec![vec![Value::Bool(true), Value::Bool(true)]]
     );
 }
+
+#[test]
+fn should_match_regnamespace_names_by_oid_identity() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regnamespace-lookup", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT 'public'::regnamespace = to_regnamespace('public')")
+        .expect("regnamespace identity and nullable lookup");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_return_null_for_missing_regnamespace_lookup() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regnamespace-missing-lookup", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT to_regnamespace('missing_schema') IS NULL")
+        .expect("missing regnamespace lookup");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_advertise_pgcrypto_in_available_extension_catalog() {
+    // Arrange
+    let fixture = sql_fixture("issue-843-pgcrypto-catalog-identity", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT name, default_version FROM pg_catalog.pg_available_extensions WHERE name = 'pgcrypto'",
+        )
+        .expect("available pgcrypto extension catalog row");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("pgcrypto".to_owned()),
+            Value::String("1.4".to_owned()),
+        ]]
+    );
+}

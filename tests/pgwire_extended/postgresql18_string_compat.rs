@@ -471,3 +471,44 @@ fn should_expand_multiple_unnest_arrays_in_lockstep_with_ordinality() {
         ]
     );
 }
+
+#[test]
+fn should_preserve_left_rows_when_lateral_unnest_is_empty() {
+    // Arrange
+    let sql = "SELECT source.id, expanded.value, expanded.ordinality FROM (VALUES (1, ARRAY[10,20]::int4[]), (2, ARRAY[]::int4[])) AS source(id, vals) LEFT JOIN LATERAL unnest(source.vals) WITH ORDINALITY AS expanded(value, ordinality) ON TRUE ORDER BY source.id, expanded.ordinality";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-808-left-join-empty-unnest", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("left lateral UNNEST RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23, 20]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![
+            vec![
+                Some("1".to_owned()),
+                Some("10".to_owned()),
+                Some("1".to_owned()),
+            ],
+            vec![
+                Some("1".to_owned()),
+                Some("20".to_owned()),
+                Some("2".to_owned()),
+            ],
+            vec![Some("2".to_owned()), None, None],
+        ]
+    );
+}

@@ -1,5 +1,7 @@
 use super::*;
 
+mod index_contracts;
+
 #[test]
 fn should_copy_rows_with_column_types_when_creating_table_as_select() {
     // Arrange
@@ -695,6 +697,47 @@ fn should_copy_identity_sequence_independently_with_like_including_identity() {
             copy_id, 1,
             "the cloned table must own an independent sequence"
         );
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_apply_multiple_alter_table_actions_to_existing_rows() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("alter_table_multiple_actions").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_multi_action_alter \
+                   (id INT, label TEXT, score INT, active BOOL)",
+                "INSERT INTO compat_multi_action_alter VALUES (1, 'kept', 7, TRUE)",
+            ],
+        )
+        .await
+        .expect("create a table with a row before altering it");
+
+        // Act
+        client
+            .batch_execute(
+                "ALTER TABLE compat_multi_action_alter \
+                 DROP COLUMN score, DROP COLUMN active",
+            )
+            .await
+            .expect("apply both ALTER actions in one statement");
+        let row = client
+            .query_one("SELECT * FROM compat_multi_action_alter", &[])
+            .await
+            .expect("read the original row through the altered schema");
+
+        // Assert
+        assert_eq!(row.get::<_, i32>(0), 1);
+        assert_eq!(row.get::<_, String>(1), "kept");
+        assert_eq!(row.len(), 2);
 
         drop(client);
         server.shutdown(connection).await;

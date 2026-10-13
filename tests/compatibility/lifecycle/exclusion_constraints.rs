@@ -157,3 +157,53 @@ fn should_enforce_not_valid_check_on_new_rows_then_validate_existing_rows() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_enforce_match_full_for_composite_foreign_keys() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("match_full_foreign_key").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_match_full_parent (left_id INT, right_id INT)",
+                "CREATE UNIQUE INDEX compat_match_full_parent_key \
+                   ON compat_match_full_parent (left_id, right_id)",
+                "CREATE TABLE compat_match_full_child (left_id INT, right_id INT, \
+                   CONSTRAINT compat_match_full_fk FOREIGN KEY (left_id, right_id) \
+                   REFERENCES compat_match_full_parent (left_id, right_id) MATCH FULL)",
+                "INSERT INTO compat_match_full_parent VALUES (1, 2)",
+                "INSERT INTO compat_match_full_child VALUES (NULL, NULL)",
+            ],
+        )
+        .await
+        .expect("create the composite foreign key and accept a fully NULL key");
+
+        // Act
+        let partial_null = client
+            .execute(
+                "INSERT INTO compat_match_full_child VALUES (1, NULL)",
+                &[],
+            )
+            .await
+            .expect_err("MATCH FULL must reject a key that mixes NULL and non-NULL fields");
+        let accepted_rows = client
+            .query(
+                "SELECT left_id, right_id FROM compat_match_full_child ORDER BY left_id NULLS FIRST",
+                &[],
+            )
+            .await
+            .expect("read the row accepted before the rejected insert");
+
+        // Assert
+        assert_eq!(db_error(&partial_null).code().code(), "23503");
+        assert_eq!(accepted_rows.len(), 1);
+        assert_eq!(accepted_rows[0].get::<_, Option<i32>>(0), None);
+        assert_eq!(accepted_rows[0].get::<_, Option<i32>>(1), None);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

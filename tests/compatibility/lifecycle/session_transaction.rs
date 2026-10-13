@@ -1,5 +1,7 @@
 use super::*;
 
+mod row_lock_matrix;
+
 #[test]
 fn should_execute_sql_level_prepared_statements_then_deallocate_them() {
     // Arrange

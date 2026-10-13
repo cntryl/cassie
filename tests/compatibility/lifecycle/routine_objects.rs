@@ -1,5 +1,7 @@
 use super::*;
 
+mod expression_statistics;
+
 #[test]
 fn should_resolve_sql_routine_defaults_named_arguments() {
     // Arrange

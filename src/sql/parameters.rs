@@ -210,6 +210,7 @@ pub(crate) fn checked_parse_parameter_types(
     checked_parse_parameter_types_in_scope(statement, provided, catalog, controls, None)
 }
 
+#[cfg(test)]
 pub(crate) fn checked_parse_parameter_types_in_scope(
     statement: &ParsedStatement,
     provided: &[i32],
@@ -226,6 +227,23 @@ pub(crate) fn checked_parse_parameter_types_in_scope(
     )
 }
 
+pub(crate) fn checked_wire_parse_parameter_types_in_scope(
+    statement: &ParsedStatement,
+    provided: &[i32],
+    catalog: &crate::catalog::Catalog,
+    controls: &QueryExecutionControls,
+    scope: Option<&crate::catalog::FunctionInputScope<'_>>,
+) -> Result<AdmittedParameterTypes, ParameterAdmissionError> {
+    checked_parameter_types_in_scope_with_wire_contract(
+        statement,
+        PrivateParameterTypeInput::Wire(provided),
+        catalog,
+        controls,
+        scope,
+        true,
+    )
+}
+
 pub(crate) fn checked_parameter_types_in_scope(
     statement: &ParsedStatement,
     input: PrivateParameterTypeInput<'_>,
@@ -233,16 +251,51 @@ pub(crate) fn checked_parameter_types_in_scope(
     controls: &QueryExecutionControls,
     scope: Option<&crate::catalog::FunctionInputScope<'_>>,
 ) -> Result<AdmittedParameterTypes, ParameterAdmissionError> {
+    checked_parameter_types_in_scope_with_wire_contract(
+        statement, input, catalog, controls, scope, false,
+    )
+}
+
+pub(crate) fn validate_wire_parse_parameter_slots(
+    oids: &[i32],
+    controls: &QueryExecutionControls,
+) -> Result<(), ParameterAdmissionError> {
+    for (slot, oid) in oids.iter().enumerate() {
+        if slot % 256 == 0 {
+            check_controls(controls)?;
+        }
+        if matches!(*oid, 0 | UNKNOWN_PARAMETER_TYPE_OID) {
+            return Err(ParameterAdmissionError::Semantic(
+                ParameterSemanticDiagnostic::Unresolved { slot },
+            ));
+        }
+    }
+    check_controls(controls)
+}
+
+fn checked_parameter_types_in_scope_with_wire_contract(
+    statement: &ParsedStatement,
+    input: PrivateParameterTypeInput<'_>,
+    catalog: &crate::catalog::Catalog,
+    controls: &QueryExecutionControls,
+    scope: Option<&crate::catalog::FunctionInputScope<'_>>,
+    enforce_wire_parse_contract: bool,
+) -> Result<AdmittedParameterTypes, ParameterAdmissionError> {
+    let count = if enforce_wire_parse_contract {
+        checked_effective_parameter_count(statement, input, controls)?
+    } else {
+        checked_parameter_count(statement, controls)?
+    };
     if !uses_occurrence_fold(&statement.statement) {
         return checked_legacy_parameter_types(
             statement,
-            occurrences::input_oids(input),
+            input,
+            count,
             catalog,
             controls,
             scope,
         );
     }
-    let count = checked_parameter_count(statement, controls)?;
     let result =
         fold::Fold::new(count, input, catalog, controls, scope, true)?.run(&statement.statement)?;
     if let Some(message) =
@@ -261,12 +314,13 @@ pub(crate) fn checked_parameter_types_in_scope(
 
 fn checked_legacy_parameter_types(
     statement: &ParsedStatement,
-    provided: &[i32],
+    input: PrivateParameterTypeInput<'_>,
+    count: usize,
     catalog: &crate::catalog::Catalog,
     controls: &QueryExecutionControls,
     scope: Option<&crate::catalog::FunctionInputScope<'_>>,
 ) -> Result<AdmittedParameterTypes, ParameterAdmissionError> {
-    let count = checked_parameter_count(statement, controls)?;
+    let provided = occurrences::input_oids(input);
     let mut normalized = reserve_vector::<i32>(controls, provided.len())?;
     for (index, oid) in provided.iter().enumerate() {
         if index % 256 == 0 {
@@ -311,6 +365,26 @@ fn checked_legacy_parameter_types(
     drop(context_demands);
     drop(demand_memory);
     Ok(AdmittedParameterTypes::new(oids, oid_memory, controls))
+}
+
+fn checked_effective_parameter_count(
+    statement: &ParsedStatement,
+    input: PrivateParameterTypeInput<'_>,
+    controls: &QueryExecutionControls,
+) -> Result<usize, ParameterAdmissionError> {
+    let sql_count = checked_parameter_count(statement, controls)?;
+    let supplied_count = match input {
+        PrivateParameterTypeInput::Wire(oids) => oids.len(),
+        PrivateParameterTypeInput::Embedded { .. } => 0,
+    };
+    let count = sql_count.max(supplied_count);
+    if count > admission::MAX_PARAMETER_COUNT {
+        return Err(ParameterAdmissionError::InvalidParam(format!(
+            "parameter index exceeds PostgreSQL limit {}",
+            admission::MAX_PARAMETER_COUNT
+        )));
+    }
+    Ok(count)
 }
 
 fn uses_occurrence_fold(mut query: &crate::sql::QueryStatement) -> bool {

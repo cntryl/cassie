@@ -1,6 +1,8 @@
 //! Statement and operand traversal with shared scalar function input inference.
 
-use super::function_inputs::infer_function_parameter_type_oids;
+use super::function_inputs::{
+    infer_function_parameter_type_oids, infer_procedure_parameter_type_oids,
+};
 use super::{ParameterInference, UNKNOWN_PARAMETER_TYPE_OID};
 use crate::catalog::FieldMeta;
 use crate::sql::ast::Expr;
@@ -30,6 +32,9 @@ pub(super) fn infer_parameter_type_oids_query(
         }
         QueryStatement::Delete(statement) => {
             infer_delete_parameter_type_oids(statement, catalog, oids);
+        }
+        QueryStatement::CallProcedure(statement) => {
+            infer_procedure_parameter_type_oids(statement, catalog, oids);
         }
         QueryStatement::Explain(statement) => {
             infer_parameter_type_oids_query(&statement.statement.statement, catalog, oids);

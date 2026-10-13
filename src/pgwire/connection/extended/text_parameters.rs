@@ -29,9 +29,13 @@ pub(super) fn decode_text_parameter(
         .map(|metadata| metadata.kind);
     match kind {
         Some(BuiltinKind::Bool) => parse_bool(text).map(Value::Bool),
-        Some(BuiltinKind::Int2) => parse_integer(text, i64::from(i16::MIN), i64::from(i16::MAX)),
-        Some(BuiltinKind::Int4) => parse_integer(text, i64::from(i32::MIN), i64::from(i32::MAX)),
-        Some(BuiltinKind::Int8) => parse_integer(text, i64::MIN, i64::MAX),
+        Some(BuiltinKind::Int2) => {
+            parse_integer(text, "smallint", i64::from(i16::MIN), i64::from(i16::MAX))
+        }
+        Some(BuiltinKind::Int4) => {
+            parse_integer(text, "integer", i64::from(i32::MIN), i64::from(i32::MAX))
+        }
+        Some(BuiltinKind::Int8) => parse_integer(text, "bigint", i64::MIN, i64::MAX),
         Some(BuiltinKind::Float8) => parse_float(text).map(Value::Float64),
         _ if oid == OID_NUMERIC => parse_numeric(text),
         _ if oid == OID_FLOAT4 => parse_float(text).map(Value::Float64),
@@ -81,13 +85,34 @@ pub(super) fn parse_bool(text: &str) -> Result<bool, ExtendedQueryError> {
         .ok_or_else(|| ExtendedQueryError::protocol("invalid boolean bind parameter"))
 }
 
-fn parse_integer(text: &str, min: i64, max: i64) -> Result<Value, ExtendedQueryError> {
-    text.trim()
-        .parse::<i64>()
-        .ok()
-        .filter(|value| (min..=max).contains(value))
-        .map(Value::Int64)
-        .ok_or_else(|| ExtendedQueryError::protocol("invalid integer bind parameter"))
+fn parse_integer(
+    text: &str,
+    type_name: &str,
+    min: i64,
+    max: i64,
+) -> Result<Value, ExtendedQueryError> {
+    let input = text.trim();
+    let Some(value) = input.parse::<i64>().ok() else {
+        return Err(if is_integer_syntax(input) {
+            ExtendedQueryError::numeric_value_out_of_range(type_name, text)
+        } else {
+            ExtendedQueryError::invalid_input_syntax(type_name, text)
+        });
+    };
+    if !(min..=max).contains(&value) {
+        return Err(ExtendedQueryError::numeric_value_out_of_range(
+            type_name, text,
+        ));
+    }
+    Ok(Value::Int64(value))
+}
+
+fn is_integer_syntax(input: &str) -> bool {
+    let digits = input
+        .strip_prefix('+')
+        .or_else(|| input.strip_prefix('-'))
+        .unwrap_or(input);
+    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn parse_float(text: &str) -> Result<f64, ExtendedQueryError> {

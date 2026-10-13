@@ -5,6 +5,8 @@ mod support_mixed_numeric;
 
 #[path = "pgwire_extended/parameter_occurrences.rs"]
 mod pgwire_parameter_occurrences;
+#[path = "pgwire_extended/parameter_slot_completeness.rs"]
+mod pgwire_parameter_slot_completeness;
 #[path = "pgwire_extended/unsigned_parameter_oids.rs"]
 mod pgwire_unsigned_parameter_oids;
 #[path = "support/parameter_occurrence_wire.rs"]

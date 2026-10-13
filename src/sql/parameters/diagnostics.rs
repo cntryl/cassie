@@ -39,6 +39,9 @@ pub(crate) enum ParameterSemanticDiagnostic {
     Indeterminate {
         slot: usize,
     },
+    Unresolved {
+        slot: usize,
+    },
     BooleanOperand {
         construct: BooleanConstruct,
         actual: i32,
@@ -49,6 +52,7 @@ impl ParameterSemanticDiagnostic {
     pub(crate) const fn code(self) -> &'static str {
         match self {
             Self::Inconsistent { .. } | Self::Indeterminate { .. } => "42P08",
+            Self::Unresolved { .. } => "42P18",
             Self::BooleanOperand { .. } => "42804",
         }
     }
@@ -65,7 +69,7 @@ impl ParameterSemanticDiagnostic {
             Self::Inconsistent { .. } => {
                 "inconsistent types deduced for parameter $".len() + MAX_DECIMAL_DIGITS
             }
-            Self::Indeterminate { .. } => {
+            Self::Indeterminate { .. } | Self::Unresolved { .. } => {
                 "could not determine data type of parameter $".len() + MAX_DECIMAL_DIGITS
             }
             Self::BooleanOperand { construct, actual } => {
@@ -86,7 +90,7 @@ impl ParameterSemanticDiagnostic {
                     slot.saturating_add(1)
                 )
             }
-            Self::Indeterminate { slot } => {
+            Self::Indeterminate { slot } | Self::Unresolved { slot } => {
                 write!(
                     output,
                     "could not determine data type of parameter ${}",
@@ -117,7 +121,9 @@ impl ParameterSemanticDiagnostic {
                 requested,
                 ..
             } => Some(type_name(previous).len() + " versus ".len() + type_name(requested).len()),
-            Self::Indeterminate { .. } | Self::BooleanOperand { .. } => None,
+            Self::Indeterminate { .. } | Self::Unresolved { .. } | Self::BooleanOperand { .. } => {
+                None
+            }
         }
     }
 

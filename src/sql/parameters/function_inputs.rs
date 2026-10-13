@@ -7,7 +7,7 @@ use super::inference::{infer_parameter_type_from_expected_expr, infer_parameter_
 use super::{ParameterAdmissionError, ParameterInference, UNKNOWN_PARAMETER_TYPE_OID};
 use crate::app::CassieError;
 use crate::catalog::Catalog;
-use crate::sql::ast::{Expr, FunctionCall};
+use crate::sql::ast::{CallProcedureStatement, Expr, FunctionCall};
 use crate::sql::functions::{self, FunctionInputSignature, FunctionReturnType};
 use crate::sql::{binder, FieldTypeMap};
 use crate::types::DataType;
@@ -29,6 +29,32 @@ pub(super) fn infer_function_parameter_type_oids(
     }
     if let Err(error) = infer_inputs(function, field_types, catalog, inference) {
         inference.failure = Some(error);
+    }
+}
+
+pub(super) fn infer_procedure_parameter_type_oids(
+    procedure: &CallProcedureStatement,
+    catalog: &Catalog,
+    inference: &mut ParameterInference,
+) {
+    if !inference.check() {
+        return;
+    }
+    let result =
+        catalog.with_procedure_signature(&procedure.name, inference.controls, |arguments| {
+            let Some(arguments) =
+                arguments.filter(|arguments| arguments.len() == procedure.args.len())
+            else {
+                return;
+            };
+            for (argument, input) in procedure.args.iter().zip(arguments) {
+                if let Some(data_type) = primitive_type(&input.data_type) {
+                    infer_parameter_type_from_expected_expr(argument, &data_type, inference);
+                }
+            }
+        });
+    if let Err(error) = result {
+        inference.failure = Some(admission_error(error));
     }
 }
 

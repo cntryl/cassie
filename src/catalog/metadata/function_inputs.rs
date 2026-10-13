@@ -9,7 +9,7 @@ use parking_lot::{RwLock, RwLockReadGuard};
 use crate::app::CassieError;
 use crate::catalog::{
     canonical_schema_name, name_matches, parse_name, FunctionArgMeta, FunctionMeta, ParsedName,
-    DEFAULT_SCHEMA, INFORMATION_SCHEMA, PG_CATALOG_SCHEMA,
+    ProcedureMeta, DEFAULT_SCHEMA, INFORMATION_SCHEMA, PG_CATALOG_SCHEMA,
 };
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::DataType;
@@ -67,6 +67,37 @@ impl Catalog {
         check(controls)?;
         let result = inspect(
             selected.map(|(function, _)| (function.args.as_slice(), &function.return_type)),
+        );
+        check(controls)?;
+        Ok(result)
+    }
+
+    /// Borrow only procedure arguments during synchronous wire-parameter inference.
+    pub(crate) fn with_procedure_signature<R>(
+        &self,
+        name: &str,
+        controls: Option<&QueryExecutionControls>,
+        inspect: impl FnOnce(Option<&[FunctionArgMeta]>) -> R,
+    ) -> Result<R, CassieError> {
+        check(controls)?;
+        let procedures = read_catalog(&self.procedures, controls)?;
+        let mut matching = None;
+        let mut exact = None;
+        for procedure in procedures.values() {
+            check(controls)?;
+            if procedure.name.eq_ignore_ascii_case(name) {
+                exact = Some(procedure);
+                break;
+            }
+            if matching.is_none() && name_matches(&procedure.name, name) {
+                matching = Some(procedure);
+            }
+        }
+        check(controls)?;
+        let result = inspect(
+            exact
+                .or(matching)
+                .map(|procedure: &ProcedureMeta| procedure.args.as_slice()),
         );
         check(controls)?;
         Ok(result)

@@ -287,7 +287,7 @@ async fn handle_parse(
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let controls = runtime.query_controls(std::time::Instant::now());
     let admitted = with_function_input_scope(&cassie, session, |scope| {
-        crate::sql::checked_parse_parameter_types_in_scope(
+        crate::sql::checked_wire_parse_parameter_types_in_scope(
             &parsed,
             &parameter_type_oids,
             &cassie.catalog,
@@ -301,6 +301,8 @@ async fn handle_parse(
     }
     crate::sql::pagination::validate_statement(&mut parsed, Some(admitted.types()))
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    crate::sql::validate_wire_parse_parameter_slots(admitted.types(), &controls)
+        .map_err(|error| ExtendedQueryError::parameter_admission(error, &controls))?;
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let parameter_types = admitted
         .into_vec()
@@ -427,10 +429,10 @@ async fn handle_bind(
     }
     if parameters.len() != prepared.parameter_count {
         return Err(ExtendedQueryError::protocol(format!(
-            "bind for statement '{}' requires {} parameters but got {}",
+            "bind message supplies {} parameters, but prepared statement \"{}\" requires {}",
+            parameters.len(),
             prepared.name,
-            prepared.parameter_count,
-            parameters.len()
+            prepared.parameter_count
         )));
     }
     validate_format_count(parameter_formats.len(), parameters.len(), "parameter")?;
@@ -832,6 +834,28 @@ impl ExtendedQueryError {
         Self {
             pg_error: Box::new(PgWireError::protocol(message)),
             record_protocol_error: true,
+        }
+    }
+
+    fn invalid_input_syntax(type_name: &str, input: &str) -> Self {
+        Self {
+            pg_error: Box::new(PgWireError::new(
+                PgWireSeverity::Error,
+                "22P02",
+                format!("invalid input syntax for type {type_name}: \"{input}\""),
+            )),
+            record_protocol_error: false,
+        }
+    }
+
+    fn numeric_value_out_of_range(type_name: &str, input: &str) -> Self {
+        Self {
+            pg_error: Box::new(PgWireError::new(
+                PgWireSeverity::Error,
+                "22003",
+                format!("value \"{input}\" is out of range for type {type_name}"),
+            )),
+            record_protocol_error: false,
         }
     }
 

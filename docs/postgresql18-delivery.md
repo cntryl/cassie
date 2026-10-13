@@ -109,6 +109,20 @@ result descriptor or a Bind input. This boundary does not register named
 high-bit types or qualify their allocation, catalog publication, persistence,
 restart or import behavior.
 
+A second finite #904 increment covers PostgreSQL 18.6 extended-Parse parameter
+slot completeness for nonempty SQL. The effective slot count is the larger of
+the highest SQL parameter reference and the supplied OID count. Existing
+inference remains in place: OID 0 or 705 may resolve from a comparison or cast.
+If the lowest slot still has OID 0 or 705 after inference, Parse returns
+SQLSTATE `42P18` with
+`could not determine data type of parameter $N`, even when that slot is unused.
+Fully typed unused slots remain in ParameterDescription and prepared state, so
+Bind requires and decodes those values. This includes supplied OID entries past
+the highest SQL reference. Unregistered high-bit OIDs retain the separate
+PR #949 behavior: preserve their four wire bytes and report `XX000` on Bind;
+they are not OID 0/705 placeholders. This increment changes no persistent
+format or public Rust API and does not register named high-bit types.
+
 Record an implementation prerequisite as `owner; completed commit; exact tests;
 passed result; remaining integration obligations` before dependent work starts.
 A closed issue without that evidence is insufficient. #793 specifies contracts;

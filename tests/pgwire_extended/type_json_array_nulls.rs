@@ -29,7 +29,7 @@ fn should_preserve_json_array_wire_identity_across_suspended_pages() {
     // Arrange
     let sql = "WITH docs AS (SELECT $1 AS doc) SELECT doc FROM docs UNION ALL SELECT doc FROM docs";
     let cycle = vec![
-        wire::parse_frame_with_types("", sql, &[34_114]),
+        wire::parse_frame_with_types("", sql, &[199]),
         wire::describe_statement_frame(""),
         wire::bind_frame_with_formats("", "", &[1], &[Some(NESTED_NULL_DOCUMENT_ARRAY)], &[1]),
         wire::describe_portal_frame(""),
@@ -44,7 +44,7 @@ fn should_preserve_json_array_wire_identity_across_suspended_pages() {
     // Assert
     let frames = &batches[0];
     fixture::assert_success(frames);
-    fixture::assert_single_column_descriptors(frames, (34_114, -1, -1), 1, true);
+    fixture::assert_single_column_descriptors(frames, (199, -1, -1), 1, true);
     assert_eq!(frames.iter().filter(|(tag, _)| *tag == b's').count(), 1);
     assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'C').count(), 1);
     assert_eq!(
@@ -60,7 +60,7 @@ fn should_reject_document_null_elements_in_binary_json_arrays() {
         .map(|format| {
             fixture::execute_cycle(
                 "SELECT $1 AS docs",
-                Some((34_114, 1, Some(SQL_NULL_WITH_DOCUMENT_NULL))),
+                Some((199, 1, Some(SQL_NULL_WITH_DOCUMENT_NULL))),
                 format,
                 false,
             )
@@ -87,7 +87,7 @@ fn should_reject_document_null_elements_in_text_json_arrays() {
             [0, 1].map(|format| {
                 fixture::execute_cycle(
                     "SELECT $1 AS docs",
-                    Some((34_114, 0, Some(body))),
+                    Some((199, 0, Some(body))),
                     format,
                     false,
                 )
@@ -114,7 +114,7 @@ fn should_preserve_sql_null_elements_in_json_arrays() {
             [0, 1].map(|result_format| {
                 fixture::execute_cycle(
                     "SELECT $1 AS docs",
-                    Some((34_114, input_format, Some(body))),
+                    Some((199, input_format, Some(body))),
                     result_format,
                     true,
                 )
@@ -129,7 +129,7 @@ fn should_preserve_sql_null_elements_in_json_arrays() {
     for pair in batches.as_chunks::<2>().0 {
         for (format, frames) in [0, 1].into_iter().zip(pair) {
             fixture::assert_success(frames);
-            fixture::assert_single_column_descriptors(frames, (34_114, -1, -1), format, true);
+            fixture::assert_single_column_descriptors(frames, (199, -1, -1), format, true);
             let expected = if format == 0 {
                 fixture::one_field_row(b"[null]")
             } else {
@@ -153,7 +153,7 @@ fn should_preserve_nonnull_json_array_documents_containing_null() {
             [0, 1].map(|format| {
                 fixture::execute_cycle(
                     "SELECT $1 AS docs",
-                    Some((34_114, 1, Some(body))),
+                    Some((199, 1, Some(body))),
                     format,
                     true,
                 )
@@ -168,7 +168,7 @@ fn should_preserve_nonnull_json_array_documents_containing_null() {
     for ((body, text), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0) {
         for (format, frames) in [0, 1].into_iter().zip(pair) {
             fixture::assert_success(frames);
-            fixture::assert_single_column_descriptors(frames, (34_114, -1, -1), format, true);
+            fixture::assert_single_column_descriptors(frames, (199, -1, -1), format, true);
             let expected = fixture::one_field_row(if format == 0 { text } else { body });
             assert_eq!(fixture::data_row_payloads(frames), vec![expected]);
         }
@@ -256,7 +256,7 @@ fn should_preserve_json_array_text_null_slot_origin() {
             [0, 1].map(|format| {
                 fixture::execute_cycle(
                     "SELECT $1 AS docs",
-                    Some((34_114, 0, Some(body))),
+                    Some((199, 0, Some(body))),
                     format,
                     true,
                 )
@@ -272,7 +272,7 @@ fn should_preserve_json_array_text_null_slot_origin() {
     for ((text, binary), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0) {
         for (format, frames) in [0, 1].into_iter().zip(pair) {
             fixture::assert_success(frames);
-            fixture::assert_single_column_descriptors(frames, (34_114, -1, -1), format, true);
+            fixture::assert_single_column_descriptors(frames, (199, -1, -1), format, true);
             assert_eq!(
                 fixture::data_row_payloads(frames),
                 vec![fixture::one_field_row(if format == 0 {
@@ -297,7 +297,7 @@ fn should_reject_nonnull_json_document_null_without_sql_null_frames() {
         .map(|format| {
             fixture::execute_cycle(
                 "SELECT $1 AS docs",
-                Some((34_114, 1, Some(&body))),
+                Some((199, 1, Some(&body))),
                 format,
                 false,
             )
@@ -341,7 +341,7 @@ fn should_preserve_malformed_json_array_error_classification() {
         .map(|(format, body)| {
             fixture::execute_cycle(
                 "SELECT $1 AS docs",
-                Some((34_114, format, Some(body))),
+                Some((199, format, Some(body))),
                 0,
                 false,
             )

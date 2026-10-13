@@ -33,7 +33,7 @@ fn should_describe_math_function_results_with_the_postgresql_types() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![701, 701, 23]
+        vec![1700, 701, 23]
     );
 }
 
@@ -109,4 +109,21 @@ fn should_report_postgresql_math_error_sqlstates() {
             "expected SQLSTATE {expected_code} for math-domain input"
         );
     }
+}
+
+#[test]
+fn should_reject_two_float8_argument_log_with_undefined_function_sqlstate() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT LOG(2::FLOAT8, 64::FLOAT8)",
+    )])];
+
+    // Act
+    let batches = run_script("postgresql18-log-float8-undefined", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
+    assert!(!batches[0]
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
 }

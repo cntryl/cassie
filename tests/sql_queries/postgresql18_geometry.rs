@@ -1,0 +1,48 @@
+//! PostgreSQL 18 geometric value and operator behavior tracked by #907.
+
+use cassie::types::Value;
+
+use crate::support_sql_fixture::sql_fixture;
+
+#[test]
+fn should_calculate_geometry_distance_with_polygon_containment() {
+    // Arrange
+    let fixture = sql_fixture("issue-907-geometry-distance-containment", &[]);
+    let sql = "SELECT point '(1,2)' <-> point '(4,6)' = 5, '((0,0),(5,5),(0,5))'::polygon @> point '(1,1)', point '(1,2)' <@ '((0,0),(5,5),(0,5))'::polygon";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("geometry distance and containment").rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true)
+        ]]
+    );
+}
+
+#[test]
+fn should_evaluate_circle_area_containment() {
+    // Arrange
+    let fixture = sql_fixture("issue-907-circle-construction-and-operators", &[]);
+    let sql = "SELECT circle(point '(1,2)', 3) = '<(1,2),3>'::circle, circle(point '(1,2)', 3) @> point '(1,4)', NOT (circle(point '(1,2)', 3) @> point '(1,6)'), area(circle(point '(1,2)', 3))::numeric(6,2) = 28.27";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("circle construction, area, and containment")
+            .rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+}

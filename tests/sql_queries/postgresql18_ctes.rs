@@ -76,6 +76,34 @@ fn should_preserve_results_for_multiple_not_materialized_references() {
 }
 
 #[test]
+fn should_expose_distinct_materialized_inline_plan_shapes() {
+    // Arrange
+    let fixture = repeated_reference_fixture("issue-801-materialization-plan-distinction");
+
+    // Act
+    let materialized = fixture.execute(
+        "EXPLAIN WITH chosen AS MATERIALIZED (SELECT value FROM issue_801_values) SELECT value FROM chosen WHERE value = 1",
+    );
+    let not_materialized = fixture.execute(
+        "EXPLAIN WITH chosen AS NOT MATERIALIZED (SELECT value FROM issue_801_values) SELECT value FROM chosen WHERE value = 1",
+    );
+
+    // Assert
+    let materialized = materialized.expect("MATERIALIZED CTE plan");
+    let not_materialized = not_materialized.expect("NOT MATERIALIZED CTE plan");
+    let Value::String(materialized_plan) = &materialized.rows()[0][0] else {
+        panic!("expected textual MATERIALIZED CTE plan");
+    };
+    let Value::String(not_materialized_plan) = &not_materialized.rows()[0][0] else {
+        panic!("expected textual NOT MATERIALIZED CTE plan");
+    };
+    assert_ne!(
+        materialized_plan, not_materialized_plan,
+        "EXPLAIN must make explicit CTE materialization observable"
+    );
+}
+
+#[test]
 fn should_bind_parameters_inside_materialized_ctes() {
     // Arrange
     let fixture = sql_fixture("issue-801-materialized-parameters", &[]);
@@ -137,7 +165,7 @@ fn should_preserve_recursive_results_when_not_materialized_is_ignored() {
 }
 
 #[test]
-fn should_order_recursive_rows_by_depth_first_search_sequence() {
+fn should_order_recursive_rows_by_postgres_depth_first_search_sequence() {
     // Arrange
     let fixture = tree_fixture("issue-801-search-depth-first");
 
@@ -150,11 +178,11 @@ fn should_order_recursive_rows_by_depth_first_search_sequence() {
     assert_eq!(
         result.expect("depth-first SEARCH ordering").rows(),
         &[
-            vec![Value::Int64(1)],
-            vec![Value::Int64(2)],
             vec![Value::Int64(4)],
-            vec![Value::Int64(3)],
+            vec![Value::Int64(2)],
             vec![Value::Int64(5)],
+            vec![Value::Int64(3)],
+            vec![Value::Int64(1)],
         ]
     );
 }
@@ -290,5 +318,46 @@ fn should_release_materialized_cte_memory_after_a_consumer_error() {
             vec![Value::Int64(2)],
             vec![Value::Int64(3)],
         ]
+    );
+}
+
+#[test]
+fn should_feed_deleted_returning_rows_into_a_following_cte_statement() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-834-delete-returning-cte",
+        &[
+            "CREATE TABLE issue_834_source (id INT PRIMARY KEY, payload TEXT)",
+            "CREATE TABLE issue_834_archive (id INT, payload TEXT)",
+            "INSERT INTO issue_834_source VALUES (1, 'one'), (2, 'two')",
+        ],
+    );
+
+    // Act
+    let archived = fixture.execute(
+        "WITH moved AS (DELETE FROM issue_834_source WHERE id = 1 RETURNING id, payload) \
+         INSERT INTO issue_834_archive SELECT id, payload FROM moved RETURNING id, payload",
+    );
+    let source_rows = fixture.execute("SELECT id, payload FROM issue_834_source ORDER BY id");
+    let archive_rows = fixture.execute("SELECT id, payload FROM issue_834_archive ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        archived
+            .expect("consume DELETE RETURNING from the outer INSERT")
+            .rows(),
+        &[vec![Value::Int64(1), Value::String("one".to_owned())]]
+    );
+    assert_eq!(
+        source_rows
+            .expect("read source after the data-modifying CTE")
+            .rows(),
+        &[vec![Value::Int64(2), Value::String("two".to_owned())]]
+    );
+    assert_eq!(
+        archive_rows
+            .expect("read rows inserted from the CTE relation")
+            .rows(),
+        &[vec![Value::Int64(1), Value::String("one".to_owned())]]
     );
 }

@@ -438,7 +438,7 @@ fn should_format_timestamptz_with_session_zone_offset() {
 
     // Act
     let result = fixture.execute(
-        "SELECT TO_CHAR(TIMESTAMPTZ '2001-02-16 20:38:40+00', 'YYYY-MM-DD HH24:MI OF') = '2001-02-16 13:38 -07:00'",
+        "SELECT TO_CHAR(TIMESTAMPTZ '2001-02-16 20:38:40+00', 'YYYY-MM-DD HH24:MI OF') = '2001-02-16 13:38 -07'",
     );
 
     // Assert
@@ -458,7 +458,7 @@ fn should_format_both_occurrences_of_a_dst_fold_with_distinct_offsets() {
 
     // Act
     let result = fixture.execute(
-        "SELECT TO_CHAR(TIMESTAMPTZ '2024-11-03 05:30:00+00', 'HH24:MI OF') = '01:30 -04:00' AND TO_CHAR(TIMESTAMPTZ '2024-11-03 06:30:00+00', 'HH24:MI OF') = '01:30 -05:00'",
+        "SELECT TO_CHAR(TIMESTAMPTZ '2024-11-03 05:30:00+00', 'HH24:MI OF') = '01:30 -04' AND TO_CHAR(TIMESTAMPTZ '2024-11-03 06:30:00+00', 'HH24:MI OF') = '01:30 -05'",
     );
 
     // Assert
@@ -768,7 +768,7 @@ fn should_align_date_bin_timestamps_to_a_nondefault_origin() {
 #[test]
 fn should_bin_timestamptz_by_fixed_elapsed_stride() {
     // Arrange
-    let sql = "SELECT DATE_BIN(INTERVAL '24 hours', TIMESTAMPTZ '2024-03-10 16:30:00+00', TIMESTAMPTZ '2024-03-09 17:00:00+00') = TIMESTAMPTZ '2024-03-10 17:00:00+00'";
+    let sql = "SELECT DATE_BIN(INTERVAL '24 hours', TIMESTAMPTZ '2024-03-10 16:30:00+00', TIMESTAMPTZ '2024-03-09 17:00:00+00') = TIMESTAMPTZ '2024-03-09 17:00:00+00'";
 
     // Act
     let fixture = sql_fixture("issue-815-date-bin-timestamptz", &[]);

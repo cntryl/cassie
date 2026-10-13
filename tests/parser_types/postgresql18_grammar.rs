@@ -357,17 +357,17 @@ fn should_parse_postgres_integer_literal_forms() {
 
     // Act
     let cases = [
-        "SELECT 0x2a AS value",
-        "SELECT 0o52 AS value",
-        "SELECT 0b101010 AS value",
-        "SELECT 1_000_000 AS value",
+        ("SELECT 0x2a AS value", 42),
+        ("SELECT 0o52 AS value", 42),
+        ("SELECT 0b101010 AS value", 42),
+        ("SELECT 1_000_000 AS value", 1_000_000),
     ];
     let failures = cases
         .iter()
-        .filter_map(|sql| match fixture.execute(sql) {
-            Ok(result) if result.rows() == [vec![Value::Int64(42)]] => None,
+        .filter_map(|(sql, expected)| match fixture.execute(sql) {
+            Ok(result) if result.rows() == [vec![Value::Int64(*expected)]] => None,
             Ok(result) => Some(format!(
-                "{sql}: expected integer 42, got {:?}",
+                "{sql}: expected integer {expected}, got {:?}",
                 result.rows()
             )),
             Err(error) => Some(format!("{sql}: {error}")),
@@ -418,7 +418,7 @@ fn should_resolve_unicode_escaped_identifiers() {
     let fixture = sql_fixture("issue-796-unicode-escaped-identifier", &[]);
 
     // Act
-    let created = fixture.execute("CREATE TABLE unicode_names (U&\"na!006de\" UESCAPE '!'");
+    let created = fixture.execute("CREATE TABLE unicode_names (U&\"na!006de\" UESCAPE '!' TEXT)");
     let inserted = fixture.execute("INSERT INTO unicode_names (name) VALUES ('resolved')");
     let selected = fixture.execute("SELECT name FROM unicode_names");
 
@@ -428,6 +428,27 @@ fn should_resolve_unicode_escaped_identifiers() {
     assert_eq!(
         selected.expect("Unicode escaped identifier lookup").rows(),
         &[vec![Value::String("resolved".to_owned())]]
+    );
+}
+
+#[test]
+fn should_truncate_utf8_quoted_identifiers_at_postgres_byte_limit() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-utf8-identifier-truncation", &[]);
+    let retained = format!("{}éx", "a".repeat(60));
+    let oversized = format!("{}éxyz", "a".repeat(60));
+
+    // Act
+    let result = fixture.execute(&format!(
+        "SELECT \"{retained}\" FROM (SELECT 7 AS \"{oversized}\") AS names"
+    ));
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("PostgreSQL truncates identifiers by UTF-8 byte length")
+            .rows(),
+        &[vec![Value::Int64(7)]]
     );
 }
 
@@ -530,17 +551,75 @@ fn should_resolve_schema_qualified_unary_operators() {
 }
 
 #[test]
-fn should_apply_postgres_bitwise_xor_with_left_associative_precedence() {
+fn should_use_left_associative_postgres_power_with_float8_result() {
     // Arrange
     let fixture = sql_fixture("issue-796-bitwise-xor-precedence", &[]);
 
     // Act
-    let result = fixture.execute("SELECT 1 ^ 2 ^ 3 AS value");
+    let result = fixture.execute("SELECT 2 ^ 3 ^ 2 AS value");
 
     // Assert
+    let result = result.expect("left-associative floating-point exponentiation");
+    assert_eq!(result.rows(), &[vec![Value::Float64(64.0)]]);
+    assert_eq!(result.columns()[0].type_oid, 701);
+}
+
+#[test]
+fn should_bind_postgres_cast_array_suffix_power_precedence() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-chained-array-cast-precedence", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT '7'::TEXT::INT4 AS chained, ('{10,20}'::INT[])[2] AS second_element, -2 ^ 2 AS unary_before_power, -(2::INT4 ^ 2) AS negated_power",
+    );
+
+    // Assert
+    let result = result.expect("chained casts, array suffix, and unary power precedence");
     assert_eq!(
-        result.expect("left-associative bitwise XOR").rows(),
-        &[vec![Value::Int64(0)]]
+        result.rows(),
+        &[vec![
+            Value::Int64(7),
+            Value::Int64(20),
+            Value::Float64(4.0),
+            Value::Float64(-4.0),
+        ]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23, 701, 701]
+    );
+}
+
+#[test]
+fn should_apply_postgres_arithmetic_before_string_concatenation() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-arithmetic-concatenation-precedence", &[]);
+
+    // Act
+    let result =
+        fixture.execute("SELECT 'a' || 1 + 2 AS text_right_add, 1 + 2 || 'b' AS add_left_text");
+
+    // Assert
+    let result = result.expect("arithmetic binds more tightly than concatenation");
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::String("a3".to_owned()),
+            Value::String("3b".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 25]
     );
 }
 
@@ -595,6 +674,27 @@ fn should_apply_expression_collation_to_ordering() {
             vec![Value::String("A".to_owned())],
             vec![Value::String("a".to_owned())],
             vec![Value::String("b".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_order_text_with_a_non_c_postgres_collation() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-non-c-collation-ordering", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT word FROM (VALUES ('z'), ('ä'), ('a')) AS words(word) ORDER BY word COLLATE \"en-US-x-icu\"",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("ICU English collation ordering").rows(),
+        &[
+            vec![Value::String("a".to_owned())],
+            vec![Value::String("ä".to_owned())],
+            vec![Value::String("z".to_owned())],
         ]
     );
 }
@@ -732,15 +832,26 @@ fn should_return_postgres_input_error_details_without_raising_for_invalid_text()
     let fixture = sql_fixture("issue-796-input-error-info", &[]);
 
     // Act
-    let result = fixture.execute("SELECT pg_input_error_info('bad', 'integer')");
+    let result = fixture.execute("SELECT * FROM pg_input_error_info('bad', 'integer')");
 
     // Assert
     let result = result.expect("pg_input_error_info reports conversion failure as data");
     assert_eq!(result.rows().len(), 1);
-    assert_eq!(result.columns().len(), 4);
-    assert!(matches!(&result.rows()[0][0], Value::String(_)));
-    assert!(matches!(&result.rows()[0][1], Value::String(_)));
-    assert!(result.rows()[0][2..]
-        .iter()
-        .all(|value| matches!(value, Value::Null | Value::String(_))));
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["message", "detail", "hint", "sql_error_code"]
+    );
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::String("invalid input syntax for type integer: \"bad\"".to_owned()),
+            Value::Null,
+            Value::Null,
+            Value::String("22P02".to_owned()),
+        ]]
+    );
 }

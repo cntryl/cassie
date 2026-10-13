@@ -61,10 +61,7 @@ fn should_keep_unfolded_expressions_lazy() {
             "SELECT CASE WHEN id < 0 THEN cp.id/0 ELSE 1 END AS selected FROM cp ORDER BY id",
             vec![vec![Value::Int64(1)], vec![Value::Int64(1)]],
         ),
-        (
-            "SELECT cp_empty.id/0 AS selected FROM cp_empty",
-            Vec::new(),
-        ),
+        ("SELECT cp_empty.id/0 AS selected FROM cp_empty", Vec::new()),
         (
             "SELECT CASE WHEN true THEN 1 ELSE 1/0 END AS selected FROM cp_empty",
             Vec::new(),
@@ -93,10 +90,7 @@ fn should_keep_unfolded_expressions_lazy() {
             "SELECT id FROM cp_empty WHERE id < 0 AND (true OR 1/0 = 1)",
             Vec::new(),
         ),
-        (
-            "SELECT 1/NULL AS selected FROM cp_empty",
-            Vec::new(),
-        ),
+        ("SELECT 1/NULL AS selected FROM cp_empty", Vec::new()),
         (
             "WITH c AS (SELECT 1/0 AS x FROM cp_empty) SELECT id FROM cp_empty",
             Vec::new(),

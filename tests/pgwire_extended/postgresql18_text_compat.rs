@@ -225,13 +225,78 @@ fn should_bind_text_patterns_to_tsquery_constructors() {
 
     // Assert
     assert_eq!(wire::error_code(result), None);
-    let columns = result
+    let columns = batches[1]
         .iter()
         .find(|frame| frame.0 == b'T')
-        .expect("tsquery RowDescription");
+        .expect("statement Describe RowDescription");
     assert_eq!(wire::parse_row_description(&columns.1)[0].type_oid, 3615);
+    assert!(
+        !result.iter().any(|frame| frame.0 == b'T'),
+        "Execute without portal Describe must not send another RowDescription"
+    );
     assert_eq!(
         wire::data_rows(result),
         vec![vec![Some("'blue' & 'sky'".to_owned())]]
     );
+}
+
+#[test]
+fn should_return_unique_violation_for_duplicate_text_search_mapping() {
+    // Arrange
+    let batches = run_script(
+        "issue-799-duplicate-text-search-mapping",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE TEXT SEARCH CONFIGURATION issue_799_duplicate (COPY = pg_catalog.english)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "ALTER TEXT SEARCH CONFIGURATION issue_799_duplicate ADD MAPPING FOR asciiword WITH pg_catalog.english_stem",
+            )]),
+        ],
+    );
+
+    // Act
+    let created = &batches[0];
+    let duplicate_mapping = &batches[1];
+
+    // Assert
+    assert_eq!(wire::error_code(created), None);
+    assert_eq!(
+        wire::error_code(duplicate_mapping).as_deref(),
+        Some("23505")
+    );
+}
+
+#[test]
+fn should_report_missing_text_search_parser_callback_with_42883() {
+    // Arrange
+    let batches = run_script(
+        "issue-799-missing-parser-callback",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TEXT SEARCH PARSER issue_799_parser (START = issue_start, GETTOKEN = issue_next, END = issue_end, LEXTYPES = issue_lex_types)",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(wire::error_code(result).as_deref(), Some("42883"));
+}
+
+#[test]
+fn should_report_missing_text_search_template_callback_with_42883() {
+    // Arrange
+    let batches = run_script(
+        "issue-799-missing-template-callback",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TEXT SEARCH TEMPLATE issue_799_template (INIT = issue_init, LEXIZE = issue_lexize)",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(wire::error_code(result).as_deref(), Some("42883"));
 }

@@ -299,31 +299,35 @@ fn should_revalidate_numeric_output_after_supported_float_cache_warmup() {
 }
 
 #[test]
-fn should_preserve_fixed_numeric_operation_outputs() {
+fn should_preserve_postgresql_numeric_operation_result_contracts() {
     // Arrange
     let statements = [
-        ("SELECT ABS($1) AS v", 700, false),
-        ("SELECT SUM($1) AS v", 700, false),
-        ("SELECT AVG($1) AS v", 1700, false),
-        ("SELECT COUNT($1) AS v", 1700, true),
+        ("SELECT ABS($1) AS v", 700, 700, 4, false),
+        ("SELECT SUM($1) AS v", 700, 700, 4, false),
+        ("SELECT AVG($1) AS v", 1700, 1700, -1, false),
+        ("SELECT COUNT($1) AS v", 1700, 20, 8, true),
     ];
-    let inputs: [(Option<&[u8]>, Option<f64>); 3] = [
-        (Some(b"2"), Some(2.0)),
-        (Some(b"2.5"), Some(2.5)),
-        (None, None),
-    ];
+    let inputs: [Option<&[u8]>; 3] = [Some(b"2"), Some(b"2.5"), None];
     let mut cases = Vec::new();
     let mut cycles = Vec::new();
-    for (sql, oid, count) in statements {
+    for (sql, parameter_oid, result_oid, result_size, count) in statements {
         for format in [0, 1] {
-            for (input, value) in inputs {
+            for input in inputs {
                 cycles.push(fixture::execute_cycle(
                     sql,
-                    Some((oid, 0, input)),
+                    Some((parameter_oid, 0, input)),
                     format,
                     true,
                 ));
-                cases.push((sql, oid, format, value, count));
+                cases.push((
+                    sql,
+                    parameter_oid,
+                    result_oid,
+                    result_size,
+                    format,
+                    input,
+                    count,
+                ));
             }
         }
     }
@@ -332,35 +336,66 @@ fn should_preserve_fixed_numeric_operation_outputs() {
     let batches = fixture::run_cycles("type-numeric-fixed-operation-boundary", &[], cycles);
 
     // Assert
-    for ((sql, oid, format, value, count), frames) in cases.into_iter().zip(batches) {
+    for ((sql, parameter_oid, result_oid, result_size, format, input, count), frames) in
+        cases.into_iter().zip(batches)
+    {
         fixture::assert_success(&frames);
         fixture::assert_single_column_descriptors(
             &frames,
-            (if count { 20 } else { 701 }, 8, -1),
+            (result_oid, result_size, -1),
             format,
             true,
         );
-        assert_parameter_oid(&frames, oid);
+        assert_parameter_oid(&frames, parameter_oid);
         let expected = if count {
-            let count = i64::from(value.is_some());
+            let count = i64::from(input.is_some());
             if format == 1 {
                 fixture::one_field_row(&count.to_be_bytes())
             } else {
                 fixture::one_field_row(count.to_string().as_bytes())
             }
-        } else {
-            value.map_or_else(
+        } else if result_oid == 1700 {
+            input.map_or_else(
                 || vec![0, 1, 255, 255, 255, 255],
-                |value| {
+                |input| {
                     if format == 1 {
+                        let numeric = if input == b"2" {
+                            [0, 1, 0, 0, 0, 0, 0, 16, 0, 2].as_slice()
+                        } else {
+                            [0, 2, 0, 0, 0, 0, 0, 16, 0, 2, 19, 136].as_slice()
+                        };
+                        fixture::one_field_row(numeric)
+                    } else {
+                        let text = if input == b"2" {
+                            b"2.0000000000000000".as_slice()
+                        } else {
+                            b"2.5000000000000000".as_slice()
+                        };
+                        fixture::one_field_row(text)
+                    }
+                },
+            )
+        } else {
+            input.map_or_else(
+                || vec![0, 1, 255, 255, 255, 255],
+                |input| {
+                    if format == 1 {
+                        let value = std::str::from_utf8(input)
+                            .expect("numeric input is UTF-8")
+                            .parse::<f32>()
+                            .expect("valid float4 input");
                         fixture::one_field_row(&value.to_be_bytes())
                     } else {
-                        fixture::one_field_row(value.to_string().as_bytes())
+                        fixture::one_field_row(input)
                     }
                 },
             )
         };
-        assert_eq!(fixture::data_row_payloads(&frames), vec![expected], "{sql}");
+        assert_eq!(
+            fixture::data_row_payloads(&frames),
+            vec![expected],
+            "{parameter_oid}:{sql}"
+        );
     }
 }
 

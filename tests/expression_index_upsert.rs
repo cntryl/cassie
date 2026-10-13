@@ -137,12 +137,16 @@ fn should_ignore_expression_reservation_owners_deleted_or_rekeyed_in_the_current
     run(
         &cassie,
         &session,
-        &format!("INSERT INTO {TABLE} (id, email) VALUES (2, 'OWNER@example.com') ON CONFLICT DO NOTHING"),
+        &format!(
+            "INSERT INTO {TABLE} (id, email) VALUES (2, 'OWNER@example.com') ON CONFLICT DO NOTHING"
+        ),
     );
     run(
         &cassie,
         &session,
-        &format!("INSERT INTO {TABLE} (id, email) VALUES (3, 'DELETED@example.com') ON CONFLICT DO NOTHING"),
+        &format!(
+            "INSERT INTO {TABLE} (id, email) VALUES (3, 'DELETED@example.com') ON CONFLICT DO NOTHING"
+        ),
     );
     run(&cassie, &session, "COMMIT");
 
@@ -191,7 +195,9 @@ fn should_check_staged_expression_reservation_owner_in_the_current_transaction()
     run(
         &cassie,
         &session,
-        &format!("INSERT INTO {TABLE} (id, email) VALUES (2, 'OWNER@example.com') ON CONFLICT DO NOTHING"),
+        &format!(
+            "INSERT INTO {TABLE} (id, email) VALUES (2, 'OWNER@example.com') ON CONFLICT DO NOTHING"
+        ),
     );
     run(&cassie, &session, "COMMIT");
 
@@ -199,6 +205,53 @@ fn should_check_staged_expression_reservation_owner_in_the_current_transaction()
     assert_eq!(
         rows(&cassie, &session, &format!("SELECT id FROM {TABLE}")),
         vec![vec![Value::Int64(1)]]
+    );
+    cleanup(cassie, path);
+}
+
+#[test]
+fn should_match_a_unique_conflict_index_with_its_explicit_operator_class() {
+    // Arrange
+    let (cassie, session, path) = start("explicit-conflict-operator-class");
+    run(
+        &cassie,
+        &session,
+        &format!("CREATE UNIQUE INDEX expression_index_upsert_email ON {TABLE} (email)"),
+    );
+    run(
+        &cassie,
+        &session,
+        &format!("INSERT INTO {TABLE} (id, email) VALUES (1, 'alpha@example.com')"),
+    );
+
+    // Act
+    let updated = cassie
+        .execute_sql(
+            &session,
+            &format!(
+                "INSERT INTO {TABLE} (id, email) VALUES (2, 'alpha@example.com') \
+                 ON CONFLICT (email text_ops) DO UPDATE SET id = excluded.id \
+                 RETURNING id, email"
+            ),
+            vec![],
+        )
+        .expect("infer the unique index using its explicit operator class");
+    let stored = rows(&cassie, &session, &format!("SELECT id, email FROM {TABLE}"));
+
+    // Assert
+    assert_eq!(
+        updated.rows(),
+        &[vec![
+            Value::Int64(2),
+            Value::String("alpha@example.com".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        stored,
+        vec![vec![
+            Value::Int64(2),
+            Value::String("alpha@example.com".to_owned()),
+        ]]
     );
     cleanup(cassie, path);
 }

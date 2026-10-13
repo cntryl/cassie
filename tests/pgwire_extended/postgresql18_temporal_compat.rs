@@ -80,7 +80,7 @@ fn should_describe_temporal_values_with_postgresql_identities() {
 #[test]
 fn should_apply_temporal_typmods_in_protocol_metadata() {
     // Arrange
-    let sql = "SELECT TIME(3) '03:04:05.0067' AS t, TIMESTAMP(2) '2000-01-02 03:04:05.006' AS ts, TIMESTAMPTZ(4) '2000-01-02 03:04:05.00678+00' AS tz, INTERVAL SECOND(3) '5.0067 seconds' AS i";
+    let sql = "SELECT TIME(3) '03:04:05.0067' AS t, TIMESTAMP(2) '2000-01-02 03:04:05.006' AS ts, TIMESTAMPTZ(4) '2000-01-02 03:04:05.00678+00' AS tz, INTERVAL '5.0067 seconds' SECOND(3) AS i";
     let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
 
     // Act
@@ -105,7 +105,7 @@ fn should_apply_temporal_typmods_in_protocol_metadata() {
             .iter()
             .map(|column| column.type_mod)
             .collect::<Vec<_>>(),
-        vec![3, 2, 4, 3]
+        vec![3, 2, 4, 268_435_459]
     );
     assert_eq!(
         wire::data_rows(&batches[0]),
@@ -409,7 +409,7 @@ fn should_render_all_interval_style_outputs() {
     );
     assert_eq!(
         wire::data_rows(&batches[5]),
-        vec![vec![Some("1-2 3 4:05:06.007".to_owned())]]
+        vec![vec![Some("+1-2 +3 +4:05:06.007".to_owned())]]
     );
     assert_eq!(
         wire::data_rows(&batches[7]),

@@ -101,6 +101,256 @@ fn should_reject_non_numeric_aggregate_carriers_with_exact_wire_errors() {
 }
 
 #[test]
+fn should_preserve_declared_json_recordset_fields() {
+    // Arrange
+    let sql = "SELECT id, n FROM jsonb_to_recordset('[{\"id\":1,\"n\":1},{\"id\":2,\"n\":null},{\"id\":3}]'::jsonb) AS records(id INTEGER, n INTEGER) ORDER BY id";
+    let cycles = vec![fixture::execute_cycle(sql, None, 0, true)];
+
+    // Act
+    let batches = fixture::run_cycles("type-json-recordset-null-fields", &[], cycles);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("recordset RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![Some("1".to_owned()), Some("1".to_owned())],
+            vec![Some("2".to_owned()), None],
+            vec![Some("3".to_owned()), None],
+        ]
+    );
+}
+
+#[test]
+fn should_abort_json_recordset_on_a_later_typed_conversion_error_without_partial_rows() {
+    // Arrange
+    let sql = "SELECT id, n FROM jsonb_to_recordset('[{\"id\":1,\"n\":1},{\"id\":2,\"n\":\"bad\"}]'::jsonb) AS records(id INTEGER, n INTEGER) ORDER BY id";
+    let cycles = vec![
+        fixture::execute_cycle(sql, None, 0, true),
+        fixture::execute_cycle("SELECT 42", None, 0, true),
+    ];
+
+    // Act
+    let batches = fixture::run_cycles("type-json-recordset-later-conversion-error", &[], cycles);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22P02"));
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+    fixture::assert_success(&batches[1]);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
+fn should_construct_sql_json_values_with_null_policy() {
+    // Arrange
+    let sql = "SELECT JSON_OBJECT('a' VALUE 1, 'b' VALUE NULL ABSENT ON NULL), JSON_ARRAY(1, NULL, 2 ABSENT ON NULL), JSON_SCALAR('hello')";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-sql-json-constructors", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("SQL/JSON constructor RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![114, 114, 114]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some(r#"{"a" : 1}"#.to_owned()),
+            Some("[1, 2]".to_owned()),
+            Some(r#""hello""#.to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_evaluate_jsonpath_array_accessors_in_both_modes() {
+    // Arrange
+    let sql = "SELECT jsonb_path_query_array('{\"a\":[1,2]}'::JSONB, 'strict $.a[*]'), jsonb_path_query_array('{\"a\":1}'::JSONB, 'lax $.a[*]')";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-jsonpath-strict-lax-array-access", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSONPath result RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![3802, 3802]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("[1, 2]".to_owned()), Some("[1]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_return_typed_sql_json_query_exists_results() {
+    // Arrange
+    let sql = "SELECT JSON_VALUE('{\"n\":42}', '$.n' RETURNING INTEGER), JSON_QUERY('{\"n\":[1,2]}', '$.n'), JSON_EXISTS('{\"n\":42}', '$.n')";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-sql-json-query-functions", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("SQL/JSON query function RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 114, 16]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("42".to_owned()),
+            Some("[1, 2]".to_owned()),
+            Some("t".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_order_json_array_aggregate_without_null_inputs() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE json_array_aggregate_order_input (n INT, value TEXT)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO json_array_aggregate_order_input VALUES (2, 'b'), (1, 'a'), (3, NULL)",
+            Vec::new(),
+        ),
+    ];
+    let sql = "SELECT JSON_ARRAYAGG(value ORDER BY n ABSENT ON NULL) FROM json_array_aggregate_order_input";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "type-json-array-aggregate-order-null-policy",
+        &setup,
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSON_ARRAYAGG RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 114);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("[\"a\", \"b\"]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_enforce_unique_json_object_aggregate_keys_with_sqlstate() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE json_object_aggregate_unique_input (key TEXT, value TEXT)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO json_object_aggregate_unique_input VALUES ('x', 'a'), ('y', 'b')",
+            Vec::new(),
+        ),
+        (
+            "CREATE TABLE json_object_aggregate_duplicate_input (key TEXT, value TEXT)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO json_object_aggregate_duplicate_input VALUES ('x', 'a'), ('x', 'b')",
+            Vec::new(),
+        ),
+    ];
+    let success = fixture::execute_cycle(
+        "SELECT JSON_OBJECTAGG(key VALUE value WITH UNIQUE KEYS) FROM json_object_aggregate_unique_input",
+        None,
+        0,
+        true,
+    );
+    let duplicate = fixture::execute_cycle(
+        "SELECT JSON_OBJECTAGG(key VALUE value WITH UNIQUE KEYS) FROM json_object_aggregate_duplicate_input",
+        None,
+        0,
+        true,
+    );
+    let recovery = fixture::execute_cycle("SELECT 42", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "type-json-object-aggregate-unique-keys",
+        &setup,
+        vec![success, duplicate, recovery],
+    );
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("{ \"x\" : \"a\", \"y\" : \"b\" }".to_owned())]]
+    );
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("22030"));
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+    fixture::assert_success(&batches[2]);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
 fn should_preserve_ordinary_json_numeric_aggregates_in_both_wire_formats() {
     // Arrange
     let setup = [
@@ -547,4 +797,153 @@ fn should_preserve_ordinary_json_scalar_predicate_carriers() {
             );
         }
     }
+}
+
+#[test]
+fn should_preserve_json_null_when_expanding_jsonb_array_elements_text() {
+    // Arrange
+    let sql = "SELECT value FROM jsonb_array_elements_text('[null,\"a\",\"c\"]'::jsonb) AS value ORDER BY value NULLS FIRST";
+    let cycles = vec![fixture::execute_cycle(sql, None, 0, true)];
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-jsonb-array-elements-text", &[], cycles);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSON array-element RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![None],
+            vec![Some("a".to_owned())],
+            vec![Some("c".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_distinguish_json_null_from_missing_or_sql_null_with_jsonb_operators() {
+    // Arrange
+    let sql = "SELECT ('{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB -> 'present'), ('{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB -> 'missing'), '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ->> 'present', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB #> '{nested,x}', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB #>> '{nested,x}', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ? 'present', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ? 'missing'";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-jsonb-operator-null-missing", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSONB operator RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![3802, 3802, 25, 3802, 25, 16, 16]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("null".to_owned()),
+            None,
+            None,
+            Some("true".to_owned()),
+            Some("true".to_owned()),
+            Some("t".to_owned()),
+            Some("f".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_preserve_large_integer_values_in_jsonb_constructors() {
+    // Arrange
+    let sql = "SELECT jsonb_build_object('wide', 9007199254740993, 'sql_null', NULL), jsonb_build_array(1, NULL, 'x'), jsonb_typeof(jsonb_build_object('a', 1))";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-jsonb-builders-exact-values", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSONB builder RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![3802, 3802, 25]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some(r#"{"wide": 9007199254740993, "sql_null": null}"#.to_owned()),
+            Some(r#"[1, null, "x"]"#.to_owned()),
+            Some("object".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_order_jsonb_aggregate_with_both_json_sql_null_inputs() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE jsonb_aggregate_order_input (ordinal INT, payload JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO jsonb_aggregate_order_input VALUES (2, '{\"n\":2}'), (1, 'null'), (3, NULL), (4, '{\"n\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_agg(payload ORDER BY ordinal) FROM jsonb_aggregate_order_input",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "type-jsonb-aggregate-order-null-inputs",
+        &setup,
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSONB aggregate RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)[0].type_oid,
+        3802
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some(
+            "[null, {\"n\": 2}, null, {\"n\": 1}]".to_owned()
+        )]]
+    );
 }

@@ -2,6 +2,7 @@
 
 use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 
 #[test]
 fn should_match_unknown_carrier_lengths_across_metadata_surfaces() {
@@ -89,4 +90,111 @@ fn should_preserve_declared_null_result_descriptors() {
             assert_eq!(fixture::data_row_payloads(frames), expected);
         }
     }
+}
+
+#[test]
+fn should_infer_oid_zero_integer_parameter_for_binary_bind() {
+    // Arrange
+    let int4 = 1_i32.to_be_bytes();
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "oid_zero_int4_comparison",
+            "SELECT $1 = 1",
+            &[0],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("oid_zero_int4_comparison"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "oid_zero_int4_portal",
+                "oid_zero_int4_comparison",
+                &[1],
+                &[Some(&int4)],
+                &[],
+            ),
+            wire::describe_portal_frame("oid_zero_int4_portal"),
+            wire::execute_frame("oid_zero_int4_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("type-oid-zero-int4-binary-bind", steps);
+
+    // Assert
+    assert_eq!(
+        batches[0].iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
+        vec![b'1']
+    );
+    let statement_description = &batches[1];
+    let parameter_types = statement_description
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("inferred ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_types.1),
+        vec![23]
+    );
+    let result_description = statement_description
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("comparison RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&result_description.1)[0].type_oid,
+        16
+    );
+    assert_eq!(wire::error_code(&batches[2]), None);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("t".to_owned())]]
+    );
+}
+
+#[test]
+fn should_infer_coalesce_result_types_for_all_null_inputs() {
+    // Arrange
+    let sql = "SELECT COALESCE(NULL, NULL) AS all_null_value, COALESCE(NULL, 1) AS unknown_value";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-all-null-unknown-inference", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let expected_columns = vec![
+        wire::RowDescription {
+            name: "all_null_value".into(),
+            table_oid: 0,
+            attr_num: 0,
+            type_oid: 25,
+            type_size: -1,
+            type_mod: -1,
+            format_code: 0,
+        },
+        wire::RowDescription {
+            name: "unknown_value".into(),
+            table_oid: 0,
+            attr_num: 0,
+            type_oid: 23,
+            type_size: 4,
+            type_mod: -1,
+            format_code: 0,
+        },
+    ];
+    let descriptions = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'T')
+        .map(|(_, body)| wire::parse_row_description(body))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        descriptions,
+        vec![expected_columns.clone(), expected_columns]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![None, Some("1".to_owned())]]
+    );
 }

@@ -1,6 +1,7 @@
 //! Finite `pg_type` discovery under the selected #752 contract.
 
 use super::support_sql_fixture::sql_fixture;
+use cassie::app::Cassie;
 use cassie::types::Value;
 
 fn type_row(oid: i64, name: &str, length: i64, element: i64) -> Vec<Value> {
@@ -13,27 +14,26 @@ fn type_row(oid: i64, name: &str, length: i64, element: i64) -> Vec<Value> {
 }
 
 #[test]
-fn should_discover_every_supported_scalar_array_family() {
+fn should_discover_scalar_array_families_with_postgresql_identities() {
     // Arrange
     let fixture = sql_fixture("finite-type-array-families", &[]);
     fixture.cassie.startup().expect("startup");
-    // Literal oracle: Cassie's selected private ARRAY OIDs, not PostgreSQL's
-    // standard array OIDs or values obtained from the production DataType map.
+    // Literal oracle from PostgreSQL 18.6 pg_type, independent of Cassie's map.
     let expected = [
-        (34_016, "boolean[]", 16),
-        (34_017, "bytea[]", 17),
-        (34_020, "bigint[]", 20),
-        (34_021, "smallint[]", 21),
-        (34_023, "int[]", 23),
-        (34_025, "text[]", 25),
-        (34_114, "json[]", 114),
-        (34_701, "float[]", 701),
-        (35_042, "char[]", 1_042),
-        (35_043, "varchar[]", 1_043),
-        (35_082, "date[]", 1_082),
-        (35_083, "time[]", 1_083),
-        (35_114, "timestamp[]", 1_114),
-        (36_950, "uuid[]", 2_950),
+        (199, "_json", 114),
+        (1_000, "_bool", 16),
+        (1_001, "_bytea", 17),
+        (1_005, "_int2", 21),
+        (1_007, "_int4", 23),
+        (1_009, "_text", 25),
+        (1_014, "_bpchar", 1_042),
+        (1_015, "_varchar", 1_043),
+        (1_016, "_int8", 20),
+        (1_022, "_float8", 701),
+        (1_115, "_timestamp", 1_114),
+        (1_182, "_date", 1_082),
+        (1_183, "_time", 1_083),
+        (2_951, "_uuid", 2_950),
     ]
     .map(|(oid, name, element)| type_row(oid, name, -1, element))
     .to_vec();
@@ -60,16 +60,16 @@ fn should_preserve_scalar_registry_identity_across_column_modifiers() {
         )
         .expect("character columns with distinct modifiers");
     let expected = [
-        (16, "boolean", 1),
+        (16, "bool", 1),
         (17, "bytea", -1),
-        (20, "bigint", 8),
-        (21, "smallint", 2),
-        (23, "int", 4),
+        (20, "int8", 8),
+        (21, "int2", 2),
+        (23, "int4", 4),
         (25, "text", -1),
         (114, "json", -1),
-        (701, "float", 8),
-        (705, "null", -2),
-        (1_042, "char", -1),
+        (701, "float8", 8),
+        (705, "unknown", -2),
+        (1_042, "bpchar", -1),
         (1_043, "varchar", -1),
         (1_082, "date", 4),
         (1_083, "time", 8),
@@ -136,6 +136,72 @@ fn should_omit_unreferenced_vector_type_rows() {
 }
 
 #[test]
+fn should_resolve_regtype_aliases_with_nullable_lookup() {
+    // Arrange
+    let fixture = sql_fixture("regtype-alias-and-missing-name", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT 'pg_catalog.int4'::regtype, 'integer'::regtype = 'int4'::regtype, to_regtype('type_that_does_not_exist') IS NULL",
+        )
+        .expect("regtype alias and nullable lookup");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::Int64(23), Value::Bool(true), Value::Bool(true),]]
+    );
+}
+
+struct TypeCatalogDirectory(String);
+
+impl Drop for TypeCatalogDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn should_preserve_declared_type_identity_with_typmod_after_restart() {
+    // Arrange
+    super::support_sql::use_local_storage();
+    let path = super::support_sql::data_dir("issue-904-type-catalog-restart");
+    let _directory = TypeCatalogDirectory(path.clone());
+    {
+        let cassie = Cassie::new_with_data_dir(&path).expect("first Cassie instance");
+        cassie.startup().expect("first startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE issue_904_persisted_type (amount NUMERIC(5, 2))",
+                vec![],
+            )
+            .expect("persisted numeric column");
+    }
+
+    // Act
+    let cassie = Cassie::new_with_data_dir(&path).expect("reopened Cassie instance");
+    cassie.startup().expect("restart startup");
+    let session = cassie.create_session("tester", None);
+    let selected = cassie
+        .execute_sql(
+            &session,
+            "SELECT atttypid, atttypmod FROM pg_attribute WHERE attrelid = 'issue_904_persisted_type' AND attname = 'amount'",
+            vec![],
+        )
+        .expect("persisted type descriptor");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::Int64(1_700), Value::Int64(327_686)]]
+    );
+}
+
+#[test]
 fn should_deduplicate_supported_schema_vector_identities() {
     // Arrange
     let fixture = sql_fixture("finite-type-vector-identities", &[]);
@@ -177,14 +243,14 @@ fn should_deduplicate_supported_schema_vector_identities() {
         };
         assert!(oids.insert(*oid), "duplicate registry OID");
     }
-    // ARRAY(VECTOR(7016)) has the existing durable OID34016. Its excluded
-    // wire identity must not replace or duplicate supported BOOLEAN[].
+    // ARRAY(VECTOR(7016)) is outside the selected wire type inventory and must
+    // not replace the PostgreSQL standard BOOLEAN[] identity.
     assert_eq!(
         all_types
             .rows()
             .iter()
-            .find(|row| row[0] == Value::Int64(34_016)),
-        Some(&type_row(34_016, "boolean[]", -1, 16))
+            .find(|row| row[0] == Value::Int64(1_000)),
+        Some(&type_row(1_000, "_bool", -1, 16))
     );
     assert_eq!(all_types.rows().len(), 32);
 }
@@ -230,4 +296,118 @@ fn should_discover_vector_types_within_the_current_database() {
     // Assert
     assert_eq!(current.rows(), vec![type_row(100_002, "vector(2)", -1, 0)]);
     assert_eq!(other.rows(), vec![type_row(100_007, "vector(7)", -1, 0)]);
+}
+
+#[test]
+fn should_return_null_for_missing_regtype_aliases() {
+    // Arrange
+    let fixture = sql_fixture("regtype-alias-and-missing-name", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT 'pg_catalog.int4'::regtype::oid, 'integer'::regtype = 'int4'::regtype, to_regtype('type_that_does_not_exist') IS NULL",
+        )
+        .expect("regtype alias and nullable lookup");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::Int64(23), Value::Bool(true), Value::Bool(true),]]
+    );
+}
+
+#[test]
+fn should_resolve_regclass_names_across_search_path_then_drop() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regclass-search-path-drop", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE SCHEMA issue_818_regclass_lookup")
+        .expect("lookup schema");
+    fixture
+        .execute("CREATE TABLE issue_818_regclass_lookup.item (id INTEGER)")
+        .expect("lookup table");
+    fixture
+        .execute("SET search_path TO issue_818_regclass_lookup, public")
+        .expect("search path");
+
+    // Act
+    let resolved = fixture
+        .execute(
+            "SELECT to_regclass('item') = to_regclass('issue_818_regclass_lookup.item'), to_regclass('missing_item') IS NULL",
+        )
+        .expect("regclass lookup in search path");
+    fixture
+        .execute("DROP TABLE item")
+        .expect("drop lookup table");
+    let missing = fixture
+        .execute("SELECT to_regclass('item') IS NULL")
+        .expect("missing regclass lookup after drop");
+
+    // Assert
+    assert_eq!(
+        resolved.rows(),
+        &[vec![Value::Bool(true), Value::Bool(true),]]
+    );
+    assert_eq!(missing.rows(), &[vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_discover_postgresql_catalog_rows_for_supported_type_families() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-additional-builtin-type-rows", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT oid, typname, typlen FROM pg_catalog.pg_type WHERE typname IN ('xml', 'money', 'point', 'lseg', 'path', 'box', 'polygon', 'line', 'circle', 'int4range', 'int4multirange') ORDER BY oid",
+        )
+        .expect("additional finite PostgreSQL type rows");
+
+    // Assert
+    let expected = [
+        (142, "xml", -1),
+        (600, "point", 16),
+        (601, "lseg", 32),
+        (602, "path", -1),
+        (603, "box", 32),
+        (604, "polygon", -1),
+        (628, "line", 24),
+        (718, "circle", 24),
+        (790, "money", 8),
+        (3_904, "int4range", -1),
+        (4_451, "int4multirange", -1),
+    ]
+    .map(|(oid, name, length)| {
+        vec![
+            Value::Int64(oid),
+            Value::String(name.to_owned()),
+            Value::Int64(length),
+        ]
+    })
+    .to_vec();
+    assert_eq!(selected.rows(), expected);
+}
+
+#[test]
+fn should_resolve_regprocedure_signature_aliases_including_missing_overloads() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regprocedure-overload-resolution", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT to_regprocedure('pg_catalog.abs(integer)') = to_regprocedure('pg_catalog.abs(int4)'), to_regprocedure('pg_catalog.abs(text)') IS NULL",
+        )
+        .expect("regprocedure aliases and nullable lookup");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::Bool(true), Value::Bool(true)]]
+    );
 }

@@ -206,7 +206,7 @@ fn should_preserve_boolean_array_wire_identity_after_vector_array_rejection() {
     fixture::assert_unsupported_before_metadata(&batches[0]);
     for (format, frames) in [0, 1].into_iter().zip(&batches[1..]) {
         fixture::assert_success(frames);
-        fixture::assert_single_column_descriptors(frames, (34_016, -1, -1), format, true);
+        fixture::assert_single_column_descriptors(frames, (1000, -1, -1), format, true);
         let expected = if format == 0 {
             fixture::one_field_row(b"[false,null,true]")
         } else {

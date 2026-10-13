@@ -116,7 +116,7 @@ fn should_preserve_array_window_result_carriers() {
     assert_eq!(batches.len(), 16);
     for ((function, parameterized, describe, format), frames) in cases.into_iter().zip(batches) {
         fixture::assert_success(&frames);
-        fixture::assert_single_column_descriptors(&frames, (34_023, -1, -1), format, describe);
+        fixture::assert_single_column_descriptors(&frames, (1007, -1, -1), format, describe);
         let (empty, populated) = if format == 1 {
             (empty_binary, populated_binary)
         } else {

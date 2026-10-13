@@ -239,22 +239,28 @@ fn should_reject_invalid_formatted_timestamp_input() {
 }
 
 #[test]
-fn should_reject_out_of_range_make_time_hour() {
+fn should_accept_make_time_hour_24() {
     // Arrange
-    let steps = vec![
-        Step::ThroughReady(vec![wire::simple_query_frame("SELECT MAKE_TIME(24, 0, 0)")]),
-        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 48")]),
-    ];
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT MAKE_TIME(24, 0, 0)",
+    )])];
 
     // Act
-    let batches = run_script("postgresql18-make-time-hour-range", steps);
+    let batches = run_script("postgresql18-make-time-hour-24", steps);
 
     // Assert
-    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22008"));
-    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("MAKE_TIME RowDescription");
     assert_eq!(
-        wire::data_rows(&batches[1]),
-        vec![vec![Some("48".to_owned())]]
+        wire::parse_row_description(&description.1)[0].type_oid,
+        1083
+    );
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("24:00:00".to_owned())]]
     );
 }
 

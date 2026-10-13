@@ -58,6 +58,23 @@ fn should_return_the_value_when_scalar_subquery_has_one_row() {
 }
 
 #[test]
+fn should_preserve_a_null_value_from_one_scalar_subquery_row() {
+    // Arrange
+    let fixture = subquery_fixture("issue-762-scalar-one-null-row");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT (SELECT value FROM subquery_inner WHERE owner_id = 1 AND value IS NULL) AS scalar_value",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("one-row NULL scalar subquery").rows(),
+        &[vec![Value::Null]]
+    );
+}
+
+#[test]
 fn should_reject_a_scalar_subquery_that_returns_multiple_rows() {
     // Arrange
     let fixture = subquery_fixture("issue-762-scalar-many-rows");
@@ -119,7 +136,87 @@ fn should_evaluate_scalar_subqueries_in_predicates() {
     // Assert
     assert_eq!(
         result.expect("scalar subquery in WHERE").rows(),
-        &[vec![Value::Int64(1)], vec![Value::Int64(2)]]
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_evaluate_scalar_subqueries_in_join_conditions() {
+    // Arrange
+    let fixture = subquery_fixture("issue-762-scalar-join-condition");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT outer_row.id, inner_row.value FROM subquery_outer AS outer_row JOIN subquery_scalar_by_owner AS inner_row ON inner_row.owner_id = (SELECT correlated.id FROM subquery_outer AS correlated WHERE correlated.id = outer_row.id) ORDER BY outer_row.id",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("scalar subquery in JOIN condition").rows(),
+        &[
+            vec![Value::Int64(1), Value::Int64(100)],
+            vec![Value::Int64(2), Value::Int64(200)],
+        ]
+    );
+}
+
+#[test]
+fn should_filter_groups_with_scalar_subqueries_in_having() {
+    // Arrange
+    let fixture = subquery_fixture("issue-762-scalar-having");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT id, COUNT(*) FROM subquery_outer GROUP BY id HAVING (SELECT value FROM subquery_scalar_by_owner WHERE owner_id = subquery_outer.id) > 100 ORDER BY id",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("scalar subquery in HAVING").rows(),
+        &[vec![Value::Int64(2), Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_order_rows_by_scalar_subquery_values() {
+    // Arrange
+    let fixture = subquery_fixture("issue-762-scalar-order-by");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT id FROM subquery_outer ORDER BY (SELECT -value FROM subquery_scalar_by_owner WHERE owner_id = subquery_outer.id) NULLS LAST",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("scalar subquery in ORDER BY").rows(),
+        &[
+            vec![Value::Int64(2)],
+            vec![Value::Int64(1)],
+            vec![Value::Int64(3)],
+        ]
+    );
+}
+
+#[test]
+fn should_pass_scalar_subquery_values_to_functions() {
+    // Arrange
+    let fixture = subquery_fixture("issue-762-scalar-function-argument");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT id, ABS((SELECT value - 201 FROM subquery_scalar_by_owner WHERE owner_id = subquery_outer.id)) FROM subquery_outer WHERE id < 3 ORDER BY id",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("scalar subquery as a function argument")
+            .rows(),
+        &[
+            vec![Value::Int64(1), Value::Int64(101)],
+            vec![Value::Int64(2), Value::Int64(1)],
+        ]
     );
 }
 
@@ -322,6 +419,40 @@ fn should_compare_row_values_with_a_row_subquery() {
 }
 
 #[test]
+fn should_apply_null_truth_semantics_to_row_subqueries() {
+    // Arrange
+    let fixture = subquery_fixture("issue-762-row-subquery-null-semantics");
+    fixture
+        .execute(
+            "INSERT INTO subquery_pairs (owner_id, left_value, right_value) VALUES (3, 10, NULL)",
+        )
+        .expect("insert row with a NULL field");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT ROW(10::INT4, NULL::INT4) = (SELECT left_value, right_value FROM subquery_pairs WHERE owner_id = 1), ROW(11::INT4, NULL::INT4) = (SELECT left_value, right_value FROM subquery_pairs WHERE owner_id = 1), ROW(10::INT4, 100::INT4) = (SELECT left_value, right_value FROM subquery_pairs WHERE owner_id = 99), ROW(10::INT4, 100::INT4) IN (SELECT left_value, right_value FROM subquery_pairs WHERE owner_id = 3)",
+    );
+    let filtered = fixture.execute(
+        "SELECT owner_id FROM subquery_pairs WHERE ROW(10::INT4, NULL::INT4) = (SELECT left_value, right_value FROM subquery_pairs WHERE owner_id = 1)",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("row-subquery NULL truth table").rows(),
+        &[vec![
+            Value::Null,
+            Value::Bool(false),
+            Value::Null,
+            Value::Null,
+        ]]
+    );
+    assert_eq!(
+        filtered.expect("NULL row comparison in WHERE").rows(),
+        &[] as &[Vec<Value>]
+    );
+}
+
+#[test]
 fn should_match_row_in_subqueries_with_matching_arity() {
     // Arrange
     let fixture = subquery_fixture("issue-762-row-in-subquery");
@@ -483,6 +614,30 @@ fn should_apply_result_row_limits_to_scalar_subquery_results() {
     assert!(
         matches!(result, Err(CassieError::ResourceLimit(_))),
         "scalar subquery must obey the result row cap: {result:?}"
+    );
+}
+
+#[test]
+fn should_detect_scalar_cardinality_before_the_inner_row_limit() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.limits.max_result_rows = 1;
+    let fixture = sql_fixture_with_config(
+        "issue-762-scalar-cardinality-before-row-limit",
+        &[
+            "CREATE TABLE cardinality_values (value INT)",
+            "INSERT INTO cardinality_values (value) VALUES (10), (20)",
+        ],
+        config,
+    );
+
+    // Act
+    let result = fixture.execute("SELECT (SELECT value FROM cardinality_values)");
+
+    // Assert
+    assert!(
+        matches!(result, Err(CassieError::CardinalityViolation(_))),
+        "a second scalar row must produce cardinality violation before the inner row cap: {result:?}"
     );
 }
 

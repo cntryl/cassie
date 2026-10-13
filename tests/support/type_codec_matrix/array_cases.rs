@@ -6,7 +6,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "smallint",
         sql_type: "SMALLINT[]",
-        oid: 34021,
+        oid: 1005,
         typlen: -1,
         typmod: -1,
         input_text: &[123, 45, 51, 50, 55, 54, 56, 44, 78, 85, 76, 76, 125],
@@ -25,7 +25,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "integer",
         sql_type: "INT[]",
-        oid: 34023,
+        oid: 1007,
         typlen: -1,
         typmod: -1,
         input_text: &[
@@ -50,7 +50,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "bigint",
         sql_type: "BIGINT[]",
-        oid: 34020,
+        oid: 1016,
         typlen: -1,
         typmod: -1,
         input_text: &[
@@ -78,7 +78,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "float",
         sql_type: "FLOAT[]",
-        oid: 34701,
+        oid: 1022,
         typlen: -1,
         typmod: -1,
         input_text: &[123, 51, 46, 53, 44, 78, 85, 76, 76, 125],
@@ -97,7 +97,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "boolean",
         sql_type: "BOOLEAN[]",
-        oid: 34016,
+        oid: 1000,
         typlen: -1,
         typmod: -1,
         input_text: &[123, 102, 97, 108, 115, 101, 44, 78, 85, 76, 76, 125],
@@ -116,7 +116,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "text",
         sql_type: "TEXT[]",
-        oid: 34025,
+        oid: 1009,
         typlen: -1,
         typmod: -1,
         input_text: &[123, 34, 78, 85, 76, 76, 34, 44, 78, 85, 76, 76, 125],
@@ -135,7 +135,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "char",
         sql_type: "CHAR(4)[]",
-        oid: 35042,
+        oid: 1014,
         typlen: -1,
         typmod: -1,
         input_text: &[123, 34, 195, 169, 65, 34, 44, 78, 85, 76, 76, 125],
@@ -154,7 +154,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "varchar",
         sql_type: "VARCHAR(4)[]",
-        oid: 35043,
+        oid: 1015,
         typlen: -1,
         typmod: -1,
         input_text: &[123, 34, 206, 188, 95, 195, 159, 34, 44, 78, 85, 76, 76, 125],
@@ -177,7 +177,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "uuid",
         sql_type: "UUID[]",
-        oid: 36950,
+        oid: 2951,
         typlen: -1,
         typmod: -1,
         input_text: &[
@@ -208,7 +208,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "bytea",
         sql_type: "BYTEA[]",
-        oid: 34017,
+        oid: 1001,
         typlen: -1,
         typmod: -1,
         input_text: &[
@@ -235,7 +235,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "date",
         sql_type: "DATE[]",
-        oid: 35082,
+        oid: 1182,
         typlen: -1,
         typmod: -1,
         input_text: &[
@@ -260,7 +260,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "time",
         sql_type: "TIME[]",
-        oid: 35083,
+        oid: 1183,
         typlen: -1,
         typmod: -1,
         input_text: &[
@@ -288,7 +288,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "timestamp",
         sql_type: "TIMESTAMP[]",
-        oid: 35114,
+        oid: 1115,
         typlen: -1,
         typmod: -1,
         input_text: &[
@@ -316,7 +316,7 @@ pub static ARRAY_CASES: [CodecCase; 14] = [
     CodecCase {
         name: "json",
         sql_type: "JSON[]",
-        oid: 34114,
+        oid: 199,
         typlen: -1,
         typmod: -1,
         input_text: &[

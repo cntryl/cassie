@@ -10,15 +10,19 @@ mod pgwire_parameter_slot_completeness;
 mod pgwire_extended {
     mod postgresql18_binary_bytea_compat;
     mod postgresql18_cte_compat;
+    mod postgresql18_geometry_compat;
     mod postgresql18_grammar;
     mod postgresql18_math_compat;
+    mod postgresql18_money_compat;
     mod postgresql18_network_compat;
     mod postgresql18_numeric_compat;
+    mod postgresql18_range_compat;
     mod postgresql18_string_compat;
     mod postgresql18_temporal_compat;
     mod postgresql18_temporal_function_compat;
     mod postgresql18_text_compat;
     mod postgresql18_uuid_hash_lsn_compat;
+    mod postgresql18_xml_compat;
     mod scalar_subqueries;
 }
 #[path = "pgwire_extended/unsigned_parameter_oids.rs"]

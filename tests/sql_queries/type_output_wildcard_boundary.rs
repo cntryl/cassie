@@ -42,9 +42,18 @@ fn should_preserve_projected_wildcard_identity_at_the_core_result_boundary() {
             vec!["label", "n"],
         ),
         ("SELECT * FROM core_wildcard_real_id", vec!["id", "label"]),
-        ("SELECT * FROM core_wildcard_plain CROSS JOIN core_wildcard_real_id", vec!["label", "n", "id", "label"]),
-        ("WITH c AS (SELECT * FROM core_wildcard_plain) SELECT * FROM c CROSS JOIN core_wildcard_real_id", vec!["label", "n", "id", "label"]),
-        ("SELECT * FROM (SELECT * FROM core_wildcard_plain) AS d CROSS JOIN core_wildcard_real_id", vec!["label", "n", "id", "label"]),
+        (
+            "SELECT * FROM core_wildcard_plain CROSS JOIN core_wildcard_real_id",
+            vec!["label", "n", "id", "label"],
+        ),
+        (
+            "WITH c AS (SELECT * FROM core_wildcard_plain) SELECT * FROM c CROSS JOIN core_wildcard_real_id",
+            vec!["label", "n", "id", "label"],
+        ),
+        (
+            "SELECT * FROM (SELECT * FROM core_wildcard_plain) AS d CROSS JOIN core_wildcard_real_id",
+            vec!["label", "n", "id", "label"],
+        ),
     ];
 
     // Act

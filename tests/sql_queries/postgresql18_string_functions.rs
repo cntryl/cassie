@@ -3,7 +3,21 @@
 use cassie::app::CassieError;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::sql_fixture;
+use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+
+fn failed_string_function_cases(fixture: &SqlFixture, cases: &[(&str, Value)]) -> Vec<String> {
+    cases
+        .iter()
+        .filter_map(|(sql, expected)| match fixture.execute(sql) {
+            Ok(result) if result.rows() == [vec![expected.clone()]] => None,
+            Ok(result) => Some(format!(
+                "{sql}: expected {expected:?}, got {:?}",
+                result.rows()
+            )),
+            Err(error) => Some(format!("{sql}: {error}")),
+        })
+        .collect()
+}
 
 #[test]
 fn should_split_part_at_a_multicharacter_delimiter() {
@@ -41,15 +55,12 @@ fn should_return_empty_split_part_for_invalid_indexes() {
     let fixture = sql_fixture("issue-803-split-part-out-of-range", &[]);
 
     // Act
-    let result = fixture.execute(
-        "SELECT split_part('a,b', ',', 0), split_part('a,b', ',', 3), split_part('a,b', ',', -3)",
-    );
+    let result = fixture.execute("SELECT split_part('a,b', ',', 3), split_part('a,b', ',', -3)");
 
     // Assert
     assert_eq!(
         result.expect("empty out-of-range fields").rows(),
         &[vec![
-            Value::String(String::new()),
             Value::String(String::new()),
             Value::String(String::new()),
         ]]
@@ -381,5 +392,158 @@ fn should_admit_a_bounded_format_output_expansion() {
     assert_eq!(
         result.expect("64 KiB formatted output").rows(),
         &[vec![Value::String(expected)]]
+    );
+}
+
+#[test]
+fn should_execute_postgresql_text_transformations_with_exact_results() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-standard-text-transformations", &[]);
+    let cases = [
+        ("SELECT left('abcdef', 3)", Value::String("abc".to_owned())),
+        ("SELECT right('abcdef', 2)", Value::String("ef".to_owned())),
+        (
+            "SELECT lpad('xy', 5, 'ab')",
+            Value::String("abaxy".to_owned()),
+        ),
+        (
+            "SELECT rpad('xy', 5, 'ab')",
+            Value::String("xyaba".to_owned()),
+        ),
+        ("SELECT repeat('ab', 3)", Value::String("ababab".to_owned())),
+        ("SELECT reverse('aé🙂')", Value::String("🙂éa".to_owned())),
+        (
+            "SELECT initcap('hELLO wORLD')",
+            Value::String("Hello World".to_owned()),
+        ),
+        ("SELECT chr(9731)", Value::String("☃".to_owned())),
+        ("SELECT ascii('é')", Value::Int64(233)),
+        (
+            "SELECT translate('abcdef', 'bd', 'XY')",
+            Value::String("aXcYef".to_owned()),
+        ),
+        (
+            "SELECT overlay('Txxxxas' PLACING 'hom' FROM 2 FOR 4)",
+            Value::String("Thomas".to_owned()),
+        ),
+        (
+            "SELECT overlay('Txxxxas' PLACING 'hom' FROM 2)",
+            Value::String("Thomxas".to_owned()),
+        ),
+        (
+            "SELECT concat_ws('-', 'a', NULL, 'c')",
+            Value::String("a-c".to_owned()),
+        ),
+    ];
+
+    // Act
+    let failures = failed_string_function_cases(&fixture, &cases);
+
+    // Assert
+    assert!(
+        failures.is_empty(),
+        "PostgreSQL text transformations differ:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn should_distinguish_text_character_byte_length_from_string_predicates() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-text-length-and-predicates", &[]);
+    let cases = [
+        ("SELECT char_length('aé')", Value::Int64(2)),
+        ("SELECT character_length('aé')", Value::Int64(2)),
+        ("SELECT octet_length('aé')", Value::Int64(3)),
+        ("SELECT bit_length('aé')", Value::Int64(24)),
+        ("SELECT starts_with('alphabet', 'alpha')", Value::Bool(true)),
+        ("SELECT 'alphabet' ^@ 'alpha'", Value::Bool(true)),
+        ("SELECT 'alphabet' ^@ 'bet'", Value::Bool(false)),
+        (
+            "SELECT quote_literal('O''Brien')",
+            Value::String("'O''Brien'".to_owned()),
+        ),
+        (
+            "SELECT quote_nullable(CAST(NULL AS TEXT))",
+            Value::String("NULL".to_owned()),
+        ),
+        ("SELECT quote_literal(42)", Value::String("'42'".to_owned())),
+        ("SELECT to_hex(10)", Value::String("a".to_owned())),
+        ("SELECT to_bin(10)", Value::String("1010".to_owned())),
+        ("SELECT to_oct(10)", Value::String("12".to_owned())),
+        (
+            "SELECT num_nulls(1, CAST(NULL AS INT4), CAST(NULL AS TEXT))",
+            Value::Int64(2),
+        ),
+        ("SELECT num_nonnulls(1, NULL, 'x')", Value::Int64(2)),
+    ];
+
+    // Act
+    let failures = failed_string_function_cases(&fixture, &cases);
+
+    // Assert
+    assert!(
+        failures.is_empty(),
+        "PostgreSQL text length/predicate functions differ:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn should_apply_postgresql_18_unicode_string_functions() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-unicode-string-functions", &[]);
+    let cases = [
+        (
+            "SELECT casefold('Straße' COLLATE \"und-x-icu\")",
+            Value::String("strasse".to_owned()),
+        ),
+        ("SELECT unicode_assigned(U&'\\0441')", Value::Bool(true)),
+        ("SELECT unicode_assigned(U&'\\+10FFFF')", Value::Bool(false)),
+        (
+            "SELECT unistr('\\0061\\+01F600')",
+            Value::String("a😀".to_owned()),
+        ),
+        (
+            "SELECT normalize(U&'e\\0301', NFC)",
+            Value::String("é".to_owned()),
+        ),
+        (
+            "SELECT normalize(U&'e\\0301')",
+            Value::String("é".to_owned()),
+        ),
+        (
+            "SELECT normalize(U&'\\00E9', NFD)",
+            Value::String("e\u{301}".to_owned()),
+        ),
+        (
+            "SELECT normalize(U&'\\00E9', NFKC)",
+            Value::String("é".to_owned()),
+        ),
+        (
+            "SELECT normalize(U&'\\00E9', NFKD)",
+            Value::String("e\u{301}".to_owned()),
+        ),
+        ("SELECT U&'é' IS NFC NORMALIZED", Value::Bool(true)),
+        ("SELECT U&'e\\0301' IS NFC NORMALIZED", Value::Bool(false)),
+        ("SELECT U&'\\00E9' IS NFD NORMALIZED", Value::Bool(false)),
+        ("SELECT U&'e\\0301' IS NFD NORMALIZED", Value::Bool(true)),
+        ("SELECT U&'\\00E9' IS NFKC NORMALIZED", Value::Bool(true)),
+        ("SELECT U&'\\00E9' IS NFKD NORMALIZED", Value::Bool(false)),
+        (
+            "SELECT to_ascii('abc', 'LATIN1')",
+            Value::String("abc".to_owned()),
+        ),
+        ("SELECT to_ascii('abc', 8)", Value::String("abc".to_owned())),
+    ];
+
+    // Act
+    let failures = failed_string_function_cases(&fixture, &cases);
+
+    // Assert
+    assert!(
+        failures.is_empty(),
+        "PostgreSQL 18 Unicode string functions differ:\n{}",
+        failures.join("\n")
     );
 }

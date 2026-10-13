@@ -258,13 +258,13 @@ fn should_evaluate_exponential_logarithm_functions() {
 #[test]
 fn should_calculate_logarithms_with_an_explicit_base() {
     // Arrange
-    let sql = "SELECT LOG(CAST(2 AS FLOAT), CAST(64 AS FLOAT))";
+    let sql = "SELECT LOG(CAST(2 AS NUMERIC), CAST(64 AS NUMERIC)) = CAST(6 AS NUMERIC)";
 
     // Act
-    let values = scalar_values("issue-813-log-base", sql);
+    let rows = predicate_rows("issue-813-log-base", sql);
 
     // Assert
-    assert_float_values(values, &[6.0]);
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
 }
 
 #[test]

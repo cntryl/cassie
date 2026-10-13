@@ -49,14 +49,22 @@ mod sql_pagination;
 mod sql_aliases;
 
 mod sql_queries {
+    mod postgresql18_aggregate_query_gaps;
     mod postgresql18_binary_bytea;
     mod postgresql18_ctes;
+    mod postgresql18_geometry;
     mod postgresql18_math_functions;
+    mod postgresql18_money;
     mod postgresql18_network_types;
     mod postgresql18_numeric;
     mod postgresql18_pattern_matching;
+    mod postgresql18_ranges;
     mod postgresql18_relations;
+    mod postgresql18_rules;
     mod postgresql18_set_operations;
+    mod postgresql18_sql_aggregates;
+    mod postgresql18_sql_casts;
+    mod postgresql18_sql_operators;
     mod postgresql18_string_functions;
     mod postgresql18_tablesample;
     mod postgresql18_temporal;
@@ -64,6 +72,7 @@ mod sql_queries {
     mod postgresql18_text_search;
     mod postgresql18_uuid_hash_lsn;
     mod postgresql18_values_rows;
+    mod postgresql18_xml;
 }
 
 mod relational_promotion_evidence {
@@ -280,6 +289,231 @@ mod integration_sql_aggregates {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+
+    #[test]
+    fn should_apply_distinct_filter_to_grouped_aggregates() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_local_distinct_filter",
+            &[
+                "CREATE TABLE aggregate_local_options (team TEXT, sku TEXT, amount INT, enabled BOOLEAN)",
+                "INSERT INTO aggregate_local_options VALUES ('north','x',2,true),('north','x',3,false),('north','y',3,true),('south','z',5,true),('south','z',5,true)",
+            ],
+        );
+
+        // Act
+        let result = fixture.execute(
+            "SELECT team, COUNT(DISTINCT sku) FILTER (WHERE enabled), SUM(DISTINCT amount) FILTER (WHERE enabled) FROM aggregate_local_options GROUP BY team ORDER BY team",
+        );
+
+        // Assert
+        assert_eq!(
+            result.expect("aggregate-local DISTINCT and FILTER").rows(),
+            &[
+                vec![
+                    Value::String("north".to_owned()),
+                    Value::Int64(2),
+                    Value::Int64(5),
+                ],
+                vec![
+                    Value::String("south".to_owned()),
+                    Value::Int64(1),
+                    Value::Int64(5),
+                ],
+            ]
+        );
+    }
+
+    #[test]
+    fn should_apply_order_by_inside_string_aggregate() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_local_order_by",
+            &[
+                "CREATE TABLE aggregate_local_order (team TEXT, sku TEXT, amount INT)",
+                "INSERT INTO aggregate_local_order VALUES ('north','x',2),('north','z',3),('north','y',3),('south','b',9),('south','a',4)",
+            ],
+        );
+
+        // Act
+        let result = fixture.execute(
+            "SELECT team, STRING_AGG(sku, ',' ORDER BY amount DESC, sku) FROM aggregate_local_order GROUP BY team ORDER BY team",
+        );
+
+        // Assert
+        assert_eq!(
+            result.expect("ordered string aggregate").rows(),
+            &[
+                vec![
+                    Value::String("north".to_owned()),
+                    Value::String("y,z,x".to_owned()),
+                ],
+                vec![
+                    Value::String("south".to_owned()),
+                    Value::String("b,a".to_owned()),
+                ],
+            ]
+        );
+    }
+
+    #[test]
+    fn should_emit_grouping_set_detail_subtotal_grand_total_rows() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_grouping_sets",
+            &[
+                "CREATE TABLE aggregate_grouping_values (region TEXT, product TEXT, amount INT)",
+                "INSERT INTO aggregate_grouping_values VALUES ('east','book',2),('east','pen',3),('west','book',5)",
+            ],
+        );
+
+        // Act
+        let result = fixture.execute(
+            "SELECT region, product, SUM(amount), GROUPING(region, product) FROM aggregate_grouping_values GROUP BY GROUPING SETS ((region, product), (region), ()) ORDER BY GROUPING(region, product), region NULLS FIRST, product NULLS FIRST",
+        );
+
+        // Assert
+        assert_eq!(
+            result.expect("grouping set rows and indicators").rows(),
+            &[
+                vec![
+                    Value::String("east".to_owned()),
+                    Value::String("book".to_owned()),
+                    Value::Int64(2),
+                    Value::Int64(0),
+                ],
+                vec![
+                    Value::String("east".to_owned()),
+                    Value::String("pen".to_owned()),
+                    Value::Int64(3),
+                    Value::Int64(0),
+                ],
+                vec![
+                    Value::String("west".to_owned()),
+                    Value::String("book".to_owned()),
+                    Value::Int64(5),
+                    Value::Int64(0),
+                ],
+                vec![
+                    Value::String("east".to_owned()),
+                    Value::Null,
+                    Value::Int64(5),
+                    Value::Int64(1),
+                ],
+                vec![
+                    Value::String("west".to_owned()),
+                    Value::Null,
+                    Value::Int64(5),
+                    Value::Int64(1),
+                ],
+                vec![Value::Null, Value::Null, Value::Int64(10), Value::Int64(3)],
+            ]
+        );
+    }
+
+    #[test]
+    fn should_return_null_for_empty_or_all_null_boolean_aggregate_inputs() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_boolean_empty_null",
+            &[
+                "CREATE TABLE aggregate_boolean_inputs (flag BOOLEAN)",
+                "INSERT INTO aggregate_boolean_inputs VALUES (NULL), (NULL)",
+            ],
+        );
+
+        // Act
+        let empty = fixture.execute(
+            "SELECT BOOL_AND(flag), BOOL_OR(flag), COUNT(flag) FROM aggregate_boolean_inputs WHERE false",
+        );
+        let all_null = fixture.execute(
+            "SELECT BOOL_AND(flag), BOOL_OR(flag), COUNT(flag) FROM aggregate_boolean_inputs",
+        );
+
+        // Assert
+        assert_eq!(
+            empty
+                .expect("boolean aggregates over an empty input")
+                .rows(),
+            &[vec![Value::Null, Value::Null, Value::Int64(0)]]
+        );
+        assert_eq!(
+            all_null
+                .expect("boolean aggregates over all-NULL inputs")
+                .rows(),
+            &[vec![Value::Null, Value::Null, Value::Int64(0)]]
+        );
+    }
+
+    #[test]
+    fn should_return_statistical_aggregate_values_for_float_inputs() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_boolean_statistics",
+            &[
+                "CREATE TABLE aggregate_statistical_inputs (value FLOAT, keep BOOLEAN)",
+                "INSERT INTO aggregate_statistical_inputs VALUES (1.0, true), (2.0, true), (3.0, false), (NULL, true)",
+            ],
+        );
+
+        // Act
+        let result = fixture.execute(
+            "SELECT VAR_POP(value), VAR_SAMP(value), STDDEV_POP(value), STDDEV_SAMP(value), CORR(value, value), COVAR_POP(value, value), REGR_SLOPE(value, value) FROM aggregate_statistical_inputs",
+        );
+
+        // Assert
+        let rows = result.expect("statistical aggregates over table inputs");
+        assert_eq!(
+            rows.rows(),
+            &[vec![
+                Value::Float64(0.666_666_666_666_666_6),
+                Value::Float64(1.0),
+                Value::Float64(0.816_496_580_927_726),
+                Value::Float64(1.0),
+                Value::Float64(1.0),
+                Value::Float64(0.666_666_666_666_666_6),
+                Value::Float64(1.0),
+            ]]
+        );
+        assert_eq!(
+            rows.columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            vec![701, 701, 701, 701, 701, 701, 701]
+        );
+    }
+
+    #[test]
+    fn should_execute_ordered_set_rank_aggregate_family() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_ordered_hypothetical",
+            &[
+                "CREATE TABLE aggregate_ordered_inputs (x INT)",
+                "INSERT INTO aggregate_ordered_inputs VALUES (1), (3), (3), (10)",
+            ],
+        );
+
+        // Act
+        let result = fixture.execute(
+            "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY x::FLOAT8) = 3.0, PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY x) = 3, MODE() WITHIN GROUP (ORDER BY x) = 3, RANK(3) WITHIN GROUP (ORDER BY x) = 2, DENSE_RANK(3) WITHIN GROUP (ORDER BY x) = 2 FROM aggregate_ordered_inputs",
+        );
+
+        // Assert
+        assert_eq!(
+            result
+                .expect("ordered-set and hypothetical aggregates")
+                .rows(),
+            &[vec![
+                Value::Bool(true),
+                Value::Bool(true),
+                Value::Bool(true),
+                Value::Bool(true),
+                Value::Bool(true),
+            ]]
+        );
     }
 
     #[test]
@@ -4312,12 +4546,12 @@ mod integration_sql_projection {
 
     fn seed_column_store_projection_crud(cassie: &Cassie, session: &CassieSession) {
         for sql in [
-        "CREATE TABLE sql_column_store_projection_crud (doc_id TEXT, title TEXT, summary TEXT, score INT) WITH (storage = column_store)",
-        "INSERT INTO sql_column_store_projection_crud (doc_id, title, summary, score) VALUES ('d1', 'alpha', NULL, 10)",
-        "INSERT INTO sql_column_store_projection_crud (doc_id, title, score) VALUES ('d2', 'beta', 20)",
-    ] {
-        cassie.execute_sql(session, sql, vec![]).unwrap();
-    }
+            "CREATE TABLE sql_column_store_projection_crud (doc_id TEXT, title TEXT, summary TEXT, score INT) WITH (storage = column_store)",
+            "INSERT INTO sql_column_store_projection_crud (doc_id, title, summary, score) VALUES ('d1', 'alpha', NULL, 10)",
+            "INSERT INTO sql_column_store_projection_crud (doc_id, title, score) VALUES ('d2', 'beta', 20)",
+        ] {
+            cassie.execute_sql(session, sql, vec![]).unwrap();
+        }
     }
 
     fn assert_column_store_before_rows(result: &cassie::executor::QueryResult) {
@@ -7927,11 +8161,13 @@ mod relational_semantic_correctness {
             )
             .expect("create table");
             for sql in [
-            "INSERT INTO semantic_composite_keys (bucket, first_part, second_part) VALUES ('one', 'a|4:b', 'c')",
-            "INSERT INTO semantic_composite_keys (bucket, first_part, second_part) VALUES ('one', 'a', 'b|4:c')",
-        ] {
-            cassie.execute_sql(session, sql, vec![]).expect("insert row");
-        }
+                "INSERT INTO semantic_composite_keys (bucket, first_part, second_part) VALUES ('one', 'a|4:b', 'c')",
+                "INSERT INTO semantic_composite_keys (bucket, first_part, second_part) VALUES ('one', 'a', 'b|4:c')",
+            ] {
+                cassie
+                    .execute_sql(session, sql, vec![])
+                    .expect("insert row");
+            }
 
             // Act
             let grouped = cassie
@@ -8000,12 +8236,14 @@ mod relational_semantic_correctness {
                 )
                 .expect("create floats");
             for sql in [
-            "INSERT INTO semantic_join_ints (join_key, label) VALUES (1, 'small')",
-            "INSERT INTO semantic_join_floats (join_key, label) VALUES (1.0, 'small')",
-            "INSERT INTO semantic_join_floats (join_key, label) VALUES (9007199254740992.0, 'rounded')",
-        ] {
-            cassie.execute_sql(session, sql, vec![]).expect("insert row");
-        }
+                "INSERT INTO semantic_join_ints (join_key, label) VALUES (1, 'small')",
+                "INSERT INTO semantic_join_floats (join_key, label) VALUES (1.0, 'small')",
+                "INSERT INTO semantic_join_floats (join_key, label) VALUES (9007199254740992.0, 'rounded')",
+            ] {
+                cassie
+                    .execute_sql(session, sql, vec![])
+                    .expect("insert row");
+            }
             cassie
                 .execute_sql(
                     session,
@@ -8323,8 +8561,7 @@ mod scalar_functions {
     #[test]
     fn should_parse_common_scalar_function_calls() {
         // Arrange
-        let sql =
-        "SELECT concat(lower(title), coalesce(status, 'unknown'), substring(code, 2, 3)) FROM docs";
+        let sql = "SELECT concat(lower(title), coalesce(status, 'unknown'), substring(code, 2, 3)) FROM docs";
 
         // Act
         let parsed = parse_statement(sql).expect("parse should succeed");
@@ -10094,6 +10331,27 @@ mod window_frames {
                     Value::Int64(10),
                     Value::Int64(10)
                 ],
+            ]
+        );
+    }
+
+    #[test]
+    fn should_exclude_peer_rows_from_windowed_sum_with_exclude_ties() {
+        // Arrange
+        let query = "SELECT ordinal, SUM(value) OVER (ORDER BY value ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES) FROM window_frame_values WHERE category = 'a' ORDER BY ordinal";
+
+        // Act
+        let result = execute_window_query("window_sum_exclude_ties", query)
+            .expect("execute windowed SUM with peer exclusion");
+
+        // Assert
+        assert_eq!(
+            result.rows(),
+            vec![
+                vec![Value::Int64(1), Value::Int64(80)],
+                vec![Value::Int64(2), Value::Int64(60)],
+                vec![Value::Int64(3), Value::Int64(60)],
+                vec![Value::Int64(4), Value::Int64(80)],
             ]
         );
     }

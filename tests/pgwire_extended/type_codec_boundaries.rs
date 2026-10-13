@@ -114,7 +114,7 @@ fn should_reject_malformed_binary_vector_headers() {
 #[test]
 fn should_reject_malformed_scalar_array_headers() {
     // Arrange
-    // INT[]34023 is a supported representative of the single shared decoder.
+    // INT[]1007 is a supported representative of the single shared decoder.
     let valid = [
         0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 23, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 7, 255,
         255, 255, 255,
@@ -141,9 +141,7 @@ fn should_reject_malformed_scalar_array_headers() {
     bodies.push(trailing);
     let cycles = bodies
         .iter()
-        .map(|body| {
-            fixture::execute_cycle("SELECT $1 AS v", Some((34_023, 1, Some(body))), 0, false)
-        })
+        .map(|body| fixture::execute_cycle("SELECT $1 AS v", Some((1007, 1, Some(body))), 0, false))
         .collect();
 
     // Act
@@ -170,7 +168,7 @@ fn should_reject_unregistered_binary_array_identities() {
     let body = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23];
     let cycles = vec![fixture::execute_cycle(
         "SELECT CAST($1 AS INT[]) AS v",
-        Some((1007, 1, Some(&body))),
+        Some((34_023, 1, Some(&body))),
         0,
         false,
     )];
@@ -181,6 +179,29 @@ fn should_reject_unregistered_binary_array_identities() {
     // Assert
     assert_eq!(batches.len(), 1);
     fixture::assert_unsupported_before_metadata(&batches[0]);
+}
+
+#[test]
+fn should_preserve_integer_array_identity_during_text_rendering() {
+    // Arrange
+    let cycles = vec![fixture::execute_cycle(
+        "SELECT ARRAY[1, NULL, 3]::INT4[] AS values",
+        None,
+        0,
+        true,
+    )];
+
+    // Act
+    let batches = fixture::run_cycles("type-standard-int4-array-identity", &[], cycles);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1007, -1, -1), 0, true);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"{1,NULL,3}")]
+    );
 }
 
 #[test]
@@ -198,7 +219,7 @@ fn should_preserve_unsigned_json_documents_in_scalar_arrays() {
             [0, 1].map(|format| {
                 fixture::execute_cycle(
                     "SELECT $1 AS v",
-                    Some((34_114, input_format, Some(body))),
+                    Some((199, input_format, Some(body))),
                     format,
                     true,
                 )
@@ -214,7 +235,7 @@ fn should_preserve_unsigned_json_documents_in_scalar_arrays() {
     for pair in batches.as_chunks::<2>().0 {
         for (format, frames) in [0, 1].into_iter().zip(pair) {
             fixture::assert_success(frames);
-            fixture::assert_single_column_descriptors(frames, (34_114, -1, -1), format, true);
+            fixture::assert_single_column_descriptors(frames, (199, -1, -1), format, true);
             let expected = fixture::one_field_row(if format == 0 {
                 b"[18446744073709551615,null]"
             } else {
@@ -330,9 +351,7 @@ fn should_reject_invalid_scalar_array_element_lengths() {
     ];
     let truncated_header = [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
     let cycles = [&negative_element[..], &truncated_header[..]]
-        .map(|body| {
-            fixture::execute_cycle("SELECT $1 AS v", Some((34_023, 1, Some(body))), 0, false)
-        })
+        .map(|body| fixture::execute_cycle("SELECT $1 AS v", Some((1007, 1, Some(body))), 0, false))
         .to_vec();
 
     // Act

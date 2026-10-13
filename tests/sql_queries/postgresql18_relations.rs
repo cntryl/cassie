@@ -450,3 +450,154 @@ fn should_insert_rows_from_a_table_query_source() {
         &[vec![Value::Int64(8)], vec![Value::Int64(9)]]
     );
 }
+
+#[test]
+fn should_update_inheritance_scans_when_child_attachment_changes() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-909-alter-inherit-scan",
+        &[
+            "CREATE TABLE issue_909_parent (id INT, label TEXT)",
+            "CREATE TABLE issue_909_child (id INT, label TEXT, note TEXT)",
+            "INSERT INTO issue_909_parent VALUES (1, 'parent')",
+            "INSERT INTO issue_909_child VALUES (2, 'child', 'retained')",
+        ],
+    );
+
+    // Act
+    let attached = fixture.execute("ALTER TABLE issue_909_child INHERIT issue_909_parent");
+    let inherited_rows = fixture.execute("SELECT id FROM issue_909_parent ORDER BY id");
+    let detached = fixture.execute("ALTER TABLE issue_909_child NO INHERIT issue_909_parent");
+    let parent_rows_after_detach = fixture.execute("SELECT id FROM issue_909_parent ORDER BY id");
+    let child_rows_after_detach = fixture.execute("SELECT id FROM issue_909_child ORDER BY id");
+
+    // Assert
+    attached.expect("attach compatible child to parent");
+    assert_eq!(
+        inherited_rows
+            .expect("scan attached inheritance tree")
+            .rows(),
+        &[vec![Value::Int64(1)], vec![Value::Int64(2)]]
+    );
+    detached.expect("detach child from parent");
+    assert_eq!(
+        parent_rows_after_detach
+            .expect("scan parent after detaching child")
+            .rows(),
+        &[vec![Value::Int64(1)]]
+    );
+    assert_eq!(
+        child_rows_after_detach
+            .expect("child row survives inheritance detachment")
+            .rows(),
+        &[vec![Value::Int64(2)]]
+    );
+}
+
+#[test]
+fn should_mutate_inherited_rows_but_exclude_children_with_only() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-909-inherited-update-only",
+        &[
+            "CREATE TABLE issue_909_update_parent (id INT, amount INT)",
+            "CREATE TABLE issue_909_update_child (id INT, amount INT, note TEXT)",
+            "INSERT INTO issue_909_update_parent VALUES (1, 10)",
+            "INSERT INTO issue_909_update_child VALUES (2, 20, 'child')",
+            "ALTER TABLE issue_909_update_child INHERIT issue_909_update_parent",
+        ],
+    );
+
+    // Act
+    let inherited_update = fixture.execute(
+        "UPDATE issue_909_update_parent SET amount = amount + 1 WHERE id = 2 RETURNING id, amount",
+    );
+    let only_parent_update = fixture.execute(
+        "UPDATE ONLY issue_909_update_parent SET amount = amount + 10 WHERE id = 2 RETURNING id, amount",
+    );
+    let only_parent_rows =
+        fixture.execute("SELECT id, amount FROM ONLY issue_909_update_parent ORDER BY id");
+    let inherited_rows =
+        fixture.execute("SELECT id, amount FROM issue_909_update_parent ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        inherited_update
+            .expect("UPDATE parent includes matching descendant rows")
+            .rows(),
+        &[vec![Value::Int64(2), Value::Int64(21)]]
+    );
+    assert_eq!(
+        only_parent_update
+            .expect("UPDATE ONLY parent excludes descendant rows")
+            .rows(),
+        &[] as &[Vec<Value>]
+    );
+    assert_eq!(
+        only_parent_rows
+            .expect("scan only the parent relation")
+            .rows(),
+        &[vec![Value::Int64(1), Value::Int64(10)]]
+    );
+    assert_eq!(
+        inherited_rows
+            .expect("scan parent and inherited child rows")
+            .rows(),
+        &[
+            vec![Value::Int64(1), Value::Int64(10)],
+            vec![Value::Int64(2), Value::Int64(21)],
+        ]
+    );
+}
+
+#[test]
+fn should_merge_shared_columns_from_multiple_inheritance_parents() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-909-multiple-inheritance-parents",
+        &[
+            "CREATE TABLE issue_909_parent_a (a INT, shared TEXT)",
+            "CREATE TABLE issue_909_parent_b (b INT, shared TEXT)",
+            "CREATE TABLE issue_909_multi_child (local_value INT) \
+             INHERITS (issue_909_parent_a, issue_909_parent_b)",
+            "INSERT INTO issue_909_multi_child VALUES (1, 'x', 2, 3)",
+        ],
+    );
+
+    // Act
+    let first_parent_rows = fixture.execute("SELECT a, shared FROM issue_909_parent_a ORDER BY a");
+    let second_parent_rows = fixture.execute("SELECT b, shared FROM issue_909_parent_b ORDER BY b");
+    let child = fixture.execute("SELECT * FROM issue_909_multi_child");
+
+    // Assert
+    assert_eq!(
+        first_parent_rows
+            .expect("scan the child through its first parent")
+            .rows(),
+        &[vec![Value::Int64(1), Value::String("x".to_owned())]]
+    );
+    assert_eq!(
+        second_parent_rows
+            .expect("scan the child through its second parent")
+            .rows(),
+        &[vec![Value::Int64(2), Value::String("x".to_owned())]]
+    );
+    let child = child.expect("scan a table inheriting from both parents");
+    assert_eq!(
+        child
+            .columns()
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "shared", "b", "local_value"]
+    );
+    assert_eq!(
+        child.rows(),
+        &[vec![
+            Value::Int64(1),
+            Value::String("x".to_owned()),
+            Value::Int64(2),
+            Value::Int64(3),
+        ]]
+    );
+}

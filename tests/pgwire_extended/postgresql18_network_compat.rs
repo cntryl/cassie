@@ -254,6 +254,52 @@ fn should_decode_binary_parameters_for_address_types() {
 }
 
 #[test]
+fn should_decode_binary_ipv6_inet_parameter_with_family_prefix() {
+    // Arrange
+    let sql = "SELECT $1 AS ipv6";
+    let ipv6 = [
+        3, 64, 0, 16, 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "network_binary_ipv6_parameter",
+            sql,
+            &[869],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "network_binary_ipv6_portal",
+                "network_binary_ipv6_parameter",
+                &[1],
+                &[Some(ipv6.as_slice())],
+                &[0],
+            ),
+            wire::describe_portal_frame("network_binary_ipv6_portal"),
+            wire::execute_frame("network_binary_ipv6_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-816-network-binary-ipv6-input", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(
+        row_columns(&batches[1])
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![869]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("2001:db8::1/64".to_owned())]]
+    );
+}
+
+#[test]
 fn should_preserve_address_oids_for_null_parameters() {
     // Arrange
     let sql = "SELECT $1 AS ipv4, $2 AS subnet, $3 AS mac, $4 AS eui64";

@@ -1944,6 +1944,105 @@ mod pgwire_copy_protocol {
     }
 
     #[test]
+    fn should_accept_binary_copy_from_with_int4_null_framing() {
+        // Arrange
+        let (cassie, path) = configured_cassie("binary-copy-from-int4-null");
+        let mut binary_payload = b"PGCOPY\n\xff\r\n\0".to_vec();
+        binary_payload.extend_from_slice(&0_i32.to_be_bytes());
+        binary_payload.extend_from_slice(&0_i32.to_be_bytes());
+        for (id, title) in [(1_i32, Some(&b"alpha"[..])), (2_i32, None)] {
+            binary_payload.extend_from_slice(&2_i16.to_be_bytes());
+            binary_payload.extend_from_slice(&4_i32.to_be_bytes());
+            binary_payload.extend_from_slice(&id.to_be_bytes());
+            if let Some(title) = title {
+                binary_payload.extend_from_slice(
+                    &i32::try_from(title.len())
+                        .expect("binary text length")
+                        .to_be_bytes(),
+                );
+                binary_payload.extend_from_slice(title);
+            } else {
+                binary_payload.extend_from_slice(&(-1_i32).to_be_bytes());
+            }
+        }
+        binary_payload.extend_from_slice(&(-1_i16).to_be_bytes());
+
+        let observed_copy_response =
+            std::sync::Arc::new(std::sync::Mutex::new(None::<(u8, Vec<u8>)>));
+        let observed_copy_result =
+            std::sync::Arc::new(std::sync::Mutex::new(None::<Vec<(u8, Vec<u8>)>>));
+        let observed_rows =
+            std::sync::Arc::new(std::sync::Mutex::new(None::<Vec<Vec<Option<String>>>>));
+        let copy_response_result = std::sync::Arc::clone(&observed_copy_response);
+        let copy_result = std::sync::Arc::clone(&observed_copy_result);
+        let rows_result = std::sync::Arc::clone(&observed_rows);
+
+        run(cassie, async |reader, writer| {
+            support::write_frames(
+                writer,
+                vec![support::simple_query_frame(
+                    "COPY pgwire_copy_protocol_rows (id, title) FROM STDIN WITH (FORMAT BINARY)",
+                )],
+            )
+            .await;
+            let (response_tag, response_payload) = support::read_wire_frame(reader).await;
+            *copy_response_result.lock().expect("COPY response lock") =
+                Some((response_tag, response_payload.clone()));
+            if response_tag != b'G' || response_payload.as_slice() != [1_u8, 0, 2, 0, 1, 0, 1] {
+                return;
+            }
+
+            // Act
+            support::write_frames(
+                writer,
+                vec![
+                    support::copy_data_frame(&binary_payload),
+                    support::copy_done_frame(),
+                ],
+            )
+            .await;
+            let copied = support::read_frames_until_ready_within(reader, ANSWER_LIMIT).await;
+            let rows = query(
+                reader,
+                writer,
+                "SELECT id, title FROM pgwire_copy_protocol_rows ORDER BY id",
+            )
+            .await;
+            *copy_result.lock().expect("COPY result lock") = Some(copied);
+            *rows_result.lock().expect("COPY rows lock") = Some(support::data_rows(&rows));
+        });
+        let _ = std::fs::remove_dir_all(path);
+
+        // Assert
+        let (response_tag, response_payload) = observed_copy_response
+            .lock()
+            .expect("COPY response lock")
+            .take()
+            .expect("server should respond to COPY FROM");
+        assert_eq!(response_tag, b'G', "binary COPY should enter CopyIn mode");
+        assert_eq!(response_payload, vec![1, 0, 2, 0, 1, 0, 1]);
+        let copied = observed_copy_result
+            .lock()
+            .expect("COPY result lock")
+            .take()
+            .expect("binary COPY payload should complete");
+        assert_eq!(support::error_code(&copied), None);
+        assert_eq!(ready_status(&copied), b'I');
+        let rows = observed_rows
+            .lock()
+            .expect("COPY rows lock")
+            .take()
+            .expect("query should return copied rows");
+        assert_eq!(
+            rows,
+            vec![
+                vec![Some("1".to_string()), Some("alpha".to_string())],
+                vec![Some("2".to_string()), None],
+            ]
+        );
+    }
+
+    #[test]
     fn should_ignore_synchronization_messages_during_copy_in() {
         // Arrange
         let (cassie, path) = configured_cassie("copy-flush-sync");
@@ -3636,6 +3735,328 @@ mod pgwire_simple_query {
     }
 
     #[test]
+    fn should_copy_default_text_from_stdin_with_null_values_tab_escapes() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("copy_text_stdin");
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password = "postgres".to_string();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+        cassie.startup().expect("startup");
+        seed_copy_collection(&cassie);
+
+        runtime().block_on(async {
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+
+            // Act
+            start_pgwire_session(&mut reader, &mut write_half).await;
+            tokio::io::AsyncWriteExt::write_all(
+                &mut write_half,
+                &simple_query_frame("COPY simple_copy_docs (_id, title, score) FROM STDIN"),
+            )
+            .await
+            .expect("write default-text COPY query");
+            tokio::io::AsyncWriteExt::flush(&mut write_half)
+                .await
+                .expect("flush COPY query");
+            let copy_in = read_wire_frame(&mut reader).await;
+            assert_eq!(copy_in.0, b'G', "COPY should request input data");
+            assert_eq!(copy_in.1[0], 0, "COPY without FORMAT uses text format");
+            assert_eq!(
+                i16::from_be_bytes(copy_in.1[1..3].try_into().expect("COPY column count")),
+                3
+            );
+            let payload = b"copy-text-1\talpha\t\\N\ncopy-text-2\tline\\tdetail\t9\n";
+            tokio::io::AsyncWriteExt::write_all(&mut write_half, &copy_data_frame(payload))
+                .await
+                .expect("write default-text COPY rows");
+            tokio::io::AsyncWriteExt::write_all(&mut write_half, &copy_done_frame())
+                .await
+                .expect("finish COPY input");
+            tokio::io::AsyncWriteExt::flush(&mut write_half)
+                .await
+                .expect("flush COPY rows");
+            let complete = read_wire_frame(&mut reader).await;
+            let ready = read_wire_frame(&mut reader).await;
+            let rows = write_simple_query_and_read_frames(
+                &mut reader,
+                &mut write_half,
+                "SELECT _id, title, score FROM simple_copy_docs ORDER BY _id",
+            )
+            .await;
+
+            // Assert
+            assert_copy_complete_frames(&complete, &ready);
+            assert_eq!(
+                rows.iter()
+                    .filter(|(tag, _)| *tag == b'D')
+                    .map(|(_, payload)| parse_data_row(payload))
+                    .collect::<Vec<_>>(),
+                vec![
+                    vec![
+                        Some("copy-text-1".to_string()),
+                        Some("alpha".to_string()),
+                        None,
+                    ],
+                    vec![
+                        Some("copy-text-2".to_string()),
+                        Some("line\tdetail".to_string()),
+                        Some("9".to_string()),
+                    ],
+                ]
+            );
+
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    fn seed_copy_export_rows(cassie: &Cassie) {
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE pgwire_copy_export_rows (id INT, title TEXT, note TEXT)",
+                vec![],
+            )
+            .expect("create COPY export table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO pgwire_copy_export_rows VALUES \
+                   (1, 'alpha', NULL), (2, 'a,comma', 'present')",
+                vec![],
+            )
+            .expect("seed COPY export rows");
+    }
+
+    fn copy_out_bytes(frames: &[WireFrame]) -> Vec<u8> {
+        frames
+            .iter()
+            .filter(|(tag, _)| *tag == b'd')
+            .flat_map(|(_, payload)| payload.iter().copied())
+            .collect()
+    }
+
+    fn assert_copy_out_response(frames: &[WireFrame], format: i16, columns: usize) {
+        let response = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'H')
+            .unwrap_or_else(|| panic!("COPY TO STDOUT should return CopyOutResponse: {frames:?}"));
+        assert_eq!(
+            i16::from_be_bytes(response.1[0..2].try_into().expect("format code")),
+            format
+        );
+        let column_count = usize::try_from(i16::from_be_bytes(
+            response.1[2..4].try_into().expect("COPY column count"),
+        ))
+        .expect("nonnegative COPY column count");
+        assert_eq!(column_count, columns);
+        let (format_pairs, remainder) = response.1[4..].as_chunks::<2>();
+        assert!(
+            remainder.is_empty(),
+            "COPY format list must contain full pairs"
+        );
+        let formats = format_pairs
+            .iter()
+            .map(|chunk| i16::from_be_bytes(*chunk))
+            .collect::<Vec<_>>();
+        assert_eq!(formats, vec![format; columns]);
+        assert!(frames.iter().any(|(tag, _)| *tag == b'c'));
+        let command = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'C')
+            .expect("COPY TO STDOUT should return CommandComplete");
+        let mut cursor = 0;
+        assert_eq!(read_cstring(&command.1, &mut cursor), "COPY 2");
+        assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
+    }
+
+    #[test]
+    fn should_encode_query_csv_header_null_force_quote_options() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("copy-query-csv-out");
+        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        cassie.startup().expect("startup");
+        seed_copy_export_rows(&cassie);
+
+        runtime().block_on(async {
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            start_pgwire_session(&mut reader, &mut write_half).await;
+
+            // Act
+            let frames = write_simple_query_and_read_frames(
+                &mut reader,
+                &mut write_half,
+                "COPY (SELECT id, title, note FROM pgwire_copy_export_rows ORDER BY id) \
+                 TO STDOUT WITH (FORMAT CSV, HEADER, NULL 'NULL', FORCE_QUOTE (title))",
+            )
+            .await;
+
+            // Assert
+            assert_copy_out_response(&frames, 0, 3);
+            assert_eq!(
+                copy_out_bytes(&frames),
+                b"id,title,note\n1,\"alpha\",NULL\n2,\"a,comma\",present\n"
+            );
+
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+        });
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_encode_query_default_text_copy_with_null_fields() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("copy-query-text-out");
+        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        cassie.startup().expect("startup");
+        seed_copy_export_rows(&cassie);
+
+        runtime().block_on(async {
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            start_pgwire_session(&mut reader, &mut write_half).await;
+
+            // Act
+            let frames = write_simple_query_and_read_frames(
+                &mut reader,
+                &mut write_half,
+                "COPY (SELECT id, title, note FROM pgwire_copy_export_rows ORDER BY id) \
+                 TO STDOUT",
+            )
+            .await;
+
+            // Assert
+            assert_copy_out_response(&frames, 0, 3);
+            assert_eq!(
+                copy_out_bytes(&frames),
+                b"1\talpha\t\\N\n2\ta,comma\tpresent\n"
+            );
+
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+        });
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_encode_table_csv_delimiter_null_force_quote_options() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("copy-table-csv-out");
+        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        cassie.startup().expect("startup");
+        seed_copy_export_rows(&cassie);
+
+        runtime().block_on(async {
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            start_pgwire_session(&mut reader, &mut write_half).await;
+
+            // Act
+            let frames = write_simple_query_and_read_frames(
+                &mut reader,
+                &mut write_half,
+                "COPY pgwire_copy_export_rows (id, title, note) TO STDOUT \
+                 WITH (FORMAT CSV, DELIMITER '|', NULL 'missing', FORCE_QUOTE *)",
+            )
+            .await;
+
+            // Assert
+            assert_copy_out_response(&frames, 0, 3);
+            assert_eq!(
+                copy_out_bytes(&frames),
+                b"\"1\"|\"alpha\"|missing\n\"2\"|\"a,comma\"|\"present\"\n"
+            );
+
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+        });
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_encode_binary_copy_with_exact_int4_null_framing() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("copy-table-binary-out");
+        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        cassie.startup().expect("startup");
+        seed_copy_export_rows(&cassie);
+
+        runtime().block_on(async {
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            start_pgwire_session(&mut reader, &mut write_half).await;
+
+            // Act
+            let frames = write_simple_query_and_read_frames(
+                &mut reader,
+                &mut write_half,
+                "COPY pgwire_copy_export_rows (id, title, note) TO STDOUT WITH (FORMAT BINARY)",
+            )
+            .await;
+
+            // Assert
+            assert_copy_out_response(&frames, 1, 3);
+            let mut expected = b"PGCOPY\n\xff\r\n\0".to_vec();
+            expected.extend_from_slice(&0_i32.to_be_bytes());
+            expected.extend_from_slice(&0_i32.to_be_bytes());
+            expected.extend_from_slice(&3_i16.to_be_bytes());
+            expected.extend_from_slice(&4_i32.to_be_bytes());
+            expected.extend_from_slice(&1_i32.to_be_bytes());
+            expected.extend_from_slice(&5_i32.to_be_bytes());
+            expected.extend_from_slice(b"alpha");
+            expected.extend_from_slice(&(-1_i32).to_be_bytes());
+            expected.extend_from_slice(&3_i16.to_be_bytes());
+            expected.extend_from_slice(&4_i32.to_be_bytes());
+            expected.extend_from_slice(&2_i32.to_be_bytes());
+            expected.extend_from_slice(&7_i32.to_be_bytes());
+            expected.extend_from_slice(b"a,comma");
+            expected.extend_from_slice(&7_i32.to_be_bytes());
+            expected.extend_from_slice(b"present");
+            expected.extend_from_slice(&(-1_i16).to_be_bytes());
+            assert_eq!(copy_out_bytes(&frames), expected);
+
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+        });
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_execute_binary_simple_query_return_backend_frames() {
         // Arrange
         use_local_storage();
@@ -3956,9 +4377,11 @@ mod pgwire_simple_query {
             assert_eq!(ready.0, b'Z');
             assert_eq!(error_field(&error_fields, 'C'), Some("57P03"));
             assert_eq!(
-            error_field(&error_fields, 'M'),
-            Some("temporary storage unavailable: pgwire blocking boundary test retryable failure")
-        );
+                error_field(&error_fields, 'M'),
+                Some(
+                    "temporary storage unavailable: pgwire blocking boundary test retryable failure"
+                )
+            );
             assert_eq!(ready.1, vec![b'I']);
 
             drop(socket);

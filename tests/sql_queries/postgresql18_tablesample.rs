@@ -92,16 +92,41 @@ fn should_repeat_bernoulli_samples_for_the_same_seed() {
     // Arrange
     let fixture = sample_fixture("issue-800-bernoulli-repeatable");
     let sql = "SELECT id FROM issue_800_sample_rows TABLESAMPLE BERNOULLI (50) REPEATABLE (0.5) ORDER BY id";
+    let other_seed_sql = "SELECT id FROM issue_800_sample_rows TABLESAMPLE BERNOULLI (50) REPEATABLE (1.5) ORDER BY id";
 
     // Act
     let first = fixture.execute(sql);
     let second = fixture.execute(sql);
+    let different_seed = fixture.execute(other_seed_sql);
 
     // Assert
-    assert_eq!(
-        first.expect("first repeatable sample").rows(),
-        second.expect("second repeatable sample").rows()
-    );
+    let first_result = first.expect("first repeatable sample");
+    let second_result = second.expect("second repeatable sample");
+    let different_seed_result = different_seed.expect("sample with another seed");
+    assert_eq!(first_result.rows(), second_result.rows());
+    assert_ne!(first_result.rows(), different_seed_result.rows());
+}
+
+#[test]
+fn should_reproduce_system_samples_for_same_seed_with_seed_variation() {
+    // Arrange
+    let fixture = sample_fixture("issue-800-system-repeatable");
+    let sql =
+        "SELECT id FROM issue_800_sample_rows TABLESAMPLE SYSTEM (50) REPEATABLE (0.5) ORDER BY id";
+    let other_seed_sql =
+        "SELECT id FROM issue_800_sample_rows TABLESAMPLE SYSTEM (50) REPEATABLE (1.5) ORDER BY id";
+
+    // Act
+    let first = fixture.execute(sql);
+    let second = fixture.execute(sql);
+    let different_seed = fixture.execute(other_seed_sql);
+
+    // Assert
+    let first_result = first.expect("first repeatable SYSTEM sample");
+    let second_result = second.expect("second repeatable SYSTEM sample");
+    let different_seed_result = different_seed.expect("SYSTEM sample with another seed");
+    assert_eq!(first_result.rows(), second_result.rows());
+    assert_ne!(first_result.rows(), different_seed_result.rows());
 }
 
 #[test]

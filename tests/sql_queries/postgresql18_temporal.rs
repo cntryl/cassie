@@ -134,7 +134,10 @@ fn should_apply_at_local_using_the_session_timezone() {
 #[test]
 fn should_resolve_daylight_saving_overlap_using_standard_time() {
     // Arrange
-    let fixture = sql_fixture("issue-814-dst-overlap", &[]);
+    let fixture = sql_fixture(
+        "issue-814-dst-overlap",
+        &["SET TIME ZONE 'America/New_York'"],
+    );
 
     // Act
     let sql = "SELECT TIMESTAMPTZ '2024-11-03 01:30:00 America/New_York' = TIMESTAMPTZ '2024-11-03 06:30:00+00'";
@@ -146,7 +149,7 @@ fn should_resolve_daylight_saving_overlap_using_standard_time() {
 #[test]
 fn should_resolve_daylight_saving_gap_using_standard_time() {
     // Arrange
-    let fixture = sql_fixture("issue-814-dst-gap", &[]);
+    let fixture = sql_fixture("issue-814-dst-gap", &["SET TIME ZONE 'America/New_York'"]);
 
     // Act
     let sql = "SELECT TIMESTAMPTZ '2024-03-10 02:30:00 America/New_York' = TIMESTAMPTZ '2024-03-10 07:30:00+00'";
@@ -158,7 +161,10 @@ fn should_resolve_daylight_saving_gap_using_standard_time() {
 #[test]
 fn should_add_calendar_day_across_daylight_saving_transition() {
     // Arrange
-    let fixture = sql_fixture("issue-814-calendar-day-dst", &[]);
+    let fixture = sql_fixture(
+        "issue-814-calendar-day-dst",
+        &["SET TIME ZONE 'America/New_York'"],
+    );
 
     // Act
     let sql = "SELECT TIMESTAMPTZ '2024-03-09 12:00:00 America/New_York' + INTERVAL '1 day' = TIMESTAMPTZ '2024-03-10 16:00:00+00'";
@@ -170,7 +176,10 @@ fn should_add_calendar_day_across_daylight_saving_transition() {
 #[test]
 fn should_distinguish_calendar_day_from_twenty_four_hours_across_dst() {
     // Arrange
-    let fixture = sql_fixture("issue-814-calendar-day-vs-hours", &[]);
+    let fixture = sql_fixture(
+        "issue-814-calendar-day-vs-hours",
+        &["SET TIME ZONE 'America/New_York'"],
+    );
 
     // Act
     let sql = "SELECT TIMESTAMPTZ '2024-03-09 12:00:00 America/New_York' + INTERVAL '1 day' <> TIMESTAMPTZ '2024-03-09 12:00:00 America/New_York' + INTERVAL '24 hours'";
@@ -330,7 +339,7 @@ fn should_compare_timetz_values_by_utc_time_of_day() {
     let fixture = sql_fixture("issue-814-timetz-comparison", &[]);
 
     // Act
-    let sql = "SELECT TIMETZ '05:34:17-05' = TIMETZ '10:34:17+00'";
+    let sql = "SELECT TIMETZ '05:34:17-05' = TIMETZ '10:34:17+00' AND TIMETZ '05:34:17-05' <> TIMETZ '05:34:17-04'";
 
     // Assert
     assert_true(&fixture, sql);

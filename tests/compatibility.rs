@@ -26,14 +26,14 @@ mod compatibility_matrix {
         path
     }
 
-    struct CompatibilityServer {
+    pub(super) struct CompatibilityServer {
         data_dir: String,
-        addr: SocketAddr,
+        pub(super) addr: SocketAddr,
         server: tokio::task::JoinHandle<()>,
     }
 
     impl CompatibilityServer {
-        async fn start(label: &str) -> Self {
+        pub(super) async fn start(label: &str) -> Self {
             use_local_storage();
             let data_dir = data_dir(label);
             let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
@@ -61,7 +61,9 @@ mod compatibility_matrix {
             }
         }
 
-        async fn connect(&self) -> (tokio_postgres::Client, tokio::task::JoinHandle<()>) {
+        pub(super) async fn connect(
+            &self,
+        ) -> (tokio_postgres::Client, tokio::task::JoinHandle<()>) {
             let mut config = tokio_postgres::Config::new();
             config.host("127.0.0.1");
             config.port(self.addr.port());
@@ -79,7 +81,7 @@ mod compatibility_matrix {
             (client, connection)
         }
 
-        async fn shutdown(self, connection: tokio::task::JoinHandle<()>) {
+        pub(super) async fn shutdown(self, connection: tokio::task::JoinHandle<()>) {
             connection.abort();
             self.server.abort();
             let _ = connection.await;
@@ -94,7 +96,7 @@ mod compatibility_matrix {
         }
     }
 
-    fn db_error(error: &tokio_postgres::Error) -> &DbError {
+    pub(super) fn db_error(error: &tokio_postgres::Error) -> &DbError {
         error
             .as_db_error()
             .expect("tokio-postgres should return a database error")
@@ -110,15 +112,18 @@ mod compatibility_matrix {
             .expect("simple query should return a row")
     }
 
-    struct ProbeOutput {
-        success: bool,
-        timed_out: bool,
-        status_code: Option<i32>,
-        stdout: String,
-        stderr: String,
+    pub(super) struct ProbeOutput {
+        pub(super) success: bool,
+        pub(super) timed_out: bool,
+        pub(super) status_code: Option<i32>,
+        pub(super) stdout: String,
+        pub(super) stderr: String,
     }
 
-    fn run_external_probe(mut command: Command, timeout: Duration) -> Result<ProbeOutput, String> {
+    pub(super) fn run_external_probe(
+        mut command: Command,
+        timeout: Duration,
+    ) -> Result<ProbeOutput, String> {
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
         let mut child = command
             .spawn()
@@ -1823,4 +1828,15 @@ mod desktop_client_trace_replay {
         // Assert
         result.expect("selected desktop trace should replay");
     }
+}
+
+mod compatibility {
+    use super::compatibility_matrix::{db_error, CompatibilityServer};
+    use super::support_sql as support;
+    use cassie::app::Cassie;
+    use std::time::Duration;
+    use tokio_postgres::NoTls;
+
+    mod lifecycle;
+    mod pg_dump_restore;
 }

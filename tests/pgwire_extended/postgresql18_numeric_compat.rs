@@ -90,6 +90,100 @@ fn should_preserve_numeric_oid_typmod_text_binary_contract() {
 }
 
 #[test]
+fn should_preserve_negative_scale_typmod_rounding_at_overflow() {
+    // Arrange
+    let sql = "SELECT CAST($1 AS NUMERIC(3, -2)) AS rounded_value";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "negative_numeric_scale",
+            sql,
+            &[1700],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("negative_numeric_scale"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(
+                "negative_numeric_positive_portal",
+                "negative_numeric_scale",
+                &["12345"],
+            ),
+            wire::describe_portal_frame("negative_numeric_positive_portal"),
+            wire::execute_frame("negative_numeric_positive_portal"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(
+                "negative_numeric_negative_portal",
+                "negative_numeric_scale",
+                &["-12345"],
+            ),
+            wire::describe_portal_frame("negative_numeric_negative_portal"),
+            wire::execute_frame("negative_numeric_negative_portal"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST('99950' AS NUMERIC(3, -2))",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 42")]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-negative-numeric-scale", steps);
+
+    // Assert
+    assert_eq!(
+        batches[0].first().map(|(tag, _)| *tag),
+        Some(b'1'),
+        "Parse should accept NUMERIC(3, -2); SQLSTATE: {:?}",
+        wire::error_code(&batches[0])
+    );
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(
+        wire::parse_parameter_description(
+            &batches[1]
+                .iter()
+                .find(|(tag, _)| *tag == b't')
+                .expect("negative-scale ParameterDescription")
+                .1
+        ),
+        vec![1700]
+    );
+    let statement_description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("negative-scale statement RowDescription");
+    let statement_column = &wire::parse_row_description(&statement_description.1)[0];
+    assert_eq!(statement_column.type_oid, 1700);
+    assert_eq!(statement_column.type_mod, 198_658);
+
+    for (batch, expected) in [(&batches[2], "12300"), (&batches[3], "-12300")] {
+        assert_eq!(wire::error_code(batch), None);
+        let description = batch
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("negative-scale portal RowDescription");
+        let column = &wire::parse_row_description(&description.1)[0];
+        assert_eq!((column.type_oid, column.type_mod), (1700, 198_658));
+        assert_eq!(
+            wire::data_rows(batch),
+            vec![vec![Some(expected.to_owned())]]
+        );
+    }
+    assert_eq!(wire::error_code(&batches[4]).as_deref(), Some("22003"));
+    assert_eq!(
+        wire::data_rows(&batches[4]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+    assert_eq!(wire::error_code(&batches[5]), None);
+    assert_eq!(
+        wire::data_rows(&batches[5]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
 fn should_describe_bigint_aggregate_results_as_numeric() {
     // Arrange
     let steps = vec![
@@ -126,5 +220,231 @@ fn should_describe_bigint_aggregate_results_as_numeric() {
             Some("15".to_owned()),
             Some("3.0000000000000000".to_owned())
         ]]
+    );
+}
+
+#[test]
+fn should_decode_binary_numeric_values_beyond_thirty_eight_digits() {
+    // Arrange
+    let value = [
+        0x00, 0x12, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x14, 0x00, 0x0c, 0x0d, 0x80, 0x1e, 0xd2, 0x04,
+        0xd2, 0x16, 0x2e, 0x23, 0x34, 0x0d, 0x80, 0x1e, 0xd2, 0x04, 0xd2, 0x16, 0x2e, 0x23, 0x34,
+        0x0d, 0x80, 0x1e, 0xd2, 0x04, 0xd2, 0x16, 0x2e, 0x23, 0x34, 0x0d, 0x80, 0x1e, 0xd2,
+    ];
+    let sql = "SELECT $1::NUMERIC AS amount";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types("wide_numeric", sql, &[1700])),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("wide_numeric"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "wide_numeric_portal",
+                "wide_numeric",
+                &[1],
+                &[Some(&value)],
+                &[0],
+            ),
+            wire::describe_portal_frame("wide_numeric_portal"),
+            wire::execute_frame("wide_numeric_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-numeric-wide-binary-input", steps);
+
+    // Assert
+    assert_eq!(
+        wire::parse_parameter_description(
+            &batches[1]
+                .iter()
+                .find(|(tag, _)| *tag == b't')
+                .expect("wide numeric ParameterDescription")
+                .1
+        ),
+        vec![1700]
+    );
+    assert_eq!(wire::error_code(&batches[2]), None);
+    let description = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("wide numeric RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(column.type_oid, 1700);
+    assert_eq!(column.type_mod, -1);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some(
+            "12345678901234567890123456789012345678901234567890.12345678901234567890".to_owned()
+        )]]
+    );
+}
+
+#[test]
+fn should_reject_numeric_exponents_beyond_postgresql_integer_digit_limit() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST('1e131072' AS NUMERIC)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 42")]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-numeric-absolute-range", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22003"));
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
+fn should_enforce_postgresql_numeric_precision_scale_limits() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST(NULL AS NUMERIC(1000, 0))",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST(NULL AS NUMERIC(1000, 1000))",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST('1e-16383' AS NUMERIC) > 0",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST('1e131071' AS NUMERIC) > 0",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST('1e-16384' AS NUMERIC)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST('1e131072' AS NUMERIC)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST(NULL AS NUMERIC(1001, 0))",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST(NULL AS NUMERIC(1000, 1001))",
+        )]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-numeric-precision-scale-limits", steps);
+
+    // Assert
+    for (index, batch) in batches.iter().take(4).enumerate() {
+        assert_eq!(wire::error_code(batch), None, "valid boundary {index}");
+    }
+    for (index, expected_state) in [(4, "22003"), (5, "22003"), (6, "22023"), (7, "22023")] {
+        assert_eq!(
+            wire::error_code(&batches[index]).as_deref(),
+            Some(expected_state),
+            "rejection boundary {index}"
+        );
+    }
+    for (index, expected_typmod) in [(0, 65_536_004), (1, 65_537_004)] {
+        let description = batches[index]
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("numeric boundary RowDescription");
+        let column = &wire::parse_row_description(&description.1)[0];
+        assert_eq!(column.type_oid, 1700);
+        assert_eq!(column.type_mod, expected_typmod);
+        assert_eq!(wire::data_rows(&batches[index]), vec![vec![None]]);
+    }
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("t".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("t".to_owned())]]
+    );
+}
+
+#[test]
+fn should_encode_numeric_special_values_in_binary() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let text_sql = "SELECT 'NaN'::NUMERIC AS nan_value, 'Infinity'::NUMERIC AS positive_infinity, '-Infinity'::NUMERIC AS negative_infinity, 'NaN'::NUMERIC = 'NaN'::NUMERIC AS nan_equal, 'Infinity'::NUMERIC > 999999::NUMERIC AS positive_infinity_orders_last, '-Infinity'::NUMERIC < -999999::NUMERIC AS negative_infinity_orders_first";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(text_sql)]),
+        Step::ParseFlush(wire::parse_frame(
+            "numeric_nan_binary_statement",
+            "SELECT 'NaN'::NUMERIC AS value",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "numeric_nan_binary_portal",
+                "numeric_nan_binary_statement",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("numeric_nan_binary_portal"),
+            wire::execute_frame("numeric_nan_binary_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-812-numeric-special-values", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let text_description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("numeric special-value RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&text_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1700, 1700, 1700, 16, 16, 16]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some("NaN".to_owned()),
+            Some("Infinity".to_owned()),
+            Some("-Infinity".to_owned()),
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+        ]]
+    );
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(batches[1].first().map(|(tag, _)| *tag), Some(b'1'));
+    assert_eq!(wire::error_code(&batches[2]), None);
+    let binary_description = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("binary numeric special-value RowDescription");
+    let column = &wire::parse_row_description(&binary_description.1)[0];
+    assert_eq!(
+        (
+            column.type_oid,
+            column.type_size,
+            column.type_mod,
+            column.format_code
+        ),
+        (1700, -1, -1, 1)
+    );
+    let numeric_nan_binary = [0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00];
+    assert_eq!(
+        fixture::data_row_payloads(&batches[2]),
+        vec![fixture::one_field_row(&numeric_nan_binary)]
     );
 }

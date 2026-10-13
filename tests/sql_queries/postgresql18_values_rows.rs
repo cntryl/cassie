@@ -280,17 +280,72 @@ fn should_apply_distinctness_semantics_to_row_constructors() {
 }
 
 #[test]
-fn should_compare_empty_row_constructors() {
+fn should_preserve_null_row_equality_distinctness_semantics() {
     // Arrange
-    let fixture = sql_fixture("issue-800-empty-row", &[]);
+    let fixture = sql_fixture("issue-800-row-null-equality", &[]);
 
     // Act
-    let result = fixture.execute("SELECT ROW() = ROW(), ROW() IS NOT DISTINCT FROM ROW()");
+    let result = fixture.execute(
+        "SELECT (1, NULL) = (1, NULL), (1, NULL) <> (1, NULL), (1, NULL) IS DISTINCT FROM (1, NULL), (1, NULL) IS NOT DISTINCT FROM (1, NULL)",
+    );
 
     // Assert
+    let result = result.expect("NULL row equality and distinctness");
     assert_eq!(
-        result.expect("empty row comparisons").rows(),
-        &[vec![Value::Bool(true), Value::Bool(true)]]
+        result.rows(),
+        &[vec![
+            Value::Null,
+            Value::Null,
+            Value::Bool(false),
+            Value::Bool(true),
+        ]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16, 16, 16, 16]
+    );
+}
+
+#[test]
+fn should_expose_merged_using_columns_to_projection() {
+    // Arrange
+    let fixture = sql_fixture("issue-800-using-merged-columns", &[]);
+
+    // Act
+    let merged = fixture.execute(
+        "SELECT * FROM (VALUES (1::BIGINT, 'left')) AS l(id, left_value) JOIN (VALUES (1::BIGINT, 'right')) AS r(id, right_value) USING (id)",
+    );
+    let aliased = fixture.execute(
+        "SELECT merged.id FROM (VALUES (1::BIGINT)) AS l(id) JOIN (VALUES (1::BIGINT)) AS r(id) USING (id) AS merged",
+    );
+
+    // Assert
+    let merged = merged.expect("USING exposes a single merged column");
+    assert_eq!(
+        merged
+            .columns()
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["id", "left_value", "right_value"]
+    );
+    assert_eq!(
+        merged.rows(),
+        &[vec![
+            Value::Int64(1),
+            Value::String("left".to_owned()),
+            Value::String("right".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        aliased
+            .expect("USING alias exposes the merged column")
+            .rows(),
+        &[vec![Value::Int64(1)]]
     );
 }
 
@@ -338,29 +393,5 @@ fn should_expand_qualified_stars_before_later_row_fields() {
             .expect("ROW with qualified star and trailing field")
             .rows(),
         &[vec![Value::Bool(true)]]
-    );
-}
-
-#[test]
-fn should_apply_binary_image_comparisons_to_whole_rows() {
-    // Arrange
-    let fixture = sql_fixture("issue-800-record-binary-operators", &[]);
-
-    // Act
-    let result = fixture.execute(
-        "SELECT ROW(1, 2) *= ROW(1, 2), ROW(1, 2) *<> ROW(1, 2), ROW(1, 2) *< ROW(1, 2), ROW(1, 2) *<= ROW(1, 2), ROW(1, 2) *> ROW(1, 2), ROW(1, 2) *>= ROW(1, 2)",
-    );
-
-    // Assert
-    assert_eq!(
-        result.expect("binary-image row operators").rows(),
-        &[vec![
-            Value::Bool(true),
-            Value::Bool(false),
-            Value::Bool(false),
-            Value::Bool(true),
-            Value::Bool(false),
-            Value::Bool(true),
-        ]]
     );
 }

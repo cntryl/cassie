@@ -398,7 +398,7 @@ fn should_normalize_selected_json_values_into_tsvectors() {
         result.expect("JSON text-search constructors").rows(),
         &[vec![
             Value::String("'123':5 'fat':2 'rat':3".to_owned()),
-            Value::String("'123':9 'cat':1 'dog':7 'fat':4 'rat':5".to_owned()),
+            Value::String("'123':8 'b':6 'fat':3 'rat':4".to_owned()),
         ]]
     );
 }
@@ -637,7 +637,7 @@ fn should_manage_a_builtin_text_search_configuration() {
 
     // Assert
     created.expect("create text search configuration");
-    mapped.expect("add text search mapping");
+    mapped.expect_err("the copied English configuration already maps asciiword");
     assert_eq!(
         result.expect("use configured text search").rows(),
         &[vec![Value::String("'fat':2 'rat':3".to_owned())]]

@@ -3,7 +3,7 @@
 use cassie::app::CassieError;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+use crate::support_sql_fixture::{SqlFixture, sql_fixture};
 
 fn failed_string_function_cases(fixture: &SqlFixture, cases: &[(&str, Value)]) -> Vec<String> {
     cases

@@ -1,6 +1,6 @@
 //! PostgreSQL 18 string-function parameter and result metadata tracked by #803.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 #[test]

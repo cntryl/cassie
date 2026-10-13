@@ -135,7 +135,7 @@ fn should_infer_call_parameters_from_the_registered_procedure_signature() {
 }
 
 #[test]
-fn should_retain_fully_typed_unused_slots_through_describe_and_bind() {
+fn should_retain_unused_parameter_types_through_describe_bind() {
     // Arrange
     let steps = vec![
         Step::ParseFlush(wire::parse_frame_with_types(
@@ -239,27 +239,27 @@ fn should_retain_fully_typed_unused_slots_through_describe_and_bind() {
 }
 
 #[test]
-fn should_preserve_resolved_unknown_and_high_bit_unused_slots() {
+fn should_preserve_parameter_slot_oids_across_inference() {
     // Arrange
     let cases = [
-        ("zero_comparison", "SELECT $1 = 1 AS value", 0_i32, 23_u32),
+        ("zero_comparison", "SELECT $1 = 1 AS value", 0_i32, 23_i32),
         (
             "unknown_comparison",
             "SELECT $1 = 1 AS value",
             705_i32,
-            23_u32,
+            23_i32,
         ),
         (
             "zero_cast",
             "SELECT $1::INT4 IS NULL AS value",
             0_i32,
-            23_u32,
+            23_i32,
         ),
         (
             "unknown_cast",
             "SELECT $1::INT4 IS NULL AS value",
             705_i32,
-            23_u32,
+            23_i32,
         ),
     ];
     let mut steps = Vec::new();
@@ -274,7 +274,27 @@ fn should_preserve_resolved_unknown_and_high_bit_unused_slots() {
             wire::sync_frame(),
         ]));
     }
+
+    // Act
+    let batches = run_script("parameter-slot-inference", steps);
+
+    // Assert
+    assert_eq!(batches.len(), cases.len() * 2);
+    for (index, (_, _, _, expected_oid)) in cases.iter().enumerate() {
+        let parsed = &batches[index * 2];
+        assert_eq!(
+            parsed.iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
+            vec![b'1']
+        );
+        assert_parameter_description(&batches[index * 2 + 1], &[*expected_oid]);
+    }
+}
+
+#[test]
+fn should_preserve_high_bit_parameter_slot_oids() {
+    // Arrange
     let high_bit_cases = [0x8000_0000_u32, u32::MAX];
+    let mut steps = Vec::new();
     for (index, oid) in high_bit_cases.iter().copied().enumerate() {
         let statement = format!("unused_high_bit_{index}");
         let signed_wire_bits = i32::from_be_bytes(oid.to_be_bytes());
@@ -296,19 +316,17 @@ fn should_preserve_resolved_unknown_and_high_bit_unused_slots() {
     }
 
     // Act
-    let batches = run_script("parameter-slot-inference-and-high-bit", steps);
+    let batches = run_script("parameter-slot-high-bit", steps);
 
     // Assert
-    assert_eq!(batches.len(), cases.len() * 2 + high_bit_cases.len() * 3);
-    for (index, (_, _, _, expected_oid)) in cases.iter().enumerate() {
+    assert_eq!(batches.len(), high_bit_cases.len() * 3);
+    for (index, oid) in high_bit_cases.iter().copied().enumerate() {
+        let parse = &batches[index * 3];
         assert_eq!(
-            batches[index * 2]
-                .iter()
-                .map(|(tag, _)| *tag)
-                .collect::<Vec<_>>(),
+            parse.iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
             vec![b'1']
         );
-        let described = &batches[index * 2 + 1];
+        let described = &batches[index * 3 + 1];
         assert_eq!(
             described.iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
             vec![b't', b'T', b'Z']
@@ -319,31 +337,9 @@ fn should_preserve_resolved_unknown_and_high_bit_unused_slots() {
             .expect("ParameterDescription");
         assert_eq!(
             wire::parse_parameter_description(payload),
-            vec![*expected_oid as i32]
+            vec![i32::from_be_bytes(oid.to_be_bytes())]
         );
-        assert_ready(described);
-    }
-    let offset = cases.len() * 2;
-    for (index, oid) in high_bit_cases.iter().copied().enumerate() {
-        let parse = &batches[offset + index * 3];
-        assert_eq!(
-            parse.iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
-            vec![b'1']
-        );
-        let described = &batches[offset + index * 3 + 1];
-        assert_eq!(
-            described.iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
-            vec![b't', b'T', b'Z']
-        );
-        let (_, payload) = described
-            .iter()
-            .find(|(tag, _)| *tag == b't')
-            .expect("ParameterDescription");
-        assert_eq!(
-            wire::parse_parameter_description(payload)[0].to_be_bytes(),
-            oid.to_be_bytes()
-        );
-        let bind = &batches[offset + index * 3 + 2];
+        let bind = &batches[index * 3 + 2];
         assert_eq!(
             bind.iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
             vec![b'E', b'Z']
@@ -355,6 +351,19 @@ fn should_preserve_resolved_unknown_and_high_bit_unused_slots() {
         );
         assert_ready(bind);
     }
+}
+
+fn assert_parameter_description(frames: &[(u8, Vec<u8>)], expected_oids: &[i32]) {
+    assert_eq!(
+        frames.iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
+        vec![b't', b'T', b'Z']
+    );
+    let (_, payload) = frames
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(payload), expected_oids);
+    assert_ready(frames);
 }
 
 fn assert_error(frames: &[(u8, Vec<u8>)], expected_state: &str, expected_message: &str) {

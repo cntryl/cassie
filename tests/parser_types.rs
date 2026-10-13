@@ -4,6 +4,20 @@
 #[path = "parser_types/dialect_syntax.rs"]
 mod dialect_syntax;
 
+mod parser_types {
+    mod postgresql18_binary_bytea;
+    mod postgresql18_ctes;
+    mod postgresql18_grammar;
+    mod postgresql18_math_operators;
+    mod postgresql18_network_types;
+    mod postgresql18_numeric;
+    mod postgresql18_string_functions;
+    mod postgresql18_temporal;
+    mod postgresql18_temporal_functions;
+    mod postgresql18_text_search;
+    mod postgresql18_uuid_hash_lsn;
+}
+
 #[path = "parser_types/insert_source_boundary.rs"]
 mod insert_source_boundary;
 

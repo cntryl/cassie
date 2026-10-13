@@ -66,6 +66,7 @@ pub fn sql_fixture_with_config(
 ) -> SqlFixture {
     crate::support_sql::use_local_storage();
     let path = crate::support_sql::data_dir(label);
+    let directory = FixtureDirectory { path: path.clone() };
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("create Cassie");
     let session = cassie.create_session("tester", None);
     for sql in setup {
@@ -77,7 +78,7 @@ pub fn sql_fixture_with_config(
     SqlFixture {
         cassie,
         session,
-        path: FixtureDirectory { path },
+        path: directory,
     }
 }
 

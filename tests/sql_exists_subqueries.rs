@@ -1,5 +1,4 @@
-// Integration suite: EXISTS and NOT EXISTS subqueries in every clause and
-// statement that accepts a boolean expression.
+// Integration suite: scalar, row, membership, EXISTS, and NOT EXISTS subqueries.
 
 #[path = "support/sql.rs"]
 mod support_sql;
@@ -10,6 +9,9 @@ mod support_temp_dirs;
 
 #[path = "sql_exists_subqueries/boolean_contexts.rs"]
 mod sql_boolean_exists;
+mod sql_exists_subqueries {
+    mod scalar_in_any_all;
+}
 #[path = "sql_exists_subqueries/target_elision.rs"]
 mod sql_exists_target_elision;
 

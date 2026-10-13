@@ -1,0 +1,310 @@
+//! PostgreSQL 18 bit-string and bytea wire contracts tracked by #816.
+
+use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_pgwire as wire;
+
+fn row_description(frames: &[(u8, Vec<u8>)]) -> Vec<wire::RowDescription> {
+    let (_, payload) = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("RowDescription");
+    wire::parse_row_description(payload)
+}
+
+fn data_row_bytes(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<u8>> {
+    let (_, payload) = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'D')
+        .expect("DataRow");
+    let field_count = i16::from_be_bytes([payload[0], payload[1]]);
+    let mut cursor = 2;
+    let mut fields = Vec::new();
+    for _ in 0..field_count {
+        let length = i32::from_be_bytes(
+            payload[cursor..cursor + 4]
+                .try_into()
+                .expect("DataRow field length"),
+        );
+        cursor += 4;
+        assert!(length >= 0, "binary fixture fields should not be NULL");
+        let end = cursor + usize::try_from(length).expect("field length fits usize");
+        fields.push(payload[cursor..end].to_vec());
+        cursor = end;
+    }
+    fields
+}
+
+#[test]
+fn should_describe_postgresql_binary_type_oids() {
+    // Arrange
+    let batches = run_script(
+        "issue-816-binary-type-descriptors",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            r"SELECT B'101'::bit(3) AS fixed, B'00101'::varbit AS variable, '\x0102'::bytea AS payload",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+    let fields = row_description(result);
+
+    // Assert
+    assert_eq!(wire::error_code(result), None);
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| field.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1560, 1562, 17]
+    );
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| field.type_mod)
+            .collect::<Vec<_>>(),
+        vec![3, -1, -1]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("101".to_owned()),
+            Some("00101".to_owned()),
+            Some(r"\x0102".to_owned())
+        ]]
+    );
+}
+
+#[test]
+fn should_bind_text_parameters_for_bit_varbit_bytea() {
+    // Arrange
+    let sql = "SELECT $1::bit(3) AS fixed, $2::varbit AS variable, $3::bytea AS payload";
+    let batches = run_script(
+        "issue-816-binary-text-parameters",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                "binary_text_parameters",
+                sql,
+                &[1560, 1562, 17],
+            )),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame("binary_text_parameters"),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::bind_frame(
+                    "binary_text_portal",
+                    "binary_text_parameters",
+                    &["101", "00101", r"\x00ff"],
+                ),
+                wire::execute_frame("binary_text_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let parsed = &batches[0];
+    let described = &batches[1];
+    let result = &batches[2];
+
+    // Assert
+    assert_eq!(
+        parsed.iter().map(|frame| frame.0).collect::<Vec<_>>(),
+        vec![b'1']
+    );
+    assert_eq!(wire::error_code(described), None);
+    let parameters = described
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameters.1),
+        vec![1560, 1562, 17]
+    );
+    assert_eq!(
+        row_description(described)
+            .iter()
+            .map(|field| field.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1560, 1562, 17]
+    );
+    assert_eq!(wire::error_code(result), None);
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("101".to_owned()),
+            Some("00101".to_owned()),
+            Some(r"\x00ff".to_owned())
+        ]]
+    );
+}
+
+#[test]
+fn should_decode_binary_bytea_parameters_without_text_reencoding() {
+    // Arrange
+    let sql = "SELECT encode($1::bytea, 'hex') AS payload_hex";
+    let batches = run_script(
+        "issue-816-binary-bytea-parameter",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types("binary_bytea", sql, &[17])),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame("binary_bytea"),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::bind_frame_with_formats(
+                    "binary_bytea_portal",
+                    "binary_bytea",
+                    &[1],
+                    &[Some(&[0x00, 0xff])],
+                    &[],
+                ),
+                wire::execute_frame("binary_bytea_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let result = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(result), None);
+    assert_eq!(wire::data_rows(result), vec![vec![Some("00ff".to_owned())]]);
+}
+
+#[test]
+fn should_decode_binary_bit_parameters_with_bit_length_header() {
+    // Arrange
+    let sql = "SELECT $1::bit(5) AS bits";
+    let bit_payload = [0, 0, 0, 5, 0b1010_1000];
+    let batches = run_script(
+        "issue-816-binary-bit-parameter",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types("binary_bit", sql, &[1560])),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame("binary_bit"),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::bind_frame_with_formats(
+                    "binary_bit_portal",
+                    "binary_bit",
+                    &[1],
+                    &[Some(&bit_payload)],
+                    &[],
+                ),
+                wire::execute_frame("binary_bit_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let result = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(result), None);
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("10101".to_owned())]]
+    );
+}
+
+#[test]
+fn should_encode_binary_bit_bytea_results() {
+    // Arrange
+    let sql = r"SELECT B'10101'::bit(5) AS bits, '\x00ff'::bytea AS payload";
+    let batches = run_script(
+        "issue-816-binary-result-codecs",
+        vec![
+            Step::ParseFlush(wire::parse_frame("binary_results", sql)),
+            Step::ThroughReady(vec![
+                wire::bind_frame_with_formats(
+                    "binary_result_portal",
+                    "binary_results",
+                    &[],
+                    &[],
+                    &[1],
+                ),
+                wire::describe_portal_frame("binary_result_portal"),
+                wire::execute_frame("binary_result_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let result = &batches[1];
+    let fields = row_description(result);
+
+    // Assert
+    assert_eq!(wire::error_code(result), None);
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| field.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1560, 17]
+    );
+    assert!(fields.iter().all(|field| field.format_code == 1));
+    assert_eq!(
+        data_row_bytes(result),
+        vec![vec![0, 0, 0, 5, 0b1010_1000], vec![0x00, 0xff]]
+    );
+}
+
+#[test]
+fn should_emit_bytea_text_in_the_selected_escape_output_format() {
+    // Arrange
+    let batches = run_script(
+        "issue-816-bytea-output-setting",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            r"SET bytea_output = 'escape'; SELECT '\x41005cff'::bytea",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(wire::error_code(result), None);
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some(r"A\000\\\377".to_owned())]]
+    );
+}
+
+#[test]
+fn should_preserve_nulls_for_binary_type_parameters() {
+    // Arrange
+    let sql = "SELECT $1::bit(3) AS bits, $2::varbit AS variable, $3::bytea AS payload";
+    let batches = run_script(
+        "issue-816-binary-null-parameters",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                "binary_null_parameters",
+                sql,
+                &[1560, 1562, 17],
+            )),
+            Step::ThroughReady(vec![
+                wire::bind_frame_with_formats(
+                    "binary_null_portal",
+                    "binary_null_parameters",
+                    &[0],
+                    &[None, None, None],
+                    &[],
+                ),
+                wire::execute_frame("binary_null_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let result = &batches[1];
+
+    // Assert
+    assert_eq!(wire::error_code(result), None);
+    assert_eq!(wire::data_rows(result), vec![vec![None, None, None]]);
+}

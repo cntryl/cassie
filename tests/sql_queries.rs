@@ -48,6 +48,24 @@ mod sql_pagination;
 #[path = "sql_queries/aliases.rs"]
 mod sql_aliases;
 
+mod sql_queries {
+    mod postgresql18_binary_bytea;
+    mod postgresql18_ctes;
+    mod postgresql18_math_functions;
+    mod postgresql18_network_types;
+    mod postgresql18_numeric;
+    mod postgresql18_pattern_matching;
+    mod postgresql18_relations;
+    mod postgresql18_set_operations;
+    mod postgresql18_string_functions;
+    mod postgresql18_tablesample;
+    mod postgresql18_temporal;
+    mod postgresql18_temporal_functions;
+    mod postgresql18_text_search;
+    mod postgresql18_uuid_hash_lsn;
+    mod postgresql18_values_rows;
+}
+
 mod relational_promotion_evidence {
     use super::support_relational_evidence::SeededRelationalFixture;
 

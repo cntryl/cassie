@@ -490,6 +490,22 @@ fn should_distinguish_text_character_byte_length_from_string_predicates() {
 }
 
 #[test]
+fn should_match_text_prefix_with_starts_with_operator() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-starts-with-operator", &[]);
+
+    // Act
+    let result =
+        fixture.execute("SELECT 'alphabet' ^@ 'alpha', 'alphabet' ^@ 'beta', NULL::TEXT ^@ 'x'");
+
+    // Assert
+    assert_eq!(
+        result.expect("PostgreSQL text starts-with operator").rows(),
+        &[vec![Value::Bool(true), Value::Bool(false), Value::Null]]
+    );
+}
+
+#[test]
 fn should_apply_postgresql_18_unicode_string_functions() {
     // Arrange
     let fixture = sql_fixture("issue-803-unicode-string-functions", &[]);

@@ -526,3 +526,36 @@ fn should_return_nth_value_for_an_explicit_full_partition_frame() {
         ]
     );
 }
+
+#[test]
+fn should_return_any_non_null_input_from_any_value_aggregate() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-any-value-aggregate",
+        &[
+            "CREATE TABLE issue_806_any_values (bucket INT, item INT)",
+            "INSERT INTO issue_806_any_values VALUES (1,10),(1,20),(2,NULL)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT bucket, any_value(item), COUNT(item) FROM issue_806_any_values GROUP BY bucket ORDER BY bucket",
+    );
+
+    // Assert
+    let result = result.expect("ANY_VALUE over grouped inputs");
+    assert_eq!(result.rows().len(), 2);
+    let first = &result.rows()[0];
+    assert_eq!(first[0], Value::Int64(1));
+    assert!(
+        matches!(first[1], Value::Int64(10 | 20)),
+        "ANY_VALUE may select any non-NULL input, got {:?}",
+        first[1]
+    );
+    assert_eq!(first[2], Value::Int64(2));
+    assert_eq!(
+        result.rows()[1],
+        vec![Value::Int64(2), Value::Null, Value::Int64(0)]
+    );
+}

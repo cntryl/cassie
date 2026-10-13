@@ -186,6 +186,151 @@ fn should_report_merge_action_values_through_tokio_postgres() {
 }
 
 #[test]
+fn should_return_prior_row_for_conflict_update() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("conflict_returning_old_new").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_conflict_old_new (id INT PRIMARY KEY, label TEXT)",
+                "INSERT INTO compat_conflict_old_new VALUES (1, 'first')",
+            ],
+        )
+        .await
+        .expect("create OLD/NEW conflict RETURNING fixture");
+
+        // Act
+        let updated = client
+            .query(
+                "INSERT INTO compat_conflict_old_new AS target (id, label) VALUES (1, 'second') \
+                 ON CONFLICT (id) DO UPDATE SET label = EXCLUDED.label \
+                 RETURNING WITH (OLD AS old_row, NEW AS new_row) \
+                   old_row.id, old_row.label, new_row.id, new_row.label",
+                &[],
+            )
+            .await
+            .expect("return OLD and NEW on a conflict update");
+
+        // Assert
+        assert_eq!(updated.len(), 1);
+        assert_eq!(updated[0].get::<_, i32>(0), 1);
+        assert_eq!(updated[0].get::<_, String>(1), "first");
+        assert_eq!(updated[0].get::<_, i32>(2), 1);
+        assert_eq!(updated[0].get::<_, String>(3), "second");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_delete_merge_targets_missing_from_the_source() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("merge_not_matched_by_source").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_merge_by_source_target (id INT PRIMARY KEY, label TEXT)",
+                "CREATE TABLE compat_merge_by_source_source (id INT, label TEXT)",
+                "INSERT INTO compat_merge_by_source_target VALUES (1, 'old'), (2, 'remove')",
+                "INSERT INTO compat_merge_by_source_source VALUES (1, 'updated')",
+            ],
+        )
+        .await
+        .expect("create MERGE BY SOURCE fixtures");
+
+        // Act
+        let actions = client
+            .query(
+                "MERGE INTO compat_merge_by_source_target AS target \
+                 USING compat_merge_by_source_source AS source ON target.id = source.id \
+                 WHEN MATCHED THEN UPDATE SET label = source.label \
+                 WHEN NOT MATCHED BY SOURCE THEN DELETE \
+                 RETURNING merge_action(), target.id",
+                &[],
+            )
+            .await
+            .expect("update matched rows and delete target-only rows");
+        let mut observed = actions
+            .iter()
+            .map(|row| (row.get::<_, String>(0), row.get::<_, i32>(1)))
+            .collect::<Vec<_>>();
+        observed.sort_by_key(|row| row.1);
+
+        // Assert
+        assert_eq!(
+            observed,
+            vec![("UPDATE".to_owned(), 1), ("DELETE".to_owned(), 2)]
+        );
+        let remaining = client
+            .query(
+                "SELECT id, label FROM compat_merge_by_source_target ORDER BY id",
+                &[],
+            )
+            .await
+            .expect("read the target after MERGE BY SOURCE");
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].get::<_, i32>(0), 1);
+        assert_eq!(remaining[0].get::<_, String>(1), "updated");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_merge_that_would_modify_a_target_row_twice() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("merge_cardinality_violation").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_merge_cardinality_target (id INT PRIMARY KEY, label TEXT)",
+                "INSERT INTO compat_merge_cardinality_target VALUES (1, 'old')",
+            ],
+        )
+        .await
+        .expect("create MERGE cardinality fixture");
+
+        // Act
+        let conflict = client
+            .execute(
+                "MERGE INTO compat_merge_cardinality_target AS target \
+                 USING (VALUES (1, 'first'), (1, 'second')) AS source(id, label) \
+                 ON target.id = source.id \
+                 WHEN MATCHED THEN UPDATE SET label = source.label",
+                &[],
+            )
+            .await
+            .expect_err("a second source match must not modify the same target again");
+
+        // Assert
+        assert_eq!(db_error(&conflict).code().code(), "21000");
+        let stored_label = client
+            .query_one(
+                "SELECT label FROM compat_merge_cardinality_target WHERE id = 1",
+                &[],
+            )
+            .await
+            .expect("read the target after the rejected MERGE")
+            .get::<_, String>(0);
+        assert_eq!(stored_label, "old", "the failed MERGE is atomic");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_return_only_rows_changed_by_a_named_conditional_conflict_target() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -959,6 +1104,139 @@ fn should_assign_multiple_columns_from_a_joined_mutation_source() {
         );
         assert_eq!(unchanged.get::<_, i32>(0), 30);
         assert_eq!(unchanged.get::<_, String>(1), "keep");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_assign_multiple_conflict_columns_from_a_subquery() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("conflict_tuple_subquery_assignment").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_conflict_tuple_target (id INT PRIMARY KEY, label TEXT, version INT)",
+                "CREATE TABLE compat_conflict_tuple_source (id INT, label TEXT, version INT)",
+                "INSERT INTO compat_conflict_tuple_target VALUES (1, 'old', 1)",
+                "INSERT INTO compat_conflict_tuple_source VALUES (1, 'subquery', 9)",
+            ],
+        )
+        .await
+        .expect("create tuple conflict-assignment fixtures");
+
+        // Act
+        let changed = client
+            .query(
+                "INSERT INTO compat_conflict_tuple_target (id, label, version) \
+                 VALUES (1, 'incoming', 2) \
+                 ON CONFLICT (id) DO UPDATE SET (label, version) = ( \
+                   SELECT source.label, source.version \
+                   FROM compat_conflict_tuple_source AS source \
+                   WHERE source.id = EXCLUDED.id \
+                 ) RETURNING id, label, version",
+                &[],
+            )
+            .await
+            .expect("assign an upsert target tuple from a scalar subquery");
+
+        // Assert
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0].get::<_, i32>(0), 1);
+        assert_eq!(changed[0].get::<_, String>(1), "subquery");
+        assert_eq!(changed[0].get::<_, i32>(2), 9);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_apply_default_to_a_conflicting_target_column() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("conflict_default_assignment").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_conflict_default (id INT PRIMARY KEY, label TEXT DEFAULT 'fallback')",
+                "INSERT INTO compat_conflict_default VALUES (1, 'old')",
+            ],
+        )
+        .await
+        .expect("create conflict DEFAULT fixture");
+
+        // Act
+        let changed = client
+            .query(
+                "INSERT INTO compat_conflict_default (id, label) VALUES (1, 'incoming') \
+                 ON CONFLICT (id) DO UPDATE SET label = DEFAULT RETURNING id, label",
+                &[],
+            )
+            .await
+            .expect("use DEFAULT in the conflict update assignment");
+
+        // Assert
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0].get::<_, i32>(0), 1);
+        assert_eq!(changed[0].get::<_, String>(1), "fallback");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_attach_a_non_modifying_cte_to_update() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("cte_attached_to_update").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_cte_update_target (id INT PRIMARY KEY, label TEXT)",
+                "CREATE TABLE compat_cte_update_source (id INT, label TEXT)",
+                "INSERT INTO compat_cte_update_target VALUES (1, 'old'), (2, 'keep')",
+                "INSERT INTO compat_cte_update_source VALUES (1, 'from-cte')",
+            ],
+        )
+        .await
+        .expect("create CTE UPDATE fixtures");
+
+        // Act
+        let changed = client
+            .query(
+                "WITH selected AS (SELECT id, label FROM compat_cte_update_source) \
+                 UPDATE compat_cte_update_target AS target \
+                 SET label = selected.label \
+                 FROM selected WHERE target.id = selected.id \
+                 RETURNING target.id, target.label",
+                &[],
+            )
+            .await
+            .expect("execute UPDATE with a non-modifying WITH query");
+
+        // Assert
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0].get::<_, i32>(0), 1);
+        assert_eq!(changed[0].get::<_, String>(1), "from-cte");
+        let unchanged: String = client
+            .query_one(
+                "SELECT label FROM compat_cte_update_target WHERE id = 2",
+                &[],
+            )
+            .await
+            .expect("read the untouched target row")
+            .get(0);
+        assert_eq!(unchanged, "keep");
 
         drop(client);
         server.shutdown(connection).await;

@@ -123,3 +123,36 @@ fn should_log_old_rows_for_delete_rule_with_returning() {
         &[vec![Value::Int64(1), Value::String("removed".to_owned())]]
     );
 }
+
+#[test]
+fn should_rewrite_view_inserts_through_an_instead_rule() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-913-view-instead-insert-rule",
+        &[
+            "CREATE TABLE issue_913_view_base (id INT PRIMARY KEY, label TEXT)",
+            "CREATE VIEW issue_913_insert_view AS SELECT id, label FROM issue_913_view_base",
+        ],
+    );
+
+    // Act
+    let rule = fixture.execute(
+        "CREATE RULE issue_913_insert_view_rule AS ON INSERT TO issue_913_insert_view \
+         DO INSTEAD INSERT INTO issue_913_view_base VALUES (NEW.id, NEW.label)",
+    );
+    let inserted = fixture.execute("INSERT INTO issue_913_insert_view VALUES (7, 'through-view')");
+    let base_rows = fixture.execute("SELECT id, label FROM issue_913_view_base ORDER BY id");
+
+    // Assert
+    rule.expect("create an INSTEAD INSERT rule on a view");
+    inserted.expect("insert through the rewritten view");
+    assert_eq!(
+        base_rows
+            .expect("read the base relation after the view rewrite")
+            .rows(),
+        &[vec![
+            Value::Int64(7),
+            Value::String("through-view".to_owned()),
+        ]]
+    );
+}

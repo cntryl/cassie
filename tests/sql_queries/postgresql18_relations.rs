@@ -601,3 +601,45 @@ fn should_merge_shared_columns_from_multiple_inheritance_parents() {
         ]]
     );
 }
+
+#[test]
+fn should_propagate_new_parent_columns_to_existing_children() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-909-inherited-add-column",
+        &["CREATE TABLE issue_909_alter_parent (id INT)"],
+    );
+
+    // Act
+    let child = fixture.execute(
+        "CREATE TABLE issue_909_alter_child (child_value TEXT) INHERITS (issue_909_alter_parent)",
+    );
+    child.expect("create a child inheriting the parent columns");
+    fixture
+        .execute("INSERT INTO issue_909_alter_child (id, child_value) VALUES (1, 'retained')")
+        .expect("seed the child before the parent schema change");
+    let altered = fixture
+        .execute("ALTER TABLE issue_909_alter_parent ADD COLUMN inherited_value INT DEFAULT 7");
+    let result = fixture
+        .execute("SELECT id, child_value, inherited_value FROM issue_909_alter_child ORDER BY id");
+
+    // Assert
+    altered.expect("propagate a parent column change to existing descendants");
+    let result = result.expect("read the altered child descriptor and row");
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["id", "child_value", "inherited_value"]
+    );
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::String("retained".to_owned()),
+            Value::Int64(1),
+            Value::Int64(7),
+        ]]
+    );
+}

@@ -1414,7 +1414,7 @@ mod pgwire_text_parameters {
         assert_eq!(support::error_code(&batches[5]).as_deref(), Some("08P01"));
         assert_eq!(first_column(&batches[6]), keys(&["1"]));
         assert_eq!(first_column(&batches[7]), keys(&["3"]));
-        assert_eq!(support::error_code(&batches[8]).as_deref(), Some("08P01"));
+        assert_eq!(support::error_code(&batches[8]).as_deref(), Some("22003"));
     }
 }
 

@@ -249,11 +249,6 @@ async fn handle_parse(
             "prepared statement limit exceeded".to_string(),
         )));
     }
-    if parameter_type_oids.iter().any(|oid| *oid < 0) {
-        return Err(ExtendedQueryError::protocol(
-            "parse parameter type OID cannot be negative",
-        ));
-    }
     let empty_query = super::simple_query::split_simple_query(&query)
         .is_ok_and(|statements| statements.is_empty());
     if empty_query {
@@ -301,6 +296,9 @@ async fn handle_parse(
         )
     })
     .map_err(|error| ExtendedQueryError::parameter_admission(error, &controls))?;
+    if let Some(oid) = unknown_high_bit_projection_oid(&parsed, admitted.types()) {
+        return Err(ExtendedQueryError::unknown_type_oid(oid));
+    }
     crate::sql::pagination::validate_statement(&mut parsed, Some(admitted.types()))
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
@@ -325,6 +323,31 @@ async fn handle_parse(
 
     let _ = write_parse_complete(write_half).await;
     Ok(())
+}
+
+fn unknown_high_bit_projection_oid(
+    parsed: &crate::sql::ast::ParsedStatement,
+    parameter_type_oids: &[i32],
+) -> Option<i32> {
+    let crate::sql::ast::QueryStatement::Select(select) = &parsed.statement else {
+        return None;
+    };
+    select.projection.iter().find_map(|item| {
+        let crate::sql::ast::SelectItem::Expr {
+            expr: crate::sql::ast::Expr::Param(index),
+            ..
+        } = item
+        else {
+            return None;
+        };
+        let oid = parameter_type_oids.get(*index).copied()?;
+        unknown_high_bit_parameter_oid(oid)
+    })
+}
+
+/// Treat the signed wire slot as its original u32 bits; only unresolved high-bit OIDs are unknown.
+fn unknown_high_bit_parameter_oid(oid: i32) -> Option<i32> {
+    (oid < 0 && crate::sql::binder::parameter_data_type_for_oid(oid).is_none()).then_some(oid)
 }
 
 fn with_function_input_scope<R>(
@@ -755,6 +778,9 @@ fn decode_parameter(
     format: i16,
     oid: i32,
 ) -> Result<Value, ExtendedQueryError> {
+    if let Some(oid) = unknown_high_bit_parameter_oid(oid) {
+        return Err(ExtendedQueryError::unknown_type_oid(oid));
+    }
     let Some(parameter) = parameter else {
         return Ok(Value::Null);
     };
@@ -792,6 +818,16 @@ pub(super) struct ExtendedQueryError {
 }
 
 impl ExtendedQueryError {
+    fn unknown_type_oid(oid: i32) -> Self {
+        let oid = u32::from_be_bytes(oid.to_be_bytes());
+        Self {
+            pg_error: Box::new(PgWireError::internal(format!(
+                "cache lookup failed for type {oid}"
+            ))),
+            record_protocol_error: false,
+        }
+    }
+
     fn protocol(message: impl Into<String>) -> Self {
         Self {
             pg_error: Box::new(PgWireError::protocol(message)),

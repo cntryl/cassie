@@ -101,6 +101,14 @@ new types and actual v3 upgrade round trips remain open. The independent native
 ARM canonical failure stays failed under #927; its external remedy does not
 become a circular prerequisite on unrelated static scalar primitives.
 
+A first finite #904 high-bit OID increment is selected for unregistered wire
+identities: preserve `0x80000000` and `0xffffffff` through Parse and
+ParameterDescription when used by `SELECT $1 IS NULL`, and match PostgreSQL
+18.6's `XX000` lookup error when either unknown identity supplies a direct
+result descriptor or a Bind input. This boundary does not register named
+high-bit types or qualify their allocation, catalog publication, persistence,
+restart or import behavior.
+
 Record an implementation prerequisite as `owner; completed commit; exact tests;
 passed result; remaining integration obligations` before dependent work starts.
 A closed issue without that evidence is insufficient. #793 specifies contracts;

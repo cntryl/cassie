@@ -13,6 +13,13 @@ use cntryl_stress::{
 
 use crate::performance_benchmarks::{self, BenchmarkTier, BenchmarkTimingMode};
 
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "aarch64", target_arch = "arm"),
+    not(test)
+))]
+#[path = "host_identity.rs"]
+mod host_identity;
 #[path = "stress_evidence.rs"]
 mod stress_evidence;
 pub use stress_evidence::{
@@ -248,6 +255,12 @@ impl CassieStressRunner {
             runner.metadata("soak_measured_samples", resolved.config.samples);
             runner.metadata("soak_duration_source", soak.source);
         }
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "aarch64", target_arch = "arm"),
+            not(test)
+        ))]
+        host_identity::ArmCpuIdentityReporter::install(&mut runner, &resolved.config);
         Self {
             suite,
             tier,

@@ -67,3 +67,107 @@ fn should_resume_parameterized_alias_prefix_portals() {
     });
     std::fs::remove_dir_all(path).expect("cleanup");
 }
+
+#[test]
+fn should_describe_qualified_derived_fields_by_declared_label() {
+    // Arrange
+    crate::support_sql::use_local_storage();
+    let path = crate::support_sql::data_dir("qualified-derived-label-wire");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        cassie.startup().expect("startup");
+        let server = wire::spawn_server(cassie).await;
+        let mut socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("connect");
+        let (read_half, mut writer) = socket.split();
+        let mut reader = BufReader::new(read_half);
+        wire::complete_startup(&mut reader, &mut writer).await;
+        let sql = "SELECT q.x FROM (SELECT CAST(1 AS BIGINT) AS x) AS q";
+
+        // Act
+        wire::write_frames(&mut writer, vec![wire::simple_query_frame(sql)]).await;
+        let simple = wire::read_frames_until_ready(&mut reader).await;
+        wire::write_frames(
+            &mut writer,
+            vec![
+                wire::parse_frame("qualified_label_stmt", sql),
+                wire::describe_statement_frame("qualified_label_stmt"),
+                wire::bind_frame_with_formats(
+                    "text_portal",
+                    "qualified_label_stmt",
+                    &[],
+                    &[],
+                    &[0],
+                ),
+                wire::describe_portal_frame("text_portal"),
+                wire::execute_frame("text_portal"),
+                wire::sync_frame(),
+            ],
+        )
+        .await;
+        let text = wire::read_frames_until_ready(&mut reader).await;
+        wire::write_frames(
+            &mut writer,
+            vec![
+                wire::bind_frame_with_formats(
+                    "binary_portal",
+                    "qualified_label_stmt",
+                    &[],
+                    &[],
+                    &[1],
+                ),
+                wire::describe_portal_frame("binary_portal"),
+                wire::execute_frame("binary_portal"),
+                wire::sync_frame(),
+            ],
+        )
+        .await;
+        let binary = wire::read_frames_until_ready(&mut reader).await;
+
+        // Assert
+        assert_eq!(wire::error_code(&simple), None);
+        assert_eq!(wire::row_description_names(&simple), vec!["x"]);
+        assert_eq!(wire::data_rows(&simple), vec![vec![Some("1".into())]]);
+        assert_eq!(wire::error_code(&text), None);
+        let text_descriptions = text
+            .iter()
+            .filter(|frame| frame.0 == b'T')
+            .map(|frame| wire::parse_row_description(&frame.1))
+            .collect::<Vec<_>>();
+        assert_eq!(text_descriptions.len(), 2);
+        assert!(text_descriptions.iter().all(|fields| {
+            fields.len() == 1
+                && fields[0].name == "x"
+                && fields[0].type_oid == 20
+                && fields[0].type_mod == -1
+                && fields[0].format_code == 0
+        }));
+        assert_eq!(wire::data_rows(&text), vec![vec![Some("1".into())]]);
+        assert_eq!(wire::error_code(&binary), None);
+        let binary_description = binary
+            .iter()
+            .find(|frame| frame.0 == b'T')
+            .map(|frame| wire::parse_row_description(&frame.1))
+            .expect("binary portal description");
+        assert_eq!(binary_description.len(), 1);
+        assert_eq!(binary_description[0].name, "x");
+        assert_eq!(binary_description[0].type_oid, 20);
+        assert_eq!(binary_description[0].type_mod, -1);
+        assert_eq!(binary_description[0].format_code, 1);
+        assert_eq!(
+            binary
+                .iter()
+                .find(|frame| frame.0 == b'D')
+                .map(|frame| frame.1.as_slice()),
+            Some(&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1][..])
+        );
+        drop(socket);
+        server.stop().await;
+    });
+    std::fs::remove_dir_all(path).expect("cleanup");
+}

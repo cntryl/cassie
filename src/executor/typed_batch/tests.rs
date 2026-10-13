@@ -160,6 +160,45 @@ fn should_preserve_typed_transport_identity_through_repeated_projection() {
 }
 
 #[test]
+fn should_emit_declared_label_for_qualified_typed_projection() {
+    // Arrange
+    use crate::sql::ast::SelectItem;
+    let controls = controls();
+    let batch = TypedBatch::from_columns(
+        &controls,
+        &[("q.x".to_owned(), DataType::BigInt)],
+        &[vec![Value::Int64(1)]],
+        1,
+        None,
+    )
+    .expect("qualified source");
+    let projection = [SelectItem::Column {
+        name: "q.x".to_owned(),
+        alias: None,
+    }];
+
+    // Act
+    let output = batch
+        .project(
+            &controls,
+            &projection,
+            &[],
+            &std::collections::HashMap::new(),
+            None,
+        )
+        .expect("qualified projection");
+
+    // Assert
+    assert_eq!(output.schema(), &[("x".to_owned(), DataType::BigInt)]);
+    assert_eq!(
+        output.value(0, 0).expect("projected value"),
+        Value::Int64(1)
+    );
+    drop((batch, output));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_preserve_bound_parameter_identity_in_computed_projection() {
     // Arrange
     let controls = controls();

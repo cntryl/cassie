@@ -132,7 +132,7 @@ pub(crate) fn columns_from_projection_with_wildcard<S: BuildHasher>(
                 let data_type = column_data_type(name, collection_schema);
                 let output_name = alias.clone().unwrap_or_else(|| {
                     crate::sql::ColumnIdentifierPath::parse(name)
-                        .map_or_else(|_| name.clone(), |column| column.display_name())
+                        .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
                 });
                 vec![ColumnMeta::from_data_type(output_name, &data_type)]
             }

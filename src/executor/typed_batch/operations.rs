@@ -119,7 +119,7 @@ impl TypedBatch {
                         .ok_or_else(|| invalid("projection column is absent"))?;
                     let key = alias.clone().unwrap_or_else(|| {
                         crate::sql::ColumnIdentifierPath::parse(name)
-                            .map_or_else(|_| name.clone(), |column| column.display_name())
+                            .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
                     });
                     scratch.try_grow(data_type_clone_bytes(&self.schema()[index].1)?)?;
                     schema.push((key, self.schema()[index].1.clone()));

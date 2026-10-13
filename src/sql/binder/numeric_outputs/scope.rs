@@ -245,7 +245,7 @@ impl Analyzer<'_> {
                 SelectItem::Column { name, alias } => {
                     let output_name = alias.clone().unwrap_or_else(|| {
                         crate::sql::ColumnIdentifierPath::parse(name)
-                            .map_or_else(|_| name.clone(), |column| column.display_name())
+                            .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
                     });
                     (
                         output_name,

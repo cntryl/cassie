@@ -41,6 +41,124 @@ fn should_bind_ordinary_aliases_without_changing_underlying_columns() {
 }
 
 #[test]
+fn should_use_declared_field_names_for_qualified_select_labels() {
+    // Arrange
+    let fixture = sql_fixture(
+        "qualified_select_labels",
+        &[
+            "CREATE TABLE public.records (id BIGINT, \"MiXeD\" BIGINT)",
+            "INSERT INTO public.records VALUES (1, 2)",
+            "CREATE VIEW public.qualified_records AS SELECT r.id FROM public.records AS r",
+            "CREATE VIEW public.derived_records AS SELECT q.x FROM (SELECT CAST(1 AS BIGINT) AS x) AS q",
+        ],
+    );
+    let sql = [
+        "SELECT r.id FROM public.records AS r",
+        "SELECT q.x FROM (SELECT CAST(1 AS BIGINT) AS x) AS q",
+        "WITH chosen AS (SELECT r.id FROM public.records AS r) SELECT c.id FROM chosen AS c",
+        "WITH chosen AS (SELECT q.x FROM (SELECT CAST(1 AS BIGINT) AS x) AS q) SELECT c.x FROM chosen AS c",
+        "SELECT right_records.id FROM public.records AS left_records JOIN public.records AS right_records ON left_records.id=right_records.id",
+        "SELECT right_source.x FROM (SELECT CAST(1 AS BIGINT) AS x) AS left_source JOIN (SELECT CAST(1 AS BIGINT) AS x) AS right_source ON left_source.x=right_source.x",
+        "SELECT v.id FROM public.qualified_records AS v",
+        "SELECT v.x FROM public.derived_records AS v",
+        "SELECT r.id AS explicit_label FROM public.records AS r",
+        "SELECT r.id AS \"ExplicitLabel\" FROM public.records AS r",
+        "SELECT r.\"MiXeD\" FROM public.records AS r",
+        "SELECT q.X FROM (SELECT CAST(1 AS BIGINT) AS x) AS q",
+        "SELECT q.x AS explicit_derived_label FROM (SELECT CAST(1 AS BIGINT) AS x) AS q",
+    ];
+
+    // Act
+    let results = sql
+        .iter()
+        .map(|query| {
+            fixture
+                .execute(query)
+                .unwrap_or_else(|error| panic!("{query}: {error}"))
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert_eq!(
+        results
+            .iter()
+            .map(|result| result.columns()[0].name.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "id",
+            "x",
+            "id",
+            "x",
+            "id",
+            "x",
+            "id",
+            "x",
+            "explicit_label",
+            "ExplicitLabel",
+            "MiXeD",
+            "x",
+            "explicit_derived_label"
+        ]
+    );
+    assert_eq!(results[0].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[1].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[2].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[3].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[4].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[5].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[6].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[7].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[8].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[9].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[10].rows(), &[vec![Value::Int64(2)]]);
+    assert_eq!(results[11].rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(results[12].rows(), &[vec![Value::Int64(1)]]);
+}
+
+#[test]
+fn should_preserve_qualified_join_output_shape() {
+    // Arrange
+    let fixture = sql_fixture(
+        "qualified_join_duplicate_labels",
+        &[
+            "CREATE TABLE public.records (id BIGINT, score BIGINT)",
+            "INSERT INTO public.records VALUES (1, 10), (2, 20)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT right_records.score, left_records.id, right_records.id FROM public.records AS left_records JOIN public.records AS right_records ON left_records.id=right_records.id ORDER BY left_records.id",
+    );
+
+    // Assert
+    let result = result.expect("qualified joined projections");
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["score", "id", "id"]
+    );
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![Value::Int64(10), Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(20), Value::Int64(2), Value::Int64(2)]
+        ]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![20, 20, 20]
+    );
+}
+
+#[test]
 fn should_preserve_prefix_alias_identity_shape() {
     // Arrange
     let fixture = sql_fixture(

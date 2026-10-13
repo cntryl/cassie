@@ -1474,13 +1474,13 @@
       "ordered": false,
       "columns": [
         {
-          "name": "q.x",
+          "name": "x",
           "oid": 20,
           "typlen": 8,
           "typmod": -1
         },
         {
-          "name": "q.a",
+          "name": "a",
           "oid": 34025,
           "typlen": -1,
           "typmod": -1
@@ -1868,13 +1868,13 @@
       "ordered": true,
       "columns": [
         {
-          "name": "l.id",
+          "name": "id",
           "oid": 20,
           "typlen": 8,
           "typmod": -1
         },
         {
-          "name": "h.id",
+          "name": "id",
           "oid": 20,
           "typlen": 8,
           "typmod": -1
@@ -1914,13 +1914,13 @@
       "ordered": true,
       "columns": [
         {
-          "name": "l.id",
+          "name": "id",
           "oid": 20,
           "typlen": 8,
           "typmod": -1
         },
         {
-          "name": "h.id",
+          "name": "id",
           "oid": 20,
           "typlen": 8,
           "typmod": -1

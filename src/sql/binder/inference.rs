@@ -491,7 +491,7 @@ pub(super) fn infer_projection_schema_with_parameters(
             SelectItem::Column { name, alias } => {
                 let output_name = alias.clone().unwrap_or_else(|| {
                     crate::sql::ColumnIdentifierPath::parse(name)
-                        .map_or_else(|_| name.clone(), |column| column.display_name())
+                        .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
                 });
                 fields.push(FieldSchema {
                     name: output_name,

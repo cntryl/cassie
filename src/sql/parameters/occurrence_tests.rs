@@ -77,6 +77,47 @@ fn should_bound_repeated_parameter_occurrences_on_shared_controls() {
 }
 
 #[test]
+fn should_copy_invalid_boolean_literal_only_under_query_memory_admission() {
+    // Arrange
+    let catalog = Catalog::new();
+    let valid = parse_statement("SELECT $1 = 'true'").expect("valid Boolean comparison");
+    let baseline_controls = controls(1_024 * 1_024);
+    let valid_result = checked_parse_parameter_types(&valid, &[16], &catalog, &baseline_controls)
+        .expect("valid Boolean input");
+    let baseline_peak = baseline_controls.peak_query_memory_bytes();
+    drop(valid_result);
+    assert_eq!(baseline_controls.current_query_memory_bytes(), 0);
+
+    let input = "x".repeat(8 * 1_024);
+    let sql = format!("SELECT $1 = '{input}'");
+    let invalid = parse_statement(&sql).expect("invalid Boolean comparison syntax");
+    let generous = controls(1_024 * 1_024);
+    let constrained = controls(baseline_peak + 512);
+    // Act
+    let result = checked_parse_parameter_types(&invalid, &[16], &catalog, &generous);
+    let peak = generous.peak_query_memory_bytes();
+    let constrained_result = checked_parse_parameter_types(&invalid, &[16], &catalog, &constrained);
+    let constrained_peak = constrained.peak_query_memory_bytes();
+    // Assert
+    assert!(matches!(
+        &result,
+        Err(ParameterAdmissionError::InvalidBooleanLiteral { input: actual, .. })
+            if actual == &input
+    ));
+    assert!(peak > baseline_peak);
+    assert!(generous.current_query_memory_bytes() >= input.len());
+    drop(result);
+    assert!(matches!(
+        &constrained_result,
+        Err(ParameterAdmissionError::Memory(_))
+    ));
+    assert!(constrained_peak <= baseline_peak + 512);
+    assert_eq!(generous.current_query_memory_bytes(), 0);
+    drop(constrained_result);
+    assert_eq!(constrained.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_bound_diagnostic_formatting_by_source_derived_capacities() {
     // Arrange
     use super::diagnostics::{BooleanConstruct, ParameterSemanticDiagnostic};

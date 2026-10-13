@@ -162,9 +162,19 @@ impl<'a, 'c> Fold<'a, 'c> {
     }
 
     fn finish(&mut self, frame: &Frame<'a>) -> Result<(), ParameterAdmissionError> {
+        if let Node::Expr(ast::Expr::StringLiteral(input)) = frame.node {
+            if matches!(frame.expected, Expected::Boolean(_) | Expected::Type(16, _)) {
+                self.occurrences
+                    .invalid_boolean_literal(input, self.controls)?;
+            }
+        }
         let mut summary = match frame.node {
             Node::Expr(expr) => Some(self.expression(expr, frame)?),
-            Node::Function(function) => Some(self.function(function, frame)?),
+            Node::Function(function) => {
+                let summary = self.function(function, frame)?;
+                self.invalid_boolean_function_literals(function, summary, frame)?;
+                Some(summary)
+            }
             Node::Item(item) => match item {
                 ast::SelectItem::Expr { .. } | ast::SelectItem::Function { .. } => {
                     self.summaries.values.get(frame.start).copied()

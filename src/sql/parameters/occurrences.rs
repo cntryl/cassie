@@ -94,6 +94,22 @@ impl<'a> Occurrences<'a> {
         self.ledger.values.len()
     }
 
+    pub(super) fn invalid_boolean_literal(
+        &self,
+        input: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), ParameterAdmissionError> {
+        if self.stop_on_error
+            && matches!(self.input, PrivateParameterTypeInput::Wire(_))
+            && crate::types::boolean::parse_text(input).is_none()
+        {
+            return Err(super::admission::admit_invalid_boolean_literal(
+                input, controls,
+            )?);
+        }
+        Ok(())
+    }
+
     pub(super) fn unqualify_since(
         &mut self,
         start: usize,

@@ -1,10 +1,12 @@
 //! Transient admission for nonempty wire Parse parameter metadata.
 //!
-//! The borrowed walk inspects nodes and parameter indices, not literal payload
-//! bytes. Every frame/child and every capacity growth checks interruption. The
-//! Selected SELECT analysis additionally owns admitted occurrence, phase, target
-//! and summary storage. The explicitly nonselected legacy statement visitor and
-//! its other allocations remain outside that finite fold qualification.
+//! The borrowed walk inspects nodes and parameter indices, and reads Boolean
+//! comparison literal text without copying it. Invalid typed Boolean input is
+//! copied only after query-memory admission. Every frame/child and every capacity
+//! growth checks interruption. The selected SELECT analysis additionally owns
+//! admitted occurrence, phase, target and summary storage. The explicitly
+//! nonselected legacy statement visitor and its other allocations remain outside
+//! that finite fold qualification.
 
 use std::mem::size_of;
 
@@ -19,6 +21,11 @@ pub(super) const MAX_PARAMETER_COUNT: usize = 268_435_455;
 pub(crate) enum ParameterAdmissionError {
     Memory(String),
     InvalidParam(String),
+    // Drop the copied text before releasing the lease that accounts for it.
+    InvalidBooleanLiteral {
+        input: String,
+        _reservation: QueryMemoryReservation,
+    },
     Cancelled,
     Deadline,
     LegacyConflict(String),
@@ -146,6 +153,38 @@ pub(super) fn reserve_vector<T>(
     Ok(ReservedVector {
         values,
         reservation,
+    })
+}
+
+pub(super) fn admit_invalid_boolean_literal(
+    input: &str,
+    controls: &QueryExecutionControls,
+) -> Result<ParameterAdmissionError, ParameterAdmissionError> {
+    check_controls(controls)?;
+    let requested = input.len();
+    let mut reservation = controls
+        .reserve_query_memory(requested)
+        .map_err(memory_error)?;
+    check_controls(controls)?;
+    let mut admitted_input = String::new();
+    admitted_input
+        .try_reserve_exact(requested)
+        .map_err(|error| {
+            ParameterAdmissionError::Memory(format!(
+                "unable to allocate invalid Boolean input: {error}"
+            ))
+        })?;
+    if admitted_input.capacity() > requested {
+        check_controls(controls)?;
+        reservation
+            .try_grow(admitted_input.capacity() - requested)
+            .map_err(memory_error)?;
+    }
+    check_controls(controls)?;
+    admitted_input.push_str(input);
+    Ok(ParameterAdmissionError::InvalidBooleanLiteral {
+        input: admitted_input,
+        _reservation: reservation,
     })
 }
 

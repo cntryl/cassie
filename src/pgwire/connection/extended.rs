@@ -818,6 +818,20 @@ impl ExtendedQueryError {
         }
     }
 
+    fn admitted_parameter_error(error: Result<PgWireError, CassieError>) -> Self {
+        match error {
+            Ok(error) => Self {
+                pg_error: Box::new(error),
+                record_protocol_error: false,
+            },
+            Err(CassieError::ResourceLimit(message)) => Self {
+                pg_error: Box::new(PgWireError::new(PgWireSeverity::Error, "53200", message)),
+                record_protocol_error: false,
+            },
+            Err(error) => Self::cassie(&error),
+        }
+    }
+
     fn parameter_admission(
         error: crate::sql::ParameterAdmissionError,
         controls: &crate::runtime::QueryExecutionControls,
@@ -829,25 +843,24 @@ impl ExtendedQueryError {
             ParameterAdmissionError::InvalidParam(message) => ("42P02", message),
             ParameterAdmissionError::Cancelled => ("57014", "query cancelled".to_string()),
             ParameterAdmissionError::Deadline => ("57014", "query deadline exceeded".to_string()),
+            ParameterAdmissionError::InvalidBooleanLiteral {
+                input,
+                _reservation: reservation,
+            } => {
+                let result = Self::admitted_parameter_error(PgWireError::invalid_boolean_input(
+                    &input, controls,
+                ));
+                drop(input);
+                drop(reservation);
+                return result;
+            }
             ParameterAdmissionError::LegacyConflict(message) => {
                 return Self::cassie(&CassieError::Planner(message));
             }
             ParameterAdmissionError::Semantic(diagnostic) => {
-                return match PgWireError::parameter_semantic(diagnostic, controls) {
-                    Ok(error) => Self {
-                        pg_error: Box::new(error),
-                        record_protocol_error: false,
-                    },
-                    Err(CassieError::ResourceLimit(message)) => Self {
-                        pg_error: Box::new(PgWireError::new(
-                            PgWireSeverity::Error,
-                            "53200",
-                            message,
-                        )),
-                        record_protocol_error: false,
-                    },
-                    Err(error) => Self::cassie(&error),
-                };
+                return Self::admitted_parameter_error(PgWireError::parameter_semantic(
+                    diagnostic, controls,
+                ));
             }
         };
         Self {

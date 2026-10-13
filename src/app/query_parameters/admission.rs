@@ -101,6 +101,15 @@ fn project_error(error: ParameterAdmissionError) -> CassieError {
         ParameterAdmissionError::Deadline => CassieError::DeadlineExceeded,
         ParameterAdmissionError::InvalidParam(message)
         | ParameterAdmissionError::LegacyConflict(message) => CassieError::Planner(message),
+        ParameterAdmissionError::InvalidBooleanLiteral {
+            input,
+            _reservation: reservation,
+        } => {
+            let error = CassieError::Planner("invalid input syntax for type boolean".to_owned());
+            drop(input);
+            drop(reservation);
+            error
+        }
         // The existing public error shape has no ownership/detail/SQLSTATE carrier.
         ParameterAdmissionError::Semantic(diagnostic) => CassieError::Planner(diagnostic.message()),
     }

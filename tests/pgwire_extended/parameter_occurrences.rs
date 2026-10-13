@@ -397,6 +397,242 @@ fn should_reject_non_boolean_parameters_in_later_searched_case_conditions() {
 }
 
 #[test]
+fn should_reject_invalid_boolean_literals_during_parse() {
+    // Arrange
+    let cases = [
+        (
+            "SELECT $1 = 'maybe' AS matched",
+            "invalid_bool_left_parameter",
+        ),
+        (
+            "SELECT 'maybe' = $1 AS matched",
+            "invalid_bool_right_parameter",
+        ),
+        (
+            "SELECT $1 BETWEEN 'maybe' AND 'true' AS matched",
+            "invalid_bool_between",
+        ),
+        ("SELECT $1 IN ('maybe') AS matched", "invalid_bool_in_list"),
+        (
+            "SELECT CAST($1 AS BOOLEAN) = 'maybe' AS matched",
+            "invalid_bool_cast_parameter",
+        ),
+        (
+            "SELECT $1 IS DISTINCT FROM 'maybe' AS matched",
+            "invalid_bool_distinct_parameter",
+        ),
+        (
+            "SELECT $1 AND 'maybe' AS matched",
+            "invalid_bool_and_parameter",
+        ),
+        (
+            "SELECT 'maybe' OR $1 AS matched",
+            "invalid_bool_or_parameter",
+        ),
+        (
+            "SELECT CASE WHEN 'maybe' THEN $1 ELSE $1 END AS matched",
+            "invalid_bool_case_condition",
+        ),
+        (
+            "SELECT NOT 'maybe' AS invalid, $1 AS marker",
+            "invalid_bool_not_literal",
+        ),
+        (
+            "SELECT CAST('maybe' AS BOOLEAN) AS invalid, $1 AS marker",
+            "invalid_bool_cast_literal",
+        ),
+        (
+            "SELECT COALESCE('maybe', $1) AS invalid",
+            "invalid_bool_coalesce_literal",
+        ),
+        (
+            "SELECT COALESCE('maybe', CAST($1 AS BOOLEAN)) AS invalid",
+            "invalid_bool_coalesce_cast_literal",
+        ),
+        (
+            "SELECT CASE WHEN $1 THEN 'maybe' ELSE TRUE END AS invalid",
+            "invalid_bool_case_result",
+        ),
+        (
+            "SELECT CASE $1 WHEN 'maybe' THEN TRUE ELSE FALSE END AS invalid",
+            "invalid_bool_simple_case_operand",
+        ),
+        (
+            "SELECT TRUE = 'maybe' AS invalid, $1 AS marker",
+            "invalid_bool_literal_without_local_parameter",
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (sql, name) in cases {
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            name,
+            sql,
+            &[16],
+        )));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(name),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("invalid-boolean-comparison-literal", steps);
+
+    // Assert
+    assert_eq!(batches.len(), cases.len() * 2);
+    for ((sql, name), pair) in cases.iter().zip(batches.as_chunks::<2>().0) {
+        assert_eq!(tags(&pair[0]), vec![b'E'], "{name}: {sql}");
+        assert_error(
+            &pair[0],
+            "22P02",
+            "invalid input syntax for type boolean: \"maybe\"",
+            None,
+        );
+        assert_eq!(tags(&pair[1]), vec![b'Z']);
+        assert_ready(&pair[1]);
+    }
+}
+
+#[test]
+fn should_preserve_raw_invalid_boolean_text_in_parse_error() {
+    // Arrange
+    let cases = [
+        ("quote_newline", "a\"b\n"),
+        ("tab", "a\tb"),
+        ("backslash", "a\\b"),
+        ("unicode", "München 🚀"),
+        ("control", "a\u{1}b"),
+    ];
+    let mut steps = Vec::new();
+    for (label, input) in cases {
+        let name = format!("invalid_boolean_raw_{label}");
+        let sql = format!("SELECT $1 = '{input}' AS matched");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            &name,
+            &sql,
+            &[16],
+        )));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(&name),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("invalid-boolean-raw-error-text", steps);
+
+    // Assert
+    assert_eq!(batches.len(), cases.len() * 2);
+    for ((_, input), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0) {
+        let message = format!("invalid input syntax for type boolean: \"{input}\"");
+        assert_error(&pair[0], "22P02", &message, None);
+        assert_eq!(tags(&pair[0]), vec![b'E']);
+        assert_eq!(tags(&pair[1]), vec![b'Z']);
+        assert_ready(&pair[1]);
+    }
+}
+
+#[test]
+fn should_keep_valid_boolean_literals_parseable() {
+    // Arrange
+    let cases = [
+        ("SELECT $1 = 'yes' AS matched", "valid_boolean", 16),
+        ("SELECT $1 AND 'yes' AS matched", "valid_boolean_and", 16),
+        (
+            "SELECT CAST('yes' AS BOOLEAN) AS flag, $1 AS marker",
+            "valid_boolean_cast",
+            16,
+        ),
+        (
+            "SELECT COALESCE('yes', $1) AS flag",
+            "valid_boolean_coalesce",
+            16,
+        ),
+        (
+            "SELECT CASE WHEN 'yes' THEN $1 ELSE $1 END AS flag",
+            "valid_boolean_case_condition",
+            16,
+        ),
+        (
+            "SELECT CASE WHEN $1 THEN 'yes' ELSE TRUE END AS flag",
+            "valid_boolean_case_result",
+            16,
+        ),
+        (
+            "SELECT CASE $1 WHEN 'yes' THEN TRUE ELSE FALSE END AS flag",
+            "valid_boolean_simple_case",
+            16,
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (sql, name, oid) in cases {
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            name,
+            sql,
+            &[oid],
+        )));
+        steps.push(Step::ThroughReady(vec![wire::sync_frame()]));
+    }
+
+    // Act
+    let batches = run_script("valid-boolean-comparison-literals", steps);
+
+    // Assert
+    assert_eq!(batches.len(), cases.len() * 2);
+    for pair in batches.as_chunks::<2>().0 {
+        assert_eq!(tags(&pair[0]), vec![b'1']);
+        assert_eq!(tags(&pair[1]), vec![b'Z']);
+        assert_ready(&pair[1]);
+    }
+}
+
+#[test]
+fn should_keep_text_parameter_literals_parseable() {
+    // Arrange
+    let name = "text_parameter";
+    let sql = "SELECT $1 = 'maybe' AS matched";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(name, sql, &[25])),
+        Step::ThroughReady(vec![wire::sync_frame()]),
+    ];
+
+    // Act
+    let batches = run_script("text-comparison-literal", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 2);
+    assert_eq!(tags(&batches[0]), vec![b'1']);
+    assert_eq!(tags(&batches[1]), vec![b'Z']);
+    assert_ready(&batches[1]);
+}
+
+#[test]
+fn should_reject_invalid_boolean_cast_during_parse_without_parameters() {
+    // Arrange
+    let mut steps = vec![Step::ParseFlush(wire::parse_frame_with_types(
+        "invalid_cast_without_parameters",
+        "SELECT CAST('maybe' AS BOOLEAN) AS invalid",
+        &[],
+    ))];
+    steps.push(Step::ThroughReady(vec![wire::sync_frame()]));
+
+    // Act
+    let batches = run_script("invalid-boolean-cast-without-parameters", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 2);
+    assert_error(
+        &batches[0],
+        "22P02",
+        "invalid input syntax for type boolean: \"maybe\"",
+        None,
+    );
+    assert_eq!(tags(&batches[0]), vec![b'E']);
+    assert_eq!(tags(&batches[1]), vec![b'Z']);
+    assert_ready(&batches[1]);
+}
+
+#[test]
 fn should_reject_declared_non_boolean_join_parameters_during_parse() {
     // Arrange
     let cases = [

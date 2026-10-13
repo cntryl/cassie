@@ -78,7 +78,7 @@ fn should_reject_semantic_error_at_one_byte_below_its_admitted_peak() {
 fn should_format_admitted_invalid_boolean_input_as_postgres_error() {
     // Arrange
     let controls = controls(65_536);
-    let input = "maybe\n";
+    let input = "a\"b\n";
     // Act
     let error = PgWireError::invalid_boolean_input(input, &controls).expect("admitted error");
     let retained = controls.current_query_memory_bytes();
@@ -86,7 +86,7 @@ fn should_format_admitted_invalid_boolean_input_as_postgres_error() {
     assert_eq!(error.code, "22P02");
     assert_eq!(
         error.message,
-        format!("invalid input syntax for type boolean: {input:?}")
+        format!("invalid input syntax for type boolean: \"{input}\"")
     );
     assert!(error.encoded_semantic_frame().is_some());
     assert!(retained > 0);

@@ -48,15 +48,14 @@ impl PgWireError {
     ) -> Result<Self, CassieError> {
         controls.check_interruption()?;
         let mut memory = controls.reserve_query_memory(size_of::<Self>())?;
-        let mut debug_length = OutputLength::default();
-        write!(&mut debug_length, "{input:?}").map_err(|_| capacity_error())?;
         let prefix = "invalid input syntax for type boolean: ";
         let capacity = prefix
             .len()
-            .checked_add(debug_length.0)
+            .checked_add(input.len())
+            .and_then(|length| length.checked_add(2))
             .ok_or_else(capacity_error)?;
         let mut message = admitted_string(capacity, controls, &mut memory)?;
-        write!(&mut BoundedOutput(&mut message), "{prefix}{input:?}")
+        write!(&mut BoundedOutput(&mut message), "{prefix}\"{input}\"")
             .map_err(|_| formatting_error())?;
         let error = Self::new(PgWireSeverity::Error, "22P02", message);
         admitted_error_frame(error, controls, memory)
@@ -161,16 +160,6 @@ fn formatting_error() -> CassieError {
 
 fn capacity_error() -> CassieError {
     CassieError::ResourceLimit("parameter diagnostic capacity overflow".to_owned())
-}
-
-#[derive(Default)]
-struct OutputLength(usize);
-
-impl Write for OutputLength {
-    fn write_str(&mut self, value: &str) -> fmt::Result {
-        self.0 = self.0.checked_add(value.len()).ok_or(fmt::Error)?;
-        Ok(())
-    }
 }
 
 struct BoundedOutput<'a>(&'a mut String);

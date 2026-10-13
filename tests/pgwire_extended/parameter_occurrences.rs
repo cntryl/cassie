@@ -494,6 +494,32 @@ fn should_reject_invalid_boolean_literals_during_parse() {
 }
 
 #[test]
+fn should_preserve_raw_invalid_boolean_text_in_parse_error() {
+    // Arrange
+    let input = "a\"b\n";
+    let name = "invalid_boolean_raw_text";
+    let sql = format!("SELECT $1 = '{input}' AS matched");
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(name, &sql, &[16])),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(name),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("invalid-boolean-raw-error-text", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 2);
+    let message = format!("invalid input syntax for type boolean: \"{input}\"");
+    assert_error(&batches[0], "22P02", &message, None);
+    assert_eq!(tags(&batches[0]), vec![b'E']);
+    assert_eq!(tags(&batches[1]), vec![b'Z']);
+    assert_ready(&batches[1]);
+}
+
+#[test]
 fn should_keep_valid_boolean_literals_parseable() {
     // Arrange
     let cases = [

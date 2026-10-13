@@ -193,6 +193,13 @@ impl ColumnIdentifierPath {
         }
     }
 
+    /// Returns PostgreSQL's implicit output label for this column reference.
+    /// Quoted final components keep their declared case; unquoted components
+    /// use SQL's folded identifier spelling.
+    pub(crate) fn implicit_output_label(&self) -> String {
+        self.declared_name()
+    }
+
     pub(crate) fn is_qualified(&self) -> bool {
         self.components.len() > 1
     }
@@ -218,8 +225,7 @@ impl ColumnIdentifierPath {
         candidates
     }
 
-    /// Keeps the historical projection label spelling while removing SQL
-    /// delimiter syntax used only by the internal lookup key.
+    /// Returns the full identifier path with SQL delimiter syntax removed.
     pub(crate) fn display_name(&self) -> String {
         self.components
             .iter()

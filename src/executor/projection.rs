@@ -171,7 +171,7 @@ fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
             SelectItem::Column { name, alias } => {
                 let key = alias.clone().unwrap_or_else(|| {
                     crate::sql::ColumnIdentifierPath::parse(name)
-                        .map_or_else(|_| name.clone(), |column| column.display_name())
+                        .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
                 });
                 ProjectionOp::Column {
                     source: name.clone(),

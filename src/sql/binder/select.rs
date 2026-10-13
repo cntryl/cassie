@@ -526,7 +526,7 @@ pub(super) fn projected_column_names(projection: &[SelectItem]) -> Vec<String> {
             } => alias.clone(),
             SelectItem::Column { name, alias: None } => {
                 crate::sql::ColumnIdentifierPath::parse(name)
-                    .map_or_else(|_| name.clone(), |column| column.display_name())
+                    .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
             }
             SelectItem::Function { function, alias } => alias
                 .as_deref()

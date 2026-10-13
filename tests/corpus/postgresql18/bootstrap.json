@@ -11,6 +11,28 @@
     ]
   },
   {
+    "id": "projection:qualified-derived-label",
+    "owner": 924,
+    "sql": "SELECT q.x FROM (SELECT CAST(1 AS BIGINT) AS x) AS q",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "projection:qualified-derived-explicit-label",
+    "owner": 924,
+    "sql": "SELECT q.x AS explicit_derived_label FROM (SELECT CAST(1 AS BIGINT) AS x) AS q",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
     "id": "scalar:null-identity",
     "owner": 793,
     "sql": "SELECT CAST(NULL AS TEXT) AS absent, CAST('NULL' AS TEXT) AS literal",

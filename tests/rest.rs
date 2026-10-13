@@ -2566,7 +2566,7 @@ mod rest_admin_query {
             .post(format!("{base_url}/api/v1/admin/query/execute"))
             .header("cookie", &admin_cookie)
             .json(&serde_json::json!({
-                "database": "postgres", "sql": "SELECT title FROM rest_admin_query_docs ORDER BY title"
+                "database": "postgres", "sql": "SELECT q.title FROM (SELECT title FROM rest_admin_query_docs) AS q ORDER BY q.title"
             }))
             .send()
             .await
@@ -2579,6 +2579,7 @@ mod rest_admin_query {
         assert_eq!(payload["command"], "SELECT");
         assert_eq!(payload["columns"][0]["name"], "title");
         assert_eq!(payload["rows"].as_array().expect("rows").len(), 1);
+        assert_eq!(payload["rows"][0][0], "alpha");
 
         stop_rest_server(shutdown, server).await;
         let _ = std::fs::remove_dir_all(data_dir);

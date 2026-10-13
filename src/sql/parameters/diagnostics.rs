@@ -12,6 +12,7 @@ pub(crate) enum BooleanConstruct {
     Not,
     And,
     Or,
+    CaseWhen,
 }
 
 impl BooleanConstruct {
@@ -23,6 +24,7 @@ impl BooleanConstruct {
             Self::Not => "NOT",
             Self::And => "AND",
             Self::Or => "OR",
+            Self::CaseWhen => "CASE/WHEN",
         }
     }
 }

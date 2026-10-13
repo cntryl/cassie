@@ -238,8 +238,7 @@ fn should_reject_declared_non_boolean_parameters_in_boolean_contexts() {
         ("SELECT 1 WHERE $1", 25, "no", "42804"),
         ("SELECT NOT $1", 25, "false", "42804"),
         ("SELECT $1 AND FALSE", 23, "1", "42804"),
-        // CASE is outside the selected primitive occurrence error boundary.
-        ("SELECT CASE WHEN $1 THEN 1 ELSE 2 END", 25, "no", "42601"),
+        ("SELECT CASE WHEN $1 THEN 1 ELSE 2 END", 25, "no", "42804"),
         (
             "SELECT n FROM bool_wire_empty WHERE $1",
             25,

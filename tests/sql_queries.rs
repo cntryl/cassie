@@ -6302,7 +6302,10 @@ mod integration_sql_case {
             .unwrap_err()
             .to_string()
             .contains("CASE result"));
-        assert!(non_boolean.unwrap_err().to_string().contains("CASE WHEN"));
+        assert!(non_boolean
+            .unwrap_err()
+            .to_string()
+            .contains("argument of CASE/WHEN must be type boolean, not type integer"));
         assert!(incompatible_temporal
             .unwrap_err()
             .to_string()

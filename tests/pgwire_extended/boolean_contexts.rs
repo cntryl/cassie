@@ -231,6 +231,36 @@ fn should_infer_boolean_parameters_through_supported_query_scopes() {
 }
 
 #[test]
+fn should_accept_declared_boolean_parameter_in_join_context() {
+    // Arrange
+    let sql = "SELECT bool_wire.id FROM bool_wire JOIN bool_wire_empty ON $1";
+    let cycles = vec![text_cycle(sql, 16, "true")];
+
+    // Act
+    let batches = run_cycles("bool-wire-join-declared", cycles);
+
+    // Assert
+    let frames = batches.into_iter().next().expect("join result frames");
+    assert_eq!(support::error_code(&frames), None, "{sql}");
+    assert_eq!(parameter_oids(&frames), vec![16], "{sql}");
+}
+
+#[test]
+fn should_accept_declared_boolean_parameter_in_having_context() {
+    // Arrange
+    let sql = "SELECT COUNT(*) FROM bool_wire HAVING $1";
+    let cycles = vec![text_cycle(sql, 16, "true")];
+
+    // Act
+    let batches = run_cycles("bool-wire-having-declared", cycles);
+
+    // Assert
+    let frames = batches.into_iter().next().expect("having result frames");
+    assert_eq!(support::error_code(&frames), None, "{sql}");
+    assert_eq!(parameter_oids(&frames), vec![16], "{sql}");
+}
+
+#[test]
 fn should_reject_declared_non_boolean_parameters_in_boolean_contexts() {
     // Arrange
     let cases = [

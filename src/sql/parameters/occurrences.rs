@@ -246,7 +246,7 @@ impl<'a> Occurrences<'a> {
         construct: BooleanConstruct,
         diagnose: bool,
     ) -> Result<(), ParameterAdmissionError> {
-        let selected_construct = matches!(
+        let selected_for_inference = matches!(
             construct,
             BooleanConstruct::Where
                 | BooleanConstruct::Not
@@ -254,7 +254,9 @@ impl<'a> Occurrences<'a> {
                 | BooleanConstruct::Or
                 | BooleanConstruct::CaseWhen
         );
-        if !selected_construct {
+        let selected_for_diagnostics = selected_for_inference
+            || matches!(construct, BooleanConstruct::Having | BooleanConstruct::Join);
+        if !selected_for_inference {
             if let Some(ordinal) = summary.occurrence {
                 let occurrence = self.ledger.values[ordinal];
                 if occurrence.transformed_oid == UNKNOWN_PARAMETER_TYPE_OID
@@ -266,7 +268,7 @@ impl<'a> Occurrences<'a> {
         }
         self.coerce(summary, 16, true)?;
         if diagnose
-            && selected_construct
+            && selected_for_diagnostics
             && summary.qualified
             && !self.has_legacy_inference(summary)
             && !summary.literal

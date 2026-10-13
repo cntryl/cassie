@@ -221,6 +221,16 @@ BOOLEAN from the condition; contextual UNKNOWN literals keep their existing
 rules. This increment does not change simple `CASE` operand matching,
 branch/result common-type inference, or CASE output metadata.
 
+### JOIN/ON and HAVING Boolean diagnostics
+
+For a qualified declared parameter used directly as a `JOIN/ON` or `HAVING`
+condition, return PostgreSQL 18.6 SQLSTATE `42804` during Parse when its declared
+type is not BOOLEAN. The message identifies the context as `JOIN/ON` or
+`HAVING`. BOOLEAN parameters remain accepted. Unknown parameter OID `0` or `705`
+continues through the existing Boolean inference path, including its legacy
+inference marker. These diagnostics do not qualify joined-column type lookup,
+other join input signatures, or broader predicate expressions.
+
 Checked Parse, selected typed execution, Describe and EXPLAIN must consume the
 same private outcome before pagination, early EXPLAIN or warm caches. Public
 Vec/Option signatures and explicitly supplied zero remain compatible, while

@@ -93,6 +93,38 @@ impl Fold<'_, '_> {
         }
     }
 
+    pub(super) fn invalid_boolean_function_literals(
+        &self,
+        function: &ast::FunctionCall,
+        summary: Summary,
+        frame: &Frame<'_>,
+    ) -> Result<(), ParameterAdmissionError> {
+        if summary.oid != 16
+            || !functions::function(&function.name).is_some_and(|metadata| {
+                matches!(
+                    functions::input_signature(metadata.id),
+                    Some(FunctionInputSignature::CommonArguments)
+                )
+            })
+        {
+            return Ok(());
+        }
+        for (argument, argument_summary) in function
+            .args
+            .iter()
+            .zip(&self.summaries.values[frame.start..])
+        {
+            check_controls(self.controls)?;
+            if argument_summary.oid == 705 {
+                if let ast::Expr::StringLiteral(input) = argument {
+                    self.occurrences
+                        .invalid_boolean_literal(input, self.controls)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn common_function(&mut self, frame: &Frame<'_>) -> Result<Summary, ParameterAdmissionError> {
         let mut result = Summary::literal();
         for summary in &self.summaries.values[frame.start..] {

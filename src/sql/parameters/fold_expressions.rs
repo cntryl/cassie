@@ -36,8 +36,42 @@ impl Fold<'_, '_> {
                 Ok(Summary::known(16))
             }
             ast::Expr::Function(_) => Ok(first()),
-            ast::Expr::Binary { op, .. } => self.binary(op, frame),
-            ast::Expr::Between { .. } | ast::Expr::InList { .. } => {
+            ast::Expr::Binary { op, left, right } => {
+                if matches!(
+                    op,
+                    ast::BinaryOp::Eq
+                        | ast::BinaryOp::NotEq
+                        | ast::BinaryOp::IsDistinctFrom
+                        | ast::BinaryOp::IsNotDistinctFrom
+                        | ast::BinaryOp::Lt
+                        | ast::BinaryOp::Lte
+                        | ast::BinaryOp::Gt
+                        | ast::BinaryOp::Gte
+                        | ast::BinaryOp::And
+                        | ast::BinaryOp::Or
+                ) {
+                    self.invalid_boolean_comparison_literals(
+                        [left.as_ref(), right.as_ref()],
+                        frame,
+                    )?;
+                }
+                self.binary(op, frame)
+            }
+            ast::Expr::Between {
+                expr, low, high, ..
+            } => {
+                self.invalid_boolean_comparison_literals(
+                    [expr.as_ref(), low.as_ref(), high.as_ref()],
+                    frame,
+                )?;
+                self.comparison_inputs(frame)?;
+                Ok(Summary::known(16))
+            }
+            ast::Expr::InList { expr, values, .. } => {
+                self.invalid_boolean_comparison_literals(
+                    std::iter::once(expr.as_ref()).chain(values.iter()),
+                    frame,
+                )?;
                 self.comparison_inputs(frame)?;
                 Ok(Summary::known(16))
             }
@@ -105,6 +139,30 @@ impl Fold<'_, '_> {
         Ok(())
     }
 
+    fn invalid_boolean_comparison_literals<'a>(
+        &self,
+        expressions: impl IntoIterator<Item = &'a ast::Expr>,
+        frame: &Frame<'_>,
+    ) -> Result<(), ParameterAdmissionError> {
+        let summaries = &self.summaries.values[frame.start..];
+        if !summaries.iter().any(|summary| summary.oid == 16)
+            || summaries
+                .iter()
+                .any(|summary| !matches!(summary.oid, 16 | 705))
+        {
+            return Ok(());
+        }
+        for (expression, summary) in expressions.into_iter().zip(summaries) {
+            if summary.oid == 705 {
+                if let ast::Expr::StringLiteral(input) = expression {
+                    self.occurrences
+                        .invalid_boolean_literal(input, self.controls)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn case(
         &mut self,
         operand: Option<&ast::Expr>,
@@ -113,9 +171,24 @@ impl Fold<'_, '_> {
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
         let base = frame.start + usize::from(operand.is_some());
-        if let Some(operand_oid) =
-            operand.and_then(|expr| self.known_operand_oid(expr, frame.context))
-        {
+        let operand_oid = operand.and_then(|expr| {
+            self.summaries
+                .values
+                .get(frame.start)
+                .filter(|summary| summary.oid != 705)
+                .map(|summary| summary.oid)
+                .or_else(|| self.known_operand_oid(expr, frame.context))
+        });
+        if let Some(operand_oid) = operand_oid {
+            if operand_oid == 16 {
+                for (when, _) in branches {
+                    check_controls(self.controls)?;
+                    if let ast::Expr::StringLiteral(input) = when {
+                        self.occurrences
+                            .invalid_boolean_literal(input, self.controls)?;
+                    }
+                }
+            }
             for index in 0..branches.len() {
                 check_controls(self.controls)?;
                 self.occurrences.coerce(
@@ -137,6 +210,19 @@ impl Fold<'_, '_> {
             if let Some(oid) = common(result, *self.summaries.values.last().expect("ELSE summary"))
             {
                 result = Summary::known(oid);
+            }
+        }
+        if result.oid == 16 {
+            for (_, value) in branches {
+                check_controls(self.controls)?;
+                if let ast::Expr::StringLiteral(input) = value {
+                    self.occurrences
+                        .invalid_boolean_literal(input, self.controls)?;
+                }
+            }
+            if let Some(ast::Expr::StringLiteral(input)) = else_expr {
+                self.occurrences
+                    .invalid_boolean_literal(input, self.controls)?;
             }
         }
         if result.oid != 705 {

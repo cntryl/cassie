@@ -39,40 +39,27 @@ impl PgWireError {
         };
         let mut error = Self::new(PgWireSeverity::Error, diagnostic.code(), message);
         error.detail = detail;
-        // Each tagged C string costs its tag and terminating NUL; the payload has a final NUL.
-        let mut payload_size = 1;
-        for value in [error.severity.as_str(), error.code, error.message.as_str()] {
-            payload_size = add(payload_size, add(value.len(), 2)?)?;
-        }
-        if let Some(detail) = &error.detail {
-            payload_size = add(payload_size, add(detail.len(), 2)?)?;
-        }
-        let mut payload = admitted_bytes(payload_size, controls, &mut memory)?;
-        for (tag, value) in [
-            (b'S', Some(error.severity.as_str())),
-            (b'C', Some(error.code)),
-            (b'M', Some(error.message.as_str())),
-            (b'D', error.detail.as_deref()),
-        ] {
-            if let Some(value) = value {
-                payload.push(tag);
-                payload.extend_from_slice(value.as_bytes());
-                payload.push(0);
-            }
-        }
-        payload.push(0);
-        let mut bytes = admitted_bytes(add(payload_size, 5)?, controls, &mut memory)?;
-        super::super::writers::append_backend_frame(&mut bytes, b'E', &payload)
-            .map_err(|error| CassieError::ResourceLimit(error.to_string()))?;
-        let payload_capacity = payload.capacity();
-        drop(payload);
-        memory.shrink_to(memory.bytes() - payload_capacity);
+        admitted_error_frame(error, controls, memory)
+    }
+
+    pub(in crate::pgwire::connection) fn invalid_boolean_input(
+        input: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Self, CassieError> {
         controls.check_interruption()?;
-        error.semantic_frame = Some(AdmittedErrorFrame {
-            bytes,
-            _memory: memory,
-        });
-        Ok(error)
+        let mut memory = controls.reserve_query_memory(size_of::<Self>())?;
+        let mut debug_length = OutputLength::default();
+        write!(&mut debug_length, "{input:?}").map_err(|_| capacity_error())?;
+        let prefix = "invalid input syntax for type boolean: ";
+        let capacity = prefix
+            .len()
+            .checked_add(debug_length.0)
+            .ok_or_else(capacity_error)?;
+        let mut message = admitted_string(capacity, controls, &mut memory)?;
+        write!(&mut BoundedOutput(&mut message), "{prefix}{input:?}")
+            .map_err(|_| formatting_error())?;
+        let error = Self::new(PgWireSeverity::Error, "22P02", message);
+        admitted_error_frame(error, controls, memory)
     }
 
     pub(in crate::pgwire::connection) fn encoded_semantic_frame(&self) -> Option<&[u8]> {
@@ -80,6 +67,47 @@ impl PgWireError {
             .as_ref()
             .map(|frame| frame.bytes.as_slice())
     }
+}
+
+fn admitted_error_frame(
+    mut error: PgWireError,
+    controls: &QueryExecutionControls,
+    mut memory: QueryMemoryReservation,
+) -> Result<PgWireError, CassieError> {
+    // Each tagged C string costs its tag and terminating NUL; the payload has a final NUL.
+    let mut payload_size = 1;
+    for value in [error.severity.as_str(), error.code, error.message.as_str()] {
+        payload_size = add(payload_size, add(value.len(), 2)?)?;
+    }
+    if let Some(detail) = &error.detail {
+        payload_size = add(payload_size, add(detail.len(), 2)?)?;
+    }
+    let mut payload = admitted_bytes(payload_size, controls, &mut memory)?;
+    for (tag, value) in [
+        (b'S', Some(error.severity.as_str())),
+        (b'C', Some(error.code)),
+        (b'M', Some(error.message.as_str())),
+        (b'D', error.detail.as_deref()),
+    ] {
+        if let Some(value) = value {
+            payload.push(tag);
+            payload.extend_from_slice(value.as_bytes());
+            payload.push(0);
+        }
+    }
+    payload.push(0);
+    let mut bytes = admitted_bytes(add(payload_size, 5)?, controls, &mut memory)?;
+    super::super::writers::append_backend_frame(&mut bytes, b'E', &payload)
+        .map_err(|error| CassieError::ResourceLimit(error.to_string()))?;
+    let payload_capacity = payload.capacity();
+    drop(payload);
+    memory.shrink_to(memory.bytes() - payload_capacity);
+    controls.check_interruption()?;
+    error.semantic_frame = Some(AdmittedErrorFrame {
+        bytes,
+        _memory: memory,
+    });
+    Ok(error)
 }
 
 fn admitted_string(
@@ -129,6 +157,20 @@ fn reconcile_capacity(
 
 fn formatting_error() -> CassieError {
     CassieError::Planner("unable to format bounded parameter diagnostic".to_owned())
+}
+
+fn capacity_error() -> CassieError {
+    CassieError::ResourceLimit("parameter diagnostic capacity overflow".to_owned())
+}
+
+#[derive(Default)]
+struct OutputLength(usize);
+
+impl Write for OutputLength {
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        self.0 = self.0.checked_add(value.len()).ok_or(fmt::Error)?;
+        Ok(())
+    }
 }
 
 struct BoundedOutput<'a>(&'a mut String);

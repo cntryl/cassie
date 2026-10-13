@@ -484,7 +484,7 @@ fn should_preserve_wire_boolean_comparison_parameter_provenance() {
 }
 
 #[test]
-fn should_preserve_boolean_parameter_types_across_warm_describe_orders() {
+fn should_reject_invalid_boolean_parameter_literals_during_parse_across_warm_describe_orders() {
     // Arrange
     let orders = [
         ("text-first", [25, 25, 16, 25]),
@@ -501,12 +501,14 @@ fn should_preserve_boolean_parameter_types_across_warm_describe_orders() {
             // Assert
             for (oid, frames) in oids.into_iter().zip(batches) {
                 if oid == 16 && literal == "maybe" {
-                    assert_eq!(support::error_code(&frames).as_deref(), Some("42601"));
+                    assert_eq!(support::error_code(&frames).as_deref(), Some("22P02"));
                     assert_eq!(
                         support::data_rows(&frames),
                         Vec::<Vec<Option<String>>>::new()
                     );
                     assert!(!frames.iter().any(|(tag, _)| *tag == b'T'));
+                    assert_eq!(frames.first().map(|(tag, _)| *tag), Some(b'E'));
+                    assert_eq!(frames.last().map(|(tag, _)| *tag), Some(b'Z'));
                     continue;
                 }
                 assert_eq!(support::error_code(&frames), None, "OID {oid}: {sql}");
@@ -527,7 +529,7 @@ fn should_preserve_declared_boolean_oids_for_null_execution_without_describe() {
     // Arrange
     let cases = [
         (16, "no", None),
-        (16, "maybe", Some("42601")),
+        (16, "maybe", Some("22P02")),
         (25, "maybe", None),
     ];
     let cycles = cases
@@ -560,6 +562,8 @@ fn should_preserve_declared_boolean_oids_for_null_execution_without_describe() {
             "no Describe was sent"
         );
         if expected_error.is_some() {
+            assert_eq!(frames.first().map(|(tag, _)| *tag), Some(b'E'));
+            assert_eq!(frames.last().map(|(tag, _)| *tag), Some(b'Z'));
             assert_eq!(
                 support::data_rows(&frames),
                 Vec::<Vec<Option<String>>>::new()

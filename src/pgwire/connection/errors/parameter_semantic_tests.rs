@@ -75,6 +75,47 @@ fn should_reject_semantic_error_at_one_byte_below_its_admitted_peak() {
 }
 
 #[test]
+fn should_format_admitted_invalid_boolean_input_as_postgres_error() {
+    // Arrange
+    let controls = controls(65_536);
+    let input = "maybe\n";
+    // Act
+    let error = PgWireError::invalid_boolean_input(input, &controls).expect("admitted error");
+    let retained = controls.current_query_memory_bytes();
+    // Assert
+    assert_eq!(error.code, "22P02");
+    assert_eq!(
+        error.message,
+        format!("invalid input syntax for type boolean: {input:?}")
+    );
+    assert!(error.encoded_semantic_frame().is_some());
+    assert!(retained > 0);
+    drop(error);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_reject_invalid_boolean_error_frame_below_its_admitted_peak() {
+    // Arrange
+    let generous = controls(65_536);
+    let error = PgWireError::invalid_boolean_input("maybe", &generous).expect("measure error");
+    let peak = generous.peak_query_memory_bytes();
+    drop(error);
+    let exact = controls(peak);
+    let denied = controls(peak.saturating_sub(1));
+    // Act
+    let success = PgWireError::invalid_boolean_input("maybe", &exact);
+    let failure = PgWireError::invalid_boolean_input("maybe", &denied);
+    // Assert
+    assert!(peak > 0);
+    assert!(success.is_ok());
+    assert!(matches!(failure, Err(CassieError::ResourceLimit(_))));
+    assert_eq!(denied.current_query_memory_bytes(), 0);
+    drop(success);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_prioritize_interruption_before_semantic_error_allocation() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();

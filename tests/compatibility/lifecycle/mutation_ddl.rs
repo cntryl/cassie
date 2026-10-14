@@ -1,5 +1,7 @@
 use super::*;
 
+mod conflict_opclass_inference;
+
 #[test]
 fn should_update_rows_from_a_joined_source() {
     // Arrange
@@ -1129,6 +1131,14 @@ fn should_assign_multiple_columns_from_a_joined_mutation_source() {
             )
             .await
             .expect("assign a tuple from the joined source");
+        assert_eq!(
+            updated[0]
+                .columns()
+                .iter()
+                .map(|column| column.type_().oid())
+                .collect::<Vec<_>>(),
+            vec![23, 23, 25]
+        );
         let mut updated_rows = updated
             .iter()
             .map(|row| {

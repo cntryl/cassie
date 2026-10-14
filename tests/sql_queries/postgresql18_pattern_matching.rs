@@ -262,6 +262,31 @@ fn should_match_posix_patterns_without_implicit_anchors() {
 }
 
 #[test]
+fn should_filter_stored_text_rows_by_posix_regex_predicate() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-799-regex-table-predicate",
+        &[
+            "CREATE TABLE issue_799_regex_rows (body TEXT)",
+            "INSERT INTO issue_799_regex_rows VALUES ('fat cat'), ('fat dog'), ('the cat')",
+        ],
+    );
+
+    // Act
+    let result =
+        fixture.execute("SELECT body FROM issue_799_regex_rows WHERE body ~ 'cat' ORDER BY body");
+
+    // Assert
+    assert_eq!(
+        result.expect("regex predicate over stored text").rows(),
+        &[
+            vec![Value::String("fat cat".to_owned())],
+            vec![Value::String("the cat".to_owned())],
+        ]
+    );
+}
+
+#[test]
 fn should_apply_case_insensitive_posix_regex_operator_spellings() {
     // Arrange
     let fixture = sql_fixture("issue-799-regex-case-insensitive", &[]);

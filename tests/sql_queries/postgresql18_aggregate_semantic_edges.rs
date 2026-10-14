@@ -210,6 +210,38 @@ fn should_return_null_for_boolean_aggregate_without_nonnull_inputs() {
 }
 
 #[test]
+fn should_accept_distinct_boolean_aggregate_inputs() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-805-distinct-boolean-aggregates",
+        &[
+            "CREATE TABLE issue_805_boolean_distinct (flag BOOLEAN)",
+            "INSERT INTO issue_805_boolean_distinct VALUES (TRUE),(TRUE),(FALSE),(FALSE),(NULL)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT BOOL_AND(DISTINCT flag), BOOL_OR(DISTINCT flag) FROM issue_805_boolean_distinct",
+    );
+
+    // Assert
+    let result = result.expect("DISTINCT Boolean aggregates over duplicate and NULL inputs");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::Bool(false), Value::Bool(true)]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16, 16]
+    );
+}
+
+#[test]
 fn should_filter_regression_rows_pairwise_when_either_input_is_null() {
     // Arrange
     let fixture = sql_fixture(

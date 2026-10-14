@@ -253,6 +253,75 @@ fn should_describe_hash_function_results_with_postgresql_oids() {
 }
 
 #[test]
+fn should_return_hash_function_text_binary_vectors() {
+    // Arrange
+    let sql = "SELECT md5('abc'), sha256('abc'::BYTEA), crc32('abc'::BYTEA), \
+               digest('abc', 'sha256'), hashtext('abc'), hashtextextended('abc', 0)";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("CREATE EXTENSION pgcrypto")]),
+        Step::ParseFlush(wire::parse_frame("hash_result_codecs", sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "hash_result_codecs_portal",
+                "hash_result_codecs",
+                &[],
+                &[],
+                &[0, 1, 1, 1, 1, 1],
+            ),
+            wire::describe_portal_frame("hash_result_codecs_portal"),
+            wire::execute_frame("hash_result_codecs_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-hash-text-binary-vectors", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[1].first().map(|(tag, _)| *tag), Some(b'1'));
+    assert_eq!(wire::error_code(&batches[2]), None);
+    let description = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("hash result RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![
+            (25, -1, 0),
+            (17, -1, 1),
+            (20, 8, 1),
+            (17, -1, 1),
+            (23, 4, 1),
+            (20, 8, 1),
+        ]
+    );
+    assert_eq!(
+        binary_data_rows(&batches[2]),
+        vec![vec![
+            Some(b"900150983cd24fb0d6963f7d28e17f72".to_vec()),
+            Some(vec![
+                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
+                0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61,
+                0xf2, 0x00, 0x15, 0xad,
+            ]),
+            Some(891_568_578_i64.to_be_bytes().to_vec()),
+            Some(vec![
+                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
+                0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61,
+                0xf2, 0x00, 0x15, 0xad,
+            ]),
+            Some((-785_388_649_i32).to_be_bytes().to_vec()),
+            Some((-6_747_756_470_228_489_321_i64).to_be_bytes().to_vec()),
+        ]]
+    );
+}
+
+#[test]
 fn should_describe_crc32c_result_with_postgresql_bigint_identity() {
     // Arrange
     let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
@@ -332,7 +401,78 @@ fn should_bind_hash_function_parameters_with_postgresql_types() {
         vec![23, 20]
     );
     assert_eq!(wire::error_code(&batches[2]), None);
-    assert_eq!(wire::data_rows(&batches[2]).len(), 1);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![
+            Some("-1790427109".to_owned()),
+            Some("-6578719834206879717".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_bind_binary_hash_parameters_with_postgresql_vectors() {
+    // Arrange
+    let statement = "binary_hash_parameters";
+    let seed = 0_i64.to_be_bytes();
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            "SELECT hashtext($1), hashtextextended($1, $2)",
+            &[25, 20],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "binary_hash_portal",
+                statement,
+                &[1],
+                &[Some(b"abc"), Some(&seed)],
+                &[1],
+            ),
+            wire::describe_portal_frame("binary_hash_portal"),
+            wire::execute_frame("binary_hash_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-hash-binary-parameters", steps);
+
+    // Assert
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let description = &batches[1];
+    let parameters = description
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("binary hash ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameters.1),
+        vec![25, 20]
+    );
+    let result_description = description
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("binary hash RowDescription");
+    let columns = wire::parse_row_description(&result_description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![(23, 1), (20, 1)]
+    );
+    assert_eq!(wire::error_code(&batches[2]), None);
+    assert_eq!(
+        binary_data_rows(&batches[2]),
+        vec![vec![
+            Some((-785_388_649_i32).to_be_bytes().to_vec()),
+            Some((-6_747_756_470_228_489_321_i64).to_be_bytes().to_vec()),
+        ]]
+    );
 }
 
 #[test]

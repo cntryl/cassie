@@ -301,3 +301,62 @@ fn should_casefold_text_under_an_icu_collation() {
         vec![vec![Some("strasse".to_owned())]]
     );
 }
+
+#[test]
+fn should_return_split_part_with_postgresql_text_metadata() {
+    // Arrange
+    let batches = run_script(
+        "issue-803-split-part-wire",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT split_part('one,two,three', ',', 2) AS part",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "split_part errors: {:?}",
+        error_fields(result)
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("split_part RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 25);
+    assert_eq!(wire::data_rows(result), vec![vec![Some("two".to_owned())]]);
+}
+
+#[test]
+fn should_return_format_output_with_postgresql_text_metadata() {
+    // Arrange
+    let batches = run_script(
+        "issue-803-format-wire",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT format('%s:%s', 'item', 42) AS formatted",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "format errors: {:?}",
+        error_fields(result)
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("format RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 25);
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("item:42".to_owned())]]
+    );
+}

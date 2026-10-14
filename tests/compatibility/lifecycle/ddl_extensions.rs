@@ -6,6 +6,7 @@ mod index_contracts;
 mod partition_information_functions;
 mod pgcrypto_extension;
 mod table_forms;
+mod table_storage_access;
 mod type_conversion;
 
 #[test]

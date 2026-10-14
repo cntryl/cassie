@@ -105,6 +105,14 @@ fn should_filter_regression_rows_pairwise_when_either_input_is_null() {
     assert_float_near(&row[9], 32.0);
     assert_float_near(&row[10], 8.0 / 3.0);
     assert_float_near(&row[11], 6.0);
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![701, 701, 701, 20, 701, 701, 701, 701, 701, 701, 701, 701]
+    );
 }
 
 #[test]
@@ -273,6 +281,40 @@ fn should_include_boundary_fractions_in_ordered_set_percentiles() {
             Value::String("{1,1,3,5,7}".to_owned()),
         ]]
     );
+}
+
+#[test]
+fn should_apply_ordered_set_empty_input_null_policies() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-ordered-set-empty-and-null-inputs",
+        &[
+            "CREATE TABLE issue_806_ordered_set_null_values (n INT)",
+            "INSERT INTO issue_806_ordered_set_null_values VALUES (NULL),(NULL)",
+        ],
+    );
+    let query = "SELECT mode() WITHIN GROUP (ORDER BY n), percentile_disc(0.5) WITHIN GROUP (ORDER BY n), percentile_cont(0.5) WITHIN GROUP (ORDER BY n::FLOAT8) FROM issue_806_ordered_set_null_values";
+
+    // Act
+    let all_null = fixture.execute(query);
+    let empty = fixture.execute(&format!("{query} WHERE FALSE"));
+
+    // Assert
+    for result in [all_null, empty] {
+        let result = result.expect("ordered-set aggregates return NULL without non-NULL inputs");
+        assert_eq!(
+            result.rows(),
+            &[vec![Value::Null, Value::Null, Value::Null]]
+        );
+        assert_eq!(
+            result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            vec![23, 23, 701]
+        );
+    }
 }
 
 #[test]

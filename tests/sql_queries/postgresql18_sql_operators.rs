@@ -7,12 +7,13 @@ use crate::support_sql_fixture::sql_fixture;
 #[test]
 fn should_execute_sql_defined_operator_with_its_declared_function() {
     // Arrange
-    let fixture = sql_fixture(
-        "issue-912-sql-defined-operator",
-        &[
+    let fixture = sql_fixture("issue-912-sql-defined-operator", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute(
             "CREATE OPERATOR ## (LEFTARG = INTEGER, RIGHTARG = INTEGER, FUNCTION = pg_catalog.int4pl)",
-        ],
-    );
+        )
+        .expect("CREATE OPERATOR should register its declared SQL function");
 
     // Act
     let result = fixture.execute("SELECT 3 ## 4");

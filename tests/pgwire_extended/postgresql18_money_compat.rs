@@ -1,6 +1,6 @@
 //! PostgreSQL 18 money result identity, locale output and overflow tracked by #908.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 mod money_integer_division_rounding;

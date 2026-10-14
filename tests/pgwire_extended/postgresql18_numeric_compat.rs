@@ -1,6 +1,6 @@
 //! PostgreSQL 18 NUMERIC OID, typmod and codec contracts tracked by #812.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 mod aggregate_special_values;
@@ -256,9 +256,11 @@ fn should_describe_bigint_aggregate_nulls_as_numeric() {
     let batches = run_script("postgresql18-null-bigint-aggregates", steps);
 
     // Assert
-    assert!(batches
-        .iter()
-        .all(|batch| wire::error_code(batch).is_none()));
+    assert!(
+        batches
+            .iter()
+            .all(|batch| wire::error_code(batch).is_none())
+    );
     for batch in &batches[2..] {
         let description = batch
             .iter()
@@ -297,9 +299,11 @@ fn should_keep_grouped_bigint_aggregate_types_numeric() {
     let batches = run_script("postgresql18-grouped-bigint-aggregates", steps);
 
     // Assert
-    assert!(batches
-        .iter()
-        .all(|batch| wire::error_code(batch).is_none()));
+    assert!(
+        batches
+            .iter()
+            .all(|batch| wire::error_code(batch).is_none())
+    );
     let description = batches[3]
         .iter()
         .find(|(tag, _)| *tag == b'T')
@@ -487,9 +491,11 @@ fn should_preserve_numeric_aggregates_beyond_thirty_eight_digits() {
     let batches = run_script("postgresql18-wide-numeric-aggregates", steps);
 
     // Assert
-    assert!(batches
-        .iter()
-        .all(|batch| wire::error_code(batch).is_none()));
+    assert!(
+        batches
+            .iter()
+            .all(|batch| wire::error_code(batch).is_none())
+    );
     let description = batches[2]
         .iter()
         .find(|(tag, _)| *tag == b'T')
@@ -1146,9 +1152,11 @@ fn should_report_numeric_bind_input_errors_with_postgresql_sqlstates() {
                 .map(|(_, payload)| wire::parse_error_fields(payload))
                 .collect::<Vec<_>>()
         );
-        assert!(!error_batch
-            .iter()
-            .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
+        assert!(
+            !error_batch
+                .iter()
+                .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C'))
+        );
         assert_eq!(
             error_batch.last().map(|frame| frame.1.as_slice()),
             Some(&b"I"[..]),

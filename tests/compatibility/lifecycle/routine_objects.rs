@@ -1,6 +1,7 @@
 use super::*;
 
 mod default_privileges;
+mod do_blocks;
 mod expression_statistics;
 mod language_sql;
 mod ownership_privileges;

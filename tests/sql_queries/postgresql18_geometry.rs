@@ -25,6 +25,21 @@ fn should_calculate_geometry_distance_with_polygon_containment() {
 }
 
 #[test]
+fn should_construct_a_point_with_the_postgresql_text_representation() {
+    // Arrange
+    let fixture = sql_fixture("issue-907-point-constructor", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT point(1, 2)::TEXT");
+
+    // Assert
+    assert_eq!(
+        result.expect("point constructor").rows(),
+        &[vec![Value::String("(1,2)".to_owned())]]
+    );
+}
+
+#[test]
 fn should_evaluate_circle_area_containment() {
     // Arrange
     let fixture = sql_fixture("issue-907-circle-construction-and-operators", &[]);

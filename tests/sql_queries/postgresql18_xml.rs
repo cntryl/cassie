@@ -96,3 +96,54 @@ fn should_aggregate_xml_values_while_skipping_null_inputs() {
         &[vec![Value::String("<item>one</item>".to_owned())]]
     );
 }
+
+#[test]
+fn should_report_well_formed_xml_documents() {
+    // Arrange
+    let fixture = sql_fixture("issue-906-xml-well-formedness", &[]);
+    let sql = "SELECT xml_is_well_formed_document('<root/>'), xml_is_well_formed_document('<root><item></root>')";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("XML well-formedness predicates").rows(),
+        &[vec![Value::Bool(true), Value::Bool(false)]]
+    );
+}
+
+#[test]
+fn should_report_well_formed_xml_content() {
+    // Arrange
+    let fixture = sql_fixture("issue-906-xml-content-well-formedness", &[]);
+    let sql =
+        "SELECT xml_is_well_formed_content('<a/><b/>'), xml_is_well_formed_content('<a><b></a>')";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("XML content well-formedness predicate")
+            .rows(),
+        &[vec![Value::Bool(true), Value::Bool(false)]]
+    );
+}
+
+#[test]
+fn should_concatenate_xml_documents_in_argument_order() {
+    // Arrange
+    let fixture = sql_fixture("issue-906-xmlconcat-order", &[]);
+    let sql = "SELECT XMLCONCAT('<one/>', '<two/>')::TEXT";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("XMLCONCAT preserves argument order").rows(),
+        &[vec![Value::String("<one/><two/>".to_owned())]]
+    );
+}

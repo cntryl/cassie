@@ -665,3 +665,162 @@ fn should_report_malformed_range_text_with_invalid_text_representation_sqlstate(
             .collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn should_encode_range_boundary_values_in_postgresql_binary_format() {
+    // Arrange
+    let cases = [
+        (3_904, "01"),
+        (3_904, "080000000400000005"),
+        (3_926, "12000000080000000000000001"),
+        (3_906, "100000000c0002000000000002000107d0"),
+        (4_451, "00000000"),
+        (
+            4_451,
+            "000000020000001102000000040000000100000004000000020000001102000000040000000400000005",
+        ),
+    ];
+    let sql = "SELECT 'empty'::INT4RANGE AS empty_range, int4range(NULL, 5, '()') AS lower_unbounded_range, int8range(1, NULL, '[]') AS upper_unbounded_range, numrange(1.20, NULL, '(]') AS unbounded_numeric_range, '{}'::INT4MULTIRANGE AS empty_multirange, '{[1,2),[4,5)}'::INT4MULTIRANGE AS split_multirange";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame("range_edge_binary_statement", sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "range_edge_binary_portal",
+                "range_edge_binary_statement",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("range_edge_binary_portal"),
+            wire::execute_frame("range_edge_binary_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-905-range-edge-binary-output", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("empty and unbounded range RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        cases.iter().map(|(oid, _)| *oid).collect::<Vec<_>>()
+    );
+    assert!(columns
+        .iter()
+        .all(|column| column.type_size == -1 && column.type_mod == -1));
+    assert!(columns.iter().all(|column| column.format_code == 1));
+    let expected_fields = cases
+        .iter()
+        .map(|(_, hex)| bytes_from_hex(hex))
+        .collect::<Vec<_>>();
+    let expected_field_slices = expected_fields
+        .iter()
+        .map(Vec::as_slice)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        crate::support_type_metadata_contract::data_row_payloads(result),
+        vec![binary_row(&expected_field_slices)]
+    );
+}
+
+#[test]
+fn should_report_subtype_oids_for_range_lower_functions() {
+    // Arrange
+    let sql = "SELECT lower(int4range(1, 3, '[)')) AS int4_lower, lower(int8range(1, 3, '[)')) AS int8_lower, lower(numrange(1.20, 2.40, '[)')) AS numeric_lower, lower(daterange(DATE '2024-02-28', DATE '2024-03-01', '[)')) AS date_lower, lower(tsrange(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-02 00:00:00', '[)')) AS timestamp_lower";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-905-range-accessor-result-oids", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("range lower-function RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 20, 1_700, 1_082, 1_114]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("1".to_owned()),
+            Some("1".to_owned()),
+            Some("1.20".to_owned()),
+            Some("2024-02-28".to_owned()),
+            Some("2024-01-01 00:00:00".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_report_range_aggregate_result_oids() {
+    // Arrange
+    let sql = "SELECT range_agg(span) AS all_spans, range_intersect_agg(span) AS common_span FROM (VALUES (int4range(1, 3, '[)'))) AS inputs(span)";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-905-range-aggregate-result-oids", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("range aggregate RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![4_451, 3_904]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("{[1,3)}".to_owned()), Some("[1,3)".to_owned())]]
+    );
+}
+
+#[test]
+fn should_report_disconnected_range_union_with_data_exception_sqlstate() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT int4range(1, 3, '[)') + int4range(5, 7, '[)')",
+    )])];
+
+    // Act
+    let batches = run_script("issue-905-disconnected-range-union", steps);
+
+    // Assert
+    assert_eq!(
+        wire::error_code(&batches[0]).as_deref(),
+        Some("22000"),
+        "wire errors: {:?}",
+        batches[0]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    assert!(!batches[0].iter().any(|(tag, _)| *tag == b'D'));
+}

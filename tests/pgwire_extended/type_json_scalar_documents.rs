@@ -925,6 +925,25 @@ fn should_expand_jsonb_values_as_select_list_records() {
 }
 
 #[test]
+fn should_expand_json_table_rows() {
+    // Arrange
+    let sql = r#"SELECT id FROM JSON_TABLE('[{"id":7},{"id":9}]', '$[*]' COLUMNS (id INTEGER PATH '$.id')) AS j ORDER BY id"#;
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-json-table-rows", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (23, 4, -1), 0, true);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"7"), fixture::one_field_row(b"9")]
+    );
+}
+
+#[test]
 fn should_distinguish_json_null_from_missing_or_sql_null_with_jsonb_operators() {
     // Arrange
     let sql = "SELECT ('{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB -> 'present'), ('{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB -> 'missing'), '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ->> 'present', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB #> '{nested,x}', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB #>> '{nested,x}', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ? 'present', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ? 'missing'";

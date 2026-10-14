@@ -40,6 +40,9 @@ mod transaction_errors;
 #[path = "sql_mutations/postgresql18_transactional_ddl.rs"]
 mod postgresql18_transactional_ddl;
 
+#[path = "sql_mutations/postgresql18_transaction_isolation.rs"]
+mod postgresql18_transaction_isolation;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 mod copy_transaction_boundaries {
     use cassie::app::{Cassie, CassieSession};

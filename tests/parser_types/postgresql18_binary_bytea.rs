@@ -1,7 +1,9 @@
 //! PostgreSQL 18 bit-string and binary-string grammar tracked by #816.
 
 use cassie::sql::ast::{Expr, FunctionCall, QueryStatement, SelectItem, SelectStatement};
-use cassie::types::DataType;
+use cassie::types::{DataType, Value};
+
+use crate::support_sql_fixture::sql_fixture;
 
 fn parsed_select(sql: &str) -> SelectStatement {
     let parsed = cassie::sql::parse_statement(sql).expect("SELECT statement parses");
@@ -86,85 +88,135 @@ fn should_parse_binary_plus_hex_bit_string_constants() {
 }
 
 #[test]
-fn should_parse_bit_type_names_with_fixed_variable_modifiers() {
+fn should_report_bit_type_modifiers_in_information_schema() {
     // Arrange
-    let cases = [
-        "SELECT CAST(B'101' AS BIT(3))",
-        "SELECT CAST(B'101' AS BIT VARYING(5))",
-        "SELECT CAST(B'101' AS VARBIT(5))",
-        "CREATE TABLE issue_816_bits (fixed BIT(3), variable BIT VARYING, alias VARBIT(5))",
-    ];
+    let fixture = sql_fixture(
+        "issue-816-bit-type-modifiers",
+        &["CREATE TABLE issue_816_bits (fixed BIT(3), variable BIT VARYING, alias VARBIT(5))"],
+    );
 
     // Act
-    let results = cases
-        .iter()
-        .map(|sql| cassie::sql::parse_statement(sql))
-        .collect::<Vec<_>>();
+    let result = fixture.execute(
+        "SELECT column_name, data_type, character_maximum_length \
+         FROM information_schema.columns \
+         WHERE table_name = 'issue_816_bits' ORDER BY ordinal_position",
+    );
 
     // Assert
-    let failures = cases
-        .iter()
-        .zip(results)
-        .filter_map(|(sql, result)| result.err().map(|error| format!("{sql}: {error}")))
-        .collect::<Vec<_>>();
-    assert!(
-        failures.is_empty(),
-        "bit type grammar:\n{}",
-        failures.join("\n")
+    assert_eq!(
+        result
+            .expect("BIT typmods appear in information_schema")
+            .rows(),
+        &[
+            vec![
+                Value::String("fixed".to_string()),
+                Value::String("bit".to_string()),
+                Value::Int64(3),
+            ],
+            vec![
+                Value::String("variable".to_string()),
+                Value::String("bit varying".to_string()),
+                Value::Null,
+            ],
+            vec![
+                Value::String("alias".to_string()),
+                Value::String("bit varying".to_string()),
+                Value::Int64(5),
+            ],
+        ]
     );
 }
 
 #[test]
-fn should_parse_bitwise_operator_forms() {
+fn should_execute_bitwise_operator_forms_with_postgres_values() {
     // Arrange
-    let sql = "SELECT B'10001' || B'011', B'10001' & B'01101', B'10001' | B'01101', B'10001' # B'01101', ~B'10001', B'10001' << 3, B'10001' >> 2";
+    let fixture = sql_fixture("issue-816-bitwise-values", &[]);
 
     // Act
-    let parsed = cassie::sql::parse_statement(sql);
+    let result = fixture.execute(
+        "SELECT B'10001' || B'011', B'10001' & B'01101', B'10001' | B'01101', \
+         B'10001' # B'01101', ~B'10001', B'10001' << 3, B'10001' >> 2",
+    );
 
     // Assert
-    assert!(parsed.is_ok(), "bitwise operators: {parsed:?}");
-}
-
-#[test]
-fn should_parse_bit_string_function_forms() {
-    // Arrange
-    let cases = [
-        "SELECT position(B'010' IN B'000001101011')",
-        "SELECT substring(B'110010111111' FROM 3 FOR 2)",
-        "SELECT overlay(B'01010101010101010' PLACING B'11111' FROM 2 FOR 3)",
-        "SELECT get_bit(B'101010', 2), set_bit(B'101010', 2, 0)",
-    ];
-
-    // Act
-    let results = cases
-        .iter()
-        .map(|sql| cassie::sql::parse_statement(sql))
-        .collect::<Vec<_>>();
-
-    // Assert
-    let failures = cases
-        .iter()
-        .zip(results)
-        .filter_map(|(sql, result)| result.err().map(|error| format!("{sql}: {error}")))
-        .collect::<Vec<_>>();
-    assert!(
-        failures.is_empty(),
-        "bit string functions:\n{}",
-        failures.join("\n")
+    let result = result.expect("bitwise expressions execute");
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::String("10001011".to_string()),
+            Value::String("00001".to_string()),
+            Value::String("11101".to_string()),
+            Value::String("11100".to_string()),
+            Value::String("01110".to_string()),
+            Value::String("01000".to_string()),
+            Value::String("00100".to_string()),
+        ]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1560; 7]
     );
 }
 
 #[test]
-fn should_parse_bytea_operator_cast_forms() {
+fn should_execute_bit_string_functions_with_postgres_values() {
     // Arrange
-    let sql = "SELECT '\\x1234'::bytea || '\\x00ff'::bytea, 1234::smallint::bytea, '\\x8000'::bytea::integer";
+    let fixture = sql_fixture("issue-816-bit-functions", &[]);
 
     // Act
-    let parsed = cassie::sql::parse_statement(sql);
+    let result = fixture.execute(
+        "SELECT position(B'010' IN B'000001101011'), \
+         substring(B'110010111111' FROM 3 FOR 2), \
+         overlay(B'01010101010101010' PLACING B'11111' FROM 2 FOR 3), \
+         get_bit(B'101010', 2), set_bit(B'101010', 2, 0)",
+    );
 
     // Assert
-    assert!(parsed.is_ok(), "bytea operators and casts: {parsed:?}");
+    let result = result.expect("bit string functions execute");
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::Int64(8),
+            Value::String("00".to_string()),
+            Value::String("0111110101010101010".to_string()),
+            Value::Int64(1),
+            Value::String("100010".to_string()),
+        ]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 1560, 1560, 23, 1560]
+    );
+}
+
+#[test]
+fn should_execute_bytea_operator_cast_forms_with_postgres_values() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-bytea-values", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT ('\\x1234'::bytea || '\\x00ff'::bytea)::text, \
+         (1234::smallint::bytea)::text, ('\\x8000'::bytea::integer)::text",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("bytea operators and casts execute").rows(),
+        &[vec![
+            Value::String("\\x123400ff".to_string()),
+            Value::String("\\x04d2".to_string()),
+            Value::String("32768".to_string()),
+        ]]
+    );
 }
 
 #[test]

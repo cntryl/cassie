@@ -1,25 +1,33 @@
 //! PostgreSQL 18 NUMERIC and DECIMAL cast grammar tracked by #812.
 
+use cassie::types::Value;
+
+use crate::support_sql_fixture::sql_fixture;
+
 #[test]
-fn should_parse_numeric_precision_scale_modifiers() {
+fn should_round_numeric_values_at_declared_scale() {
     // Arrange
-    let sql = "SELECT CAST('12.345' AS NUMERIC(5, 2))";
+    let fixture = sql_fixture("issue-812-numeric-parser-scale", &[]);
 
     // Act
-    let parsed = cassie::sql::parse_statement(sql);
+    let result = fixture.execute("SELECT CAST('12.345' AS NUMERIC(5, 2))");
 
     // Assert
-    assert!(parsed.is_ok(), "NUMERIC(precision, scale): {parsed:?}");
+    let result = result.expect("NUMERIC precision and scale cast");
+    assert_eq!(result.rows(), &[vec![Value::Float64(12.35)]]);
+    assert_eq!(result.columns()[0].type_oid, 1700);
 }
 
 #[test]
-fn should_parse_decimal_alias_with_negative_scale() {
+fn should_round_decimal_values_at_negative_scale() {
     // Arrange
-    let sql = "SELECT CAST('12500' AS DECIMAL(2, -3))";
+    let fixture = sql_fixture("issue-812-decimal-parser-negative-scale", &[]);
 
     // Act
-    let parsed = cassie::sql::parse_statement(sql);
+    let result = fixture.execute("SELECT CAST('12500' AS DECIMAL(2, -3))");
 
     // Assert
-    assert!(parsed.is_ok(), "DECIMAL negative scale: {parsed:?}");
+    let result = result.expect("DECIMAL negative-scale cast");
+    assert_eq!(result.rows(), &[vec![Value::Float64(13_000.0)]]);
+    assert_eq!(result.columns()[0].type_oid, 1700);
 }

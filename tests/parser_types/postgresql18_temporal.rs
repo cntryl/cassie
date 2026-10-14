@@ -1,199 +1,268 @@
 //! PostgreSQL 18 temporal type and expression grammar tracked by #814.
 
-#[test]
-fn should_parse_timestamptz_alias_with_fractional_precision() {
-    // Arrange
-    let sql = "SELECT CAST('2024-01-02 03:04:05.123456+00' AS TIMESTAMPTZ(3))";
+use cassie::types::Value;
 
-    // Act
-    let parsed = cassie::sql::parse_statement(sql);
+use crate::support_sql_fixture::{sql_fixture, SqlFixture};
 
-    // Assert
-    assert!(parsed.is_ok(), "TIMESTAMPTZ precision: {parsed:?}");
+fn text_row(fixture: &SqlFixture, sql: &str) -> Vec<Value> {
+    let result = fixture.execute(sql).unwrap_or_else(|error| {
+        panic!("temporal expression must execute: {sql}: {error}");
+    });
+    assert_eq!(result.rows().len(), 1, "{sql}");
+    result.rows()[0].clone()
 }
 
 #[test]
-fn should_parse_timestamp_with_time_zone_field_order() {
+fn should_round_timestamp_with_time_zone_precision() {
     // Arrange
-    let sql = "SELECT CAST('2024-01-02 03:04:05+00' AS TIMESTAMP(3) WITH TIME ZONE)";
+    let fixture = sql_fixture("issue-814-timestamptz-precision", &["SET TIME ZONE 'UTC'"]);
 
     // Act
-    let parsed = cassie::sql::parse_statement(sql);
+    let actual = text_row(
+        &fixture,
+        "SELECT CAST('2024-01-02 03:04:05.123456+00' AS TIMESTAMPTZ(3))::text, \
+         CAST('2024-01-02 03:04:05+00' AS TIMESTAMP(3) WITH TIME ZONE)::text",
+    );
 
     // Assert
-    assert!(parsed.is_ok(), "timestamp with time zone: {parsed:?}");
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("2024-01-02 03:04:05.123+00".to_string()),
+            Value::String("2024-01-02 03:04:05+00".to_string()),
+        ]
+    );
 }
 
 #[test]
-fn should_parse_timetz_precision_alias() {
+fn should_round_time_with_time_zone_precision() {
     // Arrange
-    let sql = "SELECT CAST('04:05:06.789-08:00' AS TIMETZ(2))";
+    let fixture = sql_fixture("issue-814-timetz-precision", &[]);
 
     // Act
-    let parsed = cassie::sql::parse_statement(sql);
+    let actual = text_row(
+        &fixture,
+        "SELECT CAST('04:05:06.789-08:00' AS TIMETZ(2))::text, \
+         CAST('04:05:06.789-08:00' AS TIME(2) WITH TIME ZONE)::text",
+    );
 
     // Assert
-    assert!(parsed.is_ok(), "TIMETZ precision: {parsed:?}");
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("04:05:06.79-08".to_string()),
+            Value::String("04:05:06.79-08".to_string()),
+        ]
+    );
 }
 
 #[test]
-fn should_parse_time_with_time_zone_precision() {
+fn should_preserve_local_timestamp_fractional_precision() {
     // Arrange
-    let sql = "SELECT CAST('04:05:06.789-08:00' AS TIME(2) WITH TIME ZONE)";
+    let fixture = sql_fixture("issue-814-local-time-precision", &[]);
 
     // Act
-    let parsed = cassie::sql::parse_statement(sql);
+    let actual = text_row(
+        &fixture,
+        "SELECT CAST('2001-02-16 20:38:40.123456' AS TIMESTAMP(6) WITHOUT TIME ZONE)::text, \
+         CAST('04:05:06.123456' AS TIME(6) WITHOUT TIME ZONE)::text",
+    );
 
     // Assert
-    assert!(parsed.is_ok(), "time with time zone precision: {parsed:?}");
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("2001-02-16 20:38:40.123456".to_string()),
+            Value::String("04:05:06.123456".to_string()),
+        ]
+    );
 }
 
 #[test]
-fn should_parse_timestamp_time_without_zone_typmods() {
+fn should_format_interval_qualifiers_with_sql_standard_style() {
     // Arrange
-    let statements = [
-        "SELECT CAST('2001-02-16 20:38:40.123456' AS TIMESTAMP(6) WITHOUT TIME ZONE)",
-        "SELECT CAST('04:05:06.123456' AS TIME(6) WITHOUT TIME ZONE)",
-    ];
+    let fixture = sql_fixture(
+        "issue-814-interval-qualifier-matrix",
+        &["SET intervalstyle TO sql_standard"],
+    );
 
     // Act
-    let parsed = statements
-        .iter()
-        .map(|sql| cassie::sql::parse_statement(sql))
-        .collect::<Vec<_>>();
+    let actual = text_row(
+        &fixture,
+        "SELECT CAST('1 year 2 months' AS INTERVAL YEAR TO MONTH)::text, \
+         CAST('1' AS INTERVAL YEAR)::text, CAST('1' AS INTERVAL MONTH)::text, \
+         CAST('1' AS INTERVAL DAY)::text, CAST('1' AS INTERVAL HOUR)::text, \
+         CAST('1' AS INTERVAL MINUTE)::text, CAST('1.25' AS INTERVAL SECOND(2))::text, \
+         CAST('1 2:03:04' AS INTERVAL DAY TO HOUR)::text, \
+         CAST('1 2:03:04' AS INTERVAL DAY TO MINUTE)::text, \
+         CAST('3 days 4:05:06.789' AS INTERVAL DAY TO SECOND(3))::text, \
+         CAST('4:05:06' AS INTERVAL HOUR TO MINUTE)::text, \
+         CAST('4:05:06.789' AS INTERVAL HOUR TO SECOND(3))::text, \
+         CAST('5:06.789' AS INTERVAL MINUTE TO SECOND(3))::text, \
+         CAST('1 second' AS INTERVAL(3))::text",
+    );
 
     // Assert
-    for (sql, result) in statements.iter().zip(parsed) {
-        assert!(
-            result.is_ok(),
-            "temporal type declaration {sql}: {result:?}"
-        );
-    }
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("1-2".to_string()),
+            Value::String("1-0".to_string()),
+            Value::String("0-1".to_string()),
+            Value::String("1 0:00:00".to_string()),
+            Value::String("1:00:00".to_string()),
+            Value::String("0:01:00".to_string()),
+            Value::String("0:00:01.25".to_string()),
+            Value::String("1 2:00:00".to_string()),
+            Value::String("1 2:03:00".to_string()),
+            Value::String("3 4:05:06.789".to_string()),
+            Value::String("4:05:00".to_string()),
+            Value::String("4:05:06.789".to_string()),
+            Value::String("0:05:06.789".to_string()),
+            Value::String("0:00:01".to_string()),
+        ]
+    );
 }
 
 #[test]
-fn should_parse_interval_qualifier_precision_matrix() {
+fn should_format_mixed_interval_signs_with_sql_standard_style() {
     // Arrange
-    let statements = [
-        "SELECT CAST('1 year 2 months' AS INTERVAL YEAR TO MONTH)",
-        "SELECT CAST('1' AS INTERVAL YEAR)",
-        "SELECT CAST('1' AS INTERVAL MONTH)",
-        "SELECT CAST('1' AS INTERVAL DAY)",
-        "SELECT CAST('1' AS INTERVAL HOUR)",
-        "SELECT CAST('1' AS INTERVAL MINUTE)",
-        "SELECT CAST('1.25' AS INTERVAL SECOND(2))",
-        "SELECT CAST('1 2:03:04' AS INTERVAL DAY TO HOUR)",
-        "SELECT CAST('1 2:03:04' AS INTERVAL DAY TO MINUTE)",
-        "SELECT CAST('3 days 4:05:06.789' AS INTERVAL DAY TO SECOND(3))",
-        "SELECT CAST('4:05:06' AS INTERVAL HOUR TO MINUTE)",
-        "SELECT CAST('4:05:06.789' AS INTERVAL HOUR TO SECOND(3))",
-        "SELECT CAST('5:06.789' AS INTERVAL MINUTE TO SECOND(3))",
-        "SELECT CAST('1 second' AS INTERVAL(3))",
-    ];
+    let fixture = sql_fixture(
+        "issue-814-interval-sql-standard-output",
+        &["SET intervalstyle TO sql_standard"],
+    );
 
     // Act
-    let parsed = statements
-        .iter()
-        .map(|sql| cassie::sql::parse_statement(sql))
-        .collect::<Vec<_>>();
+    let actual = text_row(
+        &fixture,
+        "SELECT INTERVAL '1 year 2 months 3 days 4 hours 5 minutes 6.007 seconds'::text",
+    );
 
     // Assert
-    for (sql, result) in statements.iter().zip(parsed) {
-        assert!(result.is_ok(), "interval declaration {sql}: {result:?}");
-    }
+    assert_eq!(
+        actual,
+        vec![Value::String("+1-2 +3 +4:05:06.007".to_string())]
+    );
 }
 
 #[test]
-fn should_parse_timestamp_at_time_zone_for_each_timestamp_direction() {
+fn should_evaluate_timestamp_at_time_zone_directions() {
     // Arrange
-    let statements = [
-        "SELECT TIMESTAMP '2001-02-16 20:38:40' AT TIME ZONE 'America/Denver'",
-        "SELECT TIMESTAMPTZ '2001-02-16 20:38:40-05' AT TIME ZONE 'America/Denver'",
-        "SELECT TIMESTAMP '2001-02-16 20:38:40' AT TIME ZONE INTERVAL '-08:00'",
-    ];
+    let fixture = sql_fixture(
+        "issue-814-at-time-zone-directions",
+        &["SET TIME ZONE 'UTC'"],
+    );
 
     // Act
-    let parsed = statements
-        .iter()
-        .map(|sql| cassie::sql::parse_statement(sql))
-        .collect::<Vec<_>>();
+    let actual = text_row(
+        &fixture,
+        "SELECT (TIMESTAMP '2001-02-16 20:38:40' AT TIME ZONE 'America/Denver')::text, \
+         (TIMESTAMPTZ '2001-02-16 20:38:40-05' AT TIME ZONE 'America/Denver')::text, \
+         (TIMESTAMP '2001-02-16 20:38:40' AT TIME ZONE INTERVAL '-08:00')::text",
+    );
 
     // Assert
-    for (sql, result) in statements.iter().zip(parsed) {
-        assert!(result.is_ok(), "AT TIME ZONE expression {sql}: {result:?}");
-    }
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("2001-02-17 03:38:40+00".to_string()),
+            Value::String("2001-02-16 18:38:40".to_string()),
+            Value::String("2001-02-17 04:38:40+00".to_string()),
+        ]
+    );
 }
 
 #[test]
-fn should_parse_at_local_for_timestamp_values() {
+fn should_evaluate_at_local_for_timestamp_values() {
     // Arrange
-    let statements = [
-        "SELECT TIMESTAMP '2001-02-16 20:38:40' AT LOCAL",
-        "SELECT TIMESTAMPTZ '2001-02-16 20:38:40-05' AT LOCAL",
-        "SELECT TIME WITH TIME ZONE '20:38:40-05' AT LOCAL",
-    ];
+    let fixture = sql_fixture("issue-814-at-local-values", &["SET TIME ZONE 'UTC'"]);
 
     // Act
-    let parsed = statements
-        .iter()
-        .map(|sql| cassie::sql::parse_statement(sql))
-        .collect::<Vec<_>>();
+    let actual = text_row(
+        &fixture,
+        "SELECT (TIMESTAMP '2001-02-16 20:38:40' AT LOCAL)::text, \
+         (TIMESTAMPTZ '2001-02-16 20:38:40-05' AT LOCAL)::text, \
+         (TIME WITH TIME ZONE '20:38:40-05' AT LOCAL)::text",
+    );
 
     // Assert
-    for (sql, result) in statements.iter().zip(parsed) {
-        assert!(result.is_ok(), "AT LOCAL expression {sql}: {result:?}");
-    }
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("2001-02-16 20:38:40+00".to_string()),
+            Value::String("2001-02-17 01:38:40".to_string()),
+            Value::String("01:38:40+00".to_string()),
+        ]
+    );
 }
 
 #[test]
-fn should_parse_temporal_arithmetic_operator_forms() {
+fn should_evaluate_temporal_arithmetic_with_postgres_outputs() {
     // Arrange
-    let statements = [
-        "SELECT DATE '2001-09-28' + 7",
-        "SELECT DATE '2001-09-28' - 7",
-        "SELECT DATE '2001-09-28' - DATE '2001-09-27'",
-        "SELECT DATE '2001-09-28' + TIME '03:00'",
-        "SELECT DATE '2001-09-28' + INTERVAL '1 month'",
-        "SELECT DATE '2001-09-28' - INTERVAL '1 day'",
-        "SELECT TIME '05:00' + INTERVAL '1 hour'",
-        "SELECT TIME '05:00' - INTERVAL '1 hour'",
-        "SELECT TIME '05:00' - TIME '03:00'",
-        "SELECT TIMESTAMP '2001-09-28 23:00' - TIMESTAMP '2001-09-28 01:00'",
-        "SELECT INTERVAL '1 day' * 2.5",
-        "SELECT INTERVAL '1 hour' / 1.5",
-        "SELECT - INTERVAL '23 hours'",
-    ];
+    let fixture = sql_fixture(
+        "issue-814-temporal-arithmetic",
+        &["SET intervalstyle TO sql_standard"],
+    );
 
     // Act
-    let parsed = statements
-        .iter()
-        .map(|sql| cassie::sql::parse_statement(sql))
-        .collect::<Vec<_>>();
+    let actual = text_row(
+        &fixture,
+        "SELECT (DATE '2001-09-28' + 7)::text, (DATE '2001-09-28' - 7)::text, \
+         (DATE '2001-09-28' - DATE '2001-09-27')::text, \
+         (DATE '2001-09-28' + TIME '03:00')::text, \
+         (DATE '2001-09-28' + INTERVAL '1 month')::text, \
+         (DATE '2001-09-28' - INTERVAL '1 day')::text, \
+         (TIME '05:00' + INTERVAL '1 hour')::text, \
+         (TIME '05:00' - INTERVAL '1 hour')::text, \
+         (TIME '05:00' - TIME '03:00')::text, \
+         (TIMESTAMP '2001-09-28 23:00' - TIMESTAMP '2001-09-28 01:00')::text, \
+         (INTERVAL '1 day' * 2.5)::text, (INTERVAL '1 hour' / 1.5)::text, \
+         (- INTERVAL '23 hours')::text",
+    );
 
     // Assert
-    for (sql, result) in statements.iter().zip(parsed) {
-        assert!(result.is_ok(), "temporal arithmetic {sql}: {result:?}");
-    }
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("2001-10-05".to_string()),
+            Value::String("2001-09-21".to_string()),
+            Value::String("1".to_string()),
+            Value::String("2001-09-28 03:00:00".to_string()),
+            Value::String("2001-10-28 00:00:00".to_string()),
+            Value::String("2001-09-27 00:00:00".to_string()),
+            Value::String("06:00:00".to_string()),
+            Value::String("04:00:00".to_string()),
+            Value::String("2:00:00".to_string()),
+            Value::String("22:00:00".to_string()),
+            Value::String("2 12:00:00".to_string()),
+            Value::String("0:40:00".to_string()),
+            Value::String("-23:00:00".to_string()),
+        ]
+    );
 }
 
 #[test]
-fn should_parse_timezone_function_overloads() {
+fn should_evaluate_timezone_function_overloads() {
     // Arrange
-    let statements = [
-        "SELECT timezone('America/Denver', TIMESTAMP '2001-02-16 20:38:40')",
-        "SELECT timezone('UTC', TIME WITH TIME ZONE '05:34:17-05')",
-        "SELECT timezone(TIMESTAMP '2001-02-16 20:38:40')",
-        "SELECT timezone(TIME WITH TIME ZONE '05:34:17-05')",
-    ];
+    let fixture = sql_fixture("issue-814-timezone-overloads", &["SET TIME ZONE 'UTC'"]);
 
     // Act
-    let parsed = statements
-        .iter()
-        .map(|sql| cassie::sql::parse_statement(sql))
-        .collect::<Vec<_>>();
+    let actual = text_row(
+        &fixture,
+        "SELECT timezone('America/Denver', TIMESTAMP '2001-02-16 20:38:40')::text, \
+         timezone('UTC', TIME WITH TIME ZONE '05:34:17-05')::text, \
+         timezone(TIMESTAMP '2001-02-16 20:38:40')::text, \
+         timezone(TIME WITH TIME ZONE '05:34:17-05')::text",
+    );
 
     // Assert
-    for (sql, result) in statements.iter().zip(parsed) {
-        assert!(result.is_ok(), "timezone overload {sql}: {result:?}");
-    }
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("2001-02-17 03:38:40+00".to_string()),
+            Value::String("10:34:17+00".to_string()),
+            Value::String("2001-02-16 20:38:40+00".to_string()),
+            Value::String("10:34:17+00".to_string()),
+        ]
+    );
 }

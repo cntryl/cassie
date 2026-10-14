@@ -5,104 +5,136 @@
 //! operator variants, so a structural assertion here would have to erase the
 //! identity these cases are intended to cover.
 
-#[test]
-fn should_parse_inet_type_cast() {
-    // Arrange
-    let sql = "SELECT CAST('192.0.2.9/24' AS inet)";
+use cassie::types::Value;
 
-    // Act
-    let parsed = cassie::sql::parse_statement(sql);
-
-    // Assert
-    assert!(parsed.is_ok(), "inet cast should parse: {parsed:?}");
-}
+use crate::support_sql_fixture::sql_fixture;
 
 #[test]
-fn should_parse_cidr_type_cast() {
+fn should_execute_inet_cast_with_postgres_identity() {
     // Arrange
-    let sql = "SELECT CAST('192.0.2.0/24' AS cidr)";
+    let fixture = sql_fixture("issue-816-inet-cast", &[]);
 
     // Act
-    let parsed = cassie::sql::parse_statement(sql);
+    let result = fixture.execute("SELECT CAST('192.0.2.9/24' AS inet)");
 
     // Assert
-    assert!(parsed.is_ok(), "cidr cast should parse: {parsed:?}");
-}
-
-#[test]
-fn should_parse_macaddr_type_cast() {
-    // Arrange
-    let sql = "SELECT CAST('08:00:2b:01:02:03' AS macaddr)";
-
-    // Act
-    let parsed = cassie::sql::parse_statement(sql);
-
-    // Assert
-    assert!(parsed.is_ok(), "macaddr cast should parse: {parsed:?}");
-}
-
-#[test]
-fn should_parse_macaddr8_type_cast() {
-    // Arrange
-    let sql = "SELECT CAST('08:00:2b:01:02:03:04:05' AS macaddr8)";
-
-    // Act
-    let parsed = cassie::sql::parse_statement(sql);
-
-    // Assert
-    assert!(parsed.is_ok(), "macaddr8 cast should parse: {parsed:?}");
-}
-
-#[test]
-fn should_parse_inet_subnet_containment_operator() {
-    // Arrange
-    let sql = "SELECT inet '192.168.1.5' << inet '192.168.1.0/24'";
-
-    // Act
-    let parsed = cassie::sql::parse_statement(sql);
-
-    // Assert
-    assert!(parsed.is_ok(), "inet << should parse: {parsed:?}");
-}
-
-#[test]
-fn should_parse_inet_subnet_overlap_operator() {
-    // Arrange
-    let sql = "SELECT inet '192.168.1.0/24' && inet '192.168.1.80/28'";
-
-    // Act
-    let parsed = cassie::sql::parse_statement(sql);
-
-    // Assert
-    assert!(parsed.is_ok(), "inet && should parse: {parsed:?}");
-}
-
-#[test]
-fn should_parse_inet_address_arithmetic() {
-    // Arrange
-    let sql = "SELECT inet '192.168.1.6' + 25";
-
-    // Act
-    let parsed = cassie::sql::parse_statement(sql);
-
-    // Assert
-    assert!(
-        parsed.is_ok(),
-        "inet address arithmetic should parse: {parsed:?}"
+    let result = result.expect("inet cast executes");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("192.0.2.9/24".to_string())]]
     );
+    assert_eq!(result.columns()[0].type_oid, 869);
 }
 
 #[test]
-fn should_parse_macaddr_bitwise_not_operator() {
+fn should_execute_cidr_cast_with_postgres_identity() {
     // Arrange
-    let sql = "SELECT ~ macaddr '12:34:56:78:90:ab'";
+    let fixture = sql_fixture("issue-816-cidr-cast", &[]);
 
     // Act
-    let parsed = cassie::sql::parse_statement(sql);
+    let result = fixture.execute("SELECT CAST('192.0.2.0/24' AS cidr)");
 
     // Assert
-    assert!(
-        parsed.is_ok(),
-        "macaddr bitwise NOT should parse: {parsed:?}"
+    let result = result.expect("cidr cast executes");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("192.0.2.0/24".to_string())]]
     );
+    assert_eq!(result.columns()[0].type_oid, 650);
+}
+
+#[test]
+fn should_execute_macaddr_cast_with_postgres_identity() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-macaddr-cast", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT CAST('08:00:2b:01:02:03' AS macaddr)");
+
+    // Assert
+    let result = result.expect("macaddr cast executes");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("08:00:2b:01:02:03".to_string())]]
+    );
+    assert_eq!(result.columns()[0].type_oid, 829);
+}
+
+#[test]
+fn should_execute_macaddr8_cast_with_postgres_identity() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-macaddr8-cast", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT CAST('08:00:2b:01:02:03:04:05' AS macaddr8)");
+
+    // Assert
+    let result = result.expect("macaddr8 cast executes");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("08:00:2b:01:02:03:04:05".to_string())]]
+    );
+    assert_eq!(result.columns()[0].type_oid, 774);
+}
+
+#[test]
+fn should_evaluate_inet_subnet_containment() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-inet-containment", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT inet '192.168.1.5' << inet '192.168.1.0/24'");
+
+    // Assert
+    let result = result.expect("inet containment executes");
+    assert_eq!(result.rows(), &[vec![Value::Bool(true)]]);
+    assert_eq!(result.columns()[0].type_oid, 16);
+}
+
+#[test]
+fn should_evaluate_inet_subnet_overlap() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-inet-overlap", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT inet '192.168.1.0/24' && inet '192.168.1.80/28'");
+
+    // Assert
+    let result = result.expect("inet overlap executes");
+    assert_eq!(result.rows(), &[vec![Value::Bool(true)]]);
+    assert_eq!(result.columns()[0].type_oid, 16);
+}
+
+#[test]
+fn should_add_an_integer_to_inet_address() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-inet-add", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT inet '192.168.1.6' + 25");
+
+    // Assert
+    let result = result.expect("inet address addition executes");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("192.168.1.31/32".to_string())]]
+    );
+    assert_eq!(result.columns()[0].type_oid, 869);
+}
+
+#[test]
+fn should_invert_macaddr_bits() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-macaddr-not", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT ~ macaddr '12:34:56:78:90:ab'");
+
+    // Assert
+    let result = result.expect("macaddr bitwise NOT executes");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("ed:cb:a9:87:6f:54".to_string())]]
+    );
+    assert_eq!(result.columns()[0].type_oid, 829);
 }

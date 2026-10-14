@@ -2,7 +2,9 @@
 
 use cassie::sql::ast::{BinaryOp, Expr, QueryStatement, SelectItem};
 use cassie::sql::parse_statement;
-use cassie::types::DataType;
+use cassie::types::{DataType, Value};
+
+use crate::support_sql_fixture::sql_fixture;
 
 fn select_projection(sql: &str) -> Vec<SelectItem> {
     let parsed = parse_statement(sql).expect("statement should parse");
@@ -77,15 +79,33 @@ fn should_parse_postgresql_uuid_generation_calls_as_generic_function_nodes() {
 }
 
 #[test]
-fn should_parse_postgresql_uuid_generation_extraction_calls() {
+fn should_return_uuid_v7_extraction_values() {
     // Arrange
-    let sql = "SELECT gen_random_uuid(), uuidv4(), uuidv7(), uuid_extract_version(UUID '019535d9-3df7-79fb-b466-fa907fa17f9e'), uuid_extract_timestamp(UUID '019535d9-3df7-79fb-b466-fa907fa17f9e')";
+    let fixture = sql_fixture("issue-816-uuid-v7-extraction", &["SET TIME ZONE 'UTC'"]);
 
     // Act
-    let parsed = parse_statement(sql);
+    let result = fixture.execute(
+        "SELECT uuid_extract_version(UUID '019535d9-3df7-79fb-b466-fa907fa17f9e'), \
+         uuid_extract_timestamp(UUID '019535d9-3df7-79fb-b466-fa907fa17f9e')::text",
+    );
 
     // Assert
-    assert!(parsed.is_ok(), "UUID generation and extraction: {parsed:?}");
+    let result = result.expect("UUIDv7 extraction functions execute");
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::Int64(7),
+            Value::String("2025-02-24 02:46:24.503+00".to_string()),
+        ]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 25]
+    );
 }
 
 #[test]
@@ -116,27 +136,62 @@ fn should_preserve_uuid_comparison_as_binary_cast_nodes() {
 }
 
 #[test]
-fn should_parse_pg_lsn_input_operators() {
+fn should_preserve_pg_lsn_operator_outputs() {
     // Arrange
-    let sql = "SELECT '16/B374D848'::pg_lsn < '16/B374D850'::pg_lsn, '16/B374D848'::pg_lsn + 8, '16/B374D850'::pg_lsn - '16/B374D848'::pg_lsn";
+    let fixture = sql_fixture("issue-816-pg-lsn-operators", &[]);
 
     // Act
-    let parsed = parse_statement(sql);
+    let result = fixture.execute(
+        "SELECT '16/B374D848'::pg_lsn < '16/B374D850'::pg_lsn, \
+         '16/B374D848'::pg_lsn + 8, \
+         '16/B374D850'::pg_lsn - '16/B374D848'::pg_lsn",
+    );
 
     // Assert
-    assert!(parsed.is_ok(), "pg_lsn operators: {parsed:?}");
+    let result = result.expect("pg_lsn operators execute");
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::String("16/B374D850".to_string()),
+            Value::Float64(8.0),
+        ]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16, 3220, 1700]
+    );
 }
 
 #[test]
-fn should_parse_pg_lsn_function_calls() {
+fn should_evaluate_pg_lsn_functions_with_postgres_result_types() {
     // Arrange
-    let sql = "SELECT pg_wal_lsn_diff('16/B374D850'::pg_lsn, '16/B374D848'::pg_lsn), pg_lsn('16'::numeric)";
+    let fixture = sql_fixture("issue-816-pg-lsn-functions", &[]);
 
     // Act
-    let parsed = parse_statement(sql);
+    let result = fixture.execute(
+        "SELECT pg_wal_lsn_diff('16/B374D850'::pg_lsn, '16/B374D848'::pg_lsn), \
+         pg_lsn('16'::numeric)",
+    );
 
     // Assert
-    assert!(parsed.is_ok(), "pg_lsn functions: {parsed:?}");
+    let result = result.expect("pg_lsn functions execute");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::Float64(8.0), Value::String("0/10".to_string()),]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1700, 3220]
+    );
 }
 
 #[test]

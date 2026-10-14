@@ -360,3 +360,100 @@ fn should_return_format_output_with_postgresql_text_metadata() {
         vec![vec![Some("item:42".to_owned())]]
     );
 }
+
+fn run_null_count(function_name: &str) -> Vec<Vec<Option<String>>> {
+    let number = 7_i32.to_be_bytes();
+    let text = b"x";
+    let sql = format!("SELECT {function_name}($1::INT4, $2::TEXT, $3::TEXT) AS argument_count");
+    let batches = run_script(
+        &format!("issue-803-{function_name}-binary-bind"),
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                "variadic_null_count",
+                &sql,
+                &[23, 25, 25],
+            )),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame("variadic_null_count"),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::bind_frame_with_formats(
+                    "variadic_null_count_portal",
+                    "variadic_null_count",
+                    &[1, 1, 1],
+                    &[Some(&number), None, Some(text)],
+                    &[0],
+                ),
+                wire::describe_portal_frame("variadic_null_count_portal"),
+                wire::execute_frame("variadic_null_count_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    assert_eq!(
+        wire::error_code(&batches[0]),
+        None,
+        "Parse errors: {:?}",
+        error_fields(&batches[0])
+    );
+    let described = &batches[1];
+    let executed = &batches[2];
+    assert_eq!(
+        wire::error_code(described),
+        None,
+        "Describe errors: {:?}",
+        error_fields(described)
+    );
+    assert_eq!(
+        wire::error_code(executed),
+        None,
+        "Bind/Execute errors: {:?}",
+        error_fields(executed)
+    );
+    let parameters = described
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameters.1),
+        vec![23, 25, 25]
+    );
+    let columns = executed
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("portal RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&columns.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23]
+    );
+    wire::data_rows(executed)
+}
+
+#[test]
+fn should_count_null_arguments_from_typed_binary_parameters() {
+    // Arrange
+    let expected_rows = vec![vec![Some("1".to_owned())]];
+
+    // Act
+    let rows = run_null_count("num_nulls");
+
+    // Assert
+    assert_eq!(rows, expected_rows);
+}
+
+#[test]
+fn should_count_nonnull_arguments_from_typed_binary_parameters() {
+    // Arrange
+    let expected_rows = vec![vec![Some("2".to_owned())]];
+
+    // Act
+    let rows = run_null_count("num_nonnulls");
+
+    // Assert
+    assert_eq!(rows, expected_rows);
+}

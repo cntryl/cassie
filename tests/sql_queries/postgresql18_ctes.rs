@@ -3,7 +3,7 @@
 use cassie::app::CassieError;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+use crate::support_sql_fixture::{SqlFixture, sql_fixture};
 
 fn repeated_reference_fixture(label: &str) -> SqlFixture {
     sql_fixture(
@@ -359,5 +359,171 @@ fn should_feed_deleted_returning_rows_into_a_following_cte_statement() {
             .expect("read rows inserted from the CTE relation")
             .rows(),
         &[vec![Value::Int64(1), Value::String("one".to_owned())]]
+    );
+}
+
+#[test]
+fn should_attach_a_non_modifying_cte_to_insert() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-834-cte-before-insert",
+        &["CREATE TABLE issue_834_insert_target (id INT PRIMARY KEY, payload TEXT)"],
+    );
+
+    // Act
+    let inserted = fixture.execute(
+        "WITH incoming AS (SELECT CAST(3 AS INT) AS id, CAST('three' AS TEXT) AS payload) \
+         INSERT INTO issue_834_insert_target SELECT id, payload FROM incoming RETURNING id, payload",
+    );
+    let stored = fixture.execute("SELECT id, payload FROM issue_834_insert_target ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        inserted.expect("non-modifying CTE before INSERT").rows(),
+        &[vec![Value::Int64(3), Value::String("three".to_owned())]]
+    );
+    assert_eq!(
+        stored.expect("inserted CTE source row").rows(),
+        &[vec![Value::Int64(3), Value::String("three".to_owned())]]
+    );
+}
+
+#[test]
+fn should_attach_a_non_modifying_cte_to_delete() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-834-cte-before-delete",
+        &[
+            "CREATE TABLE issue_834_delete_target (id INT PRIMARY KEY, payload TEXT)",
+            "INSERT INTO issue_834_delete_target VALUES (1, 'one'), (2, 'two')",
+        ],
+    );
+
+    // Act
+    let deleted = fixture.execute(
+        "WITH selected AS (SELECT CAST(1 AS INT) AS id) \
+         DELETE FROM issue_834_delete_target \
+         WHERE id IN (SELECT id FROM selected) RETURNING id, payload",
+    );
+    let remaining = fixture.execute("SELECT id, payload FROM issue_834_delete_target ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        deleted.expect("non-modifying CTE before DELETE").rows(),
+        &[vec![Value::Int64(1), Value::String("one".to_owned())]]
+    );
+    assert_eq!(
+        remaining.expect("remaining DELETE target rows").rows(),
+        &[vec![Value::Int64(2), Value::String("two".to_owned())]]
+    );
+}
+
+#[test]
+fn should_roll_back_data_modifying_ctes_when_the_outer_insert_fails() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-834-modifying-cte-atomic-failure",
+        &[
+            "CREATE TABLE issue_834_atomic_source (id INT PRIMARY KEY)",
+            "CREATE TABLE issue_834_atomic_target (id INT PRIMARY KEY)",
+            "INSERT INTO issue_834_atomic_source VALUES (1)",
+            "INSERT INTO issue_834_atomic_target VALUES (1)",
+        ],
+    );
+
+    // Act
+    let failed = fixture.execute(
+        "WITH removed AS (DELETE FROM issue_834_atomic_source WHERE id = 1 RETURNING id) \
+         INSERT INTO issue_834_atomic_target SELECT id FROM removed",
+    );
+    let source_rows = fixture.execute("SELECT id FROM issue_834_atomic_source ORDER BY id");
+    let target_rows = fixture.execute("SELECT id FROM issue_834_atomic_target ORDER BY id");
+
+    // Assert
+    assert!(
+        matches!(failed, Err(CassieError::UniqueViolation { .. })),
+        "the outer INSERT must report its duplicate key: {failed:?}"
+    );
+    assert_eq!(
+        source_rows.expect("source after failed statement").rows(),
+        &[vec![Value::Int64(1)]]
+    );
+    assert_eq!(
+        target_rows.expect("target after failed statement").rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_attach_a_non_modifying_cte_to_merge() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-834-cte-before-merge",
+        &[
+            "CREATE TABLE issue_834_merge_target (id INT PRIMARY KEY, payload TEXT)",
+            "INSERT INTO issue_834_merge_target VALUES (1, 'old')",
+        ],
+    );
+
+    // Act
+    let merged = fixture.execute(
+        "WITH incoming(id,payload) AS (VALUES (1,'updated'),(2,'inserted')) \
+         MERGE INTO issue_834_merge_target AS target \
+         USING incoming AS source ON target.id = source.id \
+         WHEN MATCHED THEN UPDATE SET payload = source.payload \
+         WHEN NOT MATCHED THEN INSERT (id,payload) VALUES (source.id, source.payload) \
+         RETURNING target.id, target.payload",
+    );
+    let stored = fixture.execute("SELECT id, payload FROM issue_834_merge_target ORDER BY id");
+
+    // Assert
+    let expected = &[
+        vec![Value::Int64(1), Value::String("updated".to_owned())],
+        vec![Value::Int64(2), Value::String("inserted".to_owned())],
+    ];
+    assert_eq!(
+        merged.expect("non-modifying CTE before MERGE").rows(),
+        expected
+    );
+    assert_eq!(stored.expect("MERGE target rows").rows(), expected);
+}
+
+#[test]
+fn should_select_rows_from_a_merge_returning_cte() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-834-merge-returning-cte",
+        &[
+            "CREATE TABLE issue_834_merge_cte_target (id INT PRIMARY KEY, payload TEXT)",
+            "INSERT INTO issue_834_merge_cte_target VALUES (1, 'old')",
+        ],
+    );
+
+    // Act
+    let merged = fixture.execute(
+        "WITH incoming(id,payload) AS (VALUES (1,'updated'),(2,'inserted')), \
+         changed AS ( \
+             MERGE INTO issue_834_merge_cte_target AS target \
+             USING incoming AS source ON target.id = source.id \
+             WHEN MATCHED THEN UPDATE SET payload = source.payload \
+             WHEN NOT MATCHED THEN INSERT (id,payload) VALUES (source.id, source.payload) \
+             RETURNING target.id, target.payload \
+         ) \
+         SELECT id, payload FROM changed ORDER BY id",
+    );
+    let stored = fixture.execute("SELECT id, payload FROM issue_834_merge_cte_target ORDER BY id");
+
+    // Assert
+    let expected = &[
+        vec![Value::Int64(1), Value::String("updated".to_owned())],
+        vec![Value::Int64(2), Value::String("inserted".to_owned())],
+    ];
+    assert_eq!(
+        merged.expect("select from MERGE RETURNING CTE").rows(),
+        expected
+    );
+    assert_eq!(
+        stored.expect("MERGE RETURNING CTE target rows").rows(),
+        expected
     );
 }

@@ -995,3 +995,172 @@ fn should_isolate_temporary_views_to_the_owning_session() {
         let _ = observer_connection.await;
     });
 }
+
+#[test]
+fn should_enforce_read_only_transaction_mode_with_postgres_sqlstate() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("read_only_transaction_mode").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_read_only_rows (id INT PRIMARY KEY)",
+                "INSERT INTO compat_read_only_rows VALUES (1)",
+            ],
+        )
+        .await
+        .expect("create the read-only transaction fixture");
+        client
+            .batch_execute("BEGIN TRANSACTION READ ONLY")
+            .await
+            .expect("begin a PostgreSQL read-only transaction");
+
+        // Act
+        let visible_rows = client
+            .query("SELECT id FROM compat_read_only_rows ORDER BY id", &[])
+            .await
+            .expect("read-only transactions should allow SELECT");
+        let rejected_write = client
+            .execute("INSERT INTO compat_read_only_rows VALUES (2)", &[])
+            .await
+            .expect_err("read-only transactions must reject writes");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("roll back after the rejected write");
+        let stored_rows = client
+            .query("SELECT id FROM compat_read_only_rows ORDER BY id", &[])
+            .await
+            .expect("read the committed fixture after rollback");
+
+        // Assert
+        assert_eq!(visible_rows.len(), 1);
+        assert_eq!(visible_rows[0].get::<_, i32>(0), 1);
+        assert_eq!(db_error(&rejected_write).code().code(), "25006");
+        assert_eq!(stored_rows.len(), 1);
+        assert_eq!(stored_rows[0].get::<_, i32>(0), 1);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_begin_followup_transaction_when_commit_chaining() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("commit_and_chain").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_chain_rows (id INT PRIMARY KEY)")
+            .await
+            .expect("create the transaction-chain fixture");
+        client
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin the first transaction");
+        client
+            .batch_execute("INSERT INTO compat_chain_rows VALUES (1)")
+            .await
+            .expect("write in the first transaction");
+
+        // Act
+        client
+            .batch_execute("COMMIT AND CHAIN")
+            .await
+            .expect("commit and begin the next transaction");
+        client
+            .batch_execute("INSERT INTO compat_chain_rows VALUES (2)")
+            .await
+            .expect("write in the chained transaction");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("roll back only the chained transaction");
+        let rows = client
+            .query("SELECT id FROM compat_chain_rows ORDER BY id", &[])
+            .await
+            .expect("read committed rows after rolling back the chain");
+
+        // Assert
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.get::<_, i32>(0))
+                .collect::<Vec<_>>(),
+            vec![1]
+        );
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_accept_unlisten_all_when_the_session_has_no_subscriptions() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("unlisten_all_without_channels").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        client
+            .batch_execute("UNLISTEN *")
+            .await
+            .expect("UNLISTEN all is valid when no channels are registered");
+        let value: i32 = client
+            .query_one("SELECT 1", &[])
+            .await
+            .expect("the session should remain usable after UNLISTEN")
+            .try_get(0)
+            .expect("probe value");
+
+        // Assert
+        assert_eq!(value, 1);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_keep_extended_prepared_statement_after_discard_plans() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("discard_prepared_plans").await;
+        let (client, connection) = server.connect().await;
+        let statement = client
+            .prepare("SELECT 7")
+            .await
+            .expect("prepare the extended-protocol plan-cache fixture");
+        let before_discard: i32 = client
+            .query_one(&statement, &[])
+            .await
+            .expect("execute the prepared statement before discard")
+            .try_get(0)
+            .expect("first result");
+
+        // Act
+        client
+            .batch_execute("DISCARD PLANS")
+            .await
+            .expect("discard cached plans without deallocating statements");
+        let after_discard: i32 = client
+            .query_one(&statement, &[])
+            .await
+            .expect("execute the retained prepared statement after discard")
+            .try_get(0)
+            .expect("second result");
+
+        // Assert
+        assert_eq!(before_discard, 7);
+        assert_eq!(after_discard, 7);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

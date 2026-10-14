@@ -743,3 +743,99 @@ fn should_apply_multiple_alter_table_actions_to_existing_rows() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_atomically_rollback_table_creation_after_insert() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("transactional_table_creation").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin the DDL transaction");
+
+        // Act
+        client
+            .batch_execute("CREATE TABLE compat_transactional_ddl_rows (id INT PRIMARY KEY)")
+            .await
+            .expect("create a table inside the open transaction");
+        client
+            .batch_execute("INSERT INTO compat_transactional_ddl_rows VALUES (1)")
+            .await
+            .expect("insert data into the uncommitted table");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("roll back both catalog and row changes");
+        let table_count: i64 = client
+            .query_one(
+                "SELECT count(*) FROM information_schema.tables \
+                 WHERE table_schema = 'public' \
+                   AND table_name = 'compat_transactional_ddl_rows'",
+                &[],
+            )
+            .await
+            .expect("inspect table publication after rollback")
+            .try_get(0)
+            .expect("matching table count");
+
+        // Assert
+        assert_eq!(table_count, 0);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_scope_temporary_sequence_to_its_creating_session() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("temporary_sequence_scope").await;
+        let (owner, owner_connection) = server.connect().await;
+        let (observer, observer_connection) = server.connect().await;
+        owner
+            .batch_execute("CREATE TEMP SEQUENCE compat_temp_sequence START WITH 7")
+            .await
+            .expect("create a session-local sequence");
+
+        // Act
+        let first_value: i64 = owner
+            .query_one("SELECT nextval('compat_temp_sequence')", &[])
+            .await
+            .expect("advance the sequence in its owning session")
+            .try_get(0)
+            .expect("first sequence value");
+        let invisible = observer
+            .query_one("SELECT nextval('compat_temp_sequence')", &[])
+            .await
+            .expect_err("another session must not resolve a temporary sequence");
+        drop(owner);
+        owner_connection.abort();
+        let _ = owner_connection.await;
+        let (replacement, replacement_connection) = server.connect().await;
+        replacement
+            .batch_execute("CREATE TEMP SEQUENCE compat_temp_sequence START WITH 7")
+            .await
+            .expect("create the same temporary name after the owner disconnects");
+        let replacement_value: i64 = replacement
+            .query_one("SELECT nextval('compat_temp_sequence')", &[])
+            .await
+            .expect("advance the replacement session's independent sequence")
+            .try_get(0)
+            .expect("replacement sequence value");
+
+        // Assert
+        assert_eq!(first_value, 7);
+        assert_eq!(db_error(&invisible).code().code(), "42P01");
+        assert_eq!(replacement_value, 7);
+
+        drop((observer, replacement));
+        replacement_connection.abort();
+        let _ = replacement_connection.await;
+        server.shutdown(observer_connection).await;
+    });
+}

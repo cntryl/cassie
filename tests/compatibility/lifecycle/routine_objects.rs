@@ -951,3 +951,63 @@ fn should_fire_statement_trigger_once_for_a_multirow_insert() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_roundtrip_constraint_comments_through_catalog() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("constraint_comments").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_constraint_comments ( \
+                   id INT CONSTRAINT compat_constraint_comments_key UNIQUE)",
+            )
+            .await
+            .expect("create a named constraint for comment metadata");
+
+        // Act
+        client
+            .batch_execute(
+                "COMMENT ON CONSTRAINT compat_constraint_comments_key \
+                 ON compat_constraint_comments IS 'unique business key'",
+            )
+            .await
+            .expect("set a comment on the named table constraint");
+        let before_clear: Option<String> = client
+            .query_one(
+                "SELECT obj_description(oid, 'pg_constraint') \
+                 FROM pg_constraint WHERE conname = 'compat_constraint_comments_key'",
+                &[],
+            )
+            .await
+            .expect("read the constraint comment")
+            .try_get(0)
+            .expect("comment value");
+        client
+            .batch_execute(
+                "COMMENT ON CONSTRAINT compat_constraint_comments_key \
+                 ON compat_constraint_comments IS NULL",
+            )
+            .await
+            .expect("clear a constraint comment with IS NULL");
+        let after_clear: Option<String> = client
+            .query_one(
+                "SELECT obj_description(oid, 'pg_constraint') \
+                 FROM pg_constraint WHERE conname = 'compat_constraint_comments_key'",
+                &[],
+            )
+            .await
+            .expect("read the cleared constraint comment")
+            .try_get(0)
+            .expect("cleared comment value");
+
+        // Assert
+        assert_eq!(before_clear.as_deref(), Some("unique business key"));
+        assert_eq!(after_clear, None);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

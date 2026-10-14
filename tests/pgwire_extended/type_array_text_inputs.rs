@@ -4,6 +4,8 @@ use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 use cassie::types::Value;
 
+mod array_function_gaps;
+
 type IntegerArrayEndpoint = (
     i32,
     &'static [u8],

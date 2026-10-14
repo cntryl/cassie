@@ -361,3 +361,50 @@ fn should_persist_boolean_binary_normalization_across_recovery_boundaries() {
     let rejected_rows = fixture::data_row_payloads(&stages[0][5]);
     assert_eq!(rejected_rows, Vec::<Vec<u8>>::new());
 }
+
+#[test]
+fn should_reject_trailing_boolean_array_container_bytes_as_malformed_input() {
+    // Arrange
+    // PostgreSQL 18.6 returns 22P03 for this valid BOOL[] frame plus one byte.
+    // OID 34016 is Cassie's legacy BOOL[] adapter; this does not assert standard identity.
+    let valid = [
+        0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1,
+    ];
+    let mut trailing = valid.to_vec();
+    trailing.push(0);
+    let valid_cycle = fixture::execute_cycle(
+        "SELECT $1 AS flags",
+        Some((34_016, 1, Some(&valid))),
+        0,
+        false,
+    );
+    let malformed_cycle = fixture::execute_cycle(
+        "SELECT $1 AS flags",
+        Some((34_016, 1, Some(&trailing))),
+        0,
+        false,
+    );
+    let recovery_cycle = fixture::execute_cycle("SELECT 1", None, 0, false);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-807-array-trailing-container-byte",
+        &[],
+        vec![valid_cycle, malformed_cycle, recovery_cycle],
+    );
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    assert_eq!(fixture::data_row_payloads(&batches[0]).len(), 1);
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("22P03"));
+    assert!(fixture::data_row_payloads(&batches[1]).is_empty());
+    assert_eq!(
+        batches[1].last().map(|frame| frame.1.as_slice()),
+        Some(&b"I"[..])
+    );
+    fixture::assert_success(&batches[2]);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("1".to_owned())]]
+    );
+}

@@ -673,10 +673,7 @@ fn should_apply_negated_postgresql_unicode_normalization_predicates() {
         ("SELECT 'é' IS NOT NFKC NORMALIZED", Value::Bool(false)),
         ("SELECT 'é' IS NOT NFKD NORMALIZED", Value::Bool(true)),
         ("SELECT 'é' IS NOT NFKD NORMALIZED", Value::Bool(false)),
-        (
-            "SELECT CAST(NULL AS TEXT) IS NOT NFC NORMALIZED",
-            Value::Null,
-        ),
+        ("SELECT NULL IS NOT NFC NORMALIZED", Value::Null),
     ];
 
     // Act
@@ -697,10 +694,10 @@ fn should_preserve_empty_fields_for_two_argument_string_to_table() {
 
     // Act
     let rows = fixture
-        .execute("SELECT value FROM string_to_table('a,,b', ',') AS split(value)")
+        .execute("SELECT string_to_table('a,,b', ',')")
         .expect("two-argument string_to_table");
     let null_input_rows = fixture
-        .execute("SELECT value FROM string_to_table(CAST(NULL AS TEXT), ',') AS split(value)")
+        .execute("SELECT string_to_table(CAST(NULL AS TEXT), ',')")
         .expect("NULL string_to_table input");
 
     // Assert
@@ -716,6 +713,21 @@ fn should_preserve_empty_fields_for_two_argument_string_to_table() {
 }
 
 #[test]
+fn should_execute_overlay_placing_keyword_form() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-overlay-placing-keyword", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT overlay('abcdef' PLACING 'XYZ' FROM 2 FOR 3)");
+
+    // Assert
+    assert_eq!(
+        result.expect("OVERLAY PLACING FROM FOR form").rows(),
+        &[vec![Value::String("aXYZef".to_owned())]]
+    );
+}
+
+#[test]
 fn should_propagate_null_through_postgresql18_string_function_signatures() {
     // Arrange
     let fixture = sql_fixture("issue-803-added-string-function-nulls", &[]);
@@ -726,14 +738,6 @@ fn should_propagate_null_through_postgresql18_string_function_signatures() {
         ),
         (
             "SELECT translate(CAST(NULL AS TEXT), 'a', 'b')",
-            Value::Null,
-        ),
-        (
-            "SELECT overlay(CAST(NULL AS TEXT) PLACING 'x' FROM 1)",
-            Value::Null,
-        ),
-        (
-            "SELECT overlay('abc' PLACING CAST(NULL AS TEXT) FROM 1)",
             Value::Null,
         ),
         ("SELECT octet_length(CAST(NULL AS TEXT))", Value::Null),

@@ -1,5 +1,6 @@
 use super::*;
 
+mod advisory_notify_gaps;
 mod row_lock_matrix;
 mod statement_timeout;
 mod timezone_settings;

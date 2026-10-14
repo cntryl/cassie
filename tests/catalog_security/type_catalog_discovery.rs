@@ -550,6 +550,26 @@ fn should_support_regoper_text_io() {
 }
 
 #[test]
+fn should_resolve_regoper_lookup_results() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-to-regoper-lookup", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT to_regoper('pg_catalog.|/'), to_regoper('pg_catalog.no_such_operator') IS NULL",
+        )
+        .expect("regoper lookup and missing-object behavior");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("|/".to_owned()), Value::Bool(true)]]
+    );
+}
+
+#[test]
 fn should_support_regoperator_text_io() {
     // Arrange
     let fixture = sql_fixture("issue-818-regoperator-text-io", &[]);
@@ -564,6 +584,29 @@ fn should_support_regoperator_text_io() {
     assert_eq!(
         selected.rows(),
         vec![vec![Value::String("+(integer,integer)".to_owned())]]
+    );
+}
+
+#[test]
+fn should_resolve_regoperator_overload_lookup_results() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-to-regoperator-lookup", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT to_regoperator('pg_catalog.+(integer,integer)'), to_regoperator('pg_catalog.+(text,text)') IS NULL",
+        )
+        .expect("regoperator overload lookup and missing-object behavior");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("+(integer,integer)".to_owned()),
+            Value::Bool(true)
+        ]]
     );
 }
 

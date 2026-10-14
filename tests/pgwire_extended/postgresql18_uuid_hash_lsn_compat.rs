@@ -253,6 +253,35 @@ fn should_describe_hash_function_results_with_postgresql_oids() {
 }
 
 #[test]
+fn should_describe_crc32c_result_with_postgresql_bigint_identity() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT crc32c(convert_to('abc', 'UTF8'))",
+    )])];
+
+    // Act
+    let batches = run_script("postgresql18-crc32c-result-identity", steps);
+
+    // Assert
+    assert_eq!(
+        wire::error_code(&batches[0]),
+        None,
+        "PostgreSQL 18 CRC32C must be callable without an extension"
+    );
+    let description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("CRC32C RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(column.type_oid, 20);
+    assert_eq!(column.type_size, 8);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("910901175".to_owned())]]
+    );
+}
+
+#[test]
 fn should_bind_hash_function_parameters_with_postgresql_types() {
     // Arrange
     let steps = vec![

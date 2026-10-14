@@ -4,6 +4,9 @@ use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 use cassie::types::Value;
 
+#[path = "type_json_scalar_documents/record_table_functions.rs"]
+mod record_table_functions;
+
 const MAX_DOCUMENT: &[u8] = b"18446744073709551615";
 const NEIGHBOR_DOCUMENT: &[u8] = b"18446744073709551614";
 const WIDE_INTEGER_TEXT: &[u8] = b"9007199254740993";

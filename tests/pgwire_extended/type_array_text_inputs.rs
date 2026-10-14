@@ -1324,3 +1324,305 @@ fn should_concatenate_integer_arrays_with_postgresql_result_identity() {
         vec![vec![Some("{1,2,3}".to_owned())]]
     );
 }
+
+#[test]
+fn should_resolve_an_unknown_array_concatenation_literal() {
+    // Arrange
+    let cycle = fixture::execute_cycle("SELECT ARRAY[1,2] || '{3,4}' AS combined", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-array-unknown-concat-literal", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1007, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{1,2,3,4}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_subscript_a_table_array_slice() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_807_array_slice_rows (id INT, items INT[])",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_807_array_slice_rows VALUES (1, $1)",
+            vec![Value::Json(serde_json::json!([10, 20, 30, 40]))],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT items[2:3]::TEXT FROM issue_807_array_slice_rows WHERE id = 1",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-slice-select", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{20,30}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_filter_table_rows_with_any_array_predicates() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_807_array_any_rows (id INT, items INT[])",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_807_array_any_rows VALUES (1, $1), (2, $2), (3, $3)",
+            vec![
+                Value::Json(serde_json::json!([1, 2])),
+                Value::Json(serde_json::json!([4, 5])),
+                Value::Json(serde_json::json!([2, 3])),
+            ],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT id FROM issue_807_array_any_rows WHERE 2 = ANY(items) ORDER BY id",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-any-table-predicate", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("1".to_owned())], vec![Some("3".to_owned())]]
+    );
+}
+
+#[test]
+fn should_filter_table_arrays_by_containment() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_807_array_operator_rows (id INT, items INT[], required INT[])",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_807_array_operator_rows VALUES (1, $1, $2), (2, $3, $4), (3, $5, $6)",
+            vec![
+                Value::Json(serde_json::json!([1, 2])),
+                Value::Json(serde_json::json!([2])),
+                Value::Json(serde_json::json!([4, 5])),
+                Value::Json(serde_json::json!([2])),
+                Value::Json(serde_json::json!([2, 3])),
+                Value::Json(serde_json::json!([3])),
+            ],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT id FROM issue_807_array_operator_rows WHERE items @> required ORDER BY id",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-containment-predicate", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("1".to_owned())], vec![Some("3".to_owned())]]
+    );
+}
+
+#[test]
+fn should_filter_table_arrays_by_overlap() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_807_array_overlap_rows (id INT, items INT[], probe INT[])",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_807_array_overlap_rows VALUES (1, $1, $2), (2, $3, $4), (3, $5, $6)",
+            vec![
+                Value::Json(serde_json::json!([1, 2])),
+                Value::Json(serde_json::json!([2, 3])),
+                Value::Json(serde_json::json!([4, 5])),
+                Value::Json(serde_json::json!([2, 3])),
+                Value::Json(serde_json::json!([2, 3])),
+                Value::Json(serde_json::json!([3])),
+            ],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT id FROM issue_807_array_overlap_rows WHERE items && probe ORDER BY id",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-overlap-predicate", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("1".to_owned())], vec![Some("3".to_owned())]]
+    );
+}
+
+#[test]
+fn should_assign_an_array_element_in_update() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_807_array_element_assignment (id INT, items INT[])",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_807_array_element_assignment VALUES (1, $1)",
+            vec![Value::Json(serde_json::json!([10, 20, 30]))],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "UPDATE issue_807_array_element_assignment SET items[2] = 99 WHERE id = 1 RETURNING items::TEXT",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-element-assignment", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{10,99,30}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_expand_an_array_for_out_of_range_assignment() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_807_array_expansion (id INT, items INT[])",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_807_array_expansion VALUES (1, $1)",
+            vec![Value::Json(serde_json::json!([10, 20]))],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "UPDATE issue_807_array_expansion SET items[5] = 99 WHERE id = 1 RETURNING items::TEXT",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-indexed-update-expansion", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{10,20,NULL,NULL,99}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_assign_an_array_slice_in_update() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_807_array_slice_assignment (id INT, items INT[])",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_807_array_slice_assignment VALUES (1, $1)",
+            vec![Value::Json(serde_json::json!([10, 20, 30]))],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "UPDATE issue_807_array_slice_assignment SET items[2:3] = ARRAY[88,77] WHERE id = 1 RETURNING items::TEXT",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-slice-assignment", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{10,88,77}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_accept_sql_standard_array_type_declarations() {
+    // Arrange
+    let create = fixture::execute_cycle(
+        "CREATE TABLE issue_807_array_standard_declarations (fixed INTEGER ARRAY[4], flexible INTEGER ARRAY)",
+        None,
+        0,
+        false,
+    );
+    let select = fixture::execute_cycle(
+        "SELECT fixed, flexible FROM issue_807_array_standard_declarations",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "type-array-standard-declarations",
+        &[],
+        vec![create, select],
+    );
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    let frames = &batches[1];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("declared array RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1007, 1007]
+    );
+    assert!(wire::data_rows(frames).is_empty());
+}

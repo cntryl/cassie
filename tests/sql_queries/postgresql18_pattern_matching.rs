@@ -1,8 +1,17 @@
 //! PostgreSQL 18 pattern and regular-expression behavior tracked by #799.
 
+use cassie::app::CassieError;
+use cassie::config::CassieRuntimeConfig;
+use cassie::runtime::QueryCancellationHandle;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::sql_fixture;
+use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
+
+fn current_accounted_memory_bytes(fixture: &SqlFixture) -> u64 {
+    fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+        .as_u64()
+        .expect("current accounted query memory")
+}
 
 #[test]
 fn should_match_ascii_values_with_ilike_patterns() {
@@ -298,6 +307,32 @@ fn should_apply_case_insensitive_posix_regex_operator_spellings() {
     assert_eq!(
         result.expect("case-insensitive regex operators").rows(),
         &[vec![Value::Bool(true), Value::Bool(false)]]
+    );
+}
+
+#[test]
+fn should_apply_collation_dependent_unicode_regex_rules() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-unicode-collation", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT ('café' COLLATE \"C\") ~ '^[[:alpha:]]+$', ('café' COLLATE \"und-x-icu\") ~ '^[[:alpha:]]+$', ('café' COLLATE \"und-x-icu\") ~ '^\\w+$', ('café' COLLATE \"und-x-icu\") ~* '^CAFÉ$', ('é' COLLATE \"C\") ~* '^É$', ('é' COLLATE \"und-x-icu\") ~* '^É$'",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("collation-aware Unicode regex matching")
+            .rows(),
+        &[vec![
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(true),
+        ]]
     );
 }
 
@@ -615,6 +650,29 @@ fn should_return_match_positions_for_selected_regex_occurrences() {
 }
 
 #[test]
+fn should_count_regex_offsets_in_characters_for_multibyte_text() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-character-offsets", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regexp_instr('Aé🙂Z', '🙂'), regexp_substr('Aé🙂Z', '.', 2, 2), regexp_replace('Aé🙂Z', '.', 'x', 2, 2, '')",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("regex character offsets over UTF-8 text")
+            .rows(),
+        &[vec![
+            Value::Int64(3),
+            Value::String("🙂".to_owned()),
+            Value::String("AéxZ".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_return_captured_groups_from_the_first_regex_match() {
     // Arrange
     let fixture = sql_fixture("issue-799-regexp-match", &[]);
@@ -691,6 +749,76 @@ fn should_split_text_into_regex_collections() {
             vec![Value::String("three".to_owned())],
             vec![Value::String("two".to_owned())],
         ]
+    );
+}
+
+#[test]
+fn should_enforce_regex_split_result_cap_with_cleanup() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.max_result_rows = 2;
+    let fixture = sql_fixture_with_config("issue-799-regex-split-result-limit", &[], config);
+    let memory_before = current_accounted_memory_bytes(&fixture);
+
+    // Act
+    let result = fixture.execute("SELECT part FROM regexp_split_to_table('a,b,c', ',') AS part");
+
+    // Assert
+    assert!(
+        matches!(result, Err(CassieError::ResourceLimit(_))),
+        "regex expansion beyond max_result_rows must fail as a resource limit: {result:?}"
+    );
+    assert_eq!(current_accounted_memory_bytes(&fixture), memory_before);
+    assert_eq!(
+        fixture
+            .execute("SELECT 1::BIGINT")
+            .expect("query after bounded regex expansion")
+            .rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_cancel_recursive_regex_work_with_cleanup() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.cte_recursion_depth = 1_000_000;
+    config.limits.query_memory_budget_bytes = 1024 * 1024 * 1024;
+    let fixture = std::sync::Arc::new(sql_fixture_with_config(
+        "issue-799-regex-active-cancellation",
+        &[],
+        config,
+    ));
+    let memory_before = current_accounted_memory_bytes(&fixture);
+    let cancellation = QueryCancellationHandle::new();
+    let query_cancellation = cancellation.clone();
+    let query_fixture = std::sync::Arc::clone(&fixture);
+    let query = std::thread::spawn(move || {
+        query_fixture.cassie.execute_sql_with_cancellation(
+            &query_fixture.session,
+            "WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 1000000 AND n::TEXT ~ '^[0-9]+$') SELECT MAX(n) FROM seq",
+            vec![],
+            &query_cancellation,
+        )
+    });
+    std::thread::sleep(std::time::Duration::from_millis(25));
+
+    // Act
+    cancellation.cancel();
+    let error = query
+        .join()
+        .expect("regex query thread")
+        .expect_err("active regex query should be cancelled");
+
+    // Assert
+    assert!(matches!(error, CassieError::QueryCancelled));
+    assert_eq!(current_accounted_memory_bytes(&fixture), memory_before);
+    assert_eq!(
+        fixture
+            .execute("SELECT 1::BIGINT")
+            .expect("query after regex cancellation")
+            .rows(),
+        &[vec![Value::Int64(1)]]
     );
 }
 

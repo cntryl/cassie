@@ -1,6 +1,6 @@
 //! PostgreSQL 18 string scalar wire contracts tracked by #803.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 fn error_fields(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<(char, String)>> {
@@ -76,6 +76,81 @@ fn should_bind_to_bin_from_int8_binary_parameter() {
     assert_eq!(
         wire::data_rows(&batches[2]),
         vec![vec![Some("101010".to_owned())]]
+    );
+}
+
+#[test]
+fn should_bind_negative_int8_to_radix_text_functions_with_binary_results() {
+    // Arrange
+    let value = (-1_i64).to_be_bytes();
+    let sql =
+        "SELECT to_hex($1) AS hex_value, to_bin($1) AS binary_value, to_oct($1) AS octal_value";
+    let batches = run_script(
+        "issue-803-negative-int8-radix-functions-wire",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                "negative_int8_radix",
+                sql,
+                &[20],
+            )),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame("negative_int8_radix"),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::bind_frame_with_formats(
+                    "negative_int8_radix_portal",
+                    "negative_int8_radix",
+                    &[1],
+                    &[Some(&value)],
+                    &[1, 1, 1],
+                ),
+                wire::describe_portal_frame("negative_int8_radix_portal"),
+                wire::execute_frame("negative_int8_radix_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let described = &batches[1];
+    let executed = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(described), None);
+    assert_eq!(wire::error_code(executed), None);
+    assert_eq!(
+        wire::parse_parameter_description(
+            &described
+                .iter()
+                .find(|(tag, _)| *tag == b't')
+                .expect("negative radix ParameterDescription")
+                .1
+        ),
+        vec![20]
+    );
+    let columns = wire::parse_row_description(
+        &executed
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("negative radix portal RowDescription")
+            .1,
+    );
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![(25, 1), (25, 1), (25, 1)]
+    );
+    assert_eq!(
+        wire::data_rows(executed),
+        vec![vec![
+            Some("ffffffffffffffff".to_owned()),
+            Some("1111111111111111111111111111111111111111111111111111111111111111".to_owned()),
+            Some("1777777777777777777777".to_owned()),
+        ]]
     );
 }
 

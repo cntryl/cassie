@@ -3,7 +3,7 @@
 use cassie::app::CassieError;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::{SqlFixture, sql_fixture};
+use crate::support_sql_fixture::{sql_fixture, SqlFixture};
 
 fn failed_string_function_cases(fixture: &SqlFixture, cases: &[(&str, Value)]) -> Vec<String> {
     cases
@@ -436,6 +436,30 @@ fn should_admit_a_bounded_repeat_output_expansion() {
 }
 
 #[test]
+fn should_admit_bounded_multibyte_padding_output_expansion() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-padding-output-expansion", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT char_length(lpad('x', 65536, 'ab')), left(lpad('x', 65536, 'ab'), 2), right(lpad('x', 65536, 'ab'), 2), char_length(rpad('x', 65536, 'ab')), left(rpad('x', 65536, 'ab'), 2), right(rpad('x', 65536, 'ab'), 2)",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("bounded lpad/rpad expansion").rows(),
+        &[vec![
+            Value::Int64(65_536),
+            Value::String("ab".to_owned()),
+            Value::String("ax".to_owned()),
+            Value::Int64(65_536),
+            Value::String("xa".to_owned()),
+            Value::String("ba".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_execute_postgresql_text_transformations_with_exact_results() {
     // Arrange
     let fixture = sql_fixture("issue-803-standard-text-transformations", &[]);
@@ -450,6 +474,18 @@ fn should_execute_postgresql_text_transformations_with_exact_results() {
             "SELECT rpad('xy', 5, 'ab')",
             Value::String("xyaba".to_owned()),
         ),
+        ("SELECT lpad('abcdef', 3)", Value::String("abc".to_owned())),
+        ("SELECT rpad('abcdef', 3)", Value::String("abc".to_owned())),
+        (
+            "SELECT lpad('aé', 4, '🙂')",
+            Value::String("🙂🙂aé".to_owned()),
+        ),
+        (
+            "SELECT rpad('aé', 4, '🙂')",
+            Value::String("aé🙂🙂".to_owned()),
+        ),
+        ("SELECT lpad('abc', -1)", Value::String(String::new())),
+        ("SELECT rpad('abc', -1)", Value::String(String::new())),
         ("SELECT repeat('ab', 3)", Value::String("ababab".to_owned())),
         ("SELECT reverse('aé🙂')", Value::String("🙂éa".to_owned())),
         (
@@ -511,6 +547,26 @@ fn should_distinguish_text_character_byte_length_from_string_predicates() {
         ("SELECT to_hex(10)", Value::String("a".to_owned())),
         ("SELECT to_bin(10)", Value::String("1010".to_owned())),
         ("SELECT to_oct(10)", Value::String("12".to_owned())),
+        ("SELECT to_hex(-1)", Value::String("ffffffff".to_owned())),
+        (
+            "SELECT to_bin(-1)",
+            Value::String("11111111111111111111111111111111".to_owned()),
+        ),
+        ("SELECT to_oct(-1)", Value::String("37777777777".to_owned())),
+        (
+            "SELECT to_hex(-1::BIGINT)",
+            Value::String("ffffffffffffffff".to_owned()),
+        ),
+        (
+            "SELECT to_bin(-1::BIGINT)",
+            Value::String(
+                "1111111111111111111111111111111111111111111111111111111111111111".to_owned(),
+            ),
+        ),
+        (
+            "SELECT to_oct(-1::BIGINT)",
+            Value::String("1777777777777777777777".to_owned()),
+        ),
         (
             "SELECT num_nulls(1, CAST(NULL AS INT4), CAST(NULL AS TEXT))",
             Value::Int64(2),

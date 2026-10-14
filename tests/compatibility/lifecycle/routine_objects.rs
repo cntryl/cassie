@@ -2,6 +2,7 @@ use super::*;
 
 mod default_privileges;
 mod expression_statistics;
+mod language_sql;
 mod ownership_privileges;
 
 #[test]

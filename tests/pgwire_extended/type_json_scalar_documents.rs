@@ -4,8 +4,6 @@ use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 use cassie::types::Value;
 
-mod record_functions;
-
 const MAX_DOCUMENT: &[u8] = b"18446744073709551615";
 const NEIGHBOR_DOCUMENT: &[u8] = b"18446744073709551614";
 const WIDE_INTEGER_TEXT: &[u8] = b"9007199254740993";

@@ -1,6 +1,7 @@
 //! PostgreSQL JSON set-returning and record conversion behavior.
 
-use super::{fixture, wire};
+use crate::support_pgwire as wire;
+use crate::support_type_metadata_contract as fixture;
 
 #[test]
 fn should_report_jsonb_populate_record_conversion_validity() {

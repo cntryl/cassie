@@ -2,6 +2,7 @@ use super::*;
 
 mod advisory_notify_gaps;
 mod row_lock_matrix;
+mod row_lock_skip_locked_claims;
 mod statement_timeout;
 mod timezone_settings;
 mod unique_conflict_rollback;

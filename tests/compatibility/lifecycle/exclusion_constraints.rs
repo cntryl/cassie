@@ -1,5 +1,8 @@
 use super::*;
 
+mod constraint_control;
+mod foreign_key_actions;
+
 #[test]
 fn should_enforce_exclusion_predicate_report_sqlstate() {
     // Arrange

@@ -4,7 +4,7 @@ use cassie::app::CassieError;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::{SqlFixture, sql_fixture, sql_fixture_with_config};
+use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
 
 fn repeated_reference_fixture(label: &str) -> SqlFixture {
     sql_fixture(
@@ -335,42 +335,66 @@ fn should_detect_cycles_only_after_all_declared_keys_repeat() {
              FROM edges AS edge JOIN walk AS parent\
                ON edge.source_node = parent.node AND edge.source_label = parent.label\
          ) CYCLE node, label SET is_cycle USING path\
-         SELECT node, label, depth, is_cycle FROM walk ORDER BY depth",
+         SELECT node, label, depth, is_cycle, path, path::TEXT FROM walk ORDER BY depth",
     );
 
     // Assert
+    let result = result.expect("CYCLE over two declared keys");
     assert_eq!(
-        result.expect("CYCLE over two declared keys").rows(),
-        &[
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 25, 23, 16, 2287, 25]
+    );
+    assert_eq!(
+        result
+            .rows()
+            .iter()
+            .map(|row| vec![
+                row[0].clone(),
+                row[1].clone(),
+                row[2].clone(),
+                row[3].clone(),
+                row[5].clone(),
+            ])
+            .collect::<Vec<_>>(),
+        vec![
             vec![
                 Value::Int64(1),
                 Value::String("A".to_owned()),
                 Value::Int64(0),
                 Value::Bool(false),
+                Value::String("{\"(1,A)\"}".to_owned()),
             ],
             vec![
                 Value::Int64(2),
                 Value::String("B".to_owned()),
                 Value::Int64(1),
                 Value::Bool(false),
+                Value::String("{\"(1,A)\",\"(2,B)\"}".to_owned()),
             ],
             vec![
                 Value::Int64(1),
                 Value::String("C".to_owned()),
                 Value::Int64(2),
                 Value::Bool(false),
+                Value::String("{\"(1,A)\",\"(2,B)\",\"(1,C)\"}".to_owned()),
             ],
             vec![
                 Value::Int64(2),
                 Value::String("D".to_owned()),
                 Value::Int64(3),
                 Value::Bool(false),
+                Value::String("{\"(1,A)\",\"(2,B)\",\"(1,C)\",\"(2,D)\"}".to_owned()),
             ],
             vec![
                 Value::Int64(1),
                 Value::String("A".to_owned()),
                 Value::Int64(4),
                 Value::Bool(true),
+                Value::String("{\"(1,A)\",\"(2,B)\",\"(1,C)\",\"(2,D)\",\"(1,A)\"}".to_owned(),),
             ],
         ]
     );

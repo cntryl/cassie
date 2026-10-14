@@ -45,3 +45,43 @@ fn should_preserve_scalar_descriptors_for_null_outputs() {
     assert_eq!(batches.len(), 30);
     matrix::assert_batches(&batches, &expected);
 }
+
+#[test]
+fn should_preserve_oid_identity_across_pgwire_formats() {
+    // Arrange
+    let inputs = [(0, &b"23"[..]), (1, &[0, 0, 0, 23][..])];
+    let cycles = inputs
+        .into_iter()
+        .flat_map(|(input_format, payload)| {
+            [0, 1].map(|result_format| {
+                fixture::execute_cycle(
+                    "SELECT $1 AS v",
+                    Some((26, input_format, Some(payload))),
+                    result_format,
+                    true,
+                )
+            })
+        })
+        .collect();
+
+    // Act
+    let batches = fixture::run_cycles("type-oid-text-binary-roundtrip", &[], cycles);
+
+    // Assert
+    assert_eq!(batches.len(), 4);
+    for (input_index, pair) in batches.as_chunks::<2>().0.iter().enumerate() {
+        for (result_format, frames) in [0, 1].into_iter().zip(pair) {
+            fixture::assert_success(frames);
+            fixture::assert_single_column_descriptors(frames, (26, 4, -1), result_format, true);
+            assert_eq!(
+                fixture::data_row_payloads(frames),
+                vec![fixture::one_field_row(if result_format == 0 {
+                    &b"23"[..]
+                } else {
+                    &[0, 0, 0, 23][..]
+                })],
+                "input format index {input_index}, result format {result_format}"
+            );
+        }
+    }
+}

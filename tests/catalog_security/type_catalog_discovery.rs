@@ -492,6 +492,124 @@ fn should_report_a_resolved_scalar_type_with_pg_typeof() {
 }
 
 #[test]
+fn should_accept_the_postgresql_oid_scalar_type() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-oid-scalar-type", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture.execute("SELECT 23::oid").expect("OID scalar type");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Int64(23)]]);
+}
+
+#[test]
+fn should_support_regproc_text_io() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regproc-text-io", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT 'pg_catalog.now'::regproc")
+        .expect("regproc text input and output");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::String("now".to_owned())]]);
+}
+
+#[test]
+fn should_support_regoper_text_io() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regoper-text-io", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT 'pg_catalog.|/'::regoper")
+        .expect("regoper text input and output");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::String("|/".to_owned())]]);
+}
+
+#[test]
+fn should_support_regoperator_text_io() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regoperator-text-io", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT 'pg_catalog.+(integer,integer)'::regoperator")
+        .expect("regoperator text input and output");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("+(integer,integer)".to_owned())]]
+    );
+}
+
+#[test]
+fn should_support_regrole_text_io() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-818-regrole-text-io",
+        &["CREATE ROLE issue_818_regrole_text"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT 'issue_818_regrole_text'::regrole")
+        .expect("regrole text input and output");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("issue_818_regrole_text".to_owned())]]
+    );
+}
+
+#[test]
+fn should_support_regconfig_text_io() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regconfig-text-io", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT 'pg_catalog.simple'::regconfig")
+        .expect("regconfig text input and output");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("simple".to_owned())]]
+    );
+}
+
+#[test]
+fn should_support_regdictionary_text_io() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regdictionary-text-io", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT 'pg_catalog.simple'::regdictionary")
+        .expect("regdictionary text input and output");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("simple".to_owned())]]
+    );
+}
+
+#[test]
 fn should_advertise_pgcrypto_in_available_extension_catalog() {
     // Arrange
     let fixture = sql_fixture("issue-843-pgcrypto-catalog-identity", &[]);

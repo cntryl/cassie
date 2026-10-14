@@ -85,3 +85,50 @@ fn should_preserve_oid_identity_across_pgwire_formats() {
         }
     }
 }
+
+#[test]
+fn should_describe_pg_typeof_with_postgresql_regtype_identity() {
+    // Arrange
+    let cycle = fixture::execute_cycle("SELECT pg_typeof(1)", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-pg-typeof-regtype-rowdescription", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (2_206, 4, -1), 0, true);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"integer")]
+    );
+}
+
+#[test]
+fn should_roundtrip_regtype_over_wire_formats() {
+    // Arrange
+    let formats = [0, 1];
+    let cycles = formats
+        .map(|format| fixture::execute_cycle("SELECT 'integer'::regtype", None, format, true))
+        .to_vec();
+
+    // Act
+    let batches = fixture::run_cycles("type-regtype-text-binary", &[], cycles);
+
+    // Assert
+    assert_eq!(batches.len(), formats.len());
+    for (format, frames) in formats.into_iter().zip(batches) {
+        fixture::assert_success(&frames);
+        fixture::assert_single_column_descriptors(&frames, (2_206, 4, -1), format, true);
+        let value = if format == 0 {
+            b"integer".as_slice()
+        } else {
+            &[0, 0, 0, 23]
+        };
+        assert_eq!(
+            fixture::data_row_payloads(&frames),
+            vec![fixture::one_field_row(value)],
+            "result format {format}"
+        );
+    }
+}

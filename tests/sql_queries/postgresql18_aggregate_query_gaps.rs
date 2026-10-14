@@ -319,6 +319,68 @@ fn should_project_primary_key_functional_dependencies_with_grouped_aggregates() 
 }
 
 #[test]
+fn should_resolve_output_alias_inside_grouping_sets() {
+    // Arrange
+    let fixture = grouping_fixture("issue-804-grouping-set-alias");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT region AS area, SUM(amount), GROUPING(region) FROM issue_804_group_values GROUP BY GROUPING SETS ((area), ()) ORDER BY GROUPING(region), area NULLS FIRST",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("GROUP BY output alias inside grouping sets")
+            .rows(),
+        &[
+            vec![
+                Value::String("east".to_owned()),
+                Value::Int64(5),
+                Value::Int64(0),
+            ],
+            vec![
+                Value::String("west".to_owned()),
+                Value::Int64(5),
+                Value::Int64(0),
+            ],
+            vec![Value::Null, Value::Int64(10), Value::Int64(1)],
+        ]
+    );
+}
+
+#[test]
+fn should_resolve_output_ordinal_inside_grouping_sets() {
+    // Arrange
+    let fixture = grouping_fixture("issue-804-grouping-set-ordinal");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT region AS area, SUM(amount), GROUPING(region) FROM issue_804_group_values GROUP BY GROUPING SETS ((1), ()) ORDER BY GROUPING(region), region NULLS FIRST",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("GROUP BY output ordinal inside grouping sets")
+            .rows(),
+        &[
+            vec![
+                Value::String("east".to_owned()),
+                Value::Int64(5),
+                Value::Int64(0),
+            ],
+            vec![
+                Value::String("west".to_owned()),
+                Value::Int64(5),
+                Value::Int64(0),
+            ],
+            vec![Value::Null, Value::Int64(10), Value::Int64(1)],
+        ]
+    );
+}
+
+#[test]
 fn should_apply_filter_before_boolean_aggregate_transitions() {
     // Arrange
     let fixture = sql_fixture(
@@ -1031,4 +1093,85 @@ fn should_accept_a_bytea_delimiter_in_string_agg() {
     // Assert
     let result = result.expect("bytea string_agg accepts a bytea delimiter");
     assert_eq!(result.rows(), &[vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_deduplicate_string_aggregate_inputs_before_ordering() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-804-distinct-ordered-string-aggregate",
+        &[
+            "CREATE TABLE issue_804_distinct_ordered_values (value TEXT)",
+            "INSERT INTO issue_804_distinct_ordered_values VALUES ('pear'),('apple'),('pear'),('banana')",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT STRING_AGG(DISTINCT value, ',' ORDER BY value DESC) FROM issue_804_distinct_ordered_values",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("distinct inputs ordered inside string_agg")
+            .rows(),
+        &[vec![Value::String("pear,banana,apple".to_owned())]]
+    );
+}
+
+#[test]
+fn should_apply_boolean_aggregate_filters_over_ordered_window_frames() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-805-boolean-window-filters",
+        &[
+            "CREATE TABLE issue_805_boolean_window_values (bucket TEXT, id INT, flag BOOLEAN, selected BOOLEAN)",
+            "INSERT INTO issue_805_boolean_window_values VALUES ('a',1,FALSE,TRUE),('a',2,TRUE,FALSE),('a',3,TRUE,TRUE),('a',4,NULL,TRUE),('b',1,TRUE,TRUE)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT bucket, id, BOOL_AND(flag) FILTER (WHERE selected) OVER (PARTITION BY bucket ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), BOOL_OR(flag) FILTER (WHERE selected) OVER (PARTITION BY bucket ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM issue_805_boolean_window_values ORDER BY bucket, id",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("filtered boolean aggregates over ordered windows")
+            .rows(),
+        &[
+            vec![
+                Value::String("a".to_owned()),
+                Value::Int64(1),
+                Value::Bool(false),
+                Value::Bool(false),
+            ],
+            vec![
+                Value::String("a".to_owned()),
+                Value::Int64(2),
+                Value::Bool(false),
+                Value::Bool(false),
+            ],
+            vec![
+                Value::String("a".to_owned()),
+                Value::Int64(3),
+                Value::Bool(false),
+                Value::Bool(true),
+            ],
+            vec![
+                Value::String("a".to_owned()),
+                Value::Int64(4),
+                Value::Bool(false),
+                Value::Bool(true),
+            ],
+            vec![
+                Value::String("b".to_owned()),
+                Value::Int64(1),
+                Value::Bool(true),
+                Value::Bool(true),
+            ],
+        ]
+    );
 }

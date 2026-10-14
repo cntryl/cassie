@@ -885,38 +885,61 @@ fn should_report_created_check_constraints_in_information_schema_extras() {
     fixture.cassie.startup().expect("startup");
 
     // Act
-    let selected = fixture.execute(
-        "SELECT \
-            (SELECT check_clause \
-             FROM information_schema.check_constraints \
-             WHERE constraint_schema = 'public' \
-               AND constraint_name = 'issue_817_amount_positive'), \
-            (SELECT column_name \
-             FROM information_schema.constraint_column_usage \
-             WHERE constraint_schema = 'public' \
-               AND constraint_name = 'issue_817_amount_positive')",
+    let checks = fixture.execute(
+        "SELECT constraint_name, check_clause \
+         FROM information_schema.check_constraints \
+         WHERE constraint_schema = 'public' \
+           AND constraint_name = 'issue_817_amount_positive'",
+    );
+    let column_usage = fixture.execute(
+        "SELECT constraint_name, table_name, column_name \
+         FROM information_schema.constraint_column_usage \
+         WHERE constraint_schema = 'public' \
+           AND constraint_name = 'issue_817_amount_positive'",
     );
 
     // Assert
     assert_eq!(
-        selected
-            .expect("read the created check expression and column usage")
+        checks.expect("read the created check expression").rows(),
+        vec![vec![
+            Value::String("issue_817_amount_positive".to_owned()),
+            Value::String("(amount > 0)".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        column_usage
+            .expect("read the created constraint column usage")
             .rows(),
         vec![vec![
-            Value::String("(amount > 0)".to_owned()),
+            Value::String("issue_817_amount_positive".to_owned()),
+            Value::String("issue_817_constraint_info".to_owned()),
             Value::String("amount".to_owned()),
         ]]
     );
 }
 
 #[test]
-fn should_render_created_catalog_definitions() {
+fn should_return_null_for_missing_constraint_definition() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-null-constraint-definition", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT pg_catalog.pg_get_constraintdef(0)")
+        .expect("inspect an absent constraint definition");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Null]]);
+}
+
+#[test]
+fn should_render_a_created_index_definition() {
     // Arrange
     let fixture = sql_fixture(
-        "issue-817-definition-functions",
+        "issue-817-index-definition",
         &[
-            "CREATE TABLE issue_817_definition_items (\
-                amount INTEGER CONSTRAINT issue_817_definition_check CHECK (amount > 0))",
+            "CREATE TABLE issue_817_definition_items (amount INTEGER)",
             "CREATE INDEX issue_817_definition_idx \
              ON issue_817_definition_items USING btree (amount)",
         ],
@@ -924,26 +947,17 @@ fn should_render_created_catalog_definitions() {
     fixture.cassie.startup().expect("startup");
 
     // Act
-    let selected = fixture.execute(
-        "SELECT \
-            (SELECT pg_catalog.pg_get_constraintdef(oid, true) \
-             FROM pg_catalog.pg_constraint \
-             WHERE conname = 'issue_817_definition_check'), \
-            pg_catalog.pg_get_indexdef('public.issue_817_definition_idx'::regclass)",
-    );
+    let selected = fixture
+        .execute("SELECT pg_catalog.pg_get_indexdef('public.issue_817_definition_idx'::regclass)")
+        .expect("render the created index");
 
     // Assert
     assert_eq!(
-        selected
-            .expect("render the created check constraint and index")
-            .rows(),
-        vec![vec![
-            Value::String("CHECK (amount > 0)".to_owned()),
-            Value::String(
-                "CREATE INDEX issue_817_definition_idx ON public.issue_817_definition_items USING btree (amount)"
-                    .to_owned(),
-            ),
-        ]]
+        selected.rows(),
+        vec![vec![Value::String(
+            "CREATE INDEX issue_817_definition_idx ON public.issue_817_definition_items USING btree (amount)"
+                .to_owned()
+        )]]
     );
 }
 

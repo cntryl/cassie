@@ -79,6 +79,74 @@ fn should_preserve_local_timestamp_fractional_precision() {
 }
 
 #[test]
+fn should_format_temporal_finite_endpoints() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-814-temporal-finite-endpoints",
+        &["SET TIME ZONE 'UTC'"],
+    );
+
+    // Act
+    let actual = text_row(
+        &fixture,
+        "SELECT DATE '4713-01-01 BC'::text, DATE '5874897-12-31'::text, \
+         TIME '00:00:00'::text, TIME '24:00:00'::text, \
+         TIMETZ '00:00:00-15:59'::text, TIMETZ '24:00:00+15:59'::text, \
+         TIMESTAMP '4713-01-01 BC'::text, \
+         TIMESTAMP '294276-12-31 23:59:59.999999'::text, \
+         TIMESTAMPTZ '4713-01-01 00:00:00+00 BC'::text, \
+         TIMESTAMPTZ '294276-12-31 23:59:59.999999+00'::text",
+    );
+
+    // Assert
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("4713-01-01 BC".to_string()),
+            Value::String("5874897-12-31".to_string()),
+            Value::String("00:00:00".to_string()),
+            Value::String("24:00:00".to_string()),
+            Value::String("00:00:00-15:59".to_string()),
+            Value::String("24:00:00+15:59".to_string()),
+            Value::String("4713-01-01 00:00:00 BC".to_string()),
+            Value::String("294276-12-31 23:59:59.999999".to_string()),
+            Value::String("4713-01-01 00:00:00+00 BC".to_string()),
+            Value::String("294276-12-31 23:59:59.999999+00".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn should_format_temporal_infinities() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-814-temporal-infinity-output",
+        &["SET TIME ZONE 'UTC'"],
+    );
+
+    // Act
+    let actual = text_row(
+        &fixture,
+        "SELECT DATE '-infinity'::text, DATE 'infinity'::text, \
+         TIMESTAMP '-infinity'::text, TIMESTAMP 'infinity'::text, \
+         TIMESTAMPTZ '-infinity'::text, TIMESTAMPTZ 'infinity'::text",
+    );
+
+    // Assert
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("-infinity".to_string()),
+            Value::String("infinity".to_string()),
+            Value::String("-infinity".to_string()),
+            Value::String("infinity".to_string()),
+            Value::String("-infinity".to_string()),
+            Value::String("infinity".to_string()),
+        ]
+    );
+}
+
+#[test]
 fn should_format_interval_qualifiers_with_sql_standard_style() {
     // Arrange
     let fixture = sql_fixture(
@@ -237,6 +305,31 @@ fn should_evaluate_temporal_arithmetic_with_postgres_outputs() {
             Value::String("2 12:00:00".to_string()),
             Value::String("0:40:00".to_string()),
             Value::String("-23:00:00".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn should_distinguish_calendar_subtraction_from_elapsed_hours_across_dst() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-814-dst-calendar-subtraction-values",
+        &["SET TIME ZONE 'America/New_York'"],
+    );
+
+    // Act
+    let actual = text_row(
+        &fixture,
+        "SELECT (TIMESTAMPTZ '2024-03-10 12:00:00 America/New_York' - INTERVAL '1 day')::text, \
+         (TIMESTAMPTZ '2024-03-10 12:00:00 America/New_York' - INTERVAL '24 hours')::text",
+    );
+
+    // Assert
+    assert_eq!(
+        actual,
+        vec![
+            Value::String("2024-03-09 12:00:00-05".to_string()),
+            Value::String("2024-03-09 11:00:00-05".to_string()),
         ]
     );
 }

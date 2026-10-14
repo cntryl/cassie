@@ -1,5 +1,6 @@
 use super::*;
 
+mod atomic_drop;
 mod postgresql18_database_temp_lifecycle;
 
 mod index_contracts;

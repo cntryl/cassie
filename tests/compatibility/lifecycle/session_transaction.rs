@@ -1,6 +1,8 @@
 use super::*;
 
 mod advisory_notify_gaps;
+mod isolation_commands;
+mod row_lock_dml;
 mod row_lock_matrix;
 mod row_lock_skip_locked_claims;
 mod statement_timeout;

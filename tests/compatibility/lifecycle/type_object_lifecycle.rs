@@ -1,6 +1,51 @@
 use super::*;
 
 #[test]
+fn should_render_relation_record_null_semantics() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("relation_record_null_semantics").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_record_rows (a INT, b INT)",
+                "INSERT INTO compat_record_rows VALUES (NULL, NULL), (NULL, 1), (1, 2)",
+            ],
+        )
+        .await
+        .expect("create relation rows with all-null, partial-null, and populated fields");
+
+        // Act
+        let rows = client
+            .query(
+                "SELECT record_value IS NULL, record_value IS NOT NULL, record_value::TEXT \
+                 FROM compat_record_rows AS record_value \
+                 ORDER BY a NULLS FIRST, b NULLS FIRST",
+                &[],
+            )
+            .await
+            .expect("inspect the relation's whole-row record values");
+
+        // Assert
+        assert_eq!(rows.len(), 3);
+        assert!(rows[0].get::<_, bool>(0));
+        assert!(!rows[0].get::<_, bool>(1));
+        assert_eq!(rows[0].get::<_, String>(2), "(,)");
+        assert!(!rows[1].get::<_, bool>(0));
+        assert!(!rows[1].get::<_, bool>(1));
+        assert_eq!(rows[1].get::<_, String>(2), "(,1)");
+        assert!(!rows[2].get::<_, bool>(0));
+        assert!(rows[2].get::<_, bool>(1));
+        assert_eq!(rows[2].get::<_, String>(2), "(1,2)");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_order_enum_first_last_range_by_label() {
     // Arrange
     let runtime = current_thread_runtime();

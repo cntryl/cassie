@@ -32,9 +32,11 @@ fn should_reject_nullable_numeric_adapters_at_implicit_boolean_sinks() {
             Some("42601"),
             "{oid}: {sql}"
         );
-        assert!(!rejected
-            .iter()
-            .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
+        assert!(
+            !rejected
+                .iter()
+                .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C'))
+        );
         assert_eq!(
             rejected.last().map(|frame| frame.1.as_slice()),
             Some(&b"I"[..])
@@ -727,15 +729,19 @@ fn should_preserve_failed_transaction_priority_over_numeric_output_rejection() {
         let failed = &group[2];
         assert_eq!(wire::error_code(failed).as_deref(), Some("25P02"), "{oid}");
         let (_, error) = failed.iter().find(|(tag, _)| *tag == b'E').expect("error");
-        assert!(wire::parse_error_fields(error).contains(&(
-            'M',
-            "current transaction is aborted, commands ignored until end of transaction block"
-                .to_string()
-        )));
+        assert!(
+            wire::parse_error_fields(error).contains(&(
+                'M',
+                "current transaction is aborted, commands ignored until end of transaction block"
+                    .to_string()
+            ))
+        );
         assert_eq!(failed.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
-        assert!(!failed
-            .iter()
-            .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
+        assert!(
+            !failed
+                .iter()
+                .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C'))
+        );
         assert_eq!(
             failed.last().map(|frame| frame.1.as_slice()),
             Some(&b"E"[..])
@@ -792,5 +798,53 @@ fn should_keep_count_star_fixed_with_numeric_predicate_parameters() {
             fixture::one_field_row(count.to_string().as_bytes())
         };
         assert_eq!(fixture::data_row_payloads(&frames), vec![expected]);
+    }
+}
+
+#[test]
+fn should_preserve_numeric_parameter_identity_through_pg_typeof_wire_formats() {
+    // Arrange
+    let numeric_binary = [
+        0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x13, 0x88,
+    ];
+    let cases = [(0, 0), (0, 1), (1, 0), (1, 1)];
+    let cycles = cases
+        .iter()
+        .map(|(input_format, result_format)| {
+            fixture::execute_cycle(
+                "SELECT pg_typeof($1) AS actual_type",
+                Some((
+                    1700,
+                    *input_format,
+                    Some(if *input_format == 0 {
+                        &b"2.5"[..]
+                    } else {
+                        &numeric_binary[..]
+                    }),
+                )),
+                *result_format,
+                true,
+            )
+        })
+        .collect();
+
+    // Act
+    let batches = fixture::run_cycles("type-numeric-pg-typeof-wire", &[], cycles);
+
+    // Assert
+    for ((input_format, result_format), frames) in cases.into_iter().zip(batches) {
+        fixture::assert_success(&frames);
+        fixture::assert_single_column_descriptors(&frames, (2_206, 4, -1), result_format, true);
+        assert_parameter_oid(&frames, 1700);
+        let expected_value = if result_format == 0 {
+            fixture::one_field_row(b"numeric")
+        } else {
+            fixture::one_field_row(&1700_i32.to_be_bytes())
+        };
+        assert_eq!(
+            fixture::data_row_payloads(&frames),
+            vec![expected_value],
+            "numeric input format {input_format}, result format {result_format}"
+        );
     }
 }

@@ -4,6 +4,9 @@
 #[path = "catalog_security/postgresql18_catalog_information.rs"]
 mod postgresql18_catalog_information;
 
+#[path = "catalog_security/postgresql18_catalog_relation_shapes.rs"]
+mod postgresql18_catalog_relation_shapes;
+
 #[path = "support/catalog.rs"]
 mod support_catalog;
 #[path = "support/data_dir.rs"]

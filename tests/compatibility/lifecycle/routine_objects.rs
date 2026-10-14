@@ -2,6 +2,7 @@ use super::*;
 
 mod default_privileges;
 mod expression_statistics;
+mod ownership_privileges;
 
 #[test]
 fn should_resolve_sql_routine_defaults_named_arguments() {

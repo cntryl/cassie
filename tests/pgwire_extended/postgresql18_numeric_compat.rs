@@ -191,7 +191,7 @@ fn should_describe_bigint_aggregate_results_as_numeric() {
             "CREATE TABLE issue_812_aggregate_values (value BIGINT)",
         )]),
         Step::ThroughReady(vec![wire::simple_query_frame(
-            "INSERT INTO issue_812_aggregate_values VALUES (1), (2), (3), (4), (5)",
+            "INSERT INTO issue_812_aggregate_values VALUES (9007199254740992), (9007199254740993)",
         )]),
         Step::ThroughReady(vec![wire::simple_query_frame(
             "SELECT SUM(value), AVG(value) FROM issue_812_aggregate_values",
@@ -217,8 +217,8 @@ fn should_describe_bigint_aggregate_results_as_numeric() {
     assert_eq!(
         wire::data_rows(&batches[2]),
         vec![vec![
-            Some("15".to_owned()),
-            Some("3.0000000000000000".to_owned())
+            Some("18014398509481985".to_owned()),
+            Some("9007199254740992.5000".to_owned())
         ]]
     );
 }

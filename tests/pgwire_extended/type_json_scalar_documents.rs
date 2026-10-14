@@ -981,6 +981,26 @@ fn should_distinguish_json_null_from_missing_or_sql_null_with_jsonb_operators() 
 }
 
 #[test]
+fn should_apply_jsonb_containment_with_boolean_result_identity() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT '{\"a\":1,\"b\":[1,2]}'::JSONB @> '{\"a\":1}'::JSONB AS contains",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-jsonb-containment-result-identity", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (16, 1, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
 fn should_preserve_large_integer_values_in_jsonb_constructors() {
     // Arrange
     let sql = "SELECT jsonb_build_object('wide', 9007199254740993, 'sql_null', NULL), jsonb_build_array(1, NULL, 'x'), jsonb_typeof(jsonb_build_object('a', 1))";

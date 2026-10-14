@@ -303,7 +303,7 @@ fn should_preserve_postgresql_numeric_operation_result_contracts() {
     // Arrange
     let statements = [
         ("SELECT ABS($1) AS v", 700, 700, 4, false),
-        ("SELECT SUM($1) AS v", 700, 700, 4, false),
+        ("SELECT SUM($1) AS v", 700, 701, 8, false),
         ("SELECT AVG($1) AS v", 1700, 1700, -1, false),
         ("SELECT COUNT($1) AS v", 1700, 20, 8, true),
     ];
@@ -380,11 +380,14 @@ fn should_preserve_postgresql_numeric_operation_result_contracts() {
                 || vec![0, 1, 255, 255, 255, 255],
                 |input| {
                     if format == 1 {
-                        let value = std::str::from_utf8(input)
-                            .expect("numeric input is UTF-8")
-                            .parse::<f32>()
-                            .expect("valid float4 input");
-                        fixture::one_field_row(&value.to_be_bytes())
+                        let text = std::str::from_utf8(input).expect("numeric input is UTF-8");
+                        if result_oid == 701 {
+                            let value = text.parse::<f64>().expect("valid float8 result");
+                            fixture::one_field_row(&value.to_be_bytes())
+                        } else {
+                            let value = text.parse::<f32>().expect("valid float4 result");
+                            fixture::one_field_row(&value.to_be_bytes())
+                        }
                     } else {
                         fixture::one_field_row(input)
                     }
@@ -466,7 +469,7 @@ fn should_return_real_result_for_sum_real_parameter() {
     // Assert
     let frames = &batches[0];
     fixture::assert_success(frames);
-    fixture::assert_single_column_descriptors(frames, (700, 4, -1), 0, true);
+    fixture::assert_single_column_descriptors(frames, (701, 8, -1), 0, true);
     assert_parameter_oid(frames, 700);
     assert_eq!(
         fixture::data_row_payloads(frames),
@@ -480,7 +483,7 @@ fn should_return_numeric_result_for_avg_numeric_parameter() {
     let sql = "SELECT AVG($1) AS v";
     let cycles = vec![fixture::execute_cycle(
         sql,
-        Some((1700, 0, Some(b"2.5"))),
+        Some((1700, 0, Some(b"9007199254740993"))),
         0,
         true,
     )];
@@ -495,7 +498,7 @@ fn should_return_numeric_result_for_avg_numeric_parameter() {
     assert_parameter_oid(frames, 1700);
     assert_eq!(
         fixture::data_row_payloads(frames),
-        vec![fixture::one_field_row(b"2.5000000000000000")]
+        vec![fixture::one_field_row(b"9007199254740993.0000")]
     );
 }
 

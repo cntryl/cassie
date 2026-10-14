@@ -2,7 +2,7 @@
 
 use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 
 #[test]
 fn should_match_unknown_carrier_lengths_across_metadata_surfaces() {
@@ -197,4 +197,73 @@ fn should_infer_coalesce_result_types_for_all_null_inputs() {
         wire::data_rows(frames),
         vec![vec![None, Some("1".to_owned())]]
     );
+}
+
+#[test]
+fn should_infer_text_type_for_an_all_null_case_expression() {
+    // Arrange
+    let sql = "SELECT CASE WHEN TRUE THEN NULL ELSE NULL END AS value";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-unknown-case-inference", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let descriptions = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'T')
+        .map(|(_, body)| wire::parse_row_description(body))
+        .collect::<Vec<_>>();
+    assert_eq!(descriptions.len(), 2, "statement and portal describe");
+    assert_eq!(descriptions[0][0].type_oid, 25, "PostgreSQL text OID");
+    assert_eq!(descriptions[1][0].type_oid, 25, "PostgreSQL text OID");
+    assert_eq!(wire::data_rows(frames), vec![vec![None]]);
+}
+
+#[test]
+fn should_infer_integer_type_for_values_with_an_unknown_null_row() {
+    // Arrange
+    let sql = "SELECT value FROM (VALUES (NULL), (1)) AS input(value) LIMIT 1";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-unknown-values-inference", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let descriptions = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'T')
+        .map(|(_, body)| wire::parse_row_description(body))
+        .collect::<Vec<_>>();
+    assert_eq!(descriptions.len(), 2, "statement and portal describe");
+    assert_eq!(descriptions[0][0].type_oid, 23, "PostgreSQL int4 OID");
+    assert_eq!(descriptions[1][0].type_oid, 23, "PostgreSQL int4 OID");
+    assert_eq!(wire::data_rows(frames), vec![vec![None]]);
+}
+
+#[test]
+fn should_infer_integer_type_for_a_union_with_an_unknown_null_row() {
+    // Arrange
+    let sql = "SELECT value FROM (SELECT NULL AS value UNION ALL SELECT 1) AS input LIMIT 1";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-unknown-union-inference", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let descriptions = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'T')
+        .map(|(_, body)| wire::parse_row_description(body))
+        .collect::<Vec<_>>();
+    assert_eq!(descriptions.len(), 2, "statement and portal describe");
+    assert_eq!(descriptions[0][0].type_oid, 23, "PostgreSQL int4 OID");
+    assert_eq!(descriptions[1][0].type_oid, 23, "PostgreSQL int4 OID");
+    assert_eq!(wire::data_rows(frames), vec![vec![None]]);
 }

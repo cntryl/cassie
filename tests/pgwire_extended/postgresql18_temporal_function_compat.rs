@@ -4,6 +4,9 @@ use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 use tokio::io::AsyncWriteExt;
 
+mod offset_formatting;
+mod clock_observation_contracts;
+
 #[test]
 fn should_describe_temporal_function_results_with_postgresql_types() {
     // Arrange
@@ -225,6 +228,97 @@ fn should_refresh_statement_timestamp_when_reusing_prepared_statement() {
     assert_ne!(
         first_value, second_value,
         "reusing a prepared statement evaluates statement_timestamp for each execution"
+    );
+}
+
+#[test]
+fn should_reformat_prepared_timestamptz_after_session_timezone_changes() {
+    // Arrange
+    let statement = "prepared_timestamptz_session_zone";
+    let value = "2024-03-10 12:00:00+00";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            "SELECT $1 AS value",
+            &[1184],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("prepared_utc_portal_before", statement, &[value]),
+            wire::describe_portal_frame("prepared_utc_portal_before"),
+            wire::execute_frame("prepared_utc_portal_before"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SET TIME ZONE 'America/New_York'",
+        )]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("prepared_new_york_portal", statement, &[value]),
+            wire::describe_portal_frame("prepared_new_york_portal"),
+            wire::execute_frame("prepared_new_york_portal"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("prepared_utc_portal_after", statement, &[value]),
+            wire::describe_portal_frame("prepared_utc_portal_after"),
+            wire::execute_frame("prepared_utc_portal_after"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-prepared-timestamptz-timezone", steps);
+
+    // Assert
+    assert!(batches
+        .iter()
+        .all(|batch| wire::error_code(batch).is_none()));
+    let parameter_description = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("prepared timestamptz ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_description.1),
+        vec![1184]
+    );
+    let statement_description = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("prepared timestamptz statement RowDescription");
+    let statement_column = &wire::parse_row_description(&statement_description.1)[0];
+    assert_eq!(
+        (
+            statement_column.type_oid,
+            statement_column.type_size,
+            statement_column.type_mod,
+        ),
+        (1184, 8, -1)
+    );
+
+    for batch in [&batches[3], &batches[5], &batches[7]] {
+        let description = batch
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("prepared timestamptz portal RowDescription");
+        let column = &wire::parse_row_description(&description.1)[0];
+        assert_eq!((column.type_oid, column.format_code), (1184, 0));
+    }
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("2024-03-10 12:00:00+00".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[5]),
+        vec![vec![Some("2024-03-10 08:00:00-04".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[7]),
+        vec![vec![Some("2024-03-10 12:00:00+00".to_owned())]]
     );
 }
 
@@ -596,6 +690,69 @@ fn should_cancel_pg_sleep_for() {
             &mut writer,
             vec![wire::simple_query_frame(
                 "SELECT PG_SLEEP_FOR(INTERVAL '60 seconds')",
+            )],
+        )
+        .await;
+        tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+        let mut cancel_socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("cancel connection");
+        cancel_socket
+            .write_all(&wire::cancel_request_frame(process_id, secret_key))
+            .await
+            .expect("write cancel request");
+        cancel_socket
+            .shutdown()
+            .await
+            .expect("close cancel request");
+        let cancelled =
+            wire::read_frames_until_ready_within(&mut reader, std::time::Duration::from_secs(5))
+                .await;
+        wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 45")]).await;
+        let recovered =
+            wire::read_frames_until_ready_within(&mut reader, std::time::Duration::from_secs(5))
+                .await;
+        drop(reader);
+        drop(writer);
+        server.stop().await;
+        (cancelled, recovered)
+    });
+
+    // Assert
+    assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
+    assert_eq!(wire::error_code(&recovered), None);
+    assert_eq!(
+        wire::data_rows(&recovered),
+        vec![vec![Some("45".to_owned())]]
+    );
+}
+
+#[test]
+fn should_cancel_pg_sleep_until() {
+    // Arrange
+    wire::use_local_storage();
+    let path = wire::data_dir("postgresql18-pg-sleep-until-cancel");
+    let _directory = FixtureDirectory(path.clone());
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    // Act
+    let (cancelled, recovered) = runtime.block_on(async {
+        let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("Cassie");
+        cassie.startup().expect("start cancellation fixture");
+        let server = wire::spawn_server(cassie).await;
+        let socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("query connection");
+        let (mut reader, mut writer) = socket.into_split();
+        let (process_id, secret_key) =
+            wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
+        wire::write_frames(
+            &mut writer,
+            vec![wire::simple_query_frame(
+                "SELECT PG_SLEEP_UNTIL(CLOCK_TIMESTAMP() + INTERVAL '60 seconds')",
             )],
         )
         .await;

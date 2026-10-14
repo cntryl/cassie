@@ -3,6 +3,8 @@
 use crate::support_sql_fixture::sql_fixture;
 use cassie::types::Value;
 
+mod truncate_only_inheritance;
+
 #[test]
 fn should_assign_multiple_update_columns_from_a_scalar_subquery() {
     // Arrange
@@ -455,6 +457,59 @@ fn should_select_merge_actions_by_match_conditions() {
             vec![Value::Int64(2), Value::String("updated".to_owned())],
             vec![Value::Int64(4), Value::String("source absent".to_owned())],
             vec![Value::Int64(5), Value::String("inserted".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_apply_conditional_merge_actions_to_rows_missing_from_the_source() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-823-merge-by-source-conditional-action",
+        &[
+            "CREATE TABLE issue_823_merge_by_source_target (id INT PRIMARY KEY, label TEXT)",
+            "CREATE TABLE issue_823_merge_by_source_source (id INT)",
+            "INSERT INTO issue_823_merge_by_source_target VALUES (1,'matched'),(2,'expire'),(3,'keep')",
+            "INSERT INTO issue_823_merge_by_source_source VALUES (1)",
+        ],
+    );
+
+    // Act
+    let merged = fixture.execute(
+        "MERGE INTO issue_823_merge_by_source_target AS target \
+         USING issue_823_merge_by_source_source AS source ON target.id = source.id \
+         WHEN NOT MATCHED BY SOURCE AND target.label = 'expire' \
+           THEN UPDATE SET label = 'expired' \
+         WHEN NOT MATCHED BY SOURCE THEN DO NOTHING \
+         RETURNING merge_action(), target.id, target.label",
+    );
+    let stored =
+        fixture.execute("SELECT id, label FROM issue_823_merge_by_source_target ORDER BY id");
+
+    // Assert
+    let merged = merged.expect("apply the conditional action only to the selected target-only row");
+    assert_eq!(
+        merged.rows(),
+        &[vec![
+            Value::String("UPDATE".to_owned()),
+            Value::Int64(2),
+            Value::String("expired".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        merged
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 23, 25]
+    );
+    assert_eq!(
+        stored.expect("read all MERGE target rows").rows(),
+        &[
+            vec![Value::Int64(1), Value::String("matched".to_owned())],
+            vec![Value::Int64(2), Value::String("expired".to_owned())],
+            vec![Value::Int64(3), Value::String("keep".to_owned())],
         ]
     );
 }

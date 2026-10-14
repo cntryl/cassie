@@ -1,6 +1,6 @@
 //! Wire `PostgreSQL` 18 transaction-error SQLSTATEs and `ReadyForQuery` status bytes.
 
-use super::support_parameter_occurrence_wire::{run_script, Step};
+use super::support_parameter_occurrence_wire::{Step, run_script};
 use super::support_pgwire as wire;
 use super::support_type_metadata_contract::Frames;
 

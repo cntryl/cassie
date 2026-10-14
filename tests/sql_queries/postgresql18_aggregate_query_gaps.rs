@@ -4,6 +4,18 @@ use cassie::types::Value;
 
 use super::super::support_sql_fixture::{self, sql_fixture};
 
+mod aggregate_interval_percentile_array;
+mod aggregate_type_and_window_boundaries;
+mod aggregate_window_oracle_residuals;
+mod array_aggregate_distinct_nested;
+mod bitwise_bigint_boundaries;
+mod grouping_expression_keys;
+mod numeric_statistical_result_identity;
+mod ordered_json_aggregate_modifiers;
+mod string_agg_bytea_contract;
+mod unique_object_aggregate_duplicate_keys;
+mod unique_object_aggregate_filter_null_contracts;
+
 fn grouping_fixture(label: &str) -> support_sql_fixture::SqlFixture {
     sql_fixture(
         label,
@@ -1204,6 +1216,85 @@ fn should_filter_rows_before_distinct_ordered_string_aggregation() {
         &[vec![Value::String("pear,banana,apple".to_owned())]]
     );
     assert_eq!(result.columns()[0].type_oid, 25);
+}
+
+#[test]
+fn should_order_filtered_string_aggregation_by_a_separate_key() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-804-filtered-string-aggregate-separate-order-key",
+        &[
+            "CREATE TABLE issue_804_ordered_filtered_string_values (bucket TEXT, label TEXT, priority INT, selected BOOLEAN)",
+            "INSERT INTO issue_804_ordered_filtered_string_values VALUES ('north','alpha',20,TRUE),('north','bravo',30,TRUE),('north','charlie',10,TRUE),('north','ignored',40,FALSE),('north','bravo',0,TRUE),('south','delta',5,TRUE),('south','echo',6,FALSE)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT bucket, STRING_AGG(label, ',' ORDER BY priority DESC) FILTER (WHERE selected) FROM issue_804_ordered_filtered_string_values GROUP BY bucket ORDER BY bucket",
+    );
+
+    // Assert
+    let result = result.expect("filtered aggregate orders by a non-input key within each group");
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![
+                Value::String("north".to_owned()),
+                Value::String("bravo,alpha,charlie,bravo".to_owned()),
+            ],
+            vec![
+                Value::String("south".to_owned()),
+                Value::String("delta".to_owned()),
+            ],
+        ]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 25]
+    );
+}
+
+#[test]
+fn should_return_grouping_sets_indicators_as_int4_with_sum_results() {
+    // Arrange
+    let fixture = grouping_fixture("issue-804-grouping-sets-indicator-metadata");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT region, GROUPING(region), SUM(amount) FROM issue_804_group_values GROUP BY GROUPING SETS ((region), ()) ORDER BY GROUPING(region), region NULLS FIRST",
+    );
+
+    // Assert
+    let result = result.expect("ordinary aggregate values and GROUPING metadata for grouping sets");
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![
+                Value::String("east".to_owned()),
+                Value::Int64(0),
+                Value::Int64(5),
+            ],
+            vec![
+                Value::String("west".to_owned()),
+                Value::Int64(0),
+                Value::Int64(5),
+            ],
+            vec![Value::Null, Value::Int64(1), Value::Int64(10)],
+        ]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 23, 20]
+    );
 }
 
 #[test]

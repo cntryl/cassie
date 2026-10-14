@@ -212,3 +212,156 @@ fn should_create_a_nested_partition_hierarchy_as_ddl_acceptance_probe() {
         );
     });
 }
+
+#[test]
+fn should_report_partition_tree_for_nested_relations() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("populated_partition_information").await;
+        let (client, connection) = server.connect().await;
+        let fixture = create_nested_partition_information_fixture(&client).await;
+
+        // Act
+        let tree_statement = if fixture.is_ok() {
+            Some(
+                client
+                    .prepare(
+                        "SELECT * FROM pg_catalog.pg_partition_tree(\
+                           'compat_partition_information_root'::regclass)",
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+        let tree_rows = match &tree_statement {
+            Some(Ok(_)) => Some(
+                client
+                    .query(
+                        "SELECT child.relname::text AS relation_name, \
+                                parent.relname::text AS parent_name, \
+                                tree.isleaf, tree.level \
+                         FROM pg_catalog.pg_partition_tree(\
+                             'compat_partition_information_root'::regclass) AS tree \
+                         JOIN pg_catalog.pg_class AS child ON child.oid = tree.relid \
+                         LEFT JOIN pg_catalog.pg_class AS parent \
+                             ON parent.oid = tree.parentrelid \
+                         ORDER BY tree.level, child.relname",
+                        &[],
+                    )
+                    .await,
+            ),
+            Some(Err(_)) | None => None,
+        };
+        let ancestor_rows = if fixture.is_ok() {
+            Some(
+                client
+                    .query(
+                        "SELECT relation.relname::text AS relation_name \
+                         FROM pg_catalog.pg_partition_ancestors(\
+                             'compat_partition_information_early_a'::regclass) \
+                             WITH ORDINALITY AS ancestors(relid, ordinal) \
+                         JOIN pg_catalog.pg_class AS relation \
+                             ON relation.oid = ancestors.relid \
+                         ORDER BY ancestors.ordinal",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(
+            fixture.is_ok(),
+            "create the nested hierarchy before querying partition information: {fixture:?}"
+        );
+        let tree_statement = tree_statement
+            .expect("prepare pg_partition_tree after creating its hierarchy")
+            .expect("describe pg_partition_tree output columns");
+        assert_eq!(
+            tree_statement
+                .columns()
+                .iter()
+                .map(|column| (column.name(), column.type_().oid()))
+                .collect::<Vec<_>>(),
+            [
+                ("relid", 2205),
+                ("parentrelid", 2205),
+                ("isleaf", 16),
+                ("level", 23)
+            ],
+            "PostgreSQL 18.6 exposes regclass, regclass, bool, int4 from pg_partition_tree"
+        );
+        let tree_rows = tree_rows
+            .expect("query pg_partition_tree after preparing its output")
+            .expect("read the populated partition tree");
+        let actual_tree = tree_rows
+            .iter()
+            .map(|row| {
+                (
+                    row.get::<_, String>(0),
+                    row.get::<_, Option<String>>(1),
+                    row.get::<_, bool>(2),
+                    row.get::<_, i32>(3),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual_tree,
+            [
+                (
+                    "compat_partition_information_root".to_owned(),
+                    None,
+                    false,
+                    0,
+                ),
+                (
+                    "compat_partition_information_early".to_owned(),
+                    Some("compat_partition_information_root".to_owned()),
+                    false,
+                    1,
+                ),
+                (
+                    "compat_partition_information_late".to_owned(),
+                    Some("compat_partition_information_root".to_owned()),
+                    true,
+                    1,
+                ),
+                (
+                    "compat_partition_information_early_a".to_owned(),
+                    Some("compat_partition_information_early".to_owned()),
+                    true,
+                    2,
+                ),
+                (
+                    "compat_partition_information_early_b".to_owned(),
+                    Some("compat_partition_information_early".to_owned()),
+                    true,
+                    2,
+                ),
+            ],
+            "pg_partition_tree reports each nested relation, its parent, leaf state, and level"
+        );
+        let ancestor_rows = ancestor_rows
+            .expect("query pg_partition_ancestors after creating its hierarchy")
+            .expect("read the populated ancestor chain");
+        let actual_ancestors = ancestor_rows
+            .iter()
+            .map(|row| row.get::<_, String>(0))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual_ancestors,
+            [
+                "compat_partition_information_early_a",
+                "compat_partition_information_early",
+                "compat_partition_information_root",
+            ],
+            "pg_partition_ancestors includes the relation itself followed by its ancestors"
+        );
+    });
+}

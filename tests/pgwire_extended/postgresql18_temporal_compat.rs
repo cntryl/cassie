@@ -3,6 +3,10 @@
 use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
+mod interval_aggregate_metadata;
+mod infinity_arithmetic_edges;
+mod time_twenty_four_wire_endpoint;
+
 fn binary_row(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<u8>> {
     let payload = &frames
         .iter()
@@ -796,6 +800,73 @@ fn should_preserve_named_session_timezone_setting() {
     assert_eq!(
         wire::data_rows(&batches[1]),
         vec![vec![Some("America/New_York".to_owned())]]
+    );
+}
+
+#[test]
+fn should_render_timestamptz_across_daylight_saving_in_the_session_zone() {
+    // Arrange
+    let sql = "SELECT TIMESTAMPTZ '2024-03-10 06:59:59+00' AS before_spring_forward, TIMESTAMPTZ '2024-03-10 07:00:00+00' AS after_spring_forward";
+    let statement = "dst_session_zone_output";
+    let portal = "dst_session_zone_binary_output";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SET TIME ZONE 'America/New_York'",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(sql)]),
+        Step::ParseFlush(wire::parse_frame(statement, sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(portal, statement, &[], &[], &[1]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-timestamptz-dst-session-zone-output", steps);
+
+    // Assert
+    assert!(batches
+        .iter()
+        .all(|batch| wire::error_code(batch).is_none()));
+    let text_description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("DST text RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&text_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1184, 1184]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![
+            Some("2024-03-10 01:59:59-05".to_owned()),
+            Some("2024-03-10 03:00:00-04".to_owned()),
+        ]]
+    );
+
+    let binary_description = batches[3]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("DST binary RowDescription");
+    let columns = wire::parse_row_description(&binary_description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![(1184, 1), (1184, 1)]
+    );
+    assert_eq!(
+        binary_row(&batches[3]),
+        vec![
+            763_369_199_000_000_i64.to_be_bytes().to_vec(),
+            763_369_200_000_000_i64.to_be_bytes().to_vec(),
+        ]
     );
 }
 

@@ -4,7 +4,28 @@ use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 use cassie::types::Value;
 
+#[path = "array_function_gaps.rs"]
 mod array_function_gaps;
+#[path = "type_array_text_inputs/array_function_residuals.rs"]
+mod array_function_residuals;
+#[path = "type_array_text_inputs/array_randomization_custom_bounds.rs"]
+mod array_randomization_custom_bounds;
+#[path = "type_array_text_inputs/array_reverse_custom_bounds.rs"]
+mod array_reverse_custom_bounds;
+#[path = "type_array_text_inputs/array_sort_custom_bounds.rs"]
+mod array_sort_custom_bounds;
+#[path = "type_array_text_inputs/binary_container_framing.rs"]
+mod binary_container_framing;
+#[path = "type_array_text_inputs/boolean_array_container_framing.rs"]
+mod boolean_array_container_framing;
+#[path = "type_array_text_inputs/multidimensional_persistence_binary.rs"]
+mod multidimensional_persistence_binary;
+#[path = "type_array_text_inputs/multidimensional_slices.rs"]
+mod multidimensional_slices;
+#[path = "type_array_text_inputs/ragged_array_constructors.rs"]
+mod ragged_array_constructors;
+#[path = "type_array_text_inputs/three_dimensional_bounds_restart.rs"]
+mod three_dimensional_bounds_restart;
 
 type IntegerArrayEndpoint = (
     i32,
@@ -357,6 +378,71 @@ fn should_preserve_nondefault_array_parameters_across_index_restart() {
 }
 
 #[test]
+fn should_insert_subscripted_elements_at_the_requested_lower_bounds() {
+    // Arrange
+    let setup = [(
+        "CREATE TABLE issue_807_insert_array_subscripts (id INT PRIMARY KEY, items INT[])",
+        Vec::new(),
+    )];
+    let insert_two = fixture::execute_cycle(
+        "INSERT INTO issue_807_insert_array_subscripts (id, items[2]) VALUES (1, 7) RETURNING id, items::TEXT",
+        None,
+        0,
+        true,
+    );
+    let insert_zero = fixture::execute_cycle(
+        "INSERT INTO issue_807_insert_array_subscripts (id, items[0]) VALUES (2, 9) RETURNING id, items::TEXT",
+        None,
+        0,
+        true,
+    );
+    let readback = fixture::execute_cycle(
+        "SELECT id, items::TEXT FROM issue_807_insert_array_subscripts ORDER BY id",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-807-insert-array-subscript-lower-bounds",
+        &setup,
+        vec![insert_two, insert_zero, readback],
+    );
+
+    // Assert
+    for frames in &batches {
+        fixture::assert_success(frames);
+        let description = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("subscripted INSERT RowDescription");
+        assert_eq!(
+            wire::parse_row_description(&description.1)
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            vec![23, 25]
+        );
+    }
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("1".to_owned()), Some("[2:2]={7}".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("2".to_owned()), Some("[0:0]={9}".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![
+            vec![Some("1".to_owned()), Some("[2:2]={7}".to_owned())],
+            vec![Some("2".to_owned()), Some("[0:0]={9}".to_owned())],
+        ]
+    );
+}
+
+#[test]
 fn should_insert_standard_oid_array_parameter_through_pgwire() {
     // Arrange
     let setup = [(
@@ -440,37 +526,61 @@ fn should_round_trip_nondefault_array_bounds_across_index_restart() {
 }
 
 #[test]
-fn should_infer_standard_array_oid_for_oid_zero_binary_bind() {
+fn should_infer_standard_oids_for_array_binary_binds() {
     // Arrange
-    let input = [
+    let int4_input = [
         0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 42,
     ];
-    let cycle = fixture::execute_cycle(
-        "SELECT CAST($1 AS INT4[]) AS value",
-        Some((0, 1, Some(&input))),
-        1,
-        true,
-    );
+    let int8_input = [
+        0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0,
+        0, 42,
+    ];
+    let text_input = [
+        0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 25, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 3, b'A', b'd', b'a',
+    ];
+    let cases = [
+        (
+            "SELECT CAST($1 AS INT4[]) AS value",
+            1_007,
+            int4_input.as_slice(),
+        ),
+        (
+            "SELECT CAST($1 AS INT8[]) AS value",
+            1_016,
+            int8_input.as_slice(),
+        ),
+        (
+            "SELECT CAST($1 AS TEXT[]) AS value",
+            1_009,
+            text_input.as_slice(),
+        ),
+    ];
+    let cycles = cases
+        .iter()
+        .map(|(sql, _, input)| fixture::execute_cycle(*sql, Some((0, 1, Some(*input))), 1, true))
+        .collect();
 
     // Act
-    let batches = fixture::run_cycles("type-array-oid-zero-binary-bind", &[], vec![cycle]);
+    let batches = fixture::run_cycles("type-array-oids-binary-bind", &[], cycles);
 
     // Assert
-    let frames = &batches[0];
-    let parameters = frames
-        .iter()
-        .find(|(tag, _)| *tag == b't')
-        .expect("array ParameterDescription");
-    assert_eq!(
-        wire::parse_parameter_description(&parameters.1),
-        vec![1_007]
-    );
-    fixture::assert_success(frames);
-    fixture::assert_single_column_descriptors(frames, (1_007, -1, -1), 1, true);
-    assert_eq!(
-        fixture::data_row_payloads(frames),
-        vec![fixture::one_field_row(&input)]
-    );
+    assert_eq!(batches.len(), cases.len());
+    for ((_, expected_oid, input), frames) in cases.iter().zip(&batches) {
+        let parameters = frames
+            .iter()
+            .find(|(tag, _)| *tag == b't')
+            .expect("array ParameterDescription");
+        assert_eq!(
+            wire::parse_parameter_description(&parameters.1),
+            vec![*expected_oid]
+        );
+        fixture::assert_success(frames);
+        fixture::assert_single_column_descriptors(frames, (*expected_oid, -1, -1), 1, true);
+        assert_eq!(
+            fixture::data_row_payloads(frames),
+            vec![fixture::one_field_row(input)]
+        );
+    }
 }
 
 #[test]
@@ -734,6 +844,73 @@ fn should_distinct_array_aggregate_inputs_before_ordering() {
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some("{3,2,1}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_round_trip_escaped_array_text() {
+    // Arrange
+    let input = br#"{"comma,entry","quote\"inside","back\\slash"," padded "}"#;
+    let cycle = fixture::execute_cycle(
+        "SELECT $1::TEXT[] AS value",
+        Some((1_009, 0, Some(input))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-807-array-text-quoting", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1_009, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some(
+            r#"{"comma,entry","quote\"inside","back\\slash"," padded "}"#.to_owned()
+        )]]
+    );
+}
+
+#[test]
+fn should_follow_array_nulls_setting_when_reading_array_text() {
+    // Arrange
+    let cycles = [
+        "SELECT '{NULL}'::TEXT[]",
+        "SET array_nulls = off; SELECT '{NULL}'::TEXT[]",
+        "SET array_nulls = on; SELECT '{NULL}'::TEXT[]",
+    ]
+    .into_iter()
+    .map(|sql| vec![wire::simple_query_frame(sql)])
+    .collect();
+
+    // Act
+    let batches = fixture::run_cycles("issue-807-array-nulls-setting", &[], cycles);
+
+    // Assert
+    for frames in &batches {
+        fixture::assert_success(frames);
+        let description = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("array_nulls result RowDescription");
+        assert_eq!(
+            wire::parse_row_description(&description.1)[0].type_oid,
+            1_009
+        );
+    }
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("{NULL}".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("{\"NULL\"}".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("{NULL}".to_owned())]]
     );
 }
 
@@ -1379,6 +1556,37 @@ fn should_resolve_an_unknown_array_concatenation_literal() {
 }
 
 #[test]
+fn should_apply_postgresql_unknown_array_concatenation_resolution() {
+    // Arrange
+    let unknown_null = fixture::execute_cycle("SELECT (ARRAY[1,2] || NULL)::TEXT", None, 0, true);
+    let typed_null =
+        fixture::execute_cycle("SELECT (ARRAY[1,2] || NULL::INTEGER)::TEXT", None, 0, true);
+    let unknown_scalar = fixture::execute_cycle("SELECT ARRAY[1,2] || '7'", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-807-array-concat-unknown-operands",
+        &[],
+        vec![unknown_null, typed_null, unknown_scalar],
+    );
+
+    // Assert
+    for frames in [&batches[0], &batches[1]] {
+        fixture::assert_success(frames);
+        fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    }
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("{1,2}".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("{1,2,NULL}".to_owned())]]
+    );
+    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("22P02"));
+}
+
+#[test]
 fn should_subscript_a_table_array_slice() {
     // Arrange
     let setup = [
@@ -1878,7 +2086,8 @@ fn should_use_array_btree_range_predicates_on_real_rows() {
 
     let explain = &batches[1];
     fixture::assert_success(explain);
-    let plan = wire::data_rows(explain)
+    let explain_rows = wire::data_rows(explain);
+    let plan = explain_rows
         .first()
         .and_then(|row| row.first())
         .and_then(Option::as_deref)
@@ -1890,30 +2099,17 @@ fn should_use_array_btree_range_predicates_on_real_rows() {
 #[test]
 fn should_preserve_array_extrema_wire_identity() {
     // Arrange
-    let setup = [
-        (
-            "CREATE TABLE issue_807_array_min_max_rows (items INT[])",
-            Vec::new(),
-        ),
-        (
-            "INSERT INTO issue_807_array_min_max_rows VALUES ($1), ($2), ($3), ($4), (NULL)",
-            vec![
-                Value::Json(serde_json::json!([1, 2])),
-                Value::Json(serde_json::json!([1, 2, 0])),
-                Value::Json(serde_json::json!([2, 0])),
-                Value::Json(serde_json::json!([[1, 2], [3, 4]])),
-            ],
-        ),
+    let cycle = vec![
+        wire::parse_frame_with_types("array_extrema", "SELECT min($1), max($2)", &[1007, 1007]),
+        wire::describe_statement_frame("array_extrema"),
+        wire::bind_frame("array_extrema_portal", "array_extrema", &["{1,2}", "{2,0}"]),
+        wire::describe_portal_frame("array_extrema_portal"),
+        wire::execute_frame("array_extrema_portal"),
+        wire::sync_frame(),
     ];
-    let cycle = fixture::execute_cycle(
-        "SELECT min(items), max(items) FROM issue_807_array_min_max_rows",
-        None,
-        0,
-        true,
-    );
 
     // Act
-    let batches = fixture::run_cycles("type-array-min-max-aggregates", &setup, vec![cycle]);
+    let batches = fixture::run_cycles("type-array-min-max-aggregates", &[], vec![cycle]);
 
     // Assert
     let frames = &batches[0];

@@ -3,6 +3,8 @@
 use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
+mod discrete_integer_extrema;
+
 fn bytes_from_hex(value: &str) -> Vec<u8> {
     value
         .as_bytes()
@@ -772,6 +774,63 @@ fn should_report_subtype_oids_for_range_lower_functions() {
 }
 
 #[test]
+fn should_report_range_accessor_subtype_metadata() {
+    // Arrange
+    let sql = "SET TIME ZONE 'UTC'; SELECT lower(int4range(1, 3, '[)')) AS int4_lower, upper(int4range(1, 3, '[)')) AS int4_upper, lower(int8range(1, 3, '[)')) AS int8_lower, upper(int8range(1, 3, '[)')) AS int8_upper, lower(numrange(1.20, 2.40, '[)')) AS numeric_lower, upper(numrange(1.20, 2.40, '[)')) AS numeric_upper, lower(daterange(DATE '2024-01-01', DATE '2024-01-03', '[)')) AS date_lower, upper(daterange(DATE '2024-01-01', DATE '2024-01-03', '[)')) AS date_upper, lower(tsrange(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-03 00:00:00', '[)')) AS timestamp_lower, upper(tsrange(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-03 00:00:00', '[)')) AS timestamp_upper, lower(tstzrange(TIMESTAMPTZ '2024-01-01 00:00:00+00', TIMESTAMPTZ '2024-01-03 00:00:00+00', '[)')) AS timestamptz_lower, upper(tstzrange(TIMESTAMPTZ '2024-01-01 00:00:00+00', TIMESTAMPTZ '2024-01-03 00:00:00+00', '[)')) AS timestamptz_upper";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-905-range-accessor-subtype-metadata", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("range accessor RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![
+            (23, 4, -1),
+            (23, 4, -1),
+            (20, 8, -1),
+            (20, 8, -1),
+            (1_700, -1, -1),
+            (1_700, -1, -1),
+            (1_082, 4, -1),
+            (1_082, 4, -1),
+            (1_114, 8, -1),
+            (1_114, 8, -1),
+            (1_184, 8, -1),
+            (1_184, 8, -1),
+        ]
+    );
+    assert!(columns.iter().all(|column| column.format_code == 0));
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("1".to_owned()),
+            Some("3".to_owned()),
+            Some("1".to_owned()),
+            Some("3".to_owned()),
+            Some("1.20".to_owned()),
+            Some("2.40".to_owned()),
+            Some("2024-01-01".to_owned()),
+            Some("2024-01-03".to_owned()),
+            Some("2024-01-01 00:00:00".to_owned()),
+            Some("2024-01-03 00:00:00".to_owned()),
+            Some("2024-01-01 00:00:00+00".to_owned()),
+            Some("2024-01-03 00:00:00+00".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_report_range_aggregate_result_oids() {
     // Arrange
     let sql = "SELECT range_agg(span) AS all_spans, range_intersect_agg(span) AS common_span FROM (VALUES (int4range(1, 3, '[)'))) AS inputs(span)";
@@ -798,6 +857,39 @@ fn should_report_range_aggregate_result_oids() {
     assert_eq!(
         wire::data_rows(result),
         vec![vec![Some("{[1,3)}".to_owned()), Some("[1,3)".to_owned())]]
+    );
+}
+
+#[test]
+fn should_report_multirange_aggregate_result_oids() {
+    // Arrange
+    let sql = "SELECT range_agg(span) AS merged, range_intersect_agg(span) AS intersection FROM (VALUES ('{[1,5),[9,11)}'::int4multirange), ('{[3,7),[9,12)}'::int4multirange)) AS inputs(span)";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-905-multirange-aggregate-result-oids", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("multirange aggregate RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![(4_451, -1, -1), (4_451, -1, -1)]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("{[1,7),[9,12)}".to_owned()),
+            Some("{[3,5),[9,11)}".to_owned()),
+        ]]
     );
 }
 

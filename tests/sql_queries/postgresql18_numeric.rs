@@ -1,5 +1,7 @@
 //! PostgreSQL 18 exact NUMERIC behavior tracked by #812.
 
+mod high_precision_restart;
+
 use cassie::app::Cassie;
 use cassie::types::Value;
 

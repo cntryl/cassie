@@ -60,9 +60,18 @@ fn should_return_reserved_identity_when_insert_target_declares_id() {
     // Raw qualified RETURNING table._id is a separate pre-existing binder
     // rejection. Its supported expression form reaches output inference.
     let statements = [
-        ("INSERT INTO output_returned_identity (id, label) VALUES (37, 'bare') RETURNING _id", "_id"),
-        ("INSERT INTO output_returned_identity (id, label) VALUES (38, 'qualified') RETURNING COALESCE(output_returned_identity._id, NULL) AS identity", "identity"),
-        ("INSERT INTO output_returned_identity (id, label) VALUES (39, 'qualified-schema') RETURNING COALESCE(public.output_returned_identity._id, NULL) AS identity", "identity"),
+        (
+            "INSERT INTO output_returned_identity (id, label) VALUES (37, 'bare') RETURNING _id",
+            "_id",
+        ),
+        (
+            "INSERT INTO output_returned_identity (id, label) VALUES (38, 'qualified') RETURNING COALESCE(output_returned_identity._id, NULL) AS identity",
+            "identity",
+        ),
+        (
+            "INSERT INTO output_returned_identity (id, label) VALUES (39, 'qualified-schema') RETURNING COALESCE(public.output_returned_identity._id, NULL) AS identity",
+            "identity",
+        ),
     ];
     let cases = statements
         .into_iter()
@@ -138,9 +147,33 @@ fn should_preserve_wildcard_output_identity_in_scoped_sources() {
             "SELECT * FROM output_real_id_source",
             vec![("id", 23, 4, -1), ("label", 25, -1, -1)],
         ),
-        ("SELECT * FROM output_plain_source CROSS JOIN output_real_id_source", vec![("label", 25, -1, -1), ("n", 23, 4, -1), ("id", 23, 4, -1), ("label", 25, -1, -1)]),
-        ("WITH c AS (SELECT * FROM output_plain_source) SELECT * FROM c CROSS JOIN output_real_id_source", vec![("label", 25, -1, -1), ("n", 23, 4, -1), ("id", 23, 4, -1), ("label", 25, -1, -1)]),
-        ("SELECT * FROM (SELECT * FROM output_plain_source) AS d CROSS JOIN output_real_id_source", vec![("label", 25, -1, -1), ("n", 23, 4, -1), ("id", 23, 4, -1), ("label", 25, -1, -1)]),
+        (
+            "SELECT * FROM output_plain_source CROSS JOIN output_real_id_source",
+            vec![
+                ("label", 25, -1, -1),
+                ("n", 23, 4, -1),
+                ("id", 23, 4, -1),
+                ("label", 25, -1, -1),
+            ],
+        ),
+        (
+            "WITH c AS (SELECT * FROM output_plain_source) SELECT * FROM c CROSS JOIN output_real_id_source",
+            vec![
+                ("label", 25, -1, -1),
+                ("n", 23, 4, -1),
+                ("id", 23, 4, -1),
+                ("label", 25, -1, -1),
+            ],
+        ),
+        (
+            "SELECT * FROM (SELECT * FROM output_plain_source) AS d CROSS JOIN output_real_id_source",
+            vec![
+                ("label", 25, -1, -1),
+                ("n", 23, 4, -1),
+                ("id", 23, 4, -1),
+                ("label", 25, -1, -1),
+            ],
+        ),
     ];
     let cycles = statements
         .iter()
@@ -245,8 +278,14 @@ fn should_resolve_declared_id_without_a_derived_reserved_identity_alias() {
 fn should_keep_qualified_same_name_output_types_distinct() {
     // Arrange
     let statements = [
-        ("SELECT fixed_side.v AS chosen FROM (SELECT $1 AS v) AS numeric_side CROSS JOIN (SELECT 1 AS v) AS fixed_side", false),
-        ("SELECT numeric_side.v AS chosen FROM (SELECT $1 AS v) AS numeric_side CROSS JOIN (SELECT 1 AS v) AS fixed_side", true),
+        (
+            "SELECT fixed_side.v AS chosen FROM (SELECT $1 AS v) AS numeric_side CROSS JOIN (SELECT 1 AS v) AS fixed_side",
+            false,
+        ),
+        (
+            "SELECT numeric_side.v AS chosen FROM (SELECT $1 AS v) AS numeric_side CROSS JOIN (SELECT 1 AS v) AS fixed_side",
+            true,
+        ),
     ];
     let cases = [700, 1700]
         .into_iter()
@@ -564,9 +603,11 @@ fn should_preserve_reserved_identity_with_predicate_only_parameters() {
     assert_columns(&batches[0], &[("_id", 25, -1, -1)], 0, true);
     let baseline = wire::data_rows(&batches[0]);
     assert_eq!(baseline.len(), 1);
-    assert!(baseline[0][0]
-        .as_ref()
-        .is_some_and(|value| !value.is_empty()));
+    assert!(
+        baseline[0][0]
+            .as_ref()
+            .is_some_and(|value| !value.is_empty())
+    );
     for ((_, describe, includes_row), frames) in cases.into_iter().zip(&batches[1..]) {
         fixture::assert_success(frames);
         assert_columns(frames, &[("_id", 25, -1, -1)], 0, describe);
@@ -646,8 +687,14 @@ fn should_preserve_existing_dml_identity_names_when_an_alias_is_named_id() {
         Vec::new(),
     )];
     let statements = [
-        ("INSERT INTO output_returning_id_alias (label, n) VALUES ('alpha', 7) RETURNING label AS id, *", None),
-        ("INSERT INTO output_returning_id_alias (label, n) SELECT 'alpha', 7 WHERE $1 RETURNING label AS id, *", Some((16, 0, Some(&b"true"[..])))),
+        (
+            "INSERT INTO output_returning_id_alias (label, n) VALUES ('alpha', 7) RETURNING label AS id, *",
+            None,
+        ),
+        (
+            "INSERT INTO output_returning_id_alias (label, n) SELECT 'alpha', 7 WHERE $1 RETURNING label AS id, *",
+            Some((16, 0, Some(&b"true"[..]))),
+        ),
     ];
     let cases = statements
         .into_iter()

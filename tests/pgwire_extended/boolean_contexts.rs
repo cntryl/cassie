@@ -727,7 +727,11 @@ fn should_infer_unknown_boolean_insert_select_destination_parameters() {
         (populated_zero_sql, 0, true),
         (populated_unknown_sql, 705, true),
         (empty_sql, 25, false),
-        ("INSERT INTO bool_wire (id, n, flag) SELECT 4, 40, $1 FROM bool_wire WHERE id = 1 RETURNING flag", 25, true),
+        (
+            "INSERT INTO bool_wire (id, n, flag) SELECT 4, 40, $1 FROM bool_wire WHERE id = 1 RETURNING flag",
+            25,
+            true,
+        ),
     ];
     let mut cycles = cases
         .iter()

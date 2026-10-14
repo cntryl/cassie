@@ -1,10 +1,10 @@
 //! Embedded `PostgreSQL` 18 transaction-error identities and failed-block recovery.
 
 use super::support_sql as support;
-use super::support_sql_fixture::{sql_fixture, SqlFixture};
+use super::support_sql_fixture::{SqlFixture, sql_fixture};
 use cassie::app::{Cassie, CassieError, TransactionErrorKind};
 use cassie::types::Value;
-use std::sync::{mpsc, Arc, Barrier};
+use std::sync::{Arc, Barrier, mpsc};
 use std::time::Duration;
 
 const ABORTED: &str =
@@ -417,6 +417,81 @@ fn should_resolve_a_prepared_transaction_after_restart_exactly_once() {
             .execute_sql(&session, &format!("COMMIT PREPARED '{gid}'"), vec![])
             .is_err(),
         "a resolved prepared transaction must not commit twice"
+    );
+}
+
+#[test]
+fn should_expose_prepared_gid_without_publishing_work_to_another_session() {
+    // Arrange
+    let fixture = fixture("tx-error-prepared-observer");
+    let observer = fixture.cassie.create_session("tester", None);
+    let gid = "issue_915_observer_visibility";
+    fixture.execute("BEGIN").expect("begin transaction");
+    fixture
+        .execute("INSERT INTO tx_error_items (id, label) VALUES (1, 'prepared')")
+        .expect("stage a row for preparation");
+    fixture
+        .execute(&format!("PREPARE TRANSACTION '{gid}'"))
+        .expect("durably prepare the transaction");
+
+    let prepared = fixture
+        .cassie
+        .execute_sql(
+            &observer,
+            &format!(
+                "SELECT gid, owner, prepared IS NOT NULL \
+                 FROM pg_catalog.pg_prepared_xacts WHERE gid = '{gid}'"
+            ),
+            vec![],
+        )
+        .expect("observe the prepared transaction from another session");
+    let invisible = fixture
+        .cassie
+        .execute_sql(
+            &observer,
+            "SELECT id, label FROM tx_error_items ORDER BY id",
+            vec![],
+        )
+        .expect("read rows while the transaction remains prepared");
+
+    // Act
+    let resolved = fixture
+        .cassie
+        .execute_sql(&observer, &format!("COMMIT PREPARED '{gid}'"), vec![])
+        .expect("resolve the prepared transaction from its owning role");
+    let remaining = fixture
+        .cassie
+        .execute_sql(
+            &observer,
+            &format!("SELECT gid FROM pg_catalog.pg_prepared_xacts WHERE gid = '{gid}'"),
+            vec![],
+        )
+        .expect("verify the resolved GID left pg_prepared_xacts");
+    let visible = fixture
+        .cassie
+        .execute_sql(
+            &observer,
+            "SELECT id, label FROM tx_error_items ORDER BY id",
+            vec![],
+        )
+        .expect("read the committed row from the observer session");
+
+    // Assert
+    assert_eq!(
+        prepared.rows(),
+        vec![vec![
+            Value::String(gid.into()),
+            Value::String("tester".into()),
+            Value::Bool(true),
+        ]]
+    );
+    let empty_rows: &[Vec<Value>] = &[];
+    assert_eq!(invisible.rows(), empty_rows);
+    assert_eq!(resolved.command(), "COMMIT PREPARED");
+    assert_eq!(remaining.rows(), empty_rows);
+    assert_eq!(
+        visible.rows(),
+        vec![vec![Value::Int64(1), Value::String("prepared".into())]]
     );
 }
 

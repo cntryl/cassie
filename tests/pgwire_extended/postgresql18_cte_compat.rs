@@ -1,7 +1,9 @@
 //! PostgreSQL 18 CTE parameter metadata and Bind behavior tracked by #801.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
+
+mod multicolumn_cycle_wire_identity;
 
 #[test]
 fn should_describe_typed_parameter_inside_materialized_cte() {
@@ -172,4 +174,167 @@ fn should_return_postgres_typed_breadth_first_search_sequences() {
             vec![Some("3".to_owned()), Some("(2,3)".to_owned())],
         ]
     );
+}
+
+#[test]
+fn should_observe_filter_pushdown_across_cte_materialization_modes() {
+    // Arrange
+    let materialized_sql = "WITH chosen AS MATERIALIZED (SELECT x, 10 / x AS quotient FROM (VALUES (0), (1)) AS input(x)) SELECT x, quotient FROM chosen WHERE x <> 0";
+    let not_materialized_sql = "WITH chosen AS NOT MATERIALIZED (SELECT x, 10 / x AS quotient FROM (VALUES (0), (1)) AS input(x)) SELECT x, quotient FROM chosen WHERE x <> 0";
+    let batches = run_script(
+        "postgresql18-cte-materialization-observable",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(materialized_sql)]),
+            Step::ThroughReady(vec![wire::simple_query_frame(not_materialized_sql)]),
+        ],
+    );
+
+    // Act
+    let materialized = &batches[0];
+    let not_materialized = &batches[1];
+
+    // Assert
+    // PostgreSQL 18.6 materializes both VALUES rows before filtering, so the
+    // division by zero is visible. NOT MATERIALIZED permits the filter to be
+    // pushed into the inlined query and returns the nonzero row.
+    assert_eq!(wire::error_code(materialized).as_deref(), Some("22012"));
+    assert!(!materialized.iter().any(|(tag, _)| *tag == b'D'));
+    assert_eq!(wire::error_code(not_materialized), None);
+    let description = not_materialized
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("NOT MATERIALIZED RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        wire::data_rows(not_materialized),
+        vec![vec![Some("1".to_owned()), Some("10".to_owned())]]
+    );
+}
+
+#[test]
+fn should_return_branch_sensitive_search_sequences_over_pgwire() {
+    // Arrange
+    let common = "WITH RECURSIVE tree(parent, node) AS (VALUES (NULL::INT4, 1::INT4), (1, 2), (1, 3), (2, 4), (3, 5)), walk(node) AS (SELECT node FROM tree WHERE parent IS NULL UNION ALL SELECT child.node FROM tree AS child JOIN walk AS parent ON child.parent = parent.node)";
+    let depth_first = format!(
+        "{common} SEARCH DEPTH FIRST BY node SET sequence SELECT node, sequence FROM walk ORDER BY sequence"
+    );
+    let breadth_first = format!(
+        "{common} SEARCH BREADTH FIRST BY node SET sequence SELECT node, sequence FROM walk ORDER BY sequence"
+    );
+    let batches = run_script(
+        "postgresql18-cte-search-branch-values",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(&depth_first)]),
+            Step::ThroughReady(vec![wire::simple_query_frame(&breadth_first)]),
+        ],
+    );
+
+    // Act
+    let depth_first = &batches[0];
+    let breadth_first = &batches[1];
+
+    // Assert
+    assert_eq!(wire::error_code(depth_first), None);
+    assert_eq!(wire::error_code(breadth_first), None);
+    let depth_description = depth_first
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("depth-first SEARCH RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&depth_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 2287]
+    );
+    assert_eq!(
+        wire::data_rows(depth_first),
+        vec![
+            vec![Some("1".to_owned()), Some("{(1)}".to_owned())],
+            vec![Some("2".to_owned()), Some("{(1),(2)}".to_owned())],
+            vec![Some("4".to_owned()), Some("{(1),(2),(4)}".to_owned())],
+            vec![Some("3".to_owned()), Some("{(1),(3)}".to_owned())],
+            vec![Some("5".to_owned()), Some("{(1),(3),(5)}".to_owned())],
+        ]
+    );
+    let breadth_description = breadth_first
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("breadth-first SEARCH RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&breadth_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 2249]
+    );
+    assert_eq!(
+        wire::data_rows(breadth_first),
+        vec![
+            vec![Some("1".to_owned()), Some("(0,1)".to_owned())],
+            vec![Some("2".to_owned()), Some("(1,2)".to_owned())],
+            vec![Some("3".to_owned()), Some("(1,3)".to_owned())],
+            vec![Some("4".to_owned()), Some("(2,4)".to_owned())],
+            vec![Some("5".to_owned()), Some("(2,5)".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_report_recursive_anchor_errors_with_postgres_sqlstate() {
+    // Arrange
+    let batches = run_script(
+        "issue-801-recursive-anchor-error",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "WITH RECURSIVE walk(n) AS (\
+                    SELECT 1 UNION ALL SELECT n + 1 FROM walk WHERE n < 2\
+                 ) SELECT n FROM walk ORDER BY n",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "WITH RECURSIVE walk(n) AS (SELECT n + 1 FROM walk) SELECT n FROM walk",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame("SELECT 45 AS recovery")]),
+        ],
+    );
+
+    // Act
+    let valid = &batches[0];
+    let invalid = &batches[1];
+    let recovery = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(valid), None);
+    assert_eq!(
+        wire::data_rows(valid),
+        vec![vec![Some("1".to_owned())], vec![Some("2".to_owned())]]
+    );
+    assert_eq!(
+        wire::error_code(invalid).as_deref(),
+        Some("42P19"),
+        "recursive anchor SQLSTATE; frames: {invalid:?}"
+    );
+    let fields = invalid
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .map(|(_, payload)| wire::parse_error_fields(payload))
+        .expect("recursive anchor ErrorResponse");
+    assert!(
+        fields.iter().any(|(kind, value)| {
+            *kind == 'M'
+                && value.starts_with(
+                    "recursive query \"walk\" does not have the form non-recursive-term UNION",
+                )
+        }),
+        "invalid anchor must reach PostgreSQL's recursive-form validation: {fields:?}"
+    );
+    assert!(wire::data_rows(invalid).is_empty());
+    assert_eq!(wire::error_code(recovery), None);
+    assert_eq!(wire::data_rows(recovery), vec![vec![Some("45".to_owned())]]);
 }

@@ -43,6 +43,18 @@ mod postgresql18_transactional_ddl;
 #[path = "sql_mutations/postgresql18_transaction_isolation.rs"]
 mod postgresql18_transaction_isolation;
 
+#[path = "sql_mutations/postgresql18_large_objects.rs"]
+mod postgresql18_large_objects;
+
+#[path = "sql_mutations/postgresql18_mutation_inventory_wave4.rs"]
+mod postgresql18_mutation_inventory_wave4;
+
+#[path = "sql_mutations/postgresql18_conflict_inference_wave_c.rs"]
+mod postgresql18_conflict_inference_wave_c;
+
+#[path = "sql_mutations/postgresql18_merge_tuple_assignments_wave_c.rs"]
+mod postgresql18_merge_tuple_assignments_wave_c;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 mod copy_transaction_boundaries {
     use cassie::app::{Cassie, CassieSession};

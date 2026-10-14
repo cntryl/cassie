@@ -7,17 +7,6 @@ fn should_export_binary_int4_array_with_null_element_framing() {
     runtime.block_on(async {
         let server = CompatibilityServer::start("copy_binary_array_out").await;
         let (client, connection) = server.connect().await;
-        client
-            .batch_execute("CREATE TABLE compat_copy_binary_array_out (value INT4[])")
-            .await
-            .expect("create table for binary array COPY");
-        client
-            .batch_execute(
-                "INSERT INTO compat_copy_binary_array_out \
-                 VALUES (ARRAY[1, NULL, 3]::INT4[])",
-            )
-            .await
-            .expect("insert array with a NULL element");
 
         let socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -29,7 +18,8 @@ fn should_export_binary_int4_array_with_null_element_framing() {
         support_pgwire::write_frames(
             &mut writer,
             vec![support_pgwire::simple_query_frame(
-                "COPY compat_copy_binary_array_out TO STDOUT WITH (FORMAT BINARY)",
+                "COPY (SELECT ARRAY[1,NULL,3]::INT4[] AS value) \
+                 TO STDOUT WITH (FORMAT BINARY)",
             )],
         )
         .await;
@@ -58,6 +48,10 @@ fn should_export_binary_int4_array_with_null_element_framing() {
         server.shutdown(connection).await;
 
         // Assert
+        assert_eq!(
+            error_code, None,
+            "binary COPY TO SQLSTATE; frames: {frames:?}"
+        );
         let response_payload = copy_out_response.unwrap_or_else(|| {
             panic!(
                 "binary COPY TO should send CopyOutResponse; frames: {frames:?}; \

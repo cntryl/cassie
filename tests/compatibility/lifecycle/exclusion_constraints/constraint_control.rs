@@ -116,6 +116,75 @@ fn should_preserve_named_unique_constraint_deferrability_metadata() {
 }
 
 #[test]
+fn should_check_deferred_unique_conflict_when_constraint_becomes_immediate() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("deferred_unique_constraint_check").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_deferred_unique_check (value INT, \
+                   CONSTRAINT compat_deferred_unique_check_key UNIQUE (value) \
+                   DEFERRABLE INITIALLY DEFERRED)",
+            )
+            .await
+            .expect("create a named initially deferred unique constraint");
+        client
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin a transaction for the deferred unique constraint");
+        assert_eq!(
+            client
+                .execute("INSERT INTO compat_deferred_unique_check VALUES (7)", &[])
+                .await
+                .expect("insert the first deferred unique value"),
+            1
+        );
+        assert_eq!(
+            client
+                .execute("INSERT INTO compat_deferred_unique_check VALUES (7)", &[])
+                .await
+                .expect("defer the duplicate unique check until the constraint changes mode"),
+            1
+        );
+
+        // Act
+        let immediate = client
+            .batch_execute("SET CONSTRAINTS compat_deferred_unique_check_key IMMEDIATE")
+            .await
+            .expect_err("changing the constraint to IMMEDIATE must check queued duplicates");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("roll back the transaction after the failed constraint check");
+        let row_count: i64 = client
+            .query_one("SELECT count(*) FROM compat_deferred_unique_check", &[])
+            .await
+            .expect("read rows after rollback")
+            .get(0);
+        let metadata = client
+            .query_one(
+                "SELECT condeferrable, condeferred \
+                 FROM pg_catalog.pg_constraint \
+                 WHERE conname = 'compat_deferred_unique_check_key'",
+                &[],
+            )
+            .await
+            .expect("read the retained constraint metadata");
+
+        // Assert
+        assert_eq!(db_error(&immediate).code().code(), "23505");
+        assert_eq!(row_count, 0, "rollback must remove both duplicate rows");
+        assert!(metadata.get::<_, bool>(0));
+        assert!(metadata.get::<_, bool>(1));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_preserve_named_foreign_key_deferrability_metadata() {
     // Arrange
     let runtime = current_thread_runtime();

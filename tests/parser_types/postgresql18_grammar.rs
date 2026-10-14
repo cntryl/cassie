@@ -4,6 +4,9 @@ use cassie::types::Value;
 
 use crate::support_sql_fixture::sql_fixture;
 
+mod default_unicode_identifier;
+mod integer_bitwise_operator_precedence;
+
 type ValuePredicate = fn(&Value) -> bool;
 
 #[test]

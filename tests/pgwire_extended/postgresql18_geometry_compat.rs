@@ -1,6 +1,16 @@
 //! PostgreSQL 18 geometry wire identities tracked by #907.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+#[path = "postgresql18_geometry_compat/binary_parameters.rs"]
+mod binary_parameters;
+
+mod conversion_distance_transform_gaps;
+#[path = "postgresql18_geometry_compat/floating_point_boundaries.rs"]
+mod floating_point_boundaries;
+mod measurement_predicate_residuals;
+mod slope_parameter_inference;
+mod spatial_operator_residuals;
+
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 #[test]

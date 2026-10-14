@@ -1,5 +1,8 @@
 //! Bounded, cancellable JSON row expansion and atomic failure publication.
 
+#[path = "expansion_resource_limits/recordset_midstream_cancellation.rs"]
+mod recordset_midstream_cancellation;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -67,6 +70,7 @@ fn should_cap_json_expansion_results_without_partial_rows() {
             "SELECT value FROM jsonb_array_elements('[1,2,3]'::JSONB) AS expanded(value)",
             "SELECT value FROM jsonb_path_query('[1,2,3]'::JSONB, '$[*]') AS expanded(value)",
             "SELECT jsonb_object_keys('{\"a\":1,\"b\":2,\"c\":3}'::JSONB)",
+            "SELECT item.n FROM jsonb_to_recordset('[{\"n\":1},{\"n\":2},{\"n\":3}]'::JSONB) AS item(n INTEGER)",
         ];
         let mut batches = Vec::with_capacity(queries.len());
         for query in queries {
@@ -89,7 +93,7 @@ fn should_cap_json_expansion_results_without_partial_rows() {
     drop(storage);
 
     // Assert
-    assert_eq!(batches.len(), 3);
+    assert_eq!(batches.len(), 4);
     for frames in &batches {
         assert_eq!(wire::error_code(frames).as_deref(), Some("54000"));
         assert!(wire::data_rows(frames).is_empty());
@@ -207,6 +211,81 @@ fn should_cancel_json_array_expansion_without_publishing_a_partial_row() {
     assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
     assert!(wire::data_rows(&cancelled).is_empty());
     assert_eq!(cancelled.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
+    assert_eq!(wire::error_code(&recovery), None);
+    assert_eq!(
+        wire::data_rows(&recovery),
+        vec![vec![Some("45".to_owned())]]
+    );
+}
+
+#[test]
+fn should_cancel_json_recordset_expansion_without_partial_rows() {
+    // Arrange
+    let (storage, config) = configured_fixture("json-recordset-expansion-cancel", 100);
+    let runtime = current_thread_runtime();
+
+    // Act
+    let (baseline, cancelled, recovery) = runtime.block_on(async {
+        let (address, server) = start_server(storage.cassie.clone(), config).await;
+        let socket = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("query connection");
+        let (mut reader, mut writer) = tokio::io::split(socket);
+        let (process_id, secret_key) =
+            wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
+
+        wire::write_frames(
+            &mut writer,
+            vec![wire::simple_query_frame(
+                "SELECT item.n FROM jsonb_to_recordset('[{\"n\":1}]'::JSONB) AS item(n INTEGER)",
+            )],
+        )
+        .await;
+        let baseline =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        wire::write_frames(
+            &mut writer,
+            vec![wire::simple_query_frame(
+                "SELECT item.n FROM jsonb_to_recordset('[{\"n\":1},{\"n\":2},{\"n\":3}]'::JSONB) AS item(n INTEGER) WHERE pg_sleep_for(INTERVAL '60 seconds') IS NOT NULL",
+            )],
+        )
+        .await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let mut cancel_socket = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("cancel connection");
+        cancel_socket
+            .write_all(&wire::cancel_request_frame(process_id, secret_key))
+            .await
+            .expect("write cancel request");
+        cancel_socket
+            .shutdown()
+            .await
+            .expect("close cancel request");
+        let cancelled =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 45")]).await;
+        let recovery =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        drop(reader);
+        drop(writer);
+        server.abort();
+        let _ = server.await;
+        (baseline, cancelled, recovery)
+    });
+    drop(runtime);
+    drop(storage);
+
+    // Assert
+    assert_eq!(wire::error_code(&baseline), None);
+    assert_eq!(wire::data_rows(&baseline), vec![vec![Some("1".to_owned())]]);
+    assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
+    assert!(wire::data_rows(&cancelled).is_empty());
+    assert_eq!(cancelled.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
+    assert_eq!(cancelled.last().map(|frame| frame.0), Some(b'Z'));
     assert_eq!(wire::error_code(&recovery), None);
     assert_eq!(
         wire::data_rows(&recovery),

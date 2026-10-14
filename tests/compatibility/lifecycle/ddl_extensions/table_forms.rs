@@ -1,5 +1,9 @@
 use super::*;
 
+mod materialized_view_create_no_data;
+mod postgresql18_explicit_table_clone_contracts;
+mod postgresql18_lifecycle_gaps;
+
 #[test]
 fn should_create_table_as_an_existing_table_with_column_names() {
     // Arrange

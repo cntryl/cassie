@@ -5,6 +5,8 @@ use cassie::types::Value;
 
 use crate::support_sql_fixture::sql_fixture;
 
+mod multirange_range_merge;
+
 struct RangeDirectory(String);
 
 impl Drop for RangeDirectory {
@@ -316,6 +318,36 @@ fn should_intersect_ranges_with_a_range_aggregate() {
 }
 
 #[test]
+fn should_aggregate_multirange_inputs_into_multiranges() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-multirange-aggregate-inputs", &[]);
+    fixture
+        .execute("CREATE TABLE issue_905_multirange_aggregate_inputs (span INT4MULTIRANGE)")
+        .expect("create a table with multirange values");
+    fixture
+        .execute(
+            "INSERT INTO issue_905_multirange_aggregate_inputs VALUES ('{[1,5),[9,11)}'::INT4MULTIRANGE), ('{[3,7),[9,12)}'::INT4MULTIRANGE)",
+        )
+        .expect("insert overlapping and separated multiranges");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT range_agg(span)::TEXT, range_intersect_agg(span)::TEXT FROM issue_905_multirange_aggregate_inputs",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("multirange aggregate union and intersection")
+            .rows(),
+        &[vec![
+            Value::String("{[1,7),[9,12)}".to_owned()),
+            Value::String("{[3,5),[9,11)}".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_match_range_predicates_in_join_rows() {
     // Arrange
     let fixture = sql_fixture("issue-905-range-table-predicates", &[]);
@@ -385,6 +417,98 @@ fn should_keep_range_text_values_across_restart() {
     assert_eq!(
         result.expect("range value survives restart").rows(),
         &[vec![Value::String("[1,5)".to_owned())]]
+    );
+    drop(session);
+    restarted.shutdown();
+    drop(restarted);
+}
+
+#[test]
+fn should_restore_builtin_range_families_after_restart() {
+    // Arrange
+    crate::support_sql::use_local_storage();
+    let path = crate::support_sql::data_dir("issue-905-range-family-restart");
+    let _directory = RangeDirectory(path.clone());
+    {
+        let cassie = Cassie::new_with_data_dir(&path).expect("create range-family fixture");
+        cassie.startup().expect("start range-family fixture");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE issue_905_restart_range_families (\
+                    int4_range INT4RANGE, int8_range INT8RANGE, numeric_range NUMRANGE, \
+                    date_range DATERANGE, timestamp_range TSRANGE, timestamptz_range TSTZRANGE, \
+                    int4_multirange INT4MULTIRANGE, int8_multirange INT8MULTIRANGE, \
+                    numeric_multirange NUMMULTIRANGE, date_multirange DATEMULTIRANGE, \
+                    timestamp_multirange TSMULTIRANGE, timestamptz_multirange TSTZMULTIRANGE)",
+                vec![],
+            )
+            .expect("create columns for every built-in range family");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO issue_905_restart_range_families VALUES (\
+                    '[1,5)'::INT4RANGE, '[1,5)'::INT8RANGE, '[1.20,2.40)'::NUMRANGE, \
+                    '[2024-01-01,2024-01-03)'::DATERANGE, \
+                    '[2024-01-01 00:00:00,2024-01-03 00:00:00)'::TSRANGE, \
+                    '[2024-01-01 00:00:00+00,2024-01-03 00:00:00+00)'::TSTZRANGE, \
+                    '{[1,3),[4,5)}'::INT4MULTIRANGE, '{[1,3),[4,5)}'::INT8MULTIRANGE, \
+                    '{[1.20,2.40),[3.00,4.00)}'::NUMMULTIRANGE, \
+                    '{[2024-01-01,2024-01-02),[2024-01-03,2024-01-04)}'::DATEMULTIRANGE, \
+                    '{[2024-01-01 00:00:00,2024-01-02 00:00:00),\
+                      [2024-01-03 00:00:00,2024-01-04 00:00:00)}'::TSMULTIRANGE, \
+                    '{[2024-01-01 00:00:00+00,2024-01-02 00:00:00+00),\
+                      [2024-01-03 00:00:00+00,2024-01-04 00:00:00+00)}'::TSTZMULTIRANGE)",
+                vec![],
+            )
+            .expect("store every built-in range and multirange family");
+    }
+    let restarted = Cassie::new_with_data_dir(&path).expect("reopen range-family fixture");
+    restarted.startup().expect("restart range-family fixture");
+    let session = restarted.create_session("tester", None);
+
+    // Act
+    let result = restarted.execute_sql(
+        &session,
+        "SELECT int4_range = '[1,5)'::INT4RANGE, int8_range = '[1,5)'::INT8RANGE, \
+                numeric_range = '[1.20,2.40)'::NUMRANGE, \
+                date_range = '[2024-01-01,2024-01-03)'::DATERANGE, \
+                timestamp_range = '[2024-01-01 00:00:00,2024-01-03 00:00:00)'::TSRANGE, \
+                timestamptz_range = '[2024-01-01 00:00:00+00,2024-01-03 00:00:00+00)'::TSTZRANGE, \
+                int4_multirange = '{[1,3),[4,5)}'::INT4MULTIRANGE, \
+                int8_multirange = '{[1,3),[4,5)}'::INT8MULTIRANGE, \
+                numeric_multirange = '{[1.20,2.40),[3.00,4.00)}'::NUMMULTIRANGE, \
+                date_multirange = '{[2024-01-01,2024-01-02),[2024-01-03,2024-01-04)}'::DATEMULTIRANGE, \
+                timestamp_multirange = \
+                    '{[2024-01-01 00:00:00,2024-01-02 00:00:00),\
+                      [2024-01-03 00:00:00,2024-01-04 00:00:00)}'::TSMULTIRANGE, \
+                timestamptz_multirange = \
+                    '{[2024-01-01 00:00:00+00,2024-01-02 00:00:00+00),\
+                      [2024-01-03 00:00:00+00,2024-01-04 00:00:00+00)}'::TSTZMULTIRANGE \
+         FROM issue_905_restart_range_families",
+        vec![],
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("every built-in range family survives restart")
+            .rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
     );
     drop(session);
     restarted.shutdown();
@@ -583,5 +707,84 @@ fn should_preserve_range_aggregate_empty_nulls() {
                 Value::Null
             ],
         ]
+    );
+}
+
+#[test]
+fn should_preserve_continuous_multirange_gaps_at_excluded_touchpoints() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-continuous-multirange-touchpoints", &[]);
+    let sql = "SELECT '{(1,2),(2,3)}'::NUMMULTIRANGE::TEXT, '{[1,2),[2,3]}'::NUMMULTIRANGE::TEXT, '{[1,2),[2,3)}'::NUMMULTIRANGE::TEXT, '{[1,2],[2,3]}'::NUMMULTIRANGE::TEXT, '{(1,2),(2,3)}'::NUMMULTIRANGE @> 2::NUMERIC, '{[1,2),[2,3]}'::NUMMULTIRANGE @> 2::NUMERIC";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("continuous multiranges preserve or merge touching bounds")
+            .rows(),
+        &[vec![
+            Value::String("{(1,2),(2,3)}".to_owned()),
+            Value::String("{[1,3]}".to_owned()),
+            Value::String("{[1,3)}".to_owned()),
+            Value::String("{[1,3]}".to_owned()),
+            Value::Bool(false),
+            Value::Bool(true),
+        ]]
+    );
+}
+
+#[test]
+fn should_preserve_unbounded_multirange_boundary_semantics() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-unbounded-multirange-boundaries", &[]);
+    let sql = "SELECT lower('{(,3),[7,)}'::INT4MULTIRANGE) IS NULL, upper('{(,3),[7,)}'::INT4MULTIRANGE) IS NULL, lower_inf('{(,3),[7,)}'::INT4MULTIRANGE), upper_inf('{(,3),[7,)}'::INT4MULTIRANGE), lower_inc('{(,3),[7,)}'::INT4MULTIRANGE), upper_inc('{(,3),[7,)}'::INT4MULTIRANGE), '{(,3),[7,)}'::INT4MULTIRANGE @> -100, '{(,3),[7,)}'::INT4MULTIRANGE @> 6, '{(,3),[7,)}'::INT4MULTIRANGE @> 100, '{(,3),[7,)}'::INT4MULTIRANGE::TEXT";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("unbounded multirange bounds and scalar membership")
+            .rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::String("{(,3),[7,)}".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_compare_multirange_order_with_mixed_type_adjacency() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-multirange-order-and-adjacency", &[]);
+    let sql = "SELECT '{[1,3)}'::INT4MULTIRANGE -|- '{[3,5)}'::INT4MULTIRANGE, '{[1,3)}'::INT4MULTIRANGE -|- '{[4,6)}'::INT4MULTIRANGE, '{[1,3)}'::INT4MULTIRANGE -|- '[3,5)'::INT4RANGE, '[3,5)'::INT4RANGE -|- '{[1,3)}'::INT4MULTIRANGE, '{[1,3)}'::INT4MULTIRANGE < '{[1,4)}'::INT4MULTIRANGE, '{[1,4)}'::INT4MULTIRANGE > '{[1,3)}'::INT4MULTIRANGE";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("multirange ordering and mixed range adjacency")
+            .rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
     );
 }

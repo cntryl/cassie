@@ -1,6 +1,6 @@
 //! PostgreSQL 18.6 occurrence-order observations: Parse admission and retained metadata.
 
-use super::support_parameter_occurrence_wire::{run_script, Step};
+use super::support_parameter_occurrence_wire::{Step, run_script};
 use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 
@@ -960,9 +960,11 @@ fn should_recover_named_reparse_across_parameter_rebindings() {
 fn assert_rebinding_error(frames: &fixture::Frames, state: &str) {
     assert_eq!(wire::error_code(frames).as_deref(), Some(state));
     assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
-    assert!(!frames
-        .iter()
-        .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C')));
+    assert!(
+        !frames
+            .iter()
+            .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C'))
+    );
     assert_descriptors(frames, &[(25, -1), (16, 1)], &["body", "flag"], 0, false);
     assert_ready(frames);
 }

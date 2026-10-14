@@ -175,3 +175,37 @@ fn should_apply_on_delete_set_default_column_list() {
         assert_eq!(row[0].get::<_, i32>(0), 3);
     });
 }
+
+#[test]
+fn should_report_postgres_sqlstate_for_unsupported_match_partial() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("foreign_key_match_partial").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_fk_match_partial_parent (left_id INT, right_id INT, \
+                   UNIQUE (left_id, right_id))",
+            )
+            .await
+            .expect("create the referenced composite key");
+
+        // Act
+        let unsupported = client
+            .batch_execute(
+                "CREATE TABLE compat_fk_match_partial_child (left_id INT, right_id INT, \
+                   FOREIGN KEY (left_id, right_id) \
+                   REFERENCES compat_fk_match_partial_parent (left_id, right_id) \
+                   MATCH PARTIAL)",
+            )
+            .await
+            .expect_err("PostgreSQL accepts MATCH PARTIAL syntax but reports it as unimplemented");
+
+        // Assert
+        assert_eq!(db_error(&unsupported).code().code(), "0A000");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

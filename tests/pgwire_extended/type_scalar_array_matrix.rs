@@ -197,7 +197,8 @@ fn should_trim_only_the_requested_array_tail_elements() {
 fn should_sample_the_requested_number_of_array_elements() {
     // Arrange
     let input = b"{1,2,3,4}";
-    let sql = "SELECT length(array_sample($1::INT[], 2)::TEXT) = 5";
+    let sql = "SELECT cardinality(sampled.items) = 2, sampled.items <@ $1::INT[] \
+               FROM (SELECT array_sample($1::INT[], 2) AS items) AS sampled";
     let cycle = fixture::execute_cycle(sql, Some((1_007, 0, Some(input))), 0, true);
 
     // Act
@@ -206,14 +207,18 @@ fn should_sample_the_requested_number_of_array_elements() {
     // Assert
     let frames = &batches[0];
     fixture::assert_success(frames);
-    assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("t".to_owned()), Some("t".to_owned())]]
+    );
 }
 
 #[test]
 fn should_shuffle_arrays_without_changing_their_element_count() {
     // Arrange
     let input = b"{1,2,3,4}";
-    let sql = "SELECT length(array_shuffle($1::INT[])::TEXT) = 9";
+    let sql = "SELECT array_sort(shuffled.items) = ARRAY[1,2,3,4]::INT[] \
+               FROM (SELECT array_shuffle($1::INT[]) AS items) AS shuffled";
     let cycle = fixture::execute_cycle(sql, Some((1_007, 0, Some(input))), 0, true);
 
     // Act

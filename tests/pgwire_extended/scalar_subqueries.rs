@@ -349,10 +349,18 @@ fn should_report_row_subquery_arity_errors_with_postgres_syntax_sqlstate() {
         "issue-762-row-subquery-arity-wire",
         vec![
             Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT ROW(1::INT4, 2::INT4) = (SELECT 1::INT4)",
+                "CREATE TABLE scalar_wire_values (id INT, value INT)",
             )]),
             Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT ROW(1::INT4, 2::INT4) IN (SELECT 1::INT4)",
+                "INSERT INTO scalar_wire_values (id, value) VALUES (1, 100), (2, 200)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT ROW(1::INT4, 2::INT4) = \
+                 (SELECT id FROM scalar_wire_values WHERE id = 1)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT ROW(1::INT4, 2::INT4) IN \
+                 (SELECT id FROM scalar_wire_values WHERE id = 1)",
             )]),
         ],
     );
@@ -360,6 +368,7 @@ fn should_report_row_subquery_arity_errors_with_postgres_syntax_sqlstate() {
     // Act
     let errors = batches
         .iter()
+        .skip(2)
         .map(|batch| {
             let frame = batch
                 .iter()
@@ -370,22 +379,23 @@ fn should_report_row_subquery_arity_errors_with_postgres_syntax_sqlstate() {
         .collect::<Vec<_>>();
 
     // Assert
-    for fields in errors {
-        assert_eq!(
-            fields
+    let mismatches = errors
+        .iter()
+        .enumerate()
+        .filter_map(|(index, fields)| {
+            let state = fields
                 .iter()
                 .find(|(kind, _)| *kind == 'C')
-                .map(|(_, value)| value.as_str()),
-            Some("42601")
-        );
-        assert_eq!(
-            fields
+                .map(|(_, value)| value.as_str());
+            let message = fields
                 .iter()
                 .find(|(kind, _)| *kind == 'M')
-                .map(|(_, value)| value.as_str()),
-            Some("subquery has too few columns")
-        );
-    }
+                .map(|(_, value)| value.as_str());
+            (state != Some("42601") || message != Some("subquery has too few columns"))
+                .then(|| format!("case {index}: expected 42601 / subquery has too few columns, got {state:?} / {message:?}"))
+        })
+        .collect::<Vec<_>>();
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
 
 #[test]
@@ -757,11 +767,19 @@ fn should_match_subquery_predicate_truth_table() {
 fn should_report_wide_subquery_predicate_arity_errors() {
     // Arrange
     let cases = [
-        "SELECT 1 IN (SELECT 1, 2)",
-        "SELECT 1 = ANY (SELECT 1, 2)",
-        "SELECT 1 = ALL (SELECT 1, 2)",
+        "SELECT 1 IN (SELECT id, value FROM scalar_wire_values WHERE id = 1)",
+        "SELECT 1 = ANY (SELECT id, value FROM scalar_wire_values WHERE id = 1)",
+        "SELECT 1 = ALL (SELECT id, value FROM scalar_wire_values WHERE id = 1)",
     ];
-    let mut steps = Vec::with_capacity(cases.len());
+    let mut steps = Vec::with_capacity(cases.len() + 2);
+    steps.extend([
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TABLE scalar_wire_values (id INT, value INT)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "INSERT INTO scalar_wire_values (id, value) VALUES (1, 100), (2, 200)",
+        )]),
+    ]);
     steps.extend(
         cases
             .iter()
@@ -770,9 +788,10 @@ fn should_report_wide_subquery_predicate_arity_errors() {
 
     // Act
     let batches = run_script("issue-762-wide-predicate-subqueries", steps);
+    let predicate_batches = batches.iter().skip(2).collect::<Vec<_>>();
     let mismatches = cases
         .iter()
-        .zip(&batches)
+        .zip(&predicate_batches)
         .map(|(sql, batch)| match batch.iter().find(|frame| frame.0 == b'E') {
             Some(error) => {
                 let fields = wire::parse_error_fields(&error.1);
@@ -799,7 +818,7 @@ fn should_report_wide_subquery_predicate_arity_errors() {
 
     // Assert
     assert_eq!(
-        batches.len(),
+        predicate_batches.len(),
         cases.len(),
         "each malformed predicate statement must be processed"
     );
@@ -907,3 +926,6 @@ fn should_bind_subquery_predicate_parameters_across_formats() {
     );
     assert_eq!(binary_row.1[6], 1);
 }
+
+#[path = "scalar_subqueries/pg18_residuals.rs"]
+mod pg18_residuals;

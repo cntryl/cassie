@@ -4,6 +4,30 @@ use super::support_sql_fixture::sql_fixture;
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 
+const MATERIALIZED_VIEW_NAME: &str = "issue833_transactional_materialized_view";
+
+mod alter_rollback_visibility;
+
+#[path = "postgresql18_transactional_ddl/catalog_snapshot.rs"]
+mod catalog_snapshot;
+
+#[path = "postgresql18_transactional_ddl/restart_publication.rs"]
+mod restart_publication;
+
+fn visible_materialized_view(cassie: &Cassie, session: &CassieSession) -> Vec<Vec<Value>> {
+    cassie
+        .execute_sql(
+            session,
+            "SELECT matviewname FROM pg_catalog.pg_matviews \
+             WHERE schemaname = 'public' \
+               AND matviewname = 'issue833_transactional_materialized_view'",
+            vec![],
+        )
+        .expect("read the materialized view catalog")
+        .rows()
+        .to_vec()
+}
+
 fn enum_visibility_rows(cassie: &Cassie, session: &CassieSession) -> Vec<Vec<Value>> {
     cassie
         .execute_sql(
@@ -78,6 +102,56 @@ fn should_restore_dropped_table_after_transaction_rollback() {
     // Assert
     assert_eq!(
         rows,
+        vec![vec![Value::Int64(1), Value::String("retained".to_owned())]]
+    );
+}
+
+#[test]
+fn should_rollback_materialized_view_publication_with_transaction() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-833-materialized-view-rollback",
+        &[
+            "CREATE TABLE public.issue833_mv_rollback_source \
+               (id INT PRIMARY KEY, label TEXT NOT NULL)",
+            "INSERT INTO public.issue833_mv_rollback_source VALUES (1, 'retained')",
+        ],
+    );
+    let observer = fixture.cassie.create_session("observer", None);
+    fixture.execute("BEGIN").expect("begin the DDL transaction");
+
+    // Act
+    fixture
+        .execute(
+            "CREATE MATERIALIZED VIEW public.issue833_transactional_materialized_view AS \
+             SELECT id, label FROM public.issue833_mv_rollback_source",
+        )
+        .expect("create and populate a materialized view inside the transaction");
+    let writer_view = visible_materialized_view(&fixture.cassie, &fixture.session);
+    let observer_view_before_commit = visible_materialized_view(&fixture.cassie, &observer);
+    let materialized_rows = fixture
+        .rows("SELECT id, label FROM public.issue833_transactional_materialized_view ORDER BY id");
+    fixture
+        .execute("ROLLBACK")
+        .expect("roll back materialized-view data and catalog publication");
+    let writer_view_after_rollback = visible_materialized_view(&fixture.cassie, &fixture.session);
+    let observer_view_after_rollback = visible_materialized_view(&fixture.cassie, &observer);
+    let source_rows =
+        fixture.rows("SELECT id, label FROM public.issue833_mv_rollback_source ORDER BY id");
+
+    // Assert
+    let materialized_view = vec![vec![Value::String(MATERIALIZED_VIEW_NAME.to_owned())]];
+    let no_materialized_view: &[Vec<Value>] = &[];
+    assert_eq!(writer_view, materialized_view);
+    assert_eq!(observer_view_before_commit, no_materialized_view);
+    assert_eq!(
+        materialized_rows,
+        vec![vec![Value::Int64(1), Value::String("retained".to_owned())]]
+    );
+    assert_eq!(writer_view_after_rollback, no_materialized_view);
+    assert_eq!(observer_view_after_rollback, no_materialized_view);
+    assert_eq!(
+        source_rows,
         vec![vec![Value::Int64(1), Value::String("retained".to_owned())]]
     );
 }

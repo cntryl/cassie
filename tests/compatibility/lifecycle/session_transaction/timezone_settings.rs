@@ -104,3 +104,67 @@ fn should_restore_set_local_timezone_when_rolling_back_to_savepoint() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_describe_prepared_timezone_result_across_local_timezone_changes() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("prepared_timezone_description").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("SET TIME ZONE 'UTC'")
+            .await
+            .expect("select a stable timezone before preparing the query");
+        let query = "SELECT '2024-03-10 06:30:00+00'::timestamptz::text";
+        let utc_statement = client
+            .prepare(query)
+            .await
+            .expect("Parse and Describe the timezone-dependent query");
+        let utc_result = client
+            .query_one(&utc_statement, &[])
+            .await
+            .expect("execute the prepared query in UTC");
+        let utc_value: String = utc_result.try_get(0).expect("UTC text result");
+
+        // Act
+        client
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin the transaction for a local timezone override");
+        client
+            .batch_execute("SET LOCAL TIME ZONE 'America/New_York'")
+            .await
+            .expect("set a transaction-local timezone");
+        let local_statement = client
+            .prepare(query)
+            .await
+            .expect("Describe the query again under the transaction-local timezone");
+        let local_result = client
+            .query_one(&utc_statement, &[])
+            .await
+            .expect("re-execute the original prepared statement under the local timezone");
+        let local_value: String = local_result.try_get(0).expect("local-timezone text result");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("restore the session timezone by rolling back");
+        let restored_result = client
+            .query_one(&utc_statement, &[])
+            .await
+            .expect("re-execute the original prepared statement after rollback");
+        let restored_value: String = restored_result
+            .try_get(0)
+            .expect("restored-timezone text result");
+
+        // Assert
+        assert_eq!(utc_statement.columns()[0].type_().oid(), 25);
+        assert_eq!(local_statement.columns()[0].type_().oid(), 25);
+        assert_eq!(utc_value, "2024-03-10 06:30:00+00");
+        assert_eq!(local_value, "2024-03-10 01:30:00-05");
+        assert_eq!(restored_value, "2024-03-10 06:30:00+00");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

@@ -2,6 +2,10 @@
 
 use super::super::support_pgwire as wire;
 use super::super::support_type_metadata_contract as fixture;
+
+#[path = "array_function_gaps/array_order_functions.rs"]
+mod array_order_functions;
+
 #[test]
 fn should_report_two_dimensions_for_nested_arrays() {
     // Arrange
@@ -349,6 +353,54 @@ fn should_correlate_series_ordinality_to_each_outer_row() {
 }
 
 #[test]
+fn should_correlate_scalar_function_from_rows_with_ordinality() {
+    // Arrange
+    let sql = "SELECT source.id, generated.value, generated.ordinality \
+               FROM (VALUES (1, 'ALPHA'), (2, 'Beta')) AS source(id, name) \
+               CROSS JOIN LATERAL lower(source.name) WITH ORDINALITY \
+                 AS generated(value, ordinality) \
+               ORDER BY source.id";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-808-correlated-scalar-from-ordinality",
+        &[],
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("correlated scalar function RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 25, 20]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![
+                Some("1".to_owned()),
+                Some("alpha".to_owned()),
+                Some("1".to_owned()),
+            ],
+            vec![
+                Some("2".to_owned()),
+                Some("beta".to_owned()),
+                Some("1".to_owned()),
+            ],
+        ]
+    );
+}
+
+#[test]
 fn should_stop_returning_generate_series_rows_at_limit() {
     // Arrange
     let cycle = fixture::execute_cycle(
@@ -368,5 +420,66 @@ fn should_stop_returning_generate_series_rows_at_limit() {
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some("1".to_owned())], vec![Some("2".to_owned())]]
+    );
+}
+
+#[test]
+fn should_generate_reverse_subscripts_for_each_array_dimension() {
+    // Arrange
+    let sql = "SELECT dimensions.dimension, subscripts.subscript, subscripts.ordinality \
+               FROM (VALUES (1), (2), (3)) AS dimensions(dimension) \
+               LEFT JOIN LATERAL generate_subscripts( \
+                 '[0:1][2:3]={{10,20},{30,40}}'::INTEGER[], \
+                 dimensions.dimension, TRUE \
+               ) WITH ORDINALITY AS subscripts(subscript, ordinality) ON TRUE \
+               ORDER BY dimensions.dimension, subscripts.ordinality";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-808-multidimensional-reverse-subscripts",
+        &[],
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("generate_subscripts RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23, 20]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![
+                Some("1".to_owned()),
+                Some("1".to_owned()),
+                Some("1".to_owned())
+            ],
+            vec![
+                Some("1".to_owned()),
+                Some("0".to_owned()),
+                Some("2".to_owned())
+            ],
+            vec![
+                Some("2".to_owned()),
+                Some("3".to_owned()),
+                Some("1".to_owned())
+            ],
+            vec![
+                Some("2".to_owned()),
+                Some("2".to_owned()),
+                Some("2".to_owned())
+            ],
+            vec![Some("3".to_owned()), None, None],
+        ]
     );
 }

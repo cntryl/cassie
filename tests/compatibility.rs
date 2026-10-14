@@ -20,6 +20,8 @@ mod compatibility_matrix {
     use tokio_postgres::{error::DbError, NoTls, SimpleQueryMessage};
     use uuid::Uuid;
 
+    mod prisma7_generated_query;
+
     fn temp_dir(label: &str) -> PathBuf {
         let mut path = std::env::temp_dir();
         path.push(format!("cassie-compatibility-{}-{}", label, Uuid::new_v4()));
@@ -324,6 +326,19 @@ datasource db {
         assert!(output.stdout.contains("compat_prisma_items"));
         assert!(output.stdout.contains("title"));
     });
+    }
+
+    #[test]
+    #[ignore = "requires isolated Node v24.21.0 and Prisma 7.10.0 toolchain; setup and invocation are documented in this test's helper"]
+    fn should_execute_prisma_7_generated_queries_against_cassie() {
+        // Arrange
+        // The helper provisions a per-run schema and verifies the pinned external packages.
+
+        // Act
+        prisma7_generated_query::run_prisma_7_generated_queries_against_cassie();
+
+        // Assert
+        // The helper asserts generated SQL, bind values, pagination, raw results and delegate values.
     }
 
     #[test]
@@ -1838,5 +1853,8 @@ mod compatibility {
     use tokio_postgres::NoTls;
 
     mod lifecycle;
+    mod postgresql18_lifecycle_inventory_wave2;
+    mod postgresql18_lifecycle_inventory_wave3;
+    mod postgresql18_large_object_wire;
     mod pg_dump_restore;
 }

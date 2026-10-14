@@ -1,7 +1,7 @@
 //! Preparation-only ownership at accepted Simple Query ready boundaries.
 
 use super::support_pgwire as wire;
-use super::support_pgwire_transaction_boundary::{copy_access_fixture, run_script, Prefix};
+use super::support_pgwire_transaction_boundary::{Prefix, copy_access_fixture, run_script};
 
 #[test]
 fn should_finish_preparation_only_portals_on_idle_simple_query_completion() {

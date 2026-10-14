@@ -1,7 +1,20 @@
 //! PostgreSQL 18 pattern and text-search protocol contracts tracked by #799.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
+use std::time::Duration;
+use tokio::io::AsyncWriteExt;
+
+mod named_regexp_like_parameters;
+mod ts_headline_regconfig_wire;
+
+struct FixtureDirectory(String);
+
+impl Drop for FixtureDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 #[test]
 fn should_describe_ilike_parameter_types() {
@@ -125,16 +138,28 @@ fn should_return_postgres_invalid_regex_sqlstate_on_the_wire() {
     // Arrange
     let batches = run_script(
         "issue-799-invalid-regex-wire",
-        vec![Step::ThroughReady(vec![wire::simple_query_frame(
-            "SELECT 'text' ~ '('",
-        )])],
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT 'text' ~ 'text' AS valid_pattern",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT 'text' ~ '(' AS malformed_pattern",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame("SELECT 45 AS recovery")]),
+        ],
     );
 
     // Act
-    let result = &batches[0];
+    let valid = &batches[0];
+    let invalid = &batches[1];
+    let recovery = &batches[2];
 
     // Assert
-    assert_eq!(wire::error_code(result).as_deref(), Some("2201B"));
+    assert_eq!(wire::error_code(valid), None);
+    assert_eq!(wire::data_rows(valid), vec![vec![Some("t".to_owned())]]);
+    assert_invalid_pattern_error(invalid, "regex operator");
+    assert_eq!(wire::error_code(recovery), None);
+    assert_eq!(wire::data_rows(recovery), vec![vec![Some("45".to_owned())]]);
 }
 
 #[test]
@@ -387,6 +412,112 @@ fn should_bound_global_regexp_replace_output_expansion() {
 }
 
 #[test]
+fn should_cancel_global_regexp_replacement_without_partial_output() {
+    // Arrange
+    wire::use_local_storage();
+    let path = wire::data_dir("issue-799-regexp-replace-cancel");
+    let _directory = FixtureDirectory(path.clone());
+    let input = "a".repeat(5_000_000);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    // Act
+    let (baseline, parsed, cancelled, recovery) = runtime.block_on(async {
+        let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("Cassie");
+        cassie.startup().expect("start regex cancellation fixture");
+        let server = wire::spawn_server(cassie).await;
+        let socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("query connection");
+        let (mut reader, mut writer) = socket.into_split();
+        let (process_id, secret_key) =
+            wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
+
+        wire::write_frames(
+            &mut writer,
+            vec![wire::simple_query_frame(
+                "SELECT regexp_replace('aaa', 'a', 'bb', 'g')",
+            )],
+        )
+        .await;
+        let baseline =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        wire::write_frames(
+            &mut writer,
+            vec![
+                wire::parse_frame_with_types(
+                    "regexp_replace_cancel_statement",
+                    "SELECT regexp_replace($1, 'a', '', 'g')",
+                    &[25],
+                ),
+                wire::sync_frame(),
+            ],
+        )
+        .await;
+        let parsed =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        wire::write_frames(
+            &mut writer,
+            vec![
+                wire::bind_frame(
+                    "regexp_replace_cancel_portal",
+                    "regexp_replace_cancel_statement",
+                    &[&input],
+                ),
+                wire::execute_frame("regexp_replace_cancel_portal"),
+                wire::sync_frame(),
+            ],
+        )
+        .await;
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        let mut cancel_socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("cancel connection");
+        cancel_socket
+            .write_all(&wire::cancel_request_frame(process_id, secret_key))
+            .await
+            .expect("write cancel request");
+        cancel_socket
+            .shutdown()
+            .await
+            .expect("close cancel request");
+        let cancelled =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 45")]).await;
+        let recovery =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        drop(reader);
+        drop(writer);
+        server.stop().await;
+        (baseline, parsed, cancelled, recovery)
+    });
+    drop(runtime);
+
+    // Assert
+    assert_eq!(wire::error_code(&baseline), None);
+    assert_eq!(
+        wire::data_rows(&baseline),
+        vec![vec![Some("bbbbbb".to_owned())]]
+    );
+    assert_eq!(wire::error_code(&parsed), None);
+    assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
+    assert!(wire::data_rows(&cancelled).is_empty());
+    assert_eq!(cancelled.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
+    assert_eq!(cancelled.last().map(|frame| frame.0), Some(b'Z'));
+    assert_eq!(wire::error_code(&recovery), None);
+    assert_eq!(
+        wire::data_rows(&recovery),
+        vec![vec![Some("45".to_owned())]]
+    );
+}
+
+#[test]
 fn should_describe_tsvector_results_with_the_postgres_oid() {
     // Arrange
     let batches = run_script(
@@ -548,4 +679,113 @@ fn should_report_missing_text_search_template_callback_with_42883() {
 
     // Assert
     assert_eq!(wire::error_code(result).as_deref(), Some("42883"));
+}
+
+#[test]
+fn should_reject_valid_c_backed_text_search_parser_with_0a000() {
+    // PostgreSQL 18.6 accepts these exact built-in C callbacks. Cassie
+    // excludes native C/plugin ABIs, so this valid form must reach a stable
+    // feature-not-supported rejection rather than fail callback lookup.
+    // Arrange
+    let batches = run_script(
+        "issue-799-c-backed-text-search-parser-rejection",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE TEXT SEARCH PARSER issue_799_c_parser ( \
+                    START = pg_catalog.prsd_start, \
+                    GETTOKEN = pg_catalog.prsd_nexttoken, \
+                    END = pg_catalog.prsd_end, \
+                    LEXTYPES = pg_catalog.prsd_lextype \
+                )",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame("SELECT 45 AS recovery")]),
+        ],
+    );
+
+    // Act
+    let parser_error = &batches[0];
+    let recovery = &batches[1];
+
+    // Assert
+    assert_eq!(wire::error_code(parser_error).as_deref(), Some("0A000"));
+    assert_eq!(wire::error_code(recovery), None);
+    assert_eq!(wire::data_rows(recovery), vec![vec![Some("45".to_owned())]]);
+}
+
+#[test]
+fn should_reject_valid_c_backed_text_search_template_with_0a000() {
+    // PostgreSQL 18.6 accepts these exact built-in C callbacks. Cassie
+    // excludes native C/plugin ABIs, so this valid form must reach a stable
+    // feature-not-supported rejection rather than fail callback lookup.
+    // Arrange
+    let batches = run_script(
+        "issue-799-c-backed-text-search-template-rejection",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE TEXT SEARCH TEMPLATE issue_799_c_template ( \
+                    INIT = pg_catalog.dsimple_init, \
+                    LEXIZE = pg_catalog.dsimple_lexize \
+                )",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame("SELECT 45 AS recovery")]),
+        ],
+    );
+
+    // Act
+    let template_error = &batches[0];
+    let recovery = &batches[1];
+
+    // Assert
+    assert_eq!(wire::error_code(template_error).as_deref(), Some("0A000"));
+    assert_eq!(wire::error_code(recovery), None);
+    assert_eq!(wire::data_rows(recovery), vec![vec![Some("45".to_owned())]]);
+}
+
+#[test]
+fn should_report_invalid_regular_expression_function_sqlstate() {
+    // Arrange
+    let batches = run_script(
+        "issue-799-invalid-regex-function-sqlstate",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT regexp_replace('x', 'x', 'y', 'g') AS valid_pattern",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT regexp_replace('x', '[', '', 'g') AS malformed_function_pattern",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame("SELECT 45 AS recovery")]),
+        ],
+    );
+
+    // Act
+    let valid = &batches[0];
+    let function_error = &batches[1];
+    let recovery = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(valid), None);
+    assert_eq!(wire::data_rows(valid), vec![vec![Some("y".to_owned())]]);
+    assert_invalid_pattern_error(function_error, "regexp_replace");
+    assert_eq!(wire::error_code(recovery), None);
+    assert_eq!(wire::data_rows(recovery), vec![vec![Some("45".to_owned())]]);
+}
+
+fn assert_invalid_pattern_error(frames: &[(u8, Vec<u8>)], operation: &str) {
+    assert_eq!(
+        wire::error_code(frames).as_deref(),
+        Some("2201B"),
+        "{operation} SQLSTATE; frames: {frames:?}"
+    );
+    let fields = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .map(|(_, payload)| wire::parse_error_fields(payload))
+        .expect("invalid regex ErrorResponse");
+    assert!(
+        fields.iter().any(|(kind, value)| {
+            *kind == 'M' && value.starts_with("invalid regular expression:")
+        }),
+        "{operation} must reach PostgreSQL's invalid-pattern error path: {fields:?}"
+    );
+    assert!(wire::data_rows(frames).is_empty());
 }

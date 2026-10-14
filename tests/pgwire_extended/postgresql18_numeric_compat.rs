@@ -1,7 +1,11 @@
 //! PostgreSQL 18 NUMERIC OID, typmod and codec contracts tracked by #812.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
+
+mod aggregate_special_values;
+mod numeric_aggregate_fraction;
+mod numeric_typmod_domain_edges;
 
 #[test]
 fn should_preserve_numeric_oid_typmod_text_binary_contract() {
@@ -231,6 +235,60 @@ fn should_describe_bigint_aggregate_results_as_numeric() {
 }
 
 #[test]
+fn should_keep_grouped_bigint_aggregate_types_numeric() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TABLE issue_812_grouped_bigint_values (bucket INTEGER, value BIGINT)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "INSERT INTO issue_812_grouped_bigint_values VALUES (1, 9007199254740992), (1, 9007199254740993), (2, 7), (2, 8)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE INDEX issue_812_grouped_bigint_bucket_value_idx ON issue_812_grouped_bigint_values (bucket, value)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT bucket, SUM(value), AVG(value) FROM issue_812_grouped_bigint_values WHERE bucket IN (1, 2) GROUP BY bucket ORDER BY bucket",
+        )]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-grouped-bigint-aggregates", steps);
+
+    // Assert
+    assert!(batches
+        .iter()
+        .all(|batch| wire::error_code(batch).is_none()));
+    let description = batches[3]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("grouped aggregate RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![(23, 4, -1), (1700, -1, -1), (1700, -1, -1)]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![
+            vec![
+                Some("1".to_owned()),
+                Some("18014398509481985".to_owned()),
+                Some("9007199254740992.5000".to_owned()),
+            ],
+            vec![
+                Some("2".to_owned()),
+                Some("15".to_owned()),
+                Some("7.5000000000000000".to_owned()),
+            ],
+        ]
+    );
+}
+
+#[test]
 fn should_encode_bigint_aggregate_results_as_numeric_in_binary_format() {
     // Arrange
     let statement = "bigint_aggregate_binary_results";
@@ -368,6 +426,52 @@ fn should_preserve_exact_numeric_aggregate_values_beyond_float_precision() {
 }
 
 #[test]
+fn should_preserve_numeric_aggregates_beyond_thirty_eight_digits() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TABLE issue_812_wide_numeric_aggregates (value NUMERIC)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "INSERT INTO issue_812_wide_numeric_aggregates VALUES \
+             ('123456789012345678901234567890123456789012345678.90'), (0.11)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT SUM(value), AVG(value), MAX(value) + 0.11, MAX(value) * 2 \
+             FROM issue_812_wide_numeric_aggregates",
+        )]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-wide-numeric-aggregates", steps);
+
+    // Assert
+    assert!(batches
+        .iter()
+        .all(|batch| wire::error_code(batch).is_none()));
+    let description = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("wide numeric aggregate RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![(1700, -1, -1); 4]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![
+            Some("123456789012345678901234567890123456789012345679.01".to_owned()),
+            Some("61728394506172839450617283945061728394506172839.51".to_owned()),
+            Some("123456789012345678901234567890123456789012345679.01".to_owned()),
+            Some("246913578024691357802469135780246913578024691357.80".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_decode_binary_numeric_values_beyond_thirty_eight_digits() {
     // Arrange
     let value = [
@@ -423,6 +527,67 @@ fn should_decode_binary_numeric_values_beyond_thirty_eight_digits() {
         vec![vec![Some(
             "12345678901234567890123456789012345678901234567890.12345678901234567890".to_owned()
         )]]
+    );
+}
+
+#[test]
+fn should_preserve_wide_numeric_oid_zero_binary_round_trip() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let value = [
+        0x00, 0x12, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x14, 0x00, 0x0c, 0x0d, 0x80, 0x1e, 0xd2, 0x04,
+        0xd2, 0x16, 0x2e, 0x23, 0x34, 0x0d, 0x80, 0x1e, 0xd2, 0x04, 0xd2, 0x16, 0x2e, 0x23, 0x34,
+        0x0d, 0x80, 0x1e, 0xd2, 0x04, 0xd2, 0x16, 0x2e, 0x23, 0x34, 0x0d, 0x80, 0x1e, 0xd2,
+    ];
+    let statement = "wide_oid_zero_numeric";
+    let portal = "wide_oid_zero_numeric_portal";
+    let sql = "SELECT CAST($1 AS NUMERIC) AS amount";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(statement, sql, &[0])),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(portal, statement, &[1], &[Some(&value[..])], &[1]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-wide-numeric-oid-zero-binary", steps);
+
+    // Assert
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let statement_description = &batches[1];
+    assert_eq!(wire::error_code(statement_description), None);
+    let parameter_types = statement_description
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("wide numeric ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_types.1),
+        vec![1700]
+    );
+    let statement_row_description = statement_description
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("wide numeric statement RowDescription");
+    let statement_column = &wire::parse_row_description(&statement_row_description.1)[0];
+    assert_eq!(
+        (statement_column.type_oid, statement_column.type_size),
+        (1700, -1)
+    );
+
+    let result = &batches[2];
+    assert_eq!(wire::error_code(result), None);
+    fixture::assert_single_column_descriptors(result, (1700, -1, -1), 1, true);
+    assert_eq!(
+        fixture::data_row_payloads(result),
+        vec![fixture::one_field_row(&value)]
     );
 }
 
@@ -829,11 +994,9 @@ fn should_report_numeric_bind_input_errors_with_postgresql_sqlstates() {
                 .map(|(_, payload)| wire::parse_error_fields(payload))
                 .collect::<Vec<_>>()
         );
-        assert!(
-            !error_batch
-                .iter()
-                .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C'))
-        );
+        assert!(!error_batch
+            .iter()
+            .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
         assert_eq!(
             error_batch.last().map(|frame| frame.1.as_slice()),
             Some(&b"I"[..]),

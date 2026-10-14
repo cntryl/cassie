@@ -356,9 +356,11 @@ fn should_preserve_malformed_json_array_error_classification() {
     for frames in batches {
         assert_eq!(wire::error_code(&frames).as_deref(), Some("08P01"));
         assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
-        assert!(frames
-            .iter()
-            .all(|(tag, _)| !matches!(*tag, b'T' | b'D' | b'C')));
+        assert!(
+            frames
+                .iter()
+                .all(|(tag, _)| !matches!(*tag, b'T' | b'D' | b'C'))
+        );
         assert_eq!(
             frames.last().map(|frame| frame.1.as_slice()),
             Some(&b"I"[..])

@@ -4,8 +4,32 @@ use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 use cassie::types::Value;
 
+#[path = "type_json_scalar_documents/inspection_null_semantics.rs"]
+mod inspection_null_semantics;
+#[path = "type_json_scalar_documents/json_collection_sql_json_wave.rs"]
+mod json_collection_sql_json_wave;
+#[path = "type_json_scalar_documents/json_query_quote_policies.rs"]
+mod json_query_quote_policies;
+#[path = "type_json_scalar_documents/json_query_returning_alias.rs"]
+mod json_query_returning_alias;
+#[path = "type_json_scalar_documents/jsonb_string_scalar_key_boundary.rs"]
+mod jsonb_string_scalar_key_boundary;
+#[path = "type_json_scalar_documents/jsonpath_accessor_grammar.rs"]
+mod jsonpath_accessor_grammar;
+#[path = "type_json_scalar_documents/jsonpath_item_methods.rs"]
+mod jsonpath_item_methods;
+#[path = "type_json_scalar_documents/jsonpath_null_semantics.rs"]
+mod jsonpath_null_semantics;
+#[path = "type_json_scalar_documents/jsonpath_operator_semantics.rs"]
+mod jsonpath_operator_semantics;
+#[path = "type_json_scalar_documents/operator_overload_residuals.rs"]
+mod operator_overload_residuals;
+#[path = "type_json_scalar_documents/operator_truth_tables.rs"]
+mod operator_truth_tables;
 #[path = "type_json_scalar_documents/record_table_functions.rs"]
 mod record_table_functions;
+#[path = "type_json_scalar_documents/sql_json_serialize_wave7.rs"]
+mod sql_json_serialize_wave7;
 
 const MAX_DOCUMENT: &[u8] = b"18446744073709551615";
 const NEIGHBOR_DOCUMENT: &[u8] = b"18446744073709551614";
@@ -335,6 +359,113 @@ fn should_return_typed_sql_json_query_exists_results() {
             Some("[1, 2]".to_owned()),
             Some("t".to_owned()),
         ]]
+    );
+}
+
+#[test]
+fn should_preserve_bigint_returning_identity_for_json_value() {
+    // Arrange
+    let sql = "SELECT JSON_VALUE(\
+                   '{\"n\":9223372036854775807}', \
+                   '$.n' RETURNING BIGINT\
+               ) AS value";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-json-value-returning-bigint", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (20, 8, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("9223372036854775807".to_owned())]]
+    );
+}
+
+#[test]
+fn should_preserve_jsonb_returning_identity_for_json_query() {
+    // Arrange
+    let sql = "SELECT JSON_QUERY(\
+                   '{\"n\":[1,2]}'::JSONB, \
+                   '$.n' RETURNING JSONB\
+               ) AS value";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-json-query-returning-jsonb", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3_802, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("[1, 2]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_propagate_sql_null_through_typed_json_query_functions() {
+    // Arrange
+    let sql =
+        "SELECT JSON_VALUE(NULL::JSONB, '$.n' RETURNING BIGINT ERROR ON EMPTY ERROR ON ERROR), \
+                      JSON_QUERY(NULL::JSONB, '$.n' RETURNING JSONB ERROR ON EMPTY ERROR ON ERROR)";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-json-null-typed-results", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("typed SQL/JSON RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![(20, 8, -1), (3_802, -1, -1)]
+    );
+    assert_eq!(wire::data_rows(frames), vec![vec![None, None]]);
+}
+
+#[test]
+fn should_report_json_value_returning_conversion_error_with_sqlstate() {
+    // Arrange
+    let invalid_value = fixture::execute_cycle(
+        "SELECT JSON_VALUE('{\"n\":\"bad\"}'::JSONB, '$.n' RETURNING INTEGER ERROR ON ERROR)",
+        None,
+        0,
+        true,
+    );
+    let recovery = fixture::execute_cycle("SELECT 42", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-810-json-value-returning-error",
+        &[],
+        vec![invalid_value, recovery],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    assert_eq!(wire::error_code(frames).as_deref(), Some("22P02"));
+    assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
+    assert!(
+        frames
+            .iter()
+            .all(|(tag, _)| !matches!(*tag, b'T' | b'D' | b'C')),
+        "a conversion error must not publish result rows"
+    );
+    fixture::assert_success(&batches[1]);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("42".to_owned())]]
     );
 }
 

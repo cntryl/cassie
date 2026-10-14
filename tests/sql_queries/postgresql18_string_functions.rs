@@ -1,5 +1,10 @@
 //! PostgreSQL 18 string-function, formatting and indexing contracts for #803.
 
+#[path = "postgresql18_string_functions/residual_semantics.rs"]
+mod residual_semantics;
+#[path = "postgresql18_string_functions/resource_limits.rs"]
+mod resource_limits;
+
 use cassie::app::CassieError;
 use cassie::types::Value;
 

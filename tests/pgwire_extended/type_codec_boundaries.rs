@@ -43,18 +43,11 @@ fn should_reject_invalid_fixed_scalar_binary_widths() {
 }
 
 #[test]
-fn should_reject_out_of_range_temporal_binary_parameters() {
+fn should_reject_negative_time_binary_parameter() {
     // Arrange
-    // Current adapter admission guards, including unsupported PostgreSQL-valid
-    // infinity/24:00 endpoints. These are not passing PostgreSQL cells (#814).
-    let cases: [(i32, &[u8]); 6] = [
-        (1082, &[128, 0, 0, 0]),
-        (1082, &[127, 255, 255, 255]),
-        (1083, &[255, 255, 255, 255, 255, 255, 255, 255]),
-        (1083, &[0, 0, 0, 20, 29, 215, 96, 0]),
-        (1114, &[128, 0, 0, 0, 0, 0, 0, 0]),
-        (1114, &[127, 255, 255, 255, 255, 255, 255, 255]),
-    ];
+    // DATE/TIMESTAMP infinities and TIME 24:00:00 are valid PostgreSQL values
+    // and belong to the positive #814 compatibility cases.
+    let cases = [(1083, &[255, 255, 255, 255, 255, 255, 255, 255][..])];
     let cycles = cases
         .map(|(oid, body)| {
             fixture::execute_cycle("SELECT $1 AS v", Some((oid, 1, Some(body))), 0, false)
@@ -65,7 +58,7 @@ fn should_reject_out_of_range_temporal_binary_parameters() {
     let batches = fixture::run_cycles("type-temporal-binary-range-errors", &[], cycles);
 
     // Assert
-    assert_eq!(batches.len(), 6);
+    assert_eq!(batches.len(), 1);
     for frames in batches {
         assert_eq!(wire::error_code(&frames).as_deref(), Some("22008"));
         assert_eq!(fixture::data_row_payloads(&frames), Vec::<Vec<u8>>::new());
@@ -150,8 +143,9 @@ fn should_reject_malformed_scalar_array_headers() {
     // Assert
     assert_eq!(batches.len(), 9);
     for (index, frames) in batches.into_iter().enumerate() {
-        // The excessive INT4 element reaches the shared scalar receiver.
-        let state = if index == 7 { "22P03" } else { "08P01" };
+        // A truncated INT4 value and bytes beyond a complete array payload both
+        // fail as invalid binary input; malformed outer framing is a protocol error.
+        let state = if index >= 7 { "22P03" } else { "08P01" };
         assert_eq!(wire::error_code(&frames).as_deref(), Some(state));
         assert_eq!(fixture::data_row_payloads(&frames), Vec::<Vec<u8>>::new());
         assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'T').count(), 0);

@@ -54,12 +54,15 @@ mod sql_queries {
     mod postgresql18_binary_bytea;
     mod postgresql18_ctes;
     mod postgresql18_geometry;
+    mod postgresql18_inheritance_dml_wave_g;
+    mod postgresql18_inheritance_query_wave_h;
     mod postgresql18_math_functions;
     mod postgresql18_money;
     mod postgresql18_mutations;
     mod postgresql18_network_types;
     mod postgresql18_numeric;
     mod postgresql18_pattern_matching;
+    mod postgresql18_query_inventory_wave3;
     mod postgresql18_ranges;
     mod postgresql18_relations;
     mod postgresql18_rules;
@@ -73,6 +76,7 @@ mod sql_queries {
     mod postgresql18_temporal_functions;
     mod postgresql18_text_search;
     mod postgresql18_uuid_hash_lsn;
+    mod postgresql18_values_aggregate_inventory_wave2;
     mod postgresql18_values_rows;
     mod postgresql18_xml;
 }

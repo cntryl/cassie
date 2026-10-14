@@ -1,8 +1,20 @@
 //! PostgreSQL 18 XML, `XPath` and XMLTABLE behavior tracked by #906.
 
+use cassie::app::{Cassie, CassieError};
+use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::sql_fixture;
+use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config};
+
+mod ordered_aggregation;
+
+struct XmlDirectory(String);
+
+impl Drop for XmlDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 #[test]
 fn should_evaluate_xpath_predicates_on_unicode_documents() {
@@ -41,6 +53,57 @@ fn should_extract_typed_rows_from_xmltable_in_document_order() {
             vec![Value::Int64(2), Value::String("two".to_owned())],
         ]
     );
+}
+
+#[test]
+fn should_persist_xml_documents_across_restart() {
+    // Arrange
+    crate::support_sql::use_local_storage();
+    let path = crate::support_sql::data_dir("issue-906-xml-document-restart");
+    let _directory = XmlDirectory(path.clone());
+    {
+        let cassie = Cassie::new_with_data_dir(&path).expect("create XML fixture");
+        cassie.startup().expect("start XML fixture");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE issue_906_restart_documents (id INTEGER PRIMARY KEY, document XML)",
+                vec![],
+            )
+            .expect("create XML document table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO issue_906_restart_documents VALUES \
+                    (1, XMLPARSE(DOCUMENT '<root><item id=\"7\">é</item></root>'))",
+                vec![],
+            )
+            .expect("store a parsed Unicode XML document");
+    }
+    let restarted = Cassie::new_with_data_dir(&path).expect("reopen XML fixture");
+    restarted.startup().expect("restart XML fixture");
+    let session = restarted.create_session("tester", None);
+
+    // Act
+    let result = restarted.execute_sql(
+        &session,
+        "SELECT id, XMLSERIALIZE(DOCUMENT document AS TEXT) \
+         FROM issue_906_restart_documents ORDER BY id",
+        vec![],
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("XML document survives restart").rows(),
+        &[vec![
+            Value::Int64(1),
+            Value::String("<root><item id=\"7\">é</item></root>".to_owned()),
+        ]]
+    );
+    drop(session);
+    restarted.shutdown();
+    drop(restarted);
 }
 
 #[test]
@@ -355,5 +418,37 @@ fn should_preserve_external_xml_entity_references_without_loading_resources() {
             "<!DOCTYPE root [<!ENTITY pg18_external SYSTEM \"file:///definitely-not-present/cassie-xml-external-entity\">]><root>&pg18_external;</root>"
                 .to_owned()
         )]]
+    );
+}
+
+#[test]
+fn should_reject_xmltable_expansion_over_the_result_row_limit_without_partial_rows() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.limits.max_result_rows = 2;
+    let fixture = sql_fixture_with_config("issue-906-xmltable-result-row-limit", &[], config);
+    let memory_before = fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+        .as_u64()
+        .expect("current accounted query memory");
+    let sql = "SELECT ordinal, value FROM XMLTABLE('/root/item' PASSING XMLPARSE(DOCUMENT '<root><item>A</item><item>B</item><item>C</item></root>') COLUMNS ordinal FOR ORDINALITY, value TEXT PATH 'text()') ORDER BY ordinal";
+
+    // Act
+    let result = fixture.execute(sql);
+    let memory_after = fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+        .as_u64()
+        .expect("current accounted query memory");
+    let follow_up = fixture.execute("SELECT 46::BIGINT");
+
+    // Assert
+    assert!(
+        matches!(result, Err(CassieError::ResourceLimit(_))),
+        "XMLTABLE expansion beyond max_result_rows must fail without returning a partial result: {result:?}"
+    );
+    assert_eq!(memory_after, memory_before);
+    assert_eq!(
+        follow_up
+            .expect("query after bounded XMLTABLE expansion")
+            .rows(),
+        &[vec![Value::Int64(46)]]
     );
 }

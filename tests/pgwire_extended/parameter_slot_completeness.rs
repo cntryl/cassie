@@ -1,6 +1,6 @@
 //! PostgreSQL Parse validates and retains every declared parameter slot.
 
-use super::support_parameter_occurrence_wire::{run_script, Step};
+use super::support_parameter_occurrence_wire::{Step, run_script};
 use super::support_pgwire as wire;
 
 #[test]

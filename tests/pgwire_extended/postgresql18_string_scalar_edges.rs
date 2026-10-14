@@ -1,7 +1,10 @@
 //! PostgreSQL 18 string scalar wire contracts tracked by #803.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
+
+mod issue_803_to_ascii_transliteration;
+mod format_residuals;
 
 fn error_fields(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<(char, String)>> {
     frames
@@ -682,6 +685,69 @@ fn should_enforce_parse_ident_strictness_with_postgresql_sqlstate() {
     assert_eq!(
         message,
         "string is not a valid identifier: \"foo.bar junk\""
+    );
+}
+
+#[test]
+fn should_bind_two_argument_to_ascii_with_text_binary_metadata() {
+    // Arrange
+    let value = b"abc";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "to_ascii_text_parameter",
+            "SELECT to_ascii($1, 'LATIN1') AS ascii_text",
+            &[25],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("to_ascii_text_parameter"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "to_ascii_text_portal",
+                "to_ascii_text_parameter",
+                &[1],
+                &[Some(value)],
+                &[1],
+            ),
+            wire::describe_portal_frame("to_ascii_text_portal"),
+            wire::execute_frame("to_ascii_text_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-803-to-ascii-binary-wire", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(
+        wire::error_code(&batches[1]),
+        None,
+        "to_ascii Describe errors: {:?}",
+        error_fields(&batches[1])
+    );
+    let parameters = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("to_ascii ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), vec![25]);
+    let described = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("to_ascii statement RowDescription");
+    assert_eq!(wire::parse_row_description(&described.1)[0].type_oid, 25);
+    assert_eq!(wire::error_code(&batches[2]), None);
+    let result = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("to_ascii portal RowDescription");
+    let result_column = &wire::parse_row_description(&result.1)[0];
+    assert_eq!(result_column.type_oid, 25);
+    assert_eq!(result_column.format_code, 1);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("abc".to_owned())]]
     );
 }
 

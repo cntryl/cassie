@@ -1,13 +1,26 @@
 use super::*;
 
 mod advisory_notify_gaps;
+mod cursor_sensitivity;
+mod discard_all_state;
 mod isolation_commands;
+mod prepared_transaction_error_contracts;
+mod role_setting_defaults;
 mod row_lock_dml;
 mod row_lock_matrix;
 mod row_lock_skip_locked_claims;
+mod row_lock_skip_locked_compatible_modes;
+mod select_for_update_recheck;
+mod set_session_contracts;
 mod statement_timeout;
+mod table_lock_mode_contracts;
 mod timezone_settings;
+mod transaction_aliases;
+mod transaction_chaining;
+mod two_phase_transaction_locks;
+mod unique_conflict_commit;
 mod unique_conflict_rollback;
+mod unlisten_all_active;
 
 #[test]
 fn should_execute_sql_level_prepared_statements_then_deallocate_them() {
@@ -1488,6 +1501,69 @@ fn should_discard_sequence_session_state_without_rewinding_the_sequence() {
         assert_eq!(first, 1);
         assert_eq!(db_error(&forgotten).code().code(), "55000");
         assert_eq!(next, 2);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_keep_sequence_allocation_after_transaction_rollback() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("sequence_rollback_allocation").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE SEQUENCE compat_rollback_sequence")
+            .await
+            .expect("create a sequence with PostgreSQL's default allocation step");
+        client
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin the transaction containing nextval");
+        let allocated: i64 = client
+            .query_one("SELECT nextval('compat_rollback_sequence')", &[])
+            .await
+            .expect("allocate a sequence value inside the transaction")
+            .try_get(0)
+            .expect("allocated sequence value");
+
+        // Act
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("roll back the transaction without rewinding the sequence");
+        let currval_after_rollback: i64 = client
+            .query_one("SELECT currval('compat_rollback_sequence')", &[])
+            .await
+            .expect("retain this session's currval after rollback")
+            .try_get(0)
+            .expect("current sequence value after rollback");
+        let lastval_after_rollback: i64 = client
+            .query_one("SELECT lastval()", &[])
+            .await
+            .expect("retain this session's lastval after rollback")
+            .try_get(0)
+            .expect("last sequence value after rollback");
+        let nextval_after_rollback: i64 = client
+            .query_one("SELECT nextval('compat_rollback_sequence')", &[])
+            .await
+            .expect("continue from the nontransactional sequence allocation")
+            .try_get(0)
+            .expect("next sequence value after rollback");
+
+        // Assert
+        assert_eq!(
+            (
+                allocated,
+                currval_after_rollback,
+                lastval_after_rollback,
+                nextval_after_rollback,
+            ),
+            (1, 1, 1, 2),
+            "PostgreSQL 18.6 does not roll back nextval allocation or session value history"
+        );
 
         drop(client);
         server.shutdown(connection).await;

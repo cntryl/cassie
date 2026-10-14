@@ -2,6 +2,103 @@ use super::*;
 use cassie::config::CassieRuntimeConfig;
 use std::sync::Arc;
 
+fn assert_row_lock_pair(
+    server_name: &'static str,
+    owner_mode: &'static str,
+    contender_mode: &'static str,
+    expected_conflict: bool,
+) {
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start(server_name).await;
+        let (owner, owner_connection) = server.connect().await;
+        let (contender, contender_connection) = server.connect().await;
+        execute_statements(
+            &owner,
+            &[
+                "CREATE TABLE compat_remaining_lock_pairs (id INT PRIMARY KEY)",
+                "INSERT INTO compat_remaining_lock_pairs VALUES (1)",
+            ],
+        )
+        .await
+        .expect("create a single row for the lock-pair check");
+        contender
+            .batch_execute("SET statement_timeout = '2s'")
+            .await
+            .expect("bound a missing NOWAIT implementation");
+        owner
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin the lock-owner transaction");
+        let owner_query =
+            format!("SELECT id FROM compat_remaining_lock_pairs WHERE id = 1 FOR {owner_mode}");
+        let owner_row = owner
+            .query_one(&owner_query, &[])
+            .await
+            .expect("acquire the first row lock mode");
+        contender
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin the competing lock transaction");
+        let contender_query = format!(
+            "SELECT id FROM compat_remaining_lock_pairs WHERE id = 1 \
+             FOR {contender_mode} NOWAIT"
+        );
+
+        // Act
+        let contender_result = contender.query_one(&contender_query, &[]).await;
+
+        // Assert
+        assert_eq!(owner_row.get::<_, i32>(0), 1);
+        if expected_conflict {
+            let conflict = contender_result.expect_err("NOWAIT must reject a conflicting row lock");
+            assert_eq!(
+                db_error(&conflict).code().code(),
+                "55P03",
+                "wrong SQLSTATE for {owner_mode} versus {contender_mode}: {conflict}"
+            );
+            let aborted_followup = contender.query_one("SELECT 1", &[]).await;
+            assert_eq!(
+                db_error(&aborted_followup.expect_err("a failed lock aborts its transaction"))
+                    .code()
+                    .code(),
+                "25P02"
+            );
+            contender
+                .batch_execute("ROLLBACK")
+                .await
+                .expect("recover the contender after NOWAIT failed");
+            owner
+                .batch_execute("COMMIT")
+                .await
+                .expect("release the conflicting row lock");
+            let retry = contender
+                .query_one(&contender_query, &[])
+                .await
+                .expect("the contender acquires the row after release");
+            assert_eq!(retry.get::<_, i32>(0), 1);
+        } else {
+            let contender_row = contender_result
+                .expect("PostgreSQL permits compatible row-lock modes")
+                .get::<_, i32>(0);
+            assert_eq!(contender_row, 1);
+            owner
+                .batch_execute("COMMIT")
+                .await
+                .expect("release the compatible owner lock");
+            contender
+                .batch_execute("COMMIT")
+                .await
+                .expect("release the compatible contender lock");
+        }
+
+        drop((owner, contender));
+        server.shutdown(owner_connection).await;
+        contender_connection.abort();
+        let _ = contender_connection.await;
+    });
+}
+
 #[test]
 fn should_recheck_update_predicate_after_a_row_lock_wait() {
     // Arrange
@@ -291,4 +388,163 @@ fn should_lock_only_the_relation_named_by_for_update_of() {
         worker_connection.abort();
         let _ = worker_connection.await;
     });
+}
+
+#[test]
+fn should_conflict_no_key_update_with_a_held_share_lock() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("row_lock_no_key_update_share_conflict").await;
+        let (owner, owner_connection) = server.connect().await;
+        let (contender, contender_connection) = server.connect().await;
+        execute_statements(
+            &owner,
+            &[
+                "CREATE TABLE compat_no_key_share_conflict (id INT PRIMARY KEY)",
+                "INSERT INTO compat_no_key_share_conflict VALUES (1)",
+                "BEGIN",
+            ],
+        )
+        .await
+        .expect("create the row and begin the lock owner transaction");
+        let held_row: i32 = owner
+            .query_one(
+                "SELECT id FROM compat_no_key_share_conflict WHERE id = 1 FOR SHARE",
+                &[],
+            )
+            .await
+            .expect("hold a SHARE lock on the fixture row")
+            .get(0);
+        contender
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin the competing row-lock transaction");
+
+        // Act
+        let conflict = contender
+            .query(
+                "SELECT id FROM compat_no_key_share_conflict \
+                 WHERE id = 1 FOR NO KEY UPDATE NOWAIT",
+                &[],
+            )
+            .await
+            .expect_err("NO KEY UPDATE NOWAIT conflicts with another session's SHARE lock");
+        let aborted_followup = contender.query_one("SELECT 1", &[]).await;
+        contender
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("recover the contender after its failed lock statement");
+        owner
+            .batch_execute("COMMIT")
+            .await
+            .expect("release the SHARE lock");
+        let retry: i32 = contender
+            .query_one(
+                "SELECT id FROM compat_no_key_share_conflict \
+                 WHERE id = 1 FOR NO KEY UPDATE NOWAIT",
+                &[],
+            )
+            .await
+            .expect("acquire NO KEY UPDATE after the conflicting lock is released")
+            .get(0);
+
+        // Assert
+        assert_eq!(held_row, 1);
+        assert_eq!(db_error(&conflict).code().code(), "55P03");
+        assert_eq!(
+            db_error(
+                &aborted_followup.expect_err("the lock error aborts the explicit transaction")
+            )
+            .code()
+            .code(),
+            "25P02"
+        );
+        assert_eq!(retry, 1);
+
+        drop((owner, contender));
+        server.shutdown(owner_connection).await;
+        contender_connection.abort();
+        let _ = contender_connection.await;
+    });
+}
+
+#[test]
+fn should_allow_key_share_with_key_share() {
+    // Arrange
+    let owner_mode = "KEY SHARE";
+    let contender_mode = "KEY SHARE";
+
+    // Act
+    assert_row_lock_pair("row_lock_key_share_pair", owner_mode, contender_mode, false);
+
+    // Assert
+    // The helper checks that both sessions return row id 1 without a lock error.
+}
+
+#[test]
+fn should_allow_key_share_with_share() {
+    // Arrange
+    let owner_mode = "KEY SHARE";
+    let contender_mode = "SHARE";
+
+    // Act
+    assert_row_lock_pair(
+        "row_lock_key_share_share_pair",
+        owner_mode,
+        contender_mode,
+        false,
+    );
+
+    // Assert
+    // The helper checks that both sessions return row id 1 without a lock error.
+}
+
+#[test]
+fn should_allow_share_with_share() {
+    // Arrange
+    let owner_mode = "SHARE";
+    let contender_mode = "SHARE";
+
+    // Act
+    assert_row_lock_pair("row_lock_share_pair", owner_mode, contender_mode, false);
+
+    // Assert
+    // The helper checks that both sessions return row id 1 without a lock error.
+}
+
+#[test]
+fn should_conflict_no_key_update_with_no_key_update() {
+    // Arrange
+    let owner_mode = "NO KEY UPDATE";
+    let contender_mode = "NO KEY UPDATE";
+
+    // Act
+    assert_row_lock_pair(
+        "row_lock_no_key_update_pair",
+        owner_mode,
+        contender_mode,
+        true,
+    );
+
+    // Assert
+    // The helper checks SQLSTATE 55P03, transaction recovery, and lock release.
+}
+
+#[test]
+fn should_conflict_update_with_no_key_update() {
+    // Arrange
+    let owner_mode = "NO KEY UPDATE";
+    let contender_mode = "UPDATE";
+
+    // Act
+    assert_row_lock_pair(
+        "row_lock_update_no_key_update_pair",
+        owner_mode,
+        contender_mode,
+        true,
+    );
+
+    // Assert
+    // The helper checks SQLSTATE 55P03, transaction recovery, and lock release.
 }

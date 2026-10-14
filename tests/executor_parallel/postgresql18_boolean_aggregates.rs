@@ -2,6 +2,10 @@
 
 use super::*;
 
+mod empty_partial_inputs;
+mod every_filter_partial_merge;
+mod filter_partial_merge;
+
 #[test]
 fn should_merge_boolean_aggregate_states_across_workers() {
     // Arrange

@@ -1,6 +1,18 @@
 //! PostgreSQL 18 bit-string and bytea wire contracts tracked by #816.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+mod bit_string_error_null_boundaries;
+mod bit_string_oid_zero_binary_bind;
+mod bit_string_operations_wire;
+mod bytea_bits;
+mod bytea_conversion_error_sqlstates;
+mod bytea_strings;
+mod computed_binary_operations;
+mod integer_bytea_casts;
+mod pg_type_vectors;
+mod varbit_empty_boundary;
+mod varbit_ordering_boundaries;
+
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 fn row_description(frames: &[(u8, Vec<u8>)]) -> Vec<wire::RowDescription> {
@@ -327,6 +339,53 @@ fn should_encode_binary_bit_bytea_results() {
     assert_eq!(
         data_row_bytes(result),
         vec![vec![0, 0, 0, 5, 0b1010_1000], vec![0x00, 0xff]]
+    );
+}
+
+#[test]
+fn should_order_bytea_values_by_unsigned_bytes() {
+    // Arrange
+    let sql = r"SELECT payload \
+                FROM (VALUES ('\x80'::bytea), ('\xff'::bytea), \
+                             ('\x00ff'::bytea), ('\x7f'::bytea), \
+                             ('\x00'::bytea)) AS inputs(payload) \
+                ORDER BY payload";
+    let statement = "bytea_unsigned_order";
+    let portal = "bytea_unsigned_order_binary";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(statement, sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(portal, statement, &[], &[], &[1]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-816-bytea-unsigned-order", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let columns = row_description(result);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![(17, 1)]
+    );
+    assert_eq!(
+        data_row_bytes(result),
+        vec![
+            vec![0x00],
+            vec![0x00, 0xff],
+            vec![0x7f],
+            vec![0x80],
+            vec![0xff]
+        ]
     );
 }
 

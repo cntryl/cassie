@@ -2,7 +2,19 @@ use super::*;
 use std::time::Duration;
 
 mod binary_array;
+mod binary_copy_type_matrix;
+mod constraint_ingress;
+mod force_null_csv_markers;
+mod header_match_rejections;
+mod issue_846_residual_forms;
+mod legacy_syntax;
+mod materialized_view_to;
+mod pgwire_cancellation;
+mod postgresql18_from_stdin_residuals;
+mod query_to;
 mod text_format;
+mod trigger_interactions;
+mod wave4_missing_forms;
 
 #[test]
 fn should_filter_copy_from_stdin_rows_with_copy_where() {

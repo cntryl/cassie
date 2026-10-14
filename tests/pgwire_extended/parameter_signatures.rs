@@ -1,6 +1,6 @@
 //! Input signatures adjudicated against the immutable PostgreSQL 18.6 baseline.
 
-use super::support_parameter_signature_wire::{assert_case, Case};
+use super::support_parameter_signature_wire::{Case, assert_case};
 use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 
@@ -132,8 +132,14 @@ fn should_resolve_sql_function_inputs_from_the_active_schema() {
     let setup = [
         ("CREATE SCHEMA signature_text", Vec::new()),
         ("CREATE SCHEMA signature_bool", Vec::new()),
-        ("CREATE FUNCTION signature_text.signature_pick(x TEXT) RETURNS TEXT AS \"lower(x)\"", Vec::new()),
-        ("CREATE FUNCTION signature_bool.signature_pick(x BOOLEAN) RETURNS TEXT AS \"CAST(NOT x AS TEXT)\"", Vec::new()),
+        (
+            "CREATE FUNCTION signature_text.signature_pick(x TEXT) RETURNS TEXT AS \"lower(x)\"",
+            Vec::new(),
+        ),
+        (
+            "CREATE FUNCTION signature_bool.signature_pick(x BOOLEAN) RETURNS TEXT AS \"CAST(NOT x AS TEXT)\"",
+            Vec::new(),
+        ),
     ];
     let cases = [
         (

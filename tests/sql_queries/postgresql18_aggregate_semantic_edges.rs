@@ -4,6 +4,8 @@ use cassie::types::Value;
 
 use super::super::support_sql_fixture::sql_fixture;
 
+mod hypothetical_multicolumn;
+
 #[test]
 fn should_distinguish_source_nulls_from_rollup_nulls() {
     // Arrange
@@ -387,6 +389,41 @@ fn should_return_population_zero_for_singleton_statistics() {
 }
 
 #[test]
+fn should_distinguish_sample_from_population_statistics_for_multiple_values() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-statistical-sample-population-denominators",
+        &[
+            "CREATE TABLE issue_806_statistical_denominators (n FLOAT8)",
+            "INSERT INTO issue_806_statistical_denominators VALUES (1), (3), (5), (NULL)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT var_pop(n), var_samp(n), stddev_pop(n), stddev_samp(n) \
+         FROM issue_806_statistical_denominators",
+    );
+
+    // Assert
+    let result = result.expect("sample and population statistics over multiple values");
+    assert_eq!(result.rows().len(), 1);
+    let row = &result.rows()[0];
+    assert_float_near(&row[0], 8.0 / 3.0);
+    assert_float_near(&row[1], 4.0);
+    assert_float_near(&row[2], (8.0_f64 / 3.0).sqrt());
+    assert_float_near(&row[3], 2.0);
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![701; 4]
+    );
+}
+
+#[test]
 fn should_rank_hypothetical_values_with_peer_null_rows() {
     // Arrange
     let fixture = sql_fixture(
@@ -485,6 +522,156 @@ fn should_apply_ordered_set_empty_input_null_policies() {
 }
 
 #[test]
+fn should_filter_grouped_ordered_set_statistics_before_transitions() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-filtered-ordered-set-statistics",
+        &[
+            "CREATE TABLE issue_806_filtered_statistics (bucket TEXT, value FLOAT8, selected BOOLEAN)",
+            "INSERT INTO issue_806_filtered_statistics VALUES ('kept',1,TRUE),('kept',3,TRUE),('kept',100,FALSE),('kept',5,TRUE),('empty',11,FALSE)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT bucket, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value) FILTER (WHERE selected), STDDEV_SAMP(value) FILTER (WHERE selected) FROM issue_806_filtered_statistics GROUP BY bucket ORDER BY bucket",
+    );
+
+    // Assert
+    let result = result.expect("FILTER applies before ordered-set and statistical transitions");
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![Value::String("empty".to_owned()), Value::Null, Value::Null],
+            vec![
+                Value::String("kept".to_owned()),
+                Value::Float64(3.0),
+                Value::Float64(2.0),
+            ],
+        ]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 701, 701]
+    );
+}
+
+#[test]
+fn should_filter_distinct_array_aggregation_by_ordered_inputs() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-811-array-aggregate-distinct-order-filter",
+        &[
+            "CREATE TABLE issue_811_ordered_array_values (position INT, selected BOOLEAN, value INT)",
+            "INSERT INTO issue_811_ordered_array_values VALUES (1,TRUE,2),(2,FALSE,99),(3,TRUE,NULL),(4,TRUE,1),(5,TRUE,2),(6,TRUE,NULL)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT ARRAY_AGG(DISTINCT value ORDER BY value DESC) FILTER (WHERE selected)::TEXT FROM issue_811_ordered_array_values",
+    );
+
+    // Assert
+    let result = result.expect("array_agg filters before DISTINCT and aggregate-local ordering");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("{NULL,2,1}".to_owned())]]
+    );
+    assert_eq!(result.columns()[0].type_oid, 25);
+}
+
+#[test]
+fn should_order_json_collection_aggregate_inputs() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-811-ordered-json-aggregate-strictness",
+        &[
+            "CREATE TABLE issue_811_ordered_json_values (position INT, payload JSONB)",
+            "INSERT INTO issue_811_ordered_json_values VALUES (1,'2'),(2,NULL),(3,'null'),(4,'1'),(5,'2')",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT JSON_AGG(payload ORDER BY position)::TEXT, JSONB_AGG(payload ORDER BY position)::TEXT FROM issue_811_ordered_json_values",
+    );
+
+    // Assert
+    let result = result.expect("JSON collection aggregates preserve aggregate-local order");
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::String("[2, null, null, 1, 2]".to_owned()),
+            Value::String("[2, null, null, 1, 2]".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_omit_sql_nulls_from_ordered_strict_json_aggregates() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-811-ordered-strict-json-aggregates",
+        &[
+            "CREATE TABLE issue_811_ordered_strict_json_values (position INT, payload JSONB)",
+            "INSERT INTO issue_811_ordered_strict_json_values VALUES (1,'2'),(2,NULL),(3,'null'),(4,'1'),(5,'2')",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT JSON_AGG_STRICT(payload ORDER BY position)::TEXT, JSONB_AGG_STRICT(payload ORDER BY position)::TEXT FROM issue_811_ordered_strict_json_values",
+    );
+
+    // Assert
+    let result = result.expect("strict JSON aggregates preserve order and omit SQL NULL inputs");
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::String("[2, null, 1, 2]".to_owned()),
+            Value::String("[2, null, 1, 2]".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_apply_postgres_null_policy_to_strict_json_object_aggregates() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-811-strict-json-object-aggregate-null-policy",
+        &[
+            "CREATE TABLE issue_811_strict_object_values (key TEXT, json_value JSON, jsonb_value JSONB)",
+            "INSERT INTO issue_811_strict_object_values VALUES ('skip',NULL,NULL),('keep','null','null'),('other','1','1')",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT JSON_OBJECT_AGG_STRICT(key,json_value ORDER BY key)::TEXT, JSONB_OBJECT_AGG_STRICT(key,jsonb_value ORDER BY key)::TEXT, JSON_OBJECT_AGG_UNIQUE_STRICT(key,json_value ORDER BY key)::TEXT, JSONB_OBJECT_AGG_UNIQUE_STRICT(key,jsonb_value ORDER BY key)::TEXT FROM issue_811_strict_object_values",
+    );
+
+    // Assert
+    // PostgreSQL 18.6 preserves a JSON null value for JSON aggregates while
+    // JSONB strict object aggregates omit JSONB null values.
+    let result =
+        result.expect("strict JSON object aggregates follow PostgreSQL 18.6 null behavior");
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::String("{ \"keep\" : null, \"other\" : 1 }".to_owned()),
+            Value::String("{\"other\": 1}".to_owned()),
+            Value::String("{ \"keep\" : null, \"other\" : 1 }".to_owned()),
+            Value::String("{\"other\": 1}".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_apply_exclusion_modes_to_grouped_window_aggregates() {
     // Arrange
     let fixture = sql_fixture(
@@ -533,6 +720,69 @@ fn should_apply_exclusion_modes_to_grouped_window_aggregates() {
                 Value::Int64(40),
                 Value::Null,
                 Value::Null,
+            ],
+        ]
+    );
+}
+
+#[test]
+fn should_apply_each_exclusion_mode_to_rows_window_aggregates() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-rows-frame-aggregate-exclusions",
+        &[
+            "CREATE TABLE issue_806_rows_exclusion_values (score INT, amount INT)",
+            "INSERT INTO issue_806_rows_exclusion_values VALUES (1,10),(2,20),(2,30),(3,40)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT score, amount, \
+         SUM(amount) OVER (ORDER BY score ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE NO OTHERS), \
+         SUM(amount) OVER (ORDER BY score ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW), \
+         SUM(amount) OVER (ORDER BY score ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE GROUP), \
+         SUM(amount) OVER (ORDER BY score ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES) \
+         FROM issue_806_rows_exclusion_values ORDER BY score, amount",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("ROWS frames apply each exclusion mode to duplicate peers")
+            .rows(),
+        &[
+            vec![
+                Value::Int64(1),
+                Value::Int64(10),
+                Value::Int64(100),
+                Value::Int64(90),
+                Value::Int64(90),
+                Value::Int64(100),
+            ],
+            vec![
+                Value::Int64(2),
+                Value::Int64(20),
+                Value::Int64(100),
+                Value::Int64(80),
+                Value::Int64(50),
+                Value::Int64(70),
+            ],
+            vec![
+                Value::Int64(2),
+                Value::Int64(30),
+                Value::Int64(100),
+                Value::Int64(70),
+                Value::Int64(50),
+                Value::Int64(80),
+            ],
+            vec![
+                Value::Int64(3),
+                Value::Int64(40),
+                Value::Int64(100),
+                Value::Int64(60),
+                Value::Int64(60),
+                Value::Int64(100),
             ],
         ]
     );

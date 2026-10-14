@@ -5,6 +5,20 @@ use crate::support_type_metadata_contract as fixture;
 
 #[path = "expansion_resource_limits.rs"]
 mod expansion_resource_limits;
+#[path = "record_table_functions/json_table_encoding_path_aliases.rs"]
+mod json_table_encoding_path_aliases;
+#[path = "record_table_functions/json_table_later_row_errors.rs"]
+mod json_table_later_row_errors;
+#[path = "record_table_functions/json_table_nested_semantics.rs"]
+mod json_table_nested_semantics;
+#[path = "record_table_functions/jsonb_populate_recordset.rs"]
+mod jsonb_populate_recordset;
+#[path = "record_table_functions/recordset_json_output_types.rs"]
+mod recordset_json_output_types;
+#[path = "record_table_functions/recordset_output_typmods.rs"]
+mod recordset_output_typmods;
+#[path = "record_table_functions/recordset_parameter_inference.rs"]
+mod recordset_parameter_inference;
 
 fn column_type_oids(frames: &fixture::Frames) -> Vec<i32> {
     let description = frames
@@ -175,6 +189,86 @@ fn should_apply_json_table_format_with_quote_modes() {
             Some("\"Ada\"".to_owned()),
             Some("Ada".to_owned()),
         ]]
+    );
+}
+
+#[test]
+fn should_preserve_json_table_column_typmods_over_pgwire() {
+    // Arrange
+    let sql = r#"SELECT id, amount, label
+        FROM JSON_TABLE(
+            '[{"id":7,"amount":12.345,"label":"Ada"}]'::JSONB,
+            '$[*]' COLUMNS (
+                id INTEGER PATH '$.id',
+                amount NUMERIC(8,2) PATH '$.amount',
+                label VARCHAR(5) PATH '$.label'
+            )
+        ) AS records"#;
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-json-table-column-typmods", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSON_TABLE RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![(23, 4, -1), (1_700, -1, 524_294), (1_043, -1, 9)]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("7".to_owned()),
+            Some("12.35".to_owned()),
+            Some("Ada".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_report_json_table_exists_for_present_null_or_absent_path() {
+    // Arrange
+    let sql = r#"SELECT id, has_value, has_missing
+        FROM JSON_TABLE(
+            '[{"id":1,"value":null},{"id":2}]'::JSONB,
+            '$[*]' COLUMNS (
+                id INTEGER PATH '$.id',
+                has_value BOOLEAN EXISTS PATH '$.value',
+                has_missing BOOLEAN EXISTS PATH '$.missing'
+            )
+        ) AS expanded
+        ORDER BY id"#;
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("json-table-exists-path-null-presence", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(column_type_oids(frames), vec![23, 16, 16]);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![
+                Some("1".to_owned()),
+                Some("t".to_owned()),
+                Some("f".to_owned())
+            ],
+            vec![
+                Some("2".to_owned()),
+                Some("f".to_owned()),
+                Some("f".to_owned())
+            ],
+        ]
     );
 }
 

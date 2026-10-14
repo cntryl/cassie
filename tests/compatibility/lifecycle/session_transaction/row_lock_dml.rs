@@ -326,3 +326,99 @@ fn should_release_row_lock_acquired_after_a_rolled_back_savepoint() {
         owner_rollback.expect("finish the owner transaction");
     });
 }
+
+#[test]
+fn should_release_row_lock_when_owner_session_disconnects() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("row_lock_disconnect_release").await;
+        let (owner, owner_connection) = server.connect().await;
+        let (worker, worker_connection) = server.connect().await;
+        execute_statements(
+            &owner,
+            &[
+                "CREATE TABLE compat_row_lock_disconnect (id INT PRIMARY KEY)",
+                "INSERT INTO compat_row_lock_disconnect VALUES (1)",
+                "BEGIN",
+            ],
+        )
+        .await
+        .expect("create the row-lock fixture and begin the owner transaction");
+        let owner_lock = owner
+            .query_one(
+                "SELECT id FROM compat_row_lock_disconnect WHERE id = 1 FOR UPDATE",
+                &[],
+            )
+            .await;
+        let blocked_claim = if owner_lock.is_ok() {
+            Some(
+                worker
+                    .query_one(
+                        "SELECT id FROM compat_row_lock_disconnect \
+                         WHERE id = 1 FOR UPDATE NOWAIT",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Act
+        drop(owner);
+        let owner_closed = tokio::time::timeout(Duration::from_secs(2), owner_connection).await;
+        let owner_finished = owner_closed.as_ref().is_ok_and(Result::is_ok);
+        let released_claim = if owner_finished && blocked_claim.as_ref().is_some_and(Result::is_err)
+        {
+            Some(
+                tokio::time::timeout(Duration::from_secs(2), async {
+                    loop {
+                        match worker
+                            .query_one(
+                                "SELECT id FROM compat_row_lock_disconnect \
+                                 WHERE id = 1 FOR UPDATE NOWAIT",
+                                &[],
+                            )
+                            .await
+                        {
+                            Ok(row) => break Ok(row),
+                            Err(error) if db_error(&error).code().code() == "55P03" => {
+                                tokio::time::sleep(Duration::from_millis(25)).await;
+                            }
+                            Err(error) => break Err(error),
+                        }
+                    }
+                })
+                .await,
+            )
+        } else {
+            None
+        };
+
+        drop(worker);
+        server.shutdown(worker_connection).await;
+
+        // Assert
+        assert!(owner_lock.is_ok(), "owner should acquire the row lock");
+        assert!(
+            owner_finished,
+            "the owner session should disconnect cleanly"
+        );
+        assert_eq!(
+            db_error(
+                &blocked_claim
+                    .expect("worker should attempt the locked row")
+                    .expect_err("NOWAIT rejects a row lock held by another session")
+            )
+            .code()
+            .code(),
+            "55P03"
+        );
+        let released_claim = released_claim
+            .expect("worker should retry after the owner disconnects")
+            .expect("the row lock should be released before the bounded deadline")
+            .expect("the worker should acquire the released row");
+        assert_eq!(released_claim.get::<_, i32>(0), 1);
+    });
+}

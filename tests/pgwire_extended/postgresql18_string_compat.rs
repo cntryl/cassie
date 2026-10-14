@@ -4,12 +4,14 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
-use crate::support_sql_fixture::{sql_fixture_with_config, SqlFixture};
+use crate::support_sql_fixture::{SqlFixture, sql_fixture_with_config};
 use cassie::app::{Cassie, CassieError};
 use cassie::config::CassieRuntimeConfig;
 use tokio::io::AsyncWriteExt;
+
+mod format_parameter_wires;
 
 fn configured_fixture(label: &str, maximum_rows: usize) -> (SqlFixture, CassieRuntimeConfig) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
@@ -1041,5 +1043,51 @@ fn should_cancel_rows_from_set_expansion_without_partial_rows_or_stale_cancellat
     assert_eq!(
         wire::data_rows(&recovery),
         vec![vec![Some("45".to_owned())]]
+    );
+}
+
+#[test]
+fn should_use_explicit_timezone_for_timestamptz_series_across_dst() {
+    // Arrange
+    let query = "SELECT value FROM generate_series(\
+        '2024-03-09 12:00:00-05'::TIMESTAMPTZ, \
+        '2024-03-12 12:00:00-04'::TIMESTAMPTZ, \
+        INTERVAL '1 day', 'America/New_York') AS series(value)";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ThroughReady(vec![wire::simple_query_frame(query)]),
+    ];
+
+    // Act
+    let batches = run_script("issue-808-generate-series-explicit-timezone-dst", steps);
+
+    // Assert
+    let result = &batches[1];
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "wire errors: {:?}",
+        result
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, body)| wire::parse_error_fields(body))
+            .collect::<Vec<_>>()
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("four-argument generate_series RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)[0].type_oid,
+        1_184
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![
+            vec![Some("2024-03-09 17:00:00+00".to_owned())],
+            vec![Some("2024-03-10 16:00:00+00".to_owned())],
+            vec![Some("2024-03-11 16:00:00+00".to_owned())],
+            vec![Some("2024-03-12 16:00:00+00".to_owned())],
+        ]
     );
 }

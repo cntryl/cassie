@@ -1,5 +1,51 @@
+use super::support_parameter_occurrence_wire::{Step, run_script};
 use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
+
+#[test]
+fn should_report_mixed_conditional_type_sqlstate_before_scanning() {
+    // Arrange
+    let batches = run_script(
+        "issue-802-incompatible-types-before-scan",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE TABLE issue_802_empty_types (number INT, flag BOOLEAN)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT GREATEST(number, flag) FROM issue_802_empty_types",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT count(*) FROM issue_802_empty_types",
+            )]),
+        ],
+    );
+
+    // Act
+    let created = &batches[0];
+    let invalid = &batches[1];
+    let empty_scan = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(created), None);
+    assert_eq!(wire::error_code(invalid).as_deref(), Some("42804"));
+    let error = invalid
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .expect("incompatible GREATEST types ErrorResponse");
+    let fields = wire::parse_error_fields(&error.1);
+    assert!(
+        fields.iter().any(|(field, message)| {
+            *field == 'M' && message == "GREATEST types integer and boolean cannot be matched"
+        }),
+        "must reach common-type resolution: {fields:?}"
+    );
+    assert!(wire::data_rows(invalid).is_empty());
+    assert_eq!(wire::error_code(empty_scan), None);
+    assert_eq!(
+        wire::data_rows(empty_scan),
+        vec![vec![Some("0".to_owned())]]
+    );
+}
 
 #[test]
 fn should_preserve_conditional_descriptors_across_wire_formats() {

@@ -1,5 +1,8 @@
 use super::*;
 
+mod advisory_lock_key_space_identity;
+mod notification_deduplication_key;
+
 #[test]
 fn should_return_float8_notification_queue_usage() {
     // Arrange

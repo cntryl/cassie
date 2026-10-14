@@ -1,8 +1,13 @@
 use super::*;
 
+mod concurrent_conflict;
 mod constraint_control;
 mod constraint_lifecycle;
+mod deferred_partial_exclusion_set_constraints;
 mod foreign_key_actions;
+mod no_inherit_check;
+mod postgresql18_constraint_contract_wave;
+mod temporal_period_catalog;
 
 #[test]
 fn should_enforce_exclusion_predicate_report_sqlstate() {

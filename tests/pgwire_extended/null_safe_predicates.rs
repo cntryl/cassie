@@ -55,11 +55,7 @@ fn should_preserve_null_safe_array_boolean_wire_identity() {
             assert_eq!(wire::parse_row_description(payload)[0].name, label);
         }
         let body: &[u8] = if format == 0 {
-            if value {
-                b"t"
-            } else {
-                b"f"
-            }
+            if value { b"t" } else { b"f" }
         } else if value {
             &[1]
         } else {

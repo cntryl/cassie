@@ -1,6 +1,6 @@
 //! PostgreSQL OID wire identities use all 32 network bits.
 
-use super::support_parameter_occurrence_wire::{run_script, Step};
+use super::support_parameter_occurrence_wire::{Step, run_script};
 use super::support_pgwire as wire;
 
 #[test]

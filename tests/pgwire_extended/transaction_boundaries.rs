@@ -1,7 +1,7 @@
 //! Selected transaction state laws exercised through independent wire sessions.
 
 use super::support_pgwire as wire;
-use super::support_pgwire_transaction_boundary::{run_boundary, run_cycle, run_script, Prefix};
+use super::support_pgwire_transaction_boundary::{Prefix, run_boundary, run_cycle, run_script};
 
 #[test]
 fn should_keep_extended_writes_private_until_sync() {

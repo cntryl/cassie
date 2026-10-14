@@ -1,7 +1,7 @@
 //! Finite CON-10 qualification over ordinary simple and declared Bind ingress.
 
 use super::support_pgwire as wire;
-use super::support_skipped_conflict_returning_wire::{run, Execution, Frames, Transcript};
+use super::support_skipped_conflict_returning_wire::{Execution, Frames, Transcript, run};
 
 fn expected_columns(key: &str) -> Vec<wire::RowDescription> {
     [(key, 20, 8), ("note", 25, -1)]

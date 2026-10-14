@@ -1,5 +1,9 @@
 use super::*;
 
+mod schema_authorization_elements;
+mod schema_owner_transfer;
+mod temp_views;
+
 #[test]
 fn should_keep_global_temporary_tables_isolated_to_their_session() {
     // Arrange
@@ -177,5 +181,61 @@ fn should_create_a_temporary_table_from_a_query_as_relation_form() {
 
         drop(client);
         server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_remove_temporary_table_indexes_when_the_owner_session_disconnects() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("temporary_index_disconnect_lifecycle").await;
+        let (owner, owner_connection) = server.connect().await;
+        let (observer, observer_connection) = server.connect().await;
+        owner
+            .batch_execute(
+                "CREATE TEMP TABLE compat_temp_index_rows (id INTEGER NOT NULL); \
+                 CREATE INDEX compat_temp_index_rows_id_idx \
+                 ON compat_temp_index_rows (id)",
+            )
+            .await
+            .expect("create a temporary table and its index");
+        let index_exists: bool = owner
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class \
+                 WHERE relname = 'compat_temp_index_rows_id_idx' AND relkind = 'i')",
+                &[],
+            )
+            .await
+            .expect("read the temporary index catalog entry")
+            .get(0);
+
+        // Act
+        drop(owner);
+        owner_connection.abort();
+        let _ = owner_connection.await;
+        let remaining_objects: i64 = observer
+            .query_one(
+                "SELECT COUNT(*) FROM pg_catalog.pg_class \
+                 WHERE relname IN \
+                 ('compat_temp_index_rows', 'compat_temp_index_rows_id_idx')",
+                &[],
+            )
+            .await
+            .expect("check that disconnect released temporary catalog entries")
+            .get(0);
+
+        // Assert
+        assert!(
+            index_exists,
+            "the temporary index must be registered in pg_class"
+        );
+        assert_eq!(
+            remaining_objects, 0,
+            "the temporary table and its index must be removed when the owner disconnects"
+        );
+
+        drop(observer);
+        server.shutdown(observer_connection).await;
     });
 }

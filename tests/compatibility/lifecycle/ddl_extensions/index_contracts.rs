@@ -1,5 +1,20 @@
 use super::*;
 
+mod drop_index_if_exists_scope;
+mod generated_index_name;
+mod included_partial_indexes;
+mod maintenance_contracts;
+mod maintenance_options;
+mod nulls_not_distinct;
+mod operator_class_key_modifiers;
+mod partial_index_query_equivalence;
+mod reindex_database_concurrent_ddl;
+mod reindex_options;
+mod reindex_table_schema_concurrent;
+mod residual_storage_maintenance;
+mod selected_access_methods;
+mod storage_parameter_options;
+
 #[test]
 fn should_report_descending_btree_key_order() {
     // Arrange
@@ -294,6 +309,69 @@ fn should_publish_table_statistics_after_analyze() {
 
         // Assert
         assert_eq!(most_common.as_deref(), Some("{common}"));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_drop_only_the_schema_qualified_index_without_an_on_clause() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("schema_qualified_index_drop").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE SCHEMA compat_index_drop_left",
+                "CREATE SCHEMA compat_index_drop_right",
+                "CREATE TABLE compat_index_drop_left.rows (id INT)",
+                "CREATE TABLE compat_index_drop_right.rows (id INT)",
+                "CREATE INDEX shared_idx ON compat_index_drop_left.rows (id)",
+                "CREATE INDEX shared_idx ON compat_index_drop_right.rows (id)",
+            ],
+        )
+        .await
+        .expect("create same-named indexes in separate schemas");
+
+        // Act
+        client
+            .batch_execute("DROP INDEX compat_index_drop_left.shared_idx")
+            .await
+            .expect("drop the index resolved in the selected schema");
+        let remaining = client
+            .query(
+                "SELECT schemaname, indexname, tablename \
+                 FROM pg_catalog.pg_indexes \
+                 WHERE indexname = 'shared_idx' \
+                   AND schemaname IN ('compat_index_drop_left', 'compat_index_drop_right') \
+                 ORDER BY schemaname",
+                &[],
+            )
+            .await
+            .expect("read the remaining same-named index");
+
+        // Assert
+        let remaining = remaining
+            .iter()
+            .map(|row| {
+                (
+                    row.get::<_, String>(0),
+                    row.get::<_, String>(1),
+                    row.get::<_, String>(2),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            remaining,
+            vec![(
+                "compat_index_drop_right".to_string(),
+                "shared_idx".to_string(),
+                "rows".to_string(),
+            )]
+        );
 
         drop(client);
         server.shutdown(connection).await;

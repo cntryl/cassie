@@ -1,6 +1,12 @@
 //! PostgreSQL 18 XML type and parser errors tracked by #906.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+#[path = "postgresql18_xml_compat/xmltable_cancellation.rs"]
+mod xmltable_cancellation;
+
+#[path = "postgresql18_xml_compat/xmltable_wire_typing.rs"]
+mod xmltable_wire_typing;
+
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 fn binary_data_rows(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<Option<Vec<u8>>>> {

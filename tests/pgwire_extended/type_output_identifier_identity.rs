@@ -1,6 +1,14 @@
 use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 
+#[path = "type_output_identifier_identity/regoperator_lookup_wire.rs"]
+mod regoperator_lookup_wire;
+
+#[path = "type_output_identifier_identity/quoted_regclass_output.rs"]
+mod quoted_regclass_output;
+#[path = "type_output_identifier_identity/regclass_search_path.rs"]
+mod regclass_search_path;
+
 #[test]
 fn should_preserve_stored_identifier_identity_in_wire_output_metadata() {
     // Arrange
@@ -197,9 +205,11 @@ fn should_encode_regrole_with_its_role_oid_on_wire() {
         if format == 0 {
             let fields = wire::parse_data_row(&rows[0]);
             assert_eq!(fields[0].as_deref(), Some("issue_818_wire_role"));
-            assert!(fields[1]
-                .as_ref()
-                .is_some_and(|value| value.parse::<u32>().is_ok()));
+            assert!(
+                fields[1]
+                    .as_ref()
+                    .is_some_and(|value| value.parse::<u32>().is_ok())
+            );
         } else {
             let fields = raw_data_row_fields(&rows[0]);
             assert_eq!(fields.len(), 2);

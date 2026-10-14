@@ -85,9 +85,11 @@ fn should_recover_from_boolean_binary_width_errors_after_sync() {
         let rejected = &pair[0];
         assert_eq!(wire::error_code(rejected).as_deref(), Some(state));
         assert_eq!(rejected.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
-        assert!(!rejected
-            .iter()
-            .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C')));
+        assert!(
+            !rejected
+                .iter()
+                .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C'))
+        );
         assert_eq!(
             rejected.last().map(|frame| frame.1.as_slice()),
             Some(&b"I"[..])
@@ -221,9 +223,11 @@ fn should_preserve_named_boolean_statement_metadata_across_rebindings() {
     for ((body, format, state), frames) in cases.into_iter().zip(batches) {
         if let Some(state) = state {
             assert_eq!(wire::error_code(&frames).as_deref(), Some(state));
-            assert!(!frames
-                .iter()
-                .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C')));
+            assert!(
+                !frames
+                    .iter()
+                    .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C'))
+            );
             assert_eq!(
                 frames.last().map(|frame| frame.1.as_slice()),
                 Some(&b"I"[..])

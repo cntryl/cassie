@@ -61,7 +61,7 @@ fn is_stale(entry: &std::fs::DirEntry, now: SystemTime) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_stale, sweep_stale_once, PREFIX, STALE_AFTER};
+    use super::{PREFIX, STALE_AFTER, is_stale, sweep_stale_once};
 
     use std::time::{Duration, SystemTime};
 

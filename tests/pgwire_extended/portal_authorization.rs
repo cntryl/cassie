@@ -1,7 +1,7 @@
 //! Current authority on retained materialized and cursor portal pages.
 
 use super::support_portal_authorization::{
-    assert_denied, assert_materialized_first_page, collect, Scenario,
+    Scenario, assert_denied, assert_materialized_first_page, collect,
 };
 
 #[test]

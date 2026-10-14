@@ -2,9 +2,12 @@
 
 use std::time::Duration;
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 use tokio::io::AsyncWriteExt;
+
+mod row_ordering_null_stopping;
+mod values_typed_source_descriptors;
 
 struct GrammarFixtureDirectory(String);
 
@@ -566,6 +569,90 @@ fn should_describe_values_relation_columns_over_pgwire() {
         vec![
             vec![Some("1".to_owned()), Some("alpha".to_owned())],
             vec![None, Some("beta".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_bind_oid_zero_bigint_parameters_in_values_over_extended_protocol() {
+    // Arrange
+    let sql =
+        "SELECT v.id FROM (VALUES ($1::BIGINT), ($2::BIGINT)) AS v(id) ORDER BY id NULLS FIRST";
+    let high_value = 9_007_199_254_740_993_i64.to_be_bytes();
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "values_bigint_parameters",
+            sql,
+            &[0, 0],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("values_bigint_parameters"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "values_bigint_portal",
+                "values_bigint_parameters",
+                &[1],
+                &[Some(&high_value), None],
+                &[1],
+            ),
+            wire::describe_portal_frame("values_bigint_portal"),
+            wire::execute_frame("values_bigint_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-800-values-parameter-wire", steps);
+
+    // Assert
+    assert_eq!(
+        wire::error_code(&batches[0]),
+        None,
+        "VALUES parameter Parse SQLSTATE; frames: {:?}",
+        batches[0]
+    );
+    assert_eq!(
+        batches[0].iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
+        vec![b'1']
+    );
+    assert_eq!(wire::error_code(&batches[1]), None);
+    let parameters = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("inferred VALUES ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameters.1),
+        vec![20, 20]
+    );
+    let statement_description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("VALUES statement RowDescription");
+    let statement_columns = wire::parse_row_description(&statement_description.1);
+    assert_eq!(statement_columns[0].name, "id");
+    assert_eq!(statement_columns[0].type_oid, 20);
+
+    let bound = &batches[2];
+    assert_eq!(wire::error_code(bound), None);
+    let portal_description = bound
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("binary VALUES portal RowDescription");
+    let portal_columns = wire::parse_row_description(&portal_description.1);
+    assert_eq!(portal_columns[0].type_oid, 20);
+    assert_eq!(portal_columns[0].format_code, 1);
+    let data_rows = bound
+        .iter()
+        .filter(|(tag, _)| *tag == b'D')
+        .map(|(_, payload)| payload.as_slice())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        data_rows,
+        vec![
+            &[0, 1, 255, 255, 255, 255][..],
+            &[0, 1, 0, 0, 0, 8, 0, 32, 0, 0, 0, 0, 0, 1][..],
         ]
     );
 }

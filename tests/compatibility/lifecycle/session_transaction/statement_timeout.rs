@@ -60,6 +60,53 @@ fn should_accept_statement_timeout_setting() {
 }
 
 #[test]
+fn should_restore_session_lock_timeout_after_local_setting_rollback() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("local_lock_timeout_rollback").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("SET lock_timeout = '17s'")
+            .await
+            .expect("set the session timeout before the transaction");
+        client
+            .batch_execute("BEGIN READ ONLY")
+            .await
+            .expect("begin a read-only transaction");
+        client
+            .batch_execute("SET LOCAL lock_timeout = '5s'")
+            .await
+            .expect("override the session timeout for this transaction");
+        let transaction_timeout: String = client
+            .query_one("SHOW lock_timeout", &[])
+            .await
+            .expect("read the transaction-local timeout")
+            .try_get(0)
+            .expect("transaction-local timeout text");
+
+        // Act
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("roll back the read-only transaction");
+        let session_timeout: String = client
+            .query_one("SHOW lock_timeout", &[])
+            .await
+            .expect("read the session timeout restored by rollback")
+            .try_get(0)
+            .expect("restored session timeout text");
+
+        // Assert
+        assert_eq!(transaction_timeout, "5s");
+        assert_eq!(session_timeout, "17s");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_cancel_overdue_statement_with_sqlstate() {
     // Arrange
     let runtime = current_thread_runtime();

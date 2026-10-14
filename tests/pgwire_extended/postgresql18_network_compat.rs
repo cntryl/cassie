@@ -1,7 +1,16 @@
 //! PostgreSQL 18 network and hardware-address wire contract tracked by #816.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
+
+mod ipv4_arithmetic_boundaries;
+mod ipv4_arithmetic_overflow;
+#[path = "postgresql18_network_compat/ipv6_codecs.rs"]
+mod ipv6_codecs;
+#[path = "postgresql18_network_compat/ipv6_semantics.rs"]
+mod ipv6_semantics;
+mod macaddr8_set7bit;
+mod macaddr_trunc_identity;
 
 fn row_columns(frames: &[(u8, Vec<u8>)]) -> Vec<wire::RowDescription> {
     let description = frames
@@ -128,10 +137,83 @@ fn should_send_network_values_in_postgresql_binary_format() {
         binary_row(&batches[1]),
         vec![
             vec![2, 24, 0, 4, 192, 0, 2, 9],
-            vec![3, 64, 0, 16, 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,],
+            vec![
+                3, 64, 0, 16, 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+            ],
             vec![2, 24, 1, 4, 192, 0, 2, 0],
             vec![0x08, 0x00, 0x2b, 0x01, 0x02, 0x03],
             vec![0x08, 0x00, 0x2b, 0x01, 0x02, 0x03, 0x04, 0x05],
+        ]
+    );
+}
+
+#[test]
+fn should_preserve_maximum_network_address_ordering() {
+    // Arrange
+    let sql = "SELECT CAST('255.255.255.255/32' AS INET) AS ipv4_max, CAST('ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128' AS INET) AS ipv6_max, CAST('255.255.255.255/32' AS CIDR) AS ipv4_cidr_max, CAST('ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128' AS CIDR) AS ipv6_cidr_max, CAST('255.255.255.255/32' AS INET) < CAST('ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128' AS INET) AS ipv4_before_ipv6";
+    let statement = "network_maximum_values";
+    let portal = "network_maximum_values_binary";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(sql)]),
+        Step::ParseFlush(wire::parse_frame(statement, sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(portal, statement, &[], &[], &[1]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-network-maximum-addresses", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let text_columns = row_columns(&batches[0]);
+    assert_eq!(
+        text_columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![869, 869, 650, 650, 16]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some("255.255.255.255/32".to_owned()),
+            Some("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128".to_owned()),
+            Some("255.255.255.255/32".to_owned()),
+            Some("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128".to_owned()),
+            Some("t".to_owned()),
+        ]]
+    );
+
+    let binary_result = &batches[2];
+    assert_eq!(wire::error_code(binary_result), None);
+    let columns = row_columns(binary_result);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![
+            (869, -1, 1),
+            (869, -1, 1),
+            (650, -1, 1),
+            (650, -1, 1),
+            (16, 1, 1),
+        ]
+    );
+    let ipv6_inet = [vec![3, 128, 0, 16], vec![u8::MAX; 16]].concat();
+    let ipv6_cidr = [vec![3, 128, 1, 16], vec![u8::MAX; 16]].concat();
+    assert_eq!(
+        binary_row(binary_result),
+        vec![
+            vec![2, 32, 0, 4, 255, 255, 255, 255],
+            ipv6_inet,
+            vec![2, 32, 1, 4, 255, 255, 255, 255],
+            ipv6_cidr,
+            vec![1],
         ]
     );
 }
@@ -391,6 +473,131 @@ fn should_reject_invalid_network_binary_payloads_then_recover() {
             wire::data_rows(&batches[2]),
             vec![vec![Some("42".to_owned())]],
             "recovery result: {case_name}"
+        );
+    }
+}
+
+#[test]
+fn should_reject_invalid_macaddr_binary_widths_then_recover() {
+    // Arrange
+    let valid_macaddr = [0x08, 0x00, 0x2b, 0x01, 0x02, 0x03];
+    let short_macaddr = valid_macaddr[..5].to_vec();
+    let mut long_macaddr = valid_macaddr.to_vec();
+    long_macaddr.push(0);
+    let valid_macaddr8 = [0x08, 0x00, 0x2b, 0x01, 0x02, 0x03, 0x04, 0x05];
+    let short_macaddr8 = valid_macaddr8[..7].to_vec();
+    let mut long_macaddr8 = valid_macaddr8.to_vec();
+    long_macaddr8.push(0);
+    let cases: [(&str, i32, &[u8], &str, &[u8], &str, i16); 4] = [
+        (
+            "macaddr_short",
+            829,
+            short_macaddr.as_slice(),
+            "08P01",
+            &valid_macaddr,
+            "08:00:2b:01:02:03",
+            6,
+        ),
+        (
+            "macaddr_trailing",
+            829,
+            long_macaddr.as_slice(),
+            "22P03",
+            &valid_macaddr,
+            "08:00:2b:01:02:03",
+            6,
+        ),
+        (
+            "macaddr8_short",
+            774,
+            short_macaddr8.as_slice(),
+            "08P01",
+            &valid_macaddr8,
+            "08:00:2b:01:02:03:04:05",
+            8,
+        ),
+        (
+            "macaddr8_trailing",
+            774,
+            long_macaddr8.as_slice(),
+            "22P03",
+            &valid_macaddr8,
+            "08:00:2b:01:02:03:04:05",
+            8,
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (case_name, type_oid, malformed, _, valid, _, _) in cases {
+        let statement = format!("network_binary_{case_name}");
+        let invalid_portal = format!("network_invalid_{case_name}");
+        let valid_portal = format!("network_valid_{case_name}");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            &statement,
+            "SELECT $1 AS address",
+            &[type_oid],
+        )));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                &invalid_portal,
+                &statement,
+                &[1],
+                &[Some(malformed)],
+                &[0],
+            ),
+            wire::describe_portal_frame(&invalid_portal),
+            wire::execute_frame(&invalid_portal),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(&valid_portal, &statement, &[1], &[Some(valid)], &[0]),
+            wire::describe_portal_frame(&valid_portal),
+            wire::execute_frame(&valid_portal),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("postgresql18-macaddr-binary-width-errors", steps);
+
+    // Assert
+    assert_eq!(batches.len(), cases.len() * 3);
+    for (index, (case_name, type_oid, _, expected_state, _, expected_text, type_size)) in
+        cases.iter().enumerate()
+    {
+        let offset = index * 3;
+        assert_eq!(batches[offset].first().map(|frame| frame.0), Some(b'1'));
+
+        let invalid = &batches[offset + 1];
+        assert_eq!(
+            wire::error_code(invalid).as_deref(),
+            Some(*expected_state),
+            "PostgreSQL 18.6 binary width SQLSTATE: {case_name}"
+        );
+        assert!(
+            !invalid
+                .iter()
+                .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')),
+            "invalid network binary input must not return a result: {case_name}"
+        );
+        assert_eq!(
+            invalid.last().map(|frame| frame.1.as_slice()),
+            Some(&b"I"[..]),
+            "malformed Bind should return ReadyForQuery: {case_name}"
+        );
+
+        let recovered = &batches[offset + 2];
+        assert_eq!(wire::error_code(recovered), None, "recovery: {case_name}");
+        let column = &row_columns(recovered)[0];
+        assert_eq!(column.type_oid, *type_oid, "rebound type OID: {case_name}");
+        assert_eq!(
+            column.type_size, *type_size,
+            "rebound type width: {case_name}"
+        );
+        assert_eq!(column.format_code, 0, "text output format: {case_name}");
+        assert_eq!(
+            wire::data_rows(recovered),
+            vec![vec![Some((*expected_text).to_owned())]],
+            "valid Bind recovers the same prepared statement: {case_name}"
         );
     }
 }

@@ -4,6 +4,8 @@ use cassie::types::Value;
 
 use crate::support_sql_fixture::sql_fixture;
 
+mod support_function_search_path;
+
 #[test]
 fn should_apply_implicit_sql_defined_cast_during_function_resolution() {
     // Arrange
@@ -31,6 +33,38 @@ fn should_apply_implicit_sql_defined_cast_during_function_resolution() {
             .expect("implicit custom cast in function resolution")
             .rows(),
         &[vec![Value::String("42!".to_owned())]]
+    );
+}
+
+#[test]
+fn should_apply_an_explicit_sql_defined_cast_to_a_composite_value() {
+    // Arrange
+    let fixture = sql_fixture("issue-911-explicit-sql-defined-cast", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE TYPE issue_911_explicit_pair AS (n INTEGER)")
+        .expect("create a composite source type");
+    fixture
+        .execute(
+            "CREATE FUNCTION issue_911_explicit_pair_text(issue_911_explicit_pair) \
+             RETURNS TEXT LANGUAGE SQL IMMUTABLE AS $$ SELECT ($1).n::text $$",
+        )
+        .expect("create the explicit cast support function");
+    fixture
+        .execute(
+            "CREATE CAST (issue_911_explicit_pair AS TEXT) \
+             WITH FUNCTION issue_911_explicit_pair_text(issue_911_explicit_pair)",
+        )
+        .expect("register the explicit cast");
+    let sql = "SELECT CAST(ROW(42)::issue_911_explicit_pair AS TEXT)";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("explicit composite-to-text cast").rows(),
+        &[vec![Value::String("42".to_owned())]]
     );
 }
 
@@ -102,4 +136,53 @@ fn should_apply_a_user_defined_inout_assignment_cast_to_jsonb() {
 
     // Assert
     assert_eq!(selected.rows(), &[vec![Value::Json(serde_json::json!(42))]]);
+}
+
+#[test]
+fn should_publish_user_defined_cast_catalog_metadata() {
+    // Arrange
+    let fixture = sql_fixture("issue-911-cast-catalog-contract", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE TYPE issue_911_cast_payload AS (n INTEGER)")
+        .expect("create a composite source type");
+    fixture
+        .execute(
+            "CREATE FUNCTION issue_911_cast_payload_text(issue_911_cast_payload) \
+             RETURNS TEXT LANGUAGE SQL IMMUTABLE AS $$ SELECT ($1).n::text $$",
+        )
+        .expect("create the cast support function");
+    fixture
+        .execute(
+            "CREATE CAST (issue_911_cast_payload AS TEXT) \
+             WITH FUNCTION issue_911_cast_payload_text(issue_911_cast_payload) \
+             AS ASSIGNMENT",
+        )
+        .expect("register the assignment cast");
+
+    // Act
+    let catalog = fixture
+        .execute(
+            "SELECT source.typname, target.typname, cast.castcontext::text, \
+                    cast.castmethod::text, support.proname \
+             FROM pg_catalog.pg_cast AS cast \
+             JOIN pg_catalog.pg_type AS source ON source.oid = cast.castsource \
+             JOIN pg_catalog.pg_type AS target ON target.oid = cast.casttarget \
+             JOIN pg_catalog.pg_proc AS support ON support.oid = cast.castfunc \
+             WHERE source.typname = 'issue_911_cast_payload' \
+               AND target.typname = 'text'",
+        )
+        .expect("read the created cast's PostgreSQL catalog identity");
+
+    // Assert
+    assert_eq!(
+        catalog.rows(),
+        &[vec![
+            Value::String("issue_911_cast_payload".to_owned()),
+            Value::String("text".to_owned()),
+            Value::String("a".to_owned()),
+            Value::String("f".to_owned()),
+            Value::String("issue_911_cast_payload_text".to_owned()),
+        ]]
+    );
 }

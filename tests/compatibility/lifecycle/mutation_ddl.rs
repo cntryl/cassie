@@ -1,6 +1,9 @@
 use super::*;
 
+mod conditional_upsert_contract;
 mod conflict_opclass_inference;
+mod partial_index_predicate_inference;
+mod postgresql18_inheritance;
 
 #[test]
 fn should_update_rows_from_a_joined_source() {

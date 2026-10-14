@@ -4,6 +4,12 @@ use super::support_sql_fixture::sql_fixture;
 use cassie::app::Cassie;
 use cassie::types::Value;
 
+mod identifier_residuals;
+mod oid_identity_wave;
+mod text_search_identifier_lookup_wave;
+mod user_function_overload_resolution;
+mod vector_catalog_contracts;
+
 fn type_row(oid: i64, name: &str, length: i64, element: i64) -> Vec<Value> {
     vec![
         Value::Int64(oid),

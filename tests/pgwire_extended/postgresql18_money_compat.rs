@@ -3,6 +3,9 @@
 use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
+mod money_integer_division_rounding;
+mod money_residuals;
+
 #[test]
 fn should_preserve_money_type_oids_through_sum() {
     // Arrange
@@ -595,5 +598,31 @@ fn should_decode_negative_binary_money_parameters_as_negative_c_locale_text() {
     assert_eq!(
         wire::data_rows(result),
         vec![vec![Some("-$12.34".to_owned())]]
+    );
+}
+
+#[test]
+fn should_report_money_sum_overflow_with_numeric_value_out_of_range_sqlstate() {
+    // Arrange
+    let overflow = "SELECT SUM(amount) FROM (VALUES ('92233720368547758.07'::money), ('0.01'::money)) AS valueset(amount)";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(overflow)]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 47")]),
+    ];
+
+    // Act
+    let batches = run_script("issue-908-money-sum-overflow", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 2);
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22003"));
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("47".to_owned())]]
     );
 }

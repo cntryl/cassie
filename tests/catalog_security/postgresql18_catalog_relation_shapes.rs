@@ -1,6 +1,12 @@
 //! PostgreSQL 18.6 catalog relation descriptors tracked by #817.
 
-use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+mod catalog_introspection_functions;
+mod information_schema_contracts;
+mod object_identity_functions;
+mod size_information_contracts;
+mod system_session_contracts;
+
+use crate::support_sql_fixture::{SqlFixture, sql_fixture};
 
 fn catalog_column_names(fixture: &SqlFixture, relation: &str) -> Vec<String> {
     let sql = format!("SELECT * FROM pg_catalog.{relation} LIMIT 0");

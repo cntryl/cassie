@@ -1,7 +1,7 @@
 //! Measured source admission followed by the existing cumulative-retention law.
 
 use super::support_pgwire as wire;
-use super::support_portal_memory_calibration::{runtime, Fixture, Frames};
+use super::support_portal_memory_calibration::{Fixture, Frames, runtime};
 
 fn assert_suspended_page(frames: &Frames) {
     assert_eq!(wire::error_code(frames), None, "{frames:?}");

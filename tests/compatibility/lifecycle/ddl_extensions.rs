@@ -1,9 +1,17 @@
 use super::*;
 
 mod atomic_drop;
+mod default_range_partition_routing;
+mod extension_catalog_coverage;
+mod extension_schema_relocation;
+mod issue_839_atomic_lifecycle;
+mod issue_840_partition_lifecycle;
 mod postgresql18_database_temp_lifecycle;
+mod sequence_identity_wave7;
 
 mod index_contracts;
+mod maintenance_statistics_refresh;
+mod multilevel_partition_routing;
 mod partition_information_functions;
 mod pgcrypto_extension;
 mod table_forms;

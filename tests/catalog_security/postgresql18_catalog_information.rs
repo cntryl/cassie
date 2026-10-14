@@ -1,6 +1,10 @@
 //! PostgreSQL 18 catalog information behavior tracked by #817.
 
 mod catalog_lookup;
+#[path = "postgresql18_catalog_information/populated_descriptions.rs"]
+mod populated_descriptions;
+#[path = "postgresql18_type_catalog_gaps.rs"]
+mod type_catalog_gaps;
 mod visibility_functions;
 
 use crate::support_sql_fixture::sql_fixture;

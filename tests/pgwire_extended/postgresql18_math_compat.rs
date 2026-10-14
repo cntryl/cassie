@@ -3,6 +3,10 @@
 use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
+mod numeric_log_binary;
+mod mod_zero_division;
+mod residual_typed_math_contract;
+
 #[test]
 fn should_describe_math_function_results_with_the_postgresql_types() {
     // Arrange
@@ -35,6 +39,171 @@ fn should_describe_math_function_results_with_the_postgresql_types() {
             .collect::<Vec<_>>(),
         vec![1700, 701, 23]
     );
+}
+
+#[test]
+fn should_describe_log_overloads_with_postgresql_result_oids() {
+    // Arrange
+    let sql = "SELECT LOG($1) AS float8_log, LOG($2) AS numeric_log, \
+              LOG($3, $4) AS numeric_base_log";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "log_overloads",
+            sql,
+            &[701, 1700, 1700, 1700],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("log_overloads"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(
+                "log_overloads_portal",
+                "log_overloads",
+                &["100", "100", "2", "64"],
+            ),
+            wire::describe_portal_frame("log_overloads_portal"),
+            wire::execute_frame("log_overloads_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-log-overload-signatures", steps);
+
+    // Assert
+    assert_eq!(
+        batches[0].iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
+        vec![b'1']
+    );
+    let statement = &batches[1];
+    assert_eq!(
+        wire::error_code(statement),
+        None,
+        "LOG Describe SQLSTATE; frames: {:?}",
+        statement
+    );
+    let parameter_types = statement
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("LOG ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_types.1),
+        vec![701, 1700, 1700, 1700]
+    );
+    let statement_description = statement
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("LOG statement RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&statement_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![701, 1700, 1700]
+    );
+    let frames = &batches[2];
+    assert_eq!(
+        wire::error_code(frames),
+        None,
+        "wire error fields: {:?}",
+        frames
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("math overload RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![701, 1700, 1700]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("2".to_owned()),
+            Some("2.0000000000000000".to_owned()),
+            Some("6.0000000000000000".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_describe_float8_ceiling_with_float8_result_oid() {
+    // Arrange
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "ceiling_float8",
+            "SELECT CEILING($1)",
+            &[701],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("ceiling_float8"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("ceiling_float8_portal", "ceiling_float8", &["42.8"]),
+            wire::describe_portal_frame("ceiling_float8_portal"),
+            wire::execute_frame("ceiling_float8_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-ceiling-float8-result", steps);
+
+    // Assert
+    assert_eq!(
+        batches[0].iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
+        vec![b'1']
+    );
+    let statement = &batches[1];
+    assert_eq!(
+        wire::error_code(statement),
+        None,
+        "float8 CEILING Describe SQLSTATE; frames: {:?}",
+        statement
+    );
+    let statement_description = statement
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("float8 CEILING statement RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&statement_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![701]
+    );
+    let frames = &batches[2];
+    assert_eq!(
+        wire::error_code(frames),
+        None,
+        "wire error fields: {:?}",
+        frames
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("float8 CEILING RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![701]
+    );
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("43".to_owned())]]);
 }
 
 #[test]
@@ -475,4 +644,100 @@ fn should_reject_two_float8_argument_log_with_undefined_function_sqlstate() {
     assert!(!batches[0]
         .iter()
         .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
+}
+
+#[test]
+fn should_report_sqrt_domain_sqlstate_for_a_bound_parameter() {
+    // Arrange
+    let statement = "sqrt_negative_parameter";
+    let portal = "sqrt_negative_parameter_portal";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            "SELECT SQRT($1::FLOAT8)",
+            &[701],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(&portal, statement, &["-1"]),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 42")]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-bound-sqrt-domain-error", steps);
+
+    // Assert
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    assert_eq!(wire::error_code(&batches[1]), None);
+    let parameter_types = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("float8 ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_types.1),
+        vec![701]
+    );
+    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("2201F"));
+    assert!(!batches[2]
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
+    assert_eq!(wire::error_code(&batches[3]), None);
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
+fn should_report_exp_overflow_sqlstate_for_a_bound_parameter() {
+    // Arrange
+    let statement = "exp_overflow_parameter";
+    let portal = "exp_overflow_parameter_portal";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            "SELECT EXP($1::FLOAT8)",
+            &[701],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(&portal, statement, &["1000"]),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 42")]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-bound-exp-overflow", steps);
+
+    // Assert
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    assert_eq!(wire::error_code(&batches[1]), None);
+    let parameter_types = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("float8 ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_types.1),
+        vec![701]
+    );
+    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("22003"));
+    assert!(!batches[2]
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
+    assert_eq!(wire::error_code(&batches[3]), None);
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("42".to_owned())]]
+    );
 }

@@ -778,6 +778,71 @@ fn should_accept_regconfig_values_in_text_search_function_signatures() {
 }
 
 #[test]
+fn should_create_a_text_search_configuration_with_an_explicit_parser() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-parser-based-configuration", &[]);
+
+    // Act
+    let created = fixture.execute(
+        "CREATE TEXT SEARCH CONFIGURATION issue_799_parser_config \
+         (PARSER = pg_catalog.default)",
+    );
+    let mapped = fixture.execute(
+        "ALTER TEXT SEARCH CONFIGURATION issue_799_parser_config \
+         ADD MAPPING FOR asciiword WITH pg_catalog.simple",
+    );
+    let vector =
+        fixture.execute("SELECT to_tsvector('issue_799_parser_config', 'The Fat Rats')::TEXT");
+
+    // Assert
+    created.expect("create text search configuration from an explicit parser");
+    mapped.expect("add a mapping to the parser-backed configuration");
+    assert_eq!(
+        vector
+            .expect("use parser-backed text search configuration")
+            .rows(),
+        &[vec![Value::String("'fat':2 'rats':3 'the':1".to_owned())]]
+    );
+}
+
+#[test]
+fn should_resolve_regconfig_for_each_text_search_constructor() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regconfig-constructor-overloads", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT \
+             to_tsvector('pg_catalog.english'::regconfig, 'The Fat Rats')::TEXT, \
+             to_tsquery('pg_catalog.english'::regconfig, 'The & Fat & Rats')::TEXT, \
+             plainto_tsquery('pg_catalog.english'::regconfig, 'The Fat Rats')::TEXT, \
+             phraseto_tsquery('pg_catalog.english'::regconfig, 'The Fat Rats')::TEXT, \
+             websearch_to_tsquery('pg_catalog.english'::regconfig, '\"The Fat Rats\"')::TEXT, \
+             ts_headline( \
+                 'pg_catalog.english'::regconfig, \
+                 'The Fat Rats', \
+                 to_tsquery('pg_catalog.english'::regconfig, 'rat'), \
+                 'StartSel=<b>, StopSel=</b>' \
+             )",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("regconfig overloads for all text-search constructors")
+            .rows(),
+        &[vec![
+            Value::String("'fat':2 'rat':3".to_owned()),
+            Value::String("'fat' & 'rat'".to_owned()),
+            Value::String("'fat' & 'rat'".to_owned()),
+            Value::String("'fat' <-> 'rat'".to_owned()),
+            Value::String("'fat' <-> 'rat'".to_owned()),
+            Value::String("The Fat <b>Rats</b>".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_move_a_renamed_text_search_configuration() {
     // Arrange
     let fixture = sql_fixture(
@@ -823,4 +888,65 @@ fn should_manage_builtin_text_search_dictionaries() {
     altered.expect("alter text search dictionary options");
     renamed.expect("rename text search dictionary");
     dropped.expect("drop text search dictionary");
+}
+
+#[test]
+fn should_apply_snowball_dictionary_options_through_a_text_search_configuration() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-snowball-dictionary-effects", &[]);
+    fixture
+        .execute(
+            "CREATE TEXT SEARCH DICTIONARY issue_799_snowball ( \
+                 TEMPLATE = pg_catalog.snowball, LANGUAGE = english, STOPWORDS = english \
+             )",
+        )
+        .expect("create Snowball dictionary with English stopwords");
+    fixture
+        .execute(
+            "CREATE TEXT SEARCH CONFIGURATION issue_799_snowball_config (COPY = pg_catalog.simple)",
+        )
+        .expect("copy simple configuration");
+    fixture
+        .execute(
+            "ALTER TEXT SEARCH CONFIGURATION issue_799_snowball_config \
+             ALTER MAPPING FOR asciiword REPLACE pg_catalog.simple WITH issue_799_snowball",
+        )
+        .expect("map words through the Snowball dictionary");
+
+    // Act
+    let english = fixture.execute(
+        "SELECT to_tsvector('issue_799_snowball_config', 'The Cats Running')::TEXT, \
+             ts_lexize('issue_799_snowball', 'the')::TEXT, \
+             ts_lexize('issue_799_snowball', 'Cats')::TEXT, \
+             ts_lexize('issue_799_snowball', 'Running')::TEXT",
+    );
+    fixture
+        .execute("ALTER TEXT SEARCH DICTIONARY issue_799_snowball (STOPWORDS = french)")
+        .expect("change the Snowball dictionary stopword list");
+    let french = fixture.execute(
+        "SELECT to_tsvector('issue_799_snowball_config', 'The le Cats Running')::TEXT, \
+             ts_lexize('issue_799_snowball', 'le')::TEXT",
+    );
+
+    // Assert
+    assert_eq!(
+        english
+            .expect("English Snowball dictionary behavior")
+            .rows(),
+        &[vec![
+            Value::String("'cat':2 'run':3".to_owned()),
+            Value::String("{}".to_owned()),
+            Value::String("{cat}".to_owned()),
+            Value::String("{run}".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        french
+            .expect("updated French Snowball dictionary behavior")
+            .rows(),
+        &[vec![
+            Value::String("'cat':3 'run':4 'the':1".to_owned()),
+            Value::String("{}".to_owned()),
+        ]]
+    );
 }

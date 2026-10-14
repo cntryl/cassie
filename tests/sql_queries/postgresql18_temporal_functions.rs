@@ -1,5 +1,8 @@
 //! PostgreSQL 18 temporal clocks, calendar, and formatting functions tracked by #815.
 
+#[path = "postgresql18_temporal_functions/residual_edges.rs"]
+mod residual_edges;
+
 use cassie::types::Value;
 use std::time::{Duration, Instant};
 
@@ -814,7 +817,7 @@ fn should_justify_hour_components_as_calendar_days() {
 #[test]
 fn should_justify_mixed_sign_interval_components() {
     // Arrange
-    let sql = "SELECT JUSTIFY_INTERVAL(INTERVAL '1 month -1 hour') = INTERVAL '29 days 23 hours'";
+    let sql = "SELECT JUSTIFY_INTERVAL(INTERVAL '1 month -1 hour')::TEXT";
 
     // Act
     let fixture = sql_fixture("issue-815-justify-interval", &[]);
@@ -823,7 +826,7 @@ fn should_justify_mixed_sign_interval_components() {
     // Assert
     assert_eq!(
         result.expect("justify_interval mixed signs").rows(),
-        &[vec![Value::Bool(true)]]
+        &[vec![Value::String("29 days 23:00:00".to_owned())]]
     );
 }
 

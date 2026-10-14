@@ -9,18 +9,32 @@ mod pgwire_parameter_occurrences;
 mod pgwire_parameter_slot_completeness;
 mod pgwire_extended {
     mod merge_row_images;
+    mod postgresql18_advisory_notify;
     mod postgresql18_aggregate_errors;
+    mod postgresql18_array_aggregate;
+    mod postgresql18_array_boundaries;
     mod postgresql18_binary_bytea_compat;
     mod postgresql18_cte_compat;
+    mod postgresql18_explain_options;
     mod postgresql18_geometry_compat;
     mod postgresql18_grammar;
+    mod postgresql18_inheritance_conflicts;
     mod postgresql18_math_compat;
     mod postgresql18_money_compat;
     mod postgresql18_network_compat;
     mod postgresql18_numeric_compat;
+    mod postgresql18_query_inventory_wave2;
     mod postgresql18_range_compat;
+    mod postgresql18_recursive_cte_cancellation;
+    mod postgresql18_recursive_dml_cte;
+    mod postgresql18_row_subquery_wire_semantics_wave_h;
+    mod postgresql18_rule_semantics_wave_g;
+    mod postgresql18_scalar_types_inventory_wave3;
+    mod postgresql18_set_returning_gaps;
     mod postgresql18_string_compat;
     mod postgresql18_string_scalar_edges;
+    mod postgresql18_string_to_table_limits;
+    mod postgresql18_tablesample_seed;
     mod postgresql18_temporal_compat;
     mod postgresql18_temporal_function_compat;
     mod postgresql18_text_compat;
@@ -1602,7 +1616,9 @@ mod pgwire_extended_metadata {
             // Assert
             assert_eq!(
                 frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
-                vec![b'1', b't', b'T', b'1', b't', b'T', b'1', b't', b'T', b'1', b't', b'T', b'Z']
+                vec![
+                    b'1', b't', b'T', b'1', b't', b'T', b'1', b't', b'T', b'1', b't', b'T', b'Z'
+                ]
             );
             assert_eq!(parse_parameter_description(&frames[1].1), vec![OID_TEXT]);
             assert_eq!(
@@ -1908,15 +1924,21 @@ mod pgwire_extended_metadata {
                 vec![b'1', b'E', b'Z']
             );
             let fields = parse_error_fields(&error_frames[1].1);
-            assert!(fields
-                .iter()
-                .any(|(field, value)| *field == 'S' && value == "ERROR"));
-            assert!(fields
-                .iter()
-                .any(|(field, value)| *field == 'C' && value == "08P01"));
-            assert!(fields
-                .iter()
-                .any(|(field, value)| *field == 'M' && value.contains("requires 1")));
+            assert!(
+                fields
+                    .iter()
+                    .any(|(field, value)| *field == 'S' && value == "ERROR")
+            );
+            assert!(
+                fields
+                    .iter()
+                    .any(|(field, value)| *field == 'C' && value == "08P01")
+            );
+            assert!(
+                fields
+                    .iter()
+                    .any(|(field, value)| *field == 'M' && value.contains("requires 1"))
+            );
             assert_eq!(error_frames[2].1, vec![b'I']);
 
             assert_eq!(
@@ -2885,9 +2907,11 @@ mod pgwire_portal_streaming {
                 .find(|(tag, _)| *tag == b'E')
                 .expect("suspended portal cancellation error");
             let fields = support::parse_error_fields(&error.1);
-            assert!(fields
-                .iter()
-                .any(|(tag, value)| *tag == 'C' && value == "57014"));
+            assert!(
+                fields
+                    .iter()
+                    .any(|(tag, value)| *tag == 'C' && value == "57014")
+            );
 
             drop(socket);
             server.abort();
@@ -3050,8 +3074,8 @@ mod pgwire_portal_streaming {
     }
 
     #[test]
-    fn should_align_streaming_portal_wildcard_data_rows_with_row_description_when_table_declares_id(
-    ) {
+    fn should_align_streaming_portal_wildcard_data_rows_with_row_description_when_table_declares_id()
+     {
         // Arrange
         support::use_local_storage();
         let path = support::data_dir("portal-wildcard-declared-id");
@@ -4933,9 +4957,11 @@ mod pgwire_result_framing {
             .find(|frame| frame.0 == b'T')
             .map(|frame| support::parse_row_description(&frame.1))
             .expect("RowDescription");
-        assert!(description
-            .iter()
-            .all(|field| field.type_oid == OID_BOOL && field.format_code == 1));
+        assert!(
+            description
+                .iter()
+                .all(|field| field.type_oid == OID_BOOL && field.format_code == 1)
+        );
         let rows = frames
             .iter()
             .filter(|frame| frame.0 == b'D')

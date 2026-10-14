@@ -4,7 +4,10 @@ use cassie::app::CassieError;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
+use crate::support_sql_fixture::{SqlFixture, sql_fixture, sql_fixture_with_config};
+
+mod insert_snapshot_descriptor;
+mod search_cycle_edge_cases;
 
 fn repeated_reference_fixture(label: &str) -> SqlFixture {
     sql_fixture(
@@ -164,6 +167,42 @@ fn should_return_recursive_results_beyond_sixty_four_steps() {
 }
 
 #[test]
+fn should_limit_recursive_cycle_path_rows_by_query_result_cap() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.limits.max_result_rows = 5;
+    let fixture = sql_fixture_with_config("issue-801-cycle-result-row-cap", &[], config);
+    let query = "WITH RECURSIVE walk(node) AS (\
+        SELECT 1::INT4\
+        UNION ALL\
+        SELECT CASE WHEN node = 32 THEN 1 ELSE node + 1 END FROM walk WHERE node <= 32\
+    ) CYCLE node SET is_cycle USING path\
+    SELECT node, is_cycle, path FROM walk ORDER BY node, is_cycle";
+    let before = current_accounted_memory_bytes(&fixture);
+
+    // Act
+    let result = fixture.execute(query);
+
+    // Assert
+    assert!(
+        matches!(
+            result,
+            Err(CassieError::ResourceLimit(ref message))
+                if message.starts_with("query result row limit exceeded")
+        ),
+        "the cycle query must stop at the configured result-row cap: {result:?}"
+    );
+    assert_eq!(current_accounted_memory_bytes(&fixture), before);
+    let snapshot = fixture.cassie.metrics();
+    assert_eq!(snapshot["runtime"]["running_queries"], 0);
+    assert_eq!(snapshot["runtime"]["active_operator_workers"], 0);
+    assert_eq!(
+        fixture.rows("SELECT 45 AS recovery"),
+        vec![vec![Value::Int64(45)]]
+    );
+}
+
+#[test]
 fn should_preserve_recursive_results_when_not_materialized_is_ignored() {
     // Arrange
     let fixture = sql_fixture("issue-801-recursive-not-materialized", &[]);
@@ -198,11 +237,11 @@ fn should_order_recursive_rows_by_postgres_depth_first_search_sequence() {
     assert_eq!(
         result.expect("depth-first SEARCH ordering").rows(),
         &[
-            vec![Value::Int64(4)],
-            vec![Value::Int64(2)],
-            vec![Value::Int64(5)],
-            vec![Value::Int64(3)],
             vec![Value::Int64(1)],
+            vec![Value::Int64(2)],
+            vec![Value::Int64(4)],
+            vec![Value::Int64(3)],
+            vec![Value::Int64(5)],
         ]
     );
 }

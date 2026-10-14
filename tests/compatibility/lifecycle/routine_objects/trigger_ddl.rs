@@ -1,5 +1,7 @@
 use super::*;
 
+mod deferred_constraint_redefer;
+
 #[test]
 fn should_report_missing_trigger_function_before_trigger_return_type_resolution() {
     // Arrange
@@ -495,6 +497,65 @@ fn should_record_supported_ddl_from_an_event_trigger() {
         // Assert
         assert_eq!(event.get::<_, String>(0), "CREATE TABLE");
         assert_eq!(event.get::<_, i64>(1), 1);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_suppress_redundant_updates_with_builtin_trigger_function() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("builtin_suppress_redundant_updates").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_builtin_suppress_rows \
+                   (id INT PRIMARY KEY, payload TEXT NOT NULL)",
+            )
+            .await
+            .expect("create the table for redundant-update trigger behavior");
+        client
+            .batch_execute("INSERT INTO compat_builtin_suppress_rows VALUES (1, 'same')")
+            .await
+            .expect("seed the row whose unchanged update should be suppressed");
+
+        // Act
+        client
+            .batch_execute(
+                "CREATE TRIGGER compat_builtin_suppress \
+                   BEFORE UPDATE ON compat_builtin_suppress_rows FOR EACH ROW \
+                   EXECUTE FUNCTION pg_catalog.suppress_redundant_updates_trigger()",
+            )
+            .await
+            .expect("install PostgreSQL's built-in redundant-update suppression trigger");
+        let unchanged_update = client
+            .query(
+                "UPDATE compat_builtin_suppress_rows SET payload = 'same' \
+                 WHERE id = 1 RETURNING id, payload",
+                &[],
+            )
+            .await
+            .expect("run an unchanged update through the suppression trigger");
+        let changed_update = client
+            .query(
+                "UPDATE compat_builtin_suppress_rows SET payload = 'changed' \
+                 WHERE id = 1 RETURNING id, payload",
+                &[],
+            )
+            .await
+            .expect("run a changed update through the suppression trigger");
+
+        // Assert
+        assert!(
+            unchanged_update.is_empty(),
+            "the trigger should suppress the unchanged row in UPDATE RETURNING"
+        );
+        assert_eq!(changed_update.len(), 1);
+        assert_eq!(changed_update[0].get::<_, i32>(0), 1);
+        assert_eq!(changed_update[0].get::<_, String>(1), "changed");
 
         drop(client);
         server.shutdown(connection).await;

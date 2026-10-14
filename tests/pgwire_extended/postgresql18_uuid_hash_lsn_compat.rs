@@ -1,7 +1,10 @@
 //! PostgreSQL 18 UUID, hash, and `pg_lsn` protocol contracts tracked by #816.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
+
+mod alternative_input_forms;
+mod text_input_error_sqlstates;
 
 fn binary_data_rows(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<Option<Vec<u8>>>> {
     frames
@@ -196,6 +199,136 @@ fn should_preserve_pg_lsn_parameter_codec_contract() {
     assert_eq!(
         binary_data_rows(&batches[3]),
         vec![vec![Some(lsn_bytes.to_vec())]]
+    );
+}
+
+#[test]
+fn should_preserve_uuid_binary_boundary_encodings() {
+    // Arrange
+    let sql = "SELECT '00000000-0000-0000-0000-000000000000'::UUID AS uuid_min, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::UUID AS uuid_max, '00000000-0000-0000-0000-000000000000'::UUID < 'ffffffff-ffff-ffff-ffff-ffffffffffff'::UUID AS uuid_order";
+    let statement = "uuid_boundary_values";
+    let portal = "uuid_boundary_values_binary";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(sql)]),
+        Step::ParseFlush(wire::parse_frame(statement, sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(portal, statement, &[], &[], &[1]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-uuid-wire-boundaries", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let text_description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("UUID text RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&text_description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size))
+            .collect::<Vec<_>>(),
+        vec![(2950, 16), (2950, 16), (16, 1)]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some("00000000-0000-0000-0000-000000000000".to_owned()),
+            Some("ffffffff-ffff-ffff-ffff-ffffffffffff".to_owned()),
+            Some("t".to_owned()),
+        ]]
+    );
+
+    let binary_result = &batches[2];
+    assert_eq!(wire::error_code(binary_result), None);
+    let binary_description = binary_result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("UUID binary RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&binary_description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![(2950, 16, 1), (2950, 16, 1), (16, 1, 1)]
+    );
+    assert_eq!(
+        binary_data_rows(binary_result),
+        vec![vec![
+            Some(vec![0_u8; 16]),
+            Some(vec![u8::MAX; 16]),
+            Some(vec![1]),
+        ]]
+    );
+}
+
+#[test]
+fn should_preserve_pg_lsn_binary_boundary_encodings() {
+    // Arrange
+    let sql = "SELECT '0/0'::PG_LSN AS lsn_min, 'FFFFFFFF/FFFFFFFF'::PG_LSN AS lsn_max, '0/0'::PG_LSN < 'FFFFFFFF/FFFFFFFF'::PG_LSN AS lsn_order";
+    let statement = "pg_lsn_boundary_values";
+    let portal = "pg_lsn_boundary_values_binary";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(sql)]),
+        Step::ParseFlush(wire::parse_frame(statement, sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(portal, statement, &[], &[], &[1]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-pg-lsn-wire-boundaries", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let text_description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("pg_lsn text RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&text_description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size))
+            .collect::<Vec<_>>(),
+        vec![(3220, 8), (3220, 8), (16, 1)]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some("0/0".to_owned()),
+            Some("FFFFFFFF/FFFFFFFF".to_owned()),
+            Some("t".to_owned()),
+        ]]
+    );
+
+    let binary_result = &batches[2];
+    assert_eq!(wire::error_code(binary_result), None);
+    let binary_description = binary_result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("pg_lsn binary RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&binary_description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![(3220, 8, 1), (3220, 8, 1), (16, 1, 1)]
+    );
+    assert_eq!(
+        binary_data_rows(binary_result),
+        vec![vec![
+            Some(vec![0_u8; 8]),
+            Some(vec![u8::MAX; 8]),
+            Some(vec![1]),
+        ]]
     );
 }
 
@@ -426,6 +559,37 @@ fn should_report_pg_lsn_overflow_underflow_sqlstates() {
     assert_eq!(
         wire::data_rows(&batches[2]),
         vec![vec![Some("1".to_owned())]]
+    );
+}
+
+#[test]
+fn should_report_numeric_metadata_for_pg_wal_lsn_diff_across_word_boundaries() {
+    // Arrange
+    let sql = "SELECT pg_wal_lsn_diff('1/0'::PG_LSN, '0/FFFFFFFF'::PG_LSN) AS forward, \
+               pg_wal_lsn_diff('0/FFFFFFFF'::PG_LSN, '1/0'::PG_LSN) AS backward";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("postgresql18-pg-wal-lsn-diff-word-boundary", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("pg_wal_lsn_diff RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![(1700, -1, -1), (1700, -1, -1)]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("1".to_owned()), Some("-1".to_owned())]]
     );
 }
 

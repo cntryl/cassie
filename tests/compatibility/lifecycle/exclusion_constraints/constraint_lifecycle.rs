@@ -1,5 +1,8 @@
 use super::*;
 
+mod extended_constraint_forms;
+mod named_not_null_validation;
+
 #[test]
 fn should_enforce_composed_named_check_predicates() {
     // Arrange

@@ -1,12 +1,43 @@
 use super::*;
 
+mod argument_mode_results_wave7;
+mod catalog_identity_lookups;
+mod comment_catalog_coverage;
+mod comment_owner_lifecycle;
+mod comment_sequence_identity;
 mod cursor_variables;
 mod default_privileges;
+mod definer_search_path_resolution;
+mod do_block_cancellation;
 mod do_blocks;
+mod do_dynamic_into_strict;
+mod do_format_using_result;
+mod do_null_using;
+mod event_triggers;
 mod expression_statistics;
+mod foreach_slice;
+mod get_stacked_diagnostics;
+mod issue_830_signature_results;
 mod language_sql;
 mod ownership_privileges;
+mod postgresql18_variadic_calls_wave7;
+mod procedural_qualification_wave;
+mod return_query_execute;
+mod role_membership_admin_option_wave7;
+mod scoped_setting_resets;
+mod security_invoker_alter;
+mod sql_defined_builtin_casts;
+mod transaction_control_procedures;
+mod transition_table_update;
 mod trigger_ddl;
+mod trigger_definer_context;
+mod trigger_introspection;
+mod trigger_replace_syntax;
+mod trigger_replication_modes;
+mod trigger_tsvector_update;
+mod trigger_tsvector_update_column;
+mod trigger_update_of;
+mod user_defined_variadic;
 
 #[test]
 fn should_resolve_sql_routine_defaults_named_arguments() {

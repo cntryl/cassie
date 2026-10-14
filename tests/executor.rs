@@ -2491,6 +2491,7 @@ mod executor_parallel {
     }
 
     mod postgresql18_boolean_aggregates;
+    mod postgresql18_collection_aggregate_wave3;
 
     #[test]
     fn should_score_fulltext_candidates_with_parallel_workers() {

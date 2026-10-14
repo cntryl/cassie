@@ -3,7 +3,7 @@
 use cassie::types::Value;
 use cassie::{app::CassieError, config::CassieRuntimeConfig};
 
-use crate::support_sql_fixture::{SqlFixture, sql_fixture, sql_fixture_with_config};
+use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
 
 fn sample_fixture(label: &str) -> SqlFixture {
     let rows = (1..=128)

@@ -1,6 +1,9 @@
 // Consolidated integration suite: catalog_security.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
+#[path = "catalog_security/postgresql18_catalog_information.rs"]
+mod postgresql18_catalog_information;
+
 #[path = "support/catalog.rs"]
 mod support_catalog;
 #[path = "support/data_dir.rs"]

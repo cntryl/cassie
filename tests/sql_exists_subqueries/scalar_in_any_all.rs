@@ -280,6 +280,33 @@ fn should_preserve_null_semantics_for_membership_subqueries() {
 }
 
 #[test]
+fn should_preserve_null_left_operand_truth_table_for_in_subqueries() {
+    // Arrange
+    let fixture = subquery_fixture("issue-762-null-left-in-subqueries");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT NULL::INT4 IN (SELECT value FROM subquery_values), \
+         NULL::INT4 NOT IN (SELECT value FROM subquery_values), \
+         NULL::INT4 IN (SELECT value FROM subquery_empty), \
+         NULL::INT4 NOT IN (SELECT value FROM subquery_empty)",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("NULL left operand IN/NOT IN truth table")
+            .rows(),
+        &[vec![
+            Value::Null,
+            Value::Null,
+            Value::Bool(false),
+            Value::Bool(true),
+        ]]
+    );
+}
+
+#[test]
 fn should_apply_empty_membership_subquery_identities() {
     // Arrange
     let fixture = subquery_fixture("issue-762-in-empty");
@@ -349,6 +376,33 @@ fn should_preserve_null_semantics_for_quantified_subqueries() {
     assert_eq!(
         result.expect("ANY and ALL NULL semantics").rows(),
         &[vec![Value::Null, Value::Bool(true), Value::Null]]
+    );
+}
+
+#[test]
+fn should_preserve_null_left_operand_truth_table_for_any_all_subqueries() {
+    // Arrange
+    let fixture = subquery_fixture("issue-762-null-left-any-all-subqueries");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT NULL::INT4 = ANY (SELECT value FROM subquery_values), \
+         NULL::INT4 = ALL (SELECT value FROM subquery_values), \
+         NULL::INT4 = ANY (SELECT value FROM subquery_empty), \
+         NULL::INT4 = ALL (SELECT value FROM subquery_empty)",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("NULL left operand ANY/ALL truth table")
+            .rows(),
+        &[vec![
+            Value::Null,
+            Value::Null,
+            Value::Bool(false),
+            Value::Bool(true),
+        ]]
     );
 }
 

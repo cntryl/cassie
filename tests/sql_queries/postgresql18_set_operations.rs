@@ -301,14 +301,14 @@ fn should_include_ties_at_the_fetch_boundary_after_offset() {
 }
 
 #[test]
-fn should_bind_arithmetic_pagination_expressions_to_fetch_clauses() {
+fn should_bind_parenthesized_arithmetic_pagination_expressions_to_fetch_clauses() {
     // Arrange
     let fixture = page_fixture("issue-800-fetch-expression-parameters");
 
     // Act
     let result = fixture.cassie.execute_sql(
         &fixture.session,
-        "SELECT score FROM issue_800_scores ORDER BY score DESC OFFSET $1 + 1 ROWS FETCH NEXT $2 ROWS ONLY",
+        "SELECT score FROM issue_800_scores ORDER BY score DESC OFFSET ($1 + 1) ROWS FETCH NEXT $2 ROWS ONLY",
         vec![Value::Int64(0), Value::Int64(2)],
     );
 

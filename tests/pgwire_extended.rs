@@ -18,6 +18,7 @@ mod pgwire_extended {
     mod postgresql18_numeric_compat;
     mod postgresql18_range_compat;
     mod postgresql18_string_compat;
+    mod postgresql18_string_scalar_edges;
     mod postgresql18_temporal_compat;
     mod postgresql18_temporal_function_compat;
     mod postgresql18_text_compat;

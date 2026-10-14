@@ -281,3 +281,124 @@ fn should_validate_not_valid_foreign_key_without_accepting_new_violations() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_expose_named_not_null_constraints_in_pg_constraint() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("named_not_null_constraint").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_named_not_null (id INT \
+                 CONSTRAINT compat_named_id_nn NOT NULL)",
+            )
+            .await
+            .expect("create a named NOT NULL constraint");
+
+        // Act
+        let metadata = client
+            .query_opt(
+                "SELECT conname, contype::TEXT FROM pg_constraint \
+                 WHERE conname = 'compat_named_id_nn'",
+                &[],
+            )
+            .await
+            .expect("read named NOT NULL constraint metadata");
+
+        // Assert
+        let metadata = metadata.expect("PostgreSQL 18 records named NOT NULL constraints");
+        assert_eq!(metadata.get::<_, String>(0), "compat_named_id_nn");
+        assert_eq!(metadata.get::<_, String>(1), "n");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_allow_rows_under_a_not_enforced_check_constraint() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("not_enforced_check_constraint").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_not_enforced_check (value INT, \
+                 CONSTRAINT compat_positive_not_enforced CHECK (value > 0) NOT ENFORCED)",
+            )
+            .await
+            .expect("create a PostgreSQL 18 NOT ENFORCED check constraint");
+
+        // Act
+        let inserted = client
+            .execute("INSERT INTO compat_not_enforced_check VALUES (-1)", &[])
+            .await
+            .expect("a NOT ENFORCED constraint does not reject the row");
+        let enforced: bool = client
+            .query_one(
+                "SELECT conenforced FROM pg_constraint \
+                 WHERE conname = 'compat_positive_not_enforced'",
+                &[],
+            )
+            .await
+            .expect("read the constraint enforcement state")
+            .try_get(0)
+            .expect("conenforced value");
+        let rows: i64 = client
+            .query_one("SELECT count(*) FROM compat_not_enforced_check", &[])
+            .await
+            .expect("read rows accepted by the not-enforced constraint")
+            .try_get(0)
+            .expect("row count");
+
+        // Assert
+        assert_eq!(inserted, 1);
+        assert!(!enforced);
+        assert_eq!(rows, 1);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_enforce_check_predicates_comparing_multiple_columns() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("multicolumn_check_constraint").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_multicolumn_check (left_value INT, right_value INT, \
+                   CONSTRAINT compat_column_order CHECK (left_value > right_value))",
+                "INSERT INTO compat_multicolumn_check VALUES (2, 1)",
+            ],
+        )
+        .await
+        .expect("create and seed the multi-column CHECK fixture");
+
+        // Act
+        let rejected = client
+            .execute("INSERT INTO compat_multicolumn_check VALUES (1, 2)", &[])
+            .await
+            .expect_err("the multi-column comparison rejects rows in the wrong order");
+        let rows: i64 = client
+            .query_one("SELECT count(*) FROM compat_multicolumn_check", &[])
+            .await
+            .expect("inspect the table after a rejected row")
+            .try_get(0)
+            .expect("row count");
+
+        // Assert
+        assert_eq!(db_error(&rejected).code().code(), "23514");
+        assert_eq!(rows, 1);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

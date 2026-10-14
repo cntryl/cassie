@@ -1332,3 +1332,332 @@ fn should_keep_extended_prepared_statement_after_discard_plans() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_abort_one_serializable_transaction_after_write_skew() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("serializable_write_skew").await;
+        let (left, left_connection) = server.connect().await;
+        let (right, right_connection) = server.connect().await;
+        execute_statements(
+            &left,
+            &[
+                "CREATE TABLE compat_serializable_on_call \
+                   (doctor_id INT PRIMARY KEY, on_call BOOLEAN NOT NULL)",
+                "INSERT INTO compat_serializable_on_call VALUES (1, true), (2, true)",
+            ],
+        )
+        .await
+        .expect("create the write-skew fixture");
+        let left_begin = left
+            .batch_execute("BEGIN ISOLATION LEVEL SERIALIZABLE")
+            .await;
+        let right_begin = right
+            .batch_execute("BEGIN ISOLATION LEVEL SERIALIZABLE")
+            .await;
+
+        // Act
+        let outcome = if left_begin.is_ok() && right_begin.is_ok() {
+            let left_snapshot = left
+                .query_one(
+                    "SELECT count(*) FROM compat_serializable_on_call WHERE on_call",
+                    &[],
+                )
+                .await
+                .expect("read the left transaction snapshot")
+                .get::<_, i64>(0);
+            let right_snapshot = right
+                .query_one(
+                    "SELECT count(*) FROM compat_serializable_on_call WHERE on_call",
+                    &[],
+                )
+                .await
+                .expect("read the right transaction snapshot")
+                .get::<_, i64>(0);
+            let left_update = left
+                .execute(
+                    "UPDATE compat_serializable_on_call SET on_call = false \
+                     WHERE doctor_id = 1",
+                    &[],
+                )
+                .await;
+            let right_update = right
+                .execute(
+                    "UPDATE compat_serializable_on_call SET on_call = false \
+                     WHERE doctor_id = 2",
+                    &[],
+                )
+                .await;
+            let left_commit = left.batch_execute("COMMIT").await;
+            let right_commit = right.batch_execute("COMMIT").await;
+            let remaining_on_call: i64 = left
+                .query_one(
+                    "SELECT count(*) FROM compat_serializable_on_call WHERE on_call",
+                    &[],
+                )
+                .await
+                .expect("inspect the committed write-skew outcome")
+                .get(0);
+            Some((
+                left_snapshot,
+                right_snapshot,
+                left_update,
+                right_update,
+                left_commit,
+                right_commit,
+                remaining_on_call,
+            ))
+        } else {
+            None
+        };
+
+        // Assert
+        let left_started = left_begin.is_ok();
+        let right_started = right_begin.is_ok();
+        drop((left, right));
+        server.shutdown(left_connection).await;
+        right_connection.abort();
+        let _ = right_connection.await;
+        assert!(
+            left_started,
+            "left SERIALIZABLE transaction: {left_begin:?}"
+        );
+        assert!(
+            right_started,
+            "right SERIALIZABLE transaction: {right_begin:?}"
+        );
+        let (
+            left_snapshot,
+            right_snapshot,
+            left_update,
+            right_update,
+            left_commit,
+            right_commit,
+            remaining_on_call,
+        ) = outcome.expect("both serializable transactions should observe a snapshot");
+        let left_aborted_for_serialization = left_update
+            .as_ref()
+            .is_err_and(|error| db_error(error).code().code() == "40001")
+            || left_commit
+                .as_ref()
+                .is_err_and(|error| db_error(error).code().code() == "40001");
+        let right_aborted_for_serialization = right_update
+            .as_ref()
+            .is_err_and(|error| db_error(error).code().code() == "40001")
+            || right_commit
+                .as_ref()
+                .is_err_and(|error| db_error(error).code().code() == "40001");
+        assert_eq!(left_snapshot, 2);
+        assert_eq!(right_snapshot, 2);
+        assert!(
+            left_aborted_for_serialization || right_aborted_for_serialization,
+            "one transaction must fail with SQLSTATE 40001; left update/commit: \
+             {left_update:?}/{left_commit:?}; right update/commit: \
+             {right_update:?}/{right_commit:?}"
+        );
+        assert_eq!(remaining_on_call, 1);
+    });
+}
+
+#[test]
+fn should_conflict_table_locks_across_sessions_with_nowait() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("table_lock_nowait").await;
+        let (owner, owner_connection) = server.connect().await;
+        let (contender, contender_connection) = server.connect().await;
+        owner
+            .batch_execute("CREATE TABLE compat_table_lock_rows (id INT)")
+            .await
+            .expect("create a table lock fixture");
+
+        // Act
+        let owner_lock = execute_statements(
+            &owner,
+            &[
+                "BEGIN",
+                "LOCK TABLE compat_table_lock_rows IN ACCESS SHARE MODE",
+            ],
+        )
+        .await;
+        let conflict = if owner_lock.is_ok() {
+            contender
+                .batch_execute("BEGIN")
+                .await
+                .expect("begin contender");
+            Some(
+                contender
+                    .batch_execute(
+                        "LOCK TABLE compat_table_lock_rows \
+                         IN ACCESS EXCLUSIVE MODE NOWAIT",
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+        if owner_lock.is_ok() {
+            owner
+                .batch_execute("ROLLBACK")
+                .await
+                .expect("release the owner's table lock");
+        }
+        let retry = if conflict.is_some() {
+            contender
+                .batch_execute("ROLLBACK")
+                .await
+                .expect("clear the failed lock transaction");
+            execute_statements(
+                &contender,
+                &[
+                    "BEGIN",
+                    "LOCK TABLE compat_table_lock_rows \
+                     IN ACCESS EXCLUSIVE MODE NOWAIT",
+                    "COMMIT",
+                ],
+            )
+            .await
+        } else {
+            Ok(())
+        };
+
+        // Assert
+        drop((owner, contender));
+        server.shutdown(owner_connection).await;
+        contender_connection.abort();
+        let _ = contender_connection.await;
+        assert!(owner_lock.is_ok(), "owner table lock: {owner_lock:?}");
+        let conflict = conflict.expect("contender should attempt its conflicting lock");
+        assert_eq!(
+            db_error(
+                conflict
+                    .as_ref()
+                    .expect_err("NOWAIT must fail while ACCESS SHARE is held"),
+            )
+            .code()
+            .code(),
+            "55P03"
+        );
+        assert!(
+            retry.is_ok(),
+            "the lock should succeed after release: {retry:?}"
+        );
+    });
+}
+
+#[test]
+fn should_enforce_default_transaction_read_only_for_table_writes() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("default_transaction_read_only").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_read_only_rows (id INT PRIMARY KEY)",
+                "INSERT INTO compat_read_only_rows VALUES (1)",
+            ],
+        )
+        .await
+        .expect("create the read-only transaction fixture");
+
+        // Act
+        let setting = client
+            .batch_execute("SET default_transaction_read_only = on")
+            .await;
+        let outcome = if setting.is_ok() {
+            let begin = client.batch_execute("BEGIN").await;
+            if begin.is_ok() {
+                let write = client
+                    .execute("INSERT INTO compat_read_only_rows VALUES (2)", &[])
+                    .await;
+                client
+                    .batch_execute("ROLLBACK")
+                    .await
+                    .expect("finish the read-only transaction");
+                let rows: i64 = client
+                    .query_one("SELECT count(*) FROM compat_read_only_rows", &[])
+                    .await
+                    .expect("inspect rows after the rejected write")
+                    .get(0);
+                Some((write, rows))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Assert
+        let setting_succeeded = setting.is_ok();
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(
+            setting_succeeded,
+            "default_transaction_read_only should be accepted: {setting:?}"
+        );
+        let (write, rows) = outcome.expect("read-only transaction should start");
+        assert_eq!(
+            db_error(
+                write
+                    .as_ref()
+                    .expect_err("read-only transactions reject table writes"),
+            )
+            .code()
+            .code(),
+            "25006"
+        );
+        assert_eq!(rows, 1);
+    });
+}
+
+#[test]
+fn should_return_no_listening_channels_for_an_unsubscribed_session() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("listening_channel_catalog").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let channels = client
+            .query("SELECT pg_listening_channels() ORDER BY 1", &[])
+            .await;
+
+        // Assert
+        let channels = channels.expect("query pg_listening_channels for this session");
+        assert!(channels.is_empty());
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_return_void_from_pg_notify_without_a_listener() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pg_notify_function").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let notification = client
+            .query_one(
+                "SELECT pg_notify('compat_pg_notify_function', 'payload-18')::TEXT",
+                &[],
+            )
+            .await;
+
+        // Assert
+        let notification = notification.expect("pg_notify returns PostgreSQL VOID");
+        assert_eq!(notification.get::<_, String>(0), "");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

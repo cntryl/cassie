@@ -1,6 +1,6 @@
 //! PostgreSQL 18 string-function parameter and result metadata tracked by #803.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 #[test]
@@ -510,5 +510,166 @@ fn should_preserve_left_rows_when_lateral_unnest_is_empty() {
             ],
             vec![Some("2".to_owned()), None, None],
         ]
+    );
+}
+
+#[test]
+fn should_expand_integer_generate_series_with_a_nonunit_step() {
+    // Arrange
+    let sql = "SELECT value FROM generate_series(2, 8, 3) AS series(value)";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-808-generate-series-step", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "wire errors: {:?}",
+        result
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, body)| wire::parse_error_fields(body))
+            .collect::<Vec<_>>()
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("generate_series RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 23);
+    assert_eq!(
+        wire::data_rows(result),
+        vec![
+            vec![Some("2".to_owned())],
+            vec![Some("5".to_owned())],
+            vec![Some("8".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_generate_array_subscripts_in_reverse_from_the_declared_lower_bound() {
+    // Arrange
+    let sql = "SELECT subscript FROM generate_subscripts('[0:2]={10,20,30}'::INT[], 1, TRUE) AS indexes(subscript)";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-808-generate-subscripts-reverse", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("generate_subscripts RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 23);
+    assert_eq!(
+        wire::data_rows(result),
+        vec![
+            vec![Some("2".to_owned())],
+            vec![Some("1".to_owned())],
+            vec![Some("0".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_zip_rows_from_functions_with_ordinality() {
+    // Arrange
+    let sql = "SELECT * FROM ROWS FROM (generate_series(1, 3), generate_series(10, 20, 10)) WITH ORDINALITY AS rows(first_value, second_value, ordinal)";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-808-rows-from-ordinality", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("ROWS FROM RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23, 20]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![
+            vec![
+                Some("1".to_owned()),
+                Some("10".to_owned()),
+                Some("1".to_owned()),
+            ],
+            vec![
+                Some("2".to_owned()),
+                Some("20".to_owned()),
+                Some("2".to_owned()),
+            ],
+            vec![Some("3".to_owned()), None, Some("3".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_zip_select_list_set_returning_functions_to_the_longest_result() {
+    // Arrange
+    let sql =
+        "SELECT generate_series(1, 3) AS first_value, generate_series(10, 20, 10) AS second_value";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-808-select-list-srf-lockstep", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("select-list SRF RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![
+            vec![Some("1".to_owned()), Some("10".to_owned())],
+            vec![Some("2".to_owned()), Some("20".to_owned())],
+            vec![Some("3".to_owned()), None],
+        ]
+    );
+}
+
+#[test]
+fn should_execute_scalar_function_in_from_as_one_row_relation() {
+    // Arrange
+    let sql = "SELECT lowered FROM lower('HELLO') AS scalar_function(lowered)";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-808-scalar-function-from", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("scalar function in FROM RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 25);
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("hello".to_owned())]]
     );
 }

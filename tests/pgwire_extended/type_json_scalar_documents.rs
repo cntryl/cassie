@@ -134,6 +134,35 @@ fn should_preserve_declared_json_recordset_fields() {
 }
 
 #[test]
+fn should_convert_json_objects_to_declared_record_fields() {
+    // Arrange
+    let sql = "SELECT id, name FROM json_to_record('{\"id\":7,\"name\":\"Ada\"}') AS record(id INTEGER, name TEXT)";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-json-to-record", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("json_to_record RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 25]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("7".to_owned()), Some("Ada".to_owned())]]
+    );
+}
+
+#[test]
 fn should_abort_json_recordset_on_a_later_typed_conversion_error_without_partial_rows() {
     // Arrange
     let sql = "SELECT id, n FROM jsonb_to_recordset('[{\"id\":1,\"n\":1},{\"id\":2,\"n\":\"bad\"}]'::jsonb) AS records(id INTEGER, n INTEGER) ORDER BY id";
@@ -236,6 +265,44 @@ fn should_apply_jsonpath_filter_variables_to_array_members() {
 }
 
 #[test]
+fn should_type_jsonpath_literals_with_postgresql_oid() {
+    // Arrange
+    let sql = "SELECT '$.items[*].double()'::JSONPATH";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonpath-literal-type", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (4072, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("$.\"items\"[*].double()".to_owned())]]
+    );
+}
+
+#[test]
+fn should_evaluate_jsonpath_match_predicates() {
+    // Arrange
+    let sql = "SELECT jsonb_path_match('{\"a\":2}'::JSONB, '$.a == 2')";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonpath-match-predicate", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (16, 1, -1), 0, true);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"t")]
+    );
+}
+
+#[test]
 fn should_return_typed_sql_json_query_exists_results() {
     // Arrange
     let sql = "SELECT JSON_VALUE('{\"n\":42}', '$.n' RETURNING INTEGER), JSON_QUERY('{\"n\":[1,2]}', '$.n'), JSON_EXISTS('{\"n\":42}', '$.n')";
@@ -265,6 +332,109 @@ fn should_return_typed_sql_json_query_exists_results() {
             Some("[1, 2]".to_owned()),
             Some("t".to_owned()),
         ]]
+    );
+}
+
+#[test]
+fn should_classify_json_object_unique_keys() {
+    // Arrange
+    let sql = "SELECT '{\"a\":1}' IS JSON OBJECT WITH UNIQUE KEYS, '{\"a\":1,\"a\":2}' IS JSON OBJECT WITH UNIQUE KEYS";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-sql-json-unique-key-predicate", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("IS JSON RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16, 16]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("t".to_owned()), Some("f".to_owned())]]
+    );
+}
+
+#[test]
+fn should_delete_a_jsonb_key_when_set_lax_receives_sql_null() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_jsonb_set_lax_values (document JSONB, path TEXT[], replacement JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_jsonb_set_lax_values VALUES ($1, $2, $3)",
+            vec![
+                Value::Json(serde_json::json!({"a": 1})),
+                Value::Json(serde_json::json!(["a"])),
+                Value::Null,
+            ],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_set_lax(document, path, replacement, TRUE, 'delete_key') FROM issue_810_jsonb_set_lax_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonb-set-lax-delete", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"{}")]
+    );
+}
+
+#[test]
+fn should_insert_jsonb_values_at_array_paths() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_jsonb_insert_values (document JSONB, path TEXT[], new_value JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_jsonb_insert_values VALUES ($1, $2, $3)",
+            vec![
+                Value::Json(serde_json::json!([1, 3])),
+                Value::Json(serde_json::json!(["1"])),
+                Value::Json(serde_json::json!(2)),
+            ],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_insert(document, path, new_value) FROM issue_810_jsonb_insert_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonb-insert-array-path", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"[1, 2, 3]")]
     );
 }
 
@@ -944,6 +1114,47 @@ fn should_expand_json_table_rows() {
 }
 
 #[test]
+fn should_expand_nested_json_table_paths_with_ordinality() {
+    // Arrange
+    let sql = r#"SELECT * FROM JSON_TABLE('[{"id":7,"items":[{"n":1},{"n":2}]},{"id":9,"items":[]}]', '$[*]' COLUMNS (id INTEGER PATH '$.id', NESTED PATH '$.items[*]' COLUMNS (ordinal FOR ORDINALITY, n INTEGER PATH '$.n' DEFAULT 0 ON EMPTY))) AS j ORDER BY id, ordinal"#;
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-json-table-nested-ordinality", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("nested JSON_TABLE RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 20, 23]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![
+                Some("7".to_owned()),
+                Some("1".to_owned()),
+                Some("1".to_owned()),
+            ],
+            vec![
+                Some("7".to_owned()),
+                Some("2".to_owned()),
+                Some("2".to_owned()),
+            ],
+            vec![Some("9".to_owned()), None, None],
+        ]
+    );
+}
+
+#[test]
 fn should_distinguish_json_null_from_missing_or_sql_null_with_jsonb_operators() {
     // Arrange
     let sql = "SELECT ('{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB -> 'present'), ('{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB -> 'missing'), '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ->> 'present', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB #> '{nested,x}', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB #>> '{nested,x}', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ? 'present', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ? 'missing'";
@@ -1150,5 +1361,75 @@ fn should_skip_null_values_in_strict_jsonb_object_aggregation() {
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some("{\"c\": 1}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_skip_sql_nulls_in_the_json_strict_aggregate() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_811_json_aggregate_strict_values (value INT)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_811_json_aggregate_strict_values VALUES (1), (NULL), (2)",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT json_agg_strict(value) FROM issue_811_json_aggregate_strict_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-811-json-aggregate-strict", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (114, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("[1, 2]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_omit_sql_null_values_in_unique_jsonb_object_aggregation() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_811_unique_object_values (key TEXT, value INT)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_811_unique_object_values VALUES ('a', 1), ('b', NULL)",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_object_agg_unique_strict(key, value) FROM issue_811_unique_object_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-811-jsonb-object-aggregate-unique-strict",
+        &setup,
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{\"a\": 1}".to_owned())]]
     );
 }

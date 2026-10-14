@@ -663,6 +663,46 @@ fn should_order_values_in_postgresql_int4_array_aggregate() {
 }
 
 #[test]
+fn should_aggregate_array_values_into_a_higher_dimension_array() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_811_array_aggregate_values (id INT, items INT[])",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_811_array_aggregate_values VALUES (1, $1), (2, $2)",
+            vec![
+                Value::Json(serde_json::json!([1, 2])),
+                Value::Json(serde_json::json!([3, 4])),
+            ],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT array_agg(items) FROM issue_811_array_aggregate_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-811-array-aggregate-array-inputs",
+        &setup,
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1007, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{{1,2},{3,4}}".to_owned())]]
+    );
+}
+
+#[test]
 fn should_canonicalize_string_backed_array_text_elements_before_direct_output() {
     // Arrange
     let cases: [(i32, &[u8], &[u8]); 11] = [

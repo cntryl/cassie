@@ -1,7 +1,7 @@
 //! Selected transaction state laws exercised through independent wire sessions.
 
 use super::support_pgwire as wire;
-use super::support_pgwire_transaction_boundary::{Prefix, run_boundary, run_cycle, run_script};
+use super::support_pgwire_transaction_boundary::{run_boundary, run_cycle, run_script, Prefix};
 
 #[test]
 fn should_keep_extended_writes_private_until_sync() {
@@ -493,6 +493,72 @@ fn should_discard_staged_table_copy_on_explicit_rollback() {
         wire::data_rows(&result.after),
         vec![vec![Some("0".to_string())]]
     );
+    assert_eq!(
+        wire::data_rows(&result.terminal),
+        vec![vec![Some("0".to_string())]]
+    );
+}
+
+#[test]
+fn should_keep_explicit_truncate_isolated_until_commit() {
+    // Arrange
+    let boundary = vec![wire::simple_query_frame("TRUNCATE TABLE wire_tx")];
+    let tail = vec![vec![wire::simple_query_frame("COMMIT")]];
+
+    // Act
+    let result = run_script(
+        Prefix::Explicit,
+        boundary,
+        "SELECT COUNT(*) FROM wire_tx",
+        tail,
+    );
+
+    // Assert
+    assert_eq!(wire::error_code(&result.prefix), None);
+    assert_eq!(
+        result
+            .prefix
+            .iter()
+            .map(|frame| frame.0)
+            .collect::<Vec<_>>(),
+        b"12C"
+    );
+    assert_eq!(result.prefix[2].1, b"INSERT 0 1\0");
+    assert_eq!(wire::error_code(&result.before), None);
+    assert_eq!(
+        wire::data_rows(&result.before),
+        vec![vec![Some("0".to_string())]]
+    );
+    assert_eq!(
+        wire::error_code(&result.boundary),
+        None,
+        "TRUNCATE in an explicit transaction should complete; frames: {:?}",
+        result.boundary
+    );
+    assert_eq!(
+        result.boundary.last().map(|frame| frame.1.as_slice()),
+        Some(&b"T"[..])
+    );
+    assert_eq!(
+        result
+            .boundary
+            .iter()
+            .map(|frame| frame.0)
+            .collect::<Vec<_>>(),
+        b"CZ"
+    );
+    assert_eq!(result.boundary[0].1, b"TRUNCATE TABLE\0");
+    assert_eq!(wire::error_code(&result.after), None);
+    assert_eq!(
+        wire::data_rows(&result.after),
+        vec![vec![Some("0".to_string())]]
+    );
+    assert_eq!(wire::error_code(&result.tail[0]), None);
+    assert_eq!(
+        result.tail[0].last().map(|frame| frame.1.as_slice()),
+        Some(&b"I"[..])
+    );
+    assert_eq!(wire::error_code(&result.terminal), None);
     assert_eq!(
         wire::data_rows(&result.terminal),
         vec![vec![Some("0".to_string())]]

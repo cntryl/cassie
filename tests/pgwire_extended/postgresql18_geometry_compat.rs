@@ -339,6 +339,118 @@ fn should_send_box_values_in_postgresql_binary_format() {
 }
 
 #[test]
+fn should_send_lseg_values_with_postgresql_binary_identity() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let lseg_binary = [
+        0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x40, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x10, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            "lseg_binary_output",
+            "SELECT '[(1,2),(3,4)]'::lseg AS value",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "lseg_binary_output_portal",
+                "lseg_binary_output",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("lseg_binary_output_portal"),
+            wire::execute_frame("lseg_binary_output_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-907-lseg-binary-output", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("lseg binary RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    let actual_metadata = (
+        column.type_oid,
+        column.type_size,
+        column.type_mod,
+        column.format_code,
+    );
+    let actual_payloads = fixture::data_row_payloads(result);
+    assert_eq!(
+        (actual_metadata, actual_payloads),
+        ((601, 32, -1, 1), vec![fixture::one_field_row(&lseg_binary)])
+    );
+}
+
+#[test]
+fn should_send_polygon_values_with_postgresql_binary_identity() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let polygon_binary = [
+        0x00, 0x00, 0x00, 0x03, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x10,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
+        0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            "polygon_binary_output",
+            "SELECT '((1,2),(3,4),(5,6))'::polygon AS value",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "polygon_binary_output_portal",
+                "polygon_binary_output",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("polygon_binary_output_portal"),
+            wire::execute_frame("polygon_binary_output_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-907-polygon-binary-output", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("polygon binary RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    let actual_metadata = (
+        column.type_oid,
+        column.type_size,
+        column.type_mod,
+        column.format_code,
+    );
+    let actual_payloads = fixture::data_row_payloads(result);
+    assert_eq!(
+        (actual_metadata, actual_payloads),
+        (
+            (604, -1, -1, 1),
+            vec![fixture::one_field_row(&polygon_binary)]
+        )
+    );
+}
+
+#[test]
 fn should_decode_binary_circle_parameters() {
     // Arrange
     let circle_binary = [
@@ -383,5 +495,120 @@ fn should_decode_binary_circle_parameters() {
     assert_eq!(
         wire::data_rows(result),
         vec![vec![Some("<(1,2),3>".to_owned())]]
+    );
+}
+
+#[test]
+fn should_decode_binary_lseg_parameters() {
+    // Arrange
+    let lseg_binary = [
+        0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x40, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x10, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "lseg_binary_input",
+            "SELECT $1 AS value",
+            &[601],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "lseg_binary_input_portal",
+                "lseg_binary_input",
+                &[1],
+                &[Some(&lseg_binary)],
+                &[0],
+            ),
+            wire::describe_portal_frame("lseg_binary_input_portal"),
+            wire::execute_frame("lseg_binary_input_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-907-lseg-binary-input", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("lseg binary-input RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    let actual_metadata = (
+        column.type_oid,
+        column.type_size,
+        column.type_mod,
+        column.format_code,
+    );
+    let actual_values = wire::data_rows(result);
+    assert_eq!(
+        (actual_metadata, actual_values),
+        (
+            (601, 32, -1, 0),
+            vec![vec![Some("[(1,2),(3,4)]".to_owned())]]
+        )
+    );
+}
+
+#[test]
+fn should_decode_binary_polygon_parameters() {
+    // Arrange
+    let polygon_binary = [
+        0x00, 0x00, 0x00, 0x03, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x10,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
+        0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "polygon_binary_input",
+            "SELECT $1 AS value",
+            &[604],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "polygon_binary_input_portal",
+                "polygon_binary_input",
+                &[1],
+                &[Some(&polygon_binary)],
+                &[0],
+            ),
+            wire::describe_portal_frame("polygon_binary_input_portal"),
+            wire::execute_frame("polygon_binary_input_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-907-polygon-binary-input", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("polygon binary-input RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    let actual_metadata = (
+        column.type_oid,
+        column.type_size,
+        column.type_mod,
+        column.format_code,
+    );
+    let actual_values = wire::data_rows(result);
+    assert_eq!(
+        (actual_metadata, actual_values),
+        (
+            (604, -1, -1, 0),
+            vec![vec![Some("((1,2),(3,4),(5,6))".to_owned())]]
+        )
     );
 }

@@ -383,6 +383,63 @@ fn should_feed_deleted_returning_rows_into_a_following_cte_statement() {
 }
 
 #[test]
+fn should_keep_sibling_reads_on_the_data_modifying_cte_statement_snapshot() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-834-modifying-cte-snapshot",
+        &[
+            "CREATE TABLE issue_834_snapshot_source (id INT PRIMARY KEY, payload TEXT)",
+            "INSERT INTO issue_834_snapshot_source VALUES (1, 'one'), (2, 'two')",
+        ],
+    );
+
+    // Act
+    let observed = fixture.execute(
+        "WITH removed AS ( \
+             DELETE FROM issue_834_snapshot_source WHERE id = 1 RETURNING id, payload \
+         ), snapshot AS ( \
+             SELECT id, payload FROM issue_834_snapshot_source \
+         ) \
+         SELECT 'deleted' AS source, id, payload FROM removed \
+         UNION ALL \
+         SELECT 'snapshot', id, payload FROM snapshot \
+         ORDER BY source, id",
+    );
+    let remaining =
+        fixture.execute("SELECT id, payload FROM issue_834_snapshot_source ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        observed
+            .expect("data-modifying CTE and sibling SELECT statement snapshot")
+            .rows(),
+        &[
+            vec![
+                Value::String("deleted".to_owned()),
+                Value::Int64(1),
+                Value::String("one".to_owned()),
+            ],
+            vec![
+                Value::String("snapshot".to_owned()),
+                Value::Int64(1),
+                Value::String("one".to_owned()),
+            ],
+            vec![
+                Value::String("snapshot".to_owned()),
+                Value::Int64(2),
+                Value::String("two".to_owned()),
+            ],
+        ]
+    );
+    assert_eq!(
+        remaining
+            .expect("base table after the data-modifying CTE statement")
+            .rows(),
+        &[vec![Value::Int64(2), Value::String("two".to_owned())]]
+    );
+}
+
+#[test]
 fn should_attach_a_non_modifying_cte_to_insert() {
     // Arrange
     let fixture = sql_fixture(

@@ -1,6 +1,7 @@
 use super::*;
 
 mod constraint_control;
+mod constraint_lifecycle;
 mod foreign_key_actions;
 
 #[test]

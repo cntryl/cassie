@@ -355,6 +355,153 @@ fn should_resolve_regclass_names_across_search_path_then_drop() {
 }
 
 #[test]
+fn should_resolve_shadowed_regclass_names_by_search_path_precedence() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-818-shadowed-regclass-search-path",
+        &[
+            "CREATE SCHEMA issue_818_relation_a",
+            "CREATE SCHEMA issue_818_relation_b",
+            "CREATE TABLE issue_818_relation_a.item (id INTEGER)",
+            "CREATE TABLE issue_818_relation_b.item (id INTEGER)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    fixture
+        .execute("SET search_path TO issue_818_relation_a, issue_818_relation_b, public")
+        .expect("put the first relation schema first");
+    let first_path = fixture
+        .execute(
+            "SELECT to_regclass('item')::oid = to_regclass('issue_818_relation_a.item')::oid, \
+                    to_regclass('item')::oid = to_regclass('issue_818_relation_b.item')::oid",
+        )
+        .expect("resolve the first same-named relation");
+    fixture
+        .execute("SET search_path TO issue_818_relation_b, issue_818_relation_a, public")
+        .expect("put the second relation schema first");
+    let second_path = fixture
+        .execute(
+            "SELECT to_regclass('item')::oid = to_regclass('issue_818_relation_a.item')::oid, \
+                    to_regclass('item')::oid = to_regclass('issue_818_relation_b.item')::oid",
+        )
+        .expect("resolve the second same-named relation");
+
+    // Assert
+    assert_eq!(
+        first_path.rows(),
+        vec![vec![Value::Bool(true), Value::Bool(false)]]
+    );
+    assert_eq!(
+        second_path.rows(),
+        vec![vec![Value::Bool(false), Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_preserve_regclass_identity_across_catalog_lifecycle() {
+    // Arrange
+    super::support_sql::use_local_storage();
+    let path = super::support_sql::data_dir("issue-818-regclass-lifecycle-restart");
+    let _directory = TypeCatalogDirectory(path.clone());
+    let object_oid = {
+        let cassie = Cassie::new_with_data_dir(&path).expect("first Cassie instance");
+        cassie.startup().expect("first startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "CREATE SCHEMA issue_818_lifecycle", vec![])
+            .expect("create relation schema");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE issue_818_lifecycle.before_name (id INTEGER)",
+                vec![],
+            )
+            .expect("create relation");
+        let initial = cassie
+            .execute_sql(
+                &session,
+                "SELECT 'issue_818_lifecycle.before_name'::regclass::oid",
+                vec![],
+            )
+            .expect("read original relation OID");
+        let Value::Int64(object_oid) = &initial.rows()[0][0] else {
+            panic!("regclass OID is not an integer");
+        };
+        let object_oid = *object_oid;
+
+        cassie
+            .execute_sql(&session, "BEGIN", vec![])
+            .expect("begin rename rollback");
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE issue_818_lifecycle.before_name RENAME TO rolled_back_name",
+                vec![],
+            )
+            .expect("rename relation inside transaction");
+        cassie
+            .execute_sql(&session, "ROLLBACK", vec![])
+            .expect("roll back relation rename");
+        let rolled_back = cassie
+            .execute_sql(
+                &session,
+                "SELECT 'issue_818_lifecycle.before_name'::regclass::oid, \
+                        to_regclass('issue_818_lifecycle.rolled_back_name') IS NULL",
+                vec![],
+            )
+            .expect("resolve relation after rollback");
+        assert_eq!(
+            rolled_back.rows(),
+            vec![vec![Value::Int64(object_oid), Value::Bool(true)]]
+        );
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE issue_818_lifecycle.before_name RENAME TO persisted_name",
+                vec![],
+            )
+            .expect("rename relation for restart check");
+        object_oid
+    };
+
+    // Act
+    let cassie = Cassie::new_with_data_dir(&path).expect("reopened Cassie instance");
+    cassie.startup().expect("restart startup");
+    let session = cassie.create_session("tester", None);
+    let after_restart = cassie
+        .execute_sql(
+            &session,
+            "SELECT to_regclass('issue_818_lifecycle.persisted_name')::oid, \
+                    to_regclass('issue_818_lifecycle.before_name') IS NULL",
+            vec![],
+        )
+        .expect("resolve renamed relation after restart");
+    cassie
+        .execute_sql(
+            &session,
+            "DROP TABLE issue_818_lifecycle.persisted_name",
+            vec![],
+        )
+        .expect("drop renamed relation");
+    let after_drop = cassie
+        .execute_sql(
+            &session,
+            "SELECT to_regclass('issue_818_lifecycle.persisted_name') IS NULL",
+            vec![],
+        )
+        .expect("resolve dropped relation name");
+
+    // Assert
+    assert_eq!(
+        after_restart.rows(),
+        vec![vec![Value::Int64(object_oid), Value::Bool(true)]]
+    );
+    assert_eq!(after_drop.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
 fn should_preserve_quoted_regclass_identity_through_oid_lookup() {
     // Arrange
     let fixture = sql_fixture(

@@ -196,6 +196,28 @@ fn should_accept_bound_sample_rate_seed_parameters() {
 }
 
 #[test]
+fn should_apply_arithmetic_table_sample_arguments() {
+    // Arrange
+    let fixture = sample_fixture("issue-800-tablesample-expression-arguments");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT id FROM issue_800_sample_rows TABLESAMPLE BERNOULLI (100 - 0) REPEATABLE (0 + 0) ORDER BY id",
+    );
+
+    // Assert
+    let expected = (1..=128)
+        .map(|id| vec![Value::Int64(id)])
+        .collect::<Vec<_>>();
+    assert_eq!(
+        result
+            .expect("expression-valued TABLESAMPLE rate and seed")
+            .rows(),
+        expected
+    );
+}
+
+#[test]
 fn should_reject_negative_table_sample_rates() {
     // Arrange
     let fixture = sample_fixture("issue-800-tablesample-negative-rate");

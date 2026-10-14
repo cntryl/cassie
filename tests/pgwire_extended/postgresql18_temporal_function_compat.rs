@@ -217,6 +217,46 @@ fn should_reject_zero_date_bin_stride() {
 }
 
 #[test]
+fn should_return_postgresql_date_bin_timestamptz_output() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT DATE_BIN('24 hours', '2024-03-10 16:30:00+00', '2024-03-09 17:00:00+00')",
+        )]),
+    ];
+
+    // Act
+    let batches = run_script("issue-815-date-bin-timestamptz-output", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(
+        wire::error_code(&batches[1]),
+        None,
+        "date_bin execution error: {:?}",
+        batches[1]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    let description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("date_bin timestamptz RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (column.type_oid, column.type_size, column.format_code),
+        (1184, 8, 0)
+    );
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("2024-03-09 17:00:00+00".to_owned())]]
+    );
+}
+
+#[test]
 fn should_reject_invalid_formatted_timestamp_input() {
     // Arrange
     let steps = vec![

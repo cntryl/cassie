@@ -400,6 +400,106 @@ fn should_preserve_postgresql_numeric_operation_result_contracts() {
 }
 
 #[test]
+fn should_return_numeric_result_for_abs_numeric_parameter() {
+    // Arrange
+    let sql = "SELECT ABS($1) AS v";
+    let cycles = vec![fixture::execute_cycle(
+        sql,
+        Some((1700, 0, Some(b"2.5"))),
+        0,
+        true,
+    )];
+
+    // Act
+    let batches = fixture::run_cycles("type-numeric-abs-sum-results", &[], cycles);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1700, -1, -1), 0, true);
+    assert_parameter_oid(frames, 1700);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"2.5")]
+    );
+}
+
+#[test]
+fn should_return_numeric_result_for_sum_numeric_parameter() {
+    // Arrange
+    let sql = "SELECT SUM($1) AS v";
+    let cycles = vec![fixture::execute_cycle(
+        sql,
+        Some((1700, 0, Some(b"2.5"))),
+        0,
+        true,
+    )];
+
+    // Act
+    let batches = fixture::run_cycles("type-numeric-sum-parameter-result", &[], cycles);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1700, -1, -1), 0, true);
+    assert_parameter_oid(frames, 1700);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"2.5")]
+    );
+}
+
+#[test]
+fn should_return_real_result_for_sum_real_parameter() {
+    // Arrange
+    let sql = "SELECT SUM($1) AS v";
+    let cycles = vec![fixture::execute_cycle(
+        sql,
+        Some((700, 0, Some(b"2.5"))),
+        0,
+        true,
+    )];
+
+    // Act
+    let batches = fixture::run_cycles("type-real-sum-parameter-result", &[], cycles);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (700, 4, -1), 0, true);
+    assert_parameter_oid(frames, 700);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"2.5")]
+    );
+}
+
+#[test]
+fn should_return_numeric_result_for_avg_numeric_parameter() {
+    // Arrange
+    let sql = "SELECT AVG($1) AS v";
+    let cycles = vec![fixture::execute_cycle(
+        sql,
+        Some((1700, 0, Some(b"2.5"))),
+        0,
+        true,
+    )];
+
+    // Act
+    let batches = fixture::run_cycles("type-numeric-avg-parameter-result", &[], cycles);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1700, -1, -1), 0, true);
+    assert_parameter_oid(frames, 1700);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"2.5000000000000000")]
+    );
+}
+
+#[test]
 fn should_preserve_decoder_origins_through_normalized_conditional_forwarding() {
     // Arrange
     let statements = [
@@ -499,8 +599,6 @@ fn should_preserve_explicit_float_boundaries_beside_generated_coercions() {
 fn should_reject_adapter_forwarding_outputs() {
     // Arrange
     let statements = [
-        ("SELECT ABS($1) AS v", 1700),
-        ("SELECT SUM($1) AS v", 1700),
         ("SELECT MIN($1) AS v", 700),
         ("SELECT COALESCE($1, NULL) AS v", 700),
         ("SELECT CASE WHEN TRUE THEN $1 ELSE NULL END AS v", 700),

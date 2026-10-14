@@ -1,6 +1,6 @@
 //! PostgreSQL 18 temporal descriptors, codecs, settings, and errors tracked by #814.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 fn binary_row(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<u8>> {
@@ -490,8 +490,17 @@ fn should_format_temporal_text_from_session_settings() {
     let batches = run_script("postgresql18-temporal-session-format", steps);
 
     // Assert
-    for batch in &batches {
-        assert_eq!(wire::error_code(batch), None);
+    for (index, batch) in batches.iter().enumerate() {
+        assert_eq!(
+            wire::error_code(batch),
+            None,
+            "batch {index}: {:?}",
+            batch
+                .iter()
+                .filter(|(tag, _)| *tag == b'E')
+                .map(|(_, payload)| wire::parse_error_fields(payload))
+                .collect::<Vec<_>>()
+        );
     }
     assert_eq!(
         wire::data_rows(&batches[2]),

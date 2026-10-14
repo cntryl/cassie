@@ -365,8 +365,10 @@ fn should_persist_boolean_binary_normalization_across_recovery_boundaries() {
 #[test]
 fn should_reject_trailing_boolean_array_container_bytes_as_malformed_input() {
     // Arrange
-    // PostgreSQL 18.6 returns 22P03 for this valid BOOL[] frame plus one byte.
-    // OID 34016 is Cassie's legacy BOOL[] adapter; this does not assert standard identity.
+    // #807/#928 adapt PostgreSQL BOOL[] OID 1000 to Cassie's legacy wire OID
+    // 34016 so this probe reaches the existing array receiver; it does not
+    // claim PostgreSQL accepts OID 34016 or qualify standard array identity.
+    // PostgreSQL 18.6 returns 22P03 for the valid BOOL[] frame plus one byte.
     let valid = [
         0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1,
     ];
@@ -396,15 +398,15 @@ fn should_reject_trailing_boolean_array_container_bytes_as_malformed_input() {
     // Assert
     fixture::assert_success(&batches[0]);
     assert_eq!(fixture::data_row_payloads(&batches[0]).len(), 1);
+    fixture::assert_success(&batches[2]);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("1".to_owned())]]
+    );
     assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("22P03"));
     assert!(fixture::data_row_payloads(&batches[1]).is_empty());
     assert_eq!(
         batches[1].last().map(|frame| frame.1.as_slice()),
         Some(&b"I"[..])
-    );
-    fixture::assert_success(&batches[2]);
-    assert_eq!(
-        wire::data_rows(&batches[2]),
-        vec![vec![Some("1".to_owned())]]
     );
 }

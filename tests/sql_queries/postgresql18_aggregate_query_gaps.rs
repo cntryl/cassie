@@ -1010,3 +1010,18 @@ fn should_skip_sql_nulls_but_keep_json_nulls_in_strict_jsonb_aggregate() {
         &[vec![Value::String("[null]".to_owned())]]
     );
 }
+
+#[test]
+fn should_accept_a_bytea_delimiter_in_string_agg() {
+    // Arrange
+    let fixture = sql_fixture("issue-811-bytea-string-aggregate", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT string_agg(decode('6161','hex'), decode('2c','hex')) = decode('6161','hex')",
+    );
+
+    // Assert
+    let result = result.expect("bytea string_agg accepts a bytea delimiter");
+    assert_eq!(result.rows(), &[vec![Value::Bool(true)]]);
+}

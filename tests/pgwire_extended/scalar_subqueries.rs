@@ -1,6 +1,6 @@
 //! PostgreSQL Parse, Describe, Bind and Execute behavior for #762 subqueries.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 fn setup() -> Step {
@@ -29,6 +29,27 @@ fn should_execute_scalar_subqueries_in_simple_query_protocol() {
     // Assert
     assert_eq!(wire::error_code(result), None);
     assert_eq!(wire::data_rows(result), vec![vec![Some("17".into())]]);
+}
+
+#[test]
+fn should_filter_rows_with_a_scalar_subquery_predicate() {
+    // Arrange
+    let batches = run_script(
+        "issue-762-scalar-predicate-wire",
+        vec![
+            setup(),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT id FROM scalar_wire_values WHERE value = (SELECT 100) ORDER BY id",
+            )]),
+        ],
+    );
+
+    // Act
+    let result = &batches[1];
+
+    // Assert
+    assert_eq!(wire::error_code(result), None);
+    assert_eq!(wire::data_rows(result), vec![vec![Some("1".into())]]);
 }
 
 #[test]

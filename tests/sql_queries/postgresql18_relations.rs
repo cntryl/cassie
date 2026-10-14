@@ -332,6 +332,63 @@ fn should_select_a_table_as_a_query_source() {
 }
 
 #[test]
+fn should_select_from_a_scalar_function_as_a_one_row_relation() {
+    // Arrange
+    let fixture = sql_fixture("issue-808-scalar-function-relation", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT * FROM lower('X') AS function_row(value)");
+
+    // Assert
+    let result = result.expect("scalar function in FROM produces one row");
+    assert_eq!(result.rows(), &[vec![Value::String("x".to_owned())]]);
+    assert_eq!(result.columns()[0].type_oid, 25);
+}
+
+#[test]
+fn should_expand_integer_generate_series_in_the_select_list() {
+    // Arrange
+    let fixture = sql_fixture("issue-808-generate-series-select-list", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT generate_series(1, 5, 2) AS value");
+
+    // Assert
+    let result = result.expect("set-returning integer function in the select list");
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![Value::Int64(1)],
+            vec![Value::Int64(3)],
+            vec![Value::Int64(5)],
+        ]
+    );
+    assert_eq!(result.columns()[0].type_oid, 23);
+}
+
+#[test]
+fn should_expand_rows_from_functions_in_lockstep() {
+    // Arrange
+    let fixture = sql_fixture("issue-808-rows-from-lockstep", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT * FROM ROWS FROM (unnest(ARRAY[10,20,30]), unnest(ARRAY['a','b'])) AS expanded(number,label)",
+    );
+
+    // Assert
+    let result = result.expect("ROWS FROM combines function outputs by row position");
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![Value::Int64(10), Value::String("a".to_owned())],
+            vec![Value::Int64(20), Value::String("b".to_owned())],
+            vec![Value::Int64(30), Value::Null],
+        ]
+    );
+}
+
+#[test]
 fn should_accept_only_star_table_query_modifiers() {
     // Arrange
     let fixture = join_fixture("issue-800-table-only-star");

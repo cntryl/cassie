@@ -103,6 +103,74 @@ fn should_describe_typed_money_parameter_result() {
 }
 
 #[test]
+fn should_reformat_prepared_money_after_monetary_locale_change() {
+    // Arrange
+    let statement = "prepared_money_locale_result";
+    let sql = "SELECT amount FROM issue_908_prepared_money_locale";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET lc_monetary = 'C'")]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TABLE issue_908_prepared_money_locale (amount MONEY)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "INSERT INTO issue_908_prepared_money_locale VALUES ('1234.56'::MONEY)",
+        )]),
+        Step::ParseFlush(wire::parse_frame(statement, sql)),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("money_c_locale_portal", statement, &[]),
+            wire::describe_portal_frame("money_c_locale_portal"),
+            wire::execute_frame("money_c_locale_portal"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SET lc_monetary = 'de_DE.UTF-8'",
+        )]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("money_german_locale_portal", statement, &[]),
+            wire::describe_portal_frame("money_german_locale_portal"),
+            wire::execute_frame("money_german_locale_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-prepared-money-locale-change", steps);
+
+    // Assert
+    for (index, batch) in batches.iter().enumerate() {
+        assert_eq!(
+            wire::error_code(batch),
+            None,
+            "batch {index} ErrorResponse fields: {:?}",
+            batch
+                .iter()
+                .filter(|(tag, _)| *tag == b'E')
+                .map(|(_, payload)| wire::parse_error_fields(payload))
+                .collect::<Vec<_>>()
+        );
+    }
+    for batch in [&batches[5], &batches[7]] {
+        let description = batch
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("prepared money RowDescription");
+        assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 790);
+    }
+    assert_eq!(
+        wire::data_rows(&batches[5]),
+        vec![vec![Some("$1,234.56".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[7]),
+        vec![vec![Some("1.234,56 €".to_owned())]]
+    );
+}
+
+#[test]
 fn should_report_money_overflow_with_numeric_value_out_of_range_sqlstate() {
     // Arrange
     let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(

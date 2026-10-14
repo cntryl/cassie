@@ -235,6 +235,47 @@ fn should_describe_bigint_aggregate_results_as_numeric() {
 }
 
 #[test]
+fn should_describe_bigint_aggregate_nulls_as_numeric() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TABLE issue_812_null_aggregate_values (value BIGINT)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "INSERT INTO issue_812_null_aggregate_values VALUES (NULL)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT SUM(value), AVG(value) FROM issue_812_null_aggregate_values WHERE FALSE",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT SUM(value), AVG(value) FROM issue_812_null_aggregate_values",
+        )]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-null-bigint-aggregates", steps);
+
+    // Assert
+    assert!(batches
+        .iter()
+        .all(|batch| wire::error_code(batch).is_none()));
+    for batch in &batches[2..] {
+        let description = batch
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("aggregate RowDescription");
+        assert_eq!(
+            wire::parse_row_description(&description.1)
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            vec![1700, 1700]
+        );
+        assert_eq!(wire::data_rows(batch), vec![vec![None, None]]);
+    }
+}
+
+#[test]
 fn should_keep_grouped_bigint_aggregate_types_numeric() {
     // Arrange
     let steps = vec![

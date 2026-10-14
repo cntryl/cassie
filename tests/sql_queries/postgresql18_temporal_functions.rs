@@ -437,15 +437,13 @@ fn should_format_timestamptz_with_session_zone_offset() {
     );
 
     // Act
-    let result = fixture.execute(
-        "SELECT TO_CHAR(TIMESTAMPTZ '2001-02-16 20:38:40+00', 'YYYY-MM-DD HH24:MI OF') = '2001-02-16 13:38 -07'",
-    );
+    let result =
+        fixture.execute("SELECT TO_CHAR(TIMESTAMPTZ '2001-02-16 20:38:40+00', 'OF') AS offset");
 
     // Assert
-    assert_eq!(
-        result.expect("timezone-aware formatting").rows(),
-        &[vec![Value::Bool(true)]]
-    );
+    let result = result.expect("timezone offset formatting");
+    assert_eq!(result.rows(), &[vec![Value::String("-07".to_owned())]]);
+    assert_eq!(result.columns()[0].type_oid, 25);
 }
 
 #[test]

@@ -46,6 +46,44 @@ fn should_describe_temporal_function_results_with_postgresql_types() {
 }
 
 #[test]
+fn should_describe_timezone_overloads_with_postgresql_result_types() {
+    // Arrange
+    let sql = "SELECT timezone('America/Denver', TIMESTAMP '2001-02-16 20:38:40') AS zoned_timestamp, timezone('America/Denver', TIMESTAMPTZ '2001-02-17 03:38:40+00') AS local_timestamp, timezone('UTC', TIME '05:34:17') AS zoned_time, timezone('UTC', TIMETZ '05:34:17-05') AS local_time";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ThroughReady(vec![wire::simple_query_frame(sql)]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-timezone-overload-result-types", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(&batches[1]), None);
+    let description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("timezone overload RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![(1184, 8, -1), (1114, 8, -1), (1266, 12, -1), (1266, 12, -1),]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![
+            Some("2001-02-17 03:38:40+00".to_owned()),
+            Some("2001-02-16 20:38:40".to_owned()),
+            Some("05:34:17+00".to_owned()),
+            Some("10:34:17+00".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_return_null_for_temporal_function_results() {
     // Arrange
     let sql = "SELECT DATE_TRUNC('day', NULL::TIMESTAMP) AS truncated, TO_CHAR(NULL::DATE, 'YYYY') AS formatted, TO_DATE(NULL::TEXT, 'YYYY-MM-DD') AS parsed, AGE(NULL::TIMESTAMP, TIMESTAMP '2001-01-01') AS age";
@@ -125,6 +163,68 @@ fn should_bind_temporal_function_parameters_with_postgresql_types() {
             Some("1 mon 1 day".to_owned()),
             Some("2001-02-16".to_owned()),
         ]]
+    );
+}
+
+#[test]
+fn should_refresh_statement_timestamp_when_reusing_prepared_statement() {
+    // Arrange
+    let statement = "statement_clock_reuse";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ParseFlush(wire::parse_frame(
+            statement,
+            "SELECT STATEMENT_TIMESTAMP() AS value",
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats("first_clock_portal", statement, &[], &[], &[]),
+            wire::describe_portal_frame("first_clock_portal"),
+            wire::execute_frame("first_clock_portal"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT PG_SLEEP_FOR(INTERVAL '50 milliseconds')",
+        )]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats("second_clock_portal", statement, &[], &[], &[]),
+            wire::describe_portal_frame("second_clock_portal"),
+            wire::execute_frame("second_clock_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-prepared-statement-clock-volatility", steps);
+
+    // Assert
+    assert!(batches
+        .iter()
+        .all(|batch| wire::error_code(batch).is_none()));
+    let first_description = batches[3]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("first prepared statement portal RowDescription");
+    let second_description = batches[5]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("second prepared statement portal RowDescription");
+    for description in [first_description, second_description] {
+        let column = &wire::parse_row_description(&description.1)[0];
+        assert_eq!((column.type_oid, column.type_mod), (1184, -1));
+    }
+    let first_value = wire::data_rows(&batches[3])[0][0]
+        .clone()
+        .expect("first statement timestamp");
+    let second_value = wire::data_rows(&batches[5])[0][0]
+        .clone()
+        .expect("second statement timestamp");
+    assert_ne!(
+        first_value, second_value,
+        "reusing a prepared statement evaluates statement_timestamp for each execution"
     );
 }
 
@@ -317,7 +417,9 @@ fn should_bind_date_add_parameters_with_dst_zone() {
     // Arrange
     let sql = "SELECT DATE_ADD($1, $2, $3) AS calendar_day";
     let steps = vec![
-        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SET TIME ZONE 'America/New_York'",
+        )]),
         Step::ParseFlush(wire::parse_frame_with_types(
             "date_add_dst_parameters",
             sql,
@@ -385,7 +487,7 @@ fn should_bind_date_add_parameters_with_dst_zone() {
     );
     assert_eq!(
         wire::data_rows(&batches[3]),
-        vec![vec![Some("2024-03-10 16:00:00+00".to_owned())]]
+        vec![vec![Some("2024-03-10 12:00:00-04".to_owned())]]
     );
 }
 
@@ -394,7 +496,9 @@ fn should_bind_date_subtract_parameters_with_dst_zone() {
     // Arrange
     let sql = "SELECT DATE_SUBTRACT($1, $2, $3) AS calendar_day";
     let steps = vec![
-        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SET TIME ZONE 'America/New_York'",
+        )]),
         Step::ParseFlush(wire::parse_frame_with_types(
             "date_subtract_dst_parameters",
             sql,
@@ -462,7 +566,7 @@ fn should_bind_date_subtract_parameters_with_dst_zone() {
     );
     assert_eq!(
         wire::data_rows(&batches[3]),
-        vec![vec![Some("2024-03-10 16:00:00+00".to_owned())]]
+        vec![vec![Some("2024-03-10 12:00:00-04".to_owned())]]
     );
 }
 

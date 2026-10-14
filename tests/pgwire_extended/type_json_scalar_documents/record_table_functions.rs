@@ -3,6 +3,9 @@
 use crate::support_pgwire as wire;
 use crate::support_type_metadata_contract as fixture;
 
+#[path = "expansion_resource_limits.rs"]
+mod expansion_resource_limits;
+
 fn column_type_oids(frames: &fixture::Frames) -> Vec<i32> {
     let description = frames
         .iter()

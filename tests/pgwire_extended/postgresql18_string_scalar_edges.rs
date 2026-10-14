@@ -361,6 +361,34 @@ fn should_return_format_output_with_postgresql_text_metadata() {
     );
 }
 
+#[test]
+fn should_return_starts_with_as_a_postgresql_boolean_wire_value() {
+    // Arrange
+    let batches = run_script(
+        "issue-803-starts-with-wire",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT starts_with('alphabet', 'alpha') AS matches",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "starts_with errors: {:?}",
+        error_fields(result)
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("starts_with RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 16);
+    assert_eq!(wire::data_rows(result), vec![vec![Some("t".to_owned())]]);
+}
+
 fn run_null_count(function_name: &str) -> Vec<Vec<Option<String>>> {
     let number = 7_i32.to_be_bytes();
     let text = b"x";

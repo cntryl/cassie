@@ -4,6 +4,7 @@ mod default_privileges;
 mod expression_statistics;
 mod language_sql;
 mod ownership_privileges;
+mod trigger_ddl;
 
 #[test]
 fn should_resolve_sql_routine_defaults_named_arguments() {

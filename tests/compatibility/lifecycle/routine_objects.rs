@@ -1,5 +1,6 @@
 use super::*;
 
+mod cursor_variables;
 mod default_privileges;
 mod do_blocks;
 mod expression_statistics;

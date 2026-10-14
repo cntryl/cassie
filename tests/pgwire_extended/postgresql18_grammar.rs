@@ -127,6 +127,36 @@ fn should_describe_parenthesized_parameter_arithmetic_in_offset() {
 }
 
 #[test]
+fn should_reject_unparenthesized_parameter_arithmetic_in_offset_with_syntax_sqlstate() {
+    // Arrange
+    let batches = run_script(
+        "issue-800-unparenthesized-offset-arithmetic",
+        vec![Step::ParseFlush(wire::parse_frame(
+            "bad_offset",
+            "SELECT 1 OFFSET $1 + 1 ROWS",
+        ))],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(wire::error_code(result).as_deref(), Some("42601"));
+    let error = result
+        .iter()
+        .find(|frame| frame.0 == b'E')
+        .expect("unparenthesized OFFSET Parse error");
+    let fields = wire::parse_error_fields(&error.1);
+    assert_eq!(
+        fields
+            .iter()
+            .find(|(kind, _)| *kind == 'M')
+            .map(|(_, value)| value.as_str()),
+        Some("syntax error at or near \"ROWS\"")
+    );
+}
+
+#[test]
 fn should_report_malformed_unicode_identifier_escape_with_syntax_sqlstate() {
     // Arrange
     let batches = run_script(

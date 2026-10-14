@@ -478,3 +478,196 @@ fn should_list_the_builtin_plpgsql_language_in_pg_language() {
         vec![vec![Value::String("plpgsql".to_owned())]]
     );
 }
+
+#[test]
+fn should_report_builtin_function_result_identity_in_pg_proc() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-procedure-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT proname, prorettype FROM pg_catalog.pg_proc WHERE proname = 'now'")
+        .expect("query the built-in procedure catalog");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("now".to_owned()), Value::Int64(1_184)]]
+    );
+}
+
+#[test]
+fn should_list_builtin_aggregate_catalog_entries() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-aggregate-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) > 0 FROM pg_catalog.pg_aggregate")
+        .expect("query built-in aggregate metadata");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_list_the_integer_addition_operator_in_pg_operator() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-operator-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT oprname, oprleft, oprright FROM pg_catalog.pg_operator \
+             WHERE oprname = '+' AND oprleft = 23 AND oprright = 23",
+        )
+        .expect("query the built-in integer addition operator");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("+".to_owned()),
+            Value::Int64(23),
+            Value::Int64(23),
+        ]]
+    );
+}
+
+#[test]
+fn should_list_integer_btree_operator_classes() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-opclass-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) > 0 FROM pg_catalog.pg_opclass WHERE opcname = 'int4_ops'")
+        .expect("query the integer operator class");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_list_access_method_operator_entries() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-amop-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) > 0 FROM pg_catalog.pg_amop")
+        .expect("query operator access method metadata");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_list_access_method_support_function_entries() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-amproc-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) > 0 FROM pg_catalog.pg_amproc")
+        .expect("query access method support function metadata");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_report_no_builtin_enum_labels_without_user_types() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-enum-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) FROM pg_catalog.pg_enum")
+        .expect("query the PostgreSQL enum catalog");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Int64(0)]]);
+}
+
+#[test]
+fn should_report_no_event_triggers_in_a_fresh_database() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-event-trigger-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) FROM pg_catalog.pg_event_trigger")
+        .expect("query the PostgreSQL event trigger catalog");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Int64(0)]]);
+}
+
+#[test]
+fn should_list_builtin_character_conversion_entries() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-conversion-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) > 0 FROM pg_catalog.pg_conversion")
+        .expect("query built-in character conversion metadata");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_list_default_text_search_configuration_mappings() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-text-search-map-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) > 0 FROM pg_catalog.pg_ts_config_map")
+        .expect("query the text search configuration mappings");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_report_no_user_parameter_privilege_rows_in_a_fresh_database() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-parameter-acl-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) FROM pg_catalog.pg_parameter_acl")
+        .expect("query PostgreSQL parameter access control metadata");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Int64(0)]]);
+}
+
+#[test]
+fn should_report_no_partitioned_relations_in_a_fresh_database() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-partitioned-table-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) FROM pg_catalog.pg_partitioned_table")
+        .expect("query the PostgreSQL partitioned table catalog");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Int64(0)]]);
+}

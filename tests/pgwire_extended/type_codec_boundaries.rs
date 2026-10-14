@@ -205,6 +205,21 @@ fn should_preserve_integer_array_identity_during_text_rendering() {
 }
 
 #[test]
+fn should_describe_jsonb_array_with_postgresql_type_identity() {
+    // Arrange
+    let cycle = fixture::execute_cycle("SELECT CAST(NULL AS JSONB[]) AS value", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-standard-jsonb-array-identity", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3_807, -1, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![None]]);
+}
+
+#[test]
 fn should_preserve_unsigned_json_documents_in_scalar_arrays() {
     // Arrange
     let binary = [

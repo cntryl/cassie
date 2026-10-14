@@ -443,6 +443,21 @@ fn should_return_null_for_missing_regnamespace_lookup() {
 }
 
 #[test]
+fn should_resolve_builtin_collation_through_to_regcollation() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-to-regcollation-builtin", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT to_regcollation('pg_catalog.\"default\"') IS NOT NULL")
+        .expect("built-in collation lookup");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
 fn should_resolve_a_created_role_through_to_regrole() {
     // Arrange
     let fixture = sql_fixture(

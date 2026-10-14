@@ -438,6 +438,40 @@ fn should_round_trip_nondefault_array_bounds_across_index_restart() {
 }
 
 #[test]
+fn should_infer_standard_array_oid_for_oid_zero_binary_bind() {
+    // Arrange
+    let input = [
+        0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 42,
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT CAST($1 AS INT4[]) AS value",
+        Some((0, 1, Some(&input))),
+        1,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-oid-zero-binary-bind", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    let parameters = frames
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("array ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameters.1),
+        vec![1_007]
+    );
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1_007, -1, -1), 1, true);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(&input)]
+    );
+}
+
+#[test]
 fn should_send_integer_arrays_with_postgresql_oid_binary_format() {
     // Arrange
     let setup = [
@@ -998,11 +1032,9 @@ fn should_preserve_finite_float_array_tokens_before_output() {
     }
     for pair in batches[24..].as_chunks::<2>().0 {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("08P01"));
-        assert!(
-            !pair[0]
-                .iter()
-                .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C'))
-        );
+        assert!(!pair[0]
+            .iter()
+            .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
         fixture::assert_success(&pair[1]);
         assert_eq!(
             fixture::data_row_payloads(&pair[1]),
@@ -1085,11 +1117,9 @@ fn should_preserve_integer_array_negative_zero_in_both_spellings() {
     }
     for pair in batches[12..].as_chunks::<2>().0 {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("08P01"));
-        assert!(
-            !pair[0]
-                .iter()
-                .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C'))
-        );
+        assert!(!pair[0]
+            .iter()
+            .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
         fixture::assert_success(&pair[1]);
         assert_eq!(
             fixture::data_row_payloads(&pair[1]),

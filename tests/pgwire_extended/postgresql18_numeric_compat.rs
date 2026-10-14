@@ -1,6 +1,6 @@
 //! PostgreSQL 18 NUMERIC OID, typmod and codec contracts tracked by #812.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 #[test]
@@ -369,6 +369,53 @@ fn should_enforce_postgresql_numeric_precision_scale_limits() {
     assert_eq!(
         wire::data_rows(&batches[3]),
         vec![vec![Some("t".to_owned())]]
+    );
+}
+
+#[test]
+fn should_bind_an_oid_zero_numeric_parameter_in_binary_format() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let value = [
+        0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x13, 0x88,
+    ];
+    let sql = "SELECT CAST($1 AS NUMERIC) AS value";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types("oid_zero_numeric", sql, &[0])),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("oid_zero_numeric"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "oid_zero_numeric_portal",
+                "oid_zero_numeric",
+                &[1],
+                &[Some(&value)],
+                &[1],
+            ),
+            wire::describe_portal_frame("oid_zero_numeric_portal"),
+            wire::execute_frame("oid_zero_numeric_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-numeric-oid-zero-binary-bind", steps);
+
+    // Assert
+    let parameters = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("numeric ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), vec![1700]);
+    let result = &batches[2];
+    assert_eq!(wire::error_code(result), None);
+    fixture::assert_single_column_descriptors(result, (1700, -1, -1), 1, true);
+    assert_eq!(
+        fixture::data_row_payloads(result),
+        vec![fixture::one_field_row(&value)]
     );
 }
 

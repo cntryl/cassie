@@ -210,13 +210,44 @@ fn should_keep_power_result_types_for_both_inputs() {
 #[test]
 fn should_apply_the_power_operator_left_to_right() {
     // Arrange
-    let sql = "SELECT 2 ^ 3 ^ 3 = 512";
+    let sql = "SELECT 2 ^ 3 ^ 3 AS power";
 
     // Act
-    let rows = predicate_rows("issue-813-power-operator", sql);
+    let fixture = sql_fixture("issue-813-power-operator", &[]);
+    let result = fixture.execute(sql);
 
     // Assert
-    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+    let result = result.expect("left-associative PostgreSQL power operator");
+    assert_eq!(result.rows(), &[vec![Value::Float64(512.0)]]);
+    assert_eq!(result.columns()[0].type_oid, 701);
+}
+
+#[test]
+fn should_calculate_the_prefix_square_root_operator() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-square-root-operator", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT |/ 25.0 AS square_root");
+
+    // Assert
+    let result = result.expect("PostgreSQL prefix square-root operator");
+    assert_eq!(result.rows(), &[vec![Value::Float64(5.0)]]);
+    assert_eq!(result.columns()[0].type_oid, 701);
+}
+
+#[test]
+fn should_calculate_the_prefix_cube_root_operator_for_negative_float8() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-cube-root-operator", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT ||/ -64.0 AS cube_root");
+
+    // Assert
+    let result = result.expect("PostgreSQL prefix cube-root operator for negative float8");
+    assert_eq!(result.rows(), &[vec![Value::Float64(-4.0)]]);
+    assert_eq!(result.columns()[0].type_oid, 701);
 }
 
 #[test]

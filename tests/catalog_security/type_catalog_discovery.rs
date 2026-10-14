@@ -355,6 +355,37 @@ fn should_resolve_regclass_names_across_search_path_then_drop() {
 }
 
 #[test]
+fn should_preserve_quoted_regclass_identity_through_oid_lookup() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-818-quoted-regclass-oid-identity",
+        &[
+            "CREATE SCHEMA \"Issue_818\"",
+            "CREATE TABLE \"Issue_818\".\"QuotedTable\" (id INTEGER)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT CAST(CAST('\"Issue_818\".\"QuotedTable\"' AS regclass) AS text), \
+                    CAST(CAST('\"Issue_818\".\"QuotedTable\"' AS regclass) AS oid) = \
+                      CAST(to_regclass('\"Issue_818\".\"QuotedTable\"') AS oid)",
+        )
+        .expect("resolve the quoted relation's regclass identity");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("\"Issue_818\".\"QuotedTable\"".to_owned()),
+            Value::Bool(true),
+        ]]
+    );
+}
+
+#[test]
 fn should_discover_postgresql_catalog_rows_for_supported_type_families() {
     // Arrange
     let fixture = sql_fixture("issue-817-additional-builtin-type-rows", &[]);
@@ -409,6 +440,31 @@ fn should_resolve_regprocedure_signature_aliases_including_missing_overloads() {
     assert_eq!(
         selected.rows(),
         vec![vec![Value::Bool(true), Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_preserve_overload_identity_through_regprocedure_casts() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regprocedure-oid-identity", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT CAST(CAST('pg_catalog.abs(integer)' AS regprocedure) AS text), \
+                    CAST(CAST('pg_catalog.abs(integer)' AS regprocedure) AS oid) = \
+                      CAST(to_regprocedure('pg_catalog.abs(int4)') AS oid)",
+        )
+        .expect("resolve the explicit regprocedure overload identity");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("abs(integer)".to_owned()),
+            Value::Bool(true)
+        ]]
     );
 }
 
@@ -491,6 +547,36 @@ fn should_resolve_a_builtin_function_through_to_regproc() {
 }
 
 #[test]
+fn should_return_null_for_a_missing_regproc_name() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regproc-regrole-missing-names", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT to_regproc('pg_catalog.no_such_function') IS NULL")
+        .expect("return NULL for a missing procedure name");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_return_null_for_a_missing_regrole_name() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regrole-missing-name", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT to_regrole('issue_818_missing_role') IS NULL")
+        .expect("return NULL for a missing role name");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
 fn should_report_a_resolved_scalar_type_with_pg_typeof() {
     // Arrange
     let fixture = sql_fixture("issue-817-pg-typeof-resolution", &[]);
@@ -517,6 +603,73 @@ fn should_accept_the_postgresql_oid_scalar_type() {
 
     // Assert
     assert_eq!(selected.rows(), vec![vec![Value::Int64(23)]]);
+}
+
+#[test]
+fn should_preserve_oid_integer_identity() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-oid-integer-identity", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT CAST(CAST(42 AS oid) AS bigint), \
+                    CAST(42 AS oid) = CAST(42 AS integer)",
+        )
+        .expect("cast and compare an OID with integer values");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::Int64(42), Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_resolve_regclass_only_within_the_active_database() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regclass-database-scope", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE TABLE issue_818_current_scope_only (id INTEGER)")
+        .expect("current database relation");
+    fixture
+        .execute("CREATE DATABASE issue_818_regclass_tenant")
+        .expect("second database");
+    let tenant = fixture
+        .cassie
+        .create_session("tester", Some("issue_818_regclass_tenant".to_owned()));
+    fixture
+        .cassie
+        .execute_sql(
+            &tenant,
+            "CREATE TABLE issue_818_other_scope_only (id INTEGER)",
+            vec![],
+        )
+        .expect("other database relation");
+
+    // Act
+    let current = fixture
+        .execute(
+            "SELECT to_regclass('issue_818_current_scope_only') IS NOT NULL, \
+                    to_regclass('issue_818_other_scope_only') IS NULL",
+        )
+        .expect("resolve relations in the current database only");
+    let other = fixture
+        .cassie
+        .execute_sql(
+            &tenant,
+            "SELECT to_regclass('issue_818_other_scope_only') IS NOT NULL, \
+                    to_regclass('issue_818_current_scope_only') IS NULL",
+            vec![],
+        )
+        .expect("resolve relations in the second database only");
+
+    // Assert
+    let expected = vec![vec![Value::Bool(true), Value::Bool(true)]];
+    assert_eq!(current.rows(), expected);
+    assert_eq!(other.rows(), expected);
 }
 
 #[test]

@@ -127,6 +127,52 @@ fn should_rebuild_an_existing_index_with_reindex() {
 }
 
 #[test]
+fn should_rebuild_all_indexes_for_a_table() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("reindex_table").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_reindex_table_rows (id INT, value INT)",
+                "INSERT INTO compat_reindex_table_rows VALUES (1, 20), (2, 10)",
+                "CREATE INDEX compat_reindex_table_value_idx \
+                   ON compat_reindex_table_rows (value)",
+            ],
+        )
+        .await
+        .expect("create a table with an index and rows");
+
+        // Act
+        client
+            .batch_execute("REINDEX TABLE compat_reindex_table_rows")
+            .await
+            .expect("rebuild every index belonging to the table");
+        let ordered = client
+            .query(
+                "SELECT value FROM compat_reindex_table_rows ORDER BY value",
+                &[],
+            )
+            .await
+            .expect("read table rows after table-level reindex");
+
+        // Assert
+        assert_eq!(
+            ordered
+                .iter()
+                .map(|row| row.get::<_, i32>(0))
+                .collect::<Vec<_>>(),
+            vec![10, 20]
+        );
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_roundtrip_index_comments_through_catalog() {
     // Arrange
     let runtime = current_thread_runtime();

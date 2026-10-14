@@ -983,15 +983,29 @@ fn should_distinguish_json_null_from_missing_or_sql_null_with_jsonb_operators() 
 #[test]
 fn should_apply_jsonb_containment_with_boolean_result_identity() {
     // Arrange
+    let setup = [
+        (
+            "CREATE TABLE jsonb_containment_input (document JSONB, subset JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO jsonb_containment_input VALUES ('{\"a\":1,\"b\":[1,2]}', '{\"a\":1}')",
+            Vec::new(),
+        ),
+    ];
     let cycle = fixture::execute_cycle(
-        "SELECT '{\"a\":1,\"b\":[1,2]}'::JSONB @> '{\"a\":1}'::JSONB AS contains",
+        "SELECT document @> subset AS contains FROM jsonb_containment_input",
         None,
         0,
         true,
     );
 
     // Act
-    let batches = fixture::run_cycles("type-jsonb-containment-result-identity", &[], vec![cycle]);
+    let batches = fixture::run_cycles(
+        "type-jsonb-containment-result-identity",
+        &setup,
+        vec![cycle],
+    );
 
     // Assert
     let frames = &batches[0];

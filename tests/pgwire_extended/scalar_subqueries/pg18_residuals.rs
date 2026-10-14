@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 use crate::support_sql_fixture::sql_fixture_with_config;
 use cassie::config::CassieRuntimeConfig;
@@ -352,5 +352,130 @@ fn should_apply_result_row_limit_atomically_to_scalar_subquery_projection() {
     assert_eq!(
         wire::data_rows(&recovery),
         vec![vec![Some("46".to_owned())]]
+    );
+}
+
+#[test]
+fn should_accept_scalar_subquery_in_case_expression() {
+    // Arrange
+    let batches = run_script(
+        "issue-762-case-scalar-subquery-short-circuit",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE TABLE issue_762_unselected_scalar_error (denominator INT4)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "INSERT INTO issue_762_unselected_scalar_error VALUES (0)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT CASE WHEN FALSE THEN \
+                    (SELECT 10 / (denominator - denominator) \
+                     FROM issue_762_unselected_scalar_error) \
+                 ELSE 7 END AS case_value",
+            )]),
+        ],
+    );
+
+    // Act
+    let setup = &batches[..2];
+    let case_result = &batches[2];
+
+    // Assert
+    assert!(
+        setup
+            .iter()
+            .all(|frames| wire::error_code(frames).is_none()),
+        "scalar-subquery setup errors: {:?}",
+        setup
+            .iter()
+            .flat_map(|frames| frames
+                .iter()
+                .filter(|frame| frame.0 == b'E')
+                .map(|frame| wire::parse_error_fields(&frame.1)))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        wire::error_code(case_result),
+        None,
+        "CASE scalar-subquery error: {:?}",
+        case_result
+            .iter()
+            .filter(|frame| frame.0 == b'E')
+            .map(|frame| wire::parse_error_fields(&frame.1))
+            .collect::<Vec<_>>()
+    );
+    let case_description = case_result
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("CASE scalar-subquery RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&case_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23]
+    );
+    assert_eq!(wire::data_rows(case_result), vec![vec![Some("7".into())]]);
+}
+
+#[test]
+fn should_accept_scalar_subquery_in_coalesce_expression() {
+    // Arrange
+    let batches = run_script(
+        "issue-762-coalesce-scalar-subquery-short-circuit",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE TABLE issue_762_unselected_coalesce_error (denominator INT4)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "INSERT INTO issue_762_unselected_coalesce_error VALUES (0)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT COALESCE(9, \
+                    (SELECT 10 / (denominator - denominator) \
+                     FROM issue_762_unselected_coalesce_error)) AS coalesce_value",
+            )]),
+        ],
+    );
+
+    // Act
+    let setup = &batches[..2];
+    let coalesce_result = &batches[2];
+
+    // Assert
+    assert!(
+        setup
+            .iter()
+            .all(|frames| wire::error_code(frames).is_none()),
+        "scalar-subquery setup errors: {:?}",
+        setup
+            .iter()
+            .flat_map(|frames| frames
+                .iter()
+                .filter(|frame| frame.0 == b'E')
+                .map(|frame| wire::parse_error_fields(&frame.1)))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        wire::error_code(coalesce_result),
+        None,
+        "COALESCE scalar-subquery error: {:?}",
+        coalesce_result
+            .iter()
+            .filter(|frame| frame.0 == b'E')
+            .map(|frame| wire::parse_error_fields(&frame.1))
+            .collect::<Vec<_>>()
+    );
+    let coalesce_description = coalesce_result
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("COALESCE scalar-subquery RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&coalesce_description.1)[0].type_oid,
+        23
+    );
+    assert_eq!(
+        wire::data_rows(coalesce_result),
+        vec![vec![Some("9".into())]]
     );
 }

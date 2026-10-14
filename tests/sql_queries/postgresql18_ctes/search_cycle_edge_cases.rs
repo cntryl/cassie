@@ -118,3 +118,54 @@ fn should_mark_a_repeated_null_cycle_key() {
         ]
     );
 }
+
+#[test]
+fn should_return_combined_search_cycle_columns() {
+    // Arrange
+    let fixture = sql_fixture("issue-801-search-and-cycle-together", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "WITH RECURSIVE walk(node) AS (\
+             VALUES (1::INT4)\
+             UNION ALL\
+             SELECT node + 1 FROM walk WHERE node < 3\
+         ) SEARCH DEPTH FIRST BY node SET sequence\
+           CYCLE node SET is_cycle USING path\
+         SELECT node, sequence, is_cycle, path FROM walk ORDER BY node",
+    );
+
+    // Assert
+    let result = result.expect("combined SEARCH and CYCLE columns");
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 2287, 16, 2287]
+    );
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![
+                Value::Int64(1),
+                Value::String("{(1)}".to_owned()),
+                Value::Bool(false),
+                Value::String("{(1)}".to_owned()),
+            ],
+            vec![
+                Value::Int64(2),
+                Value::String("{(1),(2)}".to_owned()),
+                Value::Bool(false),
+                Value::String("{(1),(2)}".to_owned()),
+            ],
+            vec![
+                Value::Int64(3),
+                Value::String("{(1),(2),(3)}".to_owned()),
+                Value::Bool(false),
+                Value::String("{(1),(2),(3)}".to_owned()),
+            ],
+        ]
+    );
+}

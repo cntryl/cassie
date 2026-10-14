@@ -313,6 +313,160 @@ impl Drop for FixtureDirectory {
 }
 
 #[test]
+fn should_bind_date_add_parameters_with_dst_zone() {
+    // Arrange
+    let sql = "SELECT DATE_ADD($1, $2, $3) AS calendar_day";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "date_add_dst_parameters",
+            sql,
+            &[1184, 1186, 25],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("date_add_dst_parameters"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(
+                "date_add_dst_portal",
+                "date_add_dst_parameters",
+                &["2024-03-09 12:00:00-05", "1 day", "America/New_York"],
+            ),
+            wire::describe_portal_frame("date_add_dst_portal"),
+            wire::execute_frame("date_add_dst_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-date-add-dst-bind", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(
+        wire::error_code(&batches[1]),
+        None,
+        "Parse error fields: {:?}",
+        batches[1]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        wire::error_code(&batches[2]),
+        None,
+        "Describe error fields: {:?}",
+        batches[2]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        wire::parse_parameter_description(
+            &batches[2]
+                .iter()
+                .find(|(tag, _)| *tag == b't')
+                .expect("date_add ParameterDescription")
+                .1,
+        ),
+        vec![1184, 1186, 25]
+    );
+    assert_eq!(wire::error_code(&batches[3]), None);
+    let description = batches[3]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("DATE_ADD RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)[0].type_oid,
+        1184
+    );
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("2024-03-10 16:00:00+00".to_owned())]]
+    );
+}
+
+#[test]
+fn should_bind_date_subtract_parameters_with_dst_zone() {
+    // Arrange
+    let sql = "SELECT DATE_SUBTRACT($1, $2, $3) AS calendar_day";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "date_subtract_dst_parameters",
+            sql,
+            &[1184, 1186, 25],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("date_subtract_dst_parameters"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(
+                "date_subtract_dst_portal",
+                "date_subtract_dst_parameters",
+                &["2024-03-11 12:00:00-04", "1 day", "America/New_York"],
+            ),
+            wire::describe_portal_frame("date_subtract_dst_portal"),
+            wire::execute_frame("date_subtract_dst_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-date-subtract-dst-bind", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(
+        wire::error_code(&batches[1]),
+        None,
+        "Parse error fields: {:?}",
+        batches[1]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        wire::error_code(&batches[2]),
+        None,
+        "Describe error fields: {:?}",
+        batches[2]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        wire::parse_parameter_description(
+            &batches[2]
+                .iter()
+                .find(|(tag, _)| *tag == b't')
+                .expect("date_subtract ParameterDescription")
+                .1,
+        ),
+        vec![1184, 1186, 25]
+    );
+    assert_eq!(wire::error_code(&batches[3]), None);
+    let description = batches[3]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("DATE_SUBTRACT RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)[0].type_oid,
+        1184
+    );
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("2024-03-10 16:00:00+00".to_owned())]]
+    );
+}
+
+#[test]
 fn should_cancel_pg_sleep_for() {
     // Arrange
     wire::use_local_storage();

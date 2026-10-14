@@ -224,6 +224,48 @@ fn should_describe_bigint_aggregate_results_as_numeric() {
 }
 
 #[test]
+fn should_preserve_exact_numeric_aggregate_values_beyond_float_precision() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TABLE issue_812_numeric_aggregate_values (value NUMERIC)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "INSERT INTO issue_812_numeric_aggregate_values VALUES (9007199254740993.1255), (0.0001)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT SUM(value), AVG(value) FROM issue_812_numeric_aggregate_values",
+        )]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-numeric-aggregate-precision", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[2]), None);
+    let description = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("numeric aggregate RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1700, 1700],
+        "aggregate values: {:?}",
+        wire::data_rows(&batches[2])
+    );
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![
+            Some("9007199254740993.1256".to_owned()),
+            Some("4503599627370496.5628".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_decode_binary_numeric_values_beyond_thirty_eight_digits() {
     // Arrange
     let value = [

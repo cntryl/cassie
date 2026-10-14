@@ -490,6 +490,37 @@ fn should_accept_postgresql_datestyle_session_modes() {
 }
 
 #[test]
+fn should_preserve_named_session_timezone_setting() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SET TIME ZONE 'America/New_York'",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SHOW TIME ZONE")]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-named-session-timezone", steps);
+
+    // Assert
+    assert_eq!(
+        wire::error_code(&batches[0]),
+        None,
+        "named timezone SET error fields: {:?}",
+        batches[0]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("America/New_York".to_owned())]]
+    );
+}
+
+#[test]
 fn should_render_all_interval_style_outputs() {
     // Arrange
     let steps = vec![

@@ -1,6 +1,8 @@
 use super::*;
 use std::time::Duration;
 
+mod text_format;
+
 #[test]
 fn should_filter_copy_from_stdin_rows_with_copy_where() {
     // Arrange

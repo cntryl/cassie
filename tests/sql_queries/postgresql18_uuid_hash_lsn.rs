@@ -508,30 +508,6 @@ fn should_convert_numeric_positions_to_pg_lsn() {
 }
 
 #[test]
-fn should_reject_pg_lsn_arithmetic_above_the_unsigned_range() {
-    // Arrange
-    let fixture = sql_fixture("issue-816-pg-lsn-upper-bound", &[]);
-
-    // Act
-    let result = fixture.execute("SELECT 'FFFFFFFF/FFFFFFFF'::PG_LSN + 1::NUMERIC");
-
-    // Assert
-    assert!(result.is_err(), "pg_lsn addition must reject overflow");
-}
-
-#[test]
-fn should_reject_pg_lsn_arithmetic_below_zero() {
-    // Arrange
-    let fixture = sql_fixture("issue-816-pg-lsn-lower-bound", &[]);
-
-    // Act
-    let result = fixture.execute("SELECT '0/0'::PG_LSN - 1::NUMERIC");
-
-    // Assert
-    assert!(result.is_err(), "pg_lsn subtraction must reject underflow");
-}
-
-#[test]
 fn should_reject_malformed_pg_lsn_input() {
     // Arrange
     let fixture = sql_fixture("issue-816-pg-lsn-invalid-input", &[]);

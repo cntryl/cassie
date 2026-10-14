@@ -36,6 +36,20 @@ fn binary_data_rows(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<Option<Vec<u8>>>> {
         .collect()
 }
 
+fn hex_bytes(value: &str) -> Vec<u8> {
+    value
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            u8::from_str_radix(
+                std::str::from_utf8(pair).expect("hex bytes should be UTF-8"),
+                16,
+            )
+            .expect("value should contain hexadecimal byte pairs")
+        })
+        .collect()
+}
+
 #[test]
 fn should_preserve_uuid_parameter_codec_contract() {
     // Arrange
@@ -321,6 +335,97 @@ fn should_return_hash_function_text_binary_vectors() {
             Some((-785_388_649_i32).to_be_bytes().to_vec()),
             Some((-6_747_756_470_228_489_321_i64).to_be_bytes().to_vec()),
         ]]
+    );
+}
+
+#[test]
+fn should_return_sha2_family_text_binary_vectors() {
+    // Arrange
+    let sql = "SELECT sha224('abc'::BYTEA), sha224('abc'::BYTEA), \
+               sha384('abc'::BYTEA), sha384('abc'::BYTEA), \
+               sha512('abc'::BYTEA), sha512('abc'::BYTEA)";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame("sha2_result_codecs", sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "sha2_result_codecs_portal",
+                "sha2_result_codecs",
+                &[],
+                &[],
+                &[0, 1, 0, 1, 0, 1],
+            ),
+            wire::describe_portal_frame("sha2_result_codecs_portal"),
+            wire::execute_frame("sha2_result_codecs_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-sha2-text-binary-vectors", steps);
+
+    // Assert
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    assert_eq!(wire::error_code(&batches[1]), None);
+    let description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("SHA-2 result RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![
+            (17, -1, 0),
+            (17, -1, 1),
+            (17, -1, 0),
+            (17, -1, 1),
+            (17, -1, 0),
+            (17, -1, 1),
+        ]
+    );
+    assert_eq!(
+        binary_data_rows(&batches[1]),
+        vec![vec![
+            Some(br"\x23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7".to_vec()),
+            Some(hex_bytes(
+                "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7",
+            )),
+            Some(br"\xcb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7".to_vec()),
+            Some(hex_bytes(
+                "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7",
+            )),
+            Some(br"\xddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f".to_vec()),
+            Some(hex_bytes(
+                "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+            )),
+        ]]
+    );
+}
+
+#[test]
+fn should_report_pg_lsn_overflow_underflow_sqlstates() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 'FFFFFFFF/FFFFFFFF'::PG_LSN + 1::NUMERIC",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT '0/0'::PG_LSN - 1::NUMERIC",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 1")]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-pg-lsn-range-sqlstates", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22023"));
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("22023"));
+    assert_eq!(wire::error_code(&batches[2]), None);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("1".to_owned())]]
     );
 }
 

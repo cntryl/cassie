@@ -316,3 +316,42 @@ fn should_accept_postgresql_dump_session_preamble_settings() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_apply_statement_timeout_from_pgwire_startup_options() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("startup_statement_timeout_option").await;
+        let mut config = tokio_postgres::Config::new();
+        config
+            .host("127.0.0.1")
+            .port(server.addr.port())
+            .user("root")
+            .password("postgres")
+            .dbname("postgres")
+            .options("-c statement_timeout=1234ms");
+        let (client, connection) = config
+            .connect(NoTls)
+            .await
+            .expect("connect with a PostgreSQL startup option");
+        let connection = tokio::spawn(async move {
+            connection
+                .await
+                .expect("startup-options connection should stay healthy");
+        });
+
+        // Act
+        let statement_timeout: String = client
+            .query_one("SHOW statement_timeout", &[])
+            .await
+            .expect("read the startup-configured statement timeout")
+            .try_get(0)
+            .expect("statement_timeout text");
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(statement_timeout, "1234ms");
+    });
+}

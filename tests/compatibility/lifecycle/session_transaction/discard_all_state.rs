@@ -119,3 +119,33 @@ fn should_reset_connection_state_with_discard_all() {
         let _ = contender_connection.await;
     });
 }
+
+#[test]
+fn should_reset_session_parameter_with_discard_all() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("discard_all_session_parameter").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("SET application_name = 'compat-discard-all-probe'")
+            .await
+            .expect("set a session parameter before resetting connection state");
+
+        // Act
+        client
+            .batch_execute("DISCARD ALL")
+            .await
+            .expect("PostgreSQL 18.6 accepts DISCARD ALL outside a transaction");
+        let application_name: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read the session parameter after DISCARD ALL")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(application_name, "");
+    });
+}

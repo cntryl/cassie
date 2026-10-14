@@ -450,3 +450,74 @@ fn should_reject_row_locking_query_in_read_only_transaction() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_reject_writes_in_read_only_repeatable_read_transaction_with_sqlstate() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("read_only_repeatable_read_write").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_read_only_write (id INT PRIMARY KEY, value INT NOT NULL)",
+                "INSERT INTO compat_read_only_write VALUES (1, 10)",
+            ],
+        )
+        .await
+        .expect("create and seed the read-only transaction fixture");
+        let begin = client
+            .batch_execute("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            .await;
+        let begin_sqlstate = begin
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code().to_owned());
+
+        // Act
+        let write_sqlstates = if begin.is_ok() {
+            let update = client
+                .execute(
+                    "UPDATE compat_read_only_write SET value = 20 WHERE id = 1",
+                    &[],
+                )
+                .await;
+            let update_sqlstate = update
+                .as_ref()
+                .err()
+                .map(|error| db_error(error).code().code().to_owned());
+            let followup = client.query_one("SELECT 1", &[]).await;
+            let followup_sqlstate = followup
+                .as_ref()
+                .err()
+                .map(|error| db_error(error).code().code().to_owned());
+            client
+                .batch_execute("ROLLBACK")
+                .await
+                .expect("roll back after the attempted write");
+            Some((update_sqlstate, followup_sqlstate))
+        } else {
+            None
+        };
+        let stored_value: i32 = client
+            .query_one("SELECT value FROM compat_read_only_write WHERE id = 1", &[])
+            .await
+            .expect("read the unchanged row after rollback")
+            .try_get(0)
+            .expect("stored value");
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(
+            begin.is_ok(),
+            "PostgreSQL 18.6 accepts a read-only repeatable-read transaction; got SQLSTATE {begin_sqlstate:?}"
+        );
+        let (update_sqlstate, followup_sqlstate) =
+            write_sqlstates.expect("the read-only transaction reached the write check");
+        assert_eq!(update_sqlstate.as_deref(), Some("25006"));
+        assert_eq!(followup_sqlstate.as_deref(), Some("25P02"));
+        assert_eq!(stored_value, 10);
+    });
+}

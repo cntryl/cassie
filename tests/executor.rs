@@ -2490,6 +2490,8 @@ mod executor_parallel {
             .unwrap();
     }
 
+    mod postgresql18_boolean_aggregates;
+
     #[test]
     fn should_score_fulltext_candidates_with_parallel_workers() {
         // Arrange

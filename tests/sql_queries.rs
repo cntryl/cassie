@@ -50,6 +50,7 @@ mod sql_aliases;
 
 mod sql_queries {
     mod postgresql18_aggregate_query_gaps;
+    mod postgresql18_aggregate_semantic_edges;
     mod postgresql18_binary_bytea;
     mod postgresql18_ctes;
     mod postgresql18_geometry;

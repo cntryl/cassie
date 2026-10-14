@@ -1,4 +1,9 @@
 //! PostgreSQL 18 network and hardware-address grammar tracked by #816.
+//!
+//! Keep the network casts, typed literals, and operators below as SQL-level
+//! acceptance cases. The current AST has no network `DataType` or network
+//! operator variants, so a structural assertion here would have to erase the
+//! identity these cases are intended to cover.
 
 #[test]
 fn should_parse_inet_type_cast() {

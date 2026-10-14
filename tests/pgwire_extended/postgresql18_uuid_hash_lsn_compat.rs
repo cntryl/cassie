@@ -256,7 +256,8 @@ fn should_describe_hash_function_results_with_postgresql_oids() {
 fn should_return_hash_function_text_binary_vectors() {
     // Arrange
     let sql = "SELECT md5('abc'), sha256('abc'::BYTEA), crc32('abc'::BYTEA), \
-               digest('abc', 'sha256'), hashtext('abc'), hashtextextended('abc', 0)";
+               crc32c(convert_to('abc', 'UTF8')), digest('abc', 'sha256'), \
+               hashtext('abc'), hashtextextended('abc', 0)";
     let steps = vec![
         Step::ThroughReady(vec![wire::simple_query_frame("CREATE EXTENSION pgcrypto")]),
         Step::ParseFlush(wire::parse_frame("hash_result_codecs", sql)),
@@ -266,7 +267,7 @@ fn should_return_hash_function_text_binary_vectors() {
                 "hash_result_codecs",
                 &[],
                 &[],
-                &[0, 1, 1, 1, 1, 1],
+                &[0, 1, 1, 1, 1, 1, 1],
             ),
             wire::describe_portal_frame("hash_result_codecs_portal"),
             wire::execute_frame("hash_result_codecs_portal"),
@@ -295,6 +296,7 @@ fn should_return_hash_function_text_binary_vectors() {
             (25, -1, 0),
             (17, -1, 1),
             (20, 8, 1),
+            (20, 8, 1),
             (17, -1, 1),
             (23, 4, 1),
             (20, 8, 1),
@@ -310,6 +312,7 @@ fn should_return_hash_function_text_binary_vectors() {
                 0xf2, 0x00, 0x15, 0xad,
             ]),
             Some(891_568_578_i64.to_be_bytes().to_vec()),
+            Some(910_901_175_i64.to_be_bytes().to_vec()),
             Some(vec![
                 0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
                 0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61,

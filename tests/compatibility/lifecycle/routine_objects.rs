@@ -1047,3 +1047,121 @@ fn should_roundtrip_constraint_comments_through_catalog() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_enforce_table_privileges_for_an_assumed_role() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("assumed_role_table_privileges").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE ROLE compat_assumed_reader NOLOGIN")
+            .await
+            .expect("create a role with limited table access");
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_assumed_privilege_rows (id INT PRIMARY KEY)",
+                "INSERT INTO compat_assumed_privilege_rows VALUES (1)",
+                "GRANT SELECT ON TABLE compat_assumed_privilege_rows TO compat_assumed_reader",
+                "SET ROLE compat_assumed_reader",
+            ],
+        )
+        .await
+        .expect("grant read access and assume the grantee role");
+
+        // Act
+        let current_role: String = client
+            .query_one("SELECT current_user", &[])
+            .await
+            .expect("read the active SQL role")
+            .try_get(0)
+            .expect("current role name");
+        let visible: i32 = client
+            .query_one("SELECT id FROM compat_assumed_privilege_rows", &[])
+            .await
+            .expect("read a row granted to the active role")
+            .try_get(0)
+            .expect("visible row id");
+        let denied_write = client
+            .execute("INSERT INTO compat_assumed_privilege_rows VALUES (2)", &[])
+            .await
+            .expect_err("a SELECT-only role cannot insert rows");
+        client
+            .batch_execute("RESET ROLE")
+            .await
+            .expect("restore the session's original role");
+
+        // Assert
+        assert_eq!(current_role, "compat_assumed_reader");
+        assert_eq!(visible, 1);
+        assert_eq!(db_error(&denied_write).code().code(), "42501");
+
+        client
+            .batch_execute("DROP TABLE compat_assumed_privilege_rows")
+            .await
+            .expect("drop the table privilege fixture");
+        client
+            .batch_execute("DROP ROLE compat_assumed_reader")
+            .await
+            .expect("drop the temporary privilege role");
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_roundtrip_role_comments_through_shared_object_metadata() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("role_comments").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE ROLE compat_comment_role NOLOGIN")
+            .await
+            .expect("create a role to annotate");
+
+        // Act
+        client
+            .batch_execute("COMMENT ON ROLE compat_comment_role IS 'role metadata'")
+            .await
+            .expect("store a comment on the shared role object");
+        let before_clear: Option<String> = client
+            .query_one(
+                "SELECT shobj_description(oid, 'pg_authid') \
+                 FROM pg_catalog.pg_authid WHERE rolname = 'compat_comment_role'",
+                &[],
+            )
+            .await
+            .expect("read the role comment from shared object metadata")
+            .try_get(0)
+            .expect("role comment");
+        client
+            .batch_execute("COMMENT ON ROLE compat_comment_role IS NULL")
+            .await
+            .expect("clear a role comment with IS NULL");
+        let after_clear: Option<String> = client
+            .query_one(
+                "SELECT shobj_description(oid, 'pg_authid') \
+                 FROM pg_catalog.pg_authid WHERE rolname = 'compat_comment_role'",
+                &[],
+            )
+            .await
+            .expect("read the cleared role comment")
+            .try_get(0)
+            .expect("cleared role comment");
+
+        // Assert
+        assert_eq!(before_clear.as_deref(), Some("role metadata"));
+        assert_eq!(after_clear, None);
+
+        client
+            .batch_execute("DROP ROLE compat_comment_role")
+            .await
+            .expect("drop the annotated role");
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

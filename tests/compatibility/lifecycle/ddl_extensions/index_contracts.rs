@@ -166,3 +166,90 @@ fn should_roundtrip_index_comments_through_catalog() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_drop_index_concurrently_outside_a_transaction_block() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("drop_index_concurrently").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_concurrent_drop_rows (id INT)",
+                "CREATE INDEX compat_concurrent_drop_idx \
+                   ON compat_concurrent_drop_rows (id)",
+            ],
+        )
+        .await
+        .expect("create a relation and an index to remove");
+
+        // Act
+        client
+            .batch_execute("DROP INDEX CONCURRENTLY compat_concurrent_drop_idx")
+            .await
+            .expect("drop the index concurrently in autocommit mode");
+        let remaining: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_indexes \
+                 WHERE schemaname = 'public' \
+                   AND indexname = 'compat_concurrent_drop_idx'",
+                &[],
+            )
+            .await
+            .expect("inspect the index catalog after concurrent removal")
+            .try_get(0)
+            .expect("matching index count");
+
+        // Assert
+        assert_eq!(remaining, 0);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_publish_table_statistics_after_analyze() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("analyze_table_statistics").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_analyze_rows (label TEXT)",
+                "INSERT INTO compat_analyze_rows VALUES \
+                   ('common'), ('common'), ('common'), ('common'), ('common'), \
+                   ('common'), ('common'), ('common'), ('common'), ('common'), ('rare')",
+            ],
+        )
+        .await
+        .expect("create a skewed table for table statistics");
+
+        // Act
+        client
+            .batch_execute("ANALYZE compat_analyze_rows")
+            .await
+            .expect("collect table statistics");
+        let most_common: Option<String> = client
+            .query_one(
+                "SELECT most_common_vals::text FROM pg_catalog.pg_stats \
+                 WHERE schemaname = 'public' \
+                   AND tablename = 'compat_analyze_rows' AND attname = 'label'",
+                &[],
+            )
+            .await
+            .expect("read the table's most common value statistics")
+            .try_get(0)
+            .expect("most common values");
+
+        // Assert
+        assert_eq!(most_common.as_deref(), Some("{common}"));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

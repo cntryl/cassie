@@ -11,7 +11,7 @@ mod support_temp_dirs;
 // Formerly tests/pgwire.rs.
 mod pgwire {
     use cassie::pgwire::protocol::{
-        decode, encode, ClientMessage, RowDescriptionField, ServerMessage,
+        ClientMessage, RowDescriptionField, ServerMessage, decode, encode,
     };
 
     #[test]
@@ -2147,7 +2147,7 @@ mod pgwire_database_images {
 
     use cassie::app::Cassie;
     use cassie::catalog::{
-        canonical_relation_name, CollectionMeta, FieldConstraint, IndexKind, IndexMeta,
+        CollectionMeta, FieldConstraint, IndexKind, IndexMeta, canonical_relation_name,
     };
     use cassie::config::CassieRuntimeConfig;
     use cassie::types::{DataType, FieldSchema, Schema};
@@ -3735,6 +3735,75 @@ mod pgwire_simple_query {
     }
 
     #[test]
+    fn should_copy_csv_from_stdin_with_legacy_unparenthesized_options() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("copy_legacy_csv_stdin");
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password = "postgres".to_string();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+        cassie.startup().expect("startup");
+        seed_copy_collection(&cassie);
+
+        runtime().block_on(async {
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+
+            // Act
+            start_pgwire_session(&mut reader, &mut write_half).await;
+            tokio::io::AsyncWriteExt::write_all(
+                &mut write_half,
+                &simple_query_frame(
+                    "COPY simple_copy_docs (_id, title, score) FROM STDIN WITH CSV HEADER",
+                ),
+            )
+            .await
+            .expect("write legacy CSV COPY query");
+            tokio::io::AsyncWriteExt::flush(&mut write_half)
+                .await
+                .expect("flush legacy CSV COPY query");
+            let copy_in = read_wire_frame(&mut reader).await;
+            let copy_error_code = if copy_in.0 == b'E' {
+                error_field(&parse_error_fields(&copy_in.1), 'C').map(str::to_string)
+            } else {
+                None
+            };
+            let copied = if copy_in.0 == b'G' {
+                let (complete, ready) = send_copy_rows(&mut reader, &mut write_half).await;
+                let rows = write_simple_query_and_read_frames(
+                    &mut reader,
+                    &mut write_half,
+                    "SELECT title, score FROM simple_copy_docs ORDER BY score",
+                )
+                .await;
+                Some((complete, ready, rows))
+            } else {
+                None
+            };
+
+            // Clean up before asserting so a syntax rejection does not leave a server task behind.
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+            let _ = std::fs::remove_dir_all(path);
+
+            // Assert
+            assert_eq!(
+                copy_in.0,
+                b'G',
+                "legacy COPY options should request input; PostgreSQL error SQLSTATE: {copy_error_code:?}"
+            );
+            let (complete, ready, rows) = copied.expect("COPY input should complete");
+            assert_copy_complete_frames(&complete, &ready);
+            assert_copy_select_frames(&rows);
+        });
+    }
+
+    #[test]
     fn should_copy_default_text_from_stdin_with_null_values_tab_escapes() {
         // Arrange
         use_local_storage();
@@ -5242,9 +5311,9 @@ mod pgwire_tls {
     use cassie::app::Cassie;
     use cassie::config::CassieRuntimeConfig;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio_rustls::TlsConnector;
     use tokio_rustls::rustls::pki_types::ServerName;
     use tokio_rustls::rustls::{ClientConfig, RootCertStore};
-    use tokio_rustls::TlsConnector;
 
     use super::support_pgwire as support;
 

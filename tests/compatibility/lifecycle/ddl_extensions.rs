@@ -792,6 +792,92 @@ fn should_atomically_rollback_table_creation_after_insert() {
 }
 
 #[test]
+fn should_drop_schema_dependents_with_cascade() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("drop_schema_cascade").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE SCHEMA compat_drop_schema_cascade",
+                "CREATE TABLE compat_drop_schema_cascade.rows (id INT PRIMARY KEY)",
+            ],
+        )
+        .await
+        .expect("create a schema with a dependent table");
+
+        // Act
+        client
+            .batch_execute("DROP SCHEMA compat_drop_schema_cascade CASCADE")
+            .await
+            .expect("drop the schema and its dependent table");
+        let remaining: i64 = client
+            .query_one(
+                "SELECT count(*) FROM information_schema.schemata \
+                 WHERE schema_name = 'compat_drop_schema_cascade'",
+                &[],
+            )
+            .await
+            .expect("inspect the schema catalog after DROP CASCADE")
+            .try_get(0)
+            .expect("matching schema count");
+
+        // Assert
+        assert_eq!(remaining, 0);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_move_table_between_schemas_without_changing_its_rows() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("alter_table_set_schema").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE SCHEMA compat_move_table_source",
+                "CREATE SCHEMA compat_move_table_target",
+                "CREATE TABLE compat_move_table_source.rows (id INT PRIMARY KEY, label TEXT)",
+                "INSERT INTO compat_move_table_source.rows VALUES (1, 'preserved')",
+            ],
+        )
+        .await
+        .expect("create a populated source table and destination schema");
+
+        // Act
+        client
+            .batch_execute(
+                "ALTER TABLE compat_move_table_source.rows \
+                 SET SCHEMA compat_move_table_target",
+            )
+            .await
+            .expect("move the table to another schema");
+        let rows = client
+            .query(
+                "SELECT id, label FROM compat_move_table_target.rows ORDER BY id",
+                &[],
+            )
+            .await
+            .expect("read the table after moving it");
+
+        // Assert
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get::<_, i32>(0), 1);
+        assert_eq!(rows[0].get::<_, String>(1), "preserved");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_scope_temporary_sequence_to_its_creating_session() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -839,6 +925,42 @@ fn should_scope_temporary_sequence_to_its_creating_session() {
         replacement_connection.abort();
         let _ = replacement_connection.await;
         server.shutdown(observer_connection).await;
+    });
+}
+
+#[test]
+fn should_apply_alter_sequence_increment_to_catalog_metadata() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("alter_sequence_increment").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE SEQUENCE compat_increment_sequence")
+            .await
+            .expect("create a sequence with default options");
+
+        // Act
+        client
+            .batch_execute("ALTER SEQUENCE compat_increment_sequence INCREMENT BY 2")
+            .await
+            .expect("change the sequence increment");
+        let increment: i64 = client
+            .query_one(
+                "SELECT increment_by FROM pg_catalog.pg_sequences \
+                 WHERE schemaname = 'public' AND sequencename = 'compat_increment_sequence'",
+                &[],
+            )
+            .await
+            .expect("read the altered sequence metadata")
+            .try_get(0)
+            .expect("sequence increment");
+
+        // Assert
+        assert_eq!(increment, 2);
+
+        drop(client);
+        server.shutdown(connection).await;
     });
 }
 

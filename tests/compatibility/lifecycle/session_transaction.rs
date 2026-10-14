@@ -53,6 +53,43 @@ fn should_execute_sql_level_prepared_statements_then_deallocate_them() {
 }
 
 #[test]
+fn should_clear_extended_prepared_statement_with_deallocate_all() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("deallocate_all_prepared").await;
+        let (client, connection) = server.connect().await;
+        let prepared = client
+            .prepare("SELECT $1::INT")
+            .await
+            .expect("prepare a statement through the extended query protocol");
+        let before: i32 = client
+            .query_one(&prepared, &[&41_i32])
+            .await
+            .expect("execute the named prepared statement before deallocation")
+            .try_get(0)
+            .expect("prepared statement value");
+
+        // Act
+        client
+            .batch_execute("DEALLOCATE ALL")
+            .await
+            .expect("deallocate every SQL and extended-protocol prepared statement");
+        let missing = client
+            .query_one(&prepared, &[&41_i32])
+            .await
+            .expect_err("DEALLOCATE ALL removes the extended-protocol statement");
+
+        // Assert
+        assert_eq!(before, 41);
+        assert_eq!(db_error(&missing).code().code(), "26000");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_keep_repeatable_read_snapshot_stable_across_other_session_commits() {
     // Arrange
     let runtime = current_thread_runtime();

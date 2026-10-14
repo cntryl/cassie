@@ -94,6 +94,51 @@ fn should_clear_extended_prepared_statement_with_deallocate_all() {
 }
 
 #[test]
+fn should_keep_sql_prepared_statement_after_reset_all() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("prepared_statement_reset_all").await;
+        let (client, connection) = server.connect().await;
+        let startup_application_name: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read the session startup application name")
+            .get(0);
+        client
+            .batch_execute(
+                "PREPARE compat_reset_preserves_prepared(INT) AS SELECT $1 + 1; \
+                 SET application_name = 'before-reset'",
+            )
+            .await
+            .expect("prepare SQL and set a session value");
+
+        // Act
+        client
+            .batch_execute("RESET ALL")
+            .await
+            .expect("reset session configuration without deallocating SQL PREPARE");
+        let result = client
+            .query_one("EXECUTE compat_reset_preserves_prepared(41)", &[])
+            .await
+            .expect("execute the prepared statement after RESET ALL");
+        let application_name: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read reset application_name")
+            .try_get(0)
+            .expect("application_name text");
+
+        // Assert
+        assert_eq!(result.get::<_, i32>(0), 42);
+        assert_eq!(application_name, startup_application_name);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_keep_repeatable_read_snapshot_stable_across_other_session_commits() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -153,6 +198,293 @@ fn should_keep_repeatable_read_snapshot_stable_across_other_session_commits() {
             "REPEATABLE READ must start successfully: {begin:?}"
         );
         assert_eq!(counts.expect("snapshot observations"), (1, 1, 2));
+    });
+}
+
+#[test]
+fn should_refresh_read_committed_snapshot_after_other_session_commit() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("read_committed_new_snapshot").await;
+        let (reader, reader_connection) = server.connect().await;
+        let (writer, writer_connection) = server.connect().await;
+        execute_statements(
+            &reader,
+            &[
+                "CREATE TABLE compat_read_committed_rows (id INT PRIMARY KEY)",
+                "INSERT INTO compat_read_committed_rows VALUES (1)",
+                "BEGIN ISOLATION LEVEL READ COMMITTED",
+            ],
+        )
+        .await
+        .expect("create fixture and begin a READ COMMITTED transaction");
+        let before: i64 = reader
+            .query_one("SELECT count(*) FROM compat_read_committed_rows", &[])
+            .await
+            .expect("read the first command snapshot")
+            .get(0);
+
+        // Act
+        writer
+            .batch_execute("INSERT INTO compat_read_committed_rows VALUES (2)")
+            .await
+            .expect("commit a row from the other session");
+        let after: i64 = reader
+            .query_one("SELECT count(*) FROM compat_read_committed_rows", &[])
+            .await
+            .expect("read using a fresh READ COMMITTED command snapshot")
+            .get(0);
+        reader
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("finish the read transaction");
+
+        // Assert
+        assert_eq!((before, after), (1, 2));
+
+        drop((reader, writer));
+        server.shutdown(reader_connection).await;
+        writer_connection.abort();
+        let _ = writer_connection.await;
+    });
+}
+
+#[test]
+fn should_map_read_uncommitted_mode_to_read_committed() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("read_uncommitted_alias").await;
+        let (reader, reader_connection) = server.connect().await;
+        let (writer, writer_connection) = server.connect().await;
+        reader
+            .batch_execute(
+                "CREATE TABLE compat_read_uncommitted_rows (id INT PRIMARY KEY); \
+                 INSERT INTO compat_read_uncommitted_rows VALUES (1)",
+            )
+            .await
+            .expect("create the READ UNCOMMITTED fixture");
+        writer
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin the writer transaction");
+        writer
+            .batch_execute("INSERT INTO compat_read_uncommitted_rows VALUES (2)")
+            .await
+            .expect("hold an uncommitted row for the dirty-read probe");
+        reader
+            .batch_execute("BEGIN ISOLATION LEVEL READ UNCOMMITTED")
+            .await
+            .expect("accept PostgreSQL's READ UNCOMMITTED mode");
+
+        // Act
+        let isolation: String = reader
+            .query_one("SHOW transaction_isolation", &[])
+            .await
+            .expect("read the effective isolation level")
+            .get(0);
+        let before_commit: i64 = reader
+            .query_one("SELECT count(*) FROM compat_read_uncommitted_rows", &[])
+            .await
+            .expect("do not read the writer's uncommitted row")
+            .get(0);
+        writer
+            .batch_execute("COMMIT")
+            .await
+            .expect("commit the row from the writer session");
+        let after_commit: i64 = reader
+            .query_one("SELECT count(*) FROM compat_read_uncommitted_rows", &[])
+            .await
+            .expect("take a new READ UNCOMMITTED command snapshot")
+            .get(0);
+        reader
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("finish the transaction");
+
+        // Assert
+        assert_eq!(isolation, "read uncommitted");
+        assert_eq!((before_commit, after_commit), (1, 2));
+
+        drop((reader, writer));
+        server.shutdown(reader_connection).await;
+        writer_connection.abort();
+        let _ = writer_connection.await;
+    });
+}
+
+#[test]
+fn should_discard_writes_rolled_back_to_savepoint() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("savepoint_write_rollback").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_savepoint_rows (id INT PRIMARY KEY)")
+            .await
+            .expect("create the savepoint fixture");
+        client
+            .batch_execute("BEGIN; INSERT INTO compat_savepoint_rows VALUES (1)")
+            .await
+            .expect("begin and insert the retained row");
+        client
+            .batch_execute("SAVEPOINT compat_write_checkpoint")
+            .await
+            .expect("create a named savepoint");
+        client
+            .batch_execute("INSERT INTO compat_savepoint_rows VALUES (2)")
+            .await
+            .expect("insert a row after the savepoint");
+
+        // Act
+        client
+            .batch_execute("ROLLBACK TO SAVEPOINT compat_write_checkpoint")
+            .await
+            .expect("roll back only work after the savepoint");
+        client
+            .batch_execute("RELEASE SAVEPOINT compat_write_checkpoint; COMMIT")
+            .await
+            .expect("release the savepoint and commit retained work");
+        let ids = client
+            .query("SELECT id FROM compat_savepoint_rows ORDER BY id", &[])
+            .await
+            .expect("read committed rows after savepoint rollback")
+            .iter()
+            .map(|row| row.get::<_, i32>(0))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(ids, vec![1]);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_report_repeatable_read_update_conflict_with_recoverable_state() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("repeatable_read_update_conflict").await;
+        let (reader, reader_connection) = server.connect().await;
+        let (writer, writer_connection) = server.connect().await;
+        execute_statements(
+            &reader,
+            &[
+                "CREATE TABLE compat_repeatable_update_rows (id INT PRIMARY KEY, value TEXT)",
+                "INSERT INTO compat_repeatable_update_rows VALUES (1, 'initial')",
+                "BEGIN ISOLATION LEVEL REPEATABLE READ",
+            ],
+        )
+        .await
+        .expect("create fixture and begin a REPEATABLE READ transaction");
+        let snapshot_value: String = reader
+            .query_one(
+                "SELECT value FROM compat_repeatable_update_rows WHERE id = 1",
+                &[],
+            )
+            .await
+            .expect("establish the repeatable-read snapshot")
+            .get(0);
+        writer
+            .batch_execute("UPDATE compat_repeatable_update_rows SET value = 'writer' WHERE id = 1")
+            .await
+            .expect("commit a concurrent update to the observed row");
+
+        // Act
+        let conflict = reader
+            .execute(
+                "UPDATE compat_repeatable_update_rows SET value = 'reader' WHERE id = 1",
+                &[],
+            )
+            .await
+            .expect_err("REPEATABLE READ cannot update a row changed after its snapshot");
+        let aborted_transaction = reader
+            .query_one("SELECT 1", &[])
+            .await
+            .expect_err("a serialization failure leaves the transaction aborted");
+        reader
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("rollback the failed transaction");
+        let recovered_value: String = reader
+            .query_one(
+                "SELECT value FROM compat_repeatable_update_rows WHERE id = 1",
+                &[],
+            )
+            .await
+            .expect("reuse the session after rollback")
+            .get(0);
+
+        // Assert
+        assert_eq!(snapshot_value, "initial");
+        assert_eq!(db_error(&conflict).code().code(), "40001");
+        assert_eq!(db_error(&aborted_transaction).code().code(), "25P02");
+        assert_eq!(recovered_value, "writer");
+
+        drop((reader, writer));
+        server.shutdown(reader_connection).await;
+        writer_connection.abort();
+        let _ = writer_connection.await;
+    });
+}
+
+#[test]
+fn should_accept_serializable_read_only_deferrable_transaction_mode() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("serializable_read_only_deferrable").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_read_only_write (id INT)")
+            .await
+            .expect("create the read-only transaction fixture");
+        client
+            .batch_execute("INSERT INTO compat_read_only_write VALUES (1)")
+            .await
+            .expect("seed a row for the rejected write");
+        client
+            .batch_execute("BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY DEFERRABLE")
+            .await
+            .expect("begin a serializable read-only deferrable transaction");
+
+        // Act
+        let isolation: String = client
+            .query_one("SHOW transaction_isolation", &[])
+            .await
+            .expect("read transaction isolation")
+            .get(0);
+        let read_only: String = client
+            .query_one("SHOW transaction_read_only", &[])
+            .await
+            .expect("read transaction read-only mode")
+            .get(0);
+        let deferrable: String = client
+            .query_one("SHOW transaction_deferrable", &[])
+            .await
+            .expect("read transaction deferrable mode")
+            .get(0);
+        let rejected_write = client
+            .execute("UPDATE compat_read_only_write SET id = 2 WHERE id = 1", &[])
+            .await
+            .expect_err("read-only transaction must reject a write to an existing row");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("finish the read-only transaction");
+
+        // Assert
+        assert_eq!(isolation, "serializable");
+        assert_eq!(read_only, "on");
+        assert_eq!(deferrable, "on");
+        assert_eq!(db_error(&rejected_write).code().code(), "25006");
+
+        drop(client);
+        server.shutdown(connection).await;
     });
 }
 
@@ -531,6 +863,174 @@ fn should_keep_a_holdable_cursor_open_after_commit() {
                 .map(|row| row.get::<_, i32>(0))
                 .collect::<Vec<_>>(),
             vec![2, 3]
+        );
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_close_all_after_scroll_cursor_navigation() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("scroll_cursor_navigation").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "BEGIN; DECLARE compat_scroll_cursor SCROLL CURSOR FOR \
+                 SELECT n FROM generate_series(1, 3) AS n ORDER BY n",
+            )
+            .await
+            .expect("declare a scrollable cursor over ordered rows");
+        let metadata = client
+            .query_one(
+                "SELECT is_scrollable, is_holdable, is_binary FROM pg_cursors \
+                 WHERE name = 'compat_scroll_cursor'",
+                &[],
+            )
+            .await
+            .expect("inspect the open cursor in pg_cursors");
+
+        // Act
+        let first: i32 = client
+            .query_one("FETCH FIRST FROM compat_scroll_cursor", &[])
+            .await
+            .expect("fetch the first row")
+            .get(0);
+        let next: i32 = client
+            .query_one("FETCH NEXT FROM compat_scroll_cursor", &[])
+            .await
+            .expect("fetch the next row")
+            .get(0);
+        let absolute: i32 = client
+            .query_one("FETCH ABSOLUTE 3 FROM compat_scroll_cursor", &[])
+            .await
+            .expect("fetch an absolute row")
+            .get(0);
+        let prior: i32 = client
+            .query_one("FETCH PRIOR FROM compat_scroll_cursor", &[])
+            .await
+            .expect("fetch the prior row")
+            .get(0);
+        let relative: i32 = client
+            .query_one("FETCH RELATIVE -1 FROM compat_scroll_cursor", &[])
+            .await
+            .expect("fetch relative to the current cursor position")
+            .get(0);
+        client
+            .batch_execute("MOVE FORWARD ALL FROM compat_scroll_cursor")
+            .await
+            .expect("move to the end of the scroll cursor");
+        let backward: i32 = client
+            .query_one("FETCH BACKWARD 1 FROM compat_scroll_cursor", &[])
+            .await
+            .expect("fetch backward from the end of the cursor")
+            .get(0);
+        client
+            .batch_execute("CLOSE ALL")
+            .await
+            .expect("close every open cursor in the session");
+        let remaining: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_cursors WHERE name = 'compat_scroll_cursor'",
+                &[],
+            )
+            .await
+            .expect("check that CLOSE ALL removed the cursor")
+            .get(0);
+        client
+            .batch_execute("COMMIT")
+            .await
+            .expect("finish the cursor transaction");
+
+        // Assert
+        assert!(metadata.get::<_, bool>(0), "SCROLL cursor is scrollable");
+        assert!(!metadata.get::<_, bool>(1), "cursor is not holdable");
+        assert!(!metadata.get::<_, bool>(2), "cursor is not binary");
+        assert_eq!(
+            (first, next, absolute, prior, relative, backward),
+            (1, 2, 3, 2, 1, 3)
+        );
+        assert_eq!(remaining, 0);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_mutate_positioned_cursor_rows() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("where_current_of_cursor").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_current_of_rows (id INT PRIMARY KEY, payload TEXT)",
+                "INSERT INTO compat_current_of_rows VALUES \
+                   (1, 'first'), (2, 'second'), (3, 'third')",
+                "BEGIN",
+                "DECLARE compat_current_of_cursor NO SCROLL CURSOR FOR \
+                   SELECT id, payload FROM compat_current_of_rows ORDER BY id FOR UPDATE",
+            ],
+        )
+        .await
+        .expect("create the positioned-update cursor fixture");
+
+        // Act
+        let first: i32 = client
+            .query_one("FETCH NEXT FROM compat_current_of_cursor", &[])
+            .await
+            .expect("fetch the first row for a positioned update")
+            .get(0);
+        let updated = client
+            .execute(
+                "UPDATE compat_current_of_rows SET payload = 'updated' \
+                 WHERE CURRENT OF compat_current_of_cursor",
+                &[],
+            )
+            .await
+            .expect("update the current cursor row");
+        let second: i32 = client
+            .query_one("FETCH NEXT FROM compat_current_of_cursor", &[])
+            .await
+            .expect("fetch the second row for a positioned delete")
+            .get(0);
+        let deleted = client
+            .execute(
+                "DELETE FROM compat_current_of_rows \
+                 WHERE CURRENT OF compat_current_of_cursor",
+                &[],
+            )
+            .await
+            .expect("delete the current cursor row");
+        client
+            .batch_execute("COMMIT")
+            .await
+            .expect("commit positioned cursor mutations");
+        let rows = client
+            .query(
+                "SELECT id, payload FROM compat_current_of_rows ORDER BY id",
+                &[],
+            )
+            .await
+            .expect("read the positioned mutation results")
+            .iter()
+            .map(|row| (row.get::<_, i32>(0), row.get::<_, String>(1)))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(first, 1);
+        assert_eq!(updated, 1);
+        assert_eq!(second, 2);
+        assert_eq!(deleted, 1);
+        assert_eq!(
+            rows,
+            vec![(1, "updated".to_string()), (3, "third".to_string())]
         );
 
         drop(client);

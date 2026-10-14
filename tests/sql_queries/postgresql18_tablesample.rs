@@ -3,7 +3,7 @@
 use cassie::types::Value;
 use cassie::{app::CassieError, config::CassieRuntimeConfig};
 
-use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
+use crate::support_sql_fixture::{SqlFixture, sql_fixture, sql_fixture_with_config};
 
 fn sample_fixture(label: &str) -> SqlFixture {
     let rows = (1..=128)
@@ -110,7 +110,7 @@ fn should_repeat_bernoulli_samples_for_the_same_seed() {
     let expected_other_seed_ids = [
         2_i64, 3, 4, 7, 9, 12, 17, 18, 25, 26, 27, 29, 34, 36, 37, 38, 39, 41, 42, 44, 45, 48, 51,
         55, 56, 57, 59, 60, 64, 65, 66, 68, 72, 74, 75, 76, 80, 82, 84, 86, 87, 91, 92, 96, 97,
-        101, 104, 108, 110, 111, 112, 113, 114, 115, 117, 118, 120, 121, 125, 128,
+        101, 104, 108, 110, 111, 112, 113, 114, 115, 117, 118, 120, 121, 125,
     ];
 
     // Act

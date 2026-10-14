@@ -120,6 +120,48 @@ fn should_mark_a_repeated_null_cycle_key() {
 }
 
 #[test]
+fn should_stop_recursive_self_loop_using_cycle_detection() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-801-cycle-self-loop",
+        &[
+            "CREATE TABLE issue_801_self_loop (source BIGINT, target BIGINT)",
+            "INSERT INTO issue_801_self_loop VALUES (1, 1)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "WITH RECURSIVE walk(node) AS (\
+             SELECT CAST(1 AS BIGINT) \
+             UNION ALL \
+             SELECT edge.target \
+             FROM issue_801_self_loop AS edge \
+             JOIN walk AS parent ON edge.source = parent.node\
+         ) CYCLE node SET is_cycle USING path \
+         SELECT node, is_cycle FROM walk ORDER BY is_cycle",
+    );
+
+    // Assert
+    let result = result.expect("CYCLE stops a repeated recursive self-loop");
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![20, 16]
+    );
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![Value::Int64(1), Value::Bool(false)],
+            vec![Value::Int64(1), Value::Bool(true)],
+        ]
+    );
+}
+
+#[test]
 fn should_return_combined_search_cycle_columns() {
     // Arrange
     let fixture = sql_fixture("issue-801-search-and-cycle-together", &[]);

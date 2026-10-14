@@ -356,11 +356,14 @@ fn should_render_a_created_view_definition() {
 
     // Act
     let selected = fixture
-        .execute("SELECT pg_catalog.pg_get_viewdef('issue_817_definition_view') LIKE '%42%'")
+        .execute("SELECT pg_catalog.pg_get_viewdef('issue_817_definition_view')")
         .expect("read the created view definition");
 
     // Assert
-    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String(" SELECT 42 AS answer;".to_owned())]]
+    );
 }
 
 #[test]
@@ -832,4 +835,146 @@ fn should_report_no_partitioned_relations_in_a_fresh_database() {
 
     // Assert
     assert_eq!(selected.rows(), vec![vec![Value::Int64(0)]]);
+}
+
+#[test]
+fn should_report_builtin_int4_array_type_links_in_pg_type() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-pg-type-array-links", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT typname, oid, typelem, typarray \
+             FROM pg_catalog.pg_type \
+             WHERE typname IN ('int4', '_int4') \
+             ORDER BY oid",
+        )
+        .expect("read the scalar and array type identities");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![
+            vec![
+                Value::String("int4".to_owned()),
+                Value::Int64(23),
+                Value::Int64(0),
+                Value::Int64(1_007),
+            ],
+            vec![
+                Value::String("_int4".to_owned()),
+                Value::Int64(1_007),
+                Value::Int64(23),
+                Value::Int64(0),
+            ],
+        ]
+    );
+}
+
+#[test]
+fn should_report_created_check_constraints_in_information_schema_extras() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-information-schema-constraint-extras",
+        &["CREATE TABLE issue_817_constraint_info (\
+            amount INTEGER, \
+            CONSTRAINT issue_817_amount_positive CHECK (amount > 0))"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture.execute(
+        "SELECT \
+            (SELECT check_clause \
+             FROM information_schema.check_constraints \
+             WHERE constraint_schema = 'public' \
+               AND constraint_name = 'issue_817_amount_positive'), \
+            (SELECT column_name \
+             FROM information_schema.constraint_column_usage \
+             WHERE constraint_schema = 'public' \
+               AND constraint_name = 'issue_817_amount_positive')",
+    );
+
+    // Assert
+    assert_eq!(
+        selected
+            .expect("read the created check expression and column usage")
+            .rows(),
+        vec![vec![
+            Value::String("(amount > 0)".to_owned()),
+            Value::String("amount".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_render_created_catalog_definitions() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-definition-functions",
+        &[
+            "CREATE TABLE issue_817_definition_items (\
+                amount INTEGER CONSTRAINT issue_817_definition_check CHECK (amount > 0))",
+            "CREATE INDEX issue_817_definition_idx \
+             ON issue_817_definition_items USING btree (amount)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture.execute(
+        "SELECT \
+            (SELECT pg_catalog.pg_get_constraintdef(oid, true) \
+             FROM pg_catalog.pg_constraint \
+             WHERE conname = 'issue_817_definition_check'), \
+            pg_catalog.pg_get_indexdef('public.issue_817_definition_idx'::regclass)",
+    );
+
+    // Assert
+    assert_eq!(
+        selected
+            .expect("render the created check constraint and index")
+            .rows(),
+        vec![vec![
+            Value::String("CHECK (amount > 0)".to_owned()),
+            Value::String(
+                "CREATE INDEX issue_817_definition_idx ON public.issue_817_definition_items USING btree (amount)"
+                    .to_owned(),
+            ),
+        ]]
+    );
+}
+
+#[test]
+fn should_list_effective_search_path_schemas() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-current-schemas",
+        &["CREATE SCHEMA issue_817_search_path"],
+    );
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("SET search_path TO issue_817_search_path, public")
+        .expect("set a deterministic visible schema path");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT current_schemas(true)::text, \
+                    current_schemas(false)::text, \
+                    pg_catalog.pg_typeof(current_schemas(true))::text",
+        )
+        .expect("read the effective schemas and array type");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("{pg_catalog,issue_817_search_path,public}".to_owned()),
+            Value::String("{issue_817_search_path,public}".to_owned()),
+            Value::String("name[]".to_owned()),
+        ]]
+    );
 }

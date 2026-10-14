@@ -881,6 +881,50 @@ fn should_preserve_jsonb_values_when_expanding_array_elements() {
 }
 
 #[test]
+fn should_expand_jsonb_object_fields_in_select_list() {
+    // Arrange
+    let sql = "SELECT jsonb_each_text('{\"b\":2,\"a\":null}'::jsonb)";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-jsonb-each-text", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (2_249, -1, -1), 0, true);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![
+            fixture::one_field_row(b"(a,)"),
+            fixture::one_field_row(b"(b,2)"),
+        ]
+    );
+}
+
+#[test]
+fn should_expand_jsonb_values_as_select_list_records() {
+    // Arrange
+    let sql = "SELECT jsonb_each('{\"b\":2,\"a\":null}'::jsonb)";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-jsonb-each", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (2_249, -1, -1), 0, true);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![
+            fixture::one_field_row(b"(a,null)"),
+            fixture::one_field_row(b"(b,2)"),
+        ]
+    );
+}
+
+#[test]
 fn should_distinguish_json_null_from_missing_or_sql_null_with_jsonb_operators() {
     // Arrange
     let sql = "SELECT ('{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB -> 'present'), ('{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB -> 'missing'), '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ->> 'present', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB #> '{nested,x}', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB #>> '{nested,x}', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ? 'present', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ? 'missing'";

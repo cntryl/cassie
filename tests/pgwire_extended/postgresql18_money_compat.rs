@@ -357,6 +357,9 @@ fn should_decode_text_money_parameters_before_numeric_cast() {
 
 #[test]
 fn should_report_malformed_money_text_with_invalid_text_representation_sqlstate() {
+    // PostgreSQL 18.6 returns 22P02 for this malformed money literal. Cassie
+    // currently stops earlier with 0A000 because money is unsupported, so this
+    // acceptance expectation is masked and does not prove input parsing.
     // Arrange
     let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
         "SELECT 'not-money'::money",

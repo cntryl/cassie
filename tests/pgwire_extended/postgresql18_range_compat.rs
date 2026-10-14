@@ -642,6 +642,9 @@ fn should_compare_timestamptz_range_values_by_instant() {
 
 #[test]
 fn should_report_malformed_range_text_with_invalid_text_representation_sqlstate() {
+    // PostgreSQL 18.6 returns 22P02 for this malformed range literal. Cassie
+    // currently stops earlier with 0A000 because int4range is unsupported, so
+    // this acceptance expectation is masked and does not prove input parsing.
     // Arrange
     let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
         "SELECT 'not-a-range'::int4range",

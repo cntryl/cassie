@@ -384,6 +384,11 @@ fn should_feed_deleted_returning_rows_into_a_following_cte_statement() {
 
 #[test]
 fn should_keep_sibling_reads_on_the_data_modifying_cte_statement_snapshot() {
+    // PostgreSQL 18.6 runs the sibling SELECT on the original statement
+    // snapshot, while DELETE RETURNING exposes the removed row. Cassie's
+    // planner currently accepts only SELECT CTE bodies, so this is #834
+    // snapshot-visibility acceptance coverage whose value assertions are
+    // masked until data-modifying CTE bodies are supported.
     // Arrange
     let fixture = sql_fixture(
         "issue-834-modifying-cte-snapshot",

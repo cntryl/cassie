@@ -29,6 +29,31 @@ fn should_describe_null_int4range_with_postgresql_type_identity() {
 }
 
 #[test]
+fn should_describe_null_int4multirange_with_postgresql_type_identity() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT NULL::int4multirange AS value",
+    )])];
+
+    // Act
+    let batches = run_script("postgresql18-int4multirange-null-identity", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("int4multirange RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (column.type_oid, column.type_size, column.type_mod),
+        (4_451, -1, -1)
+    );
+    assert_eq!(wire::data_rows(result), vec![vec![None]]);
+}
+
+#[test]
 fn should_describe_builtin_range_families_with_postgresql_oids() {
     // Arrange
     let sql = "SELECT '[1,4]'::int4range AS integer_range, '[1.20,2.40)'::numrange AS numeric_range, 'empty'::int8range AS empty_range, daterange('2020-01-01', '2020-01-03', '[]') AS date_range, '{[1,3),[3,5)}'::int4multirange AS integer_multirange";

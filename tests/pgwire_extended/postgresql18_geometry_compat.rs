@@ -32,6 +32,117 @@ fn should_describe_a_point_cast_with_postgresql_type_identity() {
 }
 
 #[test]
+fn should_send_line_values_with_postgresql_binary_identity() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let line_binary = [
+        0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x40, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            "line_binary_statement",
+            "SELECT '{1,2,3}'::line AS value",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "line_binary_portal",
+                "line_binary_statement",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("line_binary_portal"),
+            wire::execute_frame("line_binary_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-line-binary-output", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("line binary RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (
+            column.type_oid,
+            column.type_size,
+            column.type_mod,
+            column.format_code
+        ),
+        (628, 24, -1, 1)
+    );
+    assert_eq!(
+        fixture::data_row_payloads(result),
+        vec![fixture::one_field_row(&line_binary)]
+    );
+}
+
+#[test]
+fn should_send_path_values_with_postgresql_binary_identity() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let path_binary = [
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x08, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x40, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            "path_binary_statement",
+            "SELECT '[(1,2),(3,4)]'::path AS value",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "path_binary_portal",
+                "path_binary_statement",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("path_binary_portal"),
+            wire::execute_frame("path_binary_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-path-binary-output", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("path binary RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (
+            column.type_oid,
+            column.type_size,
+            column.type_mod,
+            column.format_code
+        ),
+        (602, -1, -1, 1)
+    );
+    assert_eq!(
+        fixture::data_row_payloads(result),
+        vec![fixture::one_field_row(&path_binary)]
+    );
+}
+
+#[test]
 fn should_describe_builtin_geometry_values_with_postgresql_oids() {
     // Arrange
     let sql = "SELECT point '(1,2)' AS point_value, '((0,0),(1,1))'::box AS box_value, '[(1,2),(3,4)]'::lseg AS segment_value, '((0,0),(5,5),(0,5))'::polygon AS polygon_value";

@@ -256,7 +256,7 @@ fn should_preserve_path_vertex_count_when_closure_changes() {
     // Assert
     assert_eq!(
         result.expect("path vertex count").rows(),
-        &[vec![Value::Int32(2), Value::Int32(2)]]
+        &[vec![Value::Int64(2), Value::Int64(2)]]
     );
 }
 
@@ -273,8 +273,8 @@ fn should_report_path_circle_measurements() {
     assert_eq!(
         result.expect("path and circle measurements").rows(),
         &[vec![
-            Value::Int32(3),
-            Value::Int32(3),
+            Value::Int64(3),
+            Value::Int64(3),
             Value::Bool(true),
             Value::Float64(6.0),
             Value::Float64(3.0),

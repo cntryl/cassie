@@ -1,6 +1,7 @@
 use super::*;
 use std::time::Duration;
 
+mod binary_array;
 mod text_format;
 
 #[test]

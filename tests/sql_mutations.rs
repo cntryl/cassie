@@ -37,6 +37,9 @@ mod sql_constant_planning;
 #[path = "sql_mutations/transaction_errors.rs"]
 mod transaction_errors;
 
+#[path = "sql_mutations/postgresql18_transactional_ddl.rs"]
+mod postgresql18_transactional_ddl;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 mod copy_transaction_boundaries {
     use cassie::app::{Cassie, CassieSession};

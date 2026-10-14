@@ -1020,3 +1020,319 @@ fn should_keep_persistent_select_into_table_after_creator_disconnects() {
         server.shutdown(observer_connection).await;
     });
 }
+
+#[test]
+fn should_skip_missing_table_drop_in_fresh_memory_storage() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let data_dir = support::data_dir("memory_drop_absent_table_if_exists");
+        let _data_directory = DataDirectory(data_dir.clone());
+        let mut config = cassie::config::CassieRuntimeConfig::from_env()
+            .expect("read runtime config for memory-backed fixture");
+        config.password = "postgres".to_string();
+
+        let previous_storage_mode = std::env::var_os("CASSIE_STORAGE_MODE");
+        std::env::set_var("CASSIE_STORAGE_MODE", "memory");
+        let cassie_result = Cassie::new_with_data_dir_and_config(&data_dir, config.clone());
+        match previous_storage_mode {
+            Some(mode) => std::env::set_var("CASSIE_STORAGE_MODE", mode),
+            None => std::env::remove_var("CASSIE_STORAGE_MODE"),
+        }
+        let engine = cassie_result.expect("construct memory-backed Cassie fixture");
+        engine
+            .startup()
+            .expect("start memory-backed Cassie fixture");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind memory-backed pgwire fixture");
+        let address = listener.local_addr().expect("read pgwire fixture address");
+        drop(listener);
+        let server = tokio::spawn(async move {
+            let _ = cassie::pgwire::server::run(
+                address.to_string(),
+                std::sync::Arc::new(engine),
+                config,
+            )
+            .await;
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let mut pgwire = tokio_postgres::Config::new();
+        pgwire
+            .host("127.0.0.1")
+            .port(address.port())
+            .user("root")
+            .password("postgres")
+            .dbname("postgres");
+        let (client, connection) = pgwire
+            .connect(tokio_postgres::NoTls)
+            .await
+            .expect("connect to memory-backed pgwire fixture");
+        let connection = tokio::spawn(async move {
+            connection
+                .await
+                .expect("pgwire connection task should stay healthy");
+        });
+
+        // Act
+        let dropped = client
+            .batch_execute("DROP TABLE IF EXISTS compat_memory_drop_missing")
+            .await;
+        let created = client
+            .batch_execute("CREATE TABLE compat_memory_drop_missing (id INTEGER PRIMARY KEY)")
+            .await;
+        let inserted = client
+            .execute("INSERT INTO compat_memory_drop_missing VALUES (826)", &[])
+            .await;
+        let drop_sqlstate = dropped
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code().to_string());
+
+        // Assert
+        drop(client);
+        connection.abort();
+        let _ = connection.await;
+        server.abort();
+        let _ = server.await;
+        assert!(
+            dropped.is_ok(),
+            "DROP TABLE IF EXISTS on a missing relation should succeed; SQLSTATE: {drop_sqlstate:?}"
+        );
+        assert!(
+            created.is_ok(),
+            "CREATE TABLE should succeed after the missing-relation drop: {created:?}"
+        );
+        assert_eq!(
+            inserted.expect("insert after CREATE TABLE should succeed"),
+            1
+        );
+    });
+}
+
+#[test]
+fn should_apply_like_excluding_all_semantics() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_excluding_all").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_like_excluding_all_source (\
+                   id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\
+                   label TEXT NOT NULL DEFAULT 'template',\
+                   category TEXT,\
+                   CONSTRAINT compat_like_excluding_all_check CHECK (label <> 'blocked'),\
+                   UNIQUE (label)\
+                 )",
+                "COMMENT ON COLUMN compat_like_excluding_all_source.label IS 'source comment'",
+                "ALTER TABLE compat_like_excluding_all_source \
+                   ALTER COLUMN label SET STORAGE EXTERNAL",
+                "ALTER TABLE compat_like_excluding_all_source \
+                   ALTER COLUMN label SET COMPRESSION pglz",
+                "CREATE STATISTICS compat_like_excluding_all_stats \
+                   (dependencies, ndistinct, mcv) ON category, label \
+                   FROM compat_like_excluding_all_source",
+                "CREATE TABLE compat_like_excluding_all_copy \
+                   (LIKE compat_like_excluding_all_source EXCLUDING ALL)",
+            ],
+        )
+        .await
+        .expect("create a LIKE copy excluding all optional metadata");
+
+        // Act
+        let columns = client
+            .query(
+                "SELECT a.attname, a.atttypid::INT, a.attnotnull, a.attidentity::TEXT, \
+                        a.attgenerated::TEXT, a.attstorage::TEXT, \
+                        a.attcompression::TEXT, pg_get_expr(d.adbin, d.adrelid), \
+                        col_description(c.oid, a.attnum) \
+                 FROM pg_class c \
+                 JOIN pg_attribute a ON a.attrelid = c.oid \
+                 LEFT JOIN pg_attrdef d ON d.adrelid = c.oid AND d.adnum = a.attnum \
+                 WHERE c.relname = 'compat_like_excluding_all_copy' AND a.attnum > 0 \
+                 ORDER BY a.attnum",
+                &[],
+            )
+            .await
+            .expect("inspect copied column attributes");
+        let checks: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_constraint \
+                 WHERE conrelid = 'compat_like_excluding_all_copy'::regclass \
+                   AND contype = 'c'",
+                &[],
+            )
+            .await
+            .expect("count copied CHECK constraints")
+            .try_get(0)
+            .expect("CHECK count");
+        let indexes: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_index \
+                 WHERE indrelid = 'compat_like_excluding_all_copy'::regclass",
+                &[],
+            )
+            .await
+            .expect("count copied indexes")
+            .try_get(0)
+            .expect("index count");
+        let statistics: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_statistic_ext \
+                 WHERE stxrelid = 'compat_like_excluding_all_copy'::regclass",
+                &[],
+            )
+            .await
+            .expect("count copied extended statistics")
+            .try_get(0)
+            .expect("statistics count");
+        let duplicate_rows = client
+            .execute(
+                "INSERT INTO compat_like_excluding_all_copy (id, label, category) \
+                 VALUES (1, 'blocked', 'a'), (1, 'blocked', 'a')",
+                &[],
+            )
+            .await
+            .expect("EXCLUDING ALL should omit identity, CHECK, and unique index behavior");
+        let null_not_null_column = client
+            .execute(
+                "INSERT INTO compat_like_excluding_all_copy (id, label) VALUES (2, NULL)",
+                &[],
+            )
+            .await
+            .expect_err("LIKE preserves the source column's NOT NULL property");
+
+        // Assert
+        assert_eq!(columns.len(), 3);
+        assert_eq!(columns[0].get::<_, String>(0), "id");
+        assert_eq!(columns[0].get::<_, i32>(1), 23);
+        assert!(columns[0].get::<_, bool>(2));
+        assert_eq!(columns[0].get::<_, String>(3), "");
+        assert_eq!(columns[0].get::<_, Option<String>>(7), None);
+        assert_eq!(columns[1].get::<_, String>(0), "label");
+        assert_eq!(columns[1].get::<_, i32>(1), 25);
+        assert!(columns[1].get::<_, bool>(2));
+        assert_eq!(columns[1].get::<_, String>(3), "");
+        assert_eq!(columns[1].get::<_, String>(5), "x");
+        assert_eq!(columns[1].get::<_, String>(6), "");
+        assert_eq!(columns[1].get::<_, Option<String>>(7), None);
+        assert_eq!(columns[1].get::<_, Option<String>>(8), None);
+        assert_eq!(columns[2].get::<_, i32>(1), 25);
+        assert_eq!(checks, 0);
+        assert_eq!(indexes, 0);
+        assert_eq!(statistics, 0);
+        assert_eq!(duplicate_rows, 2);
+        assert_eq!(db_error(&null_not_null_column).code().code(), "23502");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_compute_explicit_implicit_virtual_generated_columns() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("virtual_generated_columns").await;
+        let (client, connection) = server.connect().await;
+        let created = client
+            .batch_execute(
+                "CREATE TABLE compat_virtual_generated (\
+                   base INT,\
+                   doubled INT GENERATED ALWAYS AS (base * 2) VIRTUAL,\
+                   incremented INT GENERATED ALWAYS AS (base + 1)\
+                 )",
+            )
+            .await;
+        let inserted = if created.is_ok() {
+            Some(
+                client
+                    .execute("INSERT INTO compat_virtual_generated (base) VALUES (4)", &[])
+                    .await,
+            )
+        } else {
+            None
+        };
+        let values = if inserted.as_ref().is_some_and(Result::is_ok) {
+            Some(
+                client
+                    .query(
+                        "SELECT base, doubled, incremented \
+                         FROM compat_virtual_generated",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+        let generated = if created.is_ok() {
+            Some(
+                client
+                    .query(
+                        "SELECT attname, attgenerated::TEXT \
+                         FROM pg_attribute \
+                         WHERE attrelid = 'compat_virtual_generated'::regclass \
+                           AND attnum > 0 ORDER BY attnum",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Act
+        let explicit_value = if inserted.as_ref().is_some_and(Result::is_ok) {
+            Some(
+                client
+                    .execute(
+                        "INSERT INTO compat_virtual_generated (base, doubled) VALUES (3, 6)",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Assert
+        let create_sqlstate = created
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code());
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(
+            created.is_ok(),
+            "PostgreSQL 18 VIRTUAL generated columns should be accepted; SQLSTATE: {create_sqlstate:?}"
+        );
+        inserted
+            .expect("insert should be attempted after table creation")
+            .expect("insert into generated-column table");
+        let values = values
+            .expect("read computed values after insert")
+            .expect("query generated-column values");
+        assert_eq!(values.len(), 1);
+        assert_eq!(values[0].get::<_, i32>(0), 4);
+        assert_eq!(values[0].get::<_, i32>(1), 8);
+        assert_eq!(values[0].get::<_, i32>(2), 5);
+        let generated = generated
+            .expect("inspect virtual generated-column metadata")
+            .expect("read generated-column metadata");
+        assert_eq!(generated.len(), 3);
+        assert_eq!(generated[0].get::<_, String>(1), "");
+        assert_eq!(generated[1].get::<_, String>(0), "doubled");
+        assert_eq!(generated[1].get::<_, String>(1), "v");
+        assert_eq!(generated[2].get::<_, String>(0), "incremented");
+        assert_eq!(generated[2].get::<_, String>(1), "v");
+        let explicit_value = explicit_value
+            .expect("attempt explicit assignment to a virtual generated column")
+            .expect_err("a virtual generated column only accepts DEFAULT");
+        assert_eq!(db_error(&explicit_value).code().code(), "428C9");
+    });
+}

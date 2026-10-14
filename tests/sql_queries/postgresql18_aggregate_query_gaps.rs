@@ -1074,6 +1074,30 @@ fn should_skip_sql_nulls_but_keep_json_nulls_in_strict_jsonb_aggregate() {
 }
 
 #[test]
+fn should_include_sql_null_inputs_in_non_strict_jsonb_aggregate() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-811-jsonb-aggregate-sql-null-inputs",
+        &[
+            "CREATE TABLE issue_811_jsonb_aggregate_values (payload JSONB)",
+            "INSERT INTO issue_811_jsonb_aggregate_values VALUES ('1'), (NULL), ('2')",
+        ],
+    );
+
+    // Act
+    let result =
+        fixture.execute("SELECT jsonb_agg(payload)::TEXT FROM issue_811_jsonb_aggregate_values");
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("non-strict JSONB aggregate keeps SQL NULL inputs")
+            .rows(),
+        &[vec![Value::String("[1, null, 2]".to_owned())]]
+    );
+}
+
+#[test]
 fn should_accept_a_bytea_delimiter_in_string_agg() {
     // Arrange
     let fixture = sql_fixture(
@@ -1117,6 +1141,31 @@ fn should_deduplicate_string_aggregate_inputs_before_ordering() {
             .expect("distinct inputs ordered inside string_agg")
             .rows(),
         &[vec![Value::String("pear,banana,apple".to_owned())]]
+    );
+}
+
+#[test]
+fn should_aggregate_jsonb_object_key_value_pairs() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-811-jsonb-object-aggregate-distinct-keys",
+        &[
+            "CREATE TABLE issue_811_object_aggregate_values (key TEXT, value INT)",
+            "INSERT INTO issue_811_object_aggregate_values VALUES ('a',1),('b',2)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT jsonb_object_agg(key, value)::TEXT FROM issue_811_object_aggregate_values",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("JSONB object aggregation returns the input key-value pairs")
+            .rows(),
+        &[vec![Value::String("{\"a\": 1, \"b\": 2}".to_owned())]]
     );
 }
 

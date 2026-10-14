@@ -1433,3 +1433,722 @@ fn should_omit_sql_null_values_in_unique_jsonb_object_aggregation() {
         vec![vec![Some("{\"a\": 1}".to_owned())]]
     );
 }
+
+#[test]
+fn should_match_any_jsonb_object_key_from_a_text_array() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_jsonb_any_keys (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_jsonb_any_keys VALUES ('{\"a\":1,\"b\":2}')",
+            Vec::new(),
+        ),
+    ];
+    let sql =
+        "SELECT document ?| '{b,missing}', document ?| '{missing}' FROM issue_809_jsonb_any_keys";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-any-key-array", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::parse_row_description(
+            &frames
+                .iter()
+                .find(|(tag, _)| *tag == b'T')
+                .expect("JSONB any-key RowDescription")
+                .1
+        )
+        .iter()
+        .map(|column| column.type_oid)
+        .collect::<Vec<_>>(),
+        vec![16, 16]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("t".to_owned()), Some("f".to_owned())]]
+    );
+}
+
+#[test]
+fn should_require_every_jsonb_object_key_from_a_text_array() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_jsonb_all_keys (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_jsonb_all_keys VALUES ('{\"a\":1,\"b\":2}')",
+            Vec::new(),
+        ),
+    ];
+    let sql = "SELECT document ?& '{a,b}', document ?& '{a,missing}' FROM issue_809_jsonb_all_keys";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-all-key-array", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("t".to_owned()), Some("f".to_owned())]]
+    );
+}
+
+#[test]
+fn should_merge_jsonb_objects_with_right_hand_key_precedence() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_jsonb_merge_values (left_document JSONB, right_document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_jsonb_merge_values VALUES ('{\"a\":1,\"b\":0}', '{\"b\":2,\"c\":3}')",
+            Vec::new(),
+        ),
+    ];
+    let sql = "SELECT (left_document || right_document)::TEXT FROM issue_809_jsonb_merge_values";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-concatenate-objects", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{\"a\": 1, \"b\": 2, \"c\": 3}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_delete_a_jsonb_object_key_with_the_minus_operator() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_jsonb_delete_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_jsonb_delete_values VALUES ('{\"a\":1,\"b\":2}')",
+            Vec::new(),
+        ),
+    ];
+    let sql = "SELECT (document - 'a')::TEXT FROM issue_809_jsonb_delete_values";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-delete-object-key", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{\"b\": 2}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_count_elements_in_a_jsonb_array() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_jsonb_length_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_jsonb_length_values VALUES ('[2,4]')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_array_length(document) FROM issue_810_jsonb_length_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonb-array-length", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (23, 4, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("2".to_owned())]]);
+}
+
+#[test]
+fn should_expand_jsonb_object_keys_as_text_rows() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_jsonb_keys_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_jsonb_keys_values VALUES ('{\"b\":2,\"a\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let sql = "SELECT jsonb_object_keys(document) FROM issue_810_jsonb_keys_values ORDER BY 1";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonb-object-keys", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("a".to_owned())], vec![Some("b".to_owned())]]
+    );
+}
+
+#[test]
+fn should_detect_any_jsonb_key_from_a_text_array_function() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_jsonb_exists_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_jsonb_exists_values VALUES ('{\"a\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let sql = "SELECT jsonb_exists_any(document, '{a,b}') FROM issue_810_jsonb_exists_values";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-810-jsonb-exists-array-functions",
+        &setup,
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_require_all_jsonb_keys_from_a_text_array_function() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_jsonb_exists_all_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_jsonb_exists_all_values VALUES ('{\"a\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_exists_all(document, '{a,b}') FROM issue_810_jsonb_exists_all_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-810-jsonb-exists-all-array-function",
+        &setup,
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("f".to_owned())]]);
+}
+
+#[test]
+fn should_strip_jsonb_null_fields() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_jsonb_strip_nulls_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_jsonb_strip_nulls_values VALUES ('{\"a\":null,\"items\":[null,1]}')",
+            Vec::new(),
+        ),
+    ];
+    let sql = "SELECT jsonb_strip_nulls(document)::TEXT FROM issue_810_jsonb_strip_nulls_values";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonb-strip-null-arrays", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{\"items\": [null, 1]}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_strip_null_elements_from_jsonb_arrays_when_requested() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_jsonb_strip_array_nulls_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_jsonb_strip_array_nulls_values VALUES ('{\"a\":null,\"items\":[null,1]}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_strip_nulls(document, TRUE)::TEXT FROM issue_810_jsonb_strip_array_nulls_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-810-jsonb-strip-array-null-elements",
+        &setup,
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{\"items\": [1]}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_convert_scalar_values_with_to_jsonb() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_to_jsonb_values (value INT)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_to_jsonb_values VALUES (42)",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT to_jsonb(value) FROM issue_810_to_jsonb_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-to-jsonb-scalar", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("42".to_owned())]]);
+}
+
+#[test]
+fn should_return_jsonb_text_with_the_arrow_text_operator() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_arrow_text_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_arrow_text_values VALUES ('{\"label\":\"value\"}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT document ->> 'label' FROM issue_809_arrow_text_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-arrow-text", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("value".to_owned())]]
+    );
+}
+
+#[test]
+fn should_extract_nested_jsonb_values_with_the_path_operator() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_path_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_path_values VALUES ('{\"nested\":{\"x\":7}}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT document #> '{nested,x}' FROM issue_809_path_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-path", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("7".to_owned())]]);
+}
+
+#[test]
+fn should_extract_nested_jsonb_scalars_as_text_with_the_path_text_operator() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_path_text_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_path_text_values VALUES ('{\"nested\":{\"x\":7}}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT document #>> '{nested,x}' FROM issue_809_path_text_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-path-text", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("7".to_owned())]]);
+}
+
+#[test]
+fn should_detect_jsonb_object_key_presence_without_other_operators() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_key_presence_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_key_presence_values VALUES ('{\"present\":null}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT document ? 'present', document ? 'missing' FROM issue_809_key_presence_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-key-presence", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("t".to_owned()), Some("f".to_owned())]]
+    );
+}
+
+#[test]
+fn should_return_the_jsonb_type_name_for_a_stored_document() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_typeof_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_typeof_values VALUES ('{\"a\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_typeof(document) FROM issue_810_typeof_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonb-typeof", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("object".to_owned())]]
+    );
+}
+
+#[test]
+fn should_construct_jsonb_arrays_from_scalar_plus_sql_null_inputs() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_build_array_values (value INTEGER)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_build_array_values VALUES (42)",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_build_array(value, NULL)::TEXT FROM issue_810_build_array_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonb-build-array", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("[42, null]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_pretty_print_jsonb_objects_with_nested_arrays() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_pretty_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_pretty_values VALUES ('{\"a\":1,\"b\":[2,3]}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_pretty(document) FROM issue_810_pretty_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonb-pretty", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some(
+            "{\n    \"a\": 1,\n    \"b\": [\n        2,\n        3\n    ]\n}".to_owned()
+        )]]
+    );
+}
+
+#[test]
+fn should_apply_the_jsonb_path_exists_operator() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_path_exists_operator_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_path_exists_operator_values VALUES ('{\"a\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT document @? '$.a' FROM issue_809_path_exists_operator_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-path-exists-operator", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_apply_the_jsonb_path_match_operator() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_path_match_operator_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_path_match_operator_values VALUES ('{\"a\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT document @@ '$.a == 1' FROM issue_809_path_match_operator_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-path-match-operator", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_subscript_a_jsonb_object_by_key() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_809_subscript_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_809_subscript_values VALUES ('{\"a\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT document['a'] FROM issue_809_subscript_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-key-subscript", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("1".to_owned())]]);
+}
+
+#[test]
+fn should_extract_jsonb_path_text_with_the_path_function() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_extract_path_text_values (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_extract_path_text_values VALUES ('{\"nested\":{\"x\":7}}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_extract_path_text(document, 'nested', 'x') FROM issue_810_extract_path_text_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonb-extract-path-text", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("7".to_owned())]]);
+}
+
+#[test]
+fn should_replace_a_jsonb_value_at_a_path_with_jsonb_set() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_jsonb_set_values (document JSONB, path TEXT[], replacement JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_jsonb_set_values VALUES ($1, $2, $3)",
+            vec![
+                Value::Json(serde_json::json!({"a": 1, "b": 1})),
+                Value::Json(serde_json::json!(["a"])),
+                Value::Json(serde_json::json!(2)),
+            ],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_set(document, path, replacement)::TEXT FROM issue_810_jsonb_set_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonb-set-path", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{\"a\": 2, \"b\": 1}".to_owned())]]
+    );
+}

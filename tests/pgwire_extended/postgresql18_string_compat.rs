@@ -673,3 +673,75 @@ fn should_execute_scalar_function_in_from_as_one_row_relation() {
         vec![vec![Some("hello".to_owned())]]
     );
 }
+
+#[test]
+fn should_expand_numeric_generate_series_with_exact_steps() {
+    // Arrange
+    let sql = "SELECT generate_series(0.25, 1.0, 0.3)";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-808-numeric-generate-series", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "wire errors: {:?}",
+        result
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, body)| wire::parse_error_fields(body))
+            .collect::<Vec<_>>()
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("numeric generate_series RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)[0].type_oid,
+        1700
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![
+            vec![Some("0.25".to_owned())],
+            vec![Some("0.55".to_owned())],
+            vec![Some("0.85".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_advance_timestamptz_generate_series_by_local_days_across_dst() {
+    // Arrange
+    let sql = "SELECT generate_series(\
+                  '2024-03-09 12:00:00-05', \
+                  '2024-03-10 12:00:00-04', \
+                  '1 day', 'America/New_York'\
+               ) = '2024-03-10 12:00:00-04' OFFSET 1 LIMIT 1";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-808-timestamptz-series-timezone", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "wire errors: {:?}",
+        result
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, body)| wire::parse_error_fields(body))
+            .collect::<Vec<_>>()
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("time zone aware generate_series RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 16);
+    assert_eq!(wire::data_rows(result), vec![vec![Some("t".to_owned())]]);
+}

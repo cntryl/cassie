@@ -373,6 +373,31 @@ fn should_parse_dollar_quoted_constants_in_expression_positions() {
 }
 
 #[test]
+fn should_filter_rows_with_a_tagged_dollar_quoted_constant() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-796-dollar-quoted-predicate",
+        &[
+            "CREATE TABLE dollar_quoted_rows (id BIGINT, value TEXT)",
+            "INSERT INTO dollar_quoted_rows VALUES (1, 'alpha '' beta'), (2, 'gamma')",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT id FROM dollar_quoted_rows WHERE value = $tag_2$alpha ' beta$tag_2$ ORDER BY id",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("tagged dollar-quoted predicate literal")
+            .rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
 fn should_parse_postgres_integer_literal_forms() {
     // Arrange
     let label = "issue-796-radix-and-separated-integers";

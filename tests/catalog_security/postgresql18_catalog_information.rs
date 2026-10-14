@@ -1,5 +1,6 @@
 //! PostgreSQL 18 catalog information behavior tracked by #817.
 
+mod catalog_lookup;
 mod visibility_functions;
 
 use crate::support_sql_fixture::sql_fixture;

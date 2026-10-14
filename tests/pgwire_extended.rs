@@ -9,6 +9,7 @@ mod pgwire_parameter_occurrences;
 mod pgwire_parameter_slot_completeness;
 mod pgwire_extended {
     mod merge_row_images;
+    mod postgresql18_aggregate_errors;
     mod postgresql18_binary_bytea_compat;
     mod postgresql18_cte_compat;
     mod postgresql18_geometry_compat;

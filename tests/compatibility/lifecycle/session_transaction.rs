@@ -1,7 +1,9 @@
 use super::*;
 
 mod row_lock_matrix;
+mod statement_timeout;
 mod timezone_settings;
+mod unique_conflict_rollback;
 
 #[test]
 fn should_execute_sql_level_prepared_statements_then_deallocate_them() {

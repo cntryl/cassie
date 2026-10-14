@@ -232,3 +232,131 @@ fn should_report_sequence_options_in_pg_sequences() {
         ]]
     );
 }
+
+#[test]
+fn should_list_created_views_in_pg_views() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-pg-views-created-view",
+        &["CREATE VIEW issue_817_catalog_view AS SELECT 42 AS answer"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT schemaname, viewname FROM pg_catalog.pg_views \
+             WHERE schemaname = 'public' AND viewname = 'issue_817_catalog_view'",
+        )
+        .expect("query pg_views for the created view");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("public".to_owned()),
+            Value::String("issue_817_catalog_view".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_expose_postgresql_object_descriptions() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-pg-description", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) > 0 FROM pg_catalog.pg_description")
+        .expect("query PostgreSQL object descriptions");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_report_no_user_triggers_for_a_plain_table() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-pg-trigger-empty-table",
+        &["CREATE TABLE issue_817_plain_trigger_table (id INTEGER)"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) FROM pg_catalog.pg_trigger")
+        .expect("query the trigger catalog");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Int64(0)]]);
+}
+
+#[test]
+fn should_report_no_policies_for_a_plain_table() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-pg-policy-empty-table",
+        &["CREATE TABLE issue_817_plain_policy_table (id INTEGER)"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT count(*) FROM pg_catalog.pg_policy")
+        .expect("query the row security policy catalog");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Int64(0)]]);
+}
+
+#[test]
+fn should_list_accessed_relations_in_pg_stat_user_tables() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-pg-stat-user-tables",
+        &["CREATE TABLE issue_817_stat_table (id INTEGER)"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT relname FROM pg_catalog.pg_stat_user_tables \
+             WHERE schemaname = 'public' AND relname = 'issue_817_stat_table'",
+        )
+        .expect("query the user table statistics view");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("issue_817_stat_table".to_owned())]]
+    );
+}
+
+#[test]
+fn should_list_visible_builtin_routines_in_information_schema() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-information-schema-routines", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT routine_schema, routine_name, routine_type \
+             FROM information_schema.routines \
+             WHERE routine_schema = 'pg_catalog' AND routine_name = 'now'",
+        )
+        .expect("query built-in routine metadata");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("pg_catalog".to_owned()),
+            Value::String("now".to_owned()),
+            Value::String("FUNCTION".to_owned()),
+        ]]
+    );
+}

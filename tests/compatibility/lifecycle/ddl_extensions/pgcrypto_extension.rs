@@ -78,7 +78,7 @@ fn should_report_the_available_pgcrypto_extension_version() {
         // Act
         let available = client
             .query_one(
-                "SELECT name, default_version \
+                "SELECT name, default_version, installed_version \
                  FROM pg_catalog.pg_available_extensions \
                  WHERE name = 'pgcrypto'",
                 &[],
@@ -89,6 +89,7 @@ fn should_report_the_available_pgcrypto_extension_version() {
         // Assert
         assert_eq!(available.get::<_, String>(0), "pgcrypto");
         assert_eq!(available.get::<_, String>(1), "1.4");
+        assert_eq!(available.get::<_, Option<String>>(2), None);
 
         drop(client);
         server.shutdown(connection).await;

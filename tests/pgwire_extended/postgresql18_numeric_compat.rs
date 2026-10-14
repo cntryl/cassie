@@ -723,6 +723,117 @@ fn should_enforce_postgresql_numeric_precision_scale_limits() {
 }
 
 #[test]
+fn should_preserve_numeric_aggregate_result_oids_over_wire() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let statements = [
+        ("SELECT ABS($1) AS v", 700, 700, 4, false),
+        ("SELECT SUM($1) AS v", 700, 700, 4, false),
+        ("SELECT AVG($1) AS v", 1700, 1700, -1, false),
+        ("SELECT COUNT($1) AS v", 1700, 20, 8, true),
+    ];
+    let inputs: [(Option<&[u8]>, Option<f64>); 3] = [
+        (Some(b"2"), Some(2.0)),
+        (Some(b"2.5"), Some(2.5)),
+        (None, None),
+    ];
+    let mut cases = Vec::new();
+    let mut cycles = Vec::new();
+    for (sql, parameter_oid, result_oid, result_size, is_count) in statements {
+        for result_format in [0, 1] {
+            for (input, value) in inputs {
+                cycles.push(fixture::execute_cycle(
+                    sql,
+                    Some((parameter_oid, 0, input)),
+                    result_format,
+                    true,
+                ));
+                cases.push((
+                    sql,
+                    parameter_oid,
+                    result_oid,
+                    result_size,
+                    result_format,
+                    value,
+                    is_count,
+                ));
+            }
+        }
+    }
+
+    // Act
+    let batches = fixture::run_cycles("postgresql18-numeric-operation-result-types", &[], cycles);
+
+    // Assert
+    for ((sql, parameter_oid, result_oid, result_size, result_format, value, is_count), frames) in
+        cases.into_iter().zip(batches)
+    {
+        fixture::assert_success(&frames);
+        fixture::assert_single_column_descriptors(
+            &frames,
+            (result_oid, result_size, -1),
+            result_format,
+            true,
+        );
+        let parameter_description = frames
+            .iter()
+            .find(|(tag, _)| *tag == b't')
+            .expect("operation parameter description");
+        assert_eq!(
+            wire::parse_parameter_description(&parameter_description.1),
+            vec![parameter_oid],
+            "{parameter_oid}:{sql} parameter OID"
+        );
+        let expected = if is_count {
+            let count = i64::from(value.is_some());
+            if result_format == 1 {
+                fixture::one_field_row(&count.to_be_bytes())
+            } else {
+                fixture::one_field_row(count.to_string().as_bytes())
+            }
+        } else if result_oid == 1700 {
+            value.map_or_else(
+                || vec![0, 1, 255, 255, 255, 255],
+                |value| {
+                    if result_format == 1 {
+                        let numeric = if value == 2.0 {
+                            [0, 1, 0, 0, 0, 0, 0, 16, 0, 2].as_slice()
+                        } else {
+                            [0, 2, 0, 0, 0, 0, 0, 16, 0, 2, 19, 136].as_slice()
+                        };
+                        fixture::one_field_row(numeric)
+                    } else {
+                        let text = if value == 2.0 {
+                            b"2.0000000000000000".as_slice()
+                        } else {
+                            b"2.5000000000000000".as_slice()
+                        };
+                        fixture::one_field_row(text)
+                    }
+                },
+            )
+        } else {
+            value.map_or_else(
+                || vec![0, 1, 255, 255, 255, 255],
+                |value| {
+                    if result_format == 1 {
+                        fixture::one_field_row(&(value as f32).to_be_bytes())
+                    } else {
+                        fixture::one_field_row(value.to_string().as_bytes())
+                    }
+                },
+            )
+        };
+        assert_eq!(
+            fixture::data_row_payloads(&frames),
+            vec![expected],
+            "{parameter_oid}:{sql}"
+        );
+    }
+}
+
+#[test]
 fn should_bind_an_oid_zero_numeric_parameter_in_binary_format() {
     // Arrange
     use crate::support_type_metadata_contract as fixture;

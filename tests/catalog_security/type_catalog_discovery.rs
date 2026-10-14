@@ -461,6 +461,21 @@ fn should_resolve_a_created_role_through_to_regrole() {
 }
 
 #[test]
+fn should_resolve_a_builtin_function_through_to_regproc() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-to-regproc-builtin-function", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT to_regproc('pg_catalog.now') IS NOT NULL")
+        .expect("built-in regproc lookup");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
 fn should_advertise_pgcrypto_in_available_extension_catalog() {
     // Arrange
     let fixture = sql_fixture("issue-843-pgcrypto-catalog-identity", &[]);

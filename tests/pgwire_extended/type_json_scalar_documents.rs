@@ -962,3 +962,63 @@ fn should_order_jsonb_aggregate_with_both_json_sql_null_inputs() {
         )]]
     );
 }
+
+#[test]
+fn should_replace_a_jsonb_object_field_without_changing_document_type() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_set('{\"a\":1}'::JSONB, $1, jsonb_build_array(2))",
+        Some((1009, 0, Some(&b"{a}"[..]))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-set-object-field", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{\"a\": [2]}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_skip_null_values_in_strict_jsonb_object_aggregation() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_811_jsonb_object_strict_input (key TEXT, payload JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_811_jsonb_object_strict_input VALUES ('a', NULL), ('b', 'null'), ('c', '1')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_object_agg_strict(key, payload) FROM issue_811_jsonb_object_strict_input",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-811-jsonb-object-aggregate-strict-null-policy",
+        &setup,
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{\"c\": 1}".to_owned())]]
+    );
+}

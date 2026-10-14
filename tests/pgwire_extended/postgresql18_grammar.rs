@@ -1,6 +1,6 @@
 //! PostgreSQL 18 parser, relation, collation, and wire contracts tracked by #796 and #800.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 #[test]
@@ -313,4 +313,94 @@ fn should_report_values_using_row_arity_sqlstates() {
 
     // Assert
     assert_eq!(actual, expected);
+}
+
+#[test]
+fn should_return_ordered_integer_rows_from_generate_series() {
+    // Arrange
+    let batches = run_script(
+        "issue-808-generate-series-integer-rows",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT generate_series(1, 3)",
+        )])],
+    );
+
+    // Act
+    let frames = &batches[0];
+
+    // Assert
+    assert_eq!(
+        wire::error_code(frames),
+        None,
+        "wire error fields: {:?}",
+        frames
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("generate_series RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![Some("1".to_owned())],
+            vec![Some("2".to_owned())],
+            vec![Some("3".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_return_lockstep_columns_from_rows_from_sources() {
+    // Arrange
+    let batches = run_script(
+        "issue-808-rows-from-lockstep-sources",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT * FROM ROWS FROM(generate_series(1, 3), generate_series(10, 12)) AS generated(first_value, second_value)",
+        )])],
+    );
+
+    // Act
+    let frames = &batches[0];
+
+    // Assert
+    assert_eq!(
+        wire::error_code(frames),
+        None,
+        "wire error fields: {:?}",
+        frames
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("ROWS FROM RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![Some("1".to_owned()), Some("10".to_owned())],
+            vec![Some("2".to_owned()), Some("11".to_owned())],
+            vec![Some("3".to_owned()), Some("12".to_owned())],
+        ]
+    );
 }

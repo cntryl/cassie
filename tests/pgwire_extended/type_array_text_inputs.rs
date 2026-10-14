@@ -473,6 +473,162 @@ fn should_send_integer_arrays_with_postgresql_oid_binary_format() {
 }
 
 #[test]
+fn should_round_trip_multidimensional_text_array_bounds() {
+    // Arrange
+    let input = b"[0:1][4:5]={{1,2},{3,4}}";
+    let cycle = fixture::execute_cycle(
+        "SELECT $1::INT4[] AS value",
+        Some((1007, 0, Some(input))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-text-multidimensional-bounds", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1007, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("[0:1][4:5]={{1,2},{3,4}}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_fill_multidimensional_arrays_from_dimension_array() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT array_fill(7, $1::INT[])::TEXT",
+        Some((1007, 0, Some(&b"{2,3}"[..]))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-fill-dimensions", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{{7,7,7},{7,7,7}}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_join_array_values_using_explicit_null_replacement() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT array_to_string($1::INT[], ',', 'NULL')",
+        Some((1007, 0, Some(&b"{1,NULL,3}"[..]))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-to-string-null-replacement", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("1,NULL,3".to_owned())]]
+    );
+}
+
+#[test]
+fn should_parse_delimited_text_array_null_tokens() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT string_to_array('a,NULL,c', ',', 'NULL')",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-string-to-array-null-token", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1009, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{a,NULL,c}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_aggregate_integer_rows_into_a_postgresql_int4_array() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_array_aggregate_values (value INTEGER)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_array_aggregate_values VALUES (2)",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT ARRAY_AGG(value) FROM issue_810_array_aggregate_values",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-array-aggregate-values", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1007, -1, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("{2}".to_owned())]]);
+}
+
+#[test]
+fn should_order_values_in_postgresql_int4_array_aggregate() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_810_array_aggregate_input (value INTEGER)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_810_array_aggregate_input VALUES (2), (1), (3)",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT ARRAY_AGG(value ORDER BY value) FROM issue_810_array_aggregate_input",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-ordered-array-aggregate", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1007, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{1,2,3}".to_owned())]]
+    );
+}
+
+#[test]
 fn should_canonicalize_string_backed_array_text_elements_before_direct_output() {
     // Arrange
     let cases: [(i32, &[u8], &[u8]); 11] = [
@@ -842,9 +998,11 @@ fn should_preserve_finite_float_array_tokens_before_output() {
     }
     for pair in batches[24..].as_chunks::<2>().0 {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("08P01"));
-        assert!(!pair[0]
-            .iter()
-            .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
+        assert!(
+            !pair[0]
+                .iter()
+                .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C'))
+        );
         fixture::assert_success(&pair[1]);
         assert_eq!(
             fixture::data_row_payloads(&pair[1]),
@@ -927,9 +1085,11 @@ fn should_preserve_integer_array_negative_zero_in_both_spellings() {
     }
     for pair in batches[12..].as_chunks::<2>().0 {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("08P01"));
-        assert!(!pair[0]
-            .iter()
-            .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
+        assert!(
+            !pair[0]
+                .iter()
+                .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C'))
+        );
         fixture::assert_success(&pair[1]);
         assert_eq!(
             fixture::data_row_payloads(&pair[1]),

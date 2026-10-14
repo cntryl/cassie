@@ -498,7 +498,7 @@ mod pgwire_binary_codecs {
                 Some("550e8400-e29b-41d4-a716-446655440000".to_string()),
                 Some("2000-01-02".to_string()),
                 Some("00:00:01.000002".to_string()),
-                Some("2000-01-02T00:00:01.000003Z".to_string()),
+                Some("2000-01-02 00:00:01.000003".to_string()),
                 Some("\\xdead".to_string()),
             ]
         );
@@ -1334,7 +1334,7 @@ mod pgwire_text_parameters {
         let batches = run_against_seeded("text-timestamp-returning", &queries);
 
         // Assert
-        let stored = keys(&["2024-06-01T08:00:00.000000Z"]);
+        let stored = keys(&["2024-06-01 08:00:00"]);
         assert_eq!(first_column(&batches[0]), stored);
         assert_eq!(first_column(&batches[1]), stored);
     }

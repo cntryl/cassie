@@ -5337,7 +5337,7 @@ mod sql_string_literals {
     use super::support_sql as support;
 
     use cassie::app::Cassie;
-    use cassie::sql::ast::{Expr, QueryStatement, SelectItem};
+    use cassie::sql::ast::{BinaryOp, Expr, QueryStatement, SelectItem};
     use cassie::sql::{parse_statement, SqlErrorKind};
     use cassie::types::Value;
 
@@ -5412,18 +5412,26 @@ mod sql_string_literals {
     }
 
     #[test]
-    fn should_reject_like_escape_instead_of_parsing_one_string_literal() {
+    fn should_parse_like_escape_as_a_pattern_expression() {
         // Arrange
-        let statements = [
-            "SELECT 'abc' LIKE 'a%' ESCAPE '!' AS v",
-            "SELECT name FROM n WHERE name LIKE 'a!%' ESCAPE '!'",
-        ];
+        let sql = "SELECT 'abc' LIKE 'a%' ESCAPE '!' AS v";
 
         // Act
-        let accepted = statements_not_rejected_as_unsupported(&statements);
+        let parsed = parse_statement(sql).expect("LIKE ESCAPE pattern expression parses");
+        let QueryStatement::Select(statement) = parsed.statement else {
+            panic!("expected SELECT statement");
+        };
 
         // Assert
-        assert!(accepted.is_empty(), "not rejected: {accepted:?}");
+        let SelectItem::Expr {
+            expr: Expr::Binary {
+                op: BinaryOp::Like, ..
+            },
+            ..
+        } = &statement.projection[0]
+        else {
+            panic!("LIKE ESCAPE is a pattern expression");
+        };
     }
 
     #[test]

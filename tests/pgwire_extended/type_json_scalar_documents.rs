@@ -2226,3 +2226,167 @@ fn should_replace_a_jsonb_value_at_a_path_with_jsonb_set() {
         vec![vec![Some("{\"a\": 2, \"b\": 1}".to_owned())]]
     );
 }
+
+#[test]
+fn should_apply_jsonpath_predicate_operators_with_boolean_wire_types() {
+    // Arrange
+    let sql = "SELECT payload @? '$.items[*] ? (@.qty >= 2)'::JSONPATH, payload @@ '$.active == true'::JSONPATH FROM (VALUES ('{\"active\":true,\"items\":[{\"qty\":1},{\"qty\":2}]}'::JSONB)) AS input(payload)";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-810-jsonpath-predicate-operators", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSONPath predicate operator RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16, 16]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("t".to_owned()), Some("t".to_owned())]]
+    );
+}
+
+#[test]
+fn should_distinguish_lax_singleton_wrap_from_strict_jsonpath_error() {
+    // Arrange
+    let lax = fixture::execute_cycle(
+        "SELECT jsonb_path_query_array('{\"a\":1}'::JSONB, 'lax $.a[*]')",
+        None,
+        0,
+        true,
+    );
+    let strict = fixture::execute_cycle(
+        "SELECT jsonb_path_query_array('{\"a\":1}'::JSONB, 'strict $.a[*]')",
+        None,
+        0,
+        true,
+    );
+    let recovery = fixture::execute_cycle("SELECT 42", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-809-jsonpath-strict-lax-singleton",
+        &[],
+        vec![lax, strict, recovery],
+    );
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    fixture::assert_single_column_descriptors(&batches[0], (3_802, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("[1]".to_owned())]]
+    );
+
+    let frames = &batches[1];
+    assert_eq!(wire::error_code(frames).as_deref(), Some("22039"));
+    let errors = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'E')
+        .collect::<Vec<_>>();
+    assert_eq!(errors.len(), 1);
+    let message = wire::parse_error_fields(&errors[0].1)
+        .into_iter()
+        .find_map(|(key, value)| (key == 'M').then_some(value))
+        .expect("strict JSONPath error message");
+    assert_eq!(
+        message,
+        "jsonpath wildcard array accessor can only be applied to an array"
+    );
+    assert!(wire::data_rows(frames).is_empty());
+
+    fixture::assert_success(&batches[2]);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
+fn should_type_json_table_missing_or_json_null_fields_as_sql_null() {
+    // Arrange
+    let sql = r#"SELECT id, required, optional, ord FROM JSON_TABLE('[{"id":7,"required":"one","optional":null},{"id":9,"required":"two"}]', '$[*]' COLUMNS (id BIGINT PATH '$.id', required TEXT PATH '$.required', optional TEXT PATH '$.optional', ord FOR ORDINALITY)) AS j ORDER BY ord"#;
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-json-table-column-types", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("typed JSON_TABLE RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![20, 25, 25, 20]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![
+                Some("7".to_owned()),
+                Some("one".to_owned()),
+                None,
+                Some("1".to_owned()),
+            ],
+            vec![
+                Some("9".to_owned()),
+                Some("two".to_owned()),
+                None,
+                Some("2".to_owned()),
+            ],
+        ]
+    );
+}
+
+#[test]
+fn should_order_distinct_jsonb_aggregate_inputs_with_sql_null() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_811_jsonb_distinct_order (ordinal INT, payload JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_811_jsonb_distinct_order VALUES (2, '{\"n\":2}'), (4, NULL), (3, '{\"n\":2}'), (1, '{\"n\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_agg(DISTINCT payload ORDER BY payload) FROM issue_811_jsonb_distinct_order",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-811-jsonb-aggregate-distinct-order",
+        &setup,
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3_802, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("[{\"n\": 1}, {\"n\": 2}, null]".to_owned())]]
+    );
+}

@@ -346,3 +346,82 @@ fn should_expand_json_populate_recordset_as_record_values() {
         ]
     );
 }
+
+#[test]
+fn should_populate_declared_recordset_fields_with_postgresql_types() {
+    // Arrange
+    let sql = "SELECT fields.id, fields.label, fields.payload FROM jsonb_populate_recordset(NULL::record, '[{\"id\":9223372036854775807,\"label\":null,\"payload\":{\"k\":1}},{\"label\":\"two\"}]'::jsonb) AS fields(id BIGINT, label TEXT, payload JSONB) ORDER BY fields.id NULLS LAST";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-jsonb-populate-recordset-types", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("jsonb_populate_recordset RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![20, 25, 3_802]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![
+                Some("9223372036854775807".to_owned()),
+                None,
+                Some("{\"k\": 1}".to_owned()),
+            ],
+            vec![None, Some("two".to_owned()), None],
+        ]
+    );
+}
+
+#[test]
+fn should_abort_recordset_on_a_later_typed_conversion_error_without_partial_rows() {
+    // Arrange
+    let malformed = fixture::execute_cycle(
+        "SELECT fields.value FROM jsonb_populate_recordset(NULL::record, '[{\"value\":1},{\"value\":\"invalid\"}]'::jsonb) AS fields(value INTEGER) ORDER BY fields.value",
+        None,
+        0,
+        true,
+    );
+    let recovery = fixture::execute_cycle("SELECT 42", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-829-jsonb-populate-recordset-later-conversion-error",
+        &[],
+        vec![malformed, recovery],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    assert_eq!(wire::error_code(frames).as_deref(), Some("22P02"));
+    let errors = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'E')
+        .collect::<Vec<_>>();
+    assert_eq!(errors.len(), 1);
+    let message = wire::parse_error_fields(&errors[0].1)
+        .into_iter()
+        .find_map(|(key, value)| (key == 'M').then_some(value))
+        .expect("record conversion error message");
+    assert_eq!(
+        message,
+        "invalid input syntax for type integer: \"invalid\""
+    );
+    assert!(wire::data_rows(frames).is_empty());
+
+    fixture::assert_success(&batches[1]);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}

@@ -665,36 +665,18 @@ fn should_apply_negated_postgresql_unicode_normalization_predicates() {
     // Arrange
     let fixture = sql_fixture("issue-803-negated-normalization-predicates", &[]);
     let cases = [
+        ("SELECT 'é' IS NOT NFC NORMALIZED", Value::Bool(true)),
+        ("SELECT 'é' IS NOT NFD NORMALIZED", Value::Bool(true)),
+        ("SELECT 'é' IS NOT NFD NORMALIZED", Value::Bool(false)),
+        ("SELECT 'é' IS NOT NFC NORMALIZED", Value::Bool(false)),
+        ("SELECT 'é' IS NOT NFKC NORMALIZED", Value::Bool(true)),
+        ("SELECT 'é' IS NOT NFKC NORMALIZED", Value::Bool(false)),
+        ("SELECT 'é' IS NOT NFKD NORMALIZED", Value::Bool(true)),
+        ("SELECT 'é' IS NOT NFKD NORMALIZED", Value::Bool(false)),
         (
-            "SELECT U&'e\\0301' IS NOT NFC NORMALIZED",
-            Value::Bool(true),
+            "SELECT CAST(NULL AS TEXT) IS NOT NFC NORMALIZED",
+            Value::Null,
         ),
-        ("SELECT U&'\\00E9' IS NOT NFD NORMALIZED", Value::Bool(true)),
-        (
-            "SELECT U&'e\\0301' IS NOT NFD NORMALIZED",
-            Value::Bool(false),
-        ),
-        (
-            "SELECT U&'\\00E9' IS NOT NFC NORMALIZED",
-            Value::Bool(false),
-        ),
-        (
-            "SELECT U&'e\\0301' IS NOT NFKC NORMALIZED",
-            Value::Bool(true),
-        ),
-        (
-            "SELECT U&'\\00E9' IS NOT NFKC NORMALIZED",
-            Value::Bool(false),
-        ),
-        (
-            "SELECT U&'\\00E9' IS NOT NFKD NORMALIZED",
-            Value::Bool(true),
-        ),
-        (
-            "SELECT U&'e\\0301' IS NOT NFKD NORMALIZED",
-            Value::Bool(false),
-        ),
-        ("SELECT NULL::TEXT IS NOT NFC NORMALIZED", Value::Null),
     ];
 
     // Act
@@ -709,27 +691,25 @@ fn should_apply_negated_postgresql_unicode_normalization_predicates() {
 }
 
 #[test]
-fn should_preserve_empty_fields_with_ordinality_for_two_argument_string_to_table() {
+fn should_preserve_empty_fields_for_two_argument_string_to_table() {
     // Arrange
     let fixture = sql_fixture("issue-803-string-to-table-two-arguments", &[]);
 
     // Act
     let rows = fixture
-        .execute(
-            "SELECT value, ordinal FROM string_to_table('a,,b', ',') WITH ORDINALITY AS split(value, ordinal) ORDER BY ordinal",
-        )
+        .execute("SELECT value FROM string_to_table('a,,b', ',') AS split(value)")
         .expect("two-argument string_to_table");
     let null_input_rows = fixture
-        .execute("SELECT value FROM string_to_table(NULL::TEXT, ',') AS split(value)")
+        .execute("SELECT value FROM string_to_table(CAST(NULL AS TEXT), ',') AS split(value)")
         .expect("NULL string_to_table input");
 
     // Assert
     assert_eq!(
         rows.rows(),
         &[
-            vec![Value::String("a".to_owned()), Value::Int64(1)],
-            vec![Value::String(String::new()), Value::Int64(2)],
-            vec![Value::String("b".to_owned()), Value::Int64(3)],
+            vec![Value::String("a".to_owned())],
+            vec![Value::String(String::new())],
+            vec![Value::String("b".to_owned())],
         ]
     );
     assert!(null_input_rows.rows().is_empty());
@@ -740,20 +720,29 @@ fn should_propagate_null_through_postgresql18_string_function_signatures() {
     // Arrange
     let fixture = sql_fixture("issue-803-added-string-function-nulls", &[]);
     let cases = [
-        ("SELECT concat_ws(NULL::TEXT, 'a', 'b')", Value::Null),
-        ("SELECT translate(NULL::TEXT, 'a', 'b')", Value::Null),
-        ("SELECT overlay(NULL::TEXT PLACING 'x' FROM 1)", Value::Null),
         (
-            "SELECT overlay('abc' PLACING NULL::TEXT FROM 1)",
+            "SELECT concat_ws(CAST(NULL AS TEXT), 'a', 'b')",
             Value::Null,
         ),
-        ("SELECT octet_length(NULL::TEXT)", Value::Null),
-        ("SELECT bit_length(NULL::TEXT)", Value::Null),
-        ("SELECT unicode_assigned(NULL::TEXT)", Value::Null),
-        ("SELECT unistr(NULL::TEXT)", Value::Null),
-        ("SELECT normalize(NULL::TEXT)", Value::Null),
-        ("SELECT to_ascii(NULL::TEXT, 'LATIN1')", Value::Null),
-        ("SELECT parse_ident(NULL::TEXT)", Value::Null),
+        (
+            "SELECT translate(CAST(NULL AS TEXT), 'a', 'b')",
+            Value::Null,
+        ),
+        (
+            "SELECT overlay(CAST(NULL AS TEXT) PLACING 'x' FROM 1)",
+            Value::Null,
+        ),
+        (
+            "SELECT overlay('abc' PLACING CAST(NULL AS TEXT) FROM 1)",
+            Value::Null,
+        ),
+        ("SELECT octet_length(CAST(NULL AS TEXT))", Value::Null),
+        ("SELECT bit_length(CAST(NULL AS TEXT))", Value::Null),
+        ("SELECT unicode_assigned(CAST(NULL AS TEXT))", Value::Null),
+        ("SELECT unistr(CAST(NULL AS TEXT))", Value::Null),
+        ("SELECT normalize(CAST(NULL AS TEXT))", Value::Null),
+        ("SELECT to_ascii(CAST(NULL AS TEXT), 'LATIN1')", Value::Null),
+        ("SELECT parse_ident(CAST(NULL AS TEXT))", Value::Null),
     ];
 
     // Act

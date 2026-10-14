@@ -1,4 +1,4 @@
-//! PostgreSQL 18 mutation forms tracked by #823 and #825.
+//! PostgreSQL 18 mutation forms tracked by #796, #823, and #825.
 
 use crate::support_sql_fixture::sql_fixture;
 use cassie::types::Value;
@@ -173,6 +173,56 @@ fn should_return_delete_row_images() {
             Value::Null,
         ]]
     );
+}
+
+#[test]
+fn should_evaluate_a_case_guarded_returning_expression_per_updated_row() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-796-update-returning-case-arithmetic",
+        &[
+            "CREATE TABLE issue_796_returning_case (id BIGINT)",
+            "INSERT INTO issue_796_returning_case VALUES (1), (2)",
+        ],
+    );
+
+    // Act
+    let updated = fixture.execute(
+        "UPDATE issue_796_returning_case SET id = id RETURNING id, CASE WHEN id < 0 THEN id / (id - id) ELSE id END AS selected",
+    );
+
+    // Assert
+    assert_eq!(
+        updated
+            .expect("guarded division stays unevaluated for positive rows")
+            .rows(),
+        &[
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(2)],
+        ]
+    );
+}
+
+#[test]
+fn should_describe_an_empty_bigint_update_returning_expression() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-796-empty-update-returning-descriptor",
+        &[
+            "CREATE TABLE issue_796_empty_returning (id BIGINT)",
+            "INSERT INTO issue_796_empty_returning VALUES (1), (2)",
+        ],
+    );
+
+    // Act
+    let updated = fixture.execute(
+        "UPDATE issue_796_empty_returning SET id = id + 10 WHERE id < 0 RETURNING id / (id - id) AS selected",
+    );
+
+    // Assert
+    let updated = updated.expect("empty UPDATE still describes its RETURNING projection");
+    assert!(updated.rows().is_empty());
+    assert_eq!(updated.columns()[0].type_oid, 20);
 }
 
 #[test]

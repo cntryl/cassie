@@ -283,6 +283,29 @@ fn should_evaluate_postgres_function_style_type_casts() {
 }
 
 #[test]
+fn should_evaluate_a_function_style_date_cast() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-796-function-style-date-cast",
+        &[
+            "CREATE TABLE issue_796_date_cast (value TIMESTAMP)",
+            "INSERT INTO issue_796_date_cast VALUES ('2001-02-16 20:38:40')",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute("SELECT DATE(value) AS value FROM issue_796_date_cast");
+
+    // Assert
+    let result = result.expect("DATE(timestamp) binds as a type cast");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("2001-02-16".to_owned())]]
+    );
+    assert_eq!(result.columns()[0].type_oid, 1082);
+}
+
+#[test]
 fn should_parse_escape_string_constants_with_postgres_backslash_rules() {
     // Arrange
     let fixture = sql_fixture("issue-796-escape-string", &[]);
@@ -542,6 +565,20 @@ fn should_concatenate_text_with_non_text_scalar_values() {
 }
 
 #[test]
+fn should_concatenate_a_numeric_expression_before_text() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-non-text-before-text-concatenation", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT (1 + 2) || 'b' AS value");
+
+    // Assert
+    let result = result.expect("a non-array scalar may precede a text operand");
+    assert_eq!(result.rows(), &[vec![Value::String("3b".to_owned())]]);
+    assert_eq!(result.columns()[0].type_oid, 25);
+}
+
+#[test]
 fn should_resolve_schema_qualified_binary_operators() {
     // Arrange
     let label = "issue-796-qualified-operators";
@@ -587,25 +624,47 @@ fn should_use_left_associative_postgres_power_with_float8_result() {
 }
 
 #[test]
-fn should_bind_postgres_cast_array_suffix_power_precedence() {
+fn should_bind_postgres_chained_type_casts() {
     // Arrange
-    let fixture = sql_fixture("issue-796-chained-array-cast-precedence", &[]);
+    let fixture = sql_fixture("issue-796-chained-type-casts", &[]);
 
     // Act
-    let result = fixture.execute(
-        "SELECT '7'::TEXT::INT4 AS chained, ('{10,20}'::INT[])[2] AS second_element, -2 ^ 2 AS unary_before_power, -(2::INT4 ^ 2) AS negated_power",
-    );
+    let result = fixture.execute("SELECT '7'::TEXT::INT4 AS chained");
 
     // Assert
-    let result = result.expect("chained casts, array suffix, and unary power precedence");
+    let result = result.expect("chained casts bind through the preceding target type");
+    assert_eq!(result.rows(), &[vec![Value::Int64(7)]]);
+    assert_eq!(result.columns()[0].type_oid, 23);
+}
+
+#[test]
+fn should_index_a_postgres_array_after_casting_it() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-array-suffix-after-cast", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT ('{10,20}'::INT[])[2] AS second_element");
+
+    // Assert
+    let result = result.expect("array subscript follows the cast expression");
+    assert_eq!(result.rows(), &[vec![Value::Int64(20)]]);
+    assert_eq!(result.columns()[0].type_oid, 23);
+}
+
+#[test]
+fn should_apply_postgres_unary_minus_precedence_around_power() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-unary-power-precedence", &[]);
+
+    // Act
+    let result =
+        fixture.execute("SELECT -2 ^ 2 AS unary_before_power, -(2::INT4 ^ 2) AS grouped_power");
+
+    // Assert
+    let result = result.expect("unary minus and parentheses follow PostgreSQL power precedence");
     assert_eq!(
         result.rows(),
-        &[vec![
-            Value::Int64(7),
-            Value::Int64(20),
-            Value::Float64(4.0),
-            Value::Float64(-4.0),
-        ]]
+        &[vec![Value::Float64(4.0), Value::Float64(-4.0)]]
     );
     assert_eq!(
         result
@@ -613,8 +672,22 @@ fn should_bind_postgres_cast_array_suffix_power_precedence() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![23, 23, 701, 701]
+        vec![701, 701]
     );
+}
+
+#[test]
+fn should_accept_a_postgres_type_name_string_literal() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-generic-type-string-literal", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT INTEGER '42' AS value");
+
+    // Assert
+    let result = result.expect("a type name may directly precede its string literal");
+    assert_eq!(result.rows(), &[vec![Value::Int64(42)]]);
+    assert_eq!(result.columns()[0].type_oid, 23);
 }
 
 #[test]
@@ -703,12 +776,17 @@ fn should_apply_expression_collation_to_ordering() {
 #[test]
 fn should_order_text_with_a_non_c_postgres_collation() {
     // Arrange
-    let fixture = sql_fixture("issue-796-non-c-collation-ordering", &[]);
+    let fixture = sql_fixture(
+        "issue-796-non-c-collation-ordering",
+        &[
+            "CREATE TABLE collation_words (word TEXT)",
+            "INSERT INTO collation_words (word) VALUES ('z'), ('ä'), ('a')",
+        ],
+    );
 
     // Act
-    let result = fixture.execute(
-        "SELECT word FROM (VALUES ('z'), ('ä'), ('a')) AS words(word) ORDER BY word COLLATE \"en-US-x-icu\"",
-    );
+    let result =
+        fixture.execute("SELECT word FROM collation_words ORDER BY word COLLATE \"en-US-x-icu\"");
 
     // Assert
     assert_eq!(
@@ -719,6 +797,40 @@ fn should_order_text_with_a_non_c_postgres_collation() {
             vec![Value::String("z".to_owned())],
         ]
     );
+}
+
+#[test]
+fn should_create_a_nondeterministic_postgres_icu_collation() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-nondeterministic-icu-collation", &[]);
+
+    // Act
+    fixture
+        .execute(
+            "CREATE COLLATION issue_796_ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)",
+        )
+        .expect("create a nondeterministic ICU collation");
+    let result = fixture.execute("SELECT 'A' = 'a' COLLATE issue_796_ci");
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("case-insensitive collation comparison")
+            .rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_refresh_a_postgres_collation_version() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-alter-collation-refresh", &[]);
+
+    // Act
+    let result = fixture.execute("ALTER COLLATION \"C\" REFRESH VERSION");
+
+    // Assert
+    result.expect("refresh the recorded version of a PostgreSQL collation");
 }
 
 #[test]
@@ -793,18 +905,30 @@ fn should_return_postgres_float_special_values() {
     let fixture = sql_fixture("issue-796-float-special-values", &[]);
 
     // Act
-    let cases: [(&str, ValuePredicate); 3] = [
+    let cases: [(&str, ValuePredicate); 6] = [
         (
-            "SELECT CAST('NaN' AS DOUBLE PRECISION) AS value",
+            "SELECT CAST('NaN' AS FLOAT) AS value",
             |value| matches!(value, Value::Float64(number) if number.is_nan()),
         ),
         (
-            "SELECT CAST('Infinity' AS FLOAT8) AS value",
+            "SELECT CAST('Infinity' AS FLOAT) AS value",
             |value| matches!(value, Value::Float64(number) if number.is_infinite() && number.is_sign_positive()),
         ),
         (
-            "SELECT CAST('-Infinity' AS FLOAT8) AS value",
+            "SELECT CAST('-Infinity' AS FLOAT) AS value",
             |value| matches!(value, Value::Float64(number) if number.is_infinite() && number.is_sign_negative()),
+        ),
+        (
+            "SELECT CAST('inf' AS FLOAT) AS value",
+            |value| matches!(value, Value::Float64(number) if number.is_infinite() && number.is_sign_positive()),
+        ),
+        (
+            "SELECT CAST('-inf' AS FLOAT) AS value",
+            |value| matches!(value, Value::Float64(number) if number.is_infinite() && number.is_sign_negative()),
+        ),
+        (
+            "SELECT CAST('nan' AS FLOAT) AS value",
+            |value| matches!(value, Value::Float64(number) if number.is_nan()),
         ),
     ];
     let failures = cases

@@ -10853,6 +10853,8 @@ mod type_cast_promotion_evidence {
             ("CAST('true' AS BOOLEAN)", Value::Bool(true)),
             ("CAST('F' AS BOOLEAN)", Value::Bool(false)),
             ("CAST('abc' AS CHAR(3))", Value::String("abc".to_string())),
+            ("CAST('abcd' AS CHAR(3))", Value::String("abc".to_string())),
+            ("CAST('abc ' AS CHAR(3))", Value::String("abc".to_string())),
             (
                 "CAST('abc' AS VARCHAR(3))",
                 Value::String("abc".to_string()),

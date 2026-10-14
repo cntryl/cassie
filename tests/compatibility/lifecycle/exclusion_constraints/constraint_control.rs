@@ -165,3 +165,204 @@ fn should_preserve_named_foreign_key_deferrability_metadata() {
         assert!(!metadata.get::<_, bool>(1));
     });
 }
+
+#[test]
+fn should_honor_explicit_not_deferrable_constraint_clauses() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("explicit_not_deferrable_constraint").await;
+        let (client, connection) = server.connect().await;
+        let created = client
+            .batch_execute(
+                "CREATE TABLE compat_explicit_not_deferrable (value INT, \
+                   CONSTRAINT compat_explicit_not_deferrable_key UNIQUE (value) \
+                   NOT DEFERRABLE INITIALLY IMMEDIATE)",
+            )
+            .await;
+
+        // Act
+        let (metadata, duplicate, invalid_mode, invalid_relation_count) = if created.is_ok() {
+            let metadata = client
+                .query_one(
+                    "SELECT condeferrable, condeferred, convalidated \
+                     FROM pg_catalog.pg_constraint \
+                     WHERE conname = 'compat_explicit_not_deferrable_key'",
+                    &[],
+                )
+                .await;
+            let first = client
+                .execute("INSERT INTO compat_explicit_not_deferrable VALUES (1)", &[])
+                .await;
+            let duplicate = if first.is_ok() {
+                Some(
+                    client
+                        .execute("INSERT INTO compat_explicit_not_deferrable VALUES (1)", &[])
+                        .await,
+                )
+            } else {
+                None
+            };
+            let invalid_mode = client
+                .batch_execute(
+                    "CREATE TABLE compat_invalid_not_deferrable (value INT, \
+                     CONSTRAINT compat_invalid_not_deferrable_key UNIQUE (value) \
+                     NOT DEFERRABLE INITIALLY DEFERRED)",
+                )
+                .await;
+            let invalid_relation_count = client
+                .query_one(
+                    "SELECT count(*) FROM pg_catalog.pg_class \
+                     WHERE relname = 'compat_invalid_not_deferrable'",
+                    &[],
+                )
+                .await;
+            (
+                Some(metadata),
+                duplicate,
+                Some(invalid_mode),
+                Some(invalid_relation_count),
+            )
+        } else {
+            (None, None, None, None)
+        };
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(
+            created.is_ok(),
+            "explicit NOT DEFERRABLE INITIALLY IMMEDIATE should be accepted: {created:?}"
+        );
+        let metadata = metadata
+            .expect("inspect the created NOT DEFERRABLE constraint")
+            .expect("read constraint metadata");
+        assert!(!metadata.get::<_, bool>(0));
+        assert!(!metadata.get::<_, bool>(1));
+        assert!(metadata.get::<_, bool>(2));
+        let duplicate = duplicate
+            .expect("attempt the duplicate after inserting the first key")
+            .expect_err("NOT DEFERRABLE must reject a duplicate immediately");
+        assert_eq!(db_error(&duplicate).code().code(), "23505");
+        let invalid_mode = invalid_mode
+            .expect("attempt the contradictory initially deferred declaration")
+            .expect_err("NOT DEFERRABLE cannot be INITIALLY DEFERRED");
+        assert_eq!(db_error(&invalid_mode).code().code(), "42601");
+        assert_eq!(
+            invalid_relation_count
+                .expect("inspect rejected constraint relation publication")
+                .expect("read relation count")
+                .get::<_, i64>(0),
+            0,
+            "invalid constraint DDL must not publish its table"
+        );
+    });
+}
+
+#[test]
+fn should_enforce_temporal_unique_without_overlaps_by_equality_prefix() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("temporal_unique_without_overlaps").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_temporal_unique_without_overlaps (\
+                   grouping_key INT4RANGE NOT NULL, during TSTZRANGE NOT NULL, \
+                   CONSTRAINT compat_temporal_unique_period_key \
+                   UNIQUE (grouping_key, during WITHOUT OVERLAPS))",
+                "INSERT INTO compat_temporal_unique_without_overlaps VALUES \
+                   ('[1,2)', tstzrange('2026-01-01 00:00+00', '2026-01-05 00:00+00', '[)')), \
+                   ('[1,2)', tstzrange('2026-01-05 00:00+00', '2026-01-10 00:00+00', '[)')), \
+                   ('[2,3)', tstzrange('2026-01-02 00:00+00', '2026-01-04 00:00+00', '[)'))",
+            ],
+        )
+        .await
+        .expect("accept adjacent periods and overlapping periods under another key");
+
+        // Act
+        let overlap = client
+            .execute(
+                "INSERT INTO compat_temporal_unique_without_overlaps VALUES \
+                 ('[1,2)', tstzrange('2026-01-04 00:00+00', '2026-01-06 00:00+00', '[)'))",
+                &[],
+            )
+            .await
+            .expect_err("a period must not overlap another period for the same key");
+        let rows = client
+            .query(
+                "SELECT grouping_key::TEXT, during::TEXT \
+                 FROM compat_temporal_unique_without_overlaps ORDER BY grouping_key, during",
+                &[],
+            )
+            .await
+            .expect("read rows after the rejected period overlap");
+
+        // Assert
+        assert_eq!(db_error(&overlap).code().code(), "23P01");
+        assert_eq!(rows.len(), 3, "the rejected period must not be published");
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_cover_temporal_foreign_keys_across_adjacent_parent_periods() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("temporal_period_foreign_key").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_temporal_period_parent (\
+                   grouping_key INT4RANGE NOT NULL, during TSTZRANGE NOT NULL, \
+                   CONSTRAINT compat_temporal_period_parent_key \
+                   UNIQUE (grouping_key, during WITHOUT OVERLAPS))",
+                "CREATE TABLE compat_temporal_period_child (\
+                   grouping_key INT4RANGE NOT NULL, during TSTZRANGE NOT NULL, \
+                   CONSTRAINT compat_temporal_period_child_fk \
+                   FOREIGN KEY (grouping_key, PERIOD during) \
+                   REFERENCES compat_temporal_period_parent (grouping_key, PERIOD during))",
+                "INSERT INTO compat_temporal_period_parent VALUES \
+                   ('[1,2)', tstzrange('2026-01-01 00:00+00', '2026-01-05 00:00+00', '[)')), \
+                   ('[1,2)', tstzrange('2026-01-05 00:00+00', '2026-01-10 00:00+00', '[)'))",
+                "INSERT INTO compat_temporal_period_child VALUES \
+                   ('[1,2)', tstzrange('2026-01-02 00:00+00', '2026-01-09 00:00+00', '[)'))",
+            ],
+        )
+        .await
+        .expect("a child period may be covered by adjacent parent periods");
+
+        // Act
+        let uncovered = client
+            .execute(
+                "INSERT INTO compat_temporal_period_child VALUES \
+                 ('[1,2)', tstzrange('2025-12-31 00:00+00', '2026-01-02 00:00+00', '[)'))",
+                &[],
+            )
+            .await
+            .expect_err("a child period extending outside parent coverage must fail");
+        let rows = client
+            .query(
+                "SELECT grouping_key::TEXT, during::TEXT \
+                 FROM compat_temporal_period_child ORDER BY during",
+                &[],
+            )
+            .await
+            .expect("read the child period accepted before the uncovered insert");
+
+        // Assert
+        assert_eq!(db_error(&uncovered).code().code(), "23503");
+        assert_eq!(
+            rows.len(),
+            1,
+            "the uncovered child period must not be stored"
+        );
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

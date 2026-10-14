@@ -70,6 +70,38 @@ fn run(label: &str, mode: Mode, statements: &[&str], observer_sql: &str) -> (Vec
     (outcomes, observation)
 }
 
+fn run_mutation_returning_order(
+    label: &str,
+    mode: Mode,
+    seed_first_candidate: bool,
+    values: &str,
+) -> (Vec<Outcome>, Frames) {
+    let mut statements = vec![
+        "CREATE TABLE wire_tx_ordering_target (id BIGINT, unique_value BIGINT UNIQUE)".to_owned(),
+        "CREATE TABLE wire_tx_ordering_error (n BIGINT)".to_owned(),
+    ];
+    if seed_first_candidate {
+        statements.push("INSERT INTO wire_tx_ordering_target VALUES (1, 7)".to_owned());
+    }
+    statements.extend([
+        "BEGIN".to_owned(),
+        "INSERT INTO wire_tx_ordering_error VALUES (0)".to_owned(),
+        format!(
+            "INSERT INTO wire_tx_ordering_target VALUES {values} \
+             RETURNING EXISTS (SELECT 1 FROM wire_tx_ordering_error e WHERE e.n / 0 = 0)"
+        ),
+        "ROLLBACK".to_owned(),
+    ]);
+    let statement_refs = statements.iter().map(String::as_str).collect::<Vec<_>>();
+    run(
+        label,
+        mode,
+        &statement_refs,
+        "SELECT (SELECT COUNT(*) FROM wire_tx_ordering_target), \
+                (SELECT COUNT(*) FROM wire_tx_ordering_error)",
+    )
+}
+
 #[test]
 fn should_ignore_failed_wire_block_work_until_commit_rolls_back() {
     // Arrange
@@ -235,6 +267,57 @@ fn should_skip_statements_after_a_failure_inside_one_simple_query_block() {
         wire::data_rows(&observed),
         vec![vec![Some("0".to_string())]]
     );
+}
+
+#[test]
+fn should_evaluate_each_insert_returning_row_before_a_later_unique_conflict() {
+    // Arrange
+    let cases = [
+        ("later-conflict", false, "(1, 7), (2, 7)", "22012", 0),
+        ("preexisting-conflict", true, "(1, 7), (2, 8)", "23505", 1),
+        (
+            "distinct-runtime-error",
+            false,
+            "(1, 7), (2, 8)",
+            "22012",
+            0,
+        ),
+    ];
+    let mut evidence = Vec::new();
+
+    // Act
+    for (case_name, seed_first_candidate, values, error_code, target_rows) in cases {
+        for (mode_index, mode) in MODES.into_iter().enumerate() {
+            let label = format!("issue823-returning-order-{case_name}-{mode_index}");
+            evidence.push((
+                label.clone(),
+                error_code,
+                target_rows,
+                run_mutation_returning_order(&label, mode, seed_first_candidate, values),
+                seed_first_candidate,
+            ));
+        }
+    }
+
+    // Assert
+    for (label, error_code, target_rows, (outcomes, observed), seeded) in evidence {
+        let mut expected = vec![ok("CREATE TABLE", b'I'), ok("CREATE TABLE", b'I')];
+        if seeded {
+            expected.push(ok("INSERT 0 1", b'I'));
+        }
+        expected.extend([
+            ok("BEGIN", b'T'),
+            ok("INSERT 0 1", b'T'),
+            failed(error_code, b'E'),
+            ok("ROLLBACK", b'I'),
+        ]);
+        assert_eq!(outcomes, expected, "{label}");
+        assert_eq!(
+            wire::data_rows(&observed),
+            vec![vec![Some(target_rows.to_string()), Some("0".to_owned())]],
+            "{label}: the failed INSERT statement and its transaction-local RETURNING input must roll back"
+        );
+    }
 }
 
 #[test]

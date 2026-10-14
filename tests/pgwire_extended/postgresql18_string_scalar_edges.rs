@@ -255,12 +255,12 @@ fn should_bind_utf8_parameter_for_binary_int4_character_length() {
 }
 
 #[test]
-fn should_return_octet_length_with_postgresql_int4_metadata() {
+fn should_report_int4_metadata_for_octet_bit_lengths() {
     // Arrange
     let batches = run_script(
-        "issue-803-octet-length-wire",
+        "issue-803-octet-and-bit-length-wire",
         vec![Step::ThroughReady(vec![wire::simple_query_frame(
-            "SELECT octet_length('aé') AS bytes",
+            "SELECT octet_length('aé') AS bytes, bit_length('aé') AS bits",
         )])],
     );
 
@@ -271,18 +271,68 @@ fn should_return_octet_length_with_postgresql_int4_metadata() {
     assert_eq!(
         wire::error_code(result),
         None,
-        "octet_length errors: {:?}",
+        "octet_length and bit_length errors: {:?}",
         error_fields(result)
     );
     let columns = wire::parse_row_description(
         &result
             .iter()
             .find(|(tag, _)| *tag == b'T')
-            .expect("octet_length RowDescription")
+            .expect("length functions RowDescription")
             .1,
     );
-    assert_eq!(columns[0].type_oid, 23);
-    assert_eq!(wire::data_rows(result), vec![vec![Some("3".to_owned())]]);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("3".to_owned()), Some("24".to_owned())]]
+    );
+}
+
+#[test]
+fn should_preserve_text_transform_values_with_postgresql_metadata() {
+    // Arrange
+    let batches = run_script(
+        "issue-803-text-transform-metadata",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT concat_ws('-', 'a', NULL, 'c') AS joined, translate('abcdef', 'bd', 'XY') AS translated, overlay('Txxxxas' PLACING 'hom' FROM 2 FOR 4) AS overlaid",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "text transformation errors: {:?}",
+        error_fields(result)
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("text transformation RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 25, 25]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("a-c".to_owned()),
+            Some("aXcYef".to_owned()),
+            Some("Thomas".to_owned()),
+        ]]
+    );
 }
 
 #[test]
@@ -348,6 +398,80 @@ fn should_decode_unistr_with_postgresql_text_metadata() {
 }
 
 #[test]
+fn should_decode_each_unistr_escape_form_with_postgresql_text_metadata() {
+    // Arrange
+    let batches = run_script(
+        "issue-803-unistr-escape-forms-wire",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            r"SELECT unistr('\0061') AS four_hex, unistr('\+01F600') AS six_hex, unistr('\u0062') AS four_unicode, unistr('\U0001F603') AS eight_unicode, unistr('\\') AS escaped_backslash",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "unistr escape errors: {:?}",
+        error_fields(result)
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("unistr escape RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 25, 25, 25, 25]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("a".to_owned()),
+            Some("😀".to_owned()),
+            Some("b".to_owned()),
+            Some("😃".to_owned()),
+            Some("\\".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_report_invalid_surrogate_pairs_in_unistr_with_42601() {
+    // Arrange
+    let batches = run_script(
+        "issue-803-unistr-surrogate-sqlstate",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT unistr(chr(92)||'u0061')",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT unistr(chr(92)||'uD800')",
+            )]),
+        ],
+    );
+
+    // Act
+    let valid = &batches[0];
+    let invalid = &batches[1];
+
+    // Assert
+    assert_eq!(wire::error_code(valid), None);
+    assert_eq!(wire::data_rows(valid), vec![vec![Some("a".to_owned())]]);
+    assert_eq!(wire::error_code(invalid).as_deref(), Some("42601"));
+    let message = error_fields(invalid)
+        .into_iter()
+        .flatten()
+        .find_map(|(field, message)| (field == 'M').then_some(message))
+        .expect("invalid unistr surrogate ErrorResponse message");
+    assert_eq!(message, "invalid Unicode surrogate pair");
+}
+
+#[test]
 fn should_normalize_text_with_postgresql_text_metadata() {
     // Arrange
     let batches = run_script(
@@ -376,6 +500,48 @@ fn should_normalize_text_with_postgresql_text_metadata() {
     );
     assert_eq!(columns[0].type_oid, 25);
     assert_eq!(wire::data_rows(result), vec![vec![Some("é".to_owned())]]);
+}
+
+#[test]
+fn should_return_negated_normalization_predicates_with_postgresql_boolean_metadata() {
+    // Arrange
+    let batches = run_script(
+        "issue-803-normalization-predicate-wire",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            r"SELECT U&'e\0301' IS NOT NFC NORMALIZED AS not_nfc, U&'\00E9' IS NOT NFD NORMALIZED AS not_nfd, U&'e\0301' IS NOT NFD NORMALIZED AS nfd_input, NULL::TEXT IS NOT NFC NORMALIZED AS null_input",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "normalization predicate errors: {:?}",
+        error_fields(result)
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("normalization predicate RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16, 16, 16, 16]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+            Some("f".to_owned()),
+            None,
+        ]]
+    );
 }
 
 #[test]
@@ -472,6 +638,51 @@ fn should_return_split_part_with_postgresql_text_metadata() {
         .expect("split_part RowDescription");
     assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 25);
     assert_eq!(wire::data_rows(result), vec![vec![Some("two".to_owned())]]);
+}
+
+#[test]
+fn should_enforce_parse_ident_strictness_with_postgresql_sqlstate() {
+    // Arrange
+    let batches = run_script(
+        "issue-803-parse-ident-strictness",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT parse_ident('foo.bar junk', false)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT parse_ident('foo.bar junk')",
+            )]),
+        ],
+    );
+
+    // Act
+    let permissive = &batches[0];
+    let strict = &batches[1];
+
+    // Assert
+    assert_eq!(wire::error_code(permissive), None);
+    let description = permissive
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("parse_ident RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)[0].type_oid,
+        1_009
+    );
+    assert_eq!(
+        wire::data_rows(permissive),
+        vec![vec![Some("{foo,bar}".to_owned())]]
+    );
+    assert_eq!(wire::error_code(strict).as_deref(), Some("22023"));
+    let message = error_fields(strict)
+        .into_iter()
+        .flatten()
+        .find_map(|(field, message)| (field == 'M').then_some(message))
+        .expect("strict parse_ident ErrorResponse message");
+    assert_eq!(
+        message,
+        "string is not a valid identifier: \"foo.bar junk\""
+    );
 }
 
 #[test]

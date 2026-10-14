@@ -24,7 +24,7 @@ fn should_filter_copy_from_stdin_rows_with_copy_where() {
             &mut writer,
             vec![support_pgwire::simple_query_frame(
                 "COPY compat_copy_where (id, label) FROM STDIN \
-                 WITH (FORMAT csv) WHERE id > 1",
+                 WITH (FORMAT csv) WHERE (id > 1)",
             )],
         )
         .await;

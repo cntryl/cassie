@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn should_report_visibility_for_each_builtin_object_family() {
     // Arrange
+    // These object OIDs are the PostgreSQL 18.6 built-ins used by the oracle.
     let fixture = sql_fixture(
         "issue-817-object-visibility-functions",
         &[

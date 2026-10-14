@@ -140,6 +140,82 @@ fn should_bind_text_parameters_for_bit_varbit_bytea() {
 }
 
 #[test]
+fn should_report_invalid_bytea_text_bind_with_postgresql_sqlstate() {
+    // Arrange
+    let statement_cases = [
+        ("bytea_odd_hex_input", "bytea_odd_hex_portal", r"\xabc"),
+        ("bytea_non_hex_input", "bytea_non_hex_portal", r"\x0g"),
+    ];
+    let mut steps = Vec::new();
+    for (statement, portal, value) in statement_cases {
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            "SELECT $1::BYTEA AS payload",
+            &[17],
+        )));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame(portal, statement, &[value]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 42 AS recovered",
+        )]));
+    }
+
+    // Act
+    let batches = run_script("postgresql18-bytea-text-input-error-sqlstates", steps);
+
+    // Assert
+    assert_eq!(batches.len(), statement_cases.len() * 4);
+    for (index, (statement, _, _)) in statement_cases.iter().enumerate() {
+        let offset = index * 4;
+        assert_eq!(
+            wire::error_code(&batches[offset]),
+            None,
+            "{statement} Parse"
+        );
+        let parameter_description = batches[offset + 1]
+            .iter()
+            .find(|(tag, _)| *tag == b't')
+            .expect("bytea ParameterDescription");
+        assert_eq!(
+            wire::parse_parameter_description(&parameter_description.1),
+            vec![17],
+            "{statement} parameter OID"
+        );
+        let error_batch = &batches[offset + 2];
+        assert_eq!(
+            wire::error_code(error_batch).as_deref(),
+            Some("22023"),
+            "{statement} PostgreSQL 18.6 bytea input SQLSTATE"
+        );
+        assert!(
+            !error_batch
+                .iter()
+                .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')),
+            "{statement} must fail before returning a result"
+        );
+        assert_eq!(
+            error_batch.last().map(|frame| frame.1.as_slice()),
+            Some(&b"I"[..]),
+            "{statement} should return ReadyForQuery after the Bind error"
+        );
+        assert_eq!(wire::error_code(&batches[offset + 3]), None);
+        assert_eq!(
+            wire::data_rows(&batches[offset + 3]),
+            vec![vec![Some("42".to_owned())]],
+            "{statement} connection recovery"
+        );
+    }
+}
+
+#[test]
 fn should_decode_binary_bytea_parameters_without_text_reencoding() {
     // Arrange
     let sql = "SELECT encode($1::bytea, 'hex') AS payload_hex";

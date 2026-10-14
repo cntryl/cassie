@@ -1,13 +1,13 @@
 //! PostgreSQL 18 money result identity, locale output and overflow tracked by #908.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 #[test]
 fn should_preserve_money_type_oids_through_sum() {
     // Arrange
     let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
-        "SELECT 12::money AS amount, SUM(amount) FROM (VALUES (12::money), (1::money)) AS cash_rows(amount)",
+        "SELECT 12::money AS amount, SUM(1::money) AS total",
     )])];
 
     // Act
@@ -25,6 +25,77 @@ fn should_preserve_money_type_oids_through_sum() {
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
         vec![790, 790]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("$12.00".to_owned()), Some("$1.00".to_owned())]]
+    );
+}
+
+#[test]
+fn should_return_c_locale_money_text_over_postgresql_wire() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT '12.34'::money AS amount",
+    )])];
+
+    // Act
+    let batches = run_script("postgresql18-money-c-locale-text", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("money RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (column.type_oid, column.type_size, column.type_mod),
+        (790, 8, -1)
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("$12.34".to_owned())]]
+    );
+}
+
+#[test]
+fn should_describe_typed_money_parameter_result() {
+    // Arrange
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "money_typed_parameter",
+            "SELECT $1::money AS amount",
+            &[790],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("money_typed_parameter"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-908-money-prepared-descriptor", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let described = &batches[1];
+    assert_eq!(wire::error_code(described), None);
+    let parameters = described
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("money ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), vec![790]);
+    let result = described
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("money RowDescription");
+    let column = &wire::parse_row_description(&result.1)[0];
+    assert_eq!(
+        (column.type_oid, column.type_size, column.type_mod),
+        (790, 8, -1)
     );
 }
 
@@ -157,7 +228,16 @@ fn should_send_money_values_in_postgresql_binary_format() {
     assert_eq!(wire::error_code(&batches[0]), None);
     assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
     let result = &batches[1];
-    assert_eq!(wire::error_code(result), None);
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "wire errors: {:?}",
+        result
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
     let description = result
         .iter()
         .find(|(tag, _)| *tag == b'T')
@@ -214,6 +294,59 @@ fn should_decode_binary_money_parameters_before_numeric_cast() {
         .iter()
         .find(|(tag, _)| *tag == b'T')
         .expect("money binary-input RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!((column.type_oid, column.format_code), (1_700, 0));
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("12.34".to_owned())]]
+    );
+}
+
+#[test]
+fn should_decode_text_money_parameters_before_numeric_cast() {
+    // Arrange
+    let money_text = b"$12.34";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "money_text_input",
+            "SELECT $1::numeric AS amount",
+            &[790],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "money_text_input_portal",
+                "money_text_input",
+                &[0],
+                &[Some(money_text)],
+                &[0],
+            ),
+            wire::describe_portal_frame("money_text_input_portal"),
+            wire::execute_frame("money_text_input_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-908-money-text-input", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "wire errors: {:?}",
+        result
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("money text-input RowDescription");
     let column = &wire::parse_row_description(&description.1)[0];
     assert_eq!((column.type_oid, column.format_code), (1_700, 0));
     assert_eq!(

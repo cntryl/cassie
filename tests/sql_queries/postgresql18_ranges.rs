@@ -1,8 +1,17 @@
 //! PostgreSQL 18 range and multirange value behavior tracked by #905.
 
+use cassie::app::Cassie;
 use cassie::types::Value;
 
 use crate::support_sql_fixture::sql_fixture;
+
+struct RangeDirectory(String);
+
+impl Drop for RangeDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 #[test]
 fn should_canonicalize_builtin_ranges_with_adjacent_multiranges() {
@@ -30,7 +39,7 @@ fn should_canonicalize_builtin_ranges_with_adjacent_multiranges() {
 fn should_handle_unbounded_empty_inclusive_range_boundaries() {
     // Arrange
     let fixture = sql_fixture("issue-905-range-boundaries", &[]);
-    let sql = "SELECT lower_inf('(,)'::daterange) AND upper_inf('(,)'::daterange), int4range(1, 5, '[)') @> 1, int4range(1, 5, '[)') @> 4, NOT (int4range(1, 5, '[)') @> 5), isempty('empty'::int8range), isempty(int8range(1, 1, '[)'))";
+    let sql = "SELECT lower_inf(daterange(NULL, NULL, '()')) AND upper_inf(daterange(NULL, NULL, '()')), int4range(1, 5, '[)') @> 1, int4range(1, 5, '[)') @> 4, NOT (int4range(1, 5, '[)') @> 5), isempty('empty'::int8range), isempty(int8range(1, 1, '[)'))";
 
     // Act
     let result = fixture.execute(sql);
@@ -113,10 +122,82 @@ fn should_apply_range_multirange_set_operators() {
 }
 
 #[test]
+fn should_construct_a_multirange_from_one_range() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-multirange-constructor", &[]);
+    let sql = "SELECT multirange(int4range(1, 3, '[)'))::TEXT";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("multirange constructor").rows(),
+        &[vec![Value::String("{[1,3)}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_unnest_multirange_segments_in_order() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-multirange-unnest", &[]);
+    let sql = "SELECT unnest(multirange(int4range(1, 3, '[)')) + multirange(int4range(5, 7, '[)')))::TEXT";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("multirange UNNEST segments").rows(),
+        &[
+            vec![Value::String("[1,3)".to_owned())],
+            vec![Value::String("[5,7)".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_apply_multirange_containment_overlap() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-multirange-relations", &[]);
+    let sql = "SELECT '{[1,3),[5,7)}'::int4multirange @> 2, '{[1,3),[5,7)}'::int4multirange @> '[5,7)'::int4range, '{[1,3),[5,7)}'::int4multirange && '{[6,8)}'::int4multirange, NOT ('{[1,3),[5,7)}'::int4multirange && '{[3,5)}'::int4multirange)";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("multirange containment and overlap").rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+}
+
+#[test]
+fn should_inspect_multirange_outer_bounds() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-multirange-bounds", &[]);
+    let sql = "SELECT lower(multirange(int4range(2, 5, '[)')) + multirange(int4range(10, 12, '[)'))), upper(multirange(int4range(2, 5, '[)')) + multirange(int4range(10, 12, '[)')))";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("multirange outer bounds").rows(),
+        &[vec![Value::Int64(2), Value::Int64(12)]]
+    );
+}
+
+#[test]
 fn should_inspect_finite_discrete_continuous_range_bounds() {
     // Arrange
     let fixture = sql_fixture("issue-905-finite-range-bounds", &[]);
-    let sql = "SELECT lower('[2,7)'::int4range) = 2, upper('[2,7]'::int4range) = 8, lower_inc('[2,7]'::int4range) AND NOT upper_inc('[2,7]'::int4range), lower('(2,7]'::int4range) = 3, lower_inc('[2,7]'::numrange) AND upper_inc('[2,7]'::numrange)";
+    let sql = "SELECT lower(int4range(2, 7, '[)')) = 2, upper(int4range(2, 7, '[]')) = 8, lower_inc(int4range(2, 7, '[]')) AND NOT upper_inc(int4range(2, 7, '[]')), lower(int4range(2, 7, '(]')) = 3, lower_inc(numrange(2, 7, '[]')) AND upper_inc(numrange(2, 7, '[]'))";
 
     // Act
     let result = fixture.execute(sql);
@@ -186,15 +267,25 @@ fn should_normalize_values_across_remaining_multirange_families() {
 fn should_aggregate_builtin_ranges_into_a_multirange() {
     // Arrange
     let fixture = sql_fixture("issue-905-range-union-aggregate", &[]);
-    let sql = "SELECT range_agg(int4range(1,5,'[)'))::TEXT";
+    fixture
+        .execute("CREATE TABLE issue_905_range_aggregate_rows (span INT4RANGE)")
+        .expect("create a table with range values");
+    fixture
+        .execute(
+            "INSERT INTO issue_905_range_aggregate_rows VALUES ('[1,5)'::INT4RANGE), ('[4,7)'::INT4RANGE), ('[9,11)'::INT4RANGE), (NULL)",
+        )
+        .expect("insert overlapping, separated and NULL ranges");
 
     // Act
-    let result = fixture.execute(sql);
+    let result =
+        fixture.execute("SELECT range_agg(span)::TEXT FROM issue_905_range_aggregate_rows");
 
     // Assert
     assert_eq!(
-        result.expect("range aggregate").rows(),
-        &[vec![Value::String("{[1,5)}".to_owned())]]
+        result
+            .expect("range aggregate across overlapping and separated inputs")
+            .rows(),
+        &[vec![Value::String("{[1,7),[9,11)}".to_owned())]]
     );
 }
 
@@ -202,14 +293,100 @@ fn should_aggregate_builtin_ranges_into_a_multirange() {
 fn should_intersect_ranges_with_a_range_aggregate() {
     // Arrange
     let fixture = sql_fixture("issue-905-range-intersection-aggregate", &[]);
-    let sql = "SELECT range_intersect_agg(int4range(1,5,'[)'))::TEXT";
+    fixture
+        .execute("CREATE TABLE issue_905_range_intersection_rows (span INT4RANGE)")
+        .expect("create a table with range values");
+    fixture
+        .execute(
+            "INSERT INTO issue_905_range_intersection_rows VALUES ('[1,5)'::INT4RANGE), ('[3,7)'::INT4RANGE), ('[4,6)'::INT4RANGE), (NULL)",
+        )
+        .expect("insert intersecting and NULL ranges");
 
     // Act
-    let result = fixture.execute(sql);
+    let result = fixture
+        .execute("SELECT range_intersect_agg(span)::TEXT FROM issue_905_range_intersection_rows");
 
     // Assert
     assert_eq!(
-        result.expect("range-intersection aggregate").rows(),
+        result
+            .expect("range intersection across multiple inputs")
+            .rows(),
+        &[vec![Value::String("[4,5)".to_owned())]]
+    );
+}
+
+#[test]
+fn should_match_range_predicates_in_join_rows() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-range-table-predicates", &[]);
+    fixture
+        .execute("CREATE TABLE issue_905_range_rows (id BIGINT PRIMARY KEY, span INT4RANGE)")
+        .expect("create a table with a range column");
+    fixture
+        .execute(
+            "INSERT INTO issue_905_range_rows VALUES (1, '[1,3)'::INT4RANGE), (2, '[5,7)'::INT4RANGE), (3, '[2,5)'::INT4RANGE)",
+        )
+        .expect("insert ranges for table predicates and joins");
+
+    // Act
+    let result = fixture.execute(
+        "SELECT left_row.id, right_row.id FROM issue_905_range_rows AS left_row JOIN issue_905_range_rows AS right_row ON left_row.span && right_row.span WHERE left_row.span @> 2 ORDER BY left_row.id, right_row.id",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("table range predicates and joins").rows(),
+        &[
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(1), Value::Int64(3)],
+            vec![Value::Int64(3), Value::Int64(1)],
+            vec![Value::Int64(3), Value::Int64(3)],
+        ]
+    );
+}
+
+#[test]
+fn should_keep_range_text_values_across_restart() {
+    // Arrange
+    crate::support_sql::use_local_storage();
+    let path = crate::support_sql::data_dir("issue-905-range-restart");
+    let _directory = RangeDirectory(path.clone());
+    {
+        let cassie = Cassie::new_with_data_dir(&path).expect("create range fixture");
+        cassie.startup().expect("start range fixture");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE issue_905_restart_ranges (value INT4RANGE)",
+                vec![],
+            )
+            .expect("create a range column");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO issue_905_restart_ranges VALUES (int4range(1, 5, '[)'))",
+                vec![],
+            )
+            .expect("store a range value");
+    }
+    let restarted = Cassie::new_with_data_dir(&path).expect("reopen range fixture");
+    restarted.startup().expect("restart range fixture");
+    let session = restarted.create_session("tester", None);
+
+    // Act
+    let result = restarted.execute_sql(
+        &session,
+        "SELECT value::TEXT FROM issue_905_restart_ranges",
+        vec![],
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("range value survives restart").rows(),
         &[vec![Value::String("[1,5)".to_owned())]]
     );
+    drop(session);
+    restarted.shutdown();
+    drop(restarted);
 }

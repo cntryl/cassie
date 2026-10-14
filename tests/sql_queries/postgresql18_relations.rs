@@ -367,6 +367,45 @@ fn should_expand_integer_generate_series_in_the_select_list() {
 }
 
 #[test]
+fn should_flatten_multidimensional_unnest_in_storage_order_with_ordinality() {
+    // Arrange
+    let fixture = sql_fixture("issue-808-multidimensional-unnest-ordinality", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT value, ordinal FROM unnest('[0:1][4:5]={{10,20},{30,40}}'::int4[]) WITH ORDINALITY AS expanded(value, ordinal) ORDER BY ordinal",
+    );
+
+    // Assert
+    let result = result.expect("multidimensional UNNEST with ordinality");
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["value", "ordinal"]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        [23, 20]
+    );
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![Value::Int64(10), Value::Int64(1)],
+            vec![Value::Int64(20), Value::Int64(2)],
+            vec![Value::Int64(30), Value::Int64(3)],
+            vec![Value::Int64(40), Value::Int64(4)],
+        ]
+    );
+}
+
+#[test]
 fn should_expand_rows_from_functions_in_lockstep() {
     // Arrange
     let fixture = sql_fixture("issue-808-rows-from-lockstep", &[]);

@@ -87,7 +87,16 @@ fn should_apply_temporal_typmods_in_protocol_metadata() {
     let batches = run_script("postgresql18-temporal-typmods", steps);
 
     // Assert
-    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(
+        wire::error_code(&batches[0]),
+        None,
+        "wire error fields: {:?}",
+        batches[0]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
     let description = batches[0]
         .iter()
         .find(|(tag, _)| *tag == b'T')
@@ -115,6 +124,38 @@ fn should_apply_temporal_typmods_in_protocol_metadata() {
             Some("2000-01-02 03:04:05.0068+00".to_owned()),
             Some("00:00:05.007".to_owned()),
         ]]
+    );
+}
+
+#[test]
+fn should_apply_interval_field_typmod_in_protocol_metadata() {
+    // Arrange
+    let sql = "SELECT INTERVAL '5.0067 seconds' SECOND(3) AS i";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("postgresql18-interval-field-typmod", steps);
+
+    // Assert
+    assert_eq!(
+        wire::error_code(&batches[0]),
+        None,
+        "wire error fields: {:?}",
+        batches[0]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    let description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("interval typmod RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!((column.type_oid, column.type_mod), (1186, 268_435_459));
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("00:00:05.007".to_owned())]]
     );
 }
 

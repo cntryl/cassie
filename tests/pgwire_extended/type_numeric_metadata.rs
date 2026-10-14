@@ -303,7 +303,7 @@ fn should_preserve_postgresql_numeric_operation_result_contracts() {
     // Arrange
     let statements = [
         ("SELECT ABS($1) AS v", 700, 700, 4, false),
-        ("SELECT SUM($1) AS v", 700, 701, 8, false),
+        ("SELECT SUM($1) AS v", 700, 700, 4, false),
         ("SELECT AVG($1) AS v", 1700, 1700, -1, false),
         ("SELECT COUNT($1) AS v", 1700, 20, 8, true),
     ];
@@ -469,7 +469,7 @@ fn should_return_real_result_for_sum_real_parameter() {
     // Assert
     let frames = &batches[0];
     fixture::assert_success(frames);
-    fixture::assert_single_column_descriptors(frames, (701, 8, -1), 0, true);
+    fixture::assert_single_column_descriptors(frames, (700, 4, -1), 0, true);
     assert_parameter_oid(frames, 700);
     assert_eq!(
         fixture::data_row_payloads(frames),

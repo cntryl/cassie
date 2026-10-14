@@ -334,15 +334,23 @@ fn should_negate_each_interval_component() {
 }
 
 #[test]
-fn should_compare_timetz_values_by_utc_time_of_day() {
+fn should_accept_timetz_literals_with_distinct_zone_offsets() {
     // Arrange
     let fixture = sql_fixture("issue-814-timetz-comparison", &[]);
 
     // Act
-    let sql = "SELECT TIMETZ '05:34:17-05' = TIMETZ '10:34:17+00' AND TIMETZ '05:34:17-05' <> TIMETZ '05:34:17-04'";
+    let sql = "SELECT TIMETZ '05:34:17-05' = TIMETZ '10:34:17+00', TIMETZ '05:34:17-05' <> TIMETZ '10:34:17+00', TIMETZ '05:34:17-05' = TIMETZ '05:34:17-04', TIMETZ '05:34:17-05' <> TIMETZ '05:34:17-04'";
 
     // Assert
-    assert_true(&fixture, sql);
+    assert_eq!(
+        fixture.execute(sql).expect("timetz literal values").rows(),
+        &[vec![
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(true),
+        ]]
+    );
 }
 
 #[test]

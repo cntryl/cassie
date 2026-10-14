@@ -102,27 +102,49 @@ fn should_report_postgresql_math_error_sqlstates() {
 
     // Assert
     assert_eq!(batches.len(), cases.len());
-    for (batch, (_, expected_code)) in batches.iter().zip(cases) {
-        assert_eq!(
-            wire::error_code(batch).as_deref(),
-            Some(expected_code),
-            "expected SQLSTATE {expected_code} for math-domain input"
-        );
+    let mut mismatches = Vec::new();
+    for (batch, (sql, expected_code)) in batches.iter().zip(cases) {
+        let actual_code = wire::error_code(batch);
+        if actual_code.as_deref() != Some(expected_code) {
+            mismatches.push((
+                sql,
+                expected_code,
+                actual_code,
+                batch
+                    .iter()
+                    .filter(|(tag, _)| *tag == b'E')
+                    .map(|(_, payload)| wire::parse_error_fields(payload))
+                    .collect::<Vec<_>>(),
+            ));
+        }
     }
+    assert!(
+        mismatches.is_empty(),
+        "math error mismatches: {mismatches:?}"
+    );
 }
 
 #[test]
 fn should_reject_two_float8_argument_log_with_undefined_function_sqlstate() {
     // Arrange
     let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
-        "SELECT LOG(2::FLOAT8, 64::FLOAT8)",
+        "SELECT LOG(CAST(2 AS FLOAT), CAST(64 AS FLOAT))",
     )])];
 
     // Act
     let batches = run_script("postgresql18-log-float8-undefined", steps);
 
     // Assert
-    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
+    assert_eq!(
+        wire::error_code(&batches[0]).as_deref(),
+        Some("42883"),
+        "wire error fields: {:?}",
+        batches[0]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
     assert!(!batches[0]
         .iter()
         .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));

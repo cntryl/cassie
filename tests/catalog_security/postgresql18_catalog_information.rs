@@ -370,3 +370,111 @@ fn should_list_visible_builtin_routines_in_information_schema() {
         ]]
     );
 }
+
+#[test]
+fn should_list_builtin_access_methods_in_pg_am() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-access-method-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT amname FROM pg_catalog.pg_am \
+             WHERE amname IN ('heap', 'btree', 'hash') ORDER BY amname",
+        )
+        .expect("read PostgreSQL table and index access methods");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![
+            vec![Value::String("btree".to_owned())],
+            vec![Value::String("hash".to_owned())],
+            vec![Value::String("heap".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_resolve_builtin_range_subtype_in_pg_range() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-range-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT range_type.typname, subtype.typname \
+             FROM pg_catalog.pg_range AS range \
+             JOIN pg_catalog.pg_type AS range_type \
+               ON range_type.oid = range.rngtypid \
+             JOIN pg_catalog.pg_type AS subtype \
+               ON subtype.oid = range.rngsubtype \
+             WHERE range_type.typname = 'int4range'",
+        )
+        .expect("read the built-in integer range subtype");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("int4range".to_owned()),
+            Value::String("int4".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_list_the_default_tablespace_in_pg_tablespace() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-tablespace-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT spcname FROM pg_catalog.pg_tablespace WHERE spcname = 'pg_default'")
+        .expect("query the PostgreSQL tablespace catalog");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("pg_default".to_owned())]]
+    );
+}
+
+#[test]
+fn should_list_the_builtin_simple_text_search_configuration() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-text-search-config-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT cfgname FROM pg_catalog.pg_ts_config WHERE cfgname = 'simple'")
+        .expect("query the built-in text search configuration catalog");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("simple".to_owned())]]
+    );
+}
+
+#[test]
+fn should_list_the_builtin_plpgsql_language_in_pg_language() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-language-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT lanname FROM pg_catalog.pg_language WHERE lanname = 'plpgsql'")
+        .expect("query the procedural language catalog");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("plpgsql".to_owned())]]
+    );
+}

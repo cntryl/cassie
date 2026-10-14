@@ -93,6 +93,49 @@ fn should_preserve_escaped_default_text_null_marker_as_text() {
 }
 
 #[test]
+fn should_decode_default_text_copy_escaped_tab() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("copy_text_escaped_tab").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_copy_text_tab (payload TEXT)")
+            .await
+            .expect("create table for a default-text COPY tab escape");
+
+        // Act
+        let (response_tag, response_payload, error_code, command) = copy_from_stdin(
+            &server,
+            "COPY compat_copy_text_tab FROM STDIN",
+            b"line\\tdetail\n",
+        )
+        .await;
+        let rows = if response_tag == b'G' {
+            client
+                .query("SELECT payload FROM compat_copy_text_tab", &[])
+                .await
+                .expect("read values imported by default-text COPY")
+        } else {
+            Vec::new()
+        };
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(
+            response_tag, b'G',
+            "default-text COPY should enter COPY IN; response: {response_payload:?}; \
+             SQLSTATE: {error_code:?}"
+        );
+        assert_eq!(error_code, None);
+        assert_eq!(command.as_deref(), Some("COPY 1"));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get::<_, String>(0), "line\tdetail");
+    });
+}
+
+#[test]
 fn should_import_standalone_backslash_dot_as_a_csv_field() {
     // Arrange
     let runtime = current_thread_runtime();

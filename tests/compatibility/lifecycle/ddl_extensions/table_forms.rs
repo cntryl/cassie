@@ -841,3 +841,182 @@ fn should_create_table_as_prepared_execute_with_typed_parameters() {
         assert_eq!(rows[0].get::<_, String>(1), "prepared");
     });
 }
+
+#[test]
+fn should_create_table_as_values_with_result_metadata() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("ctas_values_metadata").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let created = client
+            .batch_execute(
+                "CREATE TABLE compat_ctas_values_copy (copy_id, copy_label) AS \
+                 VALUES (1, 'one'), (2, 'two')",
+            )
+            .await;
+        let metadata = if created.is_ok() {
+            Some(
+                client
+                    .query(
+                        "SELECT attname, atttypid::INT, atttypmod, attnotnull \
+                         FROM pg_attribute \
+                         WHERE attrelid = 'compat_ctas_values_copy'::regclass \
+                           AND attnum > 0 \
+                         ORDER BY attnum",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+        let rows = if created.is_ok() {
+            Some(
+                client
+                    .query(
+                        "SELECT copy_id, copy_label FROM compat_ctas_values_copy \
+                         ORDER BY copy_id",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Assert
+        let create_sqlstate = created
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code());
+        drop(client);
+        server.shutdown(connection).await;
+
+        assert!(
+            created.is_ok(),
+            "CTAS AS VALUES should materialize its rows and types; SQLSTATE: {create_sqlstate:?}"
+        );
+        let metadata = metadata
+            .expect("successful CTAS should expose result metadata")
+            .expect("read VALUES CTAS metadata");
+        assert_eq!(metadata.len(), 2);
+        assert_eq!(metadata[0].get::<_, String>(0), "copy_id");
+        assert_eq!(metadata[0].get::<_, i32>(1), 23);
+        assert_eq!(metadata[0].get::<_, i32>(2), -1);
+        assert!(!metadata[0].get::<_, bool>(3));
+        assert_eq!(metadata[1].get::<_, String>(0), "copy_label");
+        assert_eq!(metadata[1].get::<_, i32>(1), 25);
+        assert_eq!(metadata[1].get::<_, i32>(2), -1);
+        assert!(!metadata[1].get::<_, bool>(3));
+        let rows = rows
+            .expect("successful CTAS should be queryable")
+            .expect("read VALUES CTAS rows");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].get::<_, i32>(0), 1);
+        assert_eq!(rows[0].get::<_, String>(1), "one");
+        assert_eq!(rows[1].get::<_, i32>(0), 2);
+        assert_eq!(rows[1].get::<_, String>(1), "two");
+    });
+}
+
+#[test]
+fn should_skip_existing_relation_for_create_table_as_if_not_exists() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("ctas_if_not_exists").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_ctas_if_not_exists (copy_id, copy_label) AS \
+                 VALUES (1, 'original')",
+            )
+            .await
+            .expect("create initial CTAS relation");
+
+        // Act
+        let duplicate = client
+            .batch_execute(
+                "CREATE TABLE IF NOT EXISTS compat_ctas_if_not_exists \
+                   (copy_id, copy_label) AS VALUES (99, 'replacement')",
+            )
+            .await;
+        let rows = if duplicate.is_ok() {
+            Some(
+                client
+                    .query(
+                        "SELECT copy_id, copy_label FROM compat_ctas_if_not_exists \
+                         ORDER BY copy_id",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(
+            duplicate.is_ok(),
+            "CTAS IF NOT EXISTS should skip the existing relation: {duplicate:?}"
+        );
+        let rows = rows
+            .expect("successful duplicate CTAS should leave the relation queryable")
+            .expect("read existing CTAS relation");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get::<_, i32>(0), 1);
+        assert_eq!(rows[0].get::<_, String>(1), "original");
+    });
+}
+
+#[test]
+fn should_keep_persistent_select_into_table_after_creator_disconnects() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("select_into_persistent_table").await;
+        let (owner, owner_connection) = server.connect().await;
+        let (observer, observer_connection) = server.connect().await;
+        owner
+            .batch_execute(
+                "SELECT 18 AS id, 'persistent'::TEXT AS label \
+                 INTO compat_select_into_persistent",
+            )
+            .await
+            .expect("SELECT INTO without TEMP should create a persistent table");
+
+        // Act
+        drop(owner);
+        owner_connection.abort();
+        let _ = owner_connection.await;
+        let persistence = observer
+            .query_one(
+                "SELECT relpersistence::TEXT FROM pg_class \
+                 WHERE oid = 'compat_select_into_persistent'::regclass",
+                &[],
+            )
+            .await
+            .expect("inspect persistent SELECT INTO relation");
+        let rows = observer
+            .query(
+                "SELECT id, label FROM compat_select_into_persistent ORDER BY id",
+                &[],
+            )
+            .await
+            .expect("read SELECT INTO rows from another session");
+
+        // Assert
+        assert_eq!(persistence.get::<_, String>(0), "p");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get::<_, i32>(0), 18);
+        assert_eq!(rows[0].get::<_, String>(1), "persistent");
+
+        drop(observer);
+        server.shutdown(observer_connection).await;
+    });
+}

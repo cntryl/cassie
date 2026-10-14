@@ -894,7 +894,7 @@ fn should_describe_temporal_nulls_with_declared_result_types() {
 fn should_return_datetime_error_sqlstate_for_invalid_timestamp_fields() {
     // Arrange
     let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
-        "SELECT TIMESTAMP '2024-02-30 12:00:00'",
+        "SELECT CAST('2024-02-30 12:00:00' AS TIMESTAMP)",
     )])];
 
     // Act
@@ -908,16 +908,16 @@ fn should_return_datetime_error_sqlstate_for_invalid_timestamp_fields() {
 fn should_report_datetime_sqlstates_for_malformed_temporal_values() {
     // Arrange
     let cases = [
-        ("date_field", "SELECT DATE '2024-02-30'", "22008"),
-        ("time_field", "SELECT TIME '24:00:01'", "22008"),
+        ("date_field", "SELECT CAST('2024-02-30' AS DATE)", "22008"),
+        ("time_field", "SELECT CAST('24:00:01' AS TIME)", "22008"),
         (
             "timetz_displacement",
-            "SELECT TIMETZ '12:00:00+25:00'",
+            "SELECT CAST('12:00:00+25:00' AS TIMETZ)",
             "22009",
         ),
         (
             "interval_input",
-            "SELECT INTERVAL 'not an interval'",
+            "SELECT CAST('not an interval' AS INTERVAL)",
             "22007",
         ),
     ];
@@ -949,7 +949,7 @@ fn should_recover_after_temporal_input_error_on_the_same_connection() {
     // Arrange
     let steps = vec![
         Step::ThroughReady(vec![wire::simple_query_frame(
-            "SELECT TIMESTAMP '2024-02-30 12:00:00'",
+            "SELECT CAST('2024-02-30 12:00:00' AS TIMESTAMP)",
         )]),
         Step::ThroughReady(vec![wire::simple_query_frame(
             "SELECT TIMESTAMP '2024-02-29 12:00:00'",

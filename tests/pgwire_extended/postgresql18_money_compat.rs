@@ -380,3 +380,220 @@ fn should_report_malformed_money_text_with_invalid_text_representation_sqlstate(
             .collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn should_format_non_c_money_from_locale_specific_input() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SET lc_monetary = 'de_DE.UTF-8'",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT '1.234,56 €'::money AS parsed, (1234.56::numeric)::money AS cast_amount",
+        )]),
+    ];
+
+    // Act
+    let batches = run_script("issue-908-de-monetary-locale", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 2);
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("German-locale money RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![790, 790]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("1.234,56 €".to_owned()),
+            Some("1.234,56 €".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_describe_money_mixed_arithmetic_with_postgresql_result_oids() {
+    // Arrange
+    let sql = "SELECT '12.50'::money * 2 AS scaled, '12.50'::money / 2 AS divided, '12.50'::money / '6.25'::money AS ratio";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-908-money-mixed-arithmetic-types", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("money arithmetic RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![(790, 8, -1), (790, 8, -1), (701, 8, -1)]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("$25.00".to_owned()),
+            Some("$6.25".to_owned()),
+            Some("2".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_report_money_addition_overflow_sqlstate() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT '92233720368547758.07'::numeric::money + '0.01'::numeric::money",
+    )])];
+
+    // Act
+    let batches = run_script("issue-908-money-arithmetic-boundaries", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 1);
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22003"));
+    assert!(!batches[0].iter().any(|(tag, _)| *tag == b'D'));
+}
+
+#[test]
+fn should_report_money_division_by_zero_sqlstate() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT '1.00'::money / 0",
+    )])];
+
+    // Act
+    let batches = run_script("issue-908-money-division-by-zero", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 1);
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22012"));
+    assert!(!batches[0].iter().any(|(tag, _)| *tag == b'D'));
+}
+
+#[test]
+fn should_recover_after_money_arithmetic_errors() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT '92233720368547758.07'::numeric::money + '0.01'::numeric::money",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 42")]),
+    ];
+
+    // Act
+    let batches = run_script("issue-908-money-arithmetic-error-recovery", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 2);
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22003"));
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
+fn should_send_negative_money_in_signed_postgresql_binary_format() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let negative_money_binary = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfb, 0x2e];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            "negative_money_binary_statement",
+            "SELECT '-12.34'::money AS amount",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "negative_money_binary_portal",
+                "negative_money_binary_statement",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("negative_money_binary_portal"),
+            wire::execute_frame("negative_money_binary_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-908-negative-money-binary-output", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("negative money binary RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (
+            column.type_oid,
+            column.type_size,
+            column.type_mod,
+            column.format_code
+        ),
+        (790, 8, -1, 1)
+    );
+    assert_eq!(
+        fixture::data_row_payloads(result),
+        vec![fixture::one_field_row(&negative_money_binary)]
+    );
+}
+
+#[test]
+fn should_decode_negative_binary_money_parameters_as_negative_c_locale_text() {
+    // Arrange
+    let negative_money_binary = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfb, 0x2e];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "negative_money_binary_input",
+            "SELECT $1::text AS amount",
+            &[790],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "negative_money_binary_input_portal",
+                "negative_money_binary_input",
+                &[1],
+                &[Some(&negative_money_binary)],
+                &[0],
+            ),
+            wire::describe_portal_frame("negative_money_binary_input_portal"),
+            wire::execute_frame("negative_money_binary_input_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-908-negative-money-binary-input", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("-$12.34".to_owned())]]
+    );
+}

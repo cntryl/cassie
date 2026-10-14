@@ -145,7 +145,7 @@ fn should_send_path_values_with_postgresql_binary_identity() {
 #[test]
 fn should_describe_builtin_geometry_values_with_postgresql_oids() {
     // Arrange
-    let sql = "SELECT point '(1,2)' AS point_value, '((0,0),(1,1))'::box AS box_value, '[(1,2),(3,4)]'::lseg AS segment_value, '((0,0),(5,5),(0,5))'::polygon AS polygon_value";
+    let sql = "SELECT point '(1,2)' AS point_value, '[(1,2),(3,4)]'::lseg AS segment_value, '{1,2,3}'::line AS line_value, '((0,0),(1,1))'::box AS box_value, '[(1,2),(3,4)]'::path AS path_value, '((0,0),(5,5),(0,5))'::polygon AS polygon_value, '<(1,2),3>'::circle AS circle_value";
     let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
 
     // Act
@@ -160,10 +160,144 @@ fn should_describe_builtin_geometry_values_with_postgresql_oids() {
     assert_eq!(
         wire::parse_row_description(&description.1)
             .iter()
-            .map(|column| column.type_oid)
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
             .collect::<Vec<_>>(),
-        vec![600, 603, 601, 604]
+        vec![
+            (600, 16, -1),
+            (601, 32, -1),
+            (628, 24, -1),
+            (603, 32, -1),
+            (602, -1, -1),
+            (604, -1, -1),
+            (718, 24, -1),
+        ]
     );
+}
+
+#[test]
+fn should_encode_closed_path_binary_payload() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let closed_path_binary = [
+        0x01, 0x00, 0x00, 0x00, 0x02, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
+        0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            "closed_path_binary_statement",
+            "SELECT '((1,2),(3,4))'::path AS value",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "closed_path_binary_portal",
+                "closed_path_binary_statement",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("closed_path_binary_portal"),
+            wire::execute_frame("closed_path_binary_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-907-closed-path-binary-output", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("closed path binary RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (
+            column.type_oid,
+            column.type_size,
+            column.type_mod,
+            column.format_code
+        ),
+        (602, -1, -1, 1)
+    );
+    assert_eq!(
+        fixture::data_row_payloads(result),
+        vec![fixture::one_field_row(&closed_path_binary)]
+    );
+}
+
+#[test]
+fn should_decode_binary_line_parameters_to_the_postgresql_text_value() {
+    // Arrange
+    let line_binary = [
+        0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x40, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "line_binary_input",
+            "SELECT $1::text AS value",
+            &[628],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "line_binary_input_portal",
+                "line_binary_input",
+                &[1],
+                &[Some(&line_binary)],
+                &[0],
+            ),
+            wire::describe_portal_frame("line_binary_input_portal"),
+            wire::execute_frame("line_binary_input_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-907-line-binary-input", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("line binary-input RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!((column.type_oid, column.format_code), (25, 0));
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("{1,2,3}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_return_invalid_text_representation_sqlstate_for_bad_geometry_literals() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 'not-a-point'::point",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT '{0,0,0}'::line")]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT '<(0,0),-1>'::circle",
+        )]),
+    ];
+
+    // Act
+    let batches = run_script("issue-907-invalid-geometry-text-input", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 3);
+    for result in &batches {
+        assert_eq!(wire::error_code(result).as_deref(), Some("22P02"));
+        assert!(!result.iter().any(|(tag, _)| *tag == b'D'));
+    }
 }
 
 #[test]

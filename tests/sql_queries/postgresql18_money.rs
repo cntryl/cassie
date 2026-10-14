@@ -131,3 +131,37 @@ fn should_keep_money_text_values_across_restart() {
     restarted.shutdown();
     drop(restarted);
 }
+
+#[test]
+fn should_keep_empty_input_money_aggregates_null_except_count() {
+    // Arrange
+    let fixture = sql_fixture("issue-908-money-empty-aggregates", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT count(*), SUM(amount), MIN(amount), MAX(amount) FROM (VALUES ('1.25'::MONEY), (NULL::MONEY)) AS valueset(amount) WHERE false",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("empty money aggregates").rows(),
+        &[vec![Value::Int64(0), Value::Null, Value::Null, Value::Null]]
+    );
+}
+
+#[test]
+fn should_keep_all_null_money_aggregates_null() {
+    // Arrange
+    let fixture = sql_fixture("issue-908-money-all-null-aggregates", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT count(*), SUM(amount), MIN(amount), MAX(amount) FROM (VALUES (NULL::MONEY)) AS valueset(amount)",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("all-null money aggregates").rows(),
+        &[vec![Value::Int64(1), Value::Null, Value::Null, Value::Null]]
+    );
+}

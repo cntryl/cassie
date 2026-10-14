@@ -1,7 +1,35 @@
 //! PostgreSQL 18 XML type and parser errors tracked by #906.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
+
+#[test]
+fn should_cast_xml_text_to_a_document_with_postgresql_identity() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT '<root/>'::xml AS document",
+    )])];
+
+    // Act
+    let batches = run_script("postgresql18-xml-text-cast-identity", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("XML RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (column.type_oid, column.type_size, column.type_mod),
+        (142, -1, -1)
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("<root/>".to_owned())]]
+    );
+}
 
 #[test]
 fn should_preserve_postgresql_xml_type_oid_for_document_results() {

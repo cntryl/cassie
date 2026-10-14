@@ -1,7 +1,35 @@
 //! PostgreSQL 18 geometry wire identities tracked by #907.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
+
+#[test]
+fn should_describe_a_point_cast_with_postgresql_type_identity() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT '(1,2)'::point AS value",
+    )])];
+
+    // Act
+    let batches = run_script("postgresql18-point-cast-identity", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("point RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (column.type_oid, column.type_size, column.type_mod),
+        (600, 16, -1)
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("(1,2)".to_owned())]]
+    );
+}
 
 #[test]
 fn should_describe_builtin_geometry_values_with_postgresql_oids() {

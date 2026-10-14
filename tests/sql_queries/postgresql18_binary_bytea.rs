@@ -34,6 +34,19 @@ fn should_preserve_bit_values_for_fixed_variable_types() {
 }
 
 #[test]
+fn should_execute_hexadecimal_bit_string_constants() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-hex-bit-constants", &[]);
+
+    // Act
+    // Assert
+    assert_true(
+        &fixture,
+        "SELECT X'1F'::TEXT = '00011111', x'a0'::TEXT = '10100000', bit_length(X'1F') = 8, bit_count(X'1F') = 5",
+    );
+}
+
+#[test]
 fn should_apply_fixed_bit_padding_truncation_on_the_right() {
     // Arrange
     let fixture = sql_fixture("issue-816-bit-explicit-cast", &[]);
@@ -354,6 +367,22 @@ fn should_round_trip_bytea_as_lowercase_hex() {
 }
 
 #[test]
+fn should_decode_hexadecimal_text_to_bytea() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-bytea-hex-decode", &[]);
+
+    // Act
+    let result = fixture
+        .execute("SELECT decode('DEad00FF', 'hex')")
+        .unwrap_or_else(|error| panic!("bytea decode failed: {error:?}"))
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::String(r"\xdead00ff".to_owned())]]);
+}
+
+#[test]
 fn should_round_trip_bytea_as_base64() {
     // Arrange
     let fixture = sql_fixture("issue-816-bytea-base64-codec", &[]);
@@ -402,6 +431,32 @@ fn should_convert_text_across_utf8_latin1_bytea() {
     assert_true(
         &fixture,
         "SELECT encode(convert_to('café', 'UTF8'), 'hex') = '636166c3a9', convert_from(decode('636166c3a9', 'hex'), 'UTF8') = 'café', encode(convert(decode('636166c3a9', 'hex'), 'UTF8', 'LATIN1'), 'hex') = '636166e9', convert_from(decode('636166e9', 'hex'), 'LATIN1') = 'café'",
+    );
+}
+
+#[test]
+fn should_measure_octets_in_utf8_bytea() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-bytea-octet-length", &[]);
+
+    // Act
+    // Assert
+    assert_true(
+        &fixture,
+        "SELECT octet_length(convert_to('café', 'UTF8')) = 5",
+    );
+}
+
+#[test]
+fn should_keep_encoding_choice_visible_in_bytea() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-convert-to-encoding-identity", &[]);
+
+    // Act
+    // Assert
+    assert_true(
+        &fixture,
+        "SELECT convert_to('café', 'UTF8') <> convert_to('café', 'LATIN1')",
     );
 }
 

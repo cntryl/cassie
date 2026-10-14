@@ -213,6 +213,22 @@ fn should_return_postgresql_md5_text_vectors() {
 }
 
 #[test]
+fn should_return_postgresql_crc32_bytea_vector() {
+    // Arrange
+    let fixture = sql_fixture("issue-816-crc32-bytea-vectors", &[]);
+
+    // Act
+    let result = fixture
+        .execute("SELECT crc32(convert_to('abc', 'UTF8'))")
+        .unwrap_or_else(|error| panic!("CRC32 SQL failed: {error:?}"))
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(891_568_578)]]);
+}
+
+#[test]
 fn should_return_the_postgresql_sha256_binary_string_vector() {
     // Arrange
     let fixture = sql_fixture("issue-816-sha256-vector", &[]);

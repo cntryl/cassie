@@ -884,3 +884,25 @@ fn should_apply_aggregate_filters_to_window_frames() {
         ]
     );
 }
+
+#[test]
+fn should_skip_sql_nulls_but_keep_json_nulls_in_strict_jsonb_aggregate() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-811-jsonb-agg-strict-null-policy",
+        &[
+            "CREATE TABLE issue_811_strict_json_values (payload JSONB)",
+            "INSERT INTO issue_811_strict_json_values VALUES (NULL), ('null')",
+        ],
+    );
+    let sql = "SELECT jsonb_agg_strict(payload)::TEXT FROM issue_811_strict_json_values";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("strict JSONB aggregate null policy").rows(),
+        &[vec![Value::String("[null]".to_owned())]]
+    );
+}

@@ -221,6 +221,21 @@ fn should_evaluate_jsonpath_array_accessors_in_both_modes() {
 }
 
 #[test]
+fn should_apply_jsonpath_filter_variables_to_array_members() {
+    // Arrange
+    let sql = "SELECT jsonb_path_exists('{\"a\":[1,2,3]}'::JSONB, '$.a[*] ? (@ > $min)', '{\"min\":2}'::JSONB)";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonpath-filter-variable", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
 fn should_return_typed_sql_json_query_exists_results() {
     // Arrange
     let sql = "SELECT JSON_VALUE('{\"n\":42}', '$.n' RETURNING INTEGER), JSON_QUERY('{\"n\":[1,2]}', '$.n'), JSON_EXISTS('{\"n\":42}', '$.n')";

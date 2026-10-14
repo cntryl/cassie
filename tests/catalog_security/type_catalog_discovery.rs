@@ -443,6 +443,24 @@ fn should_return_null_for_missing_regnamespace_lookup() {
 }
 
 #[test]
+fn should_resolve_a_created_role_through_to_regrole() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-818-to-regrole-created-role",
+        &["CREATE ROLE issue_818_lookup_role"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT to_regrole('issue_818_lookup_role') IS NOT NULL")
+        .expect("created role lookup");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
 fn should_advertise_pgcrypto_in_available_extension_catalog() {
     // Arrange
     let fixture = sql_fixture("issue-843-pgcrypto-catalog-identity", &[]);

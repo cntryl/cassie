@@ -75,3 +75,19 @@ fn should_calculate_box_center() {
         &[vec![Value::Bool(true)]]
     );
 }
+
+#[test]
+fn should_evaluate_box_overlap_operator() {
+    // Arrange
+    let fixture = sql_fixture("issue-907-box-overlap-operator", &[]);
+    let sql = "SELECT box(point(0,4),point(4,0)) && box(point(3,5),point(7,1))";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("box overlap operator").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}

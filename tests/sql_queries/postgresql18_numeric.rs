@@ -255,3 +255,19 @@ fn should_keep_unconstrained_numeric_values_across_restart() {
     restarted.shutdown();
     drop(restarted);
 }
+
+#[test]
+fn should_support_numeric_typmod_precision_above_thirty_eight_digits() {
+    // Arrange
+    let fixture = sql_fixture("issue-812-numeric-beyond-38-digits", &[]);
+    let sql = "SELECT CAST('123456789012345678901234567890123456789012345678.90' AS NUMERIC(50, 2)) <> CAST('123456789012345678901234567890123456789012345678.89' AS NUMERIC(50, 2))";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result.expect("high-precision numeric typmod").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}

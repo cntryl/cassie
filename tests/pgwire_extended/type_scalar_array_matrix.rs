@@ -1,5 +1,6 @@
 //! All14 supported private scalar-array families, excluding VECTOR[] identity.
 
+use super::support_pgwire as wire;
 use super::support_type_codec_matrix as matrix;
 use super::support_type_metadata_contract as fixture;
 use cassie::types::Value;
@@ -132,4 +133,94 @@ fn should_preserve_array_window_result_carriers() {
             "{function}, parameterized={parameterized}, described={describe}, format={format}"
         );
     }
+}
+
+#[test]
+fn should_sort_array_elements_with_nulls_after_non_null_values() {
+    // Arrange
+    let input = b"{3,NULL,1,2}";
+    let sql = "SELECT array_sort($1::INT[])::TEXT AS sorted";
+    let cycle = fixture::execute_cycle(sql, Some((1_007, 0, Some(input))), 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-807-array-sort-null-order", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![fixture::one_field_row(b"{1,2,3,NULL}")]
+    );
+}
+
+#[test]
+fn should_reverse_array_elements_without_collapsing_null_slots() {
+    // Arrange
+    let input = b"{1,NULL,3}";
+    let sql = "SELECT array_reverse($1::INT[])::TEXT";
+    let cycle = fixture::execute_cycle(sql, Some((1_007, 0, Some(input))), 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-807-array-reverse-null-slot", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{3,NULL,1}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_trim_only_the_requested_array_tail_elements() {
+    // Arrange
+    let input = b"{1,2,3,4}";
+    let sql = "SELECT trim_array($1::INT[], 2)::TEXT";
+    let cycle = fixture::execute_cycle(sql, Some((1_007, 0, Some(input))), 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-807-trim-array-tail", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{1,2}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_sample_the_requested_number_of_array_elements() {
+    // Arrange
+    let input = b"{1,2,3,4}";
+    let sql = "SELECT length(array_sample($1::INT[], 2)::TEXT) = 5";
+    let cycle = fixture::execute_cycle(sql, Some((1_007, 0, Some(input))), 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-807-array-sample-size", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_shuffle_arrays_without_changing_their_element_count() {
+    // Arrange
+    let input = b"{1,2,3,4}";
+    let sql = "SELECT length(array_shuffle($1::INT[])::TEXT) = 9";
+    let cycle = fixture::execute_cycle(sql, Some((1_007, 0, Some(input))), 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-807-array-shuffle-cardinality", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
 }

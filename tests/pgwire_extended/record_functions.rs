@@ -85,6 +85,39 @@ fn should_populate_anonymous_records_from_jsonb() {
 }
 
 #[test]
+fn should_distinguish_jsonb_populate_record_missing_fields_from_json_null() {
+    // Arrange
+    let sql = "SELECT jsonb_populate_record(ROW(CAST(5 AS BIGINT), CAST('base' AS TEXT)), CAST('{}' AS JSONB)), jsonb_populate_record(ROW(CAST(5 AS BIGINT), CAST('base' AS TEXT)), CAST('{\"f1\":null}' AS JSONB)), jsonb_populate_record(ROW(CAST(5 AS BIGINT), CAST('base' AS TEXT)), CAST('{\"f2\":\"x\"}' AS JSONB))";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-populate-record-null-missing", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("jsonb_populate_record RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![2_249, 2_249, 2_249]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("(5,base)".to_owned()),
+            Some("(,base)".to_owned()),
+            Some("(5,x)".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_populate_anonymous_records_from_json() {
     // Arrange
     let sql = "SELECT json_populate_record(ROW(CAST(NULL AS BIGINT), CAST(NULL AS TEXT)), '{\"f1\":\"11\",\"f2\":\"Ada\"}'::JSON)";
@@ -135,6 +168,40 @@ fn should_expand_jsonb_populate_recordset_as_record_values() {
         vec![
             vec![Some("(1,A)".to_owned())],
             vec![Some("(2,B)".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_distinguish_jsonb_populate_recordset_missing_fields_from_json_null() {
+    // Arrange
+    let sql = "SELECT jsonb_populate_recordset(ROW(CAST(5 AS BIGINT), CAST('base' AS TEXT)), '[{},{\"f1\":null},{\"f2\":\"x\"}]'::JSONB)";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-829-populate-recordset-null-missing",
+        &[],
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("jsonb_populate_recordset RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)[0].type_oid,
+        2_249
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![Some("(5,base)".to_owned())],
+            vec![Some("(,base)".to_owned())],
+            vec![Some("(5,x)".to_owned())],
         ]
     );
 }

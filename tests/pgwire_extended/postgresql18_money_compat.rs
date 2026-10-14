@@ -354,3 +354,26 @@ fn should_decode_text_money_parameters_before_numeric_cast() {
         vec![vec![Some("12.34".to_owned())]]
     );
 }
+
+#[test]
+fn should_report_malformed_money_text_with_invalid_text_representation_sqlstate() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT 'not-money'::money",
+    )])];
+
+    // Act
+    let batches = run_script("issue-908-malformed-money-text", steps);
+
+    // Assert
+    assert_eq!(
+        wire::error_code(&batches[0]),
+        Some("22P02".to_owned()),
+        "wire errors: {:?}",
+        batches[0]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+}

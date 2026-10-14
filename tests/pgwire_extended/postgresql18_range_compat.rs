@@ -639,3 +639,26 @@ fn should_compare_timestamptz_range_values_by_instant() {
         vec![vec![Some("t".to_owned()), Some("t".to_owned())]]
     );
 }
+
+#[test]
+fn should_report_malformed_range_text_with_invalid_text_representation_sqlstate() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT 'not-a-range'::int4range",
+    )])];
+
+    // Act
+    let batches = run_script("issue-905-malformed-range-text", steps);
+
+    // Assert
+    assert_eq!(
+        wire::error_code(&batches[0]),
+        Some("22P02".to_owned()),
+        "wire errors: {:?}",
+        batches[0]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+}

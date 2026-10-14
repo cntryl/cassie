@@ -24,6 +24,7 @@ mod pgwire_extended {
     mod postgresql18_text_compat;
     mod postgresql18_uuid_hash_lsn_compat;
     mod postgresql18_xml_compat;
+    mod merge_row_images;
     mod record_functions;
     mod scalar_subqueries;
 }

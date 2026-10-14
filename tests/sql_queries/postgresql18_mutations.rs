@@ -460,6 +460,91 @@ fn should_select_merge_actions_by_match_conditions() {
 }
 
 #[test]
+fn should_return_action_specific_merge_row_images() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-823-merge-old-new-returning",
+        &[
+            "CREATE TABLE merge_old_new_target (id INT PRIMARY KEY, label TEXT)",
+            "CREATE TABLE merge_old_new_source (id INT, action TEXT, label TEXT)",
+            "INSERT INTO merge_old_new_target VALUES (1, 'before update'), (2, 'before delete')",
+            "INSERT INTO merge_old_new_source VALUES \
+                (1, 'UPDATE', 'after update'), \
+                (2, 'DELETE', 'unused'), \
+                (3, 'INSERT', 'inserted')",
+        ],
+    );
+
+    // Act
+    let merged = fixture.execute(
+        "MERGE INTO merge_old_new_target AS target \
+         USING merge_old_new_source AS source ON target.id = source.id \
+         WHEN MATCHED AND source.action = 'UPDATE' THEN UPDATE SET label = source.label \
+         WHEN MATCHED AND source.action = 'DELETE' THEN DELETE \
+         WHEN NOT MATCHED BY TARGET AND source.action = 'INSERT' \
+           THEN INSERT (id, label) VALUES (source.id, source.label) \
+         RETURNING WITH (OLD AS old_row, NEW AS new_row) \
+           merge_action() AS action, \
+           old_row.id AS old_id, old_row.label AS old_label, \
+           new_row.id AS new_id, new_row.label AS new_label",
+    );
+
+    // Assert
+    let merged = merged.expect("MERGE should return OLD and NEW for each action");
+    let mut images = merged.rows().to_vec();
+    images.sort_by_key(|row| match &row[0] {
+        Value::String(action) => action.clone(),
+        value => panic!("expected MERGE action text, got {value:?}"),
+    });
+    assert_eq!(
+        images,
+        &[
+            vec![
+                Value::String("DELETE".to_owned()),
+                Value::Int64(2),
+                Value::String("before delete".to_owned()),
+                Value::Null,
+                Value::Null,
+            ],
+            vec![
+                Value::String("INSERT".to_owned()),
+                Value::Null,
+                Value::Null,
+                Value::Int64(3),
+                Value::String("inserted".to_owned()),
+            ],
+            vec![
+                Value::String("UPDATE".to_owned()),
+                Value::Int64(1),
+                Value::String("before update".to_owned()),
+                Value::Int64(1),
+                Value::String("after update".to_owned()),
+            ],
+        ]
+    );
+    assert_eq!(
+        merged
+            .columns()
+            .iter()
+            .map(|column| (
+                column.name.as_str(),
+                column.type_oid,
+                column.typlen,
+                column.atttypmod,
+                column.format_code,
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            ("action", 25, -1, -1, 0),
+            ("old_id", 23, 4, -1, 0),
+            ("old_label", 25, -1, -1, 0),
+            ("new_id", 23, 4, -1, 0),
+            ("new_label", 25, -1, -1, 0),
+        ]
+    );
+}
+
+#[test]
 fn should_truncate_multiple_tables_in_one_statement() {
     // Arrange
     let fixture = sql_fixture(

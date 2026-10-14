@@ -538,3 +538,76 @@ fn should_describe_pg_user_mapping_columns() {
         expected_columns(&["oid", "umuser", "umserver", "umoptions"])
     );
 }
+
+#[test]
+fn should_describe_pg_sequence_columns() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-pg-sequence-descriptor", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let names = catalog_column_names(&fixture, "pg_sequence");
+
+    // Assert
+    assert_eq!(
+        names,
+        expected_columns(&[
+            "seqrelid",
+            "seqtypid",
+            "seqstart",
+            "seqincrement",
+            "seqmax",
+            "seqmin",
+            "seqcache",
+            "seqcycle",
+        ])
+    );
+}
+
+#[test]
+fn should_describe_pg_statistic_columns() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-pg-statistic-descriptor", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let names = catalog_column_names(&fixture, "pg_statistic");
+
+    // Assert
+    assert_eq!(
+        names,
+        expected_columns(&[
+            "starelid",
+            "staattnum",
+            "stainherit",
+            "stanullfrac",
+            "stawidth",
+            "stadistinct",
+            "stakind1",
+            "stakind2",
+            "stakind3",
+            "stakind4",
+            "stakind5",
+            "staop1",
+            "staop2",
+            "staop3",
+            "staop4",
+            "staop5",
+            "stacoll1",
+            "stacoll2",
+            "stacoll3",
+            "stacoll4",
+            "stacoll5",
+            "stanumbers1",
+            "stanumbers2",
+            "stanumbers3",
+            "stanumbers4",
+            "stanumbers5",
+            "stavalues1",
+            "stavalues2",
+            "stavalues3",
+            "stavalues4",
+            "stavalues5",
+        ])
+    );
+}

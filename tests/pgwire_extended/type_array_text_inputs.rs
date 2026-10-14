@@ -1958,3 +1958,214 @@ fn should_subscript_a_multidimensional_array_expression_with_custom_bounds() {
     fixture::assert_single_column_descriptors(frames, (23, 4, -1), 0, true);
     assert_eq!(wire::data_rows(frames), vec![vec![Some("4".to_owned())]]);
 }
+
+#[test]
+fn should_trim_array_tail_across_empty_full_multidimensional_cases() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT trim_array(ARRAY[1,2,3,4], 2), trim_array(ARRAY[1,2,3], 0), trim_array(ARRAY[]::INT[], 0), trim_array(ARRAY[1,2,3], 3), trim_array(ARRAY[[1,2],[3,4]], 1), trim_array(NULL::INT[], 1), trim_array(ARRAY[1,2], NULL::INT)",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-trim-array-contract", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("trim_array RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1007; 7]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("{1,2}".to_owned()),
+            Some("{1,2,3}".to_owned()),
+            Some("{}".to_owned()),
+            Some("{}".to_owned()),
+            Some("{{1,2}}".to_owned()),
+            None,
+            None,
+        ]]
+    );
+}
+
+#[test]
+fn should_prepend_array_elements_to_empty_null_inputs() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT array_prepend(0, ARRAY[1,2]), array_prepend(NULL::INT, ARRAY[1,2]), array_prepend(5, NULL::INT[]), array_prepend(NULL::INT, NULL::INT[])",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-prepend-null-identity", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("array_prepend RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1007; 4]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("{0,1,2}".to_owned()),
+            Some("{NULL,1,2}".to_owned()),
+            Some("{5}".to_owned()),
+            Some("{NULL}".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_concatenate_arrays_with_postgresql_null_empty_semantics() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT array_cat(ARRAY[1,2], ARRAY[]::INT[]), array_cat(NULL::INT[], ARRAY[3]), array_cat(ARRAY[1], NULL::INT[]), array_cat(NULL::INT[], NULL::INT[])",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-cat-null-empty", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("array_cat RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1007; 4]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("{1,2}".to_owned()),
+            Some("{3}".to_owned()),
+            Some("{1}".to_owned()),
+            None,
+        ]]
+    );
+}
+
+#[test]
+fn should_report_multidimensional_bounds_with_out_of_range_values() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT array_dims($1::INT[]), array_ndims($1::INT[]), array_lower($1::INT[], 1), array_upper($1::INT[], 1), array_length($1::INT[], 1), array_lower($1::INT[], 2), array_upper($1::INT[], 2), array_length($1::INT[], 2), array_lower($1::INT[], 3), array_upper($1::INT[], 3), array_length($1::INT[], 3)",
+        Some((1007, 0, Some(b"[0:1][4:5]={{1,2},{3,4}}"))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "type-array-multidimensional-bounds-functions",
+        &[],
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("multidimensional array bounds RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size))
+            .collect::<Vec<_>>(),
+        vec![
+            (25, -1),
+            (23, 4),
+            (23, 4),
+            (23, 4),
+            (23, 4),
+            (23, 4),
+            (23, 4),
+            (23, 4),
+            (23, 4),
+            (23, 4),
+            (23, 4),
+        ]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("[0:1][4:5]".to_owned()),
+            Some("2".to_owned()),
+            Some("0".to_owned()),
+            Some("1".to_owned()),
+            Some("2".to_owned()),
+            Some("4".to_owned()),
+            Some("5".to_owned()),
+            Some("2".to_owned()),
+            None,
+            None,
+            None,
+        ]]
+    );
+}
+
+#[test]
+fn should_preserve_null_shape_results_for_empty_or_null_arrays() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT array_lower('{}'::INT[], 1), array_upper('{}'::INT[], 1), array_ndims('{}'::INT[]), array_lower(NULL::INT[], 1), array_upper(NULL::INT[], 1), array_ndims(NULL::INT[])",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-empty-null-shape-functions", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("empty and null array shape RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size))
+            .collect::<Vec<_>>(),
+        vec![(23, 4); 6]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![None, None, None, None, None, None]]
+    );
+}

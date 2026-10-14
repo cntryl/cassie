@@ -3,6 +3,40 @@
 use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
+fn binary_data_rows(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<Option<Vec<u8>>>> {
+    frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'D')
+        .map(|(_, payload)| {
+            let field_count = i16::from_be_bytes(
+                payload[..2]
+                    .try_into()
+                    .expect("DataRow field count should be present"),
+            );
+            let mut cursor = 2_usize;
+            (0..field_count)
+                .map(|_| {
+                    let length = i32::from_be_bytes(
+                        payload[cursor..cursor + 4]
+                            .try_into()
+                            .expect("DataRow field length should be present"),
+                    );
+                    cursor += 4;
+                    if length < 0 {
+                        None
+                    } else {
+                        let end = cursor
+                            + usize::try_from(length).expect("field length should fit usize");
+                        let value = payload[cursor..end].to_vec();
+                        cursor = end;
+                        Some(value)
+                    }
+                })
+                .collect()
+        })
+        .collect()
+}
+
 #[test]
 fn should_cast_xml_text_to_a_document_with_postgresql_identity() {
     // Arrange
@@ -95,6 +129,66 @@ fn should_decode_binary_xml_parameters_as_documents() {
     assert_eq!(
         wire::data_rows(result),
         vec![vec![Some("<root>é</root>".to_owned())]]
+    );
+}
+
+#[test]
+fn should_encode_binary_xml_results_with_postgresql_metadata() {
+    // Arrange
+    let sql = "SELECT '<root><item id=\"7\">é</item></root>'::xml AS document";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame("xml_binary_output", sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "xml_binary_output_portal",
+                "xml_binary_output",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("xml_binary_output_portal"),
+            wire::execute_frame("xml_binary_output_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-906-xml-binary-output", steps);
+
+    // Assert
+    assert_eq!(
+        wire::error_code(&batches[0]),
+        None,
+        "ParseFlush error: {:?}",
+        batches[0]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("XML binary-output RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (
+            column.type_oid,
+            column.type_size,
+            column.type_mod,
+            column.format_code
+        ),
+        (142, -1, -1, 1)
+    );
+    // PostgreSQL 18.6 xml_send emits the UTF-8 XML document bytes verbatim.
+    assert_eq!(
+        binary_data_rows(result),
+        vec![vec![Some(
+            "<root><item id=\"7\">é</item></root>".as_bytes().to_vec()
+        )]]
     );
 }
 

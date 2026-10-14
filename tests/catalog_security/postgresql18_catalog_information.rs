@@ -948,7 +948,11 @@ fn should_render_a_created_index_definition() {
 
     // Act
     let selected = fixture
-        .execute("SELECT pg_catalog.pg_get_indexdef('public.issue_817_definition_idx'::regclass)")
+        .execute(
+            "SELECT pg_catalog.pg_get_indexdef(oid) \
+             FROM pg_catalog.pg_class \
+             WHERE relname = 'issue_817_definition_idx'",
+        )
         .expect("render the created index");
 
     // Assert

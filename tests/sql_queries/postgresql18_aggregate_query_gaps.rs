@@ -634,6 +634,36 @@ fn should_return_nth_value_for_an_explicit_full_partition_frame() {
 }
 
 #[test]
+fn should_keep_distinct_rows_frames_in_same_projection() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-rows-frame-offsets",
+        &[
+            "CREATE TABLE issue_806_rows_offsets (id INT)",
+            "INSERT INTO issue_806_rows_offsets VALUES (1),(2),(3),(4)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT id, FIRST_VALUE(id) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), FIRST_VALUE(id) OVER (ORDER BY id ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING) FROM issue_806_rows_offsets ORDER BY id",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("ROWS frame PRECEDING and FOLLOWING offsets")
+            .rows(),
+        &[
+            vec![Value::Int64(1), Value::Int64(1), Value::Int64(2)],
+            vec![Value::Int64(2), Value::Int64(1), Value::Int64(3)],
+            vec![Value::Int64(3), Value::Int64(2), Value::Int64(4)],
+            vec![Value::Int64(4), Value::Int64(3), Value::Null],
+        ]
+    );
+}
+
+#[test]
 fn should_return_any_non_null_input_from_any_value_aggregate() {
     // Arrange
     let fixture = sql_fixture(
@@ -855,6 +885,36 @@ fn should_apply_groups_frames_with_each_frame_exclusion() {
                 Value::Int64(2),
                 Value::Int64(2),
             ],
+        ]
+    );
+}
+
+#[test]
+fn should_distinguish_exclude_group_from_exclude_ties_on_peer_rows() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-exclude-group-and-ties-peers",
+        &[
+            "CREATE TABLE issue_806_exclusion_peers (n INT, id INT)",
+            "INSERT INTO issue_806_exclusion_peers VALUES (1,10),(2,20),(2,21),(3,30)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT id, FIRST_VALUE(id) OVER (ORDER BY n RANGE BETWEEN CURRENT ROW AND CURRENT ROW EXCLUDE GROUP), FIRST_VALUE(id) OVER (ORDER BY n RANGE BETWEEN CURRENT ROW AND CURRENT ROW EXCLUDE TIES) FROM issue_806_exclusion_peers ORDER BY n, id",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("EXCLUDE GROUP removes peers while EXCLUDE TIES keeps the current row")
+            .rows(),
+        &[
+            vec![Value::Int64(10), Value::Null, Value::Int64(10)],
+            vec![Value::Int64(20), Value::Null, Value::Int64(20)],
+            vec![Value::Int64(21), Value::Null, Value::Int64(21)],
+            vec![Value::Int64(30), Value::Null, Value::Int64(30)],
         ]
     );
 }

@@ -628,6 +628,16 @@ fn should_match_subquery_predicate_truth_table() {
             16,
         ),
         (
+            "SELECT NULL::INT IN (SELECT n FROM subquery_predicate_values)",
+            vec![vec![None]],
+            16,
+        ),
+        (
+            "SELECT NULL::INT NOT IN (SELECT n FROM subquery_predicate_values)",
+            vec![vec![None]],
+            16,
+        ),
+        (
             "SELECT 100 = ANY (SELECT n FROM subquery_predicate_values)",
             vec![vec![Some("t")]],
             16,
@@ -635,6 +645,11 @@ fn should_match_subquery_predicate_truth_table() {
         (
             "SELECT 150 = ANY (SELECT n FROM subquery_predicate_values)",
             vec![vec![None]],
+            16,
+        ),
+        (
+            "SELECT NULL::INT = ANY (SELECT n FROM subquery_predicate_values WHERE false)",
+            vec![vec![Some("f")]],
             16,
         ),
         (
@@ -646,6 +661,11 @@ fn should_match_subquery_predicate_truth_table() {
             "SELECT 100 = ALL (SELECT n FROM subquery_predicate_values \
              WHERE n IS NULL OR n = 100)",
             vec![vec![None]],
+            16,
+        ),
+        (
+            "SELECT NULL::INT = ALL (SELECT n FROM subquery_predicate_values WHERE false)",
+            vec![vec![Some("t")]],
             16,
         ),
         (

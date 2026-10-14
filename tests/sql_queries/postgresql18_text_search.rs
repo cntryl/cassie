@@ -27,6 +27,27 @@ fn should_normalize_text_with_the_selected_search_configuration() {
 }
 
 #[test]
+fn should_follow_c_locale_case_mapping_for_non_ascii_search_lexemes() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-c-locale-unicode-search", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT to_tsvector('simple', 'CAFÉ')::TEXT, \
+         plainto_tsquery('simple', 'CAFÉ')::TEXT",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("C-locale text-search case mapping").rows(),
+        &[vec![
+            Value::String("'cafÉ':1".to_owned()),
+            Value::String("'cafÉ'".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_render_tsvector_literals_in_canonical_lexeme_order() {
     // Arrange
     let fixture = sql_fixture("issue-799-tsvector-literal", &[]);

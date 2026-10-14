@@ -207,3 +207,77 @@ fn should_enforce_match_full_for_composite_foreign_keys() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_validate_not_valid_foreign_key_without_accepting_new_violations() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("not_valid_foreign_key").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_not_valid_fk_parent (id INT PRIMARY KEY)",
+                "CREATE TABLE compat_not_valid_fk_child (parent_id INT)",
+                "INSERT INTO compat_not_valid_fk_parent VALUES (1)",
+                "INSERT INTO compat_not_valid_fk_child VALUES (9)",
+                "ALTER TABLE compat_not_valid_fk_child \
+                   ADD CONSTRAINT compat_not_valid_fk \
+                   FOREIGN KEY (parent_id) \
+                   REFERENCES compat_not_valid_fk_parent(id) NOT VALID",
+                "BEGIN",
+                "SAVEPOINT before_new_fk_violation",
+            ],
+        )
+        .await
+        .expect("add a not-valid foreign key over a preexisting violation");
+
+        // Act
+        let new_violation = client
+            .execute("INSERT INTO compat_not_valid_fk_child VALUES (10)", &[])
+            .await
+            .expect_err("NOT VALID must still reject new foreign-key violations");
+        client
+            .batch_execute("ROLLBACK TO SAVEPOINT before_new_fk_violation")
+            .await
+            .expect("restore the transaction after the rejected new row");
+        client
+            .batch_execute("SAVEPOINT before_fk_validation")
+            .await
+            .expect("save the transaction before validating old rows");
+        let validation = client
+            .batch_execute(
+                "ALTER TABLE compat_not_valid_fk_child \
+                 VALIDATE CONSTRAINT compat_not_valid_fk",
+            )
+            .await
+            .expect_err("validation must find the preexisting foreign-key violation");
+        client
+            .batch_execute("ROLLBACK TO SAVEPOINT before_fk_validation")
+            .await
+            .expect("restore the transaction after failed validation");
+        let validated: bool = client
+            .query_one(
+                "SELECT convalidated FROM pg_constraint \
+                 WHERE conname = 'compat_not_valid_fk'",
+                &[],
+            )
+            .await
+            .expect("inspect the validation flag")
+            .try_get(0)
+            .expect("constraint validation state");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("finish the constraint-validation transaction");
+
+        // Assert
+        assert_eq!(db_error(&new_violation).code().code(), "23503");
+        assert_eq!(db_error(&validation).code().code(), "23503");
+        assert!(!validated);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

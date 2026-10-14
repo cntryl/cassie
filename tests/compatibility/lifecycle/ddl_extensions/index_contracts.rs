@@ -42,3 +42,127 @@ fn should_report_descending_btree_key_order() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_publish_hash_index_method_in_catalog_definition() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("hash_index_catalog").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_hash_index_rows (id INT)",
+                "INSERT INTO compat_hash_index_rows VALUES (1), (2)",
+                "CREATE INDEX compat_hash_index_idx \
+                   ON compat_hash_index_rows USING hash (id)",
+            ],
+        )
+        .await
+        .expect("create an index using the PostgreSQL hash method");
+
+        // Act
+        let definition: String = client
+            .query_one(
+                "SELECT indexdef FROM pg_catalog.pg_indexes \
+                 WHERE tablename = 'compat_hash_index_rows' \
+                   AND indexname = 'compat_hash_index_idx'",
+                &[],
+            )
+            .await
+            .expect("read the hash-index definition")
+            .try_get(0)
+            .expect("index definition");
+
+        // Assert
+        assert!(definition.contains("USING hash (id)"), "{definition:?}");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_rebuild_an_existing_index_with_reindex() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("reindex_existing_index").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_reindex_rows (id INT, score INT)",
+                "INSERT INTO compat_reindex_rows VALUES (1, 20), (2, 10)",
+                "CREATE INDEX compat_reindex_score_idx \
+                   ON compat_reindex_rows (score)",
+            ],
+        )
+        .await
+        .expect("create a table and its index");
+
+        // Act
+        client
+            .batch_execute("REINDEX INDEX compat_reindex_score_idx")
+            .await
+            .expect("rebuild the existing index");
+        let ordered = client
+            .query("SELECT score FROM compat_reindex_rows ORDER BY score", &[])
+            .await
+            .expect("read table rows after rebuilding the index");
+
+        // Assert
+        assert_eq!(
+            ordered
+                .iter()
+                .map(|row| row.get::<_, i32>(0))
+                .collect::<Vec<_>>(),
+            vec![10, 20]
+        );
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_roundtrip_index_comments_through_catalog() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("index_comments").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_index_comment_rows (id INT)",
+                "CREATE INDEX compat_index_comment_idx \
+                   ON compat_index_comment_rows (id)",
+            ],
+        )
+        .await
+        .expect("create an index to annotate");
+
+        // Act
+        client
+            .batch_execute("COMMENT ON INDEX compat_index_comment_idx IS 'index note'")
+            .await
+            .expect("store an object comment on the index");
+        let comment: Option<String> = client
+            .query_one(
+                "SELECT obj_description('compat_index_comment_idx'::regclass, 'pg_class')",
+                &[],
+            )
+            .await
+            .expect("read the index comment from PostgreSQL object metadata")
+            .try_get(0)
+            .expect("index comment");
+
+        // Assert
+        assert_eq!(comment.as_deref(), Some("index note"));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

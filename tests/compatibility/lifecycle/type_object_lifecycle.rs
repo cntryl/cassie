@@ -221,3 +221,38 @@ fn should_apply_domain_defaults_nullability_added_constraints() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_roundtrip_named_type_comments_through_catalog() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("named_type_comments").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_comment_kind (id INT)")
+            .await
+            .expect("create a table with a named composite row type");
+
+        // Act
+        client
+            .batch_execute("COMMENT ON TYPE compat_comment_kind IS 'type note'")
+            .await
+            .expect("set a comment on the named type");
+        let comment: Option<String> = client
+            .query_one(
+                "SELECT obj_description('compat_comment_kind'::regtype, 'pg_type')",
+                &[],
+            )
+            .await
+            .expect("read the type comment from PostgreSQL object metadata")
+            .try_get(0)
+            .expect("type comment value");
+
+        // Assert
+        assert_eq!(comment.as_deref(), Some("type note"));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

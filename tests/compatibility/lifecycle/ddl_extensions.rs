@@ -1,6 +1,8 @@
 use super::*;
 
 mod index_contracts;
+mod pgcrypto_extension;
+mod type_conversion;
 
 #[test]
 fn should_copy_rows_with_column_types_when_creating_table_as_select() {
@@ -837,5 +839,63 @@ fn should_scope_temporary_sequence_to_its_creating_session() {
         replacement_connection.abort();
         let _ = replacement_connection.await;
         server.shutdown(observer_connection).await;
+    });
+}
+
+#[test]
+fn should_rollback_alter_table_column_addition() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("transactional_alter_rollback").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_alter_rollback_rows (id INT PRIMARY KEY)",
+                "INSERT INTO compat_alter_rollback_rows VALUES (1)",
+                "BEGIN",
+            ],
+        )
+        .await
+        .expect("create the existing table and start a transaction");
+
+        // Act
+        client
+            .batch_execute(
+                "ALTER TABLE compat_alter_rollback_rows \
+                 ADD COLUMN label TEXT DEFAULT 'temporary'",
+            )
+            .await
+            .expect("add a column inside the open transaction");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("roll back the catalog mutation");
+        let column_count: i64 = client
+            .query_one(
+                "SELECT count(*) FROM information_schema.columns \
+                 WHERE table_schema = 'public' \
+                   AND table_name = 'compat_alter_rollback_rows' \
+                   AND column_name = 'label'",
+                &[],
+            )
+            .await
+            .expect("inspect the table after rollback")
+            .try_get(0)
+            .expect("matching column count");
+        let rows: i64 = client
+            .query_one("SELECT count(*) FROM compat_alter_rollback_rows", &[])
+            .await
+            .expect("read the existing row after rollback")
+            .try_get(0)
+            .expect("row count");
+
+        // Assert
+        assert_eq!(column_count, 0);
+        assert_eq!(rows, 1);
+
+        drop(client);
+        server.shutdown(connection).await;
     });
 }

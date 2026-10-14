@@ -1,5 +1,6 @@
 use super::*;
 
+mod default_privileges;
 mod expression_statistics;
 
 #[test]
@@ -809,6 +810,41 @@ fn should_read_then_clear_a_schema_comment() {
         // Assert
         assert_eq!(comment, "schema documentation");
         assert!(schema_comment_cleared);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_roundtrip_sequence_comments_through_catalog() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("sequence_comments").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE SEQUENCE compat_comment_sequence")
+            .await
+            .expect("create a sequence to annotate");
+
+        // Act
+        client
+            .batch_execute("COMMENT ON SEQUENCE compat_comment_sequence IS 'sequence note'")
+            .await
+            .expect("store an object comment on the sequence");
+        let comment: Option<String> = client
+            .query_one(
+                "SELECT obj_description('compat_comment_sequence'::regclass, 'pg_class')",
+                &[],
+            )
+            .await
+            .expect("read the sequence comment from PostgreSQL object metadata")
+            .try_get(0)
+            .expect("sequence comment");
+
+        // Assert
+        assert_eq!(comment.as_deref(), Some("sequence note"));
 
         drop(client);
         server.shutdown(connection).await;

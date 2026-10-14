@@ -1165,3 +1165,108 @@ fn should_roundtrip_role_comments_through_shared_object_metadata() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_roundtrip_view_comment_through_relation_metadata() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("view_comments").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_view_comment_source (id INT)",
+                "CREATE VIEW compat_comment_view AS \
+                   SELECT id FROM compat_view_comment_source",
+            ],
+        )
+        .await
+        .expect("create a view to annotate");
+
+        // Act
+        let commented = client
+            .batch_execute("COMMENT ON VIEW compat_comment_view IS 'view note'")
+            .await;
+        let comment = if commented.is_ok() {
+            Some(
+                client
+                    .query_one(
+                        "SELECT obj_description('compat_comment_view'::regclass, 'pg_class')",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Assert
+        let comment_sqlstate = commented
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code());
+        drop(client);
+        server.shutdown(connection).await;
+
+        assert!(
+            commented.is_ok(),
+            "COMMENT ON VIEW should store relation metadata; SQLSTATE: {comment_sqlstate:?}"
+        );
+        let comment = comment
+            .expect("successful COMMENT ON VIEW should allow catalog inspection")
+            .expect("read view comment");
+        assert_eq!(
+            comment.get::<_, Option<String>>(0).as_deref(),
+            Some("view note")
+        );
+    });
+}
+
+#[test]
+fn should_store_database_comments_in_shared_object_metadata() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("database_comments").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let commented = client
+            .batch_execute("COMMENT ON DATABASE postgres IS 'database note'")
+            .await;
+        let comment = if commented.is_ok() {
+            Some(
+                client
+                    .query_one(
+                        "SELECT shobj_description(oid, 'pg_database') \
+                         FROM pg_catalog.pg_database WHERE datname = 'postgres'",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Assert
+        let comment_sqlstate = commented
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code());
+        drop(client);
+        server.shutdown(connection).await;
+
+        assert!(
+            commented.is_ok(),
+            "COMMENT ON DATABASE should store shared metadata; SQLSTATE: {comment_sqlstate:?}"
+        );
+        let comment = comment
+            .expect("successful COMMENT ON DATABASE should allow catalog inspection")
+            .expect("read database comment");
+        assert_eq!(
+            comment.get::<_, Option<String>>(0).as_deref(),
+            Some("database note")
+        );
+    });
+}

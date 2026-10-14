@@ -248,6 +248,10 @@ fn should_wait_for_unique_key_owner_before_returning_pgwire_insert() {
                 .await
                 .ok();
         let completed_before_commit = early_completion.is_some();
+        assert!(
+            request_entered_engine || completed_before_commit,
+            "the competing query must reach the engine or complete before owner resolution"
+        );
         let owner_commit = owner.batch_execute("COMMIT").await;
         let contender_result = if let Some(result) = early_completion {
             result.expect("competing INSERT task should complete")
@@ -266,12 +270,10 @@ fn should_wait_for_unique_key_owner_before_returning_pgwire_insert() {
         server.abort();
         let _ = server.await;
         assert!(
-            request_entered_engine || completed_before_commit,
-            "the competing query must reach the engine before owner resolution"
-        );
-        assert!(
             !completed_before_commit,
             "PostgreSQL waits for the in-flight pgwire INSERT before owner resolution; \
+             engine entry observed: {request_entered_engine}; \
+             completed before owner COMMIT: {completed_before_commit}; \
              owner COMMIT: {owner_commit:?}; competing INSERT: {contender_result:?}"
         );
         owner_commit.expect("the transaction that inserted the unique value commits");

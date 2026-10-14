@@ -26,10 +26,13 @@ impl Drop for DataDirectory {
 }
 
 mod advisory_lock_disconnect;
+mod copy_forms;
 mod ddl_extensions;
 mod exclusion_constraints;
 mod mutation_ddl;
 mod routine_objects;
 mod session_transaction;
+#[path = "../support/pgwire.rs"]
+mod support_pgwire;
 mod truncate_identity_rollback;
 mod type_object_lifecycle;

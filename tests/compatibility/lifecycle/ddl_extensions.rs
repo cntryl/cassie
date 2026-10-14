@@ -60,6 +60,61 @@ fn should_copy_rows_with_column_types_when_creating_table_as_select() {
 }
 
 #[test]
+fn should_create_a_table_from_select_with_no_data() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("create_table_as_select_no_data").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_ctas_no_data_source (id INT, label TEXT)",
+                "INSERT INTO compat_ctas_no_data_source VALUES (1, 'one'), (2, 'two')",
+            ],
+        )
+        .await
+        .expect("create a populated CTAS source");
+
+        // Act
+        let created = client
+            .batch_execute(
+                "CREATE TABLE compat_ctas_no_data AS \
+                 SELECT id, label FROM compat_ctas_no_data_source WITH NO DATA",
+            )
+            .await;
+        let rows = if created.is_ok() {
+            Some(
+                client
+                    .query("SELECT id, label FROM compat_ctas_no_data", &[])
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Assert
+        let create_sqlstate = created
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code());
+        drop(client);
+        server.shutdown(connection).await;
+
+        assert!(
+            created.is_ok(),
+            "CTAS WITH NO DATA should create an empty table; SQLSTATE: {create_sqlstate:?}"
+        );
+        assert_eq!(
+            rows.expect("successful CTAS should be queryable")
+                .unwrap()
+                .len(),
+            0
+        );
+    });
+}
+
+#[test]
 fn should_preserve_cloned_table_defaults_constraints_indexes() {
     // Arrange
     let runtime = current_thread_runtime();

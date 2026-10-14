@@ -1661,3 +1661,300 @@ fn should_accept_sql_standard_array_type_declarations() {
     );
     assert!(wire::data_rows(frames).is_empty());
 }
+
+#[test]
+fn should_compare_array_elements_then_dimensions_nulls_bounds() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT ARRAY[1,2] < ARRAY[1,2,0], ARRAY[1,3] < ARRAY[2,1], ARRAY[[1,2],[3,4]] = ARRAY[1,2,3,4], ARRAY[[1,2],[3,4]] > ARRAY[1,2,3,4], ARRAY[1,NULL]::INT[] = ARRAY[1,NULL]::INT[], ARRAY[1,2] < ARRAY[1,NULL]::INT[]",
+        None,
+        0,
+        true,
+    );
+    let lower_bound_cycle = fixture::execute_cycle(
+        "SELECT $1::INT[] < ARRAY[1,2], $1::INT[] = ARRAY[1,2]",
+        Some((1007, 0, Some(b"[0:1]={1,2}"))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "type-array-comparison-order",
+        &[],
+        vec![cycle, lower_bound_cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("array comparison RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16; 6]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+            Some("f".to_owned()),
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+        ]]
+    );
+
+    let lower_bound_frames = &batches[1];
+    fixture::assert_success(lower_bound_frames);
+    assert_eq!(
+        wire::parse_row_description(
+            &lower_bound_frames
+                .iter()
+                .find(|(tag, _)| *tag == b'T')
+                .expect("lower-bound comparison RowDescription")
+                .1
+        )
+        .iter()
+        .map(|column| (column.type_oid, column.type_size))
+        .collect::<Vec<_>>(),
+        vec![(16, 1), (16, 1)]
+    );
+    assert_eq!(
+        wire::data_rows(lower_bound_frames),
+        vec![vec![Some("t".to_owned()), Some("f".to_owned())]]
+    );
+}
+
+#[test]
+fn should_order_grouped_distinct_array_values() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_807_array_order_rows (id INT, items INT[])",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_807_array_order_rows VALUES (1, $1), (2, $2), (3, $3), (4, $4), (5, $5), (6, $6), (7, $7), (8, NULL)",
+            vec![
+                Value::Json(serde_json::json!([1, 2])),
+                Value::Json(serde_json::json!([1, 2])),
+                Value::Json(serde_json::json!([1, 2, 0])),
+                Value::Json(serde_json::json!([1, 3])),
+                Value::Json(serde_json::json!([2, 0])),
+                Value::Json(serde_json::json!([[1, 2], [3, 4]])),
+                Value::Json(serde_json::json!([0, 9])),
+            ],
+        ),
+    ];
+    let grouped = fixture::execute_cycle(
+        "SELECT items, count(*) FROM issue_807_array_order_rows GROUP BY items ORDER BY items NULLS LAST",
+        None,
+        0,
+        true,
+    );
+    let distinct = fixture::execute_cycle(
+        "SELECT DISTINCT items FROM issue_807_array_order_rows ORDER BY items NULLS LAST",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "type-array-order-distinct-group",
+        &setup,
+        vec![grouped, distinct],
+    );
+
+    // Assert
+    let grouped = &batches[0];
+    fixture::assert_success(grouped);
+    let description = grouped
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("array grouping RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size))
+            .collect::<Vec<_>>(),
+        vec![(1007, -1), (20, 8)]
+    );
+    assert_eq!(
+        wire::data_rows(grouped),
+        vec![
+            vec![Some("{0,9}".to_owned()), Some("1".to_owned())],
+            vec![Some("{1,2}".to_owned()), Some("2".to_owned())],
+            vec![Some("{1,2,0}".to_owned()), Some("1".to_owned())],
+            vec![Some("{{1,2},{3,4}}".to_owned()), Some("1".to_owned())],
+            vec![Some("{1,3}".to_owned()), Some("1".to_owned())],
+            vec![Some("{2,0}".to_owned()), Some("1".to_owned())],
+            vec![None, Some("1".to_owned())],
+        ]
+    );
+
+    let distinct = &batches[1];
+    fixture::assert_success(distinct);
+    fixture::assert_single_column_descriptors(distinct, (1007, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(distinct),
+        vec![
+            vec![Some("{0,9}".to_owned())],
+            vec![Some("{1,2}".to_owned())],
+            vec![Some("{1,2,0}".to_owned())],
+            vec![Some("{{1,2},{3,4}}".to_owned())],
+            vec![Some("{1,3}".to_owned())],
+            vec![Some("{2,0}".to_owned())],
+            vec![None],
+        ]
+    );
+}
+
+#[test]
+fn should_use_array_btree_range_predicates_on_real_rows() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_807_array_range_index (id INT, items INT[])",
+            Vec::new(),
+        ),
+        (
+            "CREATE INDEX issue_807_array_range_index_items_idx ON issue_807_array_range_index USING btree (items)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_807_array_range_index VALUES (1, $1), (2, $2), (3, $3), (4, $4), (5, $5), (6, $6), (7, NULL)",
+            vec![
+                Value::Json(serde_json::json!([1, 2])),
+                Value::Json(serde_json::json!([1, 2, 0])),
+                Value::Json(serde_json::json!([2, 0])),
+                Value::Json(serde_json::json!([1, 3])),
+                Value::Json(serde_json::json!([0, 9])),
+                Value::Json(serde_json::json!([[1, 2], [3, 4]])),
+            ],
+        ),
+    ];
+    let query = fixture::execute_cycle(
+        "SELECT id FROM issue_807_array_range_index WHERE items < $1 ORDER BY id",
+        Some((1007, 0, Some(b"{2,0}"))),
+        0,
+        true,
+    );
+    let explain = fixture::execute_cycle(
+        "EXPLAIN SELECT id FROM issue_807_array_range_index WHERE items < ARRAY[2,0]",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "type-array-btree-range-predicate",
+        &setup,
+        vec![query, explain],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (23, 4, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![Some("1".to_owned())],
+            vec![Some("2".to_owned())],
+            vec![Some("4".to_owned())],
+            vec![Some("5".to_owned())],
+            vec![Some("6".to_owned())],
+        ]
+    );
+
+    let explain = &batches[1];
+    fixture::assert_success(explain);
+    let plan = wire::data_rows(explain)
+        .first()
+        .and_then(|row| row.first())
+        .and_then(Option::as_deref)
+        .expect("array index range plan");
+    assert!(plan.contains("index=issue_807_array_range_index_items_idx"));
+    assert!(plan.contains("access_path=range_scan"));
+}
+
+#[test]
+fn should_preserve_array_extrema_wire_identity() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_807_array_min_max_rows (items INT[])",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_807_array_min_max_rows VALUES ($1), ($2), ($3), ($4), (NULL)",
+            vec![
+                Value::Json(serde_json::json!([1, 2])),
+                Value::Json(serde_json::json!([1, 2, 0])),
+                Value::Json(serde_json::json!([2, 0])),
+                Value::Json(serde_json::json!([[1, 2], [3, 4]])),
+            ],
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT min(items), max(items) FROM issue_807_array_min_max_rows",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("type-array-min-max-aggregates", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("array aggregate RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1007, 1007]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{1,2}".to_owned()), Some("{2,0}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_subscript_a_multidimensional_array_expression_with_custom_bounds() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT ($1::INT[])[1][5] AS selected_value",
+        Some((1007, 0, Some(b"[0:1][4:5]={{1,2},{3,4}}"))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "type-array-expression-multidimensional-subscript",
+        &[],
+        vec![cycle],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (23, 4, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("4".to_owned())]]);
+}

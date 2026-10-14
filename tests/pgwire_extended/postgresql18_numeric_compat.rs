@@ -500,3 +500,54 @@ fn should_encode_both_numeric_infinity_signs_in_binary_format() {
         );
     }
 }
+
+#[test]
+fn should_decode_numeric_infinity_binary_parameters() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let positive_infinity = [0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x20];
+    let negative_infinity = [0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x20];
+    let cases = [
+        (
+            "numeric_positive_infinity_input",
+            &positive_infinity[..],
+            "Infinity",
+        ),
+        (
+            "numeric_negative_infinity_input",
+            &negative_infinity[..],
+            "-Infinity",
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (statement, payload, _) in &cases {
+        let portal = format!("{statement}_portal");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            "SELECT $1 AS value",
+            &[1_700],
+        )));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(&portal, statement, &[1], &[Some(*payload)], &[0]),
+            wire::describe_portal_frame(&portal),
+            wire::execute_frame(&portal),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("issue-812-numeric-infinity-binary-input", steps);
+
+    // Assert
+    for (index, (statement, _, expected)) in cases.into_iter().enumerate() {
+        let result = &batches[index * 2 + 1];
+        assert_eq!(wire::error_code(result), None, "{statement}");
+        fixture::assert_single_column_descriptors(result, (1_700, -1, -1), 0, true);
+        assert_eq!(
+            wire::data_rows(result),
+            vec![vec![Some(expected.to_owned())]],
+            "{statement} text value"
+        );
+    }
+}

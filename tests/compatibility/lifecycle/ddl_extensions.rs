@@ -3,6 +3,7 @@ use super::*;
 mod postgresql18_database_temp_lifecycle;
 
 mod index_contracts;
+mod partition_information_functions;
 mod pgcrypto_extension;
 mod table_forms;
 mod type_conversion;

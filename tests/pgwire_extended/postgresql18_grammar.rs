@@ -245,6 +245,76 @@ fn should_sample_rows_with_a_valid_bernoulli_percentage() {
 }
 
 #[test]
+fn should_bind_parameterized_bernoulli_sampling_over_extended_protocol() {
+    // Arrange
+    let rows = (1..=128)
+        .map(|id| format!("({id})"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let insert = format!("INSERT INTO issue_800_sample_wire_rows VALUES {rows}");
+    let sql = "SELECT id FROM issue_800_sample_wire_rows TABLESAMPLE BERNOULLI ($1) REPEATABLE ($2) ORDER BY id";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TABLE issue_800_sample_wire_rows (id INT)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(&insert)]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "sample_parameters",
+            sql,
+            &[700, 701],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("sample_parameters"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("sample_portal", "sample_parameters", &["100", "0.5"]),
+            wire::describe_portal_frame("sample_portal"),
+            wire::execute_frame("sample_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-800-tablesample-parameter-wire", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(
+        batches[2].iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
+        vec![b'1'],
+        "TABLESAMPLE Parse error fields: {:?}",
+        batches[2]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(wire::error_code(&batches[3]), None);
+    let parameters = batches[3]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("TABLESAMPLE ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameters.1),
+        vec![700, 701]
+    );
+    let columns = batches[3]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("TABLESAMPLE result RowDescription");
+    assert_eq!(wire::parse_row_description(&columns.1)[0].type_oid, 23);
+    assert_eq!(wire::error_code(&batches[4]), None);
+    assert_eq!(
+        wire::data_rows(&batches[4]),
+        (1..=128)
+            .map(|id| vec![Some(id.to_string())])
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn should_describe_values_relation_columns_over_pgwire() {
     // Arrange
     let batches = run_script(

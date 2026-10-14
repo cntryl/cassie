@@ -93,6 +93,18 @@ fn should_repeat_bernoulli_samples_for_the_same_seed() {
     let fixture = sample_fixture("issue-800-bernoulli-repeatable");
     let sql = "SELECT id FROM issue_800_sample_rows TABLESAMPLE BERNOULLI (50) REPEATABLE (0.5) ORDER BY id";
     let other_seed_sql = "SELECT id FROM issue_800_sample_rows TABLESAMPLE BERNOULLI (50) REPEATABLE (1.5) ORDER BY id";
+    // PostgreSQL 18.6 returns these ids for the fixture's one-block insertion order.
+    let expected_first_ids = [
+        2_i64, 5, 6, 9, 10, 11, 15, 17, 18, 21, 22, 23, 24, 29, 30, 34, 35, 36, 37, 38, 45, 49, 50,
+        52, 53, 55, 57, 58, 60, 61, 63, 65, 66, 67, 69, 71, 75, 77, 79, 80, 82, 83, 84, 86, 87, 89,
+        90, 93, 94, 96, 100, 102, 103, 104, 105, 107, 108, 109, 110, 112, 114, 115, 122, 125, 127,
+        128,
+    ];
+    let expected_other_seed_ids = [
+        2_i64, 3, 4, 7, 9, 12, 17, 18, 25, 26, 27, 29, 34, 36, 37, 38, 39, 41, 42, 44, 45, 48, 51,
+        55, 56, 57, 59, 60, 64, 65, 66, 68, 72, 74, 75, 76, 80, 82, 84, 86, 87, 91, 92, 96, 97,
+        101, 104, 108, 110, 111, 112, 113, 114, 115, 117, 118, 120, 121, 125, 128,
+    ];
 
     // Act
     let first = fixture.execute(sql);
@@ -103,7 +115,17 @@ fn should_repeat_bernoulli_samples_for_the_same_seed() {
     let first_result = first.expect("first repeatable sample");
     let second_result = second.expect("second repeatable sample");
     let different_seed_result = different_seed.expect("sample with another seed");
+    let expected_first = expected_first_ids
+        .into_iter()
+        .map(|id| vec![Value::Int64(id)])
+        .collect::<Vec<_>>();
+    let expected_other_seed = expected_other_seed_ids
+        .into_iter()
+        .map(|id| vec![Value::Int64(id)])
+        .collect::<Vec<_>>();
+    assert_eq!(first_result.rows(), expected_first);
     assert_eq!(first_result.rows(), second_result.rows());
+    assert_eq!(different_seed_result.rows(), expected_other_seed);
     assert_ne!(first_result.rows(), different_seed_result.rows());
 }
 
@@ -125,8 +147,12 @@ fn should_reproduce_system_samples_for_same_seed_with_seed_variation() {
     let first_result = first.expect("first repeatable SYSTEM sample");
     let second_result = second.expect("second repeatable SYSTEM sample");
     let different_seed_result = different_seed.expect("SYSTEM sample with another seed");
+    let expected_first = (1..=128)
+        .map(|id| vec![Value::Int64(id)])
+        .collect::<Vec<_>>();
+    assert_eq!(first_result.rows(), expected_first);
     assert_eq!(first_result.rows(), second_result.rows());
-    assert_ne!(first_result.rows(), different_seed_result.rows());
+    assert!(different_seed_result.rows().is_empty());
 }
 
 #[test]

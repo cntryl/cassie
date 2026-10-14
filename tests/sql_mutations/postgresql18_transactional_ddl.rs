@@ -1,7 +1,24 @@
 //! PostgreSQL 18.6 transactional catalog publication tracked by #833.
 
 use super::support_sql_fixture::sql_fixture;
+use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
+
+fn enum_visibility_rows(cassie: &Cassie, session: &CassieSession) -> Vec<Vec<Value>> {
+    cassie
+        .execute_sql(
+            session,
+            "SELECT value AS enum_value, \
+                    (SELECT enumlabel FROM pg_catalog.pg_enum \
+                     WHERE enumtypid = 'public.issue833_enum_visibility_wave36'::regtype \
+                     ORDER BY enumsortorder LIMIT 1) AS catalog_label \
+             FROM public.issue833_enum_visibility_wave36_rows",
+            vec![],
+        )
+        .expect("query enum output and the SQL catalog snapshot")
+        .rows()
+        .to_vec()
+}
 
 #[test]
 fn should_restore_transactional_catalog_at_savepoint_rollback() {
@@ -62,5 +79,102 @@ fn should_restore_dropped_table_after_transaction_rollback() {
     assert_eq!(
         rows,
         vec![vec![Value::Int64(1), Value::String("retained".to_owned())]]
+    );
+}
+
+#[test]
+fn should_keep_enum_output_fresh_while_catalog_scan_uses_transaction_snapshot() {
+    // Arrange
+    let fixture = sql_fixture("issue-833-enum-snapshot-publication", &[]);
+    let reader = fixture.session.clone();
+    let writer = fixture.cassie.create_session("writer", None);
+    for statement in [
+        "CREATE TYPE public.issue833_enum_visibility_wave36 AS ENUM ('old', 'later')",
+        "CREATE TABLE public.issue833_enum_visibility_wave36_rows \
+           (value public.issue833_enum_visibility_wave36)",
+        "INSERT INTO public.issue833_enum_visibility_wave36_rows VALUES ('old')",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&writer, statement, vec![])
+            .unwrap_or_else(|error| {
+                panic!("enum visibility setup failed for {statement}: {error}")
+            });
+    }
+
+    // Act
+    fixture
+        .cassie
+        .execute_sql(
+            &reader,
+            "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+            vec![],
+        )
+        .expect("begin the repeatable-read snapshot");
+    let repeatable_read_before = enum_visibility_rows(&fixture.cassie, &reader);
+    fixture
+        .cassie
+        .execute_sql(
+            &writer,
+            "ALTER TYPE public.issue833_enum_visibility_wave36 RENAME VALUE 'old' TO 'new'",
+            vec![],
+        )
+        .expect("rename enum value in another session");
+    let repeatable_read_after = enum_visibility_rows(&fixture.cassie, &reader);
+    fixture
+        .cassie
+        .execute_sql(&reader, "COMMIT", vec![])
+        .expect("finish the repeatable-read snapshot");
+
+    fixture
+        .cassie
+        .execute_sql(
+            &reader,
+            "BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED",
+            vec![],
+        )
+        .expect("begin the read-committed transaction");
+    let read_committed_before = enum_visibility_rows(&fixture.cassie, &reader);
+    fixture
+        .cassie
+        .execute_sql(
+            &writer,
+            "ALTER TYPE public.issue833_enum_visibility_wave36 RENAME VALUE 'new' TO 'latest'",
+            vec![],
+        )
+        .expect("rename another enum value in the writer session");
+    let read_committed_after = enum_visibility_rows(&fixture.cassie, &reader);
+    fixture
+        .cassie
+        .execute_sql(&reader, "COMMIT", vec![])
+        .expect("finish the read-committed transaction");
+
+    // Assert
+    assert_eq!(
+        [
+            repeatable_read_before,
+            repeatable_read_after,
+            read_committed_before,
+            read_committed_after,
+        ],
+        [
+            vec![vec![
+                Value::String("old".to_owned()),
+                Value::String("old".to_owned())
+            ]],
+            vec![vec![
+                Value::String("new".to_owned()),
+                Value::String("old".to_owned())
+            ]],
+            vec![vec![
+                Value::String("new".to_owned()),
+                Value::String("new".to_owned())
+            ]],
+            vec![vec![
+                Value::String("latest".to_owned()),
+                Value::String("latest".to_owned())
+            ]],
+        ],
+        "enum output and pg_enum SQL snapshots must follow PostgreSQL 18.6 visibility rules"
     );
 }

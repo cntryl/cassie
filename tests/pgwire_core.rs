@@ -1071,7 +1071,7 @@ mod pgwire_binary_codecs {
     }
 
     #[test]
-    fn should_encode_integer_sum_as_exact_binary_int8() {
+    fn should_encode_bigint_sum_as_exact_binary_numeric() {
         // Arrange
         const EXACT_SUM: i64 = 9_007_199_254_740_993;
         support::use_local_storage();
@@ -1119,14 +1119,28 @@ mod pgwire_binary_codecs {
                 .find(|frame| frame.0 == b'T')
                 .expect("row description");
             let fields = support::parse_row_description(&row_description.1);
-            assert_eq!(fields[0].type_oid, 20, "SUM(bigint) must be declared int8");
+            let descriptor = (
+                fields[0].type_oid,
+                fields[0].type_size,
+                fields[0].type_mod,
+                fields[0].format_code,
+            );
             let row = frames
                 .iter()
                 .find(|frame| frame.0 == b'D')
                 .expect("data row");
+            let actual_data = read_binary_row(&row.1);
+            let expected_data = vec![Some(
+                [
+                    0x00, 0x04, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x23, 0x2f, 0x07, 0xc8, 0x15,
+                    0x62, 0x03, 0xe1,
+                ]
+                .to_vec(),
+            )];
             assert_eq!(
-                read_binary_row(&row.1),
-                vec![Some(EXACT_SUM.to_be_bytes().to_vec())]
+                (descriptor, actual_data),
+                ((1700, -1, -1, 1), expected_data),
+                "SUM(bigint) descriptor and binary DataRow"
             );
 
             server.stop().await;

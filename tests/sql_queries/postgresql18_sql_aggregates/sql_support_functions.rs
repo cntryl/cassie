@@ -86,3 +86,39 @@ fn should_run_sql_support_functions_as_aggregate_state_handlers() {
         ]]
     );
 }
+
+#[test]
+fn should_execute_sql_defined_moving_aggregate_with_an_inverse_transition() {
+    // Arrange
+    let fixture = sql_fixture("issue-910-moving-sql-aggregate", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE SCHEMA issue_910_moving")
+        .expect("create an isolated aggregate schema");
+    fixture
+        .execute(
+            "CREATE AGGREGATE issue_910_moving.moving_sum(INTEGER) (\
+               SFUNC = pg_catalog.int4pl, STYPE = INTEGER, \
+               MSFUNC = pg_catalog.int4pl, MINVFUNC = pg_catalog.int4mi, \
+               MSTYPE = INTEGER, INITCOND = '0', MINITCOND = '0')",
+        )
+        .expect("create a moving aggregate with an inverse transition");
+    let sql = "SELECT issue_910_moving.moving_sum(value) OVER (\
+                 ORDER BY value ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) \
+               FROM (VALUES (1), (2), (3)) AS inputs(value)";
+
+    // Act
+    let result = fixture.execute(sql);
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("execute the moving transition and inverse transition")
+            .rows(),
+        &[
+            vec![Value::Int64(1)],
+            vec![Value::Int64(3)],
+            vec![Value::Int64(5)],
+        ]
+    );
+}

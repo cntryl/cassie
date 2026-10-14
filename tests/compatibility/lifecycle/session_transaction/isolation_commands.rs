@@ -521,3 +521,113 @@ fn should_reject_writes_in_read_only_repeatable_read_transaction_with_sqlstate()
         assert_eq!(stored_value, 10);
     });
 }
+
+#[test]
+fn should_abort_serializable_write_skew_with_postgres_sqlstate() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("serializable_write_skew").await;
+        let (first, first_connection) = server.connect().await;
+        let (second, second_connection) = server.connect().await;
+        execute_statements(
+            &first,
+            &[
+                "CREATE TABLE compat_serializable_write_skew \
+                   (id INT PRIMARY KEY, on_call BOOLEAN NOT NULL)",
+                "INSERT INTO compat_serializable_write_skew VALUES \
+                   (1, TRUE), (2, TRUE)",
+            ],
+        )
+        .await
+        .expect("create the two-row write-skew fixture");
+        first
+            .batch_execute("BEGIN ISOLATION LEVEL SERIALIZABLE")
+            .await
+            .expect("begin the first serializable transaction");
+        second
+            .batch_execute("BEGIN ISOLATION LEVEL SERIALIZABLE")
+            .await
+            .expect("begin the second serializable transaction");
+
+        // Act
+        let first_snapshot_count: i64 = first
+            .query_one(
+                "SELECT count(*) FROM compat_serializable_write_skew WHERE on_call",
+                &[],
+            )
+            .await
+            .expect("read the first transaction's predicate")
+            .get(0);
+        let second_snapshot_count: i64 = second
+            .query_one(
+                "SELECT count(*) FROM compat_serializable_write_skew WHERE on_call",
+                &[],
+            )
+            .await
+            .expect("read the same predicate in the second transaction")
+            .get(0);
+        let second_update = second
+            .execute(
+                "UPDATE compat_serializable_write_skew SET on_call = FALSE WHERE id = 2",
+                &[],
+            )
+            .await;
+        let second_resolution = if second_update.is_ok() {
+            second.batch_execute("COMMIT").await
+        } else {
+            second.batch_execute("ROLLBACK").await
+        };
+        if second_resolution.is_err() {
+            let _ = second.batch_execute("ROLLBACK").await;
+        }
+        let first_update = first
+            .execute(
+                "UPDATE compat_serializable_write_skew SET on_call = FALSE WHERE id = 1",
+                &[],
+            )
+            .await;
+        let serialization_sqlstate = first_update
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code().to_owned());
+        let first_commit = if first_update.is_ok() {
+            first.batch_execute("COMMIT").await
+        } else {
+            first.batch_execute("ROLLBACK").await
+        };
+        let first_commit_sqlstate = first_commit
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code().to_owned());
+        if first_commit.is_err() {
+            let _ = first.batch_execute("ROLLBACK").await;
+        }
+        let on_call_after_resolution: i64 = second
+            .query_one(
+                "SELECT count(*) FROM compat_serializable_write_skew WHERE on_call",
+                &[],
+            )
+            .await
+            .expect("read the surviving on-call row after conflict resolution")
+            .get(0);
+
+        // Assert
+        drop((first, second));
+        server.shutdown(first_connection).await;
+        second_connection.abort();
+        let _ = second_connection.await;
+        assert_eq!(first_snapshot_count, 2);
+        assert_eq!(second_snapshot_count, 2);
+        second_update.expect("the first committed serializable write succeeds");
+        second_resolution.expect("the first serializable write commits successfully");
+        assert_eq!(
+            serialization_sqlstate
+                .as_deref()
+                .or(first_commit_sqlstate.as_deref()),
+            Some("40001"),
+            "PostgreSQL aborts one transaction that would violate serializable isolation"
+        );
+        assert_eq!(on_call_after_resolution, 1);
+    });
+}

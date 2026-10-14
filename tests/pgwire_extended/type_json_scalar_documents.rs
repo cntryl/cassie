@@ -339,6 +339,84 @@ fn should_return_typed_sql_json_query_exists_results() {
 }
 
 #[test]
+fn should_apply_sql_json_policy_distinctions_with_declared_result_types() {
+    // Arrange
+    let value_policy = fixture::execute_cycle(
+        "SELECT JSON_VALUE('{}', '$.n' RETURNING INTEGER DEFAULT 7 ON EMPTY DEFAULT 9 ON ERROR), JSON_VALUE('{\"n\":\"bad\"}', '$.n' RETURNING INTEGER DEFAULT 7 ON EMPTY DEFAULT 9 ON ERROR)",
+        None,
+        0,
+        true,
+    );
+    let query_empty = fixture::execute_cycle(
+        "SELECT JSON_QUERY('{}', '$.n' RETURNING JSONB EMPTY ARRAY ON EMPTY ERROR ON ERROR)",
+        None,
+        0,
+        true,
+    );
+    let query_multiple = fixture::execute_cycle(
+        "SELECT JSON_QUERY('{\"n\":[1,2]}', '$.n[*]' RETURNING JSONB ERROR ON EMPTY ERROR ON ERROR)",
+        None,
+        0,
+        true,
+    );
+    let recovery = fixture::execute_cycle("SELECT 42", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-810-sql-json-empty-error-policies",
+        &[],
+        vec![value_policy, query_empty, query_multiple, recovery],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSON_VALUE policy RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("7".to_owned()), Some("9".to_owned())]]
+    );
+
+    let frames = &batches[1];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (3_802, -1, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("[]".to_owned())]]);
+
+    let frames = &batches[2];
+    assert_eq!(wire::error_code(frames).as_deref(), Some("22034"));
+    let errors = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'E')
+        .collect::<Vec<_>>();
+    assert_eq!(errors.len(), 1);
+    let message = wire::parse_error_fields(&errors[0].1)
+        .into_iter()
+        .find_map(|(key, value)| (key == 'M').then_some(value))
+        .expect("JSON_QUERY cardinality error message");
+    assert_eq!(
+        message,
+        "JSON path expression in JSON_QUERY must return single item when no wrapper is requested"
+    );
+    assert!(wire::data_rows(frames).is_empty());
+
+    fixture::assert_success(&batches[3]);
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
 fn should_classify_json_object_unique_keys() {
     // Arrange
     let sql = "SELECT '{\"a\":1}' IS JSON OBJECT WITH UNIQUE KEYS, '{\"a\":1,\"a\":2}' IS JSON OBJECT WITH UNIQUE KEYS";
@@ -2307,6 +2385,73 @@ fn should_distinguish_lax_singleton_wrap_from_strict_jsonpath_error() {
         "jsonpath wildcard array accessor can only be applied to an array"
     );
     assert!(wire::data_rows(frames).is_empty());
+
+    fixture::assert_success(&batches[2]);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
+fn should_suppress_jsonpath_structural_errors_only_for_silent_forms() {
+    // Arrange
+    let unsuppressed = fixture::execute_cycle(
+        "SELECT jsonb_path_exists('{\"a\":1}'::JSONB, 'strict $.a[*]')",
+        None,
+        0,
+        true,
+    );
+    let suppressed = fixture::execute_cycle(
+        "SELECT jsonb_path_exists('{\"a\":1}'::JSONB, 'strict $.a[*]', '{}'::JSONB, true), '{\"a\":1}'::JSONB @? 'strict $.a[*]'",
+        None,
+        0,
+        true,
+    );
+    let recovery = fixture::execute_cycle("SELECT 42", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-809-jsonpath-silent-structural-errors",
+        &[],
+        vec![unsuppressed, suppressed, recovery],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    assert_eq!(wire::error_code(frames).as_deref(), Some("22039"));
+    let errors = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'E')
+        .collect::<Vec<_>>();
+    assert_eq!(errors.len(), 1);
+    let message = wire::parse_error_fields(&errors[0].1)
+        .into_iter()
+        .find_map(|(key, value)| (key == 'M').then_some(value))
+        .expect("unsuppressed JSONPath structural error message");
+    assert_eq!(
+        message,
+        "jsonpath wildcard array accessor can only be applied to an array"
+    );
+    assert!(wire::data_rows(frames).is_empty());
+
+    let frames = &batches[1];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("silent JSONPath forms RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16, 16]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("f".to_owned()), Some("f".to_owned())]]
+    );
 
     fixture::assert_success(&batches[2]);
     assert_eq!(

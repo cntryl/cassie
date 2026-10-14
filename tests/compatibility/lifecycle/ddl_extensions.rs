@@ -3,6 +3,7 @@ use super::*;
 mod index_contracts;
 mod pgcrypto_extension;
 mod table_forms;
+mod transactional_catalog;
 mod type_conversion;
 
 #[test]

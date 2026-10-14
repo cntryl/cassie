@@ -1,9 +1,10 @@
 //! PostgreSQL 18 CTE materialization and recursive traversal contracts for #801.
 
 use cassie::app::CassieError;
+use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::{SqlFixture, sql_fixture};
+use crate::support_sql_fixture::{SqlFixture, sql_fixture, sql_fixture_with_config};
 
 fn repeated_reference_fixture(label: &str) -> SqlFixture {
     sql_fixture(
@@ -140,6 +141,25 @@ fn should_preserve_recursive_results_with_materialized_modifier() {
             vec![Value::Int64(2)],
             vec![Value::Int64(3)],
         ]
+    );
+}
+
+#[test]
+fn should_return_recursive_results_beyond_sixty_four_steps() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.limits.cte_recursion_depth = 64;
+    let fixture = sql_fixture_with_config("issue-801-recursive-growth", &[], config);
+
+    // Act
+    let result = fixture.execute(
+        "WITH RECURSIVE sequence(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM sequence WHERE n < 128) SELECT count(*), max(n) FROM sequence",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("recursive CTE with 128 rows").rows(),
+        &[vec![Value::Int64(128), Value::Int64(128)]]
     );
 }
 

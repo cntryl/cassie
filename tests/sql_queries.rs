@@ -55,6 +55,7 @@ mod sql_queries {
     mod postgresql18_geometry;
     mod postgresql18_math_functions;
     mod postgresql18_money;
+    mod postgresql18_mutations;
     mod postgresql18_network_types;
     mod postgresql18_numeric;
     mod postgresql18_pattern_matching;

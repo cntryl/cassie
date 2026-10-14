@@ -4,6 +4,8 @@ use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 use cassie::types::Value;
 
+mod record_functions;
+
 const MAX_DOCUMENT: &[u8] = b"18446744073709551615";
 const NEIGHBOR_DOCUMENT: &[u8] = b"18446744073709551614";
 const WIDE_INTEGER_TEXT: &[u8] = b"9007199254740993";
@@ -1134,7 +1136,7 @@ fn should_expand_nested_json_table_paths_with_ordinality() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![23, 20, 23]
+        vec![23, 23, 23]
     );
     assert_eq!(
         wire::data_rows(frames),

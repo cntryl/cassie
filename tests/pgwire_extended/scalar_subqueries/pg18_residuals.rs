@@ -3,10 +3,47 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use super::setup;
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 use crate::support_sql_fixture::sql_fixture_with_config;
 use cassie::config::CassieRuntimeConfig;
+
+#[test]
+fn should_aggregate_correlated_scalar_subquery_results() {
+    // Arrange
+    let sql = "SELECT SUM((SELECT inner_row.value FROM scalar_wire_values AS inner_row \
+                   WHERE inner_row.id = outer_row.id)) AS total \
+               FROM scalar_wire_values AS outer_row";
+
+    // Act
+    let batches = run_script(
+        "issue-762-correlated-scalar-subquery-in-aggregate",
+        vec![
+            setup(),
+            Step::ThroughReady(vec![wire::simple_query_frame(sql)]),
+        ],
+    );
+    let result = &batches[1];
+
+    // Assert
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "correlated scalar-subquery aggregate ErrorResponse: {:?}",
+        result
+            .iter()
+            .filter(|frame| frame.0 == b'E')
+            .map(|frame| wire::parse_error_fields(&frame.1))
+            .collect::<Vec<_>>()
+    );
+    let description = result
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("aggregate scalar-subquery RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 20);
+    assert_eq!(wire::data_rows(result), vec![vec![Some("300".to_owned())]]);
+}
 
 #[test]
 fn should_match_quantified_comparison_operator_truth_tables() {

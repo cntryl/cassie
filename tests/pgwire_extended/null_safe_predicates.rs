@@ -1,5 +1,6 @@
 //! Literal BOOLEAN expectations over the selected existing ARRAY input packets.
 
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 use crate::support_type_codec_matrix::ARRAY_CASES;
 use crate::support_type_metadata_contract as fixture;
@@ -55,7 +56,11 @@ fn should_preserve_null_safe_array_boolean_wire_identity() {
             assert_eq!(wire::parse_row_description(payload)[0].name, label);
         }
         let body: &[u8] = if format == 0 {
-            if value { b"t" } else { b"f" }
+            if value {
+                b"t"
+            } else {
+                b"f"
+            }
         } else if value {
             &[1]
         } else {
@@ -67,4 +72,68 @@ fn should_preserve_null_safe_array_boolean_wire_identity() {
             "{name}/{format}"
         );
     }
+}
+
+#[test]
+fn should_infer_int4_parameter_type_for_null_safe_comparison_over_pgwire() {
+    // Arrange
+    let query = "SELECT $1 IS NOT DISTINCT FROM value AS same\
+                 FROM issue_798_null_safe_values WHERE id = 1";
+    let batches = run_script(
+        "issue-798-int4-null-safe-parameter-inference",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE TABLE issue_798_null_safe_values (id INT4, value INT4)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "INSERT INTO issue_798_null_safe_values VALUES (1, 7), (2, NULL)",
+            )]),
+            Step::ParseFlush(wire::parse_frame_with_types("null_safe", query, &[0])),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame("null_safe"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let parsed = &batches[2];
+    let described = &batches[3];
+
+    // Assert
+    for (name, frames) in [
+        ("CREATE TABLE", &batches[0]),
+        ("INSERT", &batches[1]),
+        ("Parse", parsed),
+        ("Describe", described),
+    ] {
+        let errors = frames
+            .iter()
+            .filter(|frame| frame.0 == b'E')
+            .map(|frame| wire::parse_error_fields(&frame.1))
+            .collect::<Vec<_>>();
+        assert!(
+            errors.is_empty(),
+            "{name} returned pgwire errors: {errors:?}"
+        );
+    }
+    let parameter_description = described
+        .iter()
+        .find(|frame| frame.0 == b't')
+        .expect("INT4 ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_description.1),
+        vec![23]
+    );
+    let result_description = described
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("Boolean RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&result_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16]
+    );
 }

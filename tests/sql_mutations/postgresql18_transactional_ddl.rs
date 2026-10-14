@@ -6,6 +6,7 @@ use cassie::types::Value;
 
 const MATERIALIZED_VIEW_NAME: &str = "issue833_transactional_materialized_view";
 
+#[path = "postgresql18_transactional_ddl/alter_rollback_visibility.rs"]
 mod alter_rollback_visibility;
 
 #[path = "postgresql18_transactional_ddl/catalog_snapshot.rs"]

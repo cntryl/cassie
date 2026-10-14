@@ -81,6 +81,32 @@ fn should_round_numeric_columns_on_insert_without_losing_exactness() {
 }
 
 #[test]
+fn should_round_numeric_values_through_a_declared_domain_column() {
+    // Arrange
+    let fixture = sql_fixture("issue-812-numeric-domain-storage", &[]);
+
+    // Act
+    fixture
+        .execute("CREATE DOMAIN issue_812_amount_domain AS NUMERIC(5, 2) CHECK (VALUE >= 0)")
+        .expect("create a constrained numeric domain");
+    fixture
+        .execute("CREATE TABLE issue_812_domain_amounts (amount issue_812_amount_domain)")
+        .expect("create a table with the numeric domain column");
+    fixture
+        .execute("INSERT INTO issue_812_domain_amounts VALUES ('1.245')")
+        .expect("store a rounded numeric domain value");
+    let result = fixture.execute(
+        "SELECT amount::TEXT, amount::NUMERIC = CAST('1.25' AS NUMERIC) FROM issue_812_domain_amounts",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("stored domain numeric typmod value").rows(),
+        &[vec![Value::String("1.25".to_owned()), Value::Bool(true)]]
+    );
+}
+
+#[test]
 fn should_accept_exponent_notation_without_rounding_to_float8() {
     // Arrange
     let fixture = sql_fixture("issue-812-numeric-exponent-input", &[]);

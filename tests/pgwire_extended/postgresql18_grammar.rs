@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 use tokio::io::AsyncWriteExt;
 
@@ -118,6 +118,46 @@ fn should_truncate_identifiers_at_the_utf8_safe_postgres_byte_limit() {
     assert_eq!(
         wire::data_rows(result),
         vec![vec![Some("1".to_owned()), Some("2".to_owned())]]
+    );
+}
+
+#[test]
+fn should_decode_unicode_escapes_with_a_custom_escape_character() {
+    // Arrange
+    let batches = run_script(
+        "issue-796-custom-unicode-escape-character",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT U&'a!0062c' UESCAPE '!', U&'d!!t' UESCAPE '!'",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    let errors = result
+        .iter()
+        .filter(|frame| frame.0 == b'E')
+        .map(|frame| wire::parse_error_fields(&frame.1))
+        .collect::<Vec<_>>();
+    assert!(
+        errors.is_empty(),
+        "custom Unicode escape query errors: {errors:?}"
+    );
+    let description = result
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("custom Unicode escape RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 25]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("abc".to_owned()), Some("d!t".to_owned())]]
     );
 }
 

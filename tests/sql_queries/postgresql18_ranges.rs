@@ -38,6 +38,34 @@ fn should_canonicalize_builtin_ranges_with_adjacent_multiranges() {
 }
 
 #[test]
+fn should_use_numeric_subtype_operators_for_custom_ranges() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-custom-numeric-range", &[]);
+
+    // Act
+    fixture
+        .execute("CREATE TYPE issue_905_numeric_range AS RANGE (subtype = NUMERIC)")
+        .expect("create a custom range over numeric");
+    let result = fixture.execute(
+        "SELECT '[1.20,3.40]'::issue_905_numeric_range @> 2.5::NUMERIC, \
+                '[1.20,3.40]'::issue_905_numeric_range @> 3.40::NUMERIC, \
+                '[1.20,3.40]'::issue_905_numeric_range = '[1.2,3.4]'::issue_905_numeric_range",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("custom numeric range subtype comparisons")
+            .rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true)
+        ]]
+    );
+}
+
+#[test]
 fn should_handle_unbounded_empty_inclusive_range_boundaries() {
     // Arrange
     let fixture = sql_fixture("issue-905-range-boundaries", &[]);

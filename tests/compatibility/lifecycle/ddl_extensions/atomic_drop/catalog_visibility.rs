@@ -190,3 +190,65 @@ fn should_hide_uncommitted_alter_from_other_sessions() {
         assert_eq!(committed_value, "before");
     });
 }
+
+#[test]
+fn should_hide_uncommitted_table_drop_from_other_sessions_until_rollback() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("transactional_drop_catalog_visibility").await;
+        let (owner, owner_connection) = server.connect().await;
+        let (observer, observer_connection) = server.connect().await;
+        execute_statements(
+            &owner,
+            &[
+                "CREATE TABLE compat_drop_catalog_visibility \
+                 (id INT PRIMARY KEY, value TEXT NOT NULL)",
+                "INSERT INTO compat_drop_catalog_visibility VALUES (1, 'retained')",
+            ],
+        )
+        .await
+        .expect("create and seed the table before the transactional DROP");
+        owner
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin the transaction that will drop the table");
+
+        // Act
+        owner
+            .batch_execute("DROP TABLE compat_drop_catalog_visibility")
+            .await
+            .expect("drop the table inside the open transaction");
+        let observer_relations: i64 = observer
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_class \
+                 WHERE relname = 'compat_drop_catalog_visibility' AND relkind = 'r'",
+                &[],
+            )
+            .await
+            .expect("inspect table catalog visibility from another session")
+            .try_get(0)
+            .expect("observer relation count before rollback");
+        owner
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("roll back the uncommitted table drop");
+        let restored_row = observer
+            .query_one(
+                "SELECT id, value FROM compat_drop_catalog_visibility ORDER BY id",
+                &[],
+            )
+            .await
+            .expect("read the table after rollback restores it");
+
+        // Assert
+        assert_eq!(observer_relations, 1);
+        assert_eq!(restored_row.get::<_, i32>(0), 1);
+        assert_eq!(restored_row.get::<_, String>(1), "retained");
+
+        drop((owner, observer));
+        server.shutdown(owner_connection).await;
+        observer_connection.abort();
+        let _ = observer_connection.await;
+    });
+}

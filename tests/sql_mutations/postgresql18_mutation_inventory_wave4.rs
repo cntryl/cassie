@@ -10,9 +10,13 @@ use tokio_postgres::{Client, NoTls};
 
 use super::support_sql_fixture::sql_fixture;
 
+#[path = "postgresql18_mutation_inventory_wave4/data_modifying_cte_wire_atomicity.rs"]
 mod data_modifying_cte_wire_atomicity;
+#[path = "postgresql18_mutation_inventory_wave4/merge_cardinality_atomicity.rs"]
 mod merge_cardinality_atomicity;
+#[path = "postgresql18_mutation_inventory_wave4/truncate_restart_identity_commit.rs"]
 mod truncate_restart_identity_commit;
+#[path = "postgresql18_mutation_inventory_wave4/update_returning_descriptor.rs"]
 mod update_returning_descriptor;
 
 struct PgwireFixture {

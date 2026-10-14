@@ -67,6 +67,36 @@ fn should_convert_parameterized_json_documents_to_declared_record_types() {
 }
 
 #[test]
+fn should_expand_json_table_from_json_input() {
+    // Arrange
+    let sql = r#"SELECT id, payload
+        FROM JSON_TABLE(
+            '[{"id":7,"payload":{"n":1}},{"id":9,"payload":null}]'::JSON,
+            '$[*]' COLUMNS (
+                id INTEGER PATH '$.id',
+                payload JSON FORMAT JSON PATH '$.payload'
+            )
+        ) AS rows
+        ORDER BY id"#;
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-json-table-json-input", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(column_type_oids(frames), vec![23, 114]);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![Some("7".to_owned()), Some("{\"n\": 1}".to_owned())],
+            vec![Some("9".to_owned()), Some("null".to_owned())],
+        ]
+    );
+}
+
+#[test]
 fn should_distinguish_json_populate_record_missing_from_json_null() {
     // Arrange
     let single = fixture::execute_cycle(

@@ -4,10 +4,15 @@ use super::support_sql_fixture::sql_fixture;
 use cassie::app::Cassie;
 use cassie::types::Value;
 
+#[path = "type_catalog_discovery/identifier_residuals.rs"]
 mod identifier_residuals;
+#[path = "type_catalog_discovery/oid_identity_wave.rs"]
 mod oid_identity_wave;
+#[path = "type_catalog_discovery/text_search_identifier_lookup_wave.rs"]
 mod text_search_identifier_lookup_wave;
+#[path = "type_catalog_discovery/user_function_overload_resolution.rs"]
 mod user_function_overload_resolution;
+#[path = "type_catalog_discovery/vector_catalog_contracts.rs"]
 mod vector_catalog_contracts;
 
 fn type_row(oid: i64, name: &str, length: i64, element: i64) -> Vec<Value> {

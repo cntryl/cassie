@@ -8,6 +8,7 @@ mod pgwire_parameter_occurrences;
 #[path = "pgwire_extended/parameter_slot_completeness.rs"]
 mod pgwire_parameter_slot_completeness;
 mod pgwire_extended {
+    mod merge_row_images;
     mod postgresql18_binary_bytea_compat;
     mod postgresql18_cte_compat;
     mod postgresql18_geometry_compat;
@@ -24,7 +25,6 @@ mod pgwire_extended {
     mod postgresql18_text_compat;
     mod postgresql18_uuid_hash_lsn_compat;
     mod postgresql18_xml_compat;
-    mod merge_row_images;
     mod record_functions;
     mod scalar_subqueries;
 }

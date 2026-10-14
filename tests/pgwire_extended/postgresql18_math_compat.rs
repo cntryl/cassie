@@ -1,6 +1,6 @@
 //! PostgreSQL 18 math-function descriptors and parameter binding tracked by #813.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 #[test]
@@ -239,15 +239,183 @@ fn should_return_positive_zero_for_negative_float8_sign_in_binary_format() {
 }
 
 #[test]
+fn should_describe_random_overloads_with_postgresql_result_oids() {
+    // Arrange
+    let sql = "SELECT RANDOM() AS float8_value, RANDOM(1, 10) AS int4_value, RANDOM(1::BIGINT, 10::BIGINT) AS int8_value, RANDOM(1::NUMERIC, 2::NUMERIC) AS numeric_value, RANDOM_NORMAL(4.5, 0.0) AS normal_value, RANDOM_NORMAL(4.5, NULL::FLOAT8) AS null_normal_value";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("postgresql18-random-result-oids", steps);
+
+    // Assert
+    let frames = &batches[0];
+    assert_eq!(
+        wire::error_code(frames),
+        None,
+        "wire error fields: {:?}",
+        frames
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("random overload RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size))
+            .collect::<Vec<_>>(),
+        vec![(701, 8), (23, 4), (20, 8), (1700, -1), (701, 8), (701, 8)]
+    );
+    let rows = wire::data_rows(frames);
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(row.len(), 6);
+    let random_float8 = row[0]
+        .as_deref()
+        .expect("random float8 value")
+        .parse::<f64>()
+        .expect("random float8 parses");
+    assert!((0.0..1.0).contains(&random_float8));
+    let random_int4 = row[1]
+        .as_deref()
+        .expect("random int4 value")
+        .parse::<i32>()
+        .expect("random int4 parses");
+    assert!((1..=10).contains(&random_int4));
+    let random_int8 = row[2]
+        .as_deref()
+        .expect("random int8 value")
+        .parse::<i64>()
+        .expect("random int8 parses");
+    assert!((1..=10).contains(&random_int8));
+    let random_numeric = row[3]
+        .as_deref()
+        .expect("random numeric value")
+        .parse::<f64>()
+        .expect("random numeric parses");
+    assert!((1.0..=2.0).contains(&random_numeric));
+    assert_eq!(row[4].as_deref(), Some("4.5"));
+    assert_eq!(row[5], None);
+}
+
+#[test]
+fn should_infer_float8_random_normal_parameters_with_zero_deviation() {
+    // Arrange
+    let statement = "random_normal_parameters";
+    let portal = "random_normal_zero_deviation";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            statement,
+            "SELECT RANDOM_NORMAL($1, $2) AS normal_value",
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(portal, statement, &["4.5", "0.0"]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-random-normal-parameter-contract", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let parameter_description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("random_normal ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_description.1),
+        vec![701, 701]
+    );
+    let statement_description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("random_normal statement RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&statement_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![701]
+    );
+    assert_eq!(wire::error_code(&batches[2]), None);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("4.5".to_owned())]]
+    );
+}
+
+#[test]
+fn should_preserve_float8_zero_sign_for_round_trunc_ceil_abs() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let statement = "float8_signed_zero_math";
+    let portal = "float8_signed_zero_math_binary";
+    let sql = "SELECT ROUND(CAST(-0.1 AS FLOAT8)), TRUNC(CAST(-0.1 AS FLOAT8)), CEIL(CAST(-0.1 AS FLOAT8)), ABS(CAST(-0.0 AS FLOAT8))";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(statement, sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(portal, statement, &[], &[], &[1]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-float8-signed-zero-math", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(&batches[1]), None);
+    let description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("signed-zero math RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![(701, 8, 1); 4]
+    );
+    let mut expected = 4_i16.to_be_bytes().to_vec();
+    for bits in [
+        [0x80, 0, 0, 0, 0, 0, 0, 0],
+        [0x80, 0, 0, 0, 0, 0, 0, 0],
+        [0x80, 0, 0, 0, 0, 0, 0, 0],
+        [0; 8],
+    ] {
+        expected.extend_from_slice(&8_i32.to_be_bytes());
+        expected.extend_from_slice(&bits);
+    }
+    assert_eq!(fixture::data_row_payloads(&batches[1]), vec![expected]);
+}
+
+#[test]
 fn should_report_postgresql_math_error_sqlstates() {
     // Arrange
     let cases = [
         ("SELECT POWER(-1.0, 0.5)", "2201F"),
         ("SELECT WIDTH_BUCKET(1, 1, 2, 0)", "2201G"),
+        ("SELECT SQRT(CAST(-1 AS FLOAT8))", "2201F"),
         (
             "SELECT POWER(CAST(1e308 AS FLOAT), CAST(2.0 AS FLOAT))",
             "22003",
         ),
+        ("SELECT EXP(CAST(1000 AS FLOAT8))", "22003"),
         ("SELECT LN(0.0)", "2201E"),
         ("SELECT SETSEED(2.0)", "22023"),
     ];
@@ -304,9 +472,7 @@ fn should_reject_two_float8_argument_log_with_undefined_function_sqlstate() {
             .map(|(_, payload)| wire::parse_error_fields(payload))
             .collect::<Vec<_>>()
     );
-    assert!(
-        !batches[0]
-            .iter()
-            .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C'))
-    );
+    assert!(!batches[0]
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
 }

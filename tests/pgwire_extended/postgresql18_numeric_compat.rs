@@ -1,6 +1,6 @@
 //! PostgreSQL 18 NUMERIC OID, typmod and codec contracts tracked by #812.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 #[test]
@@ -447,4 +447,56 @@ fn should_encode_numeric_special_values_in_binary() {
         fixture::data_row_payloads(&batches[2]),
         vec![fixture::one_field_row(&numeric_nan_binary)]
     );
+}
+
+#[test]
+fn should_encode_both_numeric_infinity_signs_in_binary_format() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let positive_infinity = [0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x20];
+    let negative_infinity = [0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x20];
+    let cases = [
+        (
+            "numeric_positive_infinity",
+            "SELECT 'Infinity'::NUMERIC AS value",
+            &positive_infinity[..],
+        ),
+        (
+            "numeric_negative_infinity",
+            "SELECT '-Infinity'::NUMERIC AS value",
+            &negative_infinity[..],
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (index, (statement, sql, _)) in cases.iter().enumerate() {
+        let portal = format!("numeric_infinity_portal_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame(statement, sql)));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(&portal, statement, &[], &[], &[1]),
+            wire::describe_portal_frame(&portal),
+            wire::execute_frame(&portal),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("issue-812-numeric-infinity-binary", steps);
+
+    // Assert
+    for (index, (statement, _, expected)) in cases.into_iter().enumerate() {
+        let result = &batches[index * 2 + 1];
+        assert_eq!(wire::error_code(result), None, "{statement}");
+        let description = result
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("numeric infinity RowDescription");
+        let column = &wire::parse_row_description(&description.1)[0];
+        assert_eq!((column.type_oid, column.format_code), (1700, 1));
+        assert_eq!(
+            fixture::data_row_payloads(result),
+            vec![fixture::one_field_row(expected)],
+            "{statement} binary payload"
+        );
+    }
 }

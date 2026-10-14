@@ -1,6 +1,6 @@
 //! PostgreSQL 18 range and multirange wire identities tracked by #905.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 #[test]
@@ -187,5 +187,52 @@ fn should_return_text_for_binary_int4range_parameters() {
     assert_eq!(
         wire::data_rows(result),
         vec![vec![Some("[1,5)".to_owned())]]
+    );
+}
+
+#[test]
+fn should_decode_binary_int4multirange_parameters() {
+    // Arrange
+    let multirange_binary = [
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x11, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+        0x00, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x05,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "int4multirange_binary_input",
+            "SELECT $1::text AS value",
+            &[4_451],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "int4multirange_binary_input_portal",
+                "int4multirange_binary_input",
+                &[1],
+                &[Some(&multirange_binary)],
+                &[0],
+            ),
+            wire::describe_portal_frame("int4multirange_binary_input_portal"),
+            wire::execute_frame("int4multirange_binary_input_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-905-int4multirange-binary-input", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("int4multirange binary-input RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!((column.type_oid, column.format_code), (25, 0));
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("{[1,5)}".to_owned())]]
     );
 }

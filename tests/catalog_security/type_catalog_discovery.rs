@@ -476,6 +476,22 @@ fn should_resolve_a_builtin_function_through_to_regproc() {
 }
 
 #[test]
+fn should_report_a_resolved_scalar_type_with_pg_typeof() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-pg-typeof-resolution", &[]);
+    fixture.cassie.startup().expect("startup");
+    let expected = vec![vec![Value::String("integer".to_owned())]];
+
+    // Act
+    let selected = fixture
+        .execute("SELECT pg_typeof(1)::text")
+        .expect("resolved scalar type name");
+
+    // Assert
+    assert_eq!(selected.rows(), expected);
+}
+
+#[test]
 fn should_advertise_pgcrypto_in_available_extension_catalog() {
     // Arrange
     let fixture = sql_fixture("issue-843-pgcrypto-catalog-identity", &[]);

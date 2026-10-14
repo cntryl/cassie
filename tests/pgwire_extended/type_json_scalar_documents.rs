@@ -848,6 +848,39 @@ fn should_preserve_json_null_when_expanding_jsonb_array_elements_text() {
 }
 
 #[test]
+fn should_preserve_jsonb_values_when_expanding_array_elements() {
+    // Arrange
+    let sql = "SELECT jsonb_array_elements('[1,null,\"x\"]'::jsonb)";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-829-jsonb-array-elements", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSONB array-element RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![3_802]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![Some("1".to_owned())],
+            vec![Some("null".to_owned())],
+            vec![Some("\"x\"".to_owned())],
+        ]
+    );
+}
+
+#[test]
 fn should_distinguish_json_null_from_missing_or_sql_null_with_jsonb_operators() {
     // Arrange
     let sql = "SELECT ('{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB -> 'present'), ('{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB -> 'missing'), '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ->> 'present', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB #> '{nested,x}', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB #>> '{nested,x}', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ? 'present', '{\"present\":null,\"n\":2,\"nested\":{\"x\":true}}'::JSONB ? 'missing'";

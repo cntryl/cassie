@@ -1,6 +1,6 @@
 //! PostgreSQL 18 temporal descriptors, codecs, settings, and errors tracked by #814.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 fn binary_row(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<u8>> {
@@ -170,6 +170,79 @@ fn should_return_postgresql_binary_temporal_encodings() {
             .concat(),
         ]
     );
+}
+
+#[test]
+fn should_decode_temporal_infinity_text_parameters() {
+    // Arrange
+    let cases = [
+        ("date_positive_infinity", 1_082, "infinity", "infinity"),
+        ("date_negative_infinity", 1_082, "-infinity", "-infinity"),
+        ("timestamp_positive_infinity", 1_114, "infinity", "infinity"),
+        (
+            "timestamp_negative_infinity",
+            1_114,
+            "-infinity",
+            "-infinity",
+        ),
+        (
+            "timestamptz_positive_infinity",
+            1_184,
+            "infinity",
+            "infinity",
+        ),
+        (
+            "timestamptz_negative_infinity",
+            1_184,
+            "-infinity",
+            "-infinity",
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (statement, oid, input, _) in &cases {
+        let sql = "SELECT $1 AS value";
+        let portal = format!("{statement}_portal");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            sql,
+            &[*oid],
+        )));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame(&portal, statement, &[*input]),
+            wire::describe_portal_frame(&portal),
+            wire::execute_frame(&portal),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("issue-814-temporal-infinity-text-input", steps);
+
+    // Assert
+    for (index, (statement, oid, _, expected)) in cases.into_iter().enumerate() {
+        let result = &batches[index * 2 + 1];
+        assert_eq!(
+            wire::error_code(result),
+            None,
+            "{statement}: {:?}",
+            result
+                .iter()
+                .filter(|(tag, _)| *tag == b'E')
+                .map(|(_, payload)| wire::parse_error_fields(payload))
+                .collect::<Vec<_>>()
+        );
+        let description = result
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("temporal infinity RowDescription");
+        let column = &wire::parse_row_description(&description.1)[0];
+        assert_eq!((column.type_oid, column.format_code), (oid, 0));
+        assert_eq!(
+            wire::data_rows(result),
+            vec![vec![Some(expected.to_owned())]],
+            "{statement} text value"
+        );
+    }
 }
 
 #[test]

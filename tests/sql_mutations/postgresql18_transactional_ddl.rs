@@ -84,6 +84,9 @@ fn should_restore_dropped_table_after_transaction_rollback() {
 
 #[test]
 fn should_keep_enum_output_fresh_while_catalog_scan_uses_transaction_snapshot() {
+    // This #833 visibility scenario depends on #827 enum DDL. Cassie currently
+    // rejects CREATE TYPE before either session reaches the snapshot checks,
+    // so the enum/catalog visibility assertions remain masked by that gap.
     // Arrange
     let fixture = sql_fixture("issue-833-enum-snapshot-publication", &[]);
     let reader = fixture.session.clone();

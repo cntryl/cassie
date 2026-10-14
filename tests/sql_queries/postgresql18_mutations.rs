@@ -203,3 +203,31 @@ fn should_assign_conflicting_columns_from_a_row_constructor() {
         ]]
     );
 }
+
+#[test]
+fn should_match_an_explicit_operator_class_in_a_conflict_target() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-825-conflict-target-opclass",
+        &[
+            "CREATE TABLE conflict_opclass_target (email TEXT UNIQUE, note TEXT)",
+            "INSERT INTO conflict_opclass_target VALUES ('a', 'old')",
+        ],
+    );
+
+    // Act
+    let changed = fixture.execute(
+        "INSERT INTO conflict_opclass_target VALUES ('a', 'new') ON CONFLICT (email pg_catalog.text_ops) DO UPDATE SET note = EXCLUDED.note RETURNING email, note",
+    );
+
+    // Assert
+    assert_eq!(
+        changed
+            .expect("explicit operator-class conflict target")
+            .rows(),
+        &[vec![
+            Value::String("a".to_owned()),
+            Value::String("new".to_owned()),
+        ]]
+    );
+}

@@ -4,7 +4,7 @@ use cassie::app::CassieError;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::{SqlFixture, sql_fixture, sql_fixture_with_config};
+use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
 
 fn repeated_reference_fixture(label: &str) -> SqlFixture {
     sql_fixture(
@@ -409,6 +409,39 @@ fn should_attach_a_non_modifying_cte_to_insert() {
 }
 
 #[test]
+fn should_attach_a_non_modifying_cte_to_update() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-834-cte-before-update",
+        &[
+            "CREATE TABLE issue_834_update_target (id INT PRIMARY KEY, payload TEXT)",
+            "INSERT INTO issue_834_update_target VALUES (1, 'old'), (2, 'keep')",
+        ],
+    );
+
+    // Act
+    let updated = fixture.execute(
+        "WITH selected AS (SELECT CAST(1 AS INT) AS id) \
+         UPDATE issue_834_update_target SET payload = 'changed' \
+         WHERE id IN (SELECT id FROM selected) RETURNING id, payload",
+    );
+    let stored = fixture.execute("SELECT id, payload FROM issue_834_update_target ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        updated.expect("non-modifying CTE before UPDATE").rows(),
+        &[vec![Value::Int64(1), Value::String("changed".to_owned())]]
+    );
+    assert_eq!(
+        stored.expect("updated and untouched rows").rows(),
+        &[
+            vec![Value::Int64(1), Value::String("changed".to_owned())],
+            vec![Value::Int64(2), Value::String("keep".to_owned())],
+        ]
+    );
+}
+
+#[test]
 fn should_attach_a_non_modifying_cte_to_delete() {
     // Arrange
     let fixture = sql_fixture(
@@ -516,15 +549,16 @@ fn should_select_rows_from_a_merge_returning_cte() {
         &[
             "CREATE TABLE issue_834_merge_cte_target (id INT PRIMARY KEY, payload TEXT)",
             "INSERT INTO issue_834_merge_cte_target VALUES (1, 'old')",
+            "CREATE TABLE issue_834_merge_cte_source (id INT, payload TEXT)",
+            "INSERT INTO issue_834_merge_cte_source VALUES (1, 'updated'), (2, 'inserted')",
         ],
     );
 
     // Act
     let merged = fixture.execute(
-        "WITH incoming(id,payload) AS (VALUES (1,'updated'),(2,'inserted')), \
-         changed AS ( \
+        "WITH changed AS ( \
              MERGE INTO issue_834_merge_cte_target AS target \
-             USING incoming AS source ON target.id = source.id \
+             USING issue_834_merge_cte_source AS source ON target.id = source.id \
              WHEN MATCHED THEN UPDATE SET payload = source.payload \
              WHEN NOT MATCHED THEN INSERT (id,payload) VALUES (source.id, source.payload) \
              RETURNING target.id, target.payload \

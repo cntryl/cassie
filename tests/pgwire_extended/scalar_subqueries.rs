@@ -1,6 +1,6 @@
 //! PostgreSQL Parse, Describe, Bind and Execute behavior for #762 subqueries.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 fn setup() -> Step {
@@ -70,6 +70,47 @@ fn should_filter_rows_with_a_scalar_subquery_predicate() {
     // Assert
     assert_eq!(wire::error_code(result), None);
     assert_eq!(wire::data_rows(result), vec![vec![Some("1".into())]]);
+}
+
+#[test]
+fn should_return_correlated_scalar_values_for_each_outer_row() {
+    // Arrange
+    let batches = run_script(
+        "issue-762-correlated-scalar-projection-wire",
+        vec![
+            setup(),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT outer_row.id, \
+                 (SELECT inner_row.value FROM scalar_wire_values AS inner_row \
+                  WHERE inner_row.id = outer_row.id + 1) AS next_value \
+                 FROM scalar_wire_values AS outer_row ORDER BY outer_row.id",
+            )]),
+        ],
+    );
+
+    // Act
+    let result = &batches[1];
+
+    // Assert
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("correlated scalar projection RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![
+            vec![Some("1".into()), Some("200".into())],
+            vec![Some("2".into()), None],
+        ]
+    );
 }
 
 #[test]

@@ -4,7 +4,7 @@ use cassie::app::CassieError;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
+use crate::support_sql_fixture::{SqlFixture, sql_fixture, sql_fixture_with_config};
 
 fn repeated_reference_fixture(label: &str) -> SqlFixture {
     sql_fixture(
@@ -231,6 +231,37 @@ fn should_order_recursive_rows_by_breadth_first_search_sequence() {
 }
 
 #[test]
+fn should_order_depth_first_search_by_each_declared_key() {
+    // Arrange
+    let fixture = sql_fixture("issue-801-search-depth-first-multiple-keys", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "WITH RECURSIVE tree(parent, node, priority) AS (\
+             VALUES (NULL::INT4, 1::INT4, 0::INT4), (1, 2, 2), (1, 3, 1), (2, 4, 1), (3, 5, 2)\
+         ), walk(node, priority) AS (\
+             SELECT node, priority FROM tree WHERE parent IS NULL\
+             UNION ALL\
+             SELECT child.node, child.priority\
+             FROM tree AS child JOIN walk AS parent ON child.parent = parent.node\
+         ) SEARCH DEPTH FIRST BY priority, node SET sequence\
+         SELECT node FROM walk ORDER BY sequence",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("multi-column depth-first SEARCH").rows(),
+        &[
+            vec![Value::Int64(1)],
+            vec![Value::Int64(3)],
+            vec![Value::Int64(5)],
+            vec![Value::Int64(2)],
+            vec![Value::Int64(4)],
+        ]
+    );
+}
+
+#[test]
 fn should_stop_recursion_after_marking_cycle_rows() {
     // Arrange
     let fixture = sql_fixture(
@@ -281,6 +312,66 @@ fn should_emit_custom_cycle_mark_values() {
             vec![Value::Int64(1), Value::String("clear".to_owned())],
             vec![Value::Int64(1), Value::String("cycle".to_owned())],
             vec![Value::Int64(2), Value::String("clear".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_detect_cycles_only_after_all_declared_keys_repeat() {
+    // Arrange
+    let fixture = sql_fixture("issue-801-cycle-multiple-keys", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "WITH RECURSIVE edges(source_node, source_label, target_node, target_label) AS (\
+             VALUES (1::INT4, 'A'::TEXT, 2::INT4, 'B'::TEXT),\
+                    (2::INT4, 'B'::TEXT, 1::INT4, 'C'::TEXT),\
+                    (1::INT4, 'C'::TEXT, 2::INT4, 'D'::TEXT),\
+                    (2::INT4, 'D'::TEXT, 1::INT4, 'A'::TEXT)\
+         ), walk(node, label, depth) AS (\
+             SELECT 1::INT4, 'A'::TEXT, 0::INT4\
+             UNION ALL\
+             SELECT edge.target_node, edge.target_label, parent.depth + 1\
+             FROM edges AS edge JOIN walk AS parent\
+               ON edge.source_node = parent.node AND edge.source_label = parent.label\
+         ) CYCLE node, label SET is_cycle USING path\
+         SELECT node, label, depth, is_cycle FROM walk ORDER BY depth",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("CYCLE over two declared keys").rows(),
+        &[
+            vec![
+                Value::Int64(1),
+                Value::String("A".to_owned()),
+                Value::Int64(0),
+                Value::Bool(false),
+            ],
+            vec![
+                Value::Int64(2),
+                Value::String("B".to_owned()),
+                Value::Int64(1),
+                Value::Bool(false),
+            ],
+            vec![
+                Value::Int64(1),
+                Value::String("C".to_owned()),
+                Value::Int64(2),
+                Value::Bool(false),
+            ],
+            vec![
+                Value::Int64(2),
+                Value::String("D".to_owned()),
+                Value::Int64(3),
+                Value::Bool(false),
+            ],
+            vec![
+                Value::Int64(1),
+                Value::String("A".to_owned()),
+                Value::Int64(4),
+                Value::Bool(true),
+            ],
         ]
     );
 }

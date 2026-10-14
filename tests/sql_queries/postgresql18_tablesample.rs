@@ -1,8 +1,9 @@
 //! PostgreSQL 18 TABLESAMPLE contracts tracked by #800.
 
 use cassie::types::Value;
+use cassie::{app::CassieError, config::CassieRuntimeConfig};
 
-use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+use crate::support_sql_fixture::{SqlFixture, sql_fixture, sql_fixture_with_config};
 
 fn sample_fixture(label: &str) -> SqlFixture {
     let rows = (1..=128)
@@ -17,6 +18,12 @@ fn sample_fixture(label: &str) -> SqlFixture {
             insert.as_str(),
         ],
     )
+}
+
+fn current_accounted_memory_bytes(fixture: &SqlFixture) -> u64 {
+    fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+        .as_u64()
+        .expect("query memory metric")
 }
 
 #[test]
@@ -312,4 +319,36 @@ fn should_hide_uncommitted_rows_from_other_table_sample_sessions() {
             .rows(),
         &[vec![Value::Int64(1)]]
     );
+}
+
+#[test]
+fn should_reject_an_oversized_sample_result_without_retaining_query_memory() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.max_result_rows = 64;
+    let rows = (1..=128)
+        .map(|id| format!("({id})"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let insert = format!("INSERT INTO issue_800_sample_rows VALUES {rows}");
+    let fixture = sql_fixture_with_config(
+        "issue-800-tablesample-result-limit",
+        &[
+            "CREATE TABLE issue_800_sample_rows (id BIGINT)",
+            insert.as_str(),
+        ],
+        config,
+    );
+    let memory_before = current_accounted_memory_bytes(&fixture);
+
+    // Act
+    let result = fixture
+        .execute("SELECT id FROM issue_800_sample_rows TABLESAMPLE BERNOULLI (100) ORDER BY id");
+
+    // Assert
+    assert!(
+        matches!(result, Err(CassieError::ResourceLimit(_))),
+        "a sample exceeding max_result_rows must fail as a resource limit: {result:?}"
+    );
+    assert_eq!(current_accounted_memory_bytes(&fixture), memory_before);
 }

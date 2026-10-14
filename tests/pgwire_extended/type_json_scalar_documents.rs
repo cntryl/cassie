@@ -1435,6 +1435,80 @@ fn should_omit_sql_null_values_in_unique_jsonb_object_aggregation() {
 }
 
 #[test]
+fn should_preserve_json_object_types_for_strict_unique_forms() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_811_json_object_variants (key TEXT, value INT)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_811_json_object_variants VALUES ('a', 1), ('b', NULL)",
+            Vec::new(),
+        ),
+    ];
+    let cases = [
+        (
+            "json_object_agg_strict",
+            "SELECT json_object_agg_strict(key, value) FROM issue_811_json_object_variants",
+            114,
+            "{ \"a\" : 1 }",
+        ),
+        (
+            "json_object_agg_unique",
+            "SELECT json_object_agg_unique(key, value) FROM issue_811_json_object_variants",
+            114,
+            "{ \"a\" : 1, \"b\" : null }",
+        ),
+        (
+            "jsonb_object_agg_unique",
+            "SELECT jsonb_object_agg_unique(key, value) FROM issue_811_json_object_variants",
+            3_802,
+            "{\"a\": 1, \"b\": null}",
+        ),
+        (
+            "json_object_agg_unique_strict",
+            "SELECT json_object_agg_unique_strict(key, value) FROM issue_811_json_object_variants",
+            114,
+            "{ \"a\" : 1 }",
+        ),
+    ];
+    let cycles = cases
+        .iter()
+        .map(|(_, sql, _, _)| fixture::execute_cycle(sql, None, 0, true))
+        .collect();
+
+    // Act
+    let batches = fixture::run_cycles("issue-811-json-object-strict-unique", &setup, cycles);
+
+    // Assert
+    let mut mismatches = Vec::new();
+    for ((name, _, expected_oid, expected_value), frames) in cases.iter().zip(&batches) {
+        if let Some(code) = wire::error_code(frames) {
+            mismatches.push(format!("{name} returned SQLSTATE {code}"));
+            continue;
+        }
+        let Some(description) = frames.iter().find(|(tag, _)| *tag == b'T') else {
+            mismatches.push(format!("{name} returned no RowDescription"));
+            continue;
+        };
+        let actual_oid = wire::parse_row_description(&description.1)[0].type_oid;
+        if actual_oid != *expected_oid {
+            mismatches.push(format!("{name} returned type OID {actual_oid}"));
+        }
+        let expected_rows = vec![vec![Some((*expected_value).to_owned())]];
+        let actual_rows = wire::data_rows(frames);
+        if actual_rows != expected_rows {
+            mismatches.push(format!("{name} returned rows {actual_rows:?}"));
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "aggregate mismatches: {mismatches:?}"
+    );
+}
+
+#[test]
 fn should_match_any_jsonb_object_key_from_a_text_array() {
     // Arrange
     let setup = [

@@ -703,6 +703,39 @@ fn should_aggregate_array_values_into_a_higher_dimension_array() {
 }
 
 #[test]
+fn should_distinct_array_aggregate_inputs_before_ordering() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE issue_811_distinct_array_inputs (value INT)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_811_distinct_array_inputs VALUES (2), (1), (2), (3)",
+            Vec::new(),
+        ),
+    ];
+    let cycle = fixture::execute_cycle(
+        "SELECT array_agg(DISTINCT value ORDER BY value DESC) FROM issue_811_distinct_array_inputs",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-811-distinct-array-aggregate", &setup, vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (1_007, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("{3,2,1}".to_owned())]]
+    );
+}
+
+#[test]
 fn should_canonicalize_string_backed_array_text_elements_before_direct_output() {
     // Arrange
     let cases: [(i32, &[u8], &[u8]); 11] = [

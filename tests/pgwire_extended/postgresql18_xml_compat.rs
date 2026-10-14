@@ -37,6 +37,37 @@ fn binary_data_rows(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<Option<Vec<u8>>>> {
         .collect()
 }
 
+fn xml_array_binary_payload(values: &[Option<&str>]) -> Vec<u8> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(&1_i32.to_be_bytes());
+    let has_null = if values.iter().any(Option::is_none) {
+        1_i32
+    } else {
+        0_i32
+    };
+    payload.extend_from_slice(&has_null.to_be_bytes());
+    payload.extend_from_slice(&142_i32.to_be_bytes());
+    payload.extend_from_slice(
+        &i32::try_from(values.len())
+            .expect("XML array length should fit i32")
+            .to_be_bytes(),
+    );
+    payload.extend_from_slice(&1_i32.to_be_bytes());
+    for value in values {
+        if let Some(value) = value {
+            payload.extend_from_slice(
+                &i32::try_from(value.len())
+                    .expect("XML value length should fit i32")
+                    .to_be_bytes(),
+            );
+            payload.extend_from_slice(value.as_bytes());
+        } else {
+            payload.extend_from_slice(&(-1_i32).to_be_bytes());
+        }
+    }
+    payload
+}
+
 #[test]
 fn should_cast_xml_text_to_a_document_with_postgresql_identity() {
     // Arrange
@@ -235,4 +266,206 @@ fn should_report_invalid_xpath_sqlstate_for_xpath_entrypoints() {
             vec![vec![Some(expected.to_owned())]]
         );
     }
+}
+
+#[test]
+fn should_preserve_xml_array_binary_identity() {
+    // Arrange
+    let expected = xml_array_binary_payload(&[Some("<a/>"), None, Some("<b/>")]);
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "xml_array_binary_input",
+            "SELECT $1::xml[] AS documents",
+            &[143],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "xml_array_binary_input_portal",
+                "xml_array_binary_input",
+                &[1],
+                &[Some(expected.as_slice())],
+                &[1],
+            ),
+            wire::describe_portal_frame("xml_array_binary_input_portal"),
+            wire::execute_frame("xml_array_binary_input_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-906-xml-array-binary-identity", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("XML array RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (
+            column.type_oid,
+            column.type_size,
+            column.type_mod,
+            column.format_code
+        ),
+        (143, -1, -1, 1)
+    );
+    assert_eq!(binary_data_rows(result), vec![vec![Some(expected)]]);
+}
+
+#[test]
+fn should_apply_xmloption_cast_rules() {
+    // Arrange
+    let content_cast = "SELECT 'before<a/>after<b/>'::xml AS fragment";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET xmloption = DOCUMENT")]),
+        Step::ThroughReady(vec![wire::simple_query_frame(content_cast)]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SET xmloption = CONTENT")]),
+        Step::ThroughReady(vec![wire::simple_query_frame(content_cast)]),
+    ];
+
+    // Act
+    let batches = run_script("issue-906-xmloption-session-setting", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 4);
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("2200M"));
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+    assert_eq!(wire::error_code(&batches[2]), None);
+    assert_eq!(wire::error_code(&batches[3]), None);
+    let content_description = batches[3]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("XML content-cast RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&content_description.1)[0].type_oid,
+        142
+    );
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("before<a/>after<b/>".to_owned())]]
+    );
+}
+
+#[test]
+fn should_preserve_xml_oid_for_sql_null_values() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT NULL::xml AS missing",
+    )])];
+
+    // Act
+    let batches = run_script("issue-906-xml-null-value", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 1);
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let null_description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("XML NULL RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&null_description.1)[0].type_oid,
+        142
+    );
+    assert_eq!(wire::data_rows(&batches[0]), vec![vec![None]]);
+}
+
+#[test]
+fn should_report_invalid_xml_content_with_its_sqlstate() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT XMLPARSE(CONTENT '<a><b></a>')",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 41")]),
+    ];
+
+    // Act
+    let batches = run_script("issue-906-xml-invalid-content", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 2);
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("2200N"));
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("41".to_owned())]]
+    );
+}
+
+#[test]
+fn should_reject_xml_documents_with_multiple_roots() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT XMLPARSE(DOCUMENT '<a/><b/>')",
+    )])];
+
+    // Act
+    let batches = run_script("issue-906-xml-multiple-document-roots", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 1);
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("2200M"));
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+}
+
+#[test]
+fn should_report_xml_equality_as_an_undefined_operator() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT '<root/>'::xml = '<root/>'::xml",
+    )])];
+
+    // Act
+    let batches = run_script("issue-906-xml-no-equality-operator", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 1);
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+}
+
+#[test]
+fn should_report_xmltable_typed_conversion_sqlstate_without_partial_rows() {
+    // Arrange
+    let invalid_conversion = "SELECT * FROM XMLTABLE('/root/item' PASSING XMLPARSE(DOCUMENT '<root><item>1</item><item>bad</item></root>') COLUMNS value integer PATH 'text()')";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(invalid_conversion)]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 44")]),
+    ];
+
+    // Act
+    let batches = run_script("issue-906-xmltable-conversion-error", steps);
+
+    // Assert
+    assert_eq!(batches.len(), 2);
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22P02"));
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("44".to_owned())]]
+    );
 }

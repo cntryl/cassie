@@ -269,7 +269,7 @@ fn should_casefold_text_with_postgresql_text_metadata() {
 }
 
 #[test]
-fn should_casefold_text_under_a_nondeterministic_icu_collation() {
+fn should_casefold_text_under_an_icu_collation() {
     // Arrange
     let batches = run_script(
         "issue-803-casefold-wire",

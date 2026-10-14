@@ -677,18 +677,104 @@ fn should_apply_text_search_configuration_mapping_lifecycle() {
     let added = fixture.execute(
         "ALTER TEXT SEARCH CONFIGURATION issue_799_simple ADD MAPPING FOR asciiword WITH pg_catalog.simple",
     );
+    let before_replacement =
+        fixture.execute("SELECT to_tsvector('issue_799_simple', 'The Fat Rats')::TEXT");
     let replaced = fixture.execute(
         "ALTER TEXT SEARCH CONFIGURATION issue_799_simple ALTER MAPPING FOR asciiword REPLACE pg_catalog.simple WITH pg_catalog.english_stem",
     );
+    let after_replacement =
+        fixture.execute("SELECT to_tsvector('issue_799_simple', 'The Fat Rats')::TEXT");
     let removed = fixture.execute(
         "ALTER TEXT SEARCH CONFIGURATION issue_799_simple DROP MAPPING IF EXISTS FOR asciiword",
     );
 
     // Assert
     created.expect("create text search configuration");
-    added.expect("add text search mapping");
+    added.expect_err("copied configuration already maps asciiword");
+    assert_eq!(
+        before_replacement
+            .expect("use copied simple mapping")
+            .rows(),
+        &[vec![Value::String("'fat':2 'rats':3 'the':1".to_owned())]]
+    );
     replaced.expect("replace text search mapping dictionary");
+    assert_eq!(
+        after_replacement
+            .expect("use replacement English stem dictionary")
+            .rows(),
+        &[vec![Value::String("'fat':2 'rat':3".to_owned())]]
+    );
     removed.expect("drop text search mapping");
+}
+
+#[test]
+fn should_apply_altered_stopword_dictionary_to_its_configuration() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-ts-dictionary-stopwords", &[]);
+    fixture
+        .execute(
+            "CREATE TEXT SEARCH DICTIONARY issue_799_stopwords (TEMPLATE = pg_catalog.simple, STOPWORDS = english)",
+        )
+        .expect("create simple dictionary with English stopwords");
+    fixture
+        .execute(
+            "CREATE TEXT SEARCH CONFIGURATION issue_799_stopword_config (COPY = pg_catalog.simple)",
+        )
+        .expect("copy simple configuration");
+    fixture
+        .execute(
+            "ALTER TEXT SEARCH CONFIGURATION issue_799_stopword_config ALTER MAPPING FOR asciiword REPLACE pg_catalog.simple WITH issue_799_stopwords",
+        )
+        .expect("map asciiword tokens to custom dictionary");
+
+    // Act
+    let english = fixture.execute(
+        "SELECT to_tsvector('issue_799_stopword_config', 'The le Cats')::TEXT, ts_lexize('issue_799_stopwords', 'the')::TEXT",
+    );
+    fixture
+        .execute("ALTER TEXT SEARCH DICTIONARY issue_799_stopwords (STOPWORDS = french)")
+        .expect("change the dictionary stopword list");
+    let french = fixture.execute(
+        "SELECT to_tsvector('issue_799_stopword_config', 'The le Cats')::TEXT, ts_lexize('issue_799_stopwords', 'le')::TEXT",
+    );
+
+    // Assert
+    assert_eq!(
+        english.expect("English stopword behavior").rows(),
+        &[vec![
+            Value::String("'cats':3 'le':2".to_owned()),
+            Value::String("{}".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        french.expect("updated French stopword behavior").rows(),
+        &[vec![
+            Value::String("'cats':3 'the':1".to_owned()),
+            Value::String("{}".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_accept_regconfig_values_in_text_search_function_signatures() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regconfig-text-search-functions", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT to_tsvector('pg_catalog.english'::regconfig, 'The Fat Rats')::TEXT, to_tsquery('pg_catalog.simple'::regconfig, 'The & Fat')::TEXT",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("text-search functions with regconfig inputs")
+            .rows(),
+        &[vec![
+            Value::String("'fat':2 'rat':3".to_owned()),
+            Value::String("'the' & 'fat'".to_owned()),
+        ]]
+    );
 }
 
 #[test]

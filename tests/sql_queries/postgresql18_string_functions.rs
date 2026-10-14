@@ -146,6 +146,30 @@ fn should_index_substr_by_characters_for_utf8_text() {
 }
 
 #[test]
+fn should_slice_unicode_text_for_signed_left_right_lengths() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-left-right-negative-unicode", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT left('Aé🙂Z', -1), right('Aé🙂Z', -1), left('Aé🙂Z', 2), right('Aé🙂Z', 2)",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("negative and positive Unicode slice lengths")
+            .rows(),
+        &[vec![
+            Value::String("Aé🙂".to_owned()),
+            Value::String("é🙂Z".to_owned()),
+            Value::String("Aé".to_owned()),
+            Value::String("🙂Z".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_count_utf8_characters_for_strpos() {
     // Arrange
     let fixture = sql_fixture("issue-803-strpos-character-indexing", &[]);
@@ -391,6 +415,22 @@ fn should_admit_a_bounded_format_output_expansion() {
     // Assert
     assert_eq!(
         result.expect("64 KiB formatted output").rows(),
+        &[vec![Value::String(expected)]]
+    );
+}
+
+#[test]
+fn should_admit_a_bounded_repeat_output_expansion() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-repeat-output-expansion", &[]);
+    let expected = "ab".repeat(16 * 1024);
+
+    // Act
+    let result = fixture.execute("SELECT repeat('ab', 16384)");
+
+    // Assert
+    assert_eq!(
+        result.expect("32 KiB repeated output").rows(),
         &[vec![Value::String(expected)]]
     );
 }

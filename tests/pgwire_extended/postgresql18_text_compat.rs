@@ -1,6 +1,6 @@
 //! PostgreSQL 18 pattern and text-search protocol contracts tracked by #799.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 #[test]
@@ -135,6 +135,186 @@ fn should_return_postgres_invalid_regex_sqlstate_on_the_wire() {
 
     // Assert
     assert_eq!(wire::error_code(result).as_deref(), Some("2201B"));
+}
+
+#[test]
+fn should_bind_case_insensitive_regex_to_boolean_binary_result() {
+    // Arrange
+    let sql = "SELECT $1 ~* $2 AS matched";
+    let batches = run_script(
+        "issue-799-regex-binary-bind",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                "regex_binary_parameters",
+                sql,
+                &[25, 25],
+            )),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame("regex_binary_parameters"),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::bind_frame_with_formats(
+                    "regex_binary_portal",
+                    "regex_binary_parameters",
+                    &[0],
+                    &[Some(b"ALPHA"), Some(b"^alpha$")],
+                    &[1],
+                ),
+                wire::describe_portal_frame("regex_binary_portal"),
+                wire::execute_frame("regex_binary_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let described = &batches[1];
+    let executed = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(described), None);
+    assert_eq!(wire::error_code(executed), None);
+    assert_eq!(
+        wire::parse_parameter_description(
+            &described
+                .iter()
+                .find(|(tag, _)| *tag == b't')
+                .expect("regex ParameterDescription")
+                .1
+        ),
+        vec![25, 25]
+    );
+    let column = wire::parse_row_description(
+        &executed
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("regex portal RowDescription")
+            .1,
+    )
+    .remove(0);
+    assert_eq!(column.type_oid, 16);
+    assert_eq!(column.format_code, 1);
+    assert_eq!(
+        executed
+            .iter()
+            .find(|(tag, _)| *tag == b'D')
+            .expect("binary Boolean DataRow")
+            .1,
+        vec![0, 1, 0, 0, 0, 1, 1]
+    );
+}
+
+#[test]
+fn should_bind_regconfig_for_tsvector_with_postgres_metadata() {
+    // Arrange
+    let sql = "SELECT to_tsvector($1, $2) AS vector";
+    let batches = run_script(
+        "issue-799-regconfig-binary-protocol",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                "regconfig_parameters",
+                sql,
+                &[3734, 25],
+            )),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame("regconfig_parameters"),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::bind_frame(
+                    "regconfig_portal",
+                    "regconfig_parameters",
+                    &["english", "The Fat Rats"],
+                ),
+                wire::describe_portal_frame("regconfig_portal"),
+                wire::execute_frame("regconfig_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let described = &batches[1];
+    let executed = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(described), None);
+    assert_eq!(wire::error_code(executed), None);
+    assert_eq!(
+        wire::parse_parameter_description(
+            &described
+                .iter()
+                .find(|(tag, _)| *tag == b't')
+                .expect("regconfig ParameterDescription")
+                .1
+        ),
+        vec![3734, 25]
+    );
+    let column = wire::parse_row_description(
+        &executed
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("tsvector portal RowDescription")
+            .1,
+    )
+    .remove(0);
+    assert_eq!(column.type_oid, 3614);
+    assert_eq!(column.format_code, 0);
+    assert_eq!(
+        wire::data_rows(executed),
+        vec![vec![Some("'fat':2 'rat':3".to_owned())]]
+    );
+}
+
+#[test]
+fn should_bound_global_regexp_replace_output_expansion() {
+    // Arrange
+    let input = "a".repeat(16 * 1024);
+    let expected = "bb".repeat(16 * 1024);
+    let sql = "SELECT regexp_replace($1, 'a', 'bb', 'g') AS expanded";
+    let batches = run_script(
+        "issue-799-regexp-replace-bounded-expansion",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                "regexp_replace_input",
+                sql,
+                &[25],
+            )),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame("regexp_replace_input"),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::bind_frame("regexp_replace_portal", "regexp_replace_input", &[&input]),
+                wire::describe_portal_frame("regexp_replace_portal"),
+                wire::execute_frame("regexp_replace_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let described = &batches[1];
+    let executed = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(described), None);
+    assert_eq!(wire::error_code(executed), None);
+    let column = wire::parse_row_description(
+        &executed
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("regexp_replace portal RowDescription")
+            .1,
+    )
+    .remove(0);
+    assert_eq!(column.type_oid, 25);
+    assert_eq!(column.format_code, 0);
+    assert_eq!(wire::data_rows(executed), vec![vec![Some(expected)]]);
 }
 
 #[test]

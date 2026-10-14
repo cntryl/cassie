@@ -1,6 +1,6 @@
 //! PostgreSQL 18 string scalar wire contracts tracked by #803.
 
-use crate::support_parameter_occurrence_wire::{run_script, Step};
+use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 fn error_fields(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<(char, String)>> {
@@ -108,6 +108,75 @@ fn should_return_character_length_with_postgresql_int4_metadata() {
     );
     assert_eq!(columns[0].type_oid, 23);
     assert_eq!(wire::data_rows(result), vec![vec![Some("2".to_owned())]]);
+}
+
+#[test]
+fn should_bind_utf8_parameter_for_binary_int4_character_length() {
+    // Arrange
+    let text = "Aé🙂Z".as_bytes();
+    let batches = run_script(
+        "issue-803-char-length-binary-result",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                "char_length_binary",
+                "SELECT char_length($1) AS characters",
+                &[25],
+            )),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame("char_length_binary"),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::bind_frame_with_formats(
+                    "char_length_binary_portal",
+                    "char_length_binary",
+                    &[1],
+                    &[Some(text)],
+                    &[1],
+                ),
+                wire::describe_portal_frame("char_length_binary_portal"),
+                wire::execute_frame("char_length_binary_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let described = &batches[1];
+    let executed = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(described), None);
+    assert_eq!(wire::error_code(executed), None);
+    assert_eq!(
+        wire::parse_parameter_description(
+            &described
+                .iter()
+                .find(|(tag, _)| *tag == b't')
+                .expect("char_length ParameterDescription")
+                .1
+        ),
+        vec![25]
+    );
+    let column = wire::parse_row_description(
+        &executed
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("char_length portal RowDescription")
+            .1,
+    )
+    .remove(0);
+    assert_eq!(column.type_oid, 23);
+    assert_eq!(column.format_code, 1);
+    assert_eq!(
+        executed
+            .iter()
+            .find(|(tag, _)| *tag == b'D')
+            .expect("binary int4 DataRow")
+            .1,
+        vec![0, 1, 0, 0, 0, 4, 0, 0, 0, 4]
+    );
 }
 
 #[test]
@@ -328,6 +397,30 @@ fn should_return_split_part_with_postgresql_text_metadata() {
         .expect("split_part RowDescription");
     assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 25);
     assert_eq!(wire::data_rows(result), vec![vec![Some("two".to_owned())]]);
+}
+
+#[test]
+fn should_report_postgresql_character_codepoint_sqlstates_for_chr() {
+    // Arrange
+    let batches = run_script(
+        "issue-803-chr-codepoint-sqlstates",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame("SELECT chr(65)")]),
+            Step::ThroughReady(vec![wire::simple_query_frame("SELECT chr(0)")]),
+            Step::ThroughReady(vec![wire::simple_query_frame("SELECT chr(-1)")]),
+        ],
+    );
+
+    // Act
+    let valid = &batches[0];
+    let zero = &batches[1];
+    let negative = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(valid), None);
+    assert_eq!(wire::data_rows(valid), vec![vec![Some("A".to_owned())]]);
+    assert_eq!(wire::error_code(zero).as_deref(), Some("54000"));
+    assert_eq!(wire::error_code(negative).as_deref(), Some("22023"));
 }
 
 #[test]

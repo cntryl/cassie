@@ -1,9 +1,9 @@
 use super::*;
 
-// This is a #835 cursor acceptance scenario. At the current baseline, CREATE
-// FUNCTION parses every body as a SQL expression, so the generic PL/pgSQL
-// body prerequisite masks OPEN/FETCH/CLOSE execution and this is not direct
-// cursor RED evidence yet.
+// This is a #835 cursor acceptance scenario. At the current baseline, Cassie
+// rejects the LANGUAGE plpgsql clause while parsing CREATE FUNCTION, before
+// the cursor body runs. This declaration/parser prerequisite masks OPEN/FETCH/
+// CLOSE execution, so this is not direct cursor RED evidence yet.
 #[test]
 fn should_fetch_bound_plpgsql_cursor_value() {
     // Arrange

@@ -200,3 +200,35 @@ fn should_render_a_created_view_definition() {
     // Assert
     assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
 }
+
+#[test]
+fn should_report_sequence_options_in_pg_sequences() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-sequence-catalog-options",
+        &["CREATE SEQUENCE issue_817_catalog_seq"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT schemaname, sequencename, start_value, increment_by, cycle \
+             FROM pg_catalog.pg_sequences \
+             WHERE schemaname = 'public' \
+               AND sequencename = 'issue_817_catalog_seq'",
+        )
+        .expect("read sequence options from pg_sequences");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("public".to_owned()),
+            Value::String("issue_817_catalog_seq".to_owned()),
+            Value::Int64(1),
+            Value::Int64(1),
+            Value::Bool(false),
+        ]]
+    );
+}

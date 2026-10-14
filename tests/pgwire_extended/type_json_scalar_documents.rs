@@ -165,7 +165,7 @@ fn should_convert_json_objects_to_declared_record_fields() {
 #[test]
 fn should_abort_json_recordset_on_a_later_typed_conversion_error_without_partial_rows() {
     // Arrange
-    let sql = "SELECT id, n FROM jsonb_to_recordset('[{\"id\":1,\"n\":1},{\"id\":2,\"n\":\"bad\"}]'::jsonb) AS records(id INTEGER, n INTEGER) ORDER BY id";
+    let sql = "SELECT id, n FROM jsonb_to_recordset('[{\"id\":1,\"n\":1},{\"id\":2,\"n\":\"bad\"}]'::jsonb) AS records(id INTEGER, n INTEGER)";
     let cycles = vec![
         fixture::execute_cycle(sql, None, 0, true),
         fixture::execute_cycle("SELECT 42", None, 0, true),

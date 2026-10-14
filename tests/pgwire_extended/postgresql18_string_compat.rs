@@ -1,7 +1,51 @@
 //! PostgreSQL 18 string-function parameter and result metadata tracked by #803.
 
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+
 use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
+use crate::support_sql_fixture::{sql_fixture_with_config, SqlFixture};
+use cassie::app::{Cassie, CassieError};
+use cassie::config::CassieRuntimeConfig;
+use tokio::io::AsyncWriteExt;
+
+fn configured_fixture(label: &str, maximum_rows: usize) -> (SqlFixture, CassieRuntimeConfig) {
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.limits.max_result_rows = maximum_rows;
+    let storage = sql_fixture_with_config(label, &[], config.clone());
+    storage
+        .cassie
+        .startup()
+        .expect("start set-returning function fixture");
+    (storage, config)
+}
+
+fn current_thread_runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime")
+}
+
+async fn start_server(
+    instance: Cassie,
+    config: CassieRuntimeConfig,
+) -> (SocketAddr, tokio::task::JoinHandle<Result<(), CassieError>>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind pgwire listener");
+    let address = listener.local_addr().expect("listener address");
+    drop(listener);
+    let server = tokio::spawn(cassie::pgwire::server::run(
+        address.to_string(),
+        Arc::new(instance),
+        config,
+    ));
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    (address, server)
+}
 
 #[test]
 fn should_bind_split_part_parameters_with_text_descriptor() {
@@ -744,4 +788,258 @@ fn should_advance_timestamptz_generate_series_by_local_days_across_dst() {
         .expect("time zone aware generate_series RowDescription");
     assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 16);
     assert_eq!(wire::data_rows(result), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_bound_set_returning_results_without_publishing_partial_rows() {
+    // Arrange
+    let (storage, config) = configured_fixture("issue-808-srf-result-cap", 2);
+    let runtime = current_thread_runtime();
+
+    // Act
+    let (overflow, bounded, recovery) = runtime.block_on(async {
+        let (address, server) = start_server(storage.cassie.clone(), config).await;
+        let socket = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("connect pgwire");
+        let (mut reader, mut writer) = tokio::io::split(socket);
+        wire::complete_startup(&mut reader, &mut writer).await;
+
+        let overflow_queries = [
+            "SELECT value FROM unnest(ARRAY[1,2,3]) AS expanded(value)",
+            "SELECT * FROM ROWS FROM (generate_series(1,3), generate_series(10,30,10)) AS expanded(first_value, second_value)",
+            "SELECT value FROM generate_series(1,3) AS expanded(value)",
+        ];
+        let mut overflow = Vec::with_capacity(overflow_queries.len());
+        for query in overflow_queries {
+            wire::write_frames(&mut writer, vec![wire::simple_query_frame(query)]).await;
+            overflow.push(
+                wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await,
+            );
+        }
+
+        let bounded_queries = [
+            "SELECT value FROM unnest(ARRAY[1,2,3]) AS expanded(value) LIMIT 2",
+            "SELECT * FROM ROWS FROM (generate_series(1,3), generate_series(10,30,10)) AS expanded(first_value, second_value) LIMIT 2",
+            "SELECT value FROM generate_series(1,10000) AS expanded(value) LIMIT 2",
+        ];
+        let mut bounded = Vec::with_capacity(bounded_queries.len());
+        for query in bounded_queries {
+            wire::write_frames(&mut writer, vec![wire::simple_query_frame(query)]).await;
+            bounded.push(
+                wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await,
+            );
+        }
+
+        wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 42")]).await;
+        let recovery =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        drop(reader);
+        drop(writer);
+        server.abort();
+        let _ = server.await;
+        (overflow, bounded, recovery)
+    });
+    drop(runtime);
+    drop(storage);
+
+    // Assert
+    assert_eq!(overflow.len(), 3);
+    for frames in &overflow {
+        assert_eq!(wire::error_code(frames).as_deref(), Some("54000"));
+        assert!(wire::data_rows(frames).is_empty());
+        assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
+        assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
+        let error = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .expect("result-cap ErrorResponse");
+        let fields = wire::parse_error_fields(&error.1);
+        assert_eq!(
+            fields
+                .iter()
+                .find(|(field, _)| *field == 'M')
+                .map(|(_, message)| message.as_str()),
+            Some("query result row limit exceeded: 3 > 2")
+        );
+    }
+
+    let expected_bounded = [
+        vec![vec![Some("1".to_owned())], vec![Some("2".to_owned())]],
+        vec![
+            vec![Some("1".to_owned()), Some("10".to_owned())],
+            vec![Some("2".to_owned()), Some("20".to_owned())],
+        ],
+        vec![vec![Some("1".to_owned())], vec![Some("2".to_owned())]],
+    ];
+    assert_eq!(bounded.len(), expected_bounded.len());
+    for (frames, rows) in bounded.iter().zip(expected_bounded) {
+        assert_eq!(wire::error_code(frames), None);
+        assert_eq!(wire::data_rows(frames), rows);
+    }
+    assert_eq!(wire::error_code(&recovery), None);
+    assert_eq!(
+        wire::data_rows(&recovery),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
+fn should_resume_generate_series_portal_after_each_execute_row_limit() {
+    // Arrange
+    let (storage, config) = configured_fixture("issue-808-srf-portal-row-limit", 2);
+    let runtime = current_thread_runtime();
+
+    // Act
+    let frames = runtime.block_on(async {
+        let (address, server) = start_server(storage.cassie.clone(), config).await;
+        let socket = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("connect pgwire");
+        let (mut reader, mut writer) = tokio::io::split(socket);
+        wire::complete_startup(&mut reader, &mut writer).await;
+
+        wire::write_frames(
+            &mut writer,
+            vec![
+                wire::parse_frame(
+                    "bounded_series_statement",
+                    "SELECT value FROM generate_series(1,2) AS series(value)",
+                ),
+                wire::describe_statement_frame("bounded_series_statement"),
+                wire::bind_frame("bounded_series_portal", "bounded_series_statement", &[]),
+                wire::describe_portal_frame("bounded_series_portal"),
+                wire::execute_limited_frame("bounded_series_portal", 1),
+                wire::execute_limited_frame("bounded_series_portal", 1),
+                wire::sync_frame(),
+            ],
+        )
+        .await;
+        let frames =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        drop(reader);
+        drop(writer);
+        server.abort();
+        let _ = server.await;
+        frames
+    });
+    drop(runtime);
+    drop(storage);
+
+    // Assert
+    assert_eq!(wire::error_code(&frames), None);
+    let row_description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("generate_series portal RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&row_description.1)[0].type_oid,
+        23
+    );
+    assert_eq!(
+        wire::data_rows(&frames),
+        vec![vec![Some("1".to_owned())], vec![Some("2".to_owned())]]
+    );
+    let suspended = frames
+        .iter()
+        .position(|(tag, _)| *tag == b's')
+        .expect("first Execute suspends after one row");
+    assert_eq!(
+        frames[..suspended]
+            .iter()
+            .filter(|(tag, _)| *tag == b'D')
+            .count(),
+        1
+    );
+    assert_eq!(
+        frames[suspended + 1..]
+            .iter()
+            .filter(|(tag, _)| *tag == b'D')
+            .count(),
+        1
+    );
+    assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'C').count(), 1);
+    assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
+}
+
+#[test]
+fn should_cancel_rows_from_set_expansion_without_partial_rows_or_stale_cancellation() {
+    // Arrange
+    let (storage, config) = configured_fixture("issue-808-srf-cancel", 3);
+    let runtime = current_thread_runtime();
+
+    // Act
+    let (baseline, cancelled, recovery) = runtime.block_on(async {
+        let (address, server) = start_server(storage.cassie.clone(), config).await;
+        let socket = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("query connection");
+        let (mut reader, mut writer) = tokio::io::split(socket);
+        let (process_id, secret_key) =
+            wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
+
+        let baseline_query = "SELECT array_value, series_value FROM ROWS FROM (unnest(ARRAY[1,2,3]), generate_series(1,3)) AS expanded(array_value, series_value) WHERE series_value < 3 OR pg_sleep_for(INTERVAL '0 seconds') IS NOT NULL";
+        wire::write_frames(
+            &mut writer,
+            vec![wire::simple_query_frame(baseline_query)],
+        )
+        .await;
+        let baseline =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        let cancellable_query = "SELECT array_value, series_value FROM ROWS FROM (unnest(ARRAY[1,2,3]), generate_series(1,3)) AS expanded(array_value, series_value) WHERE series_value < 3 OR pg_sleep_for(INTERVAL '60 seconds') IS NOT NULL";
+        wire::write_frames(
+            &mut writer,
+            vec![wire::simple_query_frame(cancellable_query)],
+        )
+        .await;
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        let mut cancel_socket = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("cancel connection");
+        cancel_socket
+            .write_all(&wire::cancel_request_frame(process_id, secret_key))
+            .await
+            .expect("write cancel request");
+        cancel_socket
+            .shutdown()
+            .await
+            .expect("close cancel request");
+        let cancelled =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 45")]).await;
+        let recovery =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        drop(reader);
+        drop(writer);
+        server.abort();
+        let _ = server.await;
+        (baseline, cancelled, recovery)
+    });
+    drop(runtime);
+    drop(storage);
+
+    // Assert
+    assert_eq!(wire::error_code(&baseline), None);
+    assert_eq!(
+        wire::data_rows(&baseline),
+        vec![
+            vec![Some("1".to_owned()), Some("1".to_owned())],
+            vec![Some("2".to_owned()), Some("2".to_owned())],
+            vec![Some("3".to_owned()), Some("3".to_owned())],
+        ]
+    );
+    assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
+    assert!(wire::data_rows(&cancelled).is_empty());
+    assert_eq!(cancelled.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
+    assert_eq!(cancelled.last().map(|frame| frame.0), Some(b'Z'));
+    assert_eq!(wire::error_code(&recovery), None);
+    assert_eq!(
+        wire::data_rows(&recovery),
+        vec![vec![Some("45".to_owned())]]
+    );
 }

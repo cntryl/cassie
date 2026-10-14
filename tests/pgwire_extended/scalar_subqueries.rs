@@ -1,7 +1,18 @@
 //! PostgreSQL Parse, Describe, Bind and Execute behavior for #762 subqueries.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use std::time::Duration;
+
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
+use tokio::io::AsyncWriteExt;
+
+struct ScalarSubqueryFixtureDirectory(String);
+
+impl Drop for ScalarSubqueryFixtureDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 fn setup() -> Step {
     Step::ThroughReady(vec![wire::simple_query_frame(
@@ -111,6 +122,125 @@ fn should_return_correlated_scalar_values_for_each_outer_row() {
             vec![Some("2".into()), None],
         ]
     );
+}
+
+#[test]
+fn should_evaluate_an_uncorrelated_volatile_scalar_subquery_once() {
+    // Arrange
+    let batches = run_script(
+        "issue-762-uncorrelated-scalar-evaluate-once",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE SEQUENCE issue_762_once_sequence START WITH 1; \
+                 CREATE TABLE issue_762_once_outer (id INT PRIMARY KEY); \
+                 INSERT INTO issue_762_once_outer VALUES (1), (2), (3)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT id, (SELECT nextval('issue_762_once_sequence')) AS sequence_value \
+                 FROM issue_762_once_outer ORDER BY id",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT nextval('issue_762_once_sequence')",
+            )]),
+        ],
+    );
+
+    // Act
+    let setup = &batches[0];
+    let selected = &batches[1];
+    let next_sequence_value = &batches[2];
+
+    // Assert
+    assert_eq!(wire::error_code(setup), None);
+    assert_eq!(wire::error_code(selected), None);
+    assert_eq!(
+        wire::data_rows(selected),
+        vec![
+            vec![Some("1".into()), Some("1".into())],
+            vec![Some("2".into()), Some("1".into())],
+            vec![Some("3".into()), Some("1".into())],
+        ]
+    );
+    assert_eq!(wire::error_code(next_sequence_value), None);
+    assert_eq!(
+        wire::data_rows(next_sequence_value),
+        vec![vec![Some("2".into())]]
+    );
+}
+
+#[test]
+fn should_cancel_a_sleeping_scalar_subquery_without_partial_results() {
+    // Arrange
+    wire::use_local_storage();
+    let path = wire::data_dir("issue-762-scalar-subquery-cancel");
+    let _directory = ScalarSubqueryFixtureDirectory(path.clone());
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    // Act
+    let (baseline, cancelled, recovery) = runtime.block_on(async {
+        let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("Cassie");
+        cassie.startup().expect("start scalar cancellation fixture");
+        let server = wire::spawn_server(cassie).await;
+        let socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("query connection");
+        let (mut reader, mut writer) = socket.into_split();
+        let (process_id, secret_key) =
+            wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
+
+        wire::write_frames(
+            &mut writer,
+            vec![wire::simple_query_frame(
+                "SELECT (SELECT 45 WHERE pg_sleep_for(INTERVAL '0 seconds') IS NOT NULL)",
+            )],
+        )
+        .await;
+        let baseline =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        wire::write_frames(
+            &mut writer,
+            vec![wire::simple_query_frame(
+                "SELECT (SELECT 45 WHERE pg_sleep_for(INTERVAL '60 seconds') IS NOT NULL)",
+            )],
+        )
+        .await;
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        let mut cancel_socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("cancel connection");
+        cancel_socket
+            .write_all(&wire::cancel_request_frame(process_id, secret_key))
+            .await
+            .expect("write cancel request");
+        cancel_socket
+            .shutdown()
+            .await
+            .expect("close cancel request");
+        let cancelled =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 46")]).await;
+        let recovery =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        drop(reader);
+        drop(writer);
+        server.stop().await;
+        (baseline, cancelled, recovery)
+    });
+
+    // Assert
+    assert_eq!(wire::error_code(&baseline), None);
+    assert_eq!(wire::data_rows(&baseline), vec![vec![Some("45".into())]]);
+    assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
+    assert!(wire::data_rows(&cancelled).is_empty());
+    assert_eq!(cancelled.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
+    assert_eq!(wire::error_code(&recovery), None);
+    assert_eq!(wire::data_rows(&recovery), vec![vec![Some("46".into())]]);
 }
 
 #[test]

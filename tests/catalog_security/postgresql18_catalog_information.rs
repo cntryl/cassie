@@ -101,3 +101,102 @@ fn should_format_integer_byte_sizes_using_postgresql_units() {
         vec![vec![Value::String("1024 bytes".to_owned())]]
     );
 }
+
+#[test]
+fn should_report_column_generation_metadata_in_information_schema() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-information-schema-column-generation",
+        &["CREATE TABLE issue_817_plain_column (id INTEGER)"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT column_name, is_identity, is_generated \
+             FROM information_schema.columns \
+             WHERE table_schema = 'public' \
+               AND table_name = 'issue_817_plain_column' \
+               AND column_name = 'id'",
+        )
+        .expect("read identity and generation metadata");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("id".to_owned()),
+            Value::String("NO".to_owned()),
+            Value::String("NEVER".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_list_the_default_collation_in_pg_collation() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-default-collation", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT collname, collprovider FROM pg_catalog.pg_collation \
+             WHERE collname = 'default'",
+        )
+        .expect("read the default PostgreSQL collation");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("default".to_owned()),
+            Value::String("d".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_list_utc_in_pg_timezone_names() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-utc-timezone-name", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT name, abbrev, utc_offset, is_dst \
+             FROM pg_catalog.pg_timezone_names WHERE name = 'UTC'",
+        )
+        .expect("read the UTC timezone entry");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("UTC".to_owned()),
+            Value::String("UTC".to_owned()),
+            Value::String("00:00:00".to_owned()),
+            Value::Bool(false),
+        ]]
+    );
+}
+
+#[test]
+fn should_render_a_created_view_definition() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-view-definition",
+        &["CREATE VIEW issue_817_definition_view AS SELECT 42 AS answer"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT pg_catalog.pg_get_viewdef('issue_817_definition_view') LIKE '%42%'")
+        .expect("read the created view definition");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
+}

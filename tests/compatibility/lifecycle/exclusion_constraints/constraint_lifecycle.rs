@@ -368,3 +368,138 @@ fn should_toggle_named_foreign_key_enforcement_after_repairing_existing_rows() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_validate_not_valid_foreign_key_after_repairing_existing_rows() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("validate_repaired_not_valid_fk").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_repaired_fk_parent (id INT PRIMARY KEY)",
+                "CREATE TABLE compat_repaired_fk_child (parent_id INT)",
+                "INSERT INTO compat_repaired_fk_child VALUES (9)",
+                "ALTER TABLE compat_repaired_fk_child ADD CONSTRAINT \
+                   compat_repaired_fk_name FOREIGN KEY (parent_id) \
+                   REFERENCES compat_repaired_fk_parent (id) NOT VALID",
+            ],
+        )
+        .await
+        .expect("add a NOT VALID foreign key over the existing dangling row");
+        let initially_validated: bool = client
+            .query_one(
+                "SELECT convalidated FROM pg_catalog.pg_constraint \
+                 WHERE conname = 'compat_repaired_fk_name'",
+                &[],
+            )
+            .await
+            .expect("inspect the initial foreign-key validation state")
+            .try_get(0)
+            .expect("validation state");
+
+        // Act
+        client
+            .execute("INSERT INTO compat_repaired_fk_parent VALUES (9)", &[])
+            .await
+            .expect("repair the existing dangling reference");
+        client
+            .batch_execute(
+                "ALTER TABLE compat_repaired_fk_child \
+                 VALIDATE CONSTRAINT compat_repaired_fk_name",
+            )
+            .await
+            .expect("validate the foreign key after repairing all existing rows");
+        let validated: bool = client
+            .query_one(
+                "SELECT convalidated FROM pg_catalog.pg_constraint \
+                 WHERE conname = 'compat_repaired_fk_name'",
+                &[],
+            )
+            .await
+            .expect("inspect the successful foreign-key validation state")
+            .try_get(0)
+            .expect("validation state");
+        let child_parent_id: i32 = client
+            .query_one("SELECT parent_id FROM compat_repaired_fk_child", &[])
+            .await
+            .expect("read the repaired child reference")
+            .try_get(0)
+            .expect("parent id");
+        let rejected_new_violation = client
+            .execute("INSERT INTO compat_repaired_fk_child VALUES (10)", &[])
+            .await
+            .expect_err("the validated foreign key must reject new dangling references");
+
+        // Assert
+        assert!(!initially_validated);
+        assert!(validated);
+        assert_eq!(child_parent_id, 9);
+        assert_eq!(db_error(&rejected_new_violation).code().code(), "23503");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_distinguish_match_full_from_simple_for_partial_null_keys() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("match_full_simple_partial_null").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_match_modes_parent (left_id INT, right_id INT)",
+                "CREATE UNIQUE INDEX compat_match_modes_parent_key \
+                   ON compat_match_modes_parent (left_id, right_id)",
+                "CREATE TABLE compat_match_full_child (left_id INT, right_id INT, \
+                   CONSTRAINT compat_match_full_child_fk FOREIGN KEY (left_id, right_id) \
+                   REFERENCES compat_match_modes_parent (left_id, right_id) MATCH FULL)",
+                "CREATE TABLE compat_match_simple_child (left_id INT, right_id INT, \
+                   CONSTRAINT compat_match_simple_child_fk FOREIGN KEY (left_id, right_id) \
+                   REFERENCES compat_match_modes_parent (left_id, right_id) MATCH SIMPLE)",
+                "INSERT INTO compat_match_modes_parent VALUES (1, 2)",
+            ],
+        )
+        .await
+        .expect("create both composite match modes and a matching parent key");
+
+        // Act
+        client
+            .execute(
+                "INSERT INTO compat_match_simple_child VALUES (1, NULL)",
+                &[],
+            )
+            .await
+            .expect("MATCH SIMPLE skips checking a key containing any NULL field");
+        let full_partial_null = client
+            .execute("INSERT INTO compat_match_full_child VALUES (1, NULL)", &[])
+            .await
+            .expect_err("MATCH FULL rejects mixed NULL and non-NULL key fields");
+        let accepted_simple_rows: i64 = client
+            .query_one("SELECT count(*) FROM compat_match_simple_child", &[])
+            .await
+            .expect("count accepted MATCH SIMPLE rows")
+            .try_get(0)
+            .expect("row count");
+        let accepted_full_rows: i64 = client
+            .query_one("SELECT count(*) FROM compat_match_full_child", &[])
+            .await
+            .expect("count accepted MATCH FULL rows")
+            .try_get(0)
+            .expect("row count");
+
+        // Assert
+        assert_eq!(db_error(&full_partial_null).code().code(), "23503");
+        assert_eq!(accepted_simple_rows, 1);
+        assert_eq!(accepted_full_rows, 0);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

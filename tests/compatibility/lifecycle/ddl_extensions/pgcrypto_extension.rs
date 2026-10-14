@@ -94,3 +94,49 @@ fn should_report_the_available_pgcrypto_extension_version() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_publish_pgcrypto_installation_metadata_after_create_extension() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pgcrypto_installation_metadata").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE EXTENSION pgcrypto")
+            .await
+            .expect("install the selected crypto extension");
+
+        // Act
+        let installed = client
+            .query_one(
+                "SELECT e.extname, e.extversion, n.nspname \
+                 FROM pg_catalog.pg_extension AS e \
+                 JOIN pg_catalog.pg_namespace AS n ON n.oid = e.extnamespace \
+                 WHERE e.extname = 'pgcrypto'",
+                &[],
+            )
+            .await
+            .expect("read installed pgcrypto metadata");
+        let available = client
+            .query_one(
+                "SELECT name, default_version, installed_version \
+                 FROM pg_catalog.pg_available_extensions \
+                 WHERE name = 'pgcrypto'",
+                &[],
+            )
+            .await
+            .expect("read pgcrypto availability metadata after installation");
+
+        // Assert
+        assert_eq!(installed.get::<_, String>(0), "pgcrypto");
+        assert_eq!(installed.get::<_, String>(1), "1.4");
+        assert_eq!(installed.get::<_, String>(2), "public");
+        assert_eq!(available.get::<_, String>(0), "pgcrypto");
+        assert_eq!(available.get::<_, String>(1), "1.4");
+        assert_eq!(available.get::<_, String>(2), "1.4");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

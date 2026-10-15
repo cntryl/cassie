@@ -98,6 +98,19 @@ pub fn wide_input_query(aggregate_expression: &str) -> String {
     )
 }
 
+pub fn integer_table_fixture_setup(table_name: &str, row_count: i32) -> Vec<String> {
+    let mut statements = vec![format!("CREATE TABLE {table_name} (n INT4 PRIMARY KEY)")];
+    for first in (1..=row_count).step_by(250) {
+        let last = (first + 249).min(row_count);
+        let values = (first..=last)
+            .map(|value| format!("({value})"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        statements.push(format!("INSERT INTO {table_name} VALUES {values}"));
+    }
+    statements
+}
+
 fn seed_fixture(path: &str, setup_sql: &[String]) {
     if setup_sql.is_empty() {
         return;

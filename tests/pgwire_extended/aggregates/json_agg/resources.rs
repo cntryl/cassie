@@ -2,28 +2,10 @@
 
 use crate::support_collection_aggregate_resources as support;
 
-const INPUT_ROW_COUNT: i32 = 50_000;
-
-fn json_agg_fixture_setup() -> Vec<String> {
-    let mut statements =
-        vec!["CREATE TABLE issue_811_json_agg_rows (n INT4 PRIMARY KEY)".to_owned()];
-    for first in (1..=INPUT_ROW_COUNT).step_by(250) {
-        let last = (first + 249).min(INPUT_ROW_COUNT);
-        let values = (first..=last)
-            .map(|value| format!("({value})"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        statements.push(format!(
-            "INSERT INTO issue_811_json_agg_rows VALUES {values}"
-        ));
-    }
-    statements
-}
-
 #[test]
 fn should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive() {
     // Arrange
-    let setup_sql = json_agg_fixture_setup();
+    let setup_sql = support::integer_table_fixture_setup("issue_811_json_agg_rows", 50_000);
     let control_sql = "SELECT length(json_agg(repeat('x', 2))::text) \
                        FROM issue_811_json_agg_rows WHERE n <= 3";
     let candidate_sql = "SELECT length(json_agg(repeat('x', 512))::text) \
@@ -49,7 +31,7 @@ fn should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive()
 fn should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives()
 {
     // Arrange
-    let setup_sql = json_agg_fixture_setup();
+    let setup_sql = support::integer_table_fixture_setup("issue_811_json_agg_rows", 50_000);
     let control_sql = "SELECT length(json_agg(repeat('x', 2))::text) \
                        FROM issue_811_json_agg_rows WHERE n <= 3";
     let candidate_sql = "SELECT length(json_agg(repeat('x', 512))::text) \

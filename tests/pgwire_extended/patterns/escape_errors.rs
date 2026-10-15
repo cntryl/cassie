@@ -49,12 +49,12 @@ fn should_return_22025_given_a_valid_like_control_when_escape_contains_multiple_
     let invalid_escape = &batches[1];
 
     // Assert
+    assert_invalid_escape(invalid_escape, "LIKE multi-character ESCAPE");
     assert_eq!(wire::error_code(valid_control), None);
     assert_eq!(
         wire::data_rows(valid_control),
         vec![vec![Some("t".to_owned())]]
     );
-    assert_invalid_escape(invalid_escape, "LIKE multi-character ESCAPE");
 }
 
 #[test]
@@ -77,10 +77,10 @@ fn should_return_22025_given_a_valid_similar_control_when_escape_contains_multip
     let invalid_escape = &batches[1];
 
     // Assert
+    assert_invalid_escape(invalid_escape, "SIMILAR TO multi-character ESCAPE");
     assert_eq!(wire::error_code(valid_control), None);
     assert_eq!(
         wire::data_rows(valid_control),
         vec![vec![Some("t".to_owned())]]
     );
-    assert_invalid_escape(invalid_escape, "SIMILAR TO multi-character ESCAPE");
 }

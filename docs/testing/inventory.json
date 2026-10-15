@@ -63619,8 +63619,8 @@
       "id": "tests/pgwire_extended/aggregates/ordered_set/resources.rs::should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_memory_budget_is_exceeded",
       "name": "should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_memory_budget_is_exceeded",
       "current_file": "tests/pgwire_extended/aggregates/ordered_set/resources.rs",
-      "line": 74,
-      "end_line": 169,
+      "line": 154,
+      "end_line": 250,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -63650,8 +63650,8 @@
       "id": "tests/pgwire_extended/aggregates/ordered_set/resources.rs::should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives",
       "name": "should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/ordered_set/resources.rs",
-      "line": 172,
-      "end_line": 261,
+      "line": 253,
+      "end_line": 352,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -179351,8 +179351,8 @@
       "current_file": "tests/pgwire_extended/aggregates/ordered_set/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 261,
-      "sha256": "695b11a9b4d17d6a868370fc1bc2c49657ab3fe03615c7e3c55b28f67c3daf91",
+      "lines": 352,
+      "sha256": "562cb856060bc24238e6b418492acc739132e37437542234c059bedf4e179a8b",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -180747,7 +180747,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 86,
-      "sha256": "d518fc00732648b995fde4304b26680b90bafbe5dd38ca85dad43206d7d9538e",
+      "sha256": "2b878bbdbfb600b1db065076ad804d8be44aa6b49aa572ce8a29b1e01d471857",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -192507,7 +192507,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/patterns",
       "file": "tests/pgwire_extended/patterns/escape_errors.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "patterns",
       "actual_test": "should_return_22025_given_a_valid_like_control_when_escape_contains_multiple_characters",
       "instances": [
@@ -192522,16 +192522,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "direct_feature_red_wrong_sqlstate",
-      "prior_execution_evidence": "Earlier root run reached LIKE ESCAPE but Cassie returned 0A000 unsupported ESCAPE instead of PostgreSQL 22025.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier version asserted the valid LIKE control first and stopped at SQLSTATE 0A000; the current version asserts the invalid-escape response first, then retains the positive control.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::patterns_escape_errors::should_return_22025_given_a_valid_like_control_when_escape_contains_multiple_characters",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::patterns_escape_errors::should_return_22025_given_a_valid_like_control_when_escape_contains_multiple_characters' (19418526) panicked at tests/pgwire_extended/patterns/escape_errors.rs:52:5:\nassertion `left == right` failed\n  left: Some(\"0A000\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 799,
@@ -192540,7 +192541,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/patterns",
       "file": "tests/pgwire_extended/patterns/escape_errors.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "patterns",
       "actual_test": "should_return_22025_given_a_valid_similar_control_when_escape_contains_multiple_characters",
       "instances": [
@@ -192555,16 +192556,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "blocked_prerequisite",
-      "prior_execution_evidence": "Earlier root run returned 42601 on valid SIMILAR control; target 22025 is not reached.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier version asserted the valid SIMILAR TO control first and stopped at SQLSTATE 42601; the current version asserts the invalid-escape response first, then retains the positive control.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::patterns_escape_errors::should_return_22025_given_a_valid_similar_control_when_escape_contains_multiple_characters",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::patterns_escape_errors::should_return_22025_given_a_valid_similar_control_when_escape_contains_multiple_characters' (19418527) panicked at tests/pgwire_extended/patterns/escape_errors.rs:80:5:\nassertion `left == right` failed\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 799,
@@ -192707,7 +192709,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/ordered_set",
       "file": "tests/pgwire_extended/aggregates/ordered_set/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/ordered_set",
       "actual_test": "should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_memory_budget_is_exceeded",
       "instances": [
@@ -192722,16 +192724,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "pending_root_cargo",
-      "prior_execution_evidence": "Test body and expected result are present; no Cargo result captured by this agent.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control failed while parsing FROM generate_series before reaching the aggregate. The current test loads the rows into a real table with INSERT and tests the 4 KiB limit on that table.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_ordered_set_resources::should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_memory_budget_is_exceeded",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::aggregates_ordered_set_resources::should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_memory_budget_is_exceeded' (19418287) panicked at tests/pgwire_extended/aggregates/ordered_set_resources.rs:129:5:\nassertion `left == right` failed: small ordered-set control ErrorResponse: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token '3) AS generated(value'\")]]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 806,
@@ -192740,7 +192743,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/ordered_set",
       "file": "tests/pgwire_extended/aggregates/ordered_set/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/ordered_set",
       "actual_test": "should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives",
       "instances": [
@@ -192755,9 +192758,9 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "pending_root_cargo",
-      "prior_execution_evidence": "Test body and expected result are present; no Cargo result captured by this agent.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small cancellation control failed while parsing FROM generate_series before reaching the aggregate. The current control uses a preloaded table and pg_sleep(float8), and the cancel request waits for the target backend marker.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_ordered_set_resources::should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives",
@@ -192765,7 +192768,8 @@
           "failure_excerpt": "thread 'pgwire_extended::aggregates_ordered_set_resources::should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives' (19553142) panicked at tests/pgwire_extended/aggregates/ordered_set/resources.rs:229:5:\nassertion `left == right` failed: small ordered-set cancellation control ErrorResponse: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token '3) AS generated(value'\")]]\n  left: Some(\"42601\")\n right: None\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 808,

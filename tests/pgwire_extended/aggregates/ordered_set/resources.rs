@@ -2,7 +2,7 @@
 
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::support_pgwire as wire;
 use cassie::app::{Cassie, CassieError};
@@ -70,6 +70,86 @@ async fn connect(address: SocketAddr) -> (OwnedReadHalf, OwnedWriteHalf, i32, i3
     (reader, writer, process_id, secret_key)
 }
 
+fn seed_ordered_set_input(path: &str, row_count: i32) {
+    let cassie = Cassie::new_with_data_dir(path).expect("create ordered-set input fixture");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE ordered_set_budget_rows (id INT4 PRIMARY KEY, value FLOAT8)",
+            vec![],
+        )
+        .expect("create ordered-set input table");
+    for first in (1..=row_count).step_by(250) {
+        let last = (first + 249).min(row_count);
+        let values = (first..=last)
+            .map(|value| format!("({value}, {value}.0)"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!("INSERT INTO ordered_set_budget_rows VALUES {values}");
+        cassie
+            .execute_sql(&session, &sql, vec![])
+            .unwrap_or_else(|error| {
+                panic!("insert ordered-set input batch {first}..={last}: {error}")
+            });
+    }
+    drop(session);
+    drop(cassie);
+}
+
+async fn wait_for_active_query_marker(
+    reader: &mut OwnedReadHalf,
+    writer: &mut OwnedWriteHalf,
+    target_pid: i32,
+    marker: &str,
+) -> Vec<(u8, Vec<u8>)> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let sql = format!(
+            "SELECT state, query FROM pg_catalog.pg_stat_activity WHERE pid = {target_pid}"
+        );
+        wire::write_frames(writer, vec![wire::simple_query_frame(&sql)]).await;
+        let frames = wire::read_frames_until_ready_within(reader, Duration::from_secs(5)).await;
+        assert_eq!(
+            wire::error_code(&frames),
+            None,
+            "pg_stat_activity ErrorResponse while waiting for {marker:?}: {:?}",
+            frames
+                .iter()
+                .filter(|frame| frame.0 == b'E')
+                .map(|frame| wire::parse_error_fields(&frame.1))
+                .collect::<Vec<_>>()
+        );
+        let rows = wire::data_rows(&frames);
+        if rows.iter().any(|row| {
+            row[0].as_deref() == Some("active")
+                && row[1]
+                    .as_deref()
+                    .is_some_and(|query| query.contains(marker))
+        }) {
+            return frames;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "ordered-set query with marker {marker:?} must be active before cancellation: {rows:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+}
+
+fn assert_active_query_marker(frames: &[(u8, Vec<u8>)], marker: &str) {
+    assert!(
+        wire::data_rows(frames).iter().any(|row| {
+            row[0].as_deref() == Some("active")
+                && row[1]
+                    .as_deref()
+                    .is_some_and(|query| query.contains(marker))
+        }),
+        "the target backend must be active with marker {marker:?}: {:?}",
+        wire::data_rows(frames)
+    );
+}
+
 #[test]
 fn should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_memory_budget_is_exceeded(
 ) {
@@ -81,6 +161,7 @@ fn should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_m
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 4_096;
+    seed_ordered_set_input(&path, 50_000);
 
     // Act
     let (control, overflow, recovery) = runtime.block_on(async {
@@ -92,7 +173,7 @@ fn should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_m
             &mut writer,
             vec![wire::simple_query_frame(
                 "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY value::FLOAT8) \
-                 FROM generate_series(1, 3) AS generated(value)",
+                 FROM ordered_set_budget_rows WHERE id <= 3",
             )],
         )
         .await;
@@ -103,7 +184,7 @@ fn should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_m
             &mut writer,
             vec![wire::simple_query_frame(
                 "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY value::FLOAT8) \
-                 FROM generate_series(1, 50000) AS generated(value)",
+                 FROM ordered_set_budget_rows",
             )],
         )
         .await;
@@ -177,25 +258,32 @@ fn should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel
     let runtime = current_thread_runtime();
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_timeout_ms = 0;
+    seed_ordered_set_input(&path, 3);
 
     // Act
-    let (control, cancelled, recovery) = runtime.block_on(async {
+    let (control, active_query, cancelled, recovery) = runtime.block_on(async {
         let cassie = configured_instance(&path, config.clone());
         let server = start_server(cassie, config).await;
         let (mut reader, mut writer, process_id, secret_key) = connect(server.address).await;
-        let control_sql = "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY value::FLOAT8) \
-            FROM generate_series(1, 3) AS generated(value) \
-            WHERE pg_sleep_for(INTERVAL '0 seconds') IS NOT NULL";
-        let cancellable_sql = "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY value::FLOAT8) \
-            FROM generate_series(1, 3) AS generated(value) \
-            WHERE pg_sleep_for(INTERVAL '60 seconds') IS NOT NULL";
+        let (mut observer_reader, mut observer_writer, _, _) = connect(server.address).await;
+        let control_sql = "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY value) \
+            FROM ordered_set_budget_rows WHERE id <= 3 AND pg_sleep(0) IS NOT NULL";
+        let cancellable_sql = "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY value) \
+            FROM ordered_set_budget_rows WHERE id <= 3 AND pg_sleep(60) IS NOT NULL \
+            /* ordered_set_cancel */";
 
         wire::write_frames(&mut writer, vec![wire::simple_query_frame(control_sql)]).await;
         let control =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
 
         wire::write_frames(&mut writer, vec![wire::simple_query_frame(cancellable_sql)]).await;
-        tokio::time::sleep(Duration::from_millis(60)).await;
+        let active_query = wait_for_active_query_marker(
+            &mut observer_reader,
+            &mut observer_writer,
+            process_id,
+            "ordered_set_cancel",
+        )
+        .await;
         let mut cancel_socket = tokio::net::TcpStream::connect(server.address)
             .await
             .expect("cancel connection");
@@ -220,8 +308,10 @@ fn should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel
 
         drop(reader);
         drop(writer);
+        drop(observer_reader);
+        drop(observer_writer);
         server.stop().await;
-        (control, cancelled, recovery)
+        (control, active_query, cancelled, recovery)
     });
     drop(runtime);
 
@@ -237,6 +327,7 @@ fn should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel
             .collect::<Vec<_>>()
     );
     assert_eq!(wire::data_rows(&control), vec![vec![Some("2".to_owned())]]);
+    assert_active_query_marker(&active_query, "ordered_set_cancel");
     assert_eq!(
         wire::error_code(&cancelled).as_deref(),
         Some("57014"),

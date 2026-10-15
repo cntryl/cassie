@@ -36,6 +36,14 @@ pub(super) fn try_execute_column_batch_aggregate(
 
     let specs = aggregate_specs(plan);
     if specs.is_empty() {
+        if plan.projection.iter().any(|item| {
+            matches!(item, SelectItem::Function { function, .. }
+                if crate::sql::functions::is_aggregate_function(&function.name))
+        }) {
+            cassie
+                .runtime
+                .record_aggregate_acceleration_row_blob_fallback();
+        }
         return Ok(None);
     }
     let mut fields = specs

@@ -7,21 +7,30 @@ fn should_select_elementwise_extrema_for_declared_arrays() {
     // Arrange
     with_fixture("typed_array_extrema", |cassie, session| {
         seed_numeric_arrays(cassie, session);
-        let json = sql(cassie, session, "SELECT MIN(arr),MAX(arr) FROM json_values");
-        assert_eq!(
-            json.rows(),
-            vec![vec![
-                Value::Json(serde_json::json!([1, 9])),
-                Value::Json(serde_json::json!([]))
-            ]]
-        );
         // Act
+        let json_errors = ["MIN", "MAX"].map(|aggregate| {
+            cassie
+                .execute_sql(
+                    session,
+                    &format!("SELECT {aggregate}(arr) FROM json_values"),
+                    vec![],
+                )
+                .expect_err("PostgreSQL has no JSON extrema overload")
+                .to_string()
+        });
         let arrays = sql(
             cassie,
             session,
             "SELECT MIN(arr),MAX(arr) FROM array_values",
         );
         // Assert
+        assert_eq!(
+            json_errors,
+            [
+                "execution error: function min(json) does not exist",
+                "execution error: function max(json) does not exist",
+            ]
+        );
         assert_eq!(
             arrays.rows(),
             vec![vec![

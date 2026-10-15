@@ -28,6 +28,8 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
                 | DataType::Time
                 | DataType::Timestamp
                 | DataType::Array(_)
+                // Cassie's established vector extension retains row extrema.
+                | DataType::Vector(_)
         ),
         FunctionId::BoolAnd | FunctionId::BoolOr => {
             matches!(data_type, DataType::Null | DataType::Boolean)

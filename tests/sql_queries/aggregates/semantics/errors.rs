@@ -1,4 +1,70 @@
 #[test]
+fn should_preserve_vector_extrema_given_empty_and_filtered_inputs_when_other_overloads_are_rejected(
+) {
+    // Arrange
+    let fixture = super::support_sql_fixture::sql_fixture(
+        "aggregate_vector_extension_admission",
+        &["CREATE TABLE aggregate_extension (v VECTOR(2), body JSON)"],
+    );
+    let invalid = [
+        ("SUM(v)", "function sum(vector(2)) does not exist"),
+        ("AVG(v)", "function avg(vector(2)) does not exist"),
+        ("BOOL_AND(v)", "function bool_and(vector(2)) does not exist"),
+        ("MIN(body)", "function min(json) does not exist"),
+        ("MAX(body)", "function max(json) does not exist"),
+        ("SUM(body)", "function sum(json) does not exist"),
+        ("AVG(body)", "function avg(json) does not exist"),
+    ];
+
+    // Act
+    let empty = fixture.execute("SELECT MIN(v),MAX(v) FROM aggregate_extension");
+    let errors = invalid.map(|(aggregate, expected)| {
+        let sql = format!("SELECT {aggregate} FILTER (WHERE FALSE) FROM aggregate_extension");
+        (fixture.error(&sql).to_string(), expected)
+    });
+    for components in [vec![1.0, 2.0], vec![0.0, 10.0]] {
+        fixture
+            .cassie
+            .execute_sql(
+                &fixture.session,
+                "INSERT INTO aggregate_extension (v) VALUES ($1)",
+                vec![Value::Vector(Vector::new(components))],
+            )
+            .expect("seed vector extrema");
+    }
+    let populated = fixture.execute("SELECT MIN(v),MAX(v) FROM aggregate_extension");
+    let filtered = fixture.execute(
+        "SELECT MIN(v) FILTER (WHERE FALSE),MAX(v) FILTER (WHERE FALSE) FROM aggregate_extension",
+    );
+
+    // Assert
+    let empty = empty.expect("empty vector extrema");
+    assert_eq!(empty.rows(), &[vec![Value::Null, Value::Null]]);
+    assert_eq!(
+        empty
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![DataType::Vector(2).type_oid(); 2]
+    );
+    for (actual, expected) in errors {
+        assert_eq!(actual, format!("execution error: {expected}"));
+    }
+    assert_eq!(
+        populated.expect("populated vector extrema").rows(),
+        &[vec![
+            Value::Vector(Vector::new(vec![0.0, 10.0])),
+            Value::Vector(Vector::new(vec![1.0, 2.0])),
+        ]]
+    );
+    assert_eq!(
+        filtered.expect("filtered vector extrema").rows(),
+        &[vec![Value::Null, Value::Null]]
+    );
+}
+
+#[test]
 fn should_reject_float_sum_that_overflows_to_infinity() {
     // Arrange
     let fixture = float_overflow_fixture("aggregate_float_sum_overflow");

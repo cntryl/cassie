@@ -343,3 +343,52 @@ Final formatting, all 11 touched-test file validations, inventory refresh/check,
 whitespace check and touched Rust file size audit passed. All touched Rust files
 remain below 1,000 lines. No integration test instances were added or removed.
 This checkpoint clears the full Clippy gate; the full test gate remains red.
+
+## Aggregate extension and JSON boundary batch after fe266aa9
+
+The required prior run exposed three red analytics cases. Preserve Cassie's
+established vector MIN/MAX extension in shared aggregate admission, while
+continuing to reject vector SUM/AVG/Boolean aggregates and JSON numeric/extrema
+aggregates. Numeric JSON fallback fixtures now explicitly cast JSON through
+TEXT to FLOAT, as PostgreSQL requires. The array-extrema test retains its exact
+typed-array ordering assertions and now checks rejection of JSON MIN and MAX.
+The mixed numeric fixture retains indexed/unindexed equality, exact values,
+float8 descriptors and row-fallback counters; it does not gain implicit JSON
+numeric coercion.
+
+The first adversarial review returned 0.57 for extension admission and 0.44 for
+fixture coverage. Focused execution exposed two additional defects: vector
+rejection diagnostics displayed `unknown`, and computed aggregate arguments
+were omitted from the row-fallback counter. The refinement formats the existing
+vector OID family without pre-admission allocation and records declined
+registered aggregate projections. Diagnostic capacity probes include dimension
+2 and the maximum admitted dimension 32,767.
+
+After refinement, the 33-case related batch ran analytics 3/0, SQL aggregate
+semantics 22/4 and selected empty/false-filter wire admission 4/0. All three
+original analytics failures and the new vector/JSON admission probe pass. The
+four remaining SQL failures are string_agg ordering, grouping sets, ordered-set
+rank aggregates and statistical aggregates; they remain pending obligations.
+Refined Jev probabilities were 0.21 for bounded vector diagnostics and 0.27 for
+fallback metric scope. Native PostgreSQL 18.6 confirms numeric JSON cast values
+`2.5|0.8333333333333334|-1|2`, four double-precision descriptors and `42883` for
+both JSON extrema. Artifacts are in ignored `target/green-aggregate-compat-*`
+and `target/green-aggregate-json-*-oracle.log`.
+
+The refined binary build and compilation of all 34 Rust test executables passed.
+The repeated required `cargo test --locked` run has passed all 968 library tests;
+final integration/analyzer readback follows below.
+
+Final ordered readback: library 968/0, analytics 179/0, backend CI 2/0 and
+benchmark operations 16/0 passed. The full locked test command then stopped at
+catalog/security 139/209; later targets were not run by that command. The
+additional complete metrics suite passed 61/0. Full workspace/all-target/all-feature
+pedantic Clippy, formatting, all four touched-test validations, inventory
+refresh/check, whitespace and touched-file size audits passed. All touched
+Rust files remain under 1,000 lines. Inventory now contains 5,605 integration
+instances; the 968 library tests are additional. One SQL behavioral probe was
+added. No CI/release configuration or durable scalar layout changed.
+
+The next proposed batch is native typed VALUES sources under #800, using
+existing primitive types and a flat row-expression source. Its public AST
+variant requires direction under AGENTS.md; implementation has not begun.

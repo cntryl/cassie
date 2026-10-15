@@ -401,8 +401,8 @@ fn should_preserve_mixed_numeric_row_fallback_semantics() {
         ],
         8,
     );
-    // An absent JSON field represents SQL NULL. An explicit JSON null is
-    // now a present value and is not silently ignored by numeric aggregates.
+    // An absent JSON field represents SQL NULL. PostgreSQL numeric aggregates
+    // require explicit extraction/casts from a declared JSON column.
     fixture
         .cassie
         .midge
@@ -418,7 +418,7 @@ fn should_preserve_mixed_numeric_row_fallback_semantics() {
         .cassie
         .execute_sql(
             &fixture.session,
-            "SELECT SUM(amount) AS fallback_sum, AVG(amount) AS fallback_avg, MIN(amount) AS fallback_min, MAX(amount) AS fallback_max FROM column_batch_mixed_numerics",
+            "SELECT SUM(amount::TEXT::FLOAT) AS fallback_sum, AVG(amount::TEXT::FLOAT) AS fallback_avg, MIN(amount::TEXT::FLOAT) AS fallback_min, MAX(amount::TEXT::FLOAT) AS fallback_max FROM column_batch_mixed_numerics",
             vec![],
         )
         .expect("aggregate mixed numerics from rows");
@@ -435,7 +435,7 @@ fn should_preserve_mixed_numeric_row_fallback_semantics() {
         .cassie
         .execute_sql(
             &fixture.session,
-            "SELECT SUM(amount) AS exact_sum, AVG(amount) AS exact_avg, MIN(amount) AS exact_min, MAX(amount) AS exact_max FROM column_batch_mixed_numerics",
+            "SELECT SUM(amount::TEXT::FLOAT) AS exact_sum, AVG(amount::TEXT::FLOAT) AS exact_avg, MIN(amount::TEXT::FLOAT) AS exact_min, MAX(amount::TEXT::FLOAT) AS exact_max FROM column_batch_mixed_numerics",
             vec![],
         )
         .expect("aggregate mixed numerics from rows");
@@ -446,11 +446,19 @@ fn should_preserve_mixed_numeric_row_fallback_semantics() {
         vec![vec![
             Value::Float64(2.5),
             Value::Float64(2.5 / 3.0),
-            Value::Int64(-1),
-            Value::Int64(2),
+            Value::Float64(-1.0),
+            Value::Float64(2.0),
         ]]
     );
     assert_eq!(exact.rows(), fallback.rows());
+    assert_eq!(
+        fallback
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![701; 4]
+    );
     assert_eq!(fallback_metrics["aggregate_acceleration"]["scans"], 0);
     assert_eq!(
         fallback_metrics["aggregate_acceleration"]["row_blob_fallbacks"],

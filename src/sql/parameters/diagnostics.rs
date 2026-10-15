@@ -162,7 +162,7 @@ impl ParameterSemanticDiagnostic {
             } => {
                 write!(output, "function {function}(")?;
                 if let Some(oid) = actual {
-                    output.write_str(type_name(oid))?;
+                    write!(output, "{}", type_name(oid))?;
                 } else if argument_count != 0 {
                     output.write_str("...")?;
                 }
@@ -213,8 +213,35 @@ impl ParameterSemanticDiagnostic {
     }
 }
 
-fn type_name(oid: i32) -> &'static str {
-    match oid {
+#[derive(Clone, Copy)]
+enum TypeName {
+    Scalar(&'static str),
+    Vector(usize),
+}
+
+impl TypeName {
+    fn len(self) -> usize {
+        match self {
+            Self::Scalar(name) => name.len(),
+            Self::Vector(_) => "vector()".len() + MAX_DECIMAL_DIGITS,
+        }
+    }
+}
+
+impl fmt::Display for TypeName {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Scalar(name) => output.write_str(name),
+            Self::Vector(dimensions) => write!(output, "vector({dimensions})"),
+        }
+    }
+}
+
+fn type_name(oid: i32) -> TypeName {
+    if let Some(dimensions) = crate::types::schema::vector_dimensions_for_oid(i64::from(oid)) {
+        return TypeName::Vector(dimensions);
+    }
+    TypeName::Scalar(match oid {
         16 => "boolean",
         20 => "bigint",
         21 => "smallint",
@@ -232,5 +259,5 @@ fn type_name(oid: i32) -> &'static str {
         1083 => "time without time zone",
         1114 => "timestamp without time zone",
         _ => "unknown",
-    }
+    })
 }

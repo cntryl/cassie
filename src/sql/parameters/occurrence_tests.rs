@@ -286,6 +286,16 @@ fn should_bound_diagnostic_formatting_by_source_derived_capacities() {
         },
         ParameterSemanticDiagnostic::DistinctAggregateOrder,
         ParameterSemanticDiagnostic::MissingEquality { actual: 114 },
+        ParameterSemanticDiagnostic::UndefinedFunction {
+            function: "bool_and",
+            argument_count: 1,
+            actual: Some(100_002),
+        },
+        ParameterSemanticDiagnostic::UndefinedFunction {
+            function: "bool_and",
+            argument_count: 1,
+            actual: Some(132_767),
+        },
     ];
     // Act
     let formatted = diagnostics.map(|diagnostic| {

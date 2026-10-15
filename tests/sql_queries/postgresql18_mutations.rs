@@ -257,6 +257,38 @@ fn should_assign_conflicting_columns_from_a_row_constructor() {
 }
 
 #[test]
+fn should_apply_insert_defaults_to_excluded_conflict_values() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-825-excluded-insert-default",
+        &[
+            "CREATE TABLE excluded_default_target (id INT PRIMARY KEY, label TEXT DEFAULT 'pending')",
+            "INSERT INTO excluded_default_target (id, label) VALUES (1, 'old')",
+        ],
+    );
+
+    // Act
+    let changed = fixture.execute(
+        "INSERT INTO excluded_default_target (id) VALUES (1) \
+         ON CONFLICT (id) DO UPDATE SET label = EXCLUDED.label \
+         RETURNING id, label",
+    );
+    let stored = fixture.execute("SELECT id, label FROM excluded_default_target WHERE id = 1");
+
+    // Assert
+    assert_eq!(
+        changed
+            .expect("EXCLUDED carries the insert's column default")
+            .rows(),
+        &[vec![Value::Int64(1), Value::String("pending".to_owned())]]
+    );
+    assert_eq!(
+        stored.expect("read updated conflict target").rows(),
+        &[vec![Value::Int64(1), Value::String("pending".to_owned())]]
+    );
+}
+
+#[test]
 fn should_match_an_explicit_operator_class_in_a_conflict_target() {
     // Arrange
     let fixture = sql_fixture(

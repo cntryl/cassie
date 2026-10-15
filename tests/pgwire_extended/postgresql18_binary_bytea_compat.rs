@@ -5,6 +5,8 @@ mod bit_string_oid_zero_binary_bind;
 mod bit_string_operations_wire;
 mod bytea_bits;
 mod bytea_conversion_error_sqlstates;
+mod bytea_function_overloads;
+mod bytea_like_wire;
 mod bytea_strings;
 mod computed_binary_operations;
 mod integer_bytea_casts;
@@ -12,7 +14,7 @@ mod pg_type_vectors;
 mod varbit_empty_boundary;
 mod varbit_ordering_boundaries;
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 fn row_description(frames: &[(u8, Vec<u8>)]) -> Vec<wire::RowDescription> {

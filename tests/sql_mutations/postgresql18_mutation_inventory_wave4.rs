@@ -14,6 +14,8 @@ use super::support_sql_fixture::sql_fixture;
 mod data_modifying_cte_wire_atomicity;
 #[path = "postgresql18_mutation_inventory_wave4/merge_cardinality_atomicity.rs"]
 mod merge_cardinality_atomicity;
+#[path = "postgresql18_mutation_inventory_wave4/returning_error_order.rs"]
+mod returning_error_order;
 #[path = "postgresql18_mutation_inventory_wave4/truncate_restart_identity_commit.rs"]
 mod truncate_restart_identity_commit;
 #[path = "postgresql18_mutation_inventory_wave4/update_returning_descriptor.rs"]

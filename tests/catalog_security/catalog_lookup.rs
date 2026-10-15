@@ -20,8 +20,50 @@ fn should_map_postgresql_character_encoding_names() {
 
     // Assert
     assert_eq!(
+        selected
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23, 23]
+    );
+    assert_eq!(
         selected.rows(),
         vec![vec![Value::Int64(6), Value::Int64(0), Value::Int64(-1)]]
+    );
+}
+
+#[test]
+fn should_describe_reserved_keywords_from_the_server_keyword_table() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-keyword-catalog-row", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT word, catcode, barelabel \
+             FROM pg_catalog.pg_get_keywords() \
+             WHERE word = 'select'",
+        )
+        .expect("read the server's SELECT keyword metadata");
+
+    // Assert
+    assert_eq!(
+        selected
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 18, 16]
+    );
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("select".to_owned()),
+            Value::String("R".to_owned()),
+            Value::Bool(false),
+        ]]
     );
 }
 

@@ -1,9 +1,10 @@
 //! PostgreSQL 18 CTE parameter metadata and Bind behavior tracked by #801.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 mod multicolumn_cycle_wire_identity;
+mod multicolumn_search_wire_identity;
 
 #[test]
 fn should_describe_typed_parameter_inside_materialized_cte() {

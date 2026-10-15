@@ -8,12 +8,16 @@ use cassie::types::Value;
 mod array_function_gaps;
 #[path = "type_array_text_inputs/array_function_residuals.rs"]
 mod array_function_residuals;
+#[path = "type_array_text_inputs/array_position_start_overloads.rs"]
+mod array_position_start_overloads;
 #[path = "type_array_text_inputs/array_randomization_custom_bounds.rs"]
 mod array_randomization_custom_bounds;
 #[path = "type_array_text_inputs/array_reverse_custom_bounds.rs"]
 mod array_reverse_custom_bounds;
 #[path = "type_array_text_inputs/array_sort_custom_bounds.rs"]
 mod array_sort_custom_bounds;
+#[path = "type_array_text_inputs/standard_oid_dml_null_identity.rs"]
+mod standard_oid_dml_null_identity;
 #[path = "type_array_text_inputs/binary_container_framing.rs"]
 mod binary_container_framing;
 #[path = "type_array_text_inputs/boolean_array_container_framing.rs"]

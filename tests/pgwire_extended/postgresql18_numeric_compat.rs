@@ -4,6 +4,7 @@ use crate::support_parameter_occurrence_wire::{Step, run_script};
 use crate::support_pgwire as wire;
 
 mod aggregate_special_values;
+mod bigint_aggregate_overflow;
 mod numeric_aggregate_fraction;
 mod numeric_typmod_domain_edges;
 

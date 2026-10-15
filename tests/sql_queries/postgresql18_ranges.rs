@@ -66,6 +66,52 @@ fn should_use_numeric_subtype_operators_for_custom_ranges() {
 }
 
 #[test]
+fn should_bind_custom_range_subtype_difference_to_its_routine() {
+    // Arrange
+    let fixture = sql_fixture("issue-905-custom-range-subtype-difference", &[]);
+
+    // Act
+    fixture
+        .execute(
+            "CREATE TYPE issue_905_float_range AS RANGE \
+             (subtype = FLOAT8, subtype_diff = pg_catalog.float8mi)",
+        )
+        .expect("create a custom range with PostgreSQL's float8 subtype-difference routine");
+    let value = fixture
+        .execute(
+            "SELECT '[1.0,3.0]'::issue_905_float_range @> 2.5::FLOAT8, \
+                    '[1.0,3.0]'::issue_905_float_range::TEXT",
+        )
+        .expect("construct and compare values of the custom float8 range");
+    let routine = fixture
+        .execute(
+            "SELECT range_type.typname, procedure.proname, \
+                    procedure.oid::REGPROCEDURE::TEXT \
+             FROM pg_catalog.pg_range AS range \
+             JOIN pg_catalog.pg_type AS range_type \
+               ON range_type.oid = range.rngtypid \
+             JOIN pg_catalog.pg_proc AS procedure \
+               ON procedure.oid = range.rngsubdiff \
+             WHERE range_type.typname = 'issue_905_float_range'",
+        )
+        .expect("inspect the range's PostgreSQL subtype-difference identity");
+
+    // Assert
+    assert_eq!(
+        value.rows(),
+        &[vec![Value::Bool(true), Value::String("[1,3]".to_owned()),]]
+    );
+    assert_eq!(
+        routine.rows(),
+        &[vec![
+            Value::String("issue_905_float_range".to_owned()),
+            Value::String("float8mi".to_owned()),
+            Value::String("float8mi(double precision, double precision)".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_handle_unbounded_empty_inclusive_range_boundaries() {
     // Arrange
     let fixture = sql_fixture("issue-905-range-boundaries", &[]);

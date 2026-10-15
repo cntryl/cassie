@@ -1,10 +1,11 @@
 //! PostgreSQL 18 pattern and text-search protocol contracts tracked by #799.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 
+mod like_escape_residuals;
 mod named_regexp_like_parameters;
 mod ts_headline_regconfig_wire;
 

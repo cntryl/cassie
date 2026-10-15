@@ -208,6 +208,39 @@ fn should_evaluate_row_constructor_equality() {
 }
 
 #[test]
+fn should_compare_whole_table_rows_in_a_self_join() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-800-whole-row-comparison",
+        &[
+            "CREATE TABLE whole_row_source (id INT4, label TEXT)",
+            "INSERT INTO whole_row_source VALUES (1, 'one'), (2, 'two')",
+        ],
+    );
+
+    // Act
+    let compared = fixture.execute(
+        "SELECT source.id, source = expected \
+         FROM whole_row_source AS source \
+         CROSS JOIN whole_row_source AS expected \
+         ORDER BY source.id, expected.id",
+    );
+
+    // Assert
+    assert_eq!(
+        compared
+            .expect("compare table row values through relation aliases")
+            .rows(),
+        &[
+            vec![Value::Int64(1), Value::Bool(true)],
+            vec![Value::Int64(1), Value::Bool(false)],
+            vec![Value::Int64(2), Value::Bool(false)],
+            vec![Value::Int64(2), Value::Bool(true)],
+        ]
+    );
+}
+
+#[test]
 fn should_compare_row_constructors_lexicographically() {
     // Arrange
     let fixture = sql_fixture("issue-800-row-ordering", &[]);

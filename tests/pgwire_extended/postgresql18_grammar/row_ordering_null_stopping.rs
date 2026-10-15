@@ -1,6 +1,6 @@
 //! PostgreSQL row-constructor ordering behavior when a NULL field is reached.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 #[test]

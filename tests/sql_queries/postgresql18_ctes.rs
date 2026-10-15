@@ -4,8 +4,9 @@ use cassie::app::CassieError;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
-use crate::support_sql_fixture::{SqlFixture, sql_fixture, sql_fixture_with_config};
+use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
 
+mod data_modifying_operations;
 mod insert_snapshot_descriptor;
 mod search_cycle_edge_cases;
 

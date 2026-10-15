@@ -4,14 +4,16 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
-use crate::support_sql_fixture::{SqlFixture, sql_fixture_with_config};
+use crate::support_sql_fixture::{sql_fixture_with_config, SqlFixture};
 use cassie::app::{Cassie, CassieError};
 use cassie::config::CassieRuntimeConfig;
 use tokio::io::AsyncWriteExt;
 
 mod format_parameter_wires;
+mod parse_ident_residuals;
+mod strpos_result_identity;
 
 fn configured_fixture(label: &str, maximum_rows: usize) -> (SqlFixture, CassieRuntimeConfig) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");

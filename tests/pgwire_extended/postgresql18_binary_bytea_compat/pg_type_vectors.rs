@@ -1,6 +1,6 @@
 //! PostgreSQL built-in vector wire identities shared by #817 and #904.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 use super::{data_row_bytes, row_description};

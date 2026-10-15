@@ -204,13 +204,23 @@ fn should_apply_set_schema_for_unqualified_relation_resolution() {
         let server = CompatibilityServer::start("set_schema_resolution").await;
         let (client, connection) = server.connect().await;
         client
-            .batch_execute(
-                "CREATE SCHEMA compat_set_schema; \
-                 CREATE TABLE compat_set_schema.values_table (value INT); \
-                 INSERT INTO compat_set_schema.values_table VALUES (817)",
+            .execute("CREATE SCHEMA compat_set_schema", &[])
+            .await
+            .expect("create a dedicated schema");
+        client
+            .execute(
+                "CREATE TABLE compat_set_schema.values_table (value INT)",
+                &[],
             )
             .await
-            .expect("create and seed a table in a dedicated schema");
+            .expect("create a table in the dedicated schema");
+        client
+            .execute(
+                "INSERT INTO compat_set_schema.values_table VALUES (817)",
+                &[],
+            )
+            .await
+            .expect("seed the schema-qualified relation");
 
         // Act
         client
@@ -353,5 +363,165 @@ fn should_apply_statement_timeout_from_pgwire_startup_options() {
         drop(client);
         server.shutdown(connection).await;
         assert_eq!(statement_timeout, "1234ms");
+    });
+}
+
+#[test]
+fn should_reset_all_session_settings_to_connection_startup_defaults() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("reset_all_session_defaults").await;
+        let (client, connection) = server.connect().await;
+        let startup_application_name: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read the application name at connection startup")
+            .get(0);
+        let startup_search_path: String = client
+            .query_one("SHOW search_path", &[])
+            .await
+            .expect("read the search path at connection startup")
+            .get(0);
+        client
+            .batch_execute(
+                "SET application_name = 'compat_reset_all_override'; \
+                 SET search_path TO pg_catalog, public",
+            )
+            .await
+            .expect("change session settings before RESET ALL");
+
+        // Act
+        let reset = client.batch_execute("RESET ALL").await;
+        let settings_after_reset = if reset.is_ok() {
+            let application_name: String = client
+                .query_one("SHOW application_name", &[])
+                .await
+                .expect("read application_name after RESET ALL")
+                .get(0);
+            let search_path: String = client
+                .query_one("SHOW search_path", &[])
+                .await
+                .expect("read search_path after RESET ALL")
+                .get(0);
+            Some((application_name, search_path))
+        } else {
+            None
+        };
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        reset.expect("RESET ALL should restore connection-startup settings");
+        let (application_name, search_path) =
+            settings_after_reset.expect("read both settings after RESET ALL succeeds");
+        assert_eq!(application_name, startup_application_name);
+        assert_eq!(search_path, startup_search_path);
+    });
+}
+
+#[test]
+fn should_restore_session_override_after_reset_all_rollback() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("reset_all_rollback").await;
+        let (client, connection) = server.connect().await;
+        let startup_application_name: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read application_name at connection startup")
+            .get(0);
+        client
+            .batch_execute("SET application_name = 'compat_821_outer'")
+            .await
+            .expect("set the session value that should survive rollback");
+        client
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin a transaction before resetting session settings");
+        client
+            .batch_execute("SET application_name = 'compat_821_inner'")
+            .await
+            .expect("set a transaction-local override before RESET ALL");
+
+        // Act
+        client
+            .batch_execute("RESET ALL")
+            .await
+            .expect("reset all settings inside the transaction");
+        let after_reset: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read the startup default after RESET ALL")
+            .get(0);
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("roll back the transaction containing RESET ALL");
+        let after_rollback: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read the session value restored by rollback")
+            .get(0);
+
+        // Assert
+        assert_eq!(after_reset, startup_application_name);
+        assert_eq!(after_rollback, "compat_821_outer");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_discard_all_inside_transaction_without_clearing_state() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("discard_all_transaction_rejection").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("SET application_name = 'compat_821_discard'")
+            .await
+            .expect("set session state before the transaction-block rejection");
+        let prepared = client
+            .prepare("SELECT 'retained'::TEXT")
+            .await
+            .expect("prepare a protocol statement before DISCARD ALL");
+        client
+            .batch_execute("BEGIN")
+            .await
+            .expect("begin a transaction before DISCARD ALL");
+
+        // Act
+        let discard = client.batch_execute("DISCARD ALL").await;
+        let sqlstate = discard
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code().to_owned());
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("recover the session after DISCARD ALL is rejected");
+        assert_eq!(sqlstate.as_deref(), Some("25001"));
+
+        let application_name: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read the retained session setting after recovery")
+            .get(0);
+        let prepared_result: String = client
+            .query_one(&prepared, &[])
+            .await
+            .expect("execute the prepared statement retained by the failed DISCARD ALL")
+            .get(0);
+
+        // Assert
+        assert_eq!(application_name, "compat_821_discard");
+        assert_eq!(prepared_result, "retained");
+
+        drop(client);
+        server.shutdown(connection).await;
     });
 }

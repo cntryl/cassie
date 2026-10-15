@@ -10,11 +10,13 @@ mod aggregate_window_oracle_residuals;
 mod array_aggregate_distinct_nested;
 mod bitwise_bigint_boundaries;
 mod grouping_expression_keys;
+mod grouping_functional_dependency;
 mod numeric_statistical_result_identity;
 mod ordered_json_aggregate_modifiers;
 mod string_agg_bytea_contract;
 mod unique_object_aggregate_duplicate_keys;
 mod unique_object_aggregate_filter_null_contracts;
+mod window_ranking_function_residuals;
 
 fn grouping_fixture(label: &str) -> support_sql_fixture::SqlFixture {
     sql_fixture(

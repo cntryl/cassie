@@ -1,6 +1,6 @@
 //! Focused PostgreSQL 18 pgwire inventory gaps for #762, #796, #798, and #799.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 #[test]
@@ -344,5 +344,138 @@ fn should_preserve_power_precedence_with_float8_metadata() {
     assert_eq!(
         wire::data_rows(result),
         vec![vec![Some("64".to_owned()), Some("18".to_owned())]]
+    );
+}
+
+#[test]
+fn should_return_pg_input_error_info_as_a_star_expanded_row() {
+    // Arrange
+    let batches = run_script(
+        "issue-796-pg-input-error-info-wire",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT * FROM pg_input_error_info('not-an-int', 'integer')",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    let errors = result
+        .iter()
+        .filter(|frame| frame.0 == b'E')
+        .map(|frame| wire::parse_error_fields(&frame.1))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "pg_input_error_info ErrorResponse: {errors:?}"
+    );
+    let description = result
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("pg_input_error_info RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["message", "detail", "hint", "sql_error_code"]
+    );
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        [25, 25, 25, 25]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("invalid input syntax for type integer: \"not-an-int\"".to_owned()),
+            None,
+            None,
+            Some("22P02".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_parse_postgres_nested_block_comments_beyond_one_hundred_twenty_eight_levels() {
+    // Arrange
+    let comment = format!("{}nested{}", "/*".repeat(129), "*/".repeat(129));
+    let sql = format!("{comment} SELECT 7::INT4 AS parsed_value");
+    let batches = run_script(
+        "issue-796-nested-block-comment-depth",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(&sql)])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    let errors = result
+        .iter()
+        .filter(|frame| frame.0 == b'E')
+        .map(|frame| wire::parse_error_fields(&frame.1))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "nested block comment ErrorResponse: {errors:?}"
+    );
+    let description = result
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("nested-comment query RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(columns[0].name, "parsed_value");
+    assert_eq!(columns[0].type_oid, 23);
+    assert_eq!(wire::data_rows(result), vec![vec![Some("7".to_owned())]]);
+}
+
+#[test]
+fn should_select_postgres_integer_literal_oids_at_the_signed_boundary() {
+    // Arrange
+    let batches = run_script(
+        "issue-796-integer-literal-width-boundary",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 2147483647 AS int4_max, 2147483648 AS int8_min",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    let errors = result
+        .iter()
+        .filter(|frame| frame.0 == b'E')
+        .map(|frame| wire::parse_error_fields(&frame.1))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        wire::error_code(result),
+        None,
+        "integer literal boundary ErrorResponse: {errors:?}"
+    );
+    let description = result
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("integer literal boundary RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.name.as_str(), column.type_oid))
+            .collect::<Vec<_>>(),
+        [("int4_max", 23), ("int8_min", 20)]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("2147483647".to_owned()),
+            Some("2147483648".to_owned()),
+        ]]
     );
 }

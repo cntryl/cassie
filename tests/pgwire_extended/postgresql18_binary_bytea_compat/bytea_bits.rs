@@ -107,11 +107,11 @@ fn should_count_set_bits_in_bytea_values() {
 fn should_reject_bytea_access_outside_declared_bounds() {
     // Arrange
     let cases = [
-        "SELECT get_bit(decode('80', 'hex'), -1)",
-        "SELECT get_bit(decode('80', 'hex'), 8)",
-        "SELECT set_bit(decode('80', 'hex'), 8, 1)",
-        "SELECT get_byte(decode('ff', 'hex'), -1)",
-        "SELECT set_byte(decode('ff', 'hex'), 1, 0)",
+        "SELECT get_bit(CAST('\\x80' AS BYTEA), -1)",
+        "SELECT get_bit(CAST('\\x80' AS BYTEA), 8)",
+        "SELECT set_bit(CAST('\\x80' AS BYTEA), 8, 1)",
+        "SELECT get_byte(CAST('\\xff' AS BYTEA), -1)",
+        "SELECT set_byte(CAST('\\xff' AS BYTEA), 1, 0)",
     ];
     let mut steps = cases
         .iter()

@@ -169,7 +169,7 @@ fn should_evaluate_an_uncorrelated_volatile_scalar_subquery_once() {
 }
 
 #[test]
-fn should_cancel_a_sleeping_scalar_subquery_without_partial_results() {
+fn should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results() {
     // Arrange
     wire::use_local_storage();
     let path = wire::data_dir("issue-762-scalar-subquery-cancel");
@@ -234,12 +234,27 @@ fn should_cancel_a_sleeping_scalar_subquery_without_partial_results() {
     });
 
     // Assert
-    assert_eq!(wire::error_code(&baseline), None);
+    assert_eq!(
+        wire::error_code(&baseline),
+        None,
+        "baseline scalar-subquery ErrorResponse: {:?}",
+        error_summary(&baseline)
+    );
     assert_eq!(wire::data_rows(&baseline), vec![vec![Some("45".into())]]);
-    assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
+    assert_eq!(
+        wire::error_code(&cancelled).as_deref(),
+        Some("57014"),
+        "cancelled scalar-subquery ErrorResponse: {:?}",
+        error_summary(&cancelled)
+    );
     assert!(wire::data_rows(&cancelled).is_empty());
     assert_eq!(cancelled.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
-    assert_eq!(wire::error_code(&recovery), None);
+    assert_eq!(
+        wire::error_code(&recovery),
+        None,
+        "post-cancellation recovery ErrorResponse: {:?}",
+        error_summary(&recovery)
+    );
     assert_eq!(wire::data_rows(&recovery), vec![vec![Some("46".into())]]);
 }
 
@@ -267,135 +282,6 @@ fn should_return_a_null_value_from_a_one_row_null_scalar_subquery() {
         .find(|frame| frame.0 == b'T')
         .expect("NULL scalar RowDescription");
     assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 23);
-}
-
-#[test]
-fn should_raise_cardinality_violation_in_each_scalar_expression_position() {
-    // Arrange
-    let cases = [
-        (
-            "SELECT id FROM scalar_wire_values WHERE id = (SELECT id FROM scalar_wire_values)",
-            "21000",
-        ),
-        (
-            "SELECT id FROM scalar_wire_values ORDER BY (SELECT id FROM scalar_wire_values)",
-            "21000",
-        ),
-        (
-            "SELECT id FROM scalar_wire_values GROUP BY id HAVING (SELECT id FROM scalar_wire_values) > 0",
-            "21000",
-        ),
-        ("SELECT abs((SELECT id FROM scalar_wire_values))", "21000"),
-        (
-            "SELECT CASE WHEN TRUE THEN (SELECT id FROM scalar_wire_values) ELSE 0 END",
-            "21000",
-        ),
-        (
-            "SELECT left_value.id FROM scalar_wire_values AS left_value JOIN scalar_wire_values AS right_value ON right_value.id = (SELECT id FROM scalar_wire_values)",
-            "21000",
-        ),
-    ];
-    let mut steps = vec![setup()];
-    steps.extend(
-        cases
-            .iter()
-            .map(|(sql, _)| Step::ThroughReady(vec![wire::simple_query_frame(sql)])),
-    );
-
-    // Act
-    let batches = run_script("issue-762-scalar-position-cardinality-wire", steps);
-    let failures = cases
-        .iter()
-        .enumerate()
-        .filter_map(|(index, (sql, expected))| {
-            let actual = wire::error_code(&batches[index + 1]);
-            (actual.as_deref() != Some(*expected))
-                .then(|| format!("{sql}: expected SQLSTATE {expected}, got {actual:?}"))
-        })
-        .collect::<Vec<_>>();
-
-    // Assert
-    assert!(
-        failures.is_empty(),
-        "scalar cardinality state differs by expression position:\n{}",
-        failures.join("\n")
-    );
-}
-
-#[test]
-fn should_reject_a_multi_column_scalar_subquery_with_syntax_sqlstate() {
-    // Arrange
-    let batches = run_script(
-        "issue-762-scalar-width-wire",
-        vec![
-            setup(),
-            Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT (SELECT id, value FROM scalar_wire_values WHERE id = 1)",
-            )]),
-        ],
-    );
-
-    // Act
-    let result = &batches[1];
-
-    // Assert
-    assert_eq!(wire::error_code(result).as_deref(), Some("42601"));
-}
-
-#[test]
-fn should_report_row_subquery_arity_errors_with_postgres_syntax_sqlstate() {
-    // Arrange
-    let batches = run_script(
-        "issue-762-row-subquery-arity-wire",
-        vec![
-            Step::ThroughReady(vec![wire::simple_query_frame(
-                "CREATE TABLE scalar_wire_values (id INT, value INT)",
-            )]),
-            Step::ThroughReady(vec![wire::simple_query_frame(
-                "INSERT INTO scalar_wire_values (id, value) VALUES (1, 100), (2, 200)",
-            )]),
-            Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT ROW(1::INT4, 2::INT4) = \
-                 (SELECT id FROM scalar_wire_values WHERE id = 1)",
-            )]),
-            Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT ROW(1::INT4, 2::INT4) IN \
-                 (SELECT id FROM scalar_wire_values WHERE id = 1)",
-            )]),
-        ],
-    );
-
-    // Act
-    let errors = batches
-        .iter()
-        .skip(2)
-        .map(|batch| {
-            let frame = batch
-                .iter()
-                .find(|frame| frame.0 == b'E')
-                .expect("row-subquery arity ErrorResponse");
-            wire::parse_error_fields(&frame.1)
-        })
-        .collect::<Vec<_>>();
-
-    // Assert
-    let mismatches = errors
-        .iter()
-        .enumerate()
-        .filter_map(|(index, fields)| {
-            let state = fields
-                .iter()
-                .find(|(kind, _)| *kind == 'C')
-                .map(|(_, value)| value.as_str());
-            let message = fields
-                .iter()
-                .find(|(kind, _)| *kind == 'M')
-                .map(|(_, value)| value.as_str());
-            (state != Some("42601") || message != Some("subquery has too few columns"))
-                .then(|| format!("case {index}: expected 42601 / subquery has too few columns, got {state:?} / {message:?}"))
-        })
-        .collect::<Vec<_>>();
-    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
 
 #[test]
@@ -481,27 +367,6 @@ fn should_bind_text_parameters_to_scalar_subqueries() {
         "Execute without portal Describe must not send RowDescription"
     );
     assert_eq!(wire::data_rows(result), vec![vec![Some("100".into())]]);
-}
-
-#[test]
-fn should_return_cardinality_violation_for_multiple_scalar_rows_on_the_wire() {
-    // Arrange
-    let batches = run_script(
-        "issue-762-scalar-cardinality-sqlstate",
-        vec![
-            setup(),
-            Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT (SELECT value FROM scalar_wire_values) AS scalar_value",
-            )]),
-        ],
-    );
-
-    // Act
-    let result = &batches[1];
-
-    // Assert
-    assert_eq!(wire::error_code(result).as_deref(), Some("21000"));
-    assert_eq!(wire::data_rows(result), Vec::<Vec<Option<String>>>::new());
 }
 
 #[test]
@@ -764,72 +629,6 @@ fn should_match_subquery_predicate_truth_table() {
 }
 
 #[test]
-fn should_report_wide_subquery_predicate_arity_errors() {
-    // Arrange
-    let cases = [
-        "SELECT 1 IN (SELECT id, value FROM scalar_wire_values WHERE id = 1)",
-        "SELECT 1 = ANY (SELECT id, value FROM scalar_wire_values WHERE id = 1)",
-        "SELECT 1 = ALL (SELECT id, value FROM scalar_wire_values WHERE id = 1)",
-    ];
-    let mut steps = Vec::with_capacity(cases.len() + 2);
-    steps.extend([
-        Step::ThroughReady(vec![wire::simple_query_frame(
-            "CREATE TABLE scalar_wire_values (id INT, value INT)",
-        )]),
-        Step::ThroughReady(vec![wire::simple_query_frame(
-            "INSERT INTO scalar_wire_values (id, value) VALUES (1, 100), (2, 200)",
-        )]),
-    ]);
-    steps.extend(
-        cases
-            .iter()
-            .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)])),
-    );
-
-    // Act
-    let batches = run_script("issue-762-wide-predicate-subqueries", steps);
-    let predicate_batches = batches.iter().skip(2).collect::<Vec<_>>();
-    let mismatches = cases
-        .iter()
-        .zip(&predicate_batches)
-        .map(|(sql, batch)| match batch.iter().find(|frame| frame.0 == b'E') {
-            Some(error) => {
-                let fields = wire::parse_error_fields(&error.1);
-                let state = fields
-                    .iter()
-                    .find(|(kind, _)| *kind == 'C')
-                    .map(|(_, value)| value.as_str());
-                let message = fields
-                    .iter()
-                    .find(|(kind, _)| *kind == 'M')
-                    .map(|(_, value)| value.as_str());
-                (state != Some("42601")
-                    || message != Some("subquery has too many columns"))
-                    .then(|| {
-                        format!(
-                            "{sql}: expected 42601 subquery has too many columns, got {state:?} {message:?}"
-                        )
-                    })
-            }
-            None => Some(format!("{sql}: expected SQLSTATE 42601, got no ErrorResponse")),
-        })
-        .flatten()
-        .collect::<Vec<_>>();
-
-    // Assert
-    assert_eq!(
-        predicate_batches.len(),
-        cases.len(),
-        "each malformed predicate statement must be processed"
-    );
-    assert!(
-        mismatches.is_empty(),
-        "wide predicate subquery errors differ:\n{}",
-        mismatches.join("\n")
-    );
-}
-
-#[test]
 fn should_bind_subquery_predicate_parameters_across_formats() {
     // Arrange
     let binary_value = 100_i32.to_be_bytes();
@@ -927,5 +726,15 @@ fn should_bind_subquery_predicate_parameters_across_formats() {
     assert_eq!(binary_row.1[6], 1);
 }
 
+#[path = "scalar_subqueries/delete_predicate.rs"]
+mod delete_predicate;
+#[path = "scalar_subqueries/limit_offset.rs"]
+mod limit_offset;
 #[path = "scalar_subqueries/pg18_residuals.rs"]
 mod pg18_residuals;
+#[path = "scalar_subqueries/returning_expression.rs"]
+mod returning_expression;
+#[path = "scalar_subqueries/row_value_subquery.rs"]
+mod row_value_subquery;
+#[path = "scalar_subqueries/update_scalar_subquery.rs"]
+mod update_scalar_subquery;

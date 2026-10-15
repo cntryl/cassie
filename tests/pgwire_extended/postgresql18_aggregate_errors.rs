@@ -3,11 +3,12 @@
 #[path = "postgresql18_aggregate_errors/resource_cancellation.rs"]
 mod resource_cancellation;
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
-mod boolean_or_type_error;
 mod boolean_aggregate_cancellation;
+mod boolean_or_type_error;
+mod boolean_value_semantics;
 mod distinct_order_by_argument;
 
 #[test]

@@ -8,6 +8,8 @@ mod regoperator_lookup_wire;
 mod quoted_regclass_output;
 #[path = "type_output_identifier_identity/regclass_search_path.rs"]
 mod regclass_search_path;
+#[path = "type_output_identifier_identity/to_regprocedure_resolution.rs"]
+mod to_regprocedure_resolution;
 
 #[test]
 fn should_preserve_stored_identifier_identity_in_wire_output_metadata() {
@@ -159,6 +161,43 @@ fn should_emit_reg_identity_wire_contract() {
             );
         }
     }
+}
+
+#[test]
+fn should_resolve_regcollation_lookup_name_forms_over_wire() {
+    // Arrange
+    let sql = "SELECT to_regcollation('pg_catalog.\"C\"') IS NOT NULL, \
+                     to_regcollation('\"C\"') IS NOT NULL, \
+                     to_regcollation('C') IS NULL, \
+                     to_regcollation('missing_collation') IS NULL";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-818-regcollation-lookup-wire", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("to_regcollation lookup RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16, 16, 16, 16]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+        ]]
+    );
 }
 
 #[test]

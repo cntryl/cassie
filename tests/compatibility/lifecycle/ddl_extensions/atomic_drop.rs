@@ -1,6 +1,7 @@
 use super::*;
 
 mod catalog_visibility;
+mod transactional_index_visibility;
 
 #[test]
 fn should_keep_all_drop_targets_when_a_later_target_is_missing() {

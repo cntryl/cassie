@@ -29,6 +29,7 @@ mod advisory_lock_disconnect;
 mod copy_forms;
 mod ddl_extensions;
 mod exclusion_constraints;
+mod large_objects;
 mod mutation_ddl;
 mod routine_objects;
 mod session_transaction;

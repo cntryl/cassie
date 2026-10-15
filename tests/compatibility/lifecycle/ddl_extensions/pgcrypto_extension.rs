@@ -215,3 +215,32 @@ fn should_update_pgcrypto_from_an_available_older_version() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_accept_cascade_for_multi_name_if_exists_extension_drop() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pgcrypto_multi_drop_if_exists").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        client
+            .batch_execute(
+                "DROP EXTENSION IF EXISTS pgcrypto, compat_missing_extension \
+                 CASCADE",
+            )
+            .await
+            .expect("skip both absent extensions in one list");
+        let recovered = client
+            .query_one("SELECT 1", &[])
+            .await
+            .expect("continue using the session after the no-op drop");
+
+        // Assert
+        assert_eq!(recovered.get::<_, i32>(0), 1);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

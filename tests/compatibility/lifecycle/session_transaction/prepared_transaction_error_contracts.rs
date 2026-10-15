@@ -264,3 +264,148 @@ fn should_reject_prepared_resolution_inside_a_transaction_with_postgres_sqlstate
             .expect("rollback the still-prepared transaction");
     });
 }
+
+#[test]
+fn should_commit_prepared_transaction_once_after_restart() {
+    // Arrange
+    support::use_local_storage();
+    let path = support::data_dir("prepared-transaction-commit-restart");
+    let _directory = DataDirectory(path.clone());
+    {
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie instance");
+        cassie.startup().expect("start Cassie instance");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE compat_915_restart_commit_rows (id INT PRIMARY KEY)",
+            "BEGIN",
+            "INSERT INTO compat_915_restart_commit_rows VALUES (18)",
+            "PREPARE TRANSACTION 'compat_915_restart_commit_gid'",
+        ] {
+            cassie
+                .execute_sql(&session, sql, vec![])
+                .unwrap_or_else(|error| panic!("could not execute {sql}: {error}"));
+        }
+        drop(session);
+        drop(cassie);
+    }
+
+    // Act
+    let cassie = Cassie::new_with_data_dir(&path).expect("reopen Cassie instance");
+    cassie
+        .startup()
+        .expect("recover prepared transaction state");
+    let session = cassie.create_session("tester", None);
+    let pending = cassie
+        .execute_sql(
+            &session,
+            "SELECT count(*) FROM pg_catalog.pg_prepared_xacts \
+             WHERE gid = 'compat_915_restart_commit_gid'",
+            vec![],
+        )
+        .expect("read the prepared transaction after restart")
+        .rows()
+        .to_vec();
+    let unpublished = cassie
+        .execute_sql(
+            &session,
+            "SELECT count(*) FROM compat_915_restart_commit_rows",
+            vec![],
+        )
+        .expect("confirm prepared changes remain unpublished after restart")
+        .rows()
+        .to_vec();
+    cassie
+        .execute_sql(
+            &session,
+            "COMMIT PREPARED 'compat_915_restart_commit_gid'",
+            vec![],
+        )
+        .expect("commit the recovered prepared transaction");
+    let committed_rows = cassie
+        .execute_sql(
+            &session,
+            "SELECT id FROM compat_915_restart_commit_rows ORDER BY id",
+            vec![],
+        )
+        .expect("read the committed row after resolving the recovered transaction")
+        .rows()
+        .to_vec();
+    let resolved = cassie
+        .execute_sql(
+            &session,
+            "SELECT count(*) FROM pg_catalog.pg_prepared_xacts \
+             WHERE gid = 'compat_915_restart_commit_gid'",
+            vec![],
+        )
+        .expect("verify the committed GID was removed")
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert_eq!(pending, vec![vec![cassie::types::Value::Int64(1)]]);
+    assert_eq!(unpublished, vec![vec![cassie::types::Value::Int64(0)]]);
+    assert_eq!(committed_rows, vec![vec![cassie::types::Value::Int64(18)]]);
+    assert_eq!(resolved, vec![vec![cassie::types::Value::Int64(0)]]);
+}
+
+#[test]
+fn should_rollback_prepared_transaction_after_restart() {
+    // Arrange
+    support::use_local_storage();
+    let path = support::data_dir("prepared-transaction-rollback-restart");
+    let _directory = DataDirectory(path.clone());
+    {
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie instance");
+        cassie.startup().expect("start Cassie instance");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE compat_915_restart_rollback_rows (id INT PRIMARY KEY)",
+            "BEGIN",
+            "INSERT INTO compat_915_restart_rollback_rows VALUES (19)",
+            "PREPARE TRANSACTION 'compat_915_restart_rollback_gid'",
+        ] {
+            cassie
+                .execute_sql(&session, sql, vec![])
+                .unwrap_or_else(|error| panic!("could not execute {sql}: {error}"));
+        }
+        drop(session);
+        drop(cassie);
+    }
+
+    // Act
+    let cassie = Cassie::new_with_data_dir(&path).expect("reopen Cassie instance");
+    cassie
+        .startup()
+        .expect("recover prepared transaction state");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "ROLLBACK PREPARED 'compat_915_restart_rollback_gid'",
+            vec![],
+        )
+        .expect("roll back the recovered prepared transaction");
+    let rolled_back_rows = cassie
+        .execute_sql(
+            &session,
+            "SELECT count(*) FROM compat_915_restart_rollback_rows",
+            vec![],
+        )
+        .expect("confirm the prepared row was rolled back")
+        .rows()
+        .to_vec();
+    let resolved = cassie
+        .execute_sql(
+            &session,
+            "SELECT count(*) FROM pg_catalog.pg_prepared_xacts \
+             WHERE gid = 'compat_915_restart_rollback_gid'",
+            vec![],
+        )
+        .expect("verify the rolled-back GID was removed")
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert_eq!(rolled_back_rows, vec![vec![cassie::types::Value::Int64(0)]]);
+    assert_eq!(resolved, vec![vec![cassie::types::Value::Int64(0)]]);
+}

@@ -1,6 +1,6 @@
 //! Derived VALUES descriptors with inferred mixed NULL column types.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 #[test]

@@ -1,5 +1,7 @@
 use super::*;
 
+mod repeatable_read_row_lock_conflict;
+
 #[test]
 fn should_apply_set_transaction_isolation_before_first_query_across_sessions() {
     // Arrange
@@ -379,7 +381,7 @@ fn should_import_exported_repeatable_read_snapshot_across_sessions() {
             .collect::<Vec<_>>();
 
         // Assert
-        assert!(!snapshot.is_empty());
+        assert_ne!(snapshot, "");
         assert_eq!(inserted, 1);
         assert_eq!(initial_ids, vec![1]);
         assert_eq!(imported_ids, vec![1]);
@@ -525,6 +527,7 @@ fn should_reject_writes_in_read_only_repeatable_read_transaction_with_sqlstate()
 #[test]
 fn should_abort_serializable_write_skew_with_postgres_sqlstate() {
     // Arrange
+    const ON_CALL_COUNT: &str = "SELECT count(*) FROM compat_serializable_write_skew WHERE on_call";
     let runtime = current_thread_runtime();
     runtime.block_on(async {
         let server = CompatibilityServer::start("serializable_write_skew").await;
@@ -552,18 +555,12 @@ fn should_abort_serializable_write_skew_with_postgres_sqlstate() {
 
         // Act
         let first_snapshot_count: i64 = first
-            .query_one(
-                "SELECT count(*) FROM compat_serializable_write_skew WHERE on_call",
-                &[],
-            )
+            .query_one(ON_CALL_COUNT, &[])
             .await
             .expect("read the first transaction's predicate")
             .get(0);
         let second_snapshot_count: i64 = second
-            .query_one(
-                "SELECT count(*) FROM compat_serializable_write_skew WHERE on_call",
-                &[],
-            )
+            .query_one(ON_CALL_COUNT, &[])
             .await
             .expect("read the same predicate in the second transaction")
             .get(0);
@@ -604,10 +601,7 @@ fn should_abort_serializable_write_skew_with_postgres_sqlstate() {
             let _ = first.batch_execute("ROLLBACK").await;
         }
         let on_call_after_resolution: i64 = second
-            .query_one(
-                "SELECT count(*) FROM compat_serializable_write_skew WHERE on_call",
-                &[],
-            )
+            .query_one(ON_CALL_COUNT, &[])
             .await
             .expect("read the surviving on-call row after conflict resolution")
             .get(0);

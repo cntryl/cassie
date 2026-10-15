@@ -1,6 +1,7 @@
 use super::*;
 use std::time::Duration;
 
+mod drop_column_cascade;
 mod savepoint_identity;
 
 async fn simple_query_frames(server: &CompatibilityServer, sql: &str) -> Vec<(u8, Vec<u8>)> {

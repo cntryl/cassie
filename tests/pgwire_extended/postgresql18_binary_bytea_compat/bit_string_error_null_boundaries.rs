@@ -34,9 +34,7 @@ fn should_describe_null_bit_string_function_results_over_pgwire() {
             .iter()
             .map(|field| field.type_oid)
             .collect::<Vec<_>>(),
-        vec![
-            1562, 1560, 1560, 1560, 1560, 1560, 1560, 20, 23, 23, 23, 23, 1560, 1560, 23, 1560,
-        ]
+        vec![1562, 1560, 1560, 1560, 1560, 1560, 1560, 20, 23, 23, 23, 23, 1560, 1560, 23, 1560,]
     );
     assert_eq!(
         wire::data_rows(result),

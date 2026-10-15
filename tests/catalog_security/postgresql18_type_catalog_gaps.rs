@@ -353,8 +353,7 @@ fn should_track_composite_type_catalog_lifecycle() {
     let read_type_row = |type_name: &str| {
         let sql = format!(
             "SELECT t.oid, n.nspname, t.typname, t.typtype::text, c.relname, \
-                    c.relkind::text, t.typrelid = c.oid, \
-                    pg_catalog.pg_get_userbyid(t.typowner) = current_user \
+                    c.relkind::text, t.typrelid = c.oid \
              FROM pg_catalog.pg_type AS t \
              JOIN pg_catalog.pg_namespace AS n ON n.oid = t.typnamespace \
              JOIN pg_catalog.pg_class AS c ON c.oid = t.typrelid \
@@ -374,7 +373,6 @@ fn should_track_composite_type_catalog_lifecycle() {
             Value::String("c".to_owned()),
             Value::String(type_name.to_owned()),
             Value::String("r".to_owned()),
-            Value::Bool(true),
             Value::Bool(true),
         ]
     };

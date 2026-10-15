@@ -7,6 +7,8 @@ use crate::support_pgwire as wire;
 use tokio::io::AsyncWriteExt;
 
 mod row_ordering_null_stopping;
+mod unicode_identifier_residuals;
+mod unsupported_type_lookup;
 mod values_typed_source_descriptors;
 
 struct GrammarFixtureDirectory(String);
@@ -58,6 +60,52 @@ fn should_describe_postgres_cast_parameter_oid_through_extended_protocol() {
         .find(|frame| frame.0 == b'T')
         .expect("RowDescription");
     assert_eq!(wire::parse_row_description(&columns.1)[0].type_oid, 701);
+}
+
+#[test]
+fn should_bind_double_precision_table_columns_with_postgres_identity() {
+    // Arrange
+    let batches = run_script(
+        "issue-796-double-precision-table-column",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE TABLE issue_796_double_precision_rows (value DOUBLE PRECISION)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "INSERT INTO issue_796_double_precision_rows VALUES (1.25)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT value FROM issue_796_double_precision_rows",
+            )]),
+        ],
+    );
+
+    // Act
+    let setup_errors = batches[..2]
+        .iter()
+        .filter_map(|batch| {
+            let state = wire::error_code(batch)?;
+            let fields = batch
+                .iter()
+                .find(|frame| frame.0 == b'E')
+                .map(|frame| wire::parse_error_fields(&frame.1));
+            Some((state, fields))
+        })
+        .collect::<Vec<_>>();
+    let result = &batches[2];
+
+    // Assert
+    assert!(
+        setup_errors.is_empty(),
+        "DOUBLE PRECISION table setup should succeed: {setup_errors:?}"
+    );
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("DOUBLE PRECISION result RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 701);
+    assert_eq!(wire::data_rows(result), vec![vec![Some("1.25".to_owned())]]);
 }
 
 #[test]

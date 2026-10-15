@@ -1,0 +1,1382 @@
+[
+  {
+    "issue": 762,
+    "name": "should_return_21000_given_a_multirow_scalar_subquery_when_its_value_is_requested",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/subqueries",
+    "file": "tests/pgwire_extended/subqueries/cardinality.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "subqueries"
+  },
+  {
+    "issue": 762,
+    "name": "should_return_42601_given_a_multicolumn_scalar_subquery_when_it_is_parsed",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/subqueries",
+    "file": "tests/pgwire_extended/subqueries/width.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "subqueries"
+  },
+  {
+    "issue": 762,
+    "name": "should_return_unknown_given_null_row_candidates_when_any_has_no_match",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/subqueries",
+    "file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "subqueries"
+  },
+  {
+    "issue": 762,
+    "name": "should_return_false_given_an_empty_row_subquery_when_any_is_evaluated",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/subqueries",
+    "file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "subqueries"
+  },
+  {
+    "issue": 762,
+    "name": "should_return_unknown_given_null_row_candidates_when_all_has_no_false_result",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/subqueries",
+    "file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "subqueries"
+  },
+  {
+    "issue": 762,
+    "name": "should_return_true_given_an_empty_row_subquery_when_all_is_evaluated",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/subqueries",
+    "file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "subqueries"
+  },
+  {
+    "issue": 762,
+    "name": "should_evaluate_once_given_an_uncorrelated_volatile_subquery_when_multiple_outer_rows_are_projected",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/subqueries",
+    "file": "tests/pgwire_extended/subqueries/evaluation_count.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "subqueries"
+  },
+  {
+    "issue": 762,
+    "name": "should_evaluate_per_required_row_given_a_correlated_subquery_when_outer_rows_are_projected",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/subqueries",
+    "file": "tests/pgwire_extended/subqueries/evaluation_count.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "subqueries"
+  },
+  {
+    "issue": 762,
+    "name": "should_release_resources_given_an_over_budget_subquery_when_execution_is_rejected",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/subqueries",
+    "file": "tests/pgwire_extended/subqueries/resource_limits.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "subqueries"
+  },
+  {
+    "issue": 762,
+    "name": "should_cancel_without_partial_rows_given_a_running_subquery_when_cancel_request_arrives",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/subqueries",
+    "file": "tests/pgwire_extended/subqueries/cancellation.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "subqueries"
+  },
+  {
+    "issue": 796,
+    "name": "should_preserve_cast_chain_identity_given_binary_parameters_when_binary_results_are_requested",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/grammar",
+    "file": "tests/pgwire_extended/grammar/chained_cast_binary.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "grammar"
+  },
+  {
+    "issue": 799,
+    "name": "should_return_22025_given_a_valid_like_control_when_escape_contains_multiple_characters",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/patterns",
+    "file": "tests/pgwire_extended/patterns/escape_errors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "patterns"
+  },
+  {
+    "issue": 799,
+    "name": "should_return_22025_given_a_valid_similar_control_when_escape_contains_multiple_characters",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/patterns",
+    "file": "tests/pgwire_extended/patterns/escape_errors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "patterns"
+  },
+  {
+    "issue": 799,
+    "name": "should_rebuild_indexed_lexemes_given_a_changed_text_search_mapping_when_the_gin_index_is_reindexed",
+    "status": "planned",
+    "suite": "storage_indexes",
+    "directory": "tests/storage_indexes/text_search",
+    "file": "tests/storage_indexes/text_search/configuration_changes.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "text_search"
+  },
+  {
+    "issue": 799,
+    "name": "should_rebuild_indexed_lexemes_given_changed_dictionary_options_when_the_gin_index_is_reindexed",
+    "status": "planned",
+    "suite": "storage_indexes",
+    "directory": "tests/storage_indexes/text_search",
+    "file": "tests/storage_indexes/text_search/configuration_changes.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "text_search"
+  },
+  {
+    "issue": 801,
+    "name": "should_return_57014_given_cycle_recursion_has_started_when_cancel_request_arrives",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/ctes",
+    "file": "tests/pgwire_extended/ctes/cancellation.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "ctes"
+  },
+  {
+    "issue": 801,
+    "name": "should_release_cycle_state_given_cancelled_recursion_when_the_session_is_reused",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/ctes",
+    "file": "tests/pgwire_extended/ctes/cancellation.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "ctes"
+  },
+  {
+    "issue": 806,
+    "name": "should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_memory_budget_is_exceeded",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/ordered_set_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 806,
+    "name": "should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/ordered_set_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 808,
+    "name": "should_return_ascending_subscripts_given_nondefault_array_bounds_when_generate_subscripts_uses_forward_order",
+    "status": "planned",
+    "suite": "sql_queries",
+    "directory": "tests/sql_queries/set_returning",
+    "file": "tests/sql_queries/set_returning/array_subscripts.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "set_returning"
+  },
+  {
+    "issue": 808,
+    "name": "should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_limit_is_applied",
+    "status": "planned",
+    "suite": "sql_queries",
+    "directory": "tests/sql_queries/set_returning",
+    "file": "tests/sql_queries/set_returning/lateral_ordinality.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "set_returning"
+  },
+  {
+    "issue": 809,
+    "name": "should_cancel_without_partial_rows_given_jsonpath_expansion_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/json",
+    "file": "tests/pgwire_extended/types/json/jsonpath_cancellation.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/json"
+  },
+  {
+    "issue": 810,
+    "name": "should_return_jsonb_identity_given_a_timezone_sensitive_path_when_query_first_tz_matches",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/json",
+    "file": "tests/pgwire_extended/types/json/jsonpath_timezone.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/json"
+  },
+  {
+    "issue": 810,
+    "name": "should_return_null_given_a_timezone_sensitive_path_when_query_first_tz_has_no_match",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/json",
+    "file": "tests/pgwire_extended/types/json/jsonpath_timezone.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/json"
+  },
+  {
+    "issue": 811,
+    "name": "should_reject_string_agg_growth_given_a_memory_budget_when_more_values_arrive",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/string_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/string_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/array_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/array_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/json_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/json_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_reject_jsonb_agg_growth_given_a_memory_budget_when_more_values_arrive",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/jsonb_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_cancel_jsonb_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/jsonb_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_reject_json_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/json_object_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/json_object_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_reject_jsonb_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/jsonb_object_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 811,
+    "name": "should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/aggregates",
+    "file": "tests/pgwire_extended/aggregates/jsonb_object_agg_resources.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates"
+  },
+  {
+    "issue": 812,
+    "name": "should_preserve_exact_numeric_values_given_high_precision_rows_when_update_returning_executes",
+    "status": "planned",
+    "suite": "sql_mutations",
+    "directory": "tests/sql_mutations/types/numeric",
+    "file": "tests/sql_mutations/types/numeric/returning.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/numeric"
+  },
+  {
+    "issue": 812,
+    "name": "should_preserve_numeric_domain_typmods_given_persisted_domain_values_when_storage_restarts",
+    "status": "planned",
+    "suite": "sql_mutations",
+    "directory": "tests/sql_mutations/types/numeric",
+    "file": "tests/sql_mutations/types/numeric/domain_restart.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/numeric"
+  },
+  {
+    "issue": 814,
+    "name": "should_match_index_and_scan_results_given_equal_instants_with_different_offsets_when_timestamptz_rows_are_filtered",
+    "status": "planned",
+    "suite": "storage_indexes",
+    "directory": "tests/storage_indexes/types/temporal",
+    "file": "tests/storage_indexes/types/temporal/instant_equality.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/temporal"
+  },
+  {
+    "issue": 814,
+    "name": "should_preserve_the_instant_given_a_named_zone_input_when_storage_restarts",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/types",
+    "file": "tests/compatibility/lifecycle/types/temporal_restart.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/types"
+  },
+  {
+    "issue": 816,
+    "name": "should_preserve_uuid_binary_identity_given_inserted_and_updated_rows_when_storage_restarts",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/uuid_lsn",
+    "file": "tests/pgwire_extended/types/uuid_lsn/restart.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/uuid_lsn"
+  },
+  {
+    "issue": 816,
+    "name": "should_preserve_pg_lsn_binary_identity_given_inserted_and_updated_rows_when_storage_restarts",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/uuid_lsn",
+    "file": "tests/pgwire_extended/types/uuid_lsn/restart.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/uuid_lsn"
+  },
+  {
+    "issue": 904,
+    "name": "should_preserve_polymorphic_identity_given_matching_anyelement_and_anyarray_arguments_when_a_statement_is_prepared",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/type_resolution",
+    "file": "tests/pgwire_extended/type_resolution/polymorphic.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "type_resolution"
+  },
+  {
+    "issue": 904,
+    "name": "should_infer_polymorphic_identity_given_unknown_arguments_and_typed_siblings_when_a_statement_is_prepared",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/type_resolution",
+    "file": "tests/pgwire_extended/type_resolution/polymorphic.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "type_resolution"
+  },
+  {
+    "issue": 904,
+    "name": "should_reject_unresolved_polymorphic_identity_given_only_unknown_arguments_when_a_statement_is_prepared",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/type_resolution",
+    "file": "tests/pgwire_extended/type_resolution/polymorphic.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "type_resolution"
+  },
+  {
+    "issue": 904,
+    "name": "should_reject_conflicting_polymorphic_identity_given_incompatible_arguments_when_a_statement_is_prepared",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/type_resolution",
+    "file": "tests/pgwire_extended/type_resolution/polymorphic.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "type_resolution"
+  },
+  {
+    "issue": 904,
+    "name": "should_reject_changed_result_types_given_a_prepared_statement_when_ddl_changes_its_output_type",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/type_resolution",
+    "file": "tests/pgwire_extended/type_resolution/prepared_descriptors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "type_resolution"
+  },
+  {
+    "issue": 904,
+    "name": "should_restore_prepared_resolution_given_rolled_back_catalog_ddl_when_a_statement_is_reused",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/type_resolution",
+    "file": "tests/pgwire_extended/type_resolution/prepared_descriptors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "type_resolution"
+  },
+  {
+    "issue": 905,
+    "name": "should_match_scan_results_given_indexed_range_values_when_range_predicates_execute",
+    "status": "blocked",
+    "suite": "storage_indexes",
+    "directory": "tests/storage_indexes/types/ranges",
+    "file": "tests/storage_indexes/types/ranges/operators.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/ranges"
+  },
+  {
+    "issue": 905,
+    "name": "should_match_scan_results_given_a_custom_range_with_subtype_diff_when_its_index_is_queried",
+    "status": "blocked",
+    "suite": "storage_indexes",
+    "directory": "tests/storage_indexes/types/ranges",
+    "file": "tests/storage_indexes/types/ranges/operators.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/ranges"
+  },
+  {
+    "issue": 906,
+    "name": "should_reject_xpath_expansion_given_a_memory_budget_when_result_growth_exceeds_the_budget",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/xml",
+    "file": "tests/pgwire_extended/types/xml/xpath_limits.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/xml"
+  },
+  {
+    "issue": 906,
+    "name": "should_cancel_xpath_without_partial_output_given_expanding_results_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/xml",
+    "file": "tests/pgwire_extended/types/xml/xpath_limits.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/xml"
+  },
+  {
+    "issue": 907,
+    "name": "should_return_null_given_null_geometry_operands_when_geometric_operators_execute",
+    "status": "planned",
+    "suite": "sql_queries",
+    "directory": "tests/sql_queries/types/geometry",
+    "file": "tests/sql_queries/types/geometry/operator_nulls.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/geometry"
+  },
+  {
+    "issue": 907,
+    "name": "should_preserve_operator_result_types_given_null_geometry_operands_when_results_are_described",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/geometry",
+    "file": "tests/pgwire_extended/types/geometry/null_metadata.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/geometry"
+  },
+  {
+    "issue": 907,
+    "name": "should_preserve_degenerate_geometry_values_given_text_and_binary_formats_when_values_roundtrip",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/geometry",
+    "file": "tests/pgwire_extended/types/geometry/degenerate_codecs.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/geometry"
+  },
+  {
+    "issue": 908,
+    "name": "should_preserve_money_binary_identity_given_inserted_and_updated_rows_when_storage_restarts",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/money",
+    "file": "tests/pgwire_extended/types/money/restart.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/money"
+  },
+  {
+    "issue": 844,
+    "name": "should_infer_vector_dimension_and_oid_given_a_bare_vector_cast_when_the_result_is_described",
+    "status": "blocked",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/extensions/pgvector",
+    "file": "tests/compatibility/extensions/pgvector/types.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "extensions/pgvector"
+  },
+  {
+    "issue": 844,
+    "name": "should_preserve_vector_values_given_text_parameters_when_the_statement_executes",
+    "status": "blocked",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/extensions/pgvector",
+    "file": "tests/compatibility/extensions/pgvector/parameters.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "extensions/pgvector"
+  },
+  {
+    "issue": 844,
+    "name": "should_preserve_vector_values_given_binary_parameters_when_binary_results_are_requested",
+    "status": "blocked",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/extensions/pgvector",
+    "file": "tests/compatibility/extensions/pgvector/parameters.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "extensions/pgvector"
+  },
+  {
+    "issue": 844,
+    "name": "should_report_vector_operator_and_opclass_identity_given_the_pinned_extension_when_catalogs_are_queried",
+    "status": "blocked",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/extensions/pgvector",
+    "file": "tests/compatibility/extensions/pgvector/catalogs.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "extensions/pgvector"
+  },
+  {
+    "issue": 844,
+    "name": "should_order_negative_inner_products_given_known_vectors_when_the_metric_operator_is_used",
+    "status": "blocked",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/extensions/pgvector",
+    "file": "tests/compatibility/extensions/pgvector/search.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "extensions/pgvector"
+  },
+  {
+    "issue": 844,
+    "name": "should_match_exact_search_results_given_the_declared_ann_fixture_when_ann_search_executes",
+    "status": "blocked",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/extensions/pgvector",
+    "file": "tests/compatibility/extensions/pgvector/search.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "extensions/pgvector"
+  },
+  {
+    "issue": 910,
+    "name": "should_execute_ordered_set_semantics_given_a_sql_defined_aggregate_when_ordered_inputs_are_aggregated",
+    "status": "planned",
+    "suite": "sql_queries",
+    "directory": "tests/sql_queries/aggregates/sql_defined",
+    "file": "tests/sql_queries/aggregates/sql_defined/ordered_set.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates/sql_defined"
+  },
+  {
+    "issue": 910,
+    "name": "should_merge_serialized_states_given_valid_builtin_support_functions_when_partial_aggregate_states_are_combined",
+    "status": "planned",
+    "suite": "sql_queries",
+    "directory": "tests/sql_queries/aggregates/sql_defined",
+    "file": "tests/sql_queries/aggregates/sql_defined/serialized_state.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "aggregates/sql_defined"
+  },
+  {
+    "issue": 910,
+    "name": "should_preserve_aggregate_dependencies_given_persisted_sql_aggregates_when_storage_restarts",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/aggregates",
+    "file": "tests/compatibility/lifecycle/aggregates/restart.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/aggregates"
+  },
+  {
+    "issue": 911,
+    "name": "should_revalidate_cast_dependencies_given_a_prepared_cast_when_its_cast_object_is_dropped",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/casts",
+    "file": "tests/compatibility/lifecycle/casts/prepared_dependencies.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/casts"
+  },
+  {
+    "issue": 911,
+    "name": "should_restore_cast_resolution_given_rolled_back_cast_ddl_when_a_prepared_statement_is_reused",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/casts",
+    "file": "tests/compatibility/lifecycle/casts/prepared_dependencies.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/casts"
+  },
+  {
+    "issue": 911,
+    "name": "should_preserve_cast_dependencies_given_persisted_cast_objects_when_storage_restarts",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/casts",
+    "file": "tests/compatibility/lifecycle/casts/restart.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/casts"
+  },
+  {
+    "issue": 911,
+    "name": "should_apply_encoding_conversion_given_a_sql_conversion_object_when_text_is_converted",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/conversions",
+    "file": "tests/compatibility/lifecycle/conversions/lifecycle.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/conversions"
+  },
+  {
+    "issue": 911,
+    "name": "should_restore_conversion_resolution_given_conversion_ddl_when_the_transaction_rolls_back",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/conversions",
+    "file": "tests/compatibility/lifecycle/conversions/lifecycle.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/conversions"
+  },
+  {
+    "issue": 911,
+    "name": "should_preserve_conversion_dependencies_given_persisted_conversion_objects_when_storage_restarts",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/conversions",
+    "file": "tests/compatibility/lifecycle/conversions/lifecycle.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/conversions"
+  },
+  {
+    "issue": 911,
+    "name": "should_remove_conversion_metadata_given_a_conversion_object_when_it_is_dropped",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/conversions",
+    "file": "tests/compatibility/lifecycle/conversions/lifecycle.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/conversions"
+  },
+  {
+    "issue": 912,
+    "name": "should_preserve_cross_type_operator_laws_given_an_operator_family_when_indexed_queries_execute",
+    "status": "planned",
+    "suite": "storage_indexes",
+    "directory": "tests/storage_indexes/operators",
+    "file": "tests/storage_indexes/operators/family_laws.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "operators"
+  },
+  {
+    "issue": 912,
+    "name": "should_publish_operator_family_members_given_an_added_member_when_the_transaction_commits",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/operators",
+    "file": "tests/compatibility/lifecycle/operators/families.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/operators"
+  },
+  {
+    "issue": 912,
+    "name": "should_restore_operator_family_members_given_member_ddl_when_the_transaction_rolls_back",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/operators",
+    "file": "tests/compatibility/lifecycle/operators/families.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/operators"
+  },
+  {
+    "issue": 912,
+    "name": "should_preserve_operator_resolution_and_index_results_given_persisted_operator_objects_when_storage_restarts",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/operators",
+    "file": "tests/compatibility/lifecycle/operators/restart.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/operators"
+  },
+  {
+    "issue": 820,
+    "name": "should_return_57014_given_a_blocked_row_lock_waiter_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/transactions",
+    "file": "tests/compatibility/lifecycle/transactions/row_lock_cancellation.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/transactions"
+  },
+  {
+    "issue": 820,
+    "name": "should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/transactions",
+    "file": "tests/compatibility/lifecycle/transactions/row_lock_cancellation.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/transactions"
+  },
+  {
+    "issue": 823,
+    "name": "should_rollback_prior_merge_actions_given_a_later_constraint_violation_when_merge_executes",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/mutations",
+    "file": "tests/compatibility/lifecycle/mutations/merge_atomicity.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/mutations"
+  },
+  {
+    "issue": 823,
+    "name": "should_cancel_without_partial_mutations_or_returning_rows_given_a_running_merge_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/mutations",
+    "file": "tests/pgwire_extended/mutations/merge_cancellation.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "mutations"
+  },
+  {
+    "issue": 825,
+    "name": "should_recheck_and_update_the_conflicting_row_given_an_upsert_waiter_when_the_owner_commits",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/mutations",
+    "file": "tests/compatibility/lifecycle/mutations/upsert_concurrency.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/mutations"
+  },
+  {
+    "issue": 825,
+    "name": "should_insert_the_waiting_row_given_an_upsert_waiter_when_the_owner_rolls_back",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/mutations",
+    "file": "tests/compatibility/lifecycle/mutations/upsert_concurrency.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/mutations"
+  },
+  {
+    "issue": 834,
+    "name": "should_preserve_returning_identity_given_binary_parameters_when_a_modifying_cte_executes",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/mutations/ctes",
+    "file": "tests/pgwire_extended/mutations/ctes/binary_returning.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "mutations/ctes"
+  },
+  {
+    "issue": 834,
+    "name": "should_cancel_without_partial_mutations_or_returning_rows_given_a_modifying_cte_when_cancel_request_arrives",
+    "status": "blocked",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/mutations/ctes",
+    "file": "tests/pgwire_extended/mutations/ctes/cancellation.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "mutations/ctes"
+  },
+  {
+    "issue": 909,
+    "name": "should_delete_descendant_rows_given_an_inheritance_tree_when_the_parent_is_deleted_without_only",
+    "status": "planned",
+    "suite": "sql_mutations",
+    "directory": "tests/sql_mutations/inheritance",
+    "file": "tests/sql_mutations/inheritance/delete.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "inheritance"
+  },
+  {
+    "issue": 909,
+    "name": "should_preserve_descendant_rows_given_an_inheritance_tree_when_only_the_parent_is_deleted",
+    "status": "planned",
+    "suite": "sql_mutations",
+    "directory": "tests/sql_mutations/inheritance",
+    "file": "tests/sql_mutations/inheritance/delete.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "inheritance"
+  },
+  {
+    "issue": 913,
+    "name": "should_enforce_select_privileges_given_a_rewrite_rule_when_a_restricted_role_queries_the_relation",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/routines",
+    "file": "tests/compatibility/lifecycle/routines/rule_security.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/routines"
+  },
+  {
+    "issue": 913,
+    "name": "should_enforce_update_privileges_given_a_rewrite_rule_when_a_restricted_role_updates_the_relation",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/routines",
+    "file": "tests/compatibility/lifecycle/routines/rule_security.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/routines"
+  },
+  {
+    "issue": 913,
+    "name": "should_enforce_delete_privileges_given_a_rewrite_rule_when_a_restricted_role_deletes_from_the_relation",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/routines",
+    "file": "tests/compatibility/lifecycle/routines/rule_security.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/routines"
+  },
+  {
+    "issue": 913,
+    "name": "should_cancel_without_partial_mutations_given_running_rule_actions_when_cancel_request_arrives",
+    "status": "planned",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/mutations",
+    "file": "tests/pgwire_extended/mutations/rule_cancellation.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "mutations"
+  },
+  {
+    "issue": 913,
+    "name": "should_return_the_source_row_given_multiple_do_also_actions_when_insert_returning_executes",
+    "status": "planned",
+    "suite": "sql_mutations",
+    "directory": "tests/sql_mutations/rules",
+    "file": "tests/sql_mutations/rules/returning.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "rules"
+  },
+  {
+    "issue": 916,
+    "name": "should_reject_invalid_seek_bounds_given_an_open_large_object_when_a_seek_is_requested",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/large_objects",
+    "file": "tests/compatibility/lifecycle/large_objects/bounds.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/large_objects"
+  },
+  {
+    "issue": 916,
+    "name": "should_reject_invalid_truncate_bounds_given_an_open_large_object_when_truncation_is_requested",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/large_objects",
+    "file": "tests/compatibility/lifecycle/large_objects/bounds.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/large_objects"
+  },
+  {
+    "issue": 916,
+    "name": "should_reject_writes_given_a_read_only_large_object_descriptor_when_lowrite_is_called",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/large_objects",
+    "file": "tests/compatibility/lifecycle/large_objects/access_modes.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/large_objects"
+  },
+  {
+    "issue": 916,
+    "name": "should_reject_reads_given_a_write_only_large_object_descriptor_when_loread_is_called",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/large_objects",
+    "file": "tests/compatibility/lifecycle/large_objects/access_modes.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/large_objects"
+  },
+  {
+    "issue": 916,
+    "name": "should_return_empty_bytes_given_a_descriptor_at_eof_when_loread_is_called",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/large_objects",
+    "file": "tests/compatibility/lifecycle/large_objects/access_modes.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/large_objects"
+  },
+  {
+    "issue": 916,
+    "name": "should_invalidate_descriptors_given_an_aborted_transaction_when_large_object_io_is_retried",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/large_objects",
+    "file": "tests/compatibility/lifecycle/large_objects/descriptor_lifetime.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/large_objects"
+  },
+  {
+    "issue": 916,
+    "name": "should_isolate_descriptor_lifetime_given_a_disconnected_session_when_another_session_attempts_io",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/large_objects",
+    "file": "tests/compatibility/lifecycle/large_objects/descriptor_lifetime.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/large_objects"
+  },
+  {
+    "issue": 916,
+    "name": "should_enforce_large_object_acl_given_a_restricted_role_when_object_io_is_requested",
+    "status": "planned",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/large_objects",
+    "file": "tests/compatibility/lifecycle/large_objects/privileges.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/large_objects"
+  },
+  {
+    "issue": 817,
+    "name": "should_describe_live_objects_given_supported_catalog_objects_when_pg_describe_object_is_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/object_addresses.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_roundtrip_object_addresses_given_live_objects_when_address_helpers_are_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/object_addresses.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_catalog_foreign_keys_given_builtin_catalogs_when_pg_get_catalog_foreign_keys_is_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/foreign_keys.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_partition_definitions_given_partitioned_tables_when_definition_helpers_are_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/partitions.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_expand_options_given_null_and_populated_arrays_when_pg_options_to_table_is_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/settings.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_setting_flags_given_known_and_unknown_settings_when_pg_settings_get_flags_is_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/settings.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_the_active_query_given_a_running_statement_when_current_query_is_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/session_identity.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_authenticated_identity_given_session_authorization_when_system_user_and_user_are_read",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/session_identity.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_lock_blockers_given_a_waiting_session_when_pg_blocking_pids_is_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/blocking.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_snapshot_blockers_given_a_deferrable_snapshot_waiter_when_safe_snapshot_blockers_are_queried",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/blocking.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_runtime_capabilities_given_a_started_server_when_module_jit_numa_and_unicode_helpers_are_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/runtime_capabilities.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_snapshot_bounds_given_two_active_transactions_when_snapshot_functions_are_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/snapshots.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_snapshot_visibility_given_committed_and_inflight_transactions_when_visibility_is_queried",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/snapshots.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_preserve_legacy_txid_semantics_given_the_same_transaction_state_when_legacy_snapshot_helpers_are_called",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/snapshots.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_transaction_status_given_assigned_transaction_ids_when_transaction_outcomes_are_queried",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/transactions.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_multixact_members_given_shared_row_locks_when_members_are_queried",
+    "status": "planned",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/multixact.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_report_truthful_relation_locations_given_live_relations_when_storage_location_helpers_are_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/locations.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_follow_toast_identity_policy_given_stored_values_when_pg_column_toast_chunk_id_is_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/locations.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_follow_commit_timestamp_policy_given_transaction_outcomes_when_commit_timestamp_helpers_are_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/commit_control.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_follow_control_data_policy_given_an_authenticated_session_when_control_helpers_are_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/commit_control.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_restore_relation_statistics_given_authorized_statistics_input_when_pg_restore_relation_stats_is_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/statistics_restore.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_clear_relation_statistics_given_existing_statistics_when_pg_clear_relation_stats_is_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/statistics_restore.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_restore_attribute_statistics_given_authorized_statistics_input_when_pg_restore_attribute_stats_is_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/statistics_restore.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_clear_attribute_statistics_given_existing_statistics_when_pg_clear_attribute_stats_is_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/statistics_restore.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_scope_backend_io_and_wal_statistics_given_multiple_sessions_when_backend_statistics_are_queried",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/backend_statistics.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_enforce_reset_permissions_given_self_and_other_backends_when_backend_statistics_are_reset",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/backend_statistics.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_cancel_the_target_query_given_an_authorized_session_when_pg_cancel_backend_is_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/backend_statistics.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_terminate_the_target_session_given_an_authorized_session_when_pg_terminate_backend_is_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/backend_statistics.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_enforce_signal_permissions_given_restricted_roles_when_server_signaling_functions_are_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/server_signaling.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 817,
+    "name": "should_enforce_file_access_policy_given_bounded_harmless_inputs_when_server_file_helpers_are_called",
+    "status": "policy_blocked",
+    "suite": "catalog_security",
+    "directory": "tests/catalog_security/catalogs",
+    "file": "tests/catalog_security/catalogs/server_files.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "catalogs"
+  },
+  {
+    "issue": 800,
+    "name": "should_return_width_errors_given_a_valid_values_control_when_values_rows_have_different_arity",
+    "status": "strengthen",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/grammar",
+    "file": "tests/pgwire_extended/grammar/values_errors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "grammar"
+  },
+  {
+    "issue": 800,
+    "name": "should_return_alias_count_errors_given_a_valid_values_control_when_too_many_aliases_are_declared",
+    "status": "strengthen",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/grammar",
+    "file": "tests/pgwire_extended/grammar/values_errors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "grammar"
+  },
+  {
+    "issue": 800,
+    "name": "should_return_type_errors_given_a_valid_values_control_when_column_types_are_incompatible",
+    "status": "strengthen",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/grammar",
+    "file": "tests/pgwire_extended/grammar/values_errors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "grammar"
+  },
+  {
+    "issue": 800,
+    "name": "should_return_missing_column_errors_given_valid_join_sources_when_using_names_an_absent_column",
+    "status": "strengthen",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/grammar",
+    "file": "tests/pgwire_extended/grammar/join_using_errors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "grammar"
+  },
+  {
+    "issue": 800,
+    "name": "should_return_duplicate_column_errors_given_valid_join_sources_when_using_repeats_a_column",
+    "status": "strengthen",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/grammar",
+    "file": "tests/pgwire_extended/grammar/join_using_errors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "grammar"
+  },
+  {
+    "issue": 813,
+    "name": "should_return_overload_errors_given_supported_math_controls_when_undefined_signatures_are_prepared",
+    "status": "strengthen",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/functions/math",
+    "file": "tests/pgwire_extended/functions/math/overload_errors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "functions/math"
+  },
+  {
+    "issue": 813,
+    "name": "should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero",
+    "status": "strengthen",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/functions/math",
+    "file": "tests/pgwire_extended/functions/math/overload_errors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "functions/math"
+  },
+  {
+    "issue": 816,
+    "name": "should_return_operator_errors_given_supported_network_values_when_undefined_overloads_are_used",
+    "status": "strengthen",
+    "suite": "pgwire_extended",
+    "directory": "tests/pgwire_extended/types/network",
+    "file": "tests/pgwire_extended/types/network/operator_errors.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "types/network"
+  },
+  {
+    "issue": 914,
+    "name": "should_enforce_statistics_permissions_given_working_role_grants_when_an_unauthorized_role_mutates_statistics",
+    "status": "blocked_strengthen",
+    "suite": "compatibility",
+    "directory": "tests/compatibility/lifecycle/statistics",
+    "file": "tests/compatibility/lifecycle/statistics/privileges.rs",
+    "execution_status": "not_written_or_not_qualified",
+    "category": "lifecycle/statistics"
+  }
+]

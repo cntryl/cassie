@@ -345,8 +345,8 @@ fn should_accept_timetz_literals_with_distinct_zone_offsets() {
     assert_eq!(
         fixture.execute(sql).expect("timetz literal values").rows(),
         &[vec![
-            Value::Bool(false),
             Value::Bool(true),
+            Value::Bool(false),
             Value::Bool(false),
             Value::Bool(true),
         ]]

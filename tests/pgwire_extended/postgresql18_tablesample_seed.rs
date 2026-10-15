@@ -1,6 +1,6 @@
 //! PostgreSQL 18 TABLESAMPLE repeatability through extended pgwire, tracked by #800.
 
-use crate::support_parameter_occurrence_wire::{Step, run_script};
+use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 fn rows_for_sampled_ids(ids: &[i32]) -> Vec<Vec<Option<String>>> {
@@ -63,11 +63,9 @@ fn should_return_repeatable_bernoulli_seed_samples_over_pgwire() {
     let other_seed = &batches[6];
 
     // Assert
-    assert!(
-        setup
-            .iter()
-            .all(|frames| wire::error_code(frames).is_none())
-    );
+    assert!(setup
+        .iter()
+        .all(|frames| wire::error_code(frames).is_none()));
     assert_eq!(wire::error_code(parsed), None);
     assert_eq!(wire::error_code(described), None);
     let parameters = described
@@ -164,11 +162,9 @@ fn should_return_repeatable_system_seed_samples_over_pgwire() {
     let other_seed = &batches[6];
 
     // Assert
-    assert!(
-        setup
-            .iter()
-            .all(|frames| wire::error_code(frames).is_none())
-    );
+    assert!(setup
+        .iter()
+        .all(|frames| wire::error_code(frames).is_none()));
     assert_eq!(wire::error_code(parsed), None);
     assert_eq!(wire::error_code(described), None);
     let parameters = described
@@ -196,4 +192,92 @@ fn should_return_repeatable_system_seed_samples_over_pgwire() {
     assert_eq!(wire::data_rows(first), expected_first);
     assert_eq!(wire::data_rows(repeated), expected_first);
     assert!(wire::data_rows(other_seed).is_empty());
+}
+
+#[test]
+fn should_infer_oid_zero_tablesample_binary_parameters() {
+    // Arrange
+    let statement = "oid_zero_sample_parameters";
+    let portal = "oid_zero_sample_binary_portal";
+    let sql = "SELECT id FROM issue_800_oid_zero_sample_rows \
+               TABLESAMPLE BERNOULLI ($1) REPEATABLE ($2) ORDER BY id";
+    let percentage = 100.0_f32.to_be_bytes();
+    let seed = 0.5_f64.to_be_bytes();
+    let inserted_rows = (1..=3)
+        .map(|id| format!("({id})"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let insert = format!("INSERT INTO issue_800_oid_zero_sample_rows VALUES {inserted_rows}");
+    let batches = run_script(
+        "issue-800-tablesample-oid-zero-binary-bind",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE TABLE issue_800_oid_zero_sample_rows (id INT4)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(&insert)]),
+            Step::ParseFlush(wire::parse_frame_with_types(statement, sql, &[0, 0])),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame(statement),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::bind_frame_with_formats(
+                    portal,
+                    statement,
+                    &[1],
+                    &[Some(&percentage), Some(&seed)],
+                    &[0],
+                ),
+                wire::describe_portal_frame(portal),
+                wire::execute_frame(portal),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let setup = &batches[..2];
+    let parsed = &batches[2];
+    let described = &batches[3];
+    let bound = &batches[4];
+
+    // Assert
+    assert!(setup
+        .iter()
+        .all(|frames| wire::error_code(frames).is_none()));
+    assert_eq!(wire::error_code(parsed), None);
+    assert_eq!(
+        parsed.iter().map(|frame| frame.0).collect::<Vec<_>>(),
+        [b'1']
+    );
+    assert_eq!(wire::error_code(described), None);
+    let parameters = described
+        .iter()
+        .find(|frame| frame.0 == b't')
+        .expect("inferred TABLESAMPLE ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), [700, 701]);
+    let statement_description = described
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("TABLESAMPLE statement RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&statement_description.1)[0].type_oid,
+        23
+    );
+    assert_eq!(wire::error_code(bound), None);
+    let portal_description = bound
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("binary-bound TABLESAMPLE portal RowDescription");
+    let columns = wire::parse_row_description(&portal_description.1);
+    assert_eq!(columns[0].type_oid, 23);
+    assert_eq!(columns[0].format_code, 0);
+    assert_eq!(
+        wire::data_rows(bound),
+        vec![
+            vec![Some("1".to_owned())],
+            vec![Some("2".to_owned())],
+            vec![Some("3".to_owned())],
+        ]
+    );
 }

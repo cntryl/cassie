@@ -681,3 +681,45 @@ fn should_preserve_composite_domain_rows_after_restart() {
         ]]
     );
 }
+
+#[test]
+fn should_resolve_table_generated_composite_type_for_typed_null_output() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("table_generated_composite_type_resolution").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE public.compat_828_row_type_resolution \
+                 (id BIGINT, label TEXT)",
+            )
+            .await
+            .expect("create a table with its automatically generated composite row type");
+
+        // Act
+        let typed_null = client
+            .query_one(
+                "SELECT pg_typeof(NULL::compat_828_row_type_resolution)::TEXT AS type_name, \
+                        NULL::compat_828_row_type_resolution AS typed_null, \
+                        NULL::compat_828_row_type_resolution IS NULL AS is_sql_null",
+                &[],
+            )
+            .await;
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        let typed_null =
+            typed_null.expect("resolve the named composite type generated for the table");
+        let type_descriptor = typed_null.columns()[1].type_();
+        assert_eq!(
+            typed_null.get::<_, String>(0),
+            "compat_828_row_type_resolution"
+        );
+        assert!(typed_null.get::<_, bool>(2));
+        assert_eq!(type_descriptor.name(), "compat_828_row_type_resolution");
+        assert_eq!(type_descriptor.schema(), "public");
+        assert_ne!(type_descriptor.oid(), 2_249);
+    });
+}

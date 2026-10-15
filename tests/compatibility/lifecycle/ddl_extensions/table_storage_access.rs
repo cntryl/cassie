@@ -149,6 +149,81 @@ fn should_create_table_with_an_explicit_access_method() {
 }
 
 #[test]
+fn should_change_table_access_method_without_changing_rows() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("alter_table_access_method").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_alter_table_access (id INT, label TEXT)",
+                "INSERT INTO compat_alter_table_access VALUES (1, 'one')",
+            ],
+        )
+        .await
+        .expect("create and seed a table before changing its access method");
+
+        // Act
+        let altered = client
+            .batch_execute("ALTER TABLE compat_alter_table_access SET ACCESS METHOD heap")
+            .await;
+        let access_method = if altered.is_ok() {
+            Some(
+                client
+                    .query_one(
+                        "SELECT relation.relam::INT, access_method.amname \
+                         FROM pg_catalog.pg_class AS relation \
+                         JOIN pg_catalog.pg_am AS access_method \
+                           ON access_method.oid = relation.relam \
+                         WHERE relation.oid = 'compat_alter_table_access'::regclass",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+        let rows = if altered.is_ok() {
+            Some(
+                client
+                    .query(
+                        "SELECT id, label FROM compat_alter_table_access ORDER BY id",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Assert
+        let sqlstate = altered
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code());
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(
+            altered.is_ok(),
+            "PostgreSQL 18.6 accepts ALTER TABLE SET ACCESS METHOD; SQLSTATE: {sqlstate:?}"
+        );
+        let access_method = access_method
+            .expect("inspect the table after access-method change")
+            .expect("read the table access method");
+        assert_eq!(access_method.get::<_, i32>(0), 2);
+        assert_eq!(access_method.get::<_, String>(1), "heap");
+        let rows = rows
+            .expect("read table rows after access-method change")
+            .expect("query rows after access-method change");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get::<_, i32>(0), 1);
+        assert_eq!(rows[0].get::<_, String>(1), "one");
+    });
+}
+
+#[test]
 fn should_create_ctas_with_an_explicit_access_method() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -257,6 +332,91 @@ fn should_create_materialized_view_with_an_explicit_access_method() {
         let rows = rows
             .expect("read materialized-view rows after successful creation")
             .expect("query rows materialized from the source");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].get::<_, i32>(0), 1);
+        assert_eq!(rows[0].get::<_, String>(1), "one");
+        assert_eq!(rows[1].get::<_, i32>(0), 2);
+        assert_eq!(rows[1].get::<_, String>(1), "two");
+    });
+}
+
+#[test]
+fn should_set_materialized_view_access_method_without_changing_rows() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("alter_materialized_view_access_method").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_alter_access_method_source (id INT, label TEXT)",
+                "INSERT INTO compat_alter_access_method_source VALUES \
+                   (1, 'one'), (2, 'two')",
+                "CREATE MATERIALIZED VIEW compat_alter_access_method_view USING heap AS \
+                   SELECT id, label FROM compat_alter_access_method_source ORDER BY id",
+            ],
+        )
+        .await
+        .expect("create the source and heap-backed materialized view");
+
+        // Act
+        let altered = client
+            .batch_execute(
+                "ALTER MATERIALIZED VIEW compat_alter_access_method_view \
+                 SET ACCESS METHOD heap",
+            )
+            .await;
+        let access_method = if altered.is_ok() {
+            Some(
+                client
+                    .query_one(
+                        "SELECT relation.relam::INT, access_method.amname \
+                         FROM pg_catalog.pg_class AS relation \
+                         JOIN pg_catalog.pg_am AS access_method \
+                           ON access_method.oid = relation.relam \
+                         WHERE relation.oid = \
+                           'compat_alter_access_method_view'::regclass",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+        let rows = if altered.is_ok() {
+            Some(
+                client
+                    .query(
+                        "SELECT id, label FROM compat_alter_access_method_view ORDER BY id",
+                        &[],
+                    )
+                    .await,
+            )
+        } else {
+            None
+        };
+
+        // Assert
+        let sqlstate = altered
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code());
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(
+            altered.is_ok(),
+            "PostgreSQL 18.6 accepts ALTER MATERIALIZED VIEW SET ACCESS METHOD; \
+             SQLSTATE: {sqlstate:?}"
+        );
+        let access_method = access_method
+            .expect("inspect the materialized view after access-method change")
+            .expect("read the materialized-view access method");
+        assert_eq!(access_method.get::<_, i32>(0), 2);
+        assert_eq!(access_method.get::<_, String>(1), "heap");
+        let rows = rows
+            .expect("read materialized-view rows after access-method change")
+            .expect("query rows after access-method change");
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].get::<_, i32>(0), 1);
         assert_eq!(rows[0].get::<_, String>(1), "one");

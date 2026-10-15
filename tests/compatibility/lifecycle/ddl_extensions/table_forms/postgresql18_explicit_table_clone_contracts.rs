@@ -1,233 +1,148 @@
 use super::*;
 
 #[test]
-fn should_copy_column_comments_only_when_like_comments_are_included() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("like_comments_option_forms").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_like_comments_source (payload TEXT)",
-                "COMMENT ON COLUMN compat_like_comments_source.payload \
-                 IS 'source comment'",
-                "CREATE TABLE compat_like_comments_included \
-                 (LIKE compat_like_comments_source INCLUDING COMMENTS)",
-                "CREATE TABLE compat_like_comments_excluded \
-                 (LIKE compat_like_comments_source EXCLUDING COMMENTS)",
-            ],
-        )
-        .await
-        .expect("create LIKE tables with explicit COMMENTS inclusion and exclusion");
-
-        // Act
-        let comments = client
-            .query(
-                "SELECT c.relname, col_description(c.oid, a.attnum) \
-                 FROM pg_catalog.pg_class AS c \
-                 JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid \
-                 WHERE c.relname IN (\
-                   'compat_like_comments_included', 'compat_like_comments_excluded') \
-                   AND a.attname = 'payload' \
-                 ORDER BY c.relname",
-                &[],
-            )
-            .await
-            .expect("inspect copied and excluded column comments");
-
-        // Assert
-        assert_eq!(comments.len(), 2);
-        assert_eq!(
-            comments[0].get::<_, String>(0),
-            "compat_like_comments_excluded"
-        );
-        assert_eq!(comments[0].get::<_, Option<String>>(1), None);
-        assert_eq!(
-            comments[1].get::<_, String>(0),
-            "compat_like_comments_included"
-        );
-        assert_eq!(
-            comments[1].get::<_, Option<String>>(1).as_deref(),
-            Some("source comment")
-        );
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
-fn should_copy_column_storage_only_when_like_storage_is_included() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("like_storage_option_forms").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_like_storage_source (payload TEXT)",
-                "ALTER TABLE compat_like_storage_source \
-                 ALTER COLUMN payload SET STORAGE EXTERNAL",
-                "CREATE TABLE compat_like_storage_included \
-                 (LIKE compat_like_storage_source INCLUDING STORAGE)",
-                "CREATE TABLE compat_like_storage_excluded \
-                 (LIKE compat_like_storage_source EXCLUDING STORAGE)",
-            ],
-        )
-        .await
-        .expect("create LIKE tables with explicit STORAGE inclusion and exclusion");
-
-        // Act
-        let storage = client
-            .query(
-                "SELECT c.relname, a.attstorage::TEXT \
-                 FROM pg_catalog.pg_class AS c \
-                 JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid \
-                 WHERE c.relname IN (\
-                   'compat_like_storage_included', 'compat_like_storage_excluded') \
-                   AND a.attname = 'payload' \
-                 ORDER BY c.relname",
-                &[],
-            )
-            .await
-            .expect("inspect included and excluded storage policies");
-
-        // Assert
-        assert_eq!(storage.len(), 2);
-        assert_eq!(
-            storage[0].get::<_, String>(0),
-            "compat_like_storage_excluded"
-        );
-        assert_eq!(storage[0].get::<_, String>(1), "x");
-        assert_eq!(
-            storage[1].get::<_, String>(0),
-            "compat_like_storage_included"
-        );
-        assert_eq!(storage[1].get::<_, String>(1), "e");
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
-fn should_copy_column_compression_only_when_like_compression_is_included() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("like_compression_option_forms").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_like_compression_source (payload TEXT)",
-                "ALTER TABLE compat_like_compression_source \
-                 ALTER COLUMN payload SET COMPRESSION pglz",
-                "CREATE TABLE compat_like_compression_included \
-                 (LIKE compat_like_compression_source INCLUDING COMPRESSION)",
-                "CREATE TABLE compat_like_compression_excluded \
-                 (LIKE compat_like_compression_source EXCLUDING COMPRESSION)",
-            ],
-        )
-        .await
-        .expect("create LIKE tables with explicit COMPRESSION inclusion and exclusion");
-
-        // Act
-        let compression = client
-            .query(
-                "SELECT c.relname, a.attcompression::TEXT \
-                 FROM pg_catalog.pg_class AS c \
-                 JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid \
-                 WHERE c.relname IN (\
-                   'compat_like_compression_included', \
-                   'compat_like_compression_excluded') \
-                   AND a.attname = 'payload' \
-                 ORDER BY c.relname",
-                &[],
-            )
-            .await
-            .expect("inspect included and excluded compression policies");
-
-        // Assert
-        assert_eq!(compression.len(), 2);
-        assert_eq!(
-            compression[0].get::<_, String>(0),
-            "compat_like_compression_excluded"
-        );
-        assert_eq!(compression[0].get::<_, String>(1), "");
-        assert_eq!(
-            compression[1].get::<_, String>(0),
-            "compat_like_compression_included"
-        );
-        assert_eq!(compression[1].get::<_, String>(1), "p");
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
-fn should_apply_typed_defaults_using_declared_column_types() {
+fn should_copy_defaults_only_when_like_defaults_are_included() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
         let server = CompatibilityServer::start("typed_table_defaults").await;
         let (client, connection) = server.connect().await;
-        client
-            .batch_execute(
-                "CREATE TABLE compat_typed_defaults (\
-                   amount NUMERIC(8, 3) DEFAULT (12.375::NUMERIC(8, 3)), \
-                   small SMALLINT DEFAULT (7::SMALLINT), \
-                   payload JSONB DEFAULT ('{\"kind\":\"fresh\"}'::JSONB))",
-            )
-            .await
-            .expect("create columns with explicitly typed defaults");
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_typed_defaults_source (\
+                   id INT DEFAULT 42, label TEXT DEFAULT 'fresh')",
+                "CREATE TABLE compat_typed_defaults_included \
+                   (LIKE compat_typed_defaults_source INCLUDING DEFAULTS)",
+                "CREATE TABLE compat_typed_defaults_excluded \
+                   (LIKE compat_typed_defaults_source EXCLUDING DEFAULTS)",
+            ],
+        )
+        .await
+        .expect("create source and LIKE tables using integer and text defaults");
 
         // Act
-        let inserted = client
+        let included = client
             .query_one(
-                "INSERT INTO compat_typed_defaults DEFAULT VALUES \
-                 RETURNING amount::TEXT, small, payload::TEXT, \
-                           pg_typeof(amount)::TEXT, pg_typeof(small)::TEXT, \
-                           pg_typeof(payload)::TEXT",
+                "INSERT INTO compat_typed_defaults_included DEFAULT VALUES \
+                 RETURNING id, label",
                 &[],
             )
             .await
-            .expect("apply each typed default through DEFAULT VALUES");
-        let metadata = client
-            .query(
-                "SELECT attname, atttypid::INT, atttypmod, attnotnull \
-                 FROM pg_catalog.pg_attribute \
-                 WHERE attrelid = 'compat_typed_defaults'::regclass \
-                   AND attnum > 0 ORDER BY attnum",
+            .expect("apply defaults copied by LIKE INCLUDING DEFAULTS");
+        let excluded = client
+            .query_one(
+                "INSERT INTO compat_typed_defaults_excluded DEFAULT VALUES \
+                 RETURNING id, label",
                 &[],
             )
             .await
-            .expect("inspect declared column OIDs and typmods");
+            .expect("insert into a LIKE copy with defaults explicitly excluded");
 
         // Assert
-        assert_eq!(inserted.get::<_, String>(0), "12.375");
-        assert_eq!(inserted.get::<_, i16>(1), 7);
-        assert_eq!(inserted.get::<_, String>(2), "{\"kind\": \"fresh\"}");
-        assert_eq!(inserted.get::<_, String>(3), "numeric");
-        assert_eq!(inserted.get::<_, String>(4), "smallint");
-        assert_eq!(inserted.get::<_, String>(5), "jsonb");
-        assert_eq!(metadata.len(), 3);
-        assert_eq!(metadata[0].get::<_, String>(0), "amount");
-        assert_eq!(metadata[0].get::<_, i32>(1), 1700);
-        assert_eq!(metadata[0].get::<_, i32>(2), 524_295);
-        assert!(!metadata[0].get::<_, bool>(3));
-        assert_eq!(metadata[1].get::<_, String>(0), "small");
-        assert_eq!(metadata[1].get::<_, i32>(1), 21);
-        assert_eq!(metadata[1].get::<_, i32>(2), -1);
-        assert!(!metadata[1].get::<_, bool>(3));
-        assert_eq!(metadata[2].get::<_, String>(0), "payload");
-        assert_eq!(metadata[2].get::<_, i32>(1), 3802);
-        assert_eq!(metadata[2].get::<_, i32>(2), -1);
-        assert!(!metadata[2].get::<_, bool>(3));
+        assert_eq!(included.get::<_, i32>(0), 42);
+        assert_eq!(included.get::<_, String>(1), "fresh");
+        assert_eq!(excluded.get::<_, Option<i32>>(0), None);
+        assert_eq!(excluded.get::<_, Option<String>>(1), None);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_create_table_like_with_including_constraints() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_named_check_constraint_clone").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_like_constraint_source (\
+                   id INT, amount INT, \
+                   CONSTRAINT compat_like_amount_positive CHECK (amount > 0), \
+                   CONSTRAINT compat_like_id_unique UNIQUE (id)\
+                 )",
+            )
+            .await
+            .expect("create a source table with a CHECK and unique constraint");
+
+        // Act
+        let cloned = client
+            .batch_execute(
+                "CREATE TABLE compat_like_constraint_target \
+                 (LIKE compat_like_constraint_source INCLUDING CONSTRAINTS)",
+            )
+            .await;
+        if let Err(error) = &cloned {
+            let database_error = db_error(error);
+            panic!(
+                "PostgreSQL 18.6 accepts CREATE TABLE LIKE ... INCLUDING CONSTRAINTS; \
+                 Cassie returned DbError code={}, message={:?}, position={:?}",
+                database_error.code().code(),
+                database_error.message(),
+                database_error.position()
+            );
+        }
+        cloned.expect("create a LIKE copy that includes CHECK constraints but not indexes");
+        let copied_check = client
+            .query_one(
+                "SELECT conname, contype::TEXT, convalidated \
+                 FROM pg_catalog.pg_constraint \
+                 WHERE conrelid = 'compat_like_constraint_target'::regclass \
+                   AND conname = 'compat_like_amount_positive'",
+                &[],
+            )
+            .await
+            .expect("inspect the named CHECK copied to the target table");
+        let target_indexes: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_index \
+                 WHERE indrelid = 'compat_like_constraint_target'::regclass",
+                &[],
+            )
+            .await
+            .expect("count indexes copied to the target table")
+            .try_get(0)
+            .expect("target index count");
+        let duplicate_ids = client
+            .execute(
+                "INSERT INTO compat_like_constraint_target VALUES (1, 4), (1, 5)",
+                &[],
+            )
+            .await
+            .expect("INCLUDING CONSTRAINTS must not copy the source unique index");
+        let rejected_check = client
+            .execute(
+                "INSERT INTO compat_like_constraint_target VALUES (2, 0)",
+                &[],
+            )
+            .await
+            .expect_err("the copied named CHECK must reject nonpositive values");
+        let rows = client
+            .query(
+                "SELECT id, amount FROM compat_like_constraint_target ORDER BY amount",
+                &[],
+            )
+            .await
+            .expect("read target rows after CHECK rejection");
+
+        // Assert
+        assert_eq!(
+            copied_check.get::<_, String>(0),
+            "compat_like_amount_positive"
+        );
+        assert_eq!(copied_check.get::<_, String>(1), "c");
+        assert!(copied_check.get::<_, bool>(2));
+        assert_eq!(target_indexes, 0);
+        assert_eq!(duplicate_ids, 2);
+        assert_eq!(db_error(&rejected_check).code().code(), "23514");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].get::<_, i32>(0), 1);
+        assert_eq!(rows[0].get::<_, i32>(1), 4);
+        assert_eq!(rows[1].get::<_, i32>(0), 1);
+        assert_eq!(rows[1].get::<_, i32>(1), 5);
 
         drop(client);
         server.shutdown(connection).await;

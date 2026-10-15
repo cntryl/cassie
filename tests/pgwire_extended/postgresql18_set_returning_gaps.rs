@@ -5,6 +5,7 @@ use crate::support_type_metadata_contract as fixture;
 
 mod parameterized_unnest;
 mod rows_from_empty_member;
+mod timestamp_without_timezone_series;
 mod timestamptz_timezone_series;
 
 #[test]

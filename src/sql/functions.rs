@@ -1,5 +1,8 @@
 mod inputs;
-pub(crate) use inputs::{input_signature, FunctionInputSignature};
+mod text;
+pub(crate) use inputs::{
+    aggregate_accepts_input, has_distinct_equality, input_signature, FunctionInputSignature,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FunctionId {
@@ -8,6 +11,8 @@ pub enum FunctionId {
     Avg,
     Min,
     Max,
+    BoolAnd,
+    BoolOr,
     Search,
     SearchScore,
     VectorDistance,
@@ -41,6 +46,10 @@ pub enum FunctionId {
     Upper,
     Substring,
     Trim,
+    Ltrim,
+    Rtrim,
+    SplitPart,
+    Strpos,
     Concat,
     Coalesce,
     NullIf,
@@ -125,20 +134,38 @@ pub fn aggregate_arity(name: &str) -> Option<usize> {
 
 #[must_use]
 pub fn registry() -> Vec<ScalarFunction> {
-    SCALAR_FUNCTIONS.to_vec()
+    SCALAR_FUNCTIONS
+        .iter()
+        .chain(text::FUNCTIONS)
+        .cloned()
+        .collect()
 }
 
 #[must_use]
 pub fn function(name: &str) -> Option<&'static ScalarFunction> {
-    let name = name
-        .get(..11)
-        .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
-        .and_then(|_| name.get(11..))
-        .filter(|local_name| local_name.eq_ignore_ascii_case("pg_show_all_settings"))
-        .unwrap_or(name);
     SCALAR_FUNCTIONS
         .iter()
+        .chain(text::FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
+        .or_else(|| {
+            name.get(..11)
+                .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
+                .and_then(|_| name.get(11..))
+                .filter(|local| {
+                    ["pg_show_all_settings", "substring", "trim"]
+                        .iter()
+                        .any(|candidate| candidate.eq_ignore_ascii_case(local))
+                        || text::FUNCTIONS
+                            .iter()
+                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                })
+                .and_then(|local| {
+                    SCALAR_FUNCTIONS
+                        .iter()
+                        .chain(text::FUNCTIONS)
+                        .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                })
+        })
 }
 
 const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
@@ -179,6 +206,54 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         name: "max",
         arity: FunctionArity::Exact(1),
         return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolAnd,
+        name: "bool_and",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolAnd,
+        name: "pg_catalog.bool_and",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolOr,
+        name: "bool_or",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolOr,
+        name: "pg_catalog.bool_or",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolAnd,
+        name: "every",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolAnd,
+        name: "pg_catalog.every",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
         is_aggregate: true,
         bypass_arity_validation: false,
     },
@@ -569,7 +644,7 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
     ScalarFunction {
         id: FunctionId::Trim,
         name: "trim",
-        arity: FunctionArity::Exact(1),
+        arity: FunctionArity::Range { min: 1, max: 2 },
         return_type: FunctionReturnType::Text,
         is_aggregate: false,
         bypass_arity_validation: false,

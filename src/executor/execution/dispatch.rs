@@ -644,7 +644,7 @@ pub(super) fn resolve_exists_expr<'a>(
         | Expr::Null => Ok(expr.clone()),
         Expr::Function(function) => {
             let mut function = function.clone();
-            for argument in &mut function.args {
+            for argument in function.expressions_mut() {
                 *argument = resolve_exists_expr(context, argument)?;
             }
             Ok(Expr::Function(function))

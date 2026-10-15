@@ -188,7 +188,7 @@ impl Folder {
     fn check_source(&self, source: &QuerySource) -> Result<(), QueryError> {
         match source {
             QuerySource::Aliased { source, .. } => self.check_source(source),
-            QuerySource::TableFunction { function, .. } => self.check_all(&function.args),
+            QuerySource::TableFunction { function, .. } => self.check_all(function.expressions()),
             QuerySource::Subquery { select, .. } => self.check_statement_select(select),
             QuerySource::Join {
                 left, right, on, ..
@@ -223,7 +223,7 @@ impl Folder {
                 SelectItem::Function { function, .. } => {
                     let fold = self.fold_function(function)?;
                     if fold == Fold::Constant {
-                        self.evaluate(&Expr::Function(function.clone()))?;
+                        self.evaluate(&Expr::Function(Box::new(function.clone())))?;
                     }
                 }
                 SelectItem::WindowFunction { function, .. } => {
@@ -504,6 +504,8 @@ impl Folder {
     }
 
     fn fold_function(&self, function: &FunctionCall) -> Result<Fold, QueryError> {
+        self.check_all(function.filter.as_deref())?;
+        self.check_all(function.order_by.iter().map(|order| &order.expr))?;
         let id = crate::sql::functions::function(&function.name).map(|metadata| metadata.id);
         match id {
             Some(FunctionId::Coalesce) => self.fold_coalesce(&function.args),
@@ -513,6 +515,10 @@ impl Folder {
                 | FunctionId::Upper
                 | FunctionId::Substring
                 | FunctionId::Trim
+                | FunctionId::Ltrim
+                | FunctionId::Rtrim
+                | FunctionId::SplitPart
+                | FunctionId::Strpos
                 | FunctionId::NullIf
                 | FunctionId::Greatest
                 | FunctionId::Least

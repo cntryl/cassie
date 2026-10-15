@@ -1,6 +1,8 @@
 # Backfill and organization validation
 
-Recorded on 2026-10-15 on `feature/postgres-18-compat`, from checkpoint `00000118` (which preserved the existing dirty backfill). One branch and one worktree were used. Runtime source, Cargo configuration, corpus expectations and CI configuration are unchanged. This is a test-only change; no runtime fixes or issue closures are claimed.
+This section records the test-only backfill and organization pass on 2026-10-15 on `feature/postgres-18-compat`, from checkpoint `00000118` (which preserved the existing dirty backfill). One branch and one worktree were used. That pass did not change runtime source, Cargo configuration, corpus expectations or CI configuration, and claimed no runtime fixes or issue closures.
+
+The user subsequently authorized runtime implementation on the same branch. The historical counts and commands below describe the backfill checkpoint, not the later working tree. Current implementation checks must name their source revision and scope; focused passes do not establish the full compatibility gate.
 
 ## Inventory and identity
 
@@ -130,3 +132,129 @@ A positive control must succeed before an intended rejection or cancellation can
 - Parallel aggregate tests observe declared support metadata, partial combine selection, worker metrics and exact output. They do not independently prove serialization callback invocation.
 
 Pinned pgvector is absent from the local PostgreSQL installation. Prisma, complete owner/form/path corpus execution, immutable workload/resource/restart profiles and native benchmark artifact identity remain qualification gates under #847–#849 and #927. Pending, ignored or reference-only cells are not Cassie passes.
+
+## Implementation batch resumed on 2026-10-15
+
+The uncommitted `feature/postgres-18-compat` implementation batch was built once,
+then the seven affected test targets were compiled together. Library, parser/type
+and executor targets ran in full; catalog, session/transaction, SQL aggregate and
+extended-wire targets used retained explicit test-name selections. These are local
+working-source observations, not an exact-commit full-suite or release gate.
+
+| Target | Passed | Failed | Selection |
+| --- | ---: | ---: | --- |
+| Library | 963 | 0 | Complete target before the final FILTER correction |
+| Parser/types | 288 | 83 | Complete target |
+| Executor | 108 | 3 | Complete target |
+| Catalog/security | 3 | 0 | Underlying type identity and canonical encoding |
+| Compatibility | 25 | 111 | Session/transaction subtree |
+| SQL queries | 7 | 82 | Boolean aggregates and aggregate query/semantic gaps |
+| Extended wire | 24 | 8 | Casts, dollar quotes, lexical literals, aggregate errors and portal completion |
+
+Comparison with the retained frozen `0e8dc34d` baseline found 46 previously
+failing cases passing and no previously passing observed case failing. The wire
+baseline is incomplete, so its newly observed passes are not counted as fixes.
+The new CASE/function witness still fails the int4 arithmetic descriptor assertion;
+its value assertions succeed. Collection/statistical aggregates, missing query
+forms, locking and wider isolation remain failing obligations.
+
+The wire modifier matrix exposed a further admission defect: an integer-typed
+NULL FILTER passed Parse instead of returning `42804`. Adding FILTER to the
+existing Boolean diagnostic selection fixes that phase without changing parameter
+inference. The 13 parameter-occurrence tests pass, including typed NULL and known
+non-Boolean parameter rejections, Boolean NULL controls and unknown-parameter
+Boolean inference. The previously failing real-table simple-query/Parse-Flush
+modifier matrix also passes. Jev assigned this correction a gap probability of
+0.31; those focused negative and positive probes were executed and passed.
+The subsequent complete library run passed all 965 tests on the corrected source
+(`target/green-filter-lib.log`); the earlier seven-target totals above retain
+their original snapshot boundary.
+
+Evidence commands and retained local logs:
+
+- `cargo build --locked --bin cassie`: passed before the batch and after the FILTER correction (`target/green-resume-build.log`, `target/green-filter-build.log`).
+- `cargo test --locked --no-run --lib --test parser_types --test executor --test catalog_security --test compatibility --test sql_queries --test pgwire_extended`: passed compilation (`target/green-resume-test-build.log`).
+- `python3 target/green-resume-run.py`: completed all seven selections; failures above are retained in `target/green-resume-results.json` and per-target logs.
+- `cargo test --locked --lib sql::parameters::occurrence_tests::`: passed, 13 tests (`target/green-filter-unit.log`).
+- `cargo test --locked --lib`: passed, 965 tests after the FILTER correction (`target/green-filter-lib.log`).
+- `cargo test --locked --test pgwire_extended should_preserve_modifier_semantics_given_real_tables_and_scoped_scalars_when_simple_and_parse_phases_execute`: passed (`target/green-filter-wire.log`).
+- Full workspace/all-target/all-feature pedantic Clippy: failed on three `large_enum_variant` errors in exported `QueryStatement`, `StatementRoute` and `RuntimeStatement` (`target/green-filter-clippy.log`). No lint suppression was added. The unapplied boxed-SELECT proposal requires the public-API direction specified by `AGENTS.md`.
+- `cargo fmt --all -- --check` and `git diff --check`: passed after formatting the batch.
+- `cntryl-tools validate-tests -f src/sql/parameters/occurrence_tests.rs` and the wire modifier matrix file: passed, 13/13 and 3/3 compliant.
+- `target/test-inventory-tools312/bin/python tools/test_inventory.py --check`: passed after refreshing generated inventory; no unregistered Rust tests, unresolved module paths, duplicate registrations, unsharded targets or oversized files.
+
+The complete repository test gate is still red. No issue completion, merge,
+support promotion or production-readiness claim follows from this batch.
+
+## Text-selection implementation batch, 2026-10-15
+
+The next #803 slice implements text `split_part`, `substr`/integer `substring`,
+`btrim`/`ltrim`/`rtrim`, and `strpos`/`position`, including SUBSTRING FROM/FOR
+and TRIM direction/character-set syntax. It keeps the existing scalar-call AST
+and TEXT carrier. Result slices use UTF-8 character boundaries without a retained
+character vector; `strpos` reports int4 descriptors and binary values. Scalar
+substring starts and split-field positions are signed; strict NULL controls and
+invalid known signatures are separate tests.
+
+The first coherent implementation run compiled four targets together, then ran
+the complete library and parser/type targets and both affected string groups:
+
+| Target | Passed | Failed |
+| --- | ---: | ---: |
+| Library | 967 | 0 |
+| Parser/types | 296 | 77 |
+| SQL query string group | 18 | 23 |
+| Extended-wire string groups | 9 | 48 |
+
+These 1,438 executed cases include 28 previously failing cases now passing and
+eight new passing regression cases. No previously passing observed case failed.
+One of the six corrected parser cases preserves bytea SUBSTRING argument
+structure only; that AST observation is not bytea execution qualification.
+Comparison inputs are the retained earlier baseline, resumed target results and
+fresh six-case parser/53-case wire RED runs. See ignored local evidence
+`target/green-text-comparison.json`, `target/green-text-results.json`, and the
+`target/green-text-*-red.log` files.
+
+Jev's signed-selection, keyword-boundary and parameter-phase gap probabilities
+were 0.45, 0.46 and 0.43. The focused live PostgreSQL 18.6/Cassie probes checked
+Unicode/nonpositive starts, negative and empty split fields, nested quoted
+FROM/FOR/IN, four missing operands, strict NULLs and typed invalid overloads.
+They confirmed two invalid typed-NULL calls originally bypassed overload
+admission. The corrected wire regressions require `42883` in simple and
+Parse/Flush phases, plus connection recovery. Error tests additionally cover
+negative substring length `22011`, zero split index `22023`, invalid integer
+text `22P02` and integer text overflow `22003`.
+
+Native PostgreSQL PREPARE also confirmed all-unknown `substring($1 FROM $2 FOR
+$3)` resolves to text/text/text, while `substr($1,$2,$3)` resolves to
+text/int4/int4. The new parameter tests preserve this distinction and binary
+result metadata. Regex SUBSTRING execution remains an explicit `0A000` pending
+capability; its rejection is not a PostgreSQL execution pass. Formatting,
+expanding transforms, regex families, other #803 functions and complete
+resource/cancellation qualification remain open. No full-owner completion or
+complete repository test gate is claimed.
+
+Build and run commands are `cargo build --locked --bin cassie`, then
+`cargo test --locked --no-run --lib --test parser_types --test sql_queries --test
+pgwire_extended`, then `python3 target/green-text-run.py` against those compiled
+binaries. A final private helper extraction addresses the batch's pedantic
+function-length finding without lint suppression. The pre-existing three
+exported AST enum-size findings remain subject to the earlier public-API
+direction request.
+
+Final readback reproduced the table above on the rebuilt source
+(`target/green-text-final-results.json`). `cargo fmt --all -- --check`,
+`git diff --check`, the touched-test validations and refreshed inventory check
+pass. A test-only name correction then passed its two focused unit tests; the
+assertion bodies and runtime code were unchanged. Final full pedantic Clippy
+still fails only the three existing `large_enum_variant` findings in
+`QueryStatement`, `StatementRoute` and `RuntimeStatement`
+(`target/green-text-final-clippy.log`); the private function-length finding is
+gone. No lint level was lowered.
+
+The generated inventory counts **5,602 integration Rust instances**, not library
+tests; the **967 library tests** are additional. Its 16 Python tests are a
+separate harness. This corrects any reading of the integration-only inventory
+as the complete Rust test total. Formatting, identifier parsing, expanding
+functions, regex execution and other failing cells above remain pending for
+later batches; the full repository gate is still red.

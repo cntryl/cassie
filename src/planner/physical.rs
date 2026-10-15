@@ -771,12 +771,27 @@ fn aggregate_functions_supported(plan: &LogicalPlan) -> bool {
                 .iter()
                 .flat_map(|order| aggregate_functions_in_expr(&order.expr)),
         )
-        .all(|function| {
-            matches!(
-                function.name.to_ascii_lowercase().as_str(),
-                "count" | "sum" | "avg" | "min" | "max"
-            )
-        })
+        .all(aggregate_function_supports_parallel)
+}
+
+fn aggregate_function_supports_parallel(function: &FunctionCall) -> bool {
+    use crate::sql::functions::FunctionId;
+
+    if function.is_distinct() || !function.order_by.is_empty() {
+        return false;
+    }
+    crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            FunctionId::Count
+                | FunctionId::Sum
+                | FunctionId::Avg
+                | FunctionId::Min
+                | FunctionId::Max
+                | FunctionId::BoolAnd
+                | FunctionId::BoolOr
+        )
+    })
 }
 
 fn aggregate_functions_in_expr(expr: &Expr) -> Vec<&FunctionCall> {
@@ -800,7 +815,7 @@ fn expr_supports_parallel_aggregation(expr: &Expr) -> bool {
         Expr::Function(function) => {
             let name = function.name.to_ascii_lowercase();
             let supported = if crate::sql::functions::is_aggregate_function(&function.name) {
-                matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
+                aggregate_function_supports_parallel(function)
             } else {
                 !function_uses_fulltext(function)
                     && !function_uses_vector(function)
@@ -813,4 +828,42 @@ fn expr_supports_parallel_aggregation(expr: &Expr) -> bool {
         _ => {}
     }
     expr.all_children(expr_supports_parallel_aggregation)
+}
+
+#[cfg(test)]
+mod aggregate_modifier_tests {
+    use super::*;
+
+    #[test]
+    fn should_preserve_global_aggregate_state_given_distinct_or_order_when_parallel_eligibility_is_selected(
+    ) {
+        // Arrange
+        let cases = [
+            ("SUM(n)", true),
+            ("SUM(ALL n)", true),
+            ("SUM(n) FILTER (WHERE flag)", true),
+            ("BOOL_AND(flag) FILTER (WHERE included)", true),
+            ("SUM(DISTINCT n)", false),
+            ("SUM(n ORDER BY key)", false),
+            ("BOOL_OR(DISTINCT flag) FILTER (WHERE included)", false),
+        ];
+
+        // Act
+        let candidates = cases.map(|(call, expected)| {
+            let parsed = crate::sql::parse_statement(&format!("SELECT {call} FROM records"))
+                .expect("aggregate syntax");
+            let crate::sql::ast::QueryStatement::Select(query) = parsed.statement else {
+                panic!("SELECT statement");
+            };
+            let SelectItem::Function { function, .. } = &query.projection[0] else {
+                panic!("aggregate projection");
+            };
+            (aggregate_function_supports_parallel(function), expected)
+        });
+
+        // Assert
+        for (candidate, expected) in candidates {
+            assert_eq!(candidate, expected);
+        }
+    }
 }

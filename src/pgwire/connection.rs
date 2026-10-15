@@ -621,6 +621,7 @@ async fn execute_simple_statement(
     statement: String,
 ) -> Result<bool, ()> {
     let was_in_transaction = session.is_transaction_active() || session.is_transaction_failed();
+    let transaction_generation = session.transaction_generation();
     let registration = state.backend_registration.as_ref().ok_or(())?;
     let cancellation = registration.begin_query();
     let cancellation_handle = cancellation.handle();
@@ -634,7 +635,10 @@ async fn execute_simple_statement(
     })
     .await;
     drop(cancellation);
-    if was_in_transaction && !session.is_transaction_active() && !session.is_transaction_failed() {
+    if was_in_transaction
+        && (transaction_generation != session.transaction_generation()
+            || !session.is_transaction_active() && !session.is_transaction_failed())
+    {
         state.clear_all_portals(runtime);
     }
 

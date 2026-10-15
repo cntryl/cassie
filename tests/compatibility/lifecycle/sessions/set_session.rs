@@ -525,3 +525,272 @@ fn should_reject_discard_all_inside_transaction_without_clearing_state() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_restore_connection_startup_value_given_setting_override_when_reset_or_set_default_runs() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("reset_startup_application_name").await;
+        let mut config = tokio_postgres::Config::new();
+        config
+            .host("127.0.0.1")
+            .port(server.addr.port())
+            .user("root")
+            .password("postgres")
+            .dbname("postgres")
+            .application_name("startup-reset-witness");
+        let (client, connection) = config
+            .connect(NoTls)
+            .await
+            .expect("connect with a startup setting");
+        let connection = tokio::spawn(async move {
+            connection.await.expect("connection remains healthy");
+        });
+        client
+            .batch_execute("SET application_name = 'override'")
+            .await
+            .expect("override startup value");
+
+        // Act
+        client
+            .batch_execute("RESET application_name")
+            .await
+            .expect("reset one setting");
+        let reset: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read single reset")
+            .get(0);
+        client
+            .batch_execute("SET application_name TO 'DEFAULT'")
+            .await
+            .expect("quoted DEFAULT is a literal");
+        let literal: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read literal")
+            .get(0);
+        client
+            .batch_execute("SET SESSION application_name TO DEFAULT")
+            .await
+            .expect("apply typed default operation");
+        let default: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read reset default")
+            .get(0);
+        client
+            .batch_execute("SET application_name = 'another'; RESET ALL")
+            .await
+            .expect("reset all settings");
+        let all: String = client
+            .query_one("SHOW application_name", &[])
+            .await
+            .expect("read all-reset default")
+            .get(0);
+
+        // Assert
+        assert_eq!(reset, "startup-reset-witness");
+        assert_eq!(literal, "DEFAULT");
+        assert_eq!(default, "startup-reset-witness");
+        assert_eq!(all, "startup-reset-witness");
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_preserve_current_transaction_mode_given_reset_all_when_read_only_transaction_is_active() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("reset_all_read_only_mode").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_reset_read_only (id INT PRIMARY KEY)")
+            .await
+            .expect("create ordinary table");
+        client
+            .batch_execute("BEGIN READ ONLY")
+            .await
+            .expect("begin read-only transaction");
+        client
+            .query_one("SELECT 1", &[])
+            .await
+            .expect("establish query boundary");
+
+        // Act
+        client
+            .batch_execute("RESET ALL")
+            .await
+            .expect("reset configuration without altering transaction mode");
+        let mode: String = client
+            .query_one("SHOW transaction_read_only", &[])
+            .await
+            .expect("read transaction mode")
+            .get(0);
+        let write = client
+            .execute("INSERT INTO compat_reset_read_only VALUES (1)", &[])
+            .await
+            .expect_err("reset cannot enable ordinary table writes");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("recover transaction");
+
+        // Assert
+        assert_eq!(mode, "on");
+        assert_eq!(db_error(&write).code().code(), "25006");
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_read_write_mode_given_prior_query_when_read_only_transaction_changes_mode() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("read_only_mode_query_boundary").await;
+        let (client, connection) = server.connect().await;
+        client.batch_execute("BEGIN READ ONLY; SET application_name = 'settings-are-allowed'; SET transaction_read_only=off").await.expect("settings do not establish a query boundary");
+        client.query_one("SELECT 1", &[]).await.expect("run first query");
+        client.batch_execute("SET transaction_read_only=on").await.expect("switching to read-only remains permitted");
+
+        // Act
+        let rejected = client.batch_execute("SET transaction_read_only=off").await.expect_err("read-write must be selected before the first query");
+        let aborted = client.query_one("SELECT 1", &[]).await.expect_err("mode error aborts the transaction");
+        client.batch_execute("ROLLBACK").await.expect("recover failed transaction");
+
+        // Assert
+        assert_eq!(db_error(&rejected).code().code(), "25001");
+        assert_eq!(db_error(&aborted).code().code(), "25P02");
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_ordinary_table_ddl_and_copy_given_read_only_transaction_when_commands_execute() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("read_only_ddl_copy_admission").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_read_only_copy (id INT PRIMARY KEY)")
+            .await
+            .expect("create ordinary table");
+
+        // Act
+        client
+            .batch_execute("BEGIN READ ONLY")
+            .await
+            .expect("begin read-only DDL transaction");
+        let ddl = client
+            .batch_execute("CREATE TABLE compat_denied_read_only_ddl (id INT)")
+            .await
+            .expect_err("ordinary DDL is forbidden");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("recover DDL rejection");
+        client
+            .batch_execute("BEGIN READ ONLY")
+            .await
+            .expect("begin read-only COPY transaction");
+        let copy = client
+            .batch_execute("COPY compat_read_only_copy FROM STDIN WITH (FORMAT csv)")
+            .await
+            .expect_err("COPY must reject before CopyInResponse");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("recover COPY rejection");
+        let rows: i64 = client
+            .query_one("SELECT count(*) FROM compat_read_only_copy", &[])
+            .await
+            .expect("read unchanged table")
+            .get(0);
+        client
+            .batch_execute("CREATE TABLE compat_denied_read_only_ddl (id INT)")
+            .await
+            .expect("rejected DDL left no catalog object");
+
+        // Assert
+        assert_eq!(db_error(&ddl).code().code(), "25006");
+        assert_eq!(db_error(&copy).code().code(), "25006");
+        assert_eq!(rows, 0);
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_enforce_transaction_modes_given_postgresql_boolean_prefixes_when_settings_change() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("transaction_guc_boolean_prefixes").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_boolean_prefix_modes (id INT PRIMARY KEY)")
+            .await
+            .expect("create ordinary table");
+
+        // Act
+        client
+            .batch_execute("SET default_transaction_read_only='t'")
+            .await
+            .expect("accept unambiguous true prefix");
+        let default_on: String = client
+            .query_one("SHOW default_transaction_read_only", &[])
+            .await
+            .expect("read canonical true setting")
+            .get(0);
+        let default_write = client
+            .execute("INSERT INTO compat_boolean_prefix_modes VALUES (1)", &[])
+            .await
+            .expect_err("true prefix must enforce read-only default");
+        client
+            .batch_execute("SET default_transaction_read_only='of'")
+            .await
+            .expect("accept unambiguous off prefix");
+        client
+            .execute("INSERT INTO compat_boolean_prefix_modes VALUES (2)", &[])
+            .await
+            .expect("off prefix restores writable transactions");
+        client
+            .batch_execute("BEGIN READ WRITE; SET transaction_read_only='y'")
+            .await
+            .expect("accept yes prefix for active transaction mode");
+        let mode_on: String = client
+            .query_one("SHOW transaction_read_only", &[])
+            .await
+            .expect("read canonical transaction mode")
+            .get(0);
+        let transaction_write = client
+            .execute("INSERT INTO compat_boolean_prefix_modes VALUES (3)", &[])
+            .await
+            .expect_err("yes prefix must enforce read-only mode");
+        client
+            .batch_execute("ROLLBACK")
+            .await
+            .expect("recover rejected write");
+        let count: i64 = client
+            .query_one("SELECT count(*) FROM compat_boolean_prefix_modes", &[])
+            .await
+            .expect("read only the admitted write")
+            .get(0);
+
+        // Assert
+        assert_eq!(default_on, "on");
+        assert_eq!(mode_on, "on");
+        assert_eq!(db_error(&default_write).code().code(), "25006");
+        assert_eq!(db_error(&transaction_write).code().code(), "25006");
+        assert_eq!(count, 1);
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

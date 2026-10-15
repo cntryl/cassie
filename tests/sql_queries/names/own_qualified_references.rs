@@ -5,6 +5,82 @@ use cassie::types::Value;
 
 use support::{data_dir, use_local_storage};
 
+#[test]
+fn should_resolve_aggregate_clauses_given_own_qualified_columns_when_values_and_types_are_projected(
+) {
+    // Arrange
+    let fixture = super::support_sql_fixture::sql_fixture(
+        "own-qualified-aggregate-modifiers",
+        &[
+            "CREATE TABLE qualifier_inputs (amount INT4, included BOOLEAN)",
+            "INSERT INTO qualifier_inputs VALUES \
+             (2, TRUE), (2, TRUE), (5, FALSE), (7, NULL), (NULL, TRUE)",
+        ],
+    );
+    let qualifiers = [
+        "qualifier_inputs",
+        "public.qualifier_inputs",
+        "postgres.public.qualifier_inputs",
+    ];
+
+    // Act
+    let results = qualifiers.map(|qualifier| {
+        fixture.execute(&format!(
+            "SELECT SUM(DISTINCT {qualifier}.amount) FILTER (WHERE {qualifier}.included), \
+             COUNT({qualifier}.amount ORDER BY {qualifier}.amount DESC) \
+             FILTER (WHERE {qualifier}.included), \
+             BOOL_AND({qualifier}.included ORDER BY {qualifier}.amount) FROM qualifier_inputs"
+        ))
+    });
+
+    // Assert
+    for result in results {
+        let result = result.expect("qualified aggregate arguments, filters and sort keys");
+        assert_eq!(
+            result.rows(),
+            &[vec![Value::Int64(2), Value::Int64(2), Value::Bool(false)]]
+        );
+        assert_eq!(
+            result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            [20, 20, 16]
+        );
+    }
+}
+
+#[test]
+fn should_resolve_aggregate_clauses_given_a_quoted_relation_alias_when_filter_parameters_are_bound()
+{
+    // Arrange
+    let fixture = super::support_sql_fixture::sql_fixture(
+        "quoted-alias-aggregate-modifiers",
+        &[
+            "CREATE TABLE alias_inputs (amount INT4, included BOOLEAN)",
+            "INSERT INTO alias_inputs VALUES (2, TRUE), (2, TRUE), (5, FALSE), (7, NULL)",
+        ],
+    );
+
+    // Act
+    let results = [true, false].map(|included| {
+        fixture.cassie.execute_sql(
+            &fixture.session,
+            "SELECT SUM(DISTINCT \"A\".amount ORDER BY \"A\".amount) \
+             FILTER (WHERE \"A\".included = $1) FROM alias_inputs AS \"A\"",
+            vec![Value::Bool(included)],
+        )
+    });
+
+    // Assert
+    for (result, expected) in results.into_iter().zip([2, 5]) {
+        let result = result.expect("quoted aliases reach all aggregate clauses");
+        assert_eq!(result.rows(), &[vec![Value::Int64(expected)]]);
+        assert_eq!(result.columns()[0].type_oid, 20);
+    }
+}
+
 fn seeded(label: &str, statements: &[&str]) -> (Cassie, CassieSession, String) {
     use_local_storage();
     let path = data_dir(label);

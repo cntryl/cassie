@@ -52,6 +52,8 @@ impl Fixture {
             &TransactionStatement {
                 action,
                 isolation: None,
+                modes: crate::sql::ast::TransactionModes::default(),
+                chain: false,
             },
             &controls,
         );

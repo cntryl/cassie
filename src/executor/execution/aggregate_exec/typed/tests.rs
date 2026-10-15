@@ -198,6 +198,7 @@ fn should_match_scalar_aggregate_semantics_for_selected_numeric_carriers() {
             let function = crate::sql::ast::FunctionCall {
                 name: name.to_owned(),
                 args: vec![Expr::Column("n".to_owned())],
+                ..Default::default()
             };
             let scalar =
                 super::super::state::AggregateAccumulator::evaluate(&function, &rows, &context);

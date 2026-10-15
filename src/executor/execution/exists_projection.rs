@@ -42,7 +42,7 @@ pub(super) fn resolve_item(
     match item {
         SelectItem::Expr { expr, .. } => resolve(expr)?,
         SelectItem::Function { function, .. } => {
-            for argument in &mut function.args {
+            for argument in function.expressions_mut() {
                 resolve(argument)?;
             }
         }

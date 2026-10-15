@@ -4,6 +4,103 @@ use super::{
     SelectStatement,
 };
 
+#[path = "boolean_aggregates.rs"]
+mod boolean_aggregates;
+
+pub(super) fn validate_boolean_aggregate(
+    function: &mut crate::sql::ast::FunctionCall,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    if let Some(metadata) =
+        crate::sql::functions::function(&function.name).filter(|metadata| metadata.is_aggregate)
+    {
+        for argument in &function.args {
+            if matches!(argument, Expr::StringLiteral(_))
+                || matches!(argument, Expr::Column(name) if name == "*")
+            {
+                continue;
+            }
+            if let Some(data_type) = types.expression_type(argument) {
+                if !crate::sql::functions::aggregate_accepts_input(metadata.id, &data_type) {
+                    return Err(boolean_aggregates::undefined_function(function, types));
+                }
+                if function.is_distinct()
+                    && !crate::sql::functions::has_distinct_equality(&data_type)
+                {
+                    return Err(CassieError::Execution(format!(
+                        "could not identify an equality operator for type {}",
+                        boolean_aggregates::type_name(&data_type)
+                    )));
+                }
+            }
+        }
+    }
+    if function.has_modifiers() {
+        if !crate::sql::functions::is_aggregate_function(&function.name) {
+            let modifier = if function.is_distinct() {
+                Some("DISTINCT")
+            } else if !function.order_by.is_empty() {
+                Some("ORDER BY")
+            } else if function.filter.is_some() {
+                Some("FILTER")
+            } else {
+                None
+            };
+            if let Some(modifier) = modifier {
+                return Err(CassieError::Execution(format!(
+                    "{modifier} specified, but {} is not an aggregate function",
+                    function.name.to_ascii_lowercase()
+                )));
+            }
+        }
+        if let Some(filter) = &mut function.filter {
+            if let Expr::StringLiteral(input) = filter.as_ref() {
+                let value = crate::types::boolean::parse_text(input).ok_or_else(|| {
+                    CassieError::Execution(format!(
+                        "invalid input syntax for type boolean: {input:?}"
+                    ))
+                })?;
+                **filter = Expr::BoolLiteral(value);
+            }
+            if let Some(data_type) = types.expression_type(filter) {
+                if !matches!(data_type, DataType::Boolean | DataType::Null) {
+                    return Err(CassieError::Execution(format!(
+                        "argument of FILTER must be type boolean, not type {}",
+                        boolean_aggregates::type_name(&data_type)
+                    )));
+                }
+            }
+        }
+        if function.is_distinct()
+            && function.order_by.iter().any(|order| {
+                !function
+                    .args
+                    .iter()
+                    .any(|argument| argument.structurally_eq(&order.expr))
+            })
+        {
+            return Err(CassieError::Execution(
+                "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
+                    .into(),
+            ));
+        }
+    }
+    boolean_aggregates::validate(function, types)
+}
+
+pub(super) fn qualify_declared_boolean_functions(
+    select: &mut SelectStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    if !boolean_aggregates::needs_qualification(select) {
+        return Ok(());
+    }
+    let types = ResultTypes::for_source(&select.source, &select.ctes, catalog, context)?;
+    boolean_aggregates::qualify_declared(select, &types);
+    Ok(())
+}
+
 pub(super) fn validate_select(
     select: &mut SelectStatement,
     catalog: &Catalog,
@@ -19,6 +116,7 @@ pub(super) fn validate_select_with_types(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<(), CassieError> {
+    boolean_aggregates::qualify_declared(select, types);
     if let Some(filter) = &mut select.filter {
         require_boolean(filter, types, "WHERE")?;
     }
@@ -30,10 +128,11 @@ pub(super) fn validate_select_with_types(
         match item {
             SelectItem::Expr { expr, .. } => validate_expression(expr, types, catalog, context)?,
             SelectItem::Function { function, .. } => {
-                for argument in &mut function.args {
+                for argument in function.expressions_mut() {
                     validate_expression(argument, types, catalog, context)?;
                 }
                 super::coalesce_coercion::coerce_function(function, types);
+                validate_boolean_aggregate(function, types)?;
             }
             SelectItem::WindowFunction { function, .. } => {
                 for expression in function
@@ -263,10 +362,11 @@ fn validate_expression(
             validate_expression(high, types, catalog, context)?;
         }
         Expr::Function(function) => {
-            for argument in &mut function.args {
+            for argument in function.expressions_mut() {
                 validate_expression(argument, types, catalog, context)?;
             }
             super::coalesce_coercion::coerce_function(function, types);
+            validate_boolean_aggregate(function, types)?;
         }
         Expr::Exists(statement) => {
             validate_nested_statement(statement, types, true, catalog, context)?;

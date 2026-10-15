@@ -9,7 +9,7 @@ use std::ops::ControlFlow;
 use super::ast_query::Expr;
 
 impl Expr {
-    /// Visits each direct sub-expression in evaluation order, stopping early
+    /// Visits each direct sub-expression in structural order, stopping early
     /// when `visit` breaks. Subqueries inside `EXISTS` are not visited.
     pub fn try_for_each_child<'a, B>(
         &'a self,
@@ -53,7 +53,7 @@ impl Expr {
                 visit(high)?;
             }
             Self::Function(function) => {
-                for arg in &function.args {
+                for arg in function.expressions() {
                     visit(arg)?;
                 }
             }
@@ -122,10 +122,21 @@ impl Expr {
                 expr: Box::new(map(expr)),
                 data_type: data_type.clone(),
             },
-            Self::Function(function) => Self::Function(super::ast_query::FunctionCall {
+            Self::Function(function) => Self::Function(Box::new(super::ast_query::FunctionCall {
                 name: function.name.clone(),
                 args: function.args.iter().map(&mut map).collect(),
-            }),
+                quantifier: function.quantifier,
+                filter: function.filter.as_deref().map(|expr| Box::new(map(expr))),
+                order_by: function
+                    .order_by
+                    .iter()
+                    .map(|order| super::ast_query::OrderExpr {
+                        expr: map(&order.expr),
+                        direction: order.direction.clone(),
+                        nulls: order.nulls,
+                    })
+                    .collect(),
+            })),
             Self::Column(_)
             | Self::Param(_)
             | Self::StringLiteral(_)
@@ -137,7 +148,7 @@ impl Expr {
         }
     }
 
-    /// Visits each direct sub-expression in evaluation order.
+    /// Visits each direct sub-expression in structural order.
     pub fn for_each_child<'a>(&'a self, mut visit: impl FnMut(&'a Expr)) {
         let _ = self.try_for_each_child(|child| {
             visit(child);
@@ -204,6 +215,19 @@ impl Expr {
             (Self::Function(left), Self::Function(right)) => {
                 left.name.eq_ignore_ascii_case(&right.name)
                     && all_structurally_eq(&left.args, &right.args)
+                    && left.is_distinct() == right.is_distinct()
+                    && optional_structurally_eq(left.filter.as_deref(), right.filter.as_deref())
+                    && left.order_by.len() == right.order_by.len()
+                    && left
+                        .order_by
+                        .iter()
+                        .zip(&right.order_by)
+                        .all(|(left, right)| {
+                            left.expr.structurally_eq(&right.expr)
+                                && std::mem::discriminant(&left.direction)
+                                    == std::mem::discriminant(&right.direction)
+                                && left.nulls == right.nulls
+                        })
             }
             (Self::Exists(left), Self::Exists(right)) => {
                 format!("{left:?}") == format!("{right:?}")

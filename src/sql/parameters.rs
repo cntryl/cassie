@@ -287,14 +287,7 @@ fn checked_parameter_types_in_scope_with_wire_contract(
         checked_parameter_count(statement, controls)?
     };
     if !uses_occurrence_fold(&statement.statement) {
-        return checked_legacy_parameter_types(
-            statement,
-            input,
-            count,
-            catalog,
-            controls,
-            scope,
-        );
+        return checked_legacy_parameter_types(statement, input, count, catalog, controls, scope);
     }
     let result =
         fold::Fold::new(count, input, catalog, controls, scope, true)?.run(&statement.statement)?;

@@ -109,7 +109,7 @@ impl Reader<'_> {
                 self.expr(on, depth + 1)?;
             }
             QuerySource::TableFunction { function, .. } => {
-                for expr in &function.args {
+                for expr in function.expressions() {
                     self.expr(expr, depth + 1)?;
                 }
             }
@@ -179,7 +179,7 @@ impl Reader<'_> {
         match item {
             SelectItem::Expr { expr, .. } => self.expr(expr, depth + 1)?,
             SelectItem::Function { function, .. } => {
-                for expr in &function.args {
+                for expr in function.expressions() {
                     self.expr(expr, depth + 1)?;
                 }
             }
@@ -237,7 +237,7 @@ impl Reader<'_> {
                 }
             }
             Expr::Function(function) => {
-                for expr in &function.args {
+                for expr in function.expressions() {
                     self.expr(expr, depth + 1)?;
                 }
             }

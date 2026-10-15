@@ -808,7 +808,7 @@ fn collect_functions_in_expr(expr: &Expr, out: &mut Vec<String>) {
 
 fn collect_functions_in_call(function: &FunctionCall, out: &mut Vec<String>) {
     out.push(function.name.clone());
-    for arg in &function.args {
+    for arg in function.expressions() {
         collect_functions_in_expr(arg, out);
     }
 }

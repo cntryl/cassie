@@ -16,7 +16,7 @@ fn contains_exists(expr: &Expr) -> bool {
 fn item_exprs(item: &SelectItem) -> Vec<&Expr> {
     match item {
         SelectItem::Wildcard | SelectItem::Column { .. } => Vec::new(),
-        SelectItem::Function { function, .. } => function.args.iter().collect(),
+        SelectItem::Function { function, .. } => function.expressions().collect(),
         SelectItem::WindowFunction { function, .. } => function
             .args
             .iter()

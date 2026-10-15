@@ -6,6 +6,7 @@ use crate::executor::QueryError;
 impl State {
     pub(super) fn empty_partial(&self) -> Self {
         match self {
+            Self::Boolean(state) => Self::Boolean(state.empty_partial()),
             Self::Count(_) => Self::Count(0),
             Self::Sum { .. } => Self::Sum {
                 sum: super::NumericSum::default(),
@@ -23,6 +24,7 @@ impl State {
     }
     pub(super) fn merge_ordered(&mut self, later: &Self) -> Result<(), QueryError> {
         match (self, later) {
+            (Self::Boolean(state), Self::Boolean(later)) => state.merge(later)?,
             (Self::Count(count), Self::Count(later)) => {
                 *count = count
                     .checked_add(*later)

@@ -138,10 +138,56 @@ pub enum SelectItem {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FunctionCall {
     pub name: String,
     pub args: Vec<Expr>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub quantifier: AggregateQuantifier,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<Box<Expr>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub order_by: Vec<OrderExpr>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AggregateQuantifier {
+    #[default]
+    Default,
+    All,
+    Distinct,
+}
+
+fn is_default<T: Default + PartialEq>(value: &T) -> bool {
+    value == &T::default()
+}
+
+impl FunctionCall {
+    #[must_use]
+    pub fn has_modifiers(&self) -> bool {
+        self.quantifier != AggregateQuantifier::Default
+            || self.filter.is_some()
+            || !self.order_by.is_empty()
+    }
+
+    #[must_use]
+    pub fn is_distinct(&self) -> bool {
+        self.quantifier == AggregateQuantifier::Distinct
+    }
+
+    pub fn expressions(&self) -> impl Iterator<Item = &Expr> {
+        self.args
+            .iter()
+            .chain(self.filter.as_deref())
+            .chain(self.order_by.iter().map(|order| &order.expr))
+    }
+
+    pub fn expressions_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
+        self.args
+            .iter_mut()
+            .chain(self.filter.as_deref_mut())
+            .chain(self.order_by.iter_mut().map(|order| &mut order.expr))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -248,7 +294,7 @@ pub enum Expr {
         data_type: DataType,
     },
     Exists(Box<ParsedStatement>),
-    Function(FunctionCall),
+    Function(Box<FunctionCall>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

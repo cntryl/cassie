@@ -57,7 +57,11 @@ fn collect(
             };
             if !matches!(
                 field.data_type,
-                DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float
+                DataType::SmallInt
+                    | DataType::Int
+                    | DataType::BigInt
+                    | DataType::Float
+                    | DataType::Boolean
             ) {
                 return Ok(false);
             }

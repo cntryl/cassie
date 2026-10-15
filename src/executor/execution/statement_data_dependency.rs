@@ -80,7 +80,7 @@ fn function(call: &FunctionCall) -> bool {
     // This qualified metadata builtin is implemented by existing system dispatch.
     (!call.name.eq_ignore_ascii_case("pg_catalog.version")
         && super::plan_inspection::function_needs_user_functions(call))
-        || call.args.iter().any(expression)
+        || call.expressions().any(expression)
 }
 
 fn expression(expr: &Expr) -> bool {
@@ -128,11 +128,34 @@ mod tests {
             function: FunctionCall {
                 name: "coalesce".into(),
                 args: vec![Expr::BoolLiteral(true), data],
+                ..Default::default()
             },
             alias: None,
         }];
         predicates.push(select(&query));
         // Assert
         assert_eq!(predicates, vec![true; 4]);
+    }
+
+    #[test]
+    fn should_require_statement_data_given_queries_in_aggregate_clauses_when_the_plan_is_inspected()
+    {
+        // Arrange
+        let queries = [
+            "SELECT COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM dependency_rows))",
+            "SELECT SUM(1 ORDER BY EXISTS (SELECT 1 FROM dependency_rows))",
+        ];
+
+        // Act
+        let required = queries.map(|sql| {
+            let parsed = crate::sql::parse_statement(sql).expect("aggregate query syntax");
+            let QueryStatement::Select(query) = parsed.statement else {
+                panic!("SELECT statement");
+            };
+            select(&query)
+        });
+
+        // Assert
+        assert_eq!(required, [true, true]);
     }
 }

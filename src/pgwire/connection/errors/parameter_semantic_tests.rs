@@ -75,6 +75,111 @@ fn should_reject_semantic_error_at_one_byte_below_its_admitted_peak() {
 }
 
 #[test]
+fn should_bound_undefined_function_diagnostics_given_each_arity_when_frames_are_formatted_and_retired(
+) {
+    // Arrange
+    let cases = [
+        (
+            ParameterSemanticDiagnostic::UndefinedFunction {
+                function: "bool_and",
+                argument_count: 0,
+                actual: None,
+            },
+            "function bool_and() does not exist",
+        ),
+        (
+            ParameterSemanticDiagnostic::UndefinedFunction {
+                function: "bool_or",
+                argument_count: 1,
+                actual: Some(1043),
+            },
+            "function bool_or(character varying) does not exist",
+        ),
+        (
+            ParameterSemanticDiagnostic::UndefinedFunction {
+                function: "every",
+                argument_count: 2,
+                actual: None,
+            },
+            "function every(...) does not exist",
+        ),
+    ];
+
+    // Act
+    for (diagnostic, expected) in cases {
+        let generous = controls(65_536);
+        let measured = PgWireError::parameter_semantic(diagnostic, &generous)
+            .expect("measure undefined-function diagnostic admission");
+        let peak = generous.peak_query_memory_bytes();
+        drop(measured);
+        let exact = controls(peak);
+        let denied = controls(peak.saturating_sub(1));
+        let success = PgWireError::parameter_semantic(diagnostic, &exact)
+            .expect("undefined-function frame fits at its exact admitted peak");
+        let failure = PgWireError::parameter_semantic(diagnostic, &denied);
+
+        // Assert
+        assert_eq!(success.code, "42883");
+        assert_eq!(success.message, expected);
+        assert!(success.detail.is_none());
+        assert_eq!(diagnostic.message_capacity(), expected.len());
+        let encoded = success
+            .encoded_semantic_frame()
+            .expect("admitted error retains its complete wire frame");
+        let message_field = format!("M{expected}\0");
+        assert_eq!(encoded.first(), Some(&b'E'));
+        assert!(encoded.windows(7).any(|field| field == b"C42883\0"));
+        assert!(encoded
+            .windows(message_field.len())
+            .any(|field| field == message_field.as_bytes()));
+        assert_eq!(exact.peak_query_memory_bytes(), peak);
+        assert!(exact.current_query_memory_bytes() > 0);
+        assert!(matches!(failure, Err(CassieError::ResourceLimit(_))));
+        assert!(denied.peak_query_memory_bytes() < peak);
+        assert_eq!(denied.current_query_memory_bytes(), 0);
+        assert_eq!(generous.current_query_memory_bytes(), 0);
+        drop(success);
+        assert_eq!(exact.current_query_memory_bytes(), 0);
+        for (tracker, budget) in [(&generous, 65_536), (&exact, peak), (&denied, peak - 1)] {
+            let reused = tracker
+                .reserve_query_memory(budget)
+                .expect("whole diagnostic budget is reusable after retirement or denial");
+            drop(reused);
+            assert_eq!(tracker.current_query_memory_bytes(), 0);
+        }
+    }
+}
+
+#[test]
+fn should_bound_scalar_modifier_frames_given_a_scoped_function_when_diagnostic_admission_retires() {
+    // Arrange
+    let message = "FILTER specified, but modifier_private.bool_and is not an aggregate function";
+    let ample = controls(65_536);
+    let measured = PgWireError::nonaggregate_modifier(message, &ample)
+        .expect("measure scalar modifier diagnostic");
+    let peak = ample.peak_query_memory_bytes();
+    drop(measured);
+    let exact = controls(peak);
+    let denied = controls(peak - 1);
+
+    // Act
+    let admitted = PgWireError::nonaggregate_modifier(message, &exact);
+    let failure = PgWireError::nonaggregate_modifier(message, &denied);
+
+    // Assert
+    let admitted = admitted.expect("exact peak admits complete scalar modifier error");
+    assert_eq!(admitted.code, "42809");
+    assert_eq!(admitted.message, message);
+    assert!(admitted.encoded_semantic_frame().is_some());
+    assert!(matches!(failure, Err(CassieError::ResourceLimit(_))));
+    assert_eq!(exact.peak_query_memory_bytes(), peak);
+    assert_eq!(denied.current_query_memory_bytes(), 0);
+    drop(admitted);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+    assert_eq!(ample.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_format_admitted_invalid_boolean_input_as_postgres_error() {
     // Arrange
     let controls = controls(65_536);

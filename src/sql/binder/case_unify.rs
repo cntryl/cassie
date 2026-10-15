@@ -27,7 +27,7 @@ pub(super) fn unify_select_case_results(
     for item in &mut select.projection {
         match item {
             SelectItem::Expr { expr, .. } => unify(expr),
-            SelectItem::Function { function, .. } => function.args.iter_mut().for_each(unify),
+            SelectItem::Function { function, .. } => function.expressions_mut().for_each(unify),
             SelectItem::WindowFunction { function, .. } => {
                 function.args.iter_mut().for_each(unify);
                 function.partition_by.iter_mut().for_each(unify);

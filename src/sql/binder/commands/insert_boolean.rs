@@ -255,7 +255,7 @@ fn validate_item(
             context,
         ),
         SelectItem::Function { function, .. } => boolean_contexts::validate_value(
-            &mut Expr::Function(function.clone()),
+            &mut Expr::Function(Box::new(function.clone())),
             types,
             expected,
             catalog,

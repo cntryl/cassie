@@ -33,6 +33,7 @@ enum Node<'a> {
     Item(&'a ast::SelectItem),
     Expr(&'a ast::Expr),
     Function(&'a ast::FunctionCall),
+    FunctionModifiers(&'a ast::FunctionCall),
     Expressions(&'a [ast::Expr]),
     Items(&'a [ast::SelectItem]),
     Orders(&'a [ast::OrderExpr]),
@@ -202,6 +203,7 @@ impl<'a, 'c> Fold<'a, 'c> {
             | Node::Orders(_)
             | Node::Ctes(_)
             | Node::Cte(_)
+            | Node::FunctionModifiers(_)
             | Node::Window(_) => None,
         };
         self.summaries.values.truncate(frame.start);

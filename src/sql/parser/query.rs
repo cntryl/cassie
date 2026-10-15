@@ -89,7 +89,10 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
 
     let expr = parse_expression(expr_raw)?;
     Ok(match expr {
-        Expr::Function(function) => SelectItem::Function { function, alias },
+        Expr::Function(function) => SelectItem::Function {
+            function: *function,
+            alias,
+        },
         Expr::Cast { .. }
         | Expr::Case { .. }
         | Expr::Binary { .. }
@@ -114,6 +117,11 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
     };
     let function = parse_function(function_raw.trim())?
         .ok_or_else(|| SqlError::new("window function requires function call".into()))?;
+    if function.has_modifiers() {
+        return Err(SqlError::unsupported(
+            "aggregate modifiers on window functions are not yet supported".into(),
+        ));
+    }
     let function_name = function.name.to_ascii_lowercase();
     if !matches!(
         function_name.as_str(),

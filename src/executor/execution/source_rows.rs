@@ -549,7 +549,7 @@ pub(crate) fn group_expr_name(expr: &Expr) -> String {
 }
 
 pub(crate) fn aggregate_signature(function: &FunctionCall) -> String {
-    format!(
+    let mut signature = format!(
         "{}({})",
         function.name.to_ascii_lowercase(),
         function
@@ -558,7 +558,23 @@ pub(crate) fn aggregate_signature(function: &FunctionCall) -> String {
             .map(expr_key)
             .collect::<Vec<_>>()
             .join(",")
-    )
+    );
+    if function.is_distinct() {
+        signature.push_str(" DISTINCT");
+    }
+    for order in &function.order_by {
+        let _ = write!(
+            &mut signature,
+            " ORDER({}:{:?}:{:?})",
+            expr_key(&order.expr),
+            order.direction,
+            order.nulls
+        );
+    }
+    if let Some(filter) = &function.filter {
+        let _ = write!(&mut signature, " FILTER({})", expr_key(filter));
+    }
+    signature
 }
 
 pub(crate) fn expr_key(expr: &Expr) -> String {

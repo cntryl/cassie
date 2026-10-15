@@ -191,10 +191,10 @@ fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
                 } else {
                     ProjectionOp::ScalarFunction {
                         key,
-                        expr: Expr::Function(function.clone()),
-                        precomputed_key: Some(projection_expr_key(&Expr::Function(
+                        expr: Expr::Function(Box::new(function.clone())),
+                        precomputed_key: Some(projection_expr_key(&Expr::Function(Box::new(
                             function.clone(),
-                        ))),
+                        )))),
                     }
                 }
             }
@@ -411,6 +411,13 @@ fn projection_expr_key(expr: &Expr) -> String {
         Expr::NumberLiteral(value) => value.to_string(),
         Expr::IntegerLiteral(value) => value.to_string(),
         Expr::StringLiteral(value) => format!("'{value}'"),
+        Expr::Function(function)
+            if function.is_distinct()
+                || function.filter.is_some()
+                || !function.order_by.is_empty() =>
+        {
+            crate::executor::execution::aggregate_signature(function)
+        }
         Expr::Function(function) => format!(
             "{}({})",
             function.name.to_ascii_lowercase(),

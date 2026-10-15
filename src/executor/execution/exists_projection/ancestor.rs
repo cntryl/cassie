@@ -67,7 +67,7 @@ fn query_references(
             SelectItem::Column { name, .. } => column_references(name, fields, &scope),
             SelectItem::Expr { expr, .. } => expression(context, expr, fields, &scope)?,
             SelectItem::Function { function, .. } => {
-                expressions(context, &function.args, fields, &scope)?
+                expressions(context, function.expressions(), fields, &scope)?
             }
             SelectItem::WindowFunction { function, .. } => {
                 expressions(context, &function.args, fields, &scope)?
@@ -140,14 +140,14 @@ fn source_references(
             query_references(context, select, fields, Some(scope))
         }
         QuerySource::TableFunction { function, .. } => {
-            expressions(context, &function.args, fields, scope)
+            expressions(context, function.expressions(), fields, scope)
         }
         _ => Ok(false),
     }
 }
-fn expressions(
+fn expressions<'a>(
     context: &ExistsResolutionContext<'_>,
-    exprs: &[Expr],
+    exprs: impl IntoIterator<Item = &'a Expr>,
     fields: &HashSet<String>,
     scope: &Namespaces<'_>,
 ) -> Result<bool, QueryError> {
@@ -198,7 +198,7 @@ pub(super) fn contains_nested(statement: &ParsedStatement) -> bool {
             QuerySource::Join {
                 left, right, on, ..
             } => source(left) || source(right) || expr(on),
-            QuerySource::TableFunction { function, .. } => function.args.iter().any(expr),
+            QuerySource::TableFunction { function, .. } => function.expressions().any(expr),
             _ => false,
         }
     }
@@ -206,7 +206,7 @@ pub(super) fn contains_nested(statement: &ParsedStatement) -> bool {
         source(&value.source)
             || value.projection.iter().any(|item| match item {
                 SelectItem::Expr { expr: value, .. } => expr(value),
-                SelectItem::Function { function, .. } => function.args.iter().any(expr),
+                SelectItem::Function { function, .. } => function.expressions().any(expr),
                 SelectItem::WindowFunction { function, .. } => {
                     function.args.iter().chain(&function.partition_by).any(expr)
                         || function.order_by.iter().any(|order| expr(&order.expr))

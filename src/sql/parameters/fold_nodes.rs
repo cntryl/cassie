@@ -43,7 +43,15 @@ impl<'a> Fold<'a, '_> {
                 Node::Source(source) => source_child(source, index),
                 Node::Item(item) => item_child(item),
                 Node::Expr(expr) => expression_child(expr, index),
-                Node::Function(function) => function.args.get(index).map(Node::Expr),
+                Node::Function(function) => {
+                    function.args.get(index).map(Node::Expr).or_else(|| {
+                        (index == function.args.len()).then_some(Node::FunctionModifiers(function))
+                    })
+                }
+                Node::FunctionModifiers(function) => match index {
+                    0 => function.filter.as_deref().map(Node::Expr),
+                    _ => Some(Node::Orders(&function.order_by)),
+                },
                 Node::Expressions(expressions) => expressions.get(index).map(Node::Expr),
                 Node::Items(items) => items.get(index).map(Node::Item),
                 Node::Orders(orders) => orders.get(index).map(|order| Node::Expr(&order.expr)),
@@ -78,7 +86,8 @@ fn children(node: Node<'_>) -> usize {
             | ast::QuerySource::TableFunction { .. } => 0,
         },
         Node::Expr(expr) => expression_children(expr),
-        Node::Function(function) => function.args.len(),
+        Node::Function(function) => function.args.len() + 1,
+        Node::FunctionModifiers(_) => 2,
         Node::Expressions(expressions) => expressions.len(),
         Node::Items(items) => items.len(),
         Node::Orders(orders) => orders.len(),
@@ -281,6 +290,9 @@ fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
 fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
     match parent {
         Node::Items(_) => child.target = true,
+        Node::FunctionModifiers(_) if index == 0 => {
+            child.expected = Expected::Boolean(BooleanConstruct::Filter);
+        }
         Node::Select(_) => {
             child.expected = match index {
                 3 => Expected::Boolean(BooleanConstruct::Where),

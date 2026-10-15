@@ -422,7 +422,7 @@ pub(super) fn lower_select(
                 rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
             }
             SelectItem::Function { function, .. } => {
-                for expr in &mut function.args {
+                for expr in function.expressions_mut() {
                     rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
                 }
             }
@@ -475,7 +475,7 @@ fn select_contains_exists(select: &SelectStatement) -> bool {
         || select.order.iter().any(|order| has_exists(&order.expr))
         || select.projection.iter().any(|item| match item {
             SelectItem::Expr { expr, .. } => has_exists(expr),
-            SelectItem::Function { function, .. } => function.args.iter().any(has_exists),
+            SelectItem::Function { function, .. } => function.expressions().any(has_exists),
             SelectItem::WindowFunction { function, .. } => {
                 function
                     .args
@@ -540,7 +540,7 @@ pub(super) fn lower_lateral(
             lateral: true,
             ..
         } => {
-            for expr in &mut function.args {
+            for expr in function.expressions_mut() {
                 rewrite(expr, &spaces, false)?;
             }
         }

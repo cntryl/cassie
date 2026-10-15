@@ -240,7 +240,7 @@ fn parameter_context(expr: &Expr) -> bool {
     match expr {
         Expr::Param(_) | Expr::Null => true,
         Expr::Function(function) if function.name.eq_ignore_ascii_case("coalesce") => {
-            function.args.iter().all(parameter_context)
+            function.expressions().all(parameter_context)
         }
         Expr::Case {
             branches,

@@ -110,6 +110,120 @@ fn should_parse_set_statement_with_to_form() {
 }
 
 #[test]
+fn should_target_client_encoding_given_set_names_when_encoding_literals_are_parsed() {
+    // Arrange
+    let cases = [
+        ("SET NAMES 'UTF8'", "UTF8"),
+        ("SET NAMES 'UTF-8'", "UTF-8"),
+        ("SET SESSION NAMES 'UTF8'", "UTF8"),
+        ("sEt\tSeSsIoN\nNaMeS 'UTF8'", "UTF8"),
+        (
+            "SET/*scope*/SESSION/*alias*/NAMES/*encoding*/'UTF8'",
+            "UTF8",
+        ),
+        ("SET NAMES $$UTF8$$", "UTF8"),
+        ("SET NAMES 'LATIN1'", "LATIN1"),
+        ("SET NAMES 'unknown''encoding'", "unknown'encoding"),
+    ];
+
+    // Act
+    let parsed = cases
+        .iter()
+        .map(|(sql, _)| parse_statement(sql).expect("SET NAMES string literal parses"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (parsed, (sql, encoding)) in parsed.into_iter().zip(cases) {
+        let QueryStatement::Set(statement) = parsed.statement else {
+            panic!("expected SET statement for {sql}");
+        };
+        assert_eq!(statement.variable, "client_encoding", "{sql}");
+        assert_eq!(statement.value.as_deref(), Some(encoding), "{sql}");
+    }
+}
+
+#[test]
+fn should_preserve_default_setting_representation_given_set_names_when_encoding_is_omitted() {
+    // Arrange
+    let sql = [
+        "SET NAMES",
+        "SET NAMES DEFAULT",
+        "SET SESSION NAMES",
+        "SET SESSION NAMES DEFAULT",
+        "SET NAMES /*use reset default*/",
+    ];
+    let QueryStatement::Set(default) = parse_statement("SET client_encoding TO DEFAULT")
+        .expect("existing DEFAULT syntax")
+        .statement
+    else {
+        panic!("expected SET statement");
+    };
+
+    // Act
+    let parsed = sql
+        .iter()
+        .map(|sql| parse_statement(sql).expect("SET NAMES default parses"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (parsed, sql) in parsed.into_iter().zip(sql) {
+        let QueryStatement::Set(statement) = parsed.statement else {
+            panic!("expected SET statement for {sql}");
+        };
+        assert_eq!(statement.variable, default.variable, "{sql}");
+        assert_eq!(statement.value, default.value, "{sql}");
+        assert_eq!(statement.action, default.action, "{sql}");
+    }
+}
+
+#[test]
+fn should_preserve_generic_names_setting_given_assignment_syntax_when_set_is_parsed() {
+    // Arrange
+    let cases = ["SET NAMES = 'UTF8'", "SET NAMES TO 'UTF8'"];
+
+    // Act
+    let parsed = cases
+        .iter()
+        .map(|sql| parse_statement(sql).expect("generic configuration assignment parses"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (parsed, sql) in parsed.into_iter().zip(cases) {
+        let QueryStatement::Set(statement) = parsed.statement else {
+            panic!("expected SET statement for {sql}");
+        };
+        assert!(statement.variable.eq_ignore_ascii_case("names"), "{sql}");
+        assert_eq!(statement.value.as_deref(), Some("UTF8"), "{sql}");
+    }
+}
+
+#[test]
+fn should_reject_invalid_encoding_syntax_given_set_names_when_nonliteral_tokens_are_present() {
+    // Arrange
+    let cases = [
+        "SET NAMES UTF8",
+        "SET NAMES \"UTF8\"",
+        "SET NAMES ('UTF8')",
+        "SET NAMES 'UTF8' ignored",
+        "SET NAMES 'UTF8', 'LATIN1'",
+        "SET NAMES DEFAULT ignored",
+        "SET NAMES 'UTF8' COLLATE 'C'",
+        "SET SESSION NAMES 'UTF8' ignored",
+    ];
+
+    // Act
+    let errors = cases
+        .iter()
+        .map(|sql| parse_statement(sql).expect_err("SET NAMES accepts one string or DEFAULT"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (error, sql) in errors.into_iter().zip(cases) {
+        assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Syntax, "{sql}");
+    }
+}
+
+#[test]
 fn should_parse_non_select_statement() {
     // Arrange
     let sql = "INSERT INTO docs VALUES (1)";
@@ -356,4 +470,46 @@ fn should_reject_unknown_projection_column_during_binding() {
         // Assert
         assert!(bound.is_err());
     });
+}
+
+#[test]
+fn should_distinguish_reset_operations_given_settings_sql_when_default_is_quoted_or_unquoted() {
+    // Arrange
+    use cassie::sql::ast::SettingAction;
+    let cases = [
+        (
+            "SET SESSION application_name TO DEFAULT",
+            SettingAction::SetDefault,
+            "application_name",
+            None,
+        ),
+        (
+            "SET application_name TO 'DEFAULT'",
+            SettingAction::Set,
+            "application_name",
+            Some("DEFAULT"),
+        ),
+        (
+            "RESET application_name",
+            SettingAction::Reset,
+            "application_name",
+            None,
+        ),
+        ("RESET ALL", SettingAction::ResetAll, "all", None),
+    ];
+
+    // Act
+    let statements = cases
+        .each_ref()
+        .map(|(sql, _, _, _)| parse_statement(sql).expect("settings SQL"));
+
+    // Assert
+    for (parsed, (_, action, variable, value)) in statements.into_iter().zip(cases) {
+        let QueryStatement::Set(statement) = parsed.statement else {
+            panic!("settings statement expected");
+        };
+        assert_eq!(statement.action, action);
+        assert_eq!(statement.variable, variable);
+        assert_eq!(statement.value.as_deref(), value);
+    }
 }

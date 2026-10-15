@@ -31,6 +31,9 @@ impl Cassie {
         collection: &str,
         request: controlled::DocumentWriteRequest<'_>,
     ) -> Result<String, CassieError> {
+        if let Some(session) = session {
+            session.ensure_transaction_writable()?;
+        }
         let collections = self.referential_write_collections(collection);
         self.midge.with_collection_write_gates(&collections, || {
             self.write_document_for_session_with_held_collection_gates(session, collection, request)
@@ -148,6 +151,7 @@ impl Cassie {
         payload: serde_json::Value,
     ) -> Result<String, CassieError> {
         if let Some(session) = session {
+            session.ensure_transaction_writable()?;
             if session.is_transaction_active() {
                 session.stage_document_write(collection, id.clone(), payload)?;
                 return Ok(id);
@@ -226,6 +230,7 @@ impl Cassie {
     ) -> Result<bool, CassieError> {
         controlled::check_document_cancellation(cancellation)?;
         if let Some(session) = session {
+            session.ensure_transaction_writable()?;
             if session.is_transaction_active() {
                 let existed = self
                     .get_document_for_session(Some(session), collection, id)?

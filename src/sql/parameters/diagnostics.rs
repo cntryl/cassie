@@ -13,6 +13,7 @@ pub(crate) enum BooleanConstruct {
     And,
     Or,
     CaseWhen,
+    Filter,
 }
 
 impl BooleanConstruct {
@@ -25,12 +26,17 @@ impl BooleanConstruct {
             Self::And => "AND",
             Self::Or => "OR",
             Self::CaseWhen => "CASE/WHEN",
+            Self::Filter => "FILTER",
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ParameterSemanticDiagnostic {
+    DistinctAggregateOrder,
+    MissingEquality {
+        actual: i32,
+    },
     Inconsistent {
         slot: usize,
         previous: i32,
@@ -46,11 +52,30 @@ pub(crate) enum ParameterSemanticDiagnostic {
         construct: BooleanConstruct,
         actual: i32,
     },
+    UndefinedFunction {
+        function: &'static str,
+        argument_count: usize,
+        actual: Option<i32>,
+    },
 }
 
 impl ParameterSemanticDiagnostic {
+    pub(crate) fn uses_execution_error(self) -> bool {
+        matches!(
+            self,
+            Self::DistinctAggregateOrder
+                | Self::MissingEquality { .. }
+                | Self::UndefinedFunction { .. }
+                | Self::BooleanOperand {
+                    construct: BooleanConstruct::Filter,
+                    ..
+                }
+        )
+    }
     pub(crate) const fn code(self) -> &'static str {
         match self {
+            Self::DistinctAggregateOrder => "42P10",
+            Self::MissingEquality { .. } | Self::UndefinedFunction { .. } => "42883",
             Self::Inconsistent { .. } | Self::Indeterminate { .. } => "42P08",
             Self::Unresolved { .. } => "42P18",
             Self::BooleanOperand { .. } => "42804",
@@ -66,6 +91,13 @@ impl ParameterSemanticDiagnostic {
 
     pub(crate) fn message_capacity(self) -> usize {
         match self {
+            Self::DistinctAggregateOrder => {
+                "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
+                    .len()
+            }
+            Self::MissingEquality { actual } => {
+                "could not identify an equality operator for type ".len() + type_name(actual).len()
+            }
             Self::Inconsistent { .. } => {
                 "inconsistent types deduced for parameter $".len() + MAX_DECIMAL_DIGITS
             }
@@ -78,11 +110,31 @@ impl ParameterSemanticDiagnostic {
                     + " must be type boolean, not type ".len()
                     + type_name(actual).len()
             }
+            Self::UndefinedFunction {
+                function,
+                argument_count,
+                actual,
+            } => {
+                "function () does not exist".len()
+                    + function.len()
+                    + actual.map_or_else(
+                        || if argument_count == 0 { 0 } else { 3 },
+                        |oid| type_name(oid).len(),
+                    )
+            }
         }
     }
 
     pub(crate) fn write_message(self, output: &mut impl Write) -> fmt::Result {
         match self {
+            Self::DistinctAggregateOrder => output.write_str(
+                "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list",
+            ),
+            Self::MissingEquality { actual } => write!(
+                output,
+                "could not identify an equality operator for type {}",
+                type_name(actual)
+            ),
             Self::Inconsistent { slot, .. } => {
                 write!(
                     output,
@@ -103,6 +155,19 @@ impl ParameterSemanticDiagnostic {
                 construct.name(),
                 type_name(actual)
             ),
+            Self::UndefinedFunction {
+                function,
+                argument_count,
+                actual,
+            } => {
+                write!(output, "function {function}(")?;
+                if let Some(oid) = actual {
+                    output.write_str(type_name(oid))?;
+                } else if argument_count != 0 {
+                    output.write_str("...")?;
+                }
+                output.write_str(") does not exist")
+            }
         }
     }
 
@@ -121,9 +186,12 @@ impl ParameterSemanticDiagnostic {
                 requested,
                 ..
             } => Some(type_name(previous).len() + " versus ".len() + type_name(requested).len()),
-            Self::Indeterminate { .. } | Self::Unresolved { .. } | Self::BooleanOperand { .. } => {
-                None
-            }
+            Self::Indeterminate { .. }
+            | Self::Unresolved { .. }
+            | Self::BooleanOperand { .. }
+            | Self::UndefinedFunction { .. }
+            | Self::DistinctAggregateOrder
+            | Self::MissingEquality { .. } => None,
         }
     }
 
@@ -157,6 +225,12 @@ fn type_name(oid: i32) -> &'static str {
         700 => "real",
         701 => "double precision",
         1700 => "numeric",
+        114 => "json",
+        2950 => "uuid",
+        17 => "bytea",
+        1082 => "date",
+        1083 => "time without time zone",
+        1114 => "timestamp without time zone",
         _ => "unknown",
     }
 }

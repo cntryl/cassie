@@ -112,6 +112,7 @@ pub(super) async fn execute_streaming_portal_page(
             "streaming portal requires a select statement",
         ));
     };
+    request.session.mark_transaction_query();
     let resolved = cassie.resolve_portal_read_spec(request.session, parsed);
     let resolved = match resolved {
         Ok(resolved) => resolved,

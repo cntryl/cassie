@@ -167,7 +167,7 @@ impl ParameterValidation<'_> {
                 self.query(&QueryExpressions::for_select(select), types.cte_schemas())?;
             }
             QuerySource::TableFunction { function, .. } => {
-                for argument in &function.args {
+                for argument in function.expressions() {
                     self.expression(argument, types)?;
                 }
             }
@@ -181,7 +181,10 @@ impl ParameterValidation<'_> {
             match item {
                 SelectItem::Expr { expr, .. } => self.expression(expr, types)?,
                 SelectItem::Function { function, .. } => {
-                    for argument in &function.args {
+                    if let Some(filter) = &function.filter {
+                        self.predicate(filter, types, "FILTER")?;
+                    }
+                    for argument in function.expressions() {
                         self.expression(argument, types)?;
                     }
                 }
@@ -233,6 +236,11 @@ impl ParameterValidation<'_> {
             }
             Expr::Exists(statement) => {
                 self.statement(&statement.statement, types.cte_schemas())?;
+            }
+            Expr::Function(function) => {
+                if let Some(filter) = &function.filter {
+                    require_boolean_parameter(filter, types, "FILTER")?;
+                }
             }
             _ => {}
         }

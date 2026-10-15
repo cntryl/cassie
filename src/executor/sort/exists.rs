@@ -38,7 +38,7 @@ pub(crate) fn requires_resolver(eval: &EvalInput<'_>) -> bool {
     }
     let deferred_projection = eval.projection.iter().any(|item| match item {
         super::SelectItem::Expr { expr, .. } => contains(expr),
-        super::SelectItem::Function { function, .. } => function.args.iter().any(contains),
+        super::SelectItem::Function { function, .. } => function.expressions().any(contains),
         _ => false,
     });
     if !deferred_projection {
@@ -48,7 +48,7 @@ pub(crate) fn requires_resolver(eval: &EvalInput<'_>) -> bool {
         |order| match super::alias_item(&order.expr, eval.projection) {
             Some(super::SelectItem::Expr { expr, .. }) => contains(expr),
             Some(super::SelectItem::Function { function, .. }) => {
-                function.args.iter().any(contains)
+                function.expressions().any(contains)
             }
             _ => false,
         },

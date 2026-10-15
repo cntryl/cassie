@@ -116,13 +116,15 @@ fn should_map_read_uncommitted_mode_to_read_committed() {
         let server = CompatibilityServer::start("read_uncommitted_alias").await;
         let (reader, reader_connection) = server.connect().await;
         let (writer, writer_connection) = server.connect().await;
-        reader
-            .batch_execute(
-                "CREATE TABLE compat_read_uncommitted_rows (id INT PRIMARY KEY); \
-                 INSERT INTO compat_read_uncommitted_rows VALUES (1)",
-            )
-            .await
-            .expect("create the READ UNCOMMITTED fixture");
+        execute_statements(
+            &reader,
+            &[
+                "CREATE TABLE compat_read_uncommitted_rows (id INT PRIMARY KEY)",
+                "INSERT INTO compat_read_uncommitted_rows VALUES (1)",
+            ],
+        )
+        .await
+        .expect("create the READ UNCOMMITTED fixture");
         writer
             .batch_execute("BEGIN")
             .await

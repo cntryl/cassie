@@ -238,6 +238,7 @@ fn should_fail_unknown_function_during_execution() {
                 function: FunctionCall {
                     name: "unknown_fn".to_string(),
                     args: vec![Expr::Column("title".to_string())],
+                    ..Default::default()
                 },
                 alias: Some("score".to_string()),
             }],

@@ -58,6 +58,8 @@ fn information_schema_schema(name: &str) -> Option<Vec<(String, DataType)>> {
             int("ordinal_position"),
             text("is_nullable"),
             text("column_default"),
+            text("udt_catalog"),
+            text("udt_schema"),
             text("udt_name"),
             int("character_maximum_length"),
             int("numeric_precision"),
@@ -598,6 +600,7 @@ fn information_schema_columns(
                 &field.data_type,
                 index,
                 constraint_for_field(&constraints, &field.name),
+                current_database,
             ));
         }
     }
@@ -614,6 +617,7 @@ fn information_schema_columns(
                 &field.data_type,
                 index,
                 None,
+                current_database,
             ));
         }
     }
@@ -627,6 +631,7 @@ fn information_schema_column_row(
     data_type: &DataType,
     index: usize,
     constraint: Option<&FieldConstraint>,
+    current_database: Option<&str>,
 ) -> VirtualRow {
     vec![
         string("table_schema", relation_schema_name(relation)),
@@ -646,6 +651,12 @@ fn information_schema_column_row(
             "column_default",
             constraint.and_then(virtual_views_pg::constraint_default_expression),
         ),
+        string(
+            "udt_catalog",
+            relation_database_name(relation)
+                .unwrap_or_else(|| current_database.unwrap_or("postgres").to_owned()),
+        ),
+        string("udt_schema", crate::catalog::PG_CATALOG_SCHEMA),
         string("udt_name", udt_name(data_type)),
         optional_i64("character_maximum_length", character_length(data_type)),
         optional_i64("numeric_precision", numeric_precision(data_type)),
@@ -669,24 +680,12 @@ fn is_not_nullable(constraint: Option<&FieldConstraint>) -> bool {
 }
 
 fn udt_name(data_type: &DataType) -> String {
-    match data_type {
-        DataType::Null => "unknown".to_string(),
-        DataType::SmallInt => "int2".to_string(),
-        DataType::Int => "int4".to_string(),
-        DataType::BigInt => "int8".to_string(),
-        DataType::Float => "float8".to_string(),
-        DataType::Boolean => "bool".to_string(),
-        DataType::Text => "text".to_string(),
-        DataType::Char { .. } => "bpchar".to_string(),
-        DataType::Varchar { .. } => "varchar".to_string(),
-        DataType::Uuid => "uuid".to_string(),
-        DataType::Bytea => "bytea".to_string(),
-        DataType::Date => "date".to_string(),
-        DataType::Time => "time".to_string(),
-        DataType::Timestamp => "timestamp".to_string(),
-        DataType::Vector(_) => "vector".to_string(),
-        DataType::Json => "json".to_string(),
-        DataType::Array(inner) => format!("_{}", udt_name(inner)),
+    use crate::types::builtin::{type_metadata, TypeMetadata};
+
+    match type_metadata(data_type) {
+        TypeMetadata::Scalar(metadata) => metadata.name.to_owned(),
+        TypeMetadata::Vector(_) => "vector".to_owned(),
+        TypeMetadata::Array(inner) => format!("_{}", udt_name(inner)),
     }
 }
 

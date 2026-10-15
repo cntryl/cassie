@@ -37,8 +37,8 @@ pub(crate) use parameters::checked_parse_parameter_types_in_scope;
 pub(crate) use parameters::AdmittedParameterTypes;
 pub(crate) use parameters::{
     checked_parameter_types_in_scope, checked_wire_parse_parameter_types_in_scope,
-    contextual_string_parameter_type_oids, ParameterAdmissionError, ParameterSemanticDiagnostic,
-    PrivateParameterTypeInput, validate_wire_parse_parameter_slots,
+    contextual_string_parameter_type_oids, validate_wire_parse_parameter_slots,
+    ParameterAdmissionError, ParameterSemanticDiagnostic, PrivateParameterTypeInput,
 };
 pub use parameters::{
     declared_parameter_type_conflict, parameter_count, parameter_type_oids,

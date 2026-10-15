@@ -88,6 +88,84 @@ fn should_report_underlying_type_identity_in_information_schema_columns() {
 }
 
 #[test]
+fn should_scope_underlying_type_catalogs_given_same_named_tables_and_views_when_database_sessions_query_columns(
+) {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-underlying-type-database-scope",
+        &[
+            "CREATE DATABASE issue_817_type_tenant",
+            "CREATE TABLE issue_817_type_scope (id INTEGER)",
+            "CREATE VIEW issue_817_type_scope_view AS SELECT id FROM issue_817_type_scope",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+    let tenant = fixture
+        .cassie
+        .create_session("tester", Some("issue_817_type_tenant".to_owned()));
+    for sql in [
+        "CREATE TABLE issue_817_type_scope (title VARCHAR(12))",
+        "CREATE VIEW issue_817_type_scope_view AS SELECT title FROM issue_817_type_scope",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&tenant, sql, vec![])
+            .expect("create same-named tenant objects with a distinct column type");
+    }
+    let sql = "SELECT table_name, column_name, udt_catalog, udt_schema, udt_name \
+               FROM information_schema.columns \
+               WHERE table_name IN ('issue_817_type_scope', 'issue_817_type_scope_view') \
+               ORDER BY table_name, ordinal_position";
+
+    // Act
+    let default_columns = fixture.execute(sql).expect("read default database columns");
+    let tenant_columns = fixture
+        .cassie
+        .execute_sql(&tenant, sql, vec![])
+        .expect("read tenant database columns");
+
+    // Assert
+    assert_eq!(
+        default_columns.rows(),
+        vec![
+            vec![
+                Value::String("issue_817_type_scope".to_owned()),
+                Value::String("id".to_owned()),
+                Value::String("postgres".to_owned()),
+                Value::String("pg_catalog".to_owned()),
+                Value::String("int4".to_owned()),
+            ],
+            vec![
+                Value::String("issue_817_type_scope_view".to_owned()),
+                Value::String("id".to_owned()),
+                Value::String("postgres".to_owned()),
+                Value::String("pg_catalog".to_owned()),
+                Value::String("int4".to_owned()),
+            ],
+        ],
+    );
+    assert_eq!(
+        tenant_columns.rows(),
+        vec![
+            vec![
+                Value::String("issue_817_type_scope".to_owned()),
+                Value::String("title".to_owned()),
+                Value::String("issue_817_type_tenant".to_owned()),
+                Value::String("pg_catalog".to_owned()),
+                Value::String("varchar".to_owned()),
+            ],
+            vec![
+                Value::String("issue_817_type_scope_view".to_owned()),
+                Value::String("title".to_owned()),
+                Value::String("issue_817_type_tenant".to_owned()),
+                Value::String("pg_catalog".to_owned()),
+                Value::String("varchar".to_owned()),
+            ],
+        ],
+    );
+}
+
+#[test]
 fn should_resolve_builtin_range_subtype_in_pg_range() {
     // Arrange
     let fixture = sql_fixture("issue-817-range-catalog", &[]);

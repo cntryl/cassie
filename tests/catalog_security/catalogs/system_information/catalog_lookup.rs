@@ -29,6 +29,50 @@ fn should_map_postgresql_character_encoding_names() {
 }
 
 #[test]
+fn should_resolve_canonical_encoding_names_given_valid_invalid_and_null_ids_when_encoding_to_char_is_called(
+) {
+    // Arrange
+    let fixture = sql_fixture("issue-817-canonical-encoding-names", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT pg_catalog.pg_encoding_to_char(0), pg_encoding_to_char(1), \
+                    pg_encoding_to_char(5), pg_encoding_to_char(7), \
+                    pg_encoding_to_char(8), pg_encoding_to_char(18), \
+                    pg_encoding_to_char(22), pg_encoding_to_char(25), \
+                    pg_encoding_to_char(34), pg_encoding_to_char(35), \
+                    pg_encoding_to_char(39), pg_encoding_to_char(41), \
+                    pg_encoding_to_char(-1), pg_encoding_to_char(42), \
+                    pg_encoding_to_char(CAST(NULL AS INTEGER))",
+        )
+        .expect("look up PostgreSQL encoding names and preserve SQL NULL");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("SQL_ASCII".to_owned()),
+            Value::String("EUC_JP".to_owned()),
+            Value::String("EUC_JIS_2004".to_owned()),
+            Value::String("MULE_INTERNAL".to_owned()),
+            Value::String("LATIN1".to_owned()),
+            Value::String("WIN1256".to_owned()),
+            Value::String("KOI8R".to_owned()),
+            Value::String("ISO_8859_5".to_owned()),
+            Value::String("KOI8U".to_owned()),
+            Value::String("SJIS".to_owned()),
+            Value::String("GB18030".to_owned()),
+            Value::String("SHIFT_JIS_2004".to_owned()),
+            Value::String(String::new()),
+            Value::String(String::new()),
+            Value::Null,
+        ]],
+    );
+}
+
+#[test]
 fn should_describe_reserved_keywords_from_the_server_keyword_table() {
     // Arrange
     let fixture = sql_fixture("issue-817-keyword-catalog-row", &[]);

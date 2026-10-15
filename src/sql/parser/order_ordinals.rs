@@ -100,7 +100,7 @@ fn output_column_at(position: i64, projection: &[SelectItem]) -> Result<Expr, Sq
         SelectItem::Function {
             function,
             alias: None,
-        } => Ok(Expr::Function(function.clone())),
+        } => Ok(Expr::Function(Box::new(function.clone()))),
         SelectItem::Expr { expr, alias: None } => Ok(expr.clone()),
         SelectItem::WindowFunction { alias: None, .. } => Err(SqlError::unsupported(
             "ORDER BY position of an unaliased window function is not supported".into(),

@@ -589,7 +589,7 @@ async fn handle_execute(
     let cancellation = registration.begin_query();
     let cancellation_handle = cancellation.handle();
     let result_cap = cassie.runtime.limits().max_result_rows;
-    let was_in_transaction = session.is_transaction_active() || session.is_transaction_failed();
+    let transaction_owner = transaction_boundary::TransactionOwner::capture(session);
     let result = run_pgwire_blocking(cassie, "pgwire_extended_query", move |cassie| {
         cassie.execute_parsed_sql_with_cancellation(
             &execution_session,
@@ -602,7 +602,7 @@ async fn handle_execute(
     })
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    transaction_boundary::close_completed_owner(state, runtime, session, was_in_transaction);
+    transaction_owner.close_completed(state, runtime, session);
     let window = PortalFetchWindow::new(result_cap, 0, max_rows);
     let suspended_cancellation = if window.page_rows() < result.row_count() {
         Some(cancellation.suspend())
@@ -916,6 +916,17 @@ impl ExtendedQueryError {
             }
             ParameterAdmissionError::LegacyConflict(message) => {
                 return Self::cassie(&CassieError::Planner(message));
+            }
+            ParameterAdmissionError::NonAggregateModifier {
+                message,
+                _reservation: reservation,
+            } => {
+                let result = Self::admitted_parameter_error(PgWireError::nonaggregate_modifier(
+                    &message, controls,
+                ));
+                drop(message);
+                drop(reservation);
+                return result;
             }
             ParameterAdmissionError::Semantic(diagnostic) => {
                 return Self::admitted_parameter_error(PgWireError::parameter_semantic(

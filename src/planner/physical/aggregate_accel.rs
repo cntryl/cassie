@@ -118,6 +118,9 @@ fn aggregate_acceleration_fields(plan: &LogicalPlan) -> (BTreeSet<String>, bool)
             return (BTreeSet::new(), false);
         };
         let name = function.name.to_ascii_lowercase();
+        if function.is_distinct() || function.filter.is_some() || !function.order_by.is_empty() {
+            return (BTreeSet::new(), false);
+        }
         if !matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max") {
             return (BTreeSet::new(), false);
         }

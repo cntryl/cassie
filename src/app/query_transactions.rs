@@ -68,6 +68,22 @@ impl Cassie {
             return Err(CassieError::savepoint_outside_transaction(control));
         }
         // PostgreSQL ends a failed block on COMMIT by rolling it back.
+        if statement.chain
+            && (!session.is_transaction_active() && !session.is_transaction_failed()
+                || session.is_implicit_transaction())
+        {
+            return Err(CassieError::Transaction {
+                kind: TransactionErrorKind::NoActiveTransaction,
+                message: "AND CHAIN can only be used in transaction blocks".to_string(),
+            });
+        }
+        let characteristics = statement.chain.then(|| {
+            if session.is_transaction_failed() {
+                (None, crate::sql::ast::TransactionModes::default())
+            } else {
+                session.transaction_characteristics()
+            }
+        });
         let failed_commit = matches!(statement.action, TransactionAction::Commit)
             && session.is_transaction_failed();
         let command = match &statement.action {
@@ -83,13 +99,18 @@ impl Cassie {
         let output = result.finish()?;
 
         match &statement.action {
-            TransactionAction::Begin => session.begin_transaction(statement.isolation)?,
+            TransactionAction::Begin => {
+                session.begin_transaction_with_modes(statement.isolation, statement.modes)?;
+            }
             TransactionAction::Commit if failed_commit => session.rollback_transaction(),
             TransactionAction::Commit => self.commit_transaction(session)?,
             TransactionAction::Rollback => session.rollback_transaction(),
             TransactionAction::Savepoint { name } => session.create_savepoint(name)?,
             TransactionAction::RollbackTo { name } => session.rollback_to_savepoint(name)?,
             TransactionAction::Release { name } => session.release_savepoint(name)?,
+        }
+        if let Some((isolation, modes)) = characteristics {
+            session.begin_transaction_with_modes(isolation, modes)?;
         }
         Ok(output)
     }

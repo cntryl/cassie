@@ -17,6 +17,8 @@ mod format_parameter_wires;
 mod parse_ident_residuals;
 #[path = "string/strpos_result_identity.rs"]
 mod strpos_result_identity;
+#[path = "string/text_selection.rs"]
+mod text_selection;
 
 fn configured_fixture(label: &str, maximum_rows: usize) -> (SqlFixture, CassieRuntimeConfig) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");

@@ -242,6 +242,9 @@ fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSummarySpec> {
             return Vec::new();
         };
         let function_name = function.name.to_ascii_lowercase();
+        if function.is_distinct() || function.filter.is_some() || !function.order_by.is_empty() {
+            return Vec::new();
+        }
         if !matches!(
             function_name.as_str(),
             "count" | "sum" | "avg" | "min" | "max"

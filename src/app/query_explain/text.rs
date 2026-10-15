@@ -223,7 +223,7 @@ fn projection_fields(
                 allocation.push(&mut fields, field)?;
             }
             SelectItem::Function { function, .. } => {
-                for argument in &function.args {
+                for argument in function.expressions() {
                     collect_expr_columns(argument, &mut fields, allocation)?;
                 }
             }
@@ -270,7 +270,7 @@ fn collect_expr_columns(
             }
         }
         Expr::Function(function) => {
-            for argument in &function.args {
+            for argument in function.expressions() {
                 collect_expr_columns(argument, fields, allocation)?;
             }
         }

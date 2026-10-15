@@ -155,3 +155,31 @@ fn should_preserve_cast_chain_identity_given_binary_parameters_when_binary_resul
     // Assert
     assert_binary_cast_chain_contract(&batches, &input_value);
 }
+
+#[test]
+fn should_preserve_unsized_varchar_identity_given_a_qualified_type_when_a_value_is_described() {
+    // Arrange
+    let sql = "SELECT 'unbounded varchar text'::pg_catalog.varchar AS value";
+
+    // Act
+    let batches = run_script(
+        "issue-796-qualified-unsized-varchar",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])],
+    );
+
+    // Assert
+    let frames = &batches[0];
+    assert_eq!(wire::error_code(frames), None);
+    let description = frames
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("qualified VARCHAR RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(columns[0].type_oid, 1043);
+    assert_eq!(columns[0].type_mod, -1);
+    assert_eq!(columns[0].format_code, 0);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("unbounded varchar text".to_owned())]]
+    );
+}

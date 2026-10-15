@@ -1,7 +1,7 @@
 use super::{stable_fingerprint, Deserialize, Hash, Serialize};
 use crate::catalog::IndexMeta;
 use crate::planner::logical::LogicalPlan;
-use crate::sql::ast::{Expr, QuerySource, SelectItem, SortDirection};
+use crate::sql::ast::{Expr, FunctionCall, OrderExpr, QuerySource, SelectItem, SortDirection};
 use std::collections::BTreeSet;
 
 pub(crate) const OPERATOR_FEEDBACK_CONFIDENCE_FLOOR_BPS: u16 = 600;
@@ -379,18 +379,7 @@ impl From<&LogicalPlan> for NormalizedPredicateShape {
                 .map(NormalizedExprShape::from)
                 .collect(),
             filter: plan.filter.as_ref().map(NormalizedExprShape::from),
-            order: plan
-                .order
-                .iter()
-                .map(|order| NormalizedOrderShape {
-                    expr: NormalizedExprShape::from(&order.expr),
-                    direction: match order.direction {
-                        SortDirection::Asc => "asc",
-                        SortDirection::Desc => "desc",
-                    },
-                    nulls: order.nulls.map(|nulls| format!("{nulls:?}")),
-                })
-                .collect(),
+            order: plan.order.iter().map(NormalizedOrderShape::from).collect(),
             group_by: plan
                 .group_by
                 .iter()
@@ -413,6 +402,48 @@ struct NormalizedOrderShape {
     nulls: Option<String>,
 }
 
+impl From<&OrderExpr> for NormalizedOrderShape {
+    fn from(order: &OrderExpr) -> Self {
+        Self {
+            expr: NormalizedExprShape::from(&order.expr),
+            direction: match order.direction {
+                SortDirection::Asc => "asc",
+                SortDirection::Desc => "desc",
+            },
+            nulls: order.nulls.map(|nulls| format!("{nulls:?}")),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct NormalizedFunctionModifiers {
+    distinct: bool,
+    filter: Option<Box<NormalizedExprShape>>,
+    order: Vec<NormalizedOrderShape>,
+}
+
+fn normalized_function_modifiers(
+    function: &FunctionCall,
+) -> Option<Box<NormalizedFunctionModifiers>> {
+    // Absent modifiers retain the existing serialized shape and its persisted
+    // feedback identity. Explicit ALL has the same execution state as default.
+    if !function.is_distinct() && function.filter.is_none() && function.order_by.is_empty() {
+        return None;
+    }
+    Some(Box::new(NormalizedFunctionModifiers {
+        distinct: function.is_distinct(),
+        filter: function
+            .filter
+            .as_deref()
+            .map(|expr| Box::new(NormalizedExprShape::from(expr))),
+        order: function
+            .order_by
+            .iter()
+            .map(NormalizedOrderShape::from)
+            .collect(),
+    }))
+}
+
 #[derive(Serialize)]
 struct NormalizedIndexShape {
     kind: String,
@@ -430,6 +461,8 @@ enum NormalizedExprShape {
     Function {
         name: String,
         args: Vec<NormalizedExprShape>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        modifiers: Option<Box<NormalizedFunctionModifiers>>,
     },
     Binary {
         op: String,
@@ -495,6 +528,7 @@ impl From<&Expr> for NormalizedExprShape {
             Expr::Function(function) => Self::Function {
                 name: function.name.to_ascii_lowercase(),
                 args: function.args.iter().map(Self::from).collect(),
+                modifiers: normalized_function_modifiers(function),
             },
             Expr::Binary { left, op, right } => Self::Binary {
                 op: format!("{op:?}"),
@@ -538,9 +572,17 @@ impl From<&Expr> for NormalizedExprShape {
 enum NormalizedProjectionShape {
     Wildcard,
     Column(String),
-    Function { name: String, arity: usize },
+    Function {
+        name: String,
+        arity: usize,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        modifiers: Option<Box<NormalizedFunctionModifiers>>,
+    },
     Expr(NormalizedExprShape),
-    WindowFunction { name: String, arity: usize },
+    WindowFunction {
+        name: String,
+        arity: usize,
+    },
 }
 
 impl From<&SelectItem> for NormalizedProjectionShape {
@@ -553,6 +595,7 @@ impl From<&SelectItem> for NormalizedProjectionShape {
             SelectItem::Function { function, .. } => Self::Function {
                 name: function.name.to_ascii_lowercase(),
                 arity: function.args.len(),
+                modifiers: normalized_function_modifiers(function),
             },
             SelectItem::Expr { expr, .. } => Self::Expr(NormalizedExprShape::from(expr)),
             SelectItem::WindowFunction { function, .. } => Self::WindowFunction {
@@ -560,5 +603,111 @@ impl From<&SelectItem> for NormalizedProjectionShape {
                 arity: function.args.len(),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod aggregate_modifier_tests {
+    use super::*;
+    use crate::sql::ast::QueryStatement;
+
+    fn aggregate(call: &str) -> SelectItem {
+        let parsed = crate::sql::parse_statement(&format!("SELECT {call} FROM records"))
+            .expect("aggregate query syntax");
+        let QueryStatement::Select(mut query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        query.projection.remove(0)
+    }
+
+    #[test]
+    fn should_preserve_feedback_identity_given_legacy_plain_calls_when_optional_modifiers_are_absent(
+    ) {
+        // Arrange
+        #[derive(Serialize)]
+        enum LegacyProjection {
+            Function { name: String, arity: usize },
+        }
+        #[derive(Serialize)]
+        enum LegacyExpression {
+            Function {
+                name: String,
+                args: Vec<NormalizedExprShape>,
+            },
+        }
+        let legacy_projection = LegacyProjection::Function {
+            name: "sum".to_owned(),
+            arity: 1,
+        };
+        let legacy_expression = LegacyExpression::Function {
+            name: "sum".to_owned(),
+            args: vec![NormalizedExprShape::Column("n".to_owned())],
+        };
+        let calls = [aggregate("SUM(n)"), aggregate("SUM(ALL n)")];
+
+        // Act
+        let identities = calls.map(|item| {
+            let projection = stable_fingerprint(&NormalizedProjectionShape::from(&item));
+            let SelectItem::Function { function, .. } = item else {
+                panic!("aggregate projection");
+            };
+            let expression = stable_fingerprint(&NormalizedExprShape::from(&Expr::Function(
+                Box::new(function),
+            )));
+            (projection, expression)
+        });
+
+        // Assert
+        let expected = (
+            stable_fingerprint(&legacy_projection),
+            stable_fingerprint(&legacy_expression),
+        );
+        assert_eq!(identities, [expected, expected]);
+    }
+
+    #[test]
+    fn should_distinguish_aggregate_feedback_given_distinct_filter_or_order_when_shapes_are_normalized(
+    ) {
+        // Arrange
+        let calls = [
+            "SUM(n)",
+            "SUM(DISTINCT n)",
+            "SUM(n) FILTER (WHERE included)",
+            "SUM(n) FILTER (WHERE other)",
+            "SUM(n ORDER BY sort_key)",
+            "SUM(n ORDER BY sort_key DESC)",
+            "SUM(n ORDER BY sort_key DESC NULLS LAST)",
+        ];
+
+        // Act
+        let identities = calls.map(|call| {
+            let item = aggregate(call);
+            let projection = stable_fingerprint(&NormalizedProjectionShape::from(&item));
+            let SelectItem::Function { function, .. } = item else {
+                panic!("aggregate projection");
+            };
+            let expression = stable_fingerprint(&NormalizedExprShape::from(&Expr::Function(
+                Box::new(function),
+            )));
+            (projection, expression)
+        });
+
+        // Assert
+        assert_eq!(
+            identities
+                .iter()
+                .map(|identity| identity.0)
+                .collect::<BTreeSet<_>>()
+                .len(),
+            calls.len()
+        );
+        assert_eq!(
+            identities
+                .iter()
+                .map(|identity| identity.1)
+                .collect::<BTreeSet<_>>()
+                .len(),
+            calls.len()
+        );
     }
 }

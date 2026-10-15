@@ -110,6 +110,51 @@ impl<'a> Occurrences<'a> {
         Ok(())
     }
 
+    pub(super) fn boolean_aggregate_literal(
+        &self,
+        input: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), ParameterAdmissionError> {
+        if self.stop_on_error && crate::types::boolean::parse_text(input).is_none() {
+            return Err(super::admission::admit_invalid_boolean_literal(
+                input, controls,
+            )?);
+        }
+        Ok(())
+    }
+
+    pub(super) fn boolean_aggregate_input(
+        &mut self,
+        function: &'static str,
+        summary: Summary,
+    ) -> Result<(), ParameterAdmissionError> {
+        if !matches!(summary.oid, 0 | 16 | UNKNOWN_PARAMETER_TYPE_OID) {
+            self.undefined_function(function, 1, Some(summary.oid))?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn undefined_function(
+        &mut self,
+        function: &'static str,
+        argument_count: usize,
+        actual: Option<i32>,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::UndefinedFunction {
+            function,
+            argument_count,
+            actual,
+        })
+    }
+
+    pub(super) fn invalid_distinct_order(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::DistinctAggregateOrder)
+    }
+
+    pub(super) fn missing_equality(&mut self, actual: i32) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::MissingEquality { actual })
+    }
+
     pub(super) fn unqualify_since(
         &mut self,
         start: usize,
@@ -271,7 +316,10 @@ impl<'a> Occurrences<'a> {
                 | BooleanConstruct::CaseWhen
         );
         let selected_for_diagnostics = selected_for_inference
-            || matches!(construct, BooleanConstruct::Having | BooleanConstruct::Join);
+            || matches!(
+                construct,
+                BooleanConstruct::Having | BooleanConstruct::Join | BooleanConstruct::Filter
+            );
         if !selected_for_inference {
             if let Some(ordinal) = summary.occurrence {
                 let occurrence = self.ledger.values[ordinal];

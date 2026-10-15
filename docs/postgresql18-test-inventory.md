@@ -2,14 +2,14 @@
 
 Refreshed **2026-10-15**. This is the compatibility owner index. The consolidated [test inventory](testing/README.md) contains every existing test and its physical owner; the [backfill ledger](testing/planned-tests.md) maps all **138 identified remaining items** to registered assertions. There are no unwritten items in that reconciled list. An authored assertion does not establish that Cassie reaches its intended path or passes it.
 
-The live milestone has **69 open and 20 closed issues**. No runtime fixes or issue closures are part of this test-only change. The 4,009 upstream corpus entries and client/workload qualification gates are separate acceptance obligations.
+The inventory snapshot contains **69 open and 20 closed milestone issues**. The initial backfill and reorganization changed tests only. The user subsequently authorized runtime fixes; that implementation is in progress on the same branch. Authored changes and focused passes do not close owners or establish a full-suite pass. The 4,009 upstream corpus entries and client/workload qualification gates are separate acceptance obligations.
 
 ## Sources of truth
 
 | Record | Scope |
 | --- | --- |
 | [Test organization](testing/README.md) | Directory ownership, naming, fixture boundaries and registration rules |
-| [Every existing test](testing/inventory.json) | 5,414 Rust declarations, 16 Python declarations and 5,542 compiled Rust instances |
+| [Every existing test](testing/inventory.json) | Every declaration and registered instance; generated totals are in [the summary](testing/summary.md) |
 | [Reconciled backfill](testing/planned-tests.md) | Issue, inventory name, actual assertion, authoring and execution status for all 138 items |
 | [Oracle corrections](testing/oracle-corrections.md) | 28 historical corrections and 54 strengthened parse-only checks |
 | [Owner assertion anchors](testing/owner-assertions.md) | Finite assertion links and prerequisite limits for all 69 open owners |
@@ -107,6 +107,12 @@ The count below is the number of reconciled remaining-list items for an owner, n
 The user approved standard PostgreSQL array OIDs and rejection of Cassie legacy OIDs; `digest()` requires `CREATE EXTENSION pgcrypto`. Legacy OID rejection uses the Cassie profile's `0A000`; PostgreSQL itself reports `XX000` for an unknown catalog OID, so that rejection is not claimed as common SQLSTATE parity.
 
 For #817 the user approved `0A000` for physical file/control and server-management helpers that cannot truthfully represent Midge storage. Commit-timestamp helpers must report PostgreSQL's default `55000` when tracking is off. Catalog rows, SQL statistics restoration and authorized backend cancellation/termination remain positive behavior requirements. Tests include typed-NULL, registration or privilege controls so unrelated failures cannot satisfy those rejection assertions.
+
+On 2026-10-15 the user selected actual Midge storage sizes for size functions.
+Tests must use authoritative Midge storage accounting rather than PostgreSQL
+heap, index or TOAST page constants. PostgreSQL-only fork and TOAST operations
+follow the approved `0A000` rejection policy. This decision does not establish
+implemented size functions or passing storage-accounting evidence.
 
 ## Qualification still required
 

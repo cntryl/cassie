@@ -53,13 +53,31 @@ pub(super) fn admit_statement(
     Ok(standalone)
 }
 
-pub(super) fn close_completed_owner(
-    state: &mut SessionState,
-    runtime: &RuntimeState,
-    session: &CassieSession,
-    was_in_transaction: bool,
-) {
-    if was_in_transaction && !session.is_transaction_active() && !session.is_transaction_failed() {
-        state.clear_all_portals(runtime);
+/// The owner before Execute, independent from the replacement block's status.
+pub(super) struct TransactionOwner {
+    active: bool,
+    generation: u64,
+}
+
+impl TransactionOwner {
+    pub(super) fn capture(session: &CassieSession) -> Self {
+        Self {
+            active: session.is_transaction_active() || session.is_transaction_failed(),
+            generation: session.transaction_generation(),
+        }
+    }
+
+    pub(super) fn close_completed(
+        self,
+        state: &mut SessionState,
+        runtime: &RuntimeState,
+        session: &CassieSession,
+    ) {
+        if self.active
+            && (self.generation != session.transaction_generation()
+                || !session.is_transaction_active() && !session.is_transaction_failed())
+        {
+            state.clear_all_portals(runtime);
+        }
     }
 }

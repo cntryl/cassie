@@ -370,3 +370,220 @@ fn should_drop_suspended_portal_when_extended_commit_ends_transaction() {
     });
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_drop_suspended_portal_given_commit_chain_when_next_transaction_remains_open() {
+    // Arrange
+    support::use_local_storage();
+    let path = support::data_dir("portal-extended-commit-chain");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = seeded_cassie(&path, "portal_extended_commit_chain", 4);
+        let server = support::spawn_server(cassie).await;
+        let mut socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("connect");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = BufReader::new(read_half);
+        support::complete_startup(&mut reader, &mut write_half).await;
+        let _ = round_trip(
+            &mut reader,
+            &mut write_half,
+            vec![support::simple_query_frame("BEGIN")],
+        )
+        .await;
+        let first = round_trip(
+            &mut reader,
+            &mut write_half,
+            vec![
+                support::parse_frame(
+                    "commit_select",
+                    "SELECT payload FROM portal_extended_commit_chain",
+                ),
+                support::bind_frame("commit_portal", "commit_select", &[]),
+                support::execute_limited_frame("commit_portal", 2),
+                support::sync_frame(),
+            ],
+        )
+        .await;
+        assert!(first.iter().any(|(tag, _)| *tag == b's'), "{first:?}");
+        let committed = round_trip(
+            &mut reader,
+            &mut write_half,
+            vec![
+                support::parse_frame("commit_stmt", "COMMIT AND CHAIN"),
+                support::bind_frame("commit_stmt_portal", "commit_stmt", &[]),
+                support::execute_frame("commit_stmt_portal"),
+                support::sync_frame(),
+            ],
+        )
+        .await;
+        assert!(
+            committed.iter().all(|(tag, _)| *tag != b'E'),
+            "{committed:?}"
+        );
+        assert!(
+            committed
+                .iter()
+                .any(|(tag, body)| *tag == b'Z' && body == b"T"),
+            "replacement transaction must remain active: {committed:?}"
+        );
+
+        // Act
+        let resumed = round_trip(
+            &mut reader,
+            &mut write_half,
+            vec![
+                support::execute_limited_frame("commit_portal", 2),
+                support::sync_frame(),
+            ],
+        )
+        .await;
+
+        // Assert
+        assert!(data_values(&resumed).is_empty(), "{resumed:?}");
+        assert_eq!(error_code(&resumed).as_deref(), Some("26000"));
+
+        drop(socket);
+        server.stop().await;
+    });
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_use_default_characteristics_given_failed_transaction_when_commit_or_rollback_chains() {
+    // Arrange
+    support::use_local_storage();
+    let path = support::data_dir("failed-chain-characteristics");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let cassie = seeded_cassie(&path, "failed_chain_rows", 1);
+        let server = support::spawn_server(cassie).await;
+        let mut socket = tokio::net::TcpStream::connect(server.addr).await.expect("connect");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = BufReader::new(read_half);
+        support::complete_startup(&mut reader, &mut write_half).await;
+        for control in ["COMMIT AND CHAIN", "ROLLBACK AND CHAIN"] {
+            let _ = round_trip(&mut reader, &mut write_half, vec![support::simple_query_frame("BEGIN ISOLATION LEVEL READ UNCOMMITTED READ ONLY DEFERRABLE")]).await;
+            let failed = round_trip(&mut reader, &mut write_half, vec![support::simple_query_frame("SELECT 1/0")]).await;
+            assert_eq!(error_code(&failed).as_deref(), Some("22012"));
+            assert!(failed.iter().any(|(tag, body)| *tag == b'Z' && body == b"E"));
+
+            // Act
+            let chained = round_trip(&mut reader, &mut write_half, vec![support::simple_query_frame(control)]).await;
+            let modes = round_trip(&mut reader, &mut write_half, vec![support::simple_query_frame("SHOW transaction_isolation; SHOW transaction_read_only; SHOW transaction_deferrable")]).await;
+            let savepoint = round_trip(&mut reader, &mut write_half, vec![support::simple_query_frame("SAVEPOINT actual_chain")]).await;
+            let ended = round_trip(&mut reader, &mut write_half, vec![support::simple_query_frame("ROLLBACK")]).await;
+
+            // Assert
+            assert!(chained.iter().any(|(tag, body)| *tag == b'C' && body == b"ROLLBACK\0"), "{control}: {chained:?}");
+            assert!(chained.iter().any(|(tag, body)| *tag == b'Z' && body == b"T"), "{control}: {chained:?}");
+            assert_eq!(data_values(&modes), ["read committed", "off", "off"], "{control}");
+            assert!(savepoint.iter().all(|(tag, _)| *tag != b'E'), "{control}: {savepoint:?}");
+            assert!(ended.iter().any(|(tag, body)| *tag == b'Z' && body == b"I"));
+        }
+        drop(socket);
+        server.stop().await;
+    });
+    std::fs::remove_dir_all(path).expect("remove failed-chain fixture");
+}
+
+#[test]
+fn should_report_transaction_status_given_implicit_begin_modes_when_prior_query_established_boundary(
+) {
+    // Arrange
+    support::use_local_storage();
+    let path = support::data_dir("implicit-begin-mode-boundary");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let cassie = seeded_cassie(&path, "implicit_begin_rows", 1);
+        let server = support::spawn_server(cassie).await;
+        let mut socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("connect");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = BufReader::new(read_half);
+        support::complete_startup(&mut reader, &mut write_half).await;
+
+        // Act
+        let rejected_begin = round_trip(
+            &mut reader,
+            &mut write_half,
+            vec![support::simple_query_frame(
+                "SELECT 1; BEGIN ISOLATION LEVEL READ UNCOMMITTED",
+            )],
+        )
+        .await;
+        let accepted_begin = round_trip(
+            &mut reader,
+            &mut write_half,
+            vec![support::simple_query_frame("SELECT 1; BEGIN READ ONLY")],
+        )
+        .await;
+        let rejected_mode = round_trip(
+            &mut reader,
+            &mut write_half,
+            vec![support::simple_query_frame("SET transaction_read_only=off")],
+        )
+        .await;
+        let aborted = round_trip(
+            &mut reader,
+            &mut write_half,
+            vec![support::simple_query_frame("SELECT 2")],
+        )
+        .await;
+        let rolled_back = round_trip(
+            &mut reader,
+            &mut write_half,
+            vec![support::simple_query_frame("ROLLBACK")],
+        )
+        .await;
+        let recovered = round_trip(
+            &mut reader,
+            &mut write_half,
+            vec![support::simple_query_frame("SELECT 3")],
+        )
+        .await;
+
+        // Assert
+        assert_eq!(error_code(&rejected_begin).as_deref(), Some("25001"));
+        assert!(rejected_begin
+            .iter()
+            .any(|(tag, body)| *tag == b'Z' && body == b"I"));
+        assert!(
+            accepted_begin.iter().all(|(tag, _)| *tag != b'E'),
+            "{accepted_begin:?}"
+        );
+        assert!(accepted_begin
+            .iter()
+            .any(|(tag, body)| *tag == b'Z' && body == b"T"));
+        assert_eq!(error_code(&rejected_mode).as_deref(), Some("25001"));
+        assert!(rejected_mode
+            .iter()
+            .any(|(tag, body)| *tag == b'Z' && body == b"E"));
+        assert_eq!(error_code(&aborted).as_deref(), Some("25P02"));
+        assert!(aborted
+            .iter()
+            .any(|(tag, body)| *tag == b'Z' && body == b"E"));
+        assert!(rolled_back
+            .iter()
+            .any(|(tag, body)| *tag == b'Z' && body == b"I"));
+        assert_eq!(data_values(&recovered), ["3"]);
+        assert!(recovered
+            .iter()
+            .any(|(tag, body)| *tag == b'Z' && body == b"I"));
+        drop(socket);
+        server.stop().await;
+    });
+    std::fs::remove_dir_all(path).expect("remove implicit-BEGIN fixture");
+}

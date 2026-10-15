@@ -8,6 +8,9 @@ use crate::executor::execution::build_logical_plan;
 #[path = "control_tests.rs"]
 mod controls;
 
+#[path = "modifier_tests.rs"]
+mod modifiers;
+
 const SERIAL_ROW_COUNT: usize = 50_000;
 const SERIAL_GROUP_COUNT: usize = 4;
 
@@ -295,5 +298,77 @@ fn should_bound_array_window_order_keys() {
     // Assert
     let error = result.expect_err("ARRAY window keys must respect the query budget");
     assert!(error.to_string().contains("query memory budget exceeded"));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_evaluate_later_boolean_inputs_given_a_decisive_value_when_a_later_row_has_invalid_type() {
+    // Arrange
+    let plan = aggregate_plan("SELECT BOOL_AND(flag) FROM records");
+    let controls = controls_with_budget(CassieRuntimeLimits::default().query_memory_budget_bytes);
+    let functions = HashMap::new();
+    let context = aggregate_context(&plan, &functions, &controls);
+
+    // Act
+    for (name, first) in [("bool_and", false), ("bool_or", true), ("every", false)] {
+        let function = crate::sql::ast::FunctionCall {
+            name: name.to_owned(),
+            args: vec![Expr::Column("flag".to_owned())],
+            ..Default::default()
+        };
+        let rows = [
+            BatchRow::new(vec![("flag".to_owned(), Value::Bool(first))]),
+            BatchRow::new(vec![("flag".to_owned(), Value::Int64(1))]),
+        ];
+        let result = AggregateAccumulator::evaluate(&function, &rows, &context);
+
+        // Assert
+        assert!(
+            result.is_err(),
+            "{name} must not skip the later invalid input"
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_merge_boolean_row_groups_given_null_only_partitions_when_workers_finish() {
+    // Arrange
+    let plan = aggregate_plan("SELECT BOOL_AND(flag), BOOL_OR(flag), EVERY(flag) FROM records");
+    let specs = aggregate_specs(&plan);
+    let controls = controls_with_budget(CassieRuntimeLimits::default().query_memory_budget_bytes);
+    let functions = HashMap::new();
+    let context = aggregate_context(&plan, &functions, &controls);
+    let rows = [
+        Value::Null,
+        Value::Bool(true),
+        Value::Null,
+        Value::Bool(false),
+    ]
+    .into_iter()
+    .map(|value| BatchRow::new(vec![("flag".to_owned(), value)]))
+    .collect::<Vec<_>>();
+
+    // Act
+    let partials = aggregate_partitions(&rows, &specs, &context, 4).expect("worker partitions");
+    let mut merged = PartialAggregateGroup::new(Vec::new(), &specs);
+    for partial in &partials {
+        for group in partial.groups.values() {
+            merged.merge(group).expect("merge real row-worker states");
+        }
+    }
+    let values = merged
+        .accumulators
+        .into_iter()
+        .map(AggregateAccumulator::finish)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("finish merged Boolean states");
+    drop(partials);
+
+    // Assert
+    assert_eq!(
+        values,
+        [Value::Bool(false), Value::Bool(true), Value::Bool(false)]
+    );
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

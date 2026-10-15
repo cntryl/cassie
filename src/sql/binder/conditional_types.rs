@@ -75,7 +75,7 @@ fn validate_function_type(function: &FunctionCall, types: &ResultTypes) -> Resul
 pub(super) fn validate_item(item: &SelectItem, types: &ResultTypes) -> Result<(), CassieError> {
     match item {
         SelectItem::Function { function, .. } => {
-            for arg in &function.args {
+            for arg in function.expressions() {
                 validate_expression(arg, types)?;
             }
             validate_function_type(function, types)?;

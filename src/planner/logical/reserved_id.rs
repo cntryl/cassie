@@ -180,7 +180,7 @@ fn rewrite_select_item(item: &mut SelectItem) {
             }
         }
         SelectItem::Function { function, .. } => {
-            for arg in &mut function.args {
+            for arg in function.expressions_mut() {
                 rewrite_expr(arg);
             }
         }
@@ -242,7 +242,7 @@ fn rewrite_expr(expr: &mut Expr) {
             rewrite_expr(high);
         }
         Expr::Function(function) => {
-            for arg in &mut function.args {
+            for arg in function.expressions_mut() {
                 rewrite_expr(arg);
             }
         }

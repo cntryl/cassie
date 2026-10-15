@@ -1,4 +1,5 @@
 //! Streaming numeric aggregate boundary over the common typed transport.
+use super::boolean::BooleanState;
 use super::state::{AvgSum, NumericSum};
 use super::QueryError;
 use crate::app::{Cassie, CassieSession};
@@ -18,6 +19,7 @@ mod predicate;
 mod workers;
 
 enum State {
+    Boolean(BooleanState),
     Count(i64),
     Sum { sum: NumericSum, seen: bool },
     Avg { sum: AvgSum, count: usize },
@@ -26,6 +28,9 @@ enum State {
 
 impl State {
     fn new(name: &str) -> Option<Self> {
+        if let Some(state) = BooleanState::new(name) {
+            return Some(Self::Boolean(state));
+        }
         if name.eq_ignore_ascii_case("count") {
             Some(Self::Count(0))
         } else if name.eq_ignore_ascii_case("sum") {
@@ -52,6 +57,7 @@ impl State {
         let cell = match cell {
             Cell::Scalar(Value::Int64(value)) => Cell::Integer(*value),
             Cell::Scalar(Value::Float64(value)) => Cell::Float(*value),
+            Cell::Scalar(Value::Bool(value)) => Cell::Boolean(*value),
             Cell::Scalar(Value::Null) => Cell::Null,
             cell => cell,
         };
@@ -59,6 +65,10 @@ impl State {
             return Ok(());
         }
         match self {
+            Self::Boolean(state) => match cell {
+                Cell::Boolean(value) => state.update(value),
+                _ => return Err(invalid_input()),
+            },
             Self::Count(count) => {
                 *count = count.checked_add(1).ok_or_else(count_overflow)?;
             }
@@ -101,6 +111,7 @@ impl State {
 
     fn finish(self) -> Result<Value, QueryError> {
         match self {
+            Self::Boolean(state) => Ok(state.finish()),
             Self::Count(count) => Ok(Value::Int64(count)),
             Self::Sum { sum, seen: true } => sum.finish_value(),
             Self::Sum { seen: false, .. } | Self::Avg { count: 0, .. } => Ok(Value::Null),
@@ -257,6 +268,11 @@ fn prepare_specs(
         let SelectItem::Function { function, alias } = item else {
             return Ok(None);
         };
+        // Aggregate-local predicates, deduplication and ordering use the
+        // controlled scalar path until native per-aggregate selections exist.
+        if function.is_distinct() || function.filter.is_some() || !function.order_by.is_empty() {
+            return Ok(None);
+        }
         let Some(state) = State::new(&function.name) else {
             return Ok(None);
         };
@@ -287,10 +303,15 @@ fn prepare_specs(
             else {
                 return Ok(None);
             };
-            if !matches!(
-                entry.data_type,
-                DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float
-            ) {
+            let supported_input = if matches!(state, State::Boolean(_)) {
+                entry.data_type == DataType::Boolean
+            } else {
+                matches!(
+                    entry.data_type,
+                    DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float
+                )
+            };
+            if !supported_input {
                 return Ok(None);
             }
             let index = fields
@@ -344,6 +365,9 @@ fn fold_sum(batch: &TypedBatch, controls: &QueryExecutionControls) -> Result<Val
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod boolean_tests;
 
 #[cfg(test)]
 mod encoded_tests;

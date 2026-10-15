@@ -18,11 +18,17 @@ pub(super) fn infer_function_parameter_type_oids(
     catalog: &Catalog,
     inference: &mut ParameterInference,
 ) {
-    if !inference.check() || function.args.is_empty() {
+    if !inference.check() {
         return;
     }
-    for argument in &function.args {
+    for argument in function.expressions() {
         infer_parameter_type_oids_expr(argument, field_types, catalog, inference);
+    }
+    if let Some(filter) = &function.filter {
+        infer_parameter_type_from_expected_expr(filter, &DataType::Boolean, inference);
+    }
+    if function.args.is_empty() {
+        return;
     }
     if !inference.check() {
         return;
@@ -97,7 +103,39 @@ fn infer_inputs(
         return Ok(());
     };
     let data_type = match functions::input_signature(metadata.id) {
+        Some(FunctionInputSignature::Positional(oids)) => {
+            let mut integer_substring = false;
+            if metadata.id == functions::FunctionId::Substring {
+                for argument in function.args.iter().skip(1) {
+                    integer_substring |= matches!(
+                        argument_type(argument, field_types, catalog, inference)?,
+                        ArgumentType::Known(DataType::SmallInt | DataType::Int)
+                    );
+                }
+            }
+            let oids = if function
+                .name
+                .rsplit('.')
+                .next()
+                .is_some_and(|name| name.eq_ignore_ascii_case("substring"))
+                && !integer_substring
+            {
+                &[25, 25, 25]
+            } else {
+                oids
+            };
+            for (argument, oid) in function.args.iter().zip(oids) {
+                let data_type = if *oid == 23 {
+                    DataType::Int
+                } else {
+                    DataType::Text
+                };
+                infer_parameter_type_from_expected_expr(argument, &data_type, inference);
+            }
+            None
+        }
         Some(FunctionInputSignature::Text) => Some(DataType::Text),
+        Some(FunctionInputSignature::Boolean) => Some(DataType::Boolean),
         Some(FunctionInputSignature::CommonArguments) => {
             common_argument_type(function, field_types, catalog, inference)?
         }
@@ -206,6 +244,7 @@ fn function_result_type(
         return Ok(ArgumentType::Unqualified);
     };
     match functions::input_signature(metadata.id) {
+        Some(FunctionInputSignature::Boolean) => Ok(ArgumentType::Known(DataType::Boolean)),
         Some(FunctionInputSignature::CommonArguments) => {
             Ok(
                 common_argument_type(function, field_types, catalog, inference)?
@@ -215,6 +254,13 @@ fn function_result_type(
         Some(FunctionInputSignature::Text) if metadata.return_type == FunctionReturnType::Text => {
             Ok(ArgumentType::Known(DataType::Text))
         }
+        Some(FunctionInputSignature::Positional(_)) => Ok(ArgumentType::Known(
+            if metadata.return_type == FunctionReturnType::Int {
+                DataType::Int
+            } else {
+                DataType::Text
+            },
+        )),
         _ => Ok(ArgumentType::Unqualified),
     }
 }

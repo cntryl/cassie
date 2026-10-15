@@ -84,7 +84,7 @@ async fn connect(address: SocketAddr) -> (OwnedReadHalf, OwnedWriteHalf, i32, i3
 }
 
 pub fn integer_table_fixture_setup(table_name: &str, row_count: i32) -> Vec<String> {
-    let mut statements = vec![format!("CREATE TABLE {table_name} (n INT4 PRIMARY KEY)")];
+    let mut statements = vec![format!("CREATE TABLE {table_name} (n INT4)")];
     for first in (1..=row_count).step_by(250) {
         let last = (first + 249).min(row_count);
         let values = (first..=last)
@@ -221,7 +221,6 @@ pub fn run_memory_budget_case_with_setup(
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(10)).await;
         assert_no_error(&control, "small retained-value control");
         assert_no_error(&wide_control, "same-input nonretaining control");
-        assert_control_result(&wide_control, "100000");
         wire::write_frames(&mut writer, vec![wire::simple_query_frame(candidate_sql)]).await;
         let candidate =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(10)).await;

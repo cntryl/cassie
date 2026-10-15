@@ -9,6 +9,7 @@ use crate::executor::semantic::{compare_values, SemanticValue};
 use crate::sql::ast::{Expr, FunctionCall};
 use crate::types::Value;
 
+use super::boolean::BooleanState;
 use super::{AggregateExecutionContext, AggregateSpec, QueryError};
 
 struct AggregateValueContext<'a> {
@@ -111,6 +112,7 @@ fn value_retained_bytes(value: &Value) -> usize {
 
 #[derive(Clone)]
 pub(super) enum AggregateAccumulator {
+    Boolean(BooleanState),
     Count {
         count: i64,
     },
@@ -152,10 +154,14 @@ impl AggregateAccumulator {
         rows: &[BatchRow],
         context: &AggregateExecutionContext<'_>,
     ) -> Result<Value, QueryError> {
+        if function.is_distinct() || !function.order_by.is_empty() {
+            return super::modifiers::evaluate(function, rows, context);
+        }
         let mut accumulator = Self::new(function);
         let mut key_memory = super::group_memory::GroupMemory::new(context.controls)?;
         let mut retained_key_bytes = 0;
         for row in rows {
+            super::check_timeout(context.controls)?;
             accumulator.update(
                 function,
                 row,
@@ -174,7 +180,10 @@ impl AggregateAccumulator {
         accumulator.finish()
     }
 
-    fn new(function: &FunctionCall) -> Self {
+    pub(super) fn new(function: &FunctionCall) -> Self {
+        if let Some(state) = BooleanState::new(&function.name) {
+            return Self::Boolean(state);
+        }
         match function.name.to_ascii_lowercase().as_str() {
             "count" => Self::Count { count: 0 },
             "sum" => Self::Sum {
@@ -213,16 +222,88 @@ impl AggregateAccumulator {
             user_functions,
             session,
         };
+        let Some(value) = Self::selected_input(function, row, &value_context)? else {
+            return Ok(RetainedChange::default());
+        };
+        let key = if matches!(self, Self::MinMax { .. }) {
+            function
+                .args
+                .first()
+                .map(|expr| crate::executor::array_order::key(row, expr, &value, user_functions))
+                .filter(|key| matches!(key, SemanticValue::Array(_)))
+        } else {
+            None
+        };
+        self.update_value(function, value, key)
+    }
+
+    pub(super) fn update_value(
+        &mut self,
+        function: &FunctionCall,
+        value: Value,
+        new_key: Option<SemanticValue>,
+    ) -> Result<RetainedChange, QueryError> {
         match self {
-            Self::Count { count } => Self::update_count(function, row, &value_context, count)?,
-            Self::Sum { sum, seen } => {
-                Self::update_sum(function, row, &value_context, sum, seen)?;
+            Self::Boolean(state) => match value {
+                Value::Bool(value) => state.update(value),
+                Value::Null => {}
+                value => return Err(non_numeric_input(function, &value)),
+            },
+            Self::Count { count } => {
+                if !matches!(value, Value::Null) {
+                    *count = count.checked_add(1).ok_or_else(integer_overflow)?;
+                }
             }
-            Self::Avg { sum, count } => {
-                Self::update_avg(function, row, &value_context, sum, count)?;
-            }
+            Self::Sum { sum, seen } => match value {
+                Value::Int64(value) => {
+                    sum.add_int(value);
+                    *seen = true;
+                }
+                Value::Float64(value) => {
+                    sum.add_float(value);
+                    *seen = true;
+                }
+                Value::Null => {}
+                value => return Err(non_numeric_input(function, &value)),
+            },
+            Self::Avg { sum, count } => match value {
+                Value::Int64(value) => {
+                    sum.add_int(value);
+                    *count += 1;
+                }
+                Value::Float64(value) => {
+                    sum.add_float(value);
+                    *count += 1;
+                }
+                Value::Null => {}
+                value => return Err(non_numeric_input(function, &value)),
+            },
             Self::MinMax { selected, key, max } => {
-                return Self::update_minmax(function, row, &value_context, selected, key, *max);
+                if matches!(value, Value::Null) {
+                    return Ok(RetainedChange::default());
+                }
+                let replace = selected.as_ref().is_none_or(|current| {
+                    let ordering = key.as_ref().zip(new_key.as_ref()).map_or_else(
+                        || compare_values(&value, current),
+                        |(current, new)| new.cmp(current),
+                    );
+                    if *max {
+                        ordering.is_gt()
+                    } else {
+                        ordering.is_lt()
+                    }
+                });
+                if replace {
+                    let change = RetainedChange::replaced(
+                        selected.as_ref(),
+                        &value,
+                        key.as_ref(),
+                        new_key.as_ref(),
+                    );
+                    *selected = Some(value);
+                    *key = new_key;
+                    return Ok(change);
+                }
             }
         }
         Ok(RetainedChange::default())
@@ -230,6 +311,7 @@ impl AggregateAccumulator {
 
     fn merge(&mut self, other: &Self) -> Result<RetainedChange, QueryError> {
         match (self, other) {
+            (Self::Boolean(state), Self::Boolean(later)) => state.merge(later)?,
             (Self::Count { count }, Self::Count { count: other }) => {
                 *count = count
                     .checked_add(*other)
@@ -293,6 +375,7 @@ impl AggregateAccumulator {
 
     pub(super) fn finish(self) -> Result<Value, QueryError> {
         Ok(match self {
+            Self::Boolean(state) => state.finish(),
             Self::Count { count } => Value::Int64(count),
             Self::Sum { sum, seen } => {
                 if seen {
@@ -318,7 +401,7 @@ impl AggregateAccumulator {
         match self {
             Self::Sum { sum, .. } => sum.requires_row_order(),
             Self::Avg { sum, .. } => sum.requires_row_order(),
-            Self::Count { .. } | Self::MinMax { .. } => false,
+            Self::Boolean(_) | Self::Count { .. } | Self::MinMax { .. } => false,
         }
     }
 
@@ -342,122 +425,110 @@ impl AggregateAccumulator {
         .map(Some)
     }
 
-    fn update_count(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-        count: &mut i64,
-    ) -> Result<(), QueryError> {
-        if matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*") {
-            *count += 1;
-            return Ok(());
-        }
-        let Some(value) = Self::evaluate_input(function, row, context)? else {
-            return Ok(());
-        };
-        if !matches!(value, Value::Null) {
-            *count += 1;
-        }
-        Ok(())
+    pub(super) fn retained_heap_bytes(&self) -> Result<usize, QueryError> {
+        Ok(match self {
+            Self::MinMax {
+                selected: Some(value),
+                key,
+                ..
+            } => crate::executor::retained_memory::add(
+                crate::executor::retained_memory::value_clone_bytes(value)?,
+                key.as_ref().map_or(0, SemanticValue::estimated_bytes),
+            )?,
+            _ => 0,
+        })
     }
 
-    fn update_sum(
+    pub(super) fn selected_row_input(
         function: &FunctionCall,
         row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-        sum: &mut NumericSum,
-        seen: &mut bool,
-    ) -> Result<(), QueryError> {
-        let Some(value) = Self::evaluate_input(function, row, context)? else {
-            return Ok(());
-        };
-        match value {
-            Value::Int64(value) => {
-                sum.add_int(value);
-                *seen = true;
-            }
-            Value::Float64(value) => {
-                sum.add_float(value);
-                *seen = true;
-            }
-            Value::Null => {}
-            other => return Err(non_numeric_input(function, &other)),
-        }
-        Ok(())
+        context: &AggregateExecutionContext<'_>,
+    ) -> Result<Value, QueryError> {
+        Self::evaluate_selected_input(
+            function,
+            row,
+            &AggregateValueContext {
+                params: context.params,
+                search_context: context.search_context,
+                user_functions: context.user_functions,
+                session: context.session,
+            },
+        )
     }
 
-    fn update_avg(
+    pub(super) fn row_filter_matches(
         function: &FunctionCall,
         row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-        sum: &mut AvgSum,
-        count: &mut usize,
-    ) -> Result<(), QueryError> {
-        let Some(value) = Self::evaluate_input(function, row, context)? else {
-            return Ok(());
-        };
-        match value {
-            Value::Int64(value) => {
-                sum.add_int(value);
-                *count += 1;
-            }
-            Value::Float64(value) => {
-                sum.add_float(value);
-                *count += 1;
-            }
-            Value::Null => {}
-            other => return Err(non_numeric_input(function, &other)),
-        }
-        Ok(())
+        context: &AggregateExecutionContext<'_>,
+    ) -> Result<bool, QueryError> {
+        Self::filter_matches(
+            function,
+            row,
+            &AggregateValueContext {
+                params: context.params,
+                search_context: context.search_context,
+                user_functions: context.user_functions,
+                session: context.session,
+            },
+        )
     }
 
-    fn update_minmax(
+    fn selected_input(
         function: &FunctionCall,
         row: &BatchRow,
         context: &AggregateValueContext<'_>,
-        selected: &mut Option<Value>,
-        key: &mut Option<SemanticValue>,
-        max: bool,
-    ) -> Result<RetainedChange, QueryError> {
-        let stored = function
+    ) -> Result<Option<Value>, QueryError> {
+        if !Self::filter_matches(function, row, context)? {
+            return Ok(None);
+        }
+        Self::evaluate_selected_input(function, row, context).map(Some)
+    }
+
+    fn filter_matches(
+        function: &FunctionCall,
+        row: &BatchRow,
+        context: &AggregateValueContext<'_>,
+    ) -> Result<bool, QueryError> {
+        if let Some(predicate) = &function.filter {
+            match filter::evaluate_expr_value(
+                row,
+                predicate,
+                context.params,
+                context.search_context,
+                context.user_functions,
+                context.session,
+                None,
+            )? {
+                Value::Bool(true) => {}
+                Value::Bool(false) | Value::Null => return Ok(false),
+                _ => {
+                    return Err(QueryError::General(
+                        "FILTER requires BOOLEAN or SQL NULL".into(),
+                    ))
+                }
+            }
+        }
+        Ok(true)
+    }
+
+    fn evaluate_selected_input(
+        function: &FunctionCall,
+        row: &BatchRow,
+        context: &AggregateValueContext<'_>,
+    ) -> Result<Value, QueryError> {
+        let star = matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*");
+        let value = if star {
+            Value::Int64(1)
+        } else if let Some(value) = function
             .args
             .first()
-            .and_then(|expr| stored_json_column_value(row, expr));
-        let Some(value) = (match stored {
-            Some(value) => Some(value),
-            None => Self::evaluate_input(function, row, context)?,
-        }) else {
-            return Ok(RetainedChange::default());
+            .and_then(|expr| stored_json_column_value(row, expr))
+        {
+            value
+        } else {
+            Self::evaluate_input(function, row, context)?.unwrap_or(Value::Null)
         };
-        if matches!(value, Value::Null) {
-            return Ok(RetainedChange::default());
-        }
-        let new_key = function
-            .args
-            .first()
-            .map(|expr| {
-                crate::executor::array_order::key(row, expr, &value, context.user_functions)
-            })
-            .filter(|key| matches!(key, SemanticValue::Array(_)));
-        let replace = selected.as_ref().is_none_or(|current| {
-            let ordering = key.as_ref().zip(new_key.as_ref()).map_or_else(
-                || compare_values(&value, current),
-                |(current, new)| new.cmp(current),
-            );
-            if max {
-                ordering.is_gt()
-            } else {
-                ordering.is_lt()
-            }
-        });
-        if replace {
-            let change =
-                RetainedChange::replaced(selected.as_ref(), &value, key.as_ref(), new_key.as_ref());
-            *selected = Some(value);
-            *key = new_key;
-            return Ok(change);
-        }
-        Ok(RetainedChange::default())
+        Ok(value)
     }
 }
 

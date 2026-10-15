@@ -523,6 +523,264 @@ fn should_parse_postgres_style_cast_expression() {
 }
 
 #[test]
+fn should_bind_postfix_casts_before_arithmetic_given_mixed_operands_when_building_the_ast() {
+    // Arrange
+    let sql = "SELECT 1 + 2::INT8 * (3 + 4)::INT8";
+
+    // Act
+    let parsed = parse_statement(sql).expect("cast and arithmetic expression parses");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected SELECT");
+    };
+    let SelectItem::Expr {
+        expr:
+            Expr::Binary {
+                left,
+                op: BinaryOp::Add,
+                right,
+            },
+        ..
+    } = &statement.projection[0]
+    else {
+        panic!("expected addition outside multiplication and operand casts");
+    };
+    assert!(matches!(**left, Expr::IntegerLiteral(1)));
+    let Expr::Binary {
+        left,
+        op: BinaryOp::Mul,
+        right,
+    } = right.as_ref()
+    else {
+        panic!("expected multiplication of two cast operands");
+    };
+    let Expr::Cast {
+        expr,
+        data_type: DataType::BigInt,
+    } = left.as_ref()
+    else {
+        panic!("expected INT8 cast on the first multiplication operand");
+    };
+    assert!(matches!(**expr, Expr::IntegerLiteral(2)));
+    let Expr::Cast {
+        expr,
+        data_type: DataType::BigInt,
+    } = right.as_ref()
+    else {
+        panic!("expected INT8 cast on the parenthesized multiplication operand");
+    };
+    assert!(matches!(
+        expr.as_ref(),
+        Expr::Binary {
+            op: BinaryOp::Add,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn should_nest_casts_in_source_order_given_a_cast_chain_when_building_the_ast() {
+    // Arrange
+    let sql = "SELECT coalesce('7'::TEXT::INT4::INT8, 0)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("function argument contains a cast chain");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected SELECT");
+    };
+    let SelectItem::Function { function, .. } = &statement.projection[0] else {
+        panic!("expected COALESCE projection");
+    };
+    let Expr::Cast {
+        expr,
+        data_type: DataType::BigInt,
+    } = &function.args[0]
+    else {
+        panic!("expected final INT8 cast");
+    };
+    let Expr::Cast {
+        expr,
+        data_type: DataType::Int,
+    } = expr.as_ref()
+    else {
+        panic!("expected preceding INT4 cast");
+    };
+    let Expr::Cast {
+        expr,
+        data_type: DataType::Text,
+    } = expr.as_ref()
+    else {
+        panic!("expected first TEXT cast");
+    };
+    assert!(matches!(expr.as_ref(), Expr::StringLiteral(value) if value == "7"));
+}
+
+#[test]
+fn should_preserve_dollar_quoted_contents_given_operator_text_when_parsing_literal_and_parameter_targets(
+) {
+    // Arrange
+    let sql = "SELECT $$2::int4, 'value' /* literal */$$, $tag_2$body $other$ inner$tag_2$, $té$多$té$, $1";
+
+    // Act
+    let parsed =
+        parse_statement(sql).expect("dollar-quoted literals and parameter parse separately");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected SELECT");
+    };
+    let SelectItem::Expr {
+        expr: Expr::StringLiteral(value),
+        ..
+    } = &statement.projection[0]
+    else {
+        panic!("expected untagged dollar-quoted string");
+    };
+    assert_eq!(value, "2::int4, 'value' /* literal */");
+    let SelectItem::Expr {
+        expr: Expr::StringLiteral(value),
+        ..
+    } = &statement.projection[1]
+    else {
+        panic!("expected tagged dollar-quoted string");
+    };
+    assert_eq!(value, "body $other$ inner");
+    let SelectItem::Expr {
+        expr: Expr::StringLiteral(value),
+        ..
+    } = &statement.projection[2]
+    else {
+        panic!("expected dollar quote with a multibyte tag");
+    };
+    assert_eq!(value, "多");
+    assert!(matches!(
+        statement.projection[3],
+        SelectItem::Expr {
+            expr: Expr::Param(0),
+            ..
+        }
+    ));
+}
+
+#[test]
+fn should_reject_incomplete_dollar_quotes_given_unmatched_delimiters_when_parsing_a_literal() {
+    // Arrange
+    let statements = [
+        "SELECT $$unterminated",
+        "SELECT $tag$body$other$",
+        "SELECT $tag$body$TAG$",
+        "SELECT $2tag$body$2tag$",
+        "SELECT $$first$$$$second$$",
+    ];
+
+    // Act
+    let parsed = statements.map(parse_statement);
+
+    // Assert
+    for (sql, result) in statements.into_iter().zip(parsed) {
+        assert!(result.is_err(), "invalid dollar quote must reject: {sql}");
+    }
+}
+
+#[test]
+fn should_reject_nonexistent_qualified_types_given_builtin_aliases_when_parsing_a_cast() {
+    // Arrange
+    let statements = [
+        "SELECT '7'::pg_catalog.int",
+        "SELECT '7'::pg_catalog.integer",
+        "SELECT '7'::private.int4",
+        "SELECT '7'::pg_catalog.missing_type",
+    ];
+
+    // Act
+    let parsed = statements.map(parse_statement);
+
+    // Assert
+    for (sql, result) in statements.into_iter().zip(parsed) {
+        assert!(result.is_err(), "type identity must not be invented: {sql}");
+    }
+}
+
+#[test]
+fn should_bound_postfix_cast_nesting_given_an_excessive_chain_when_parsing_an_expression() {
+    // Arrange
+    let admitted_sql = format!("SELECT 1{}", "::INT8".repeat(128));
+    let rejected_sql = format!("SELECT 1{}", "::INT8".repeat(129));
+
+    // Act
+    let admitted = parse_statement(&admitted_sql);
+    let rejected = parse_statement(&rejected_sql);
+
+    // Assert
+    assert!(admitted.is_ok(), "the admitted cast boundary must parse");
+    let error =
+        rejected.expect_err("excessive casts must reject before recursive AST construction");
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::ResourceLimit);
+}
+
+#[test]
+fn should_bound_combined_cast_depth_given_parenthesized_chains_when_parsing_an_expression() {
+    // Arrange
+    let inner = format!("1{}", "::INT8".repeat(64));
+    let admitted_sql = format!("SELECT ({inner}){}", "::INT8".repeat(64));
+    let rejected_sql = format!("SELECT ({inner}){}", "::INT8".repeat(65));
+    let mut adversarial = "1".to_owned();
+    let chain = "::INT8".repeat(128);
+    for _ in 0..128 {
+        adversarial = format!("({adversarial}){chain}");
+    }
+
+    // Act
+    let admitted = parse_statement(&admitted_sql);
+    let rejected = parse_statement(&rejected_sql);
+    let adversarial = parse_statement(&format!("SELECT {adversarial}"));
+
+    // Assert
+    assert!(admitted.is_ok(), "128 combined casts remain admitted");
+    for result in [rejected, adversarial] {
+        let error = result.expect_err("parentheses must not reset the postfix depth budget");
+        assert_eq!(error.kind(), cassie::sql::SqlErrorKind::ResourceLimit);
+    }
+}
+
+#[test]
+fn should_admit_independent_cast_chains_given_a_wide_projection_when_each_path_is_within_budget() {
+    // Arrange
+    let expression = format!("1{}", "::INT8".repeat(128));
+    let sql = format!("SELECT {expression}, {expression}, {expression}");
+
+    // Act
+    let parsed = parse_statement(&sql);
+
+    // Assert
+    let parsed = parsed.expect("independent projection paths retain separate cast-depth budgets");
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected SELECT");
+    };
+    assert_eq!(statement.projection.len(), 3);
+}
+
+#[test]
+fn should_bound_nested_query_cast_depth_given_an_exists_operand_when_postfix_casts_are_added() {
+    // Arrange
+    let subquery = format!("SELECT 1{}", "::INT8".repeat(64));
+    let admitted_sql = format!("SELECT (EXISTS ({subquery})){}", "::BOOL".repeat(32));
+    let rejected_sql = format!("SELECT (EXISTS ({subquery})){}", "::BOOL".repeat(65));
+
+    // Act
+    let admitted = parse_statement(&admitted_sql);
+    let rejected = parse_statement(&rejected_sql);
+
+    // Assert
+    assert!(admitted.is_ok(), "a bounded nested query remains admitted");
+    let error = rejected.expect_err("a nested query must retain its operand depth");
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::ResourceLimit);
+}
+
+#[test]
 fn should_parse_order_by_nulls_last() {
     // Arrange
     let sql = "SELECT title FROM docs ORDER BY archived_at ASC NULLS LAST";

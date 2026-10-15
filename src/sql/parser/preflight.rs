@@ -27,9 +27,21 @@ pub(crate) fn preflight_sql(sql: &str) -> Result<(), SqlError> {
     let mut nesting = 0_usize;
     let mut tokens = 0_usize;
     let mut in_word = false;
+    let mut escape_string = false;
     while index < bytes.len() {
         let byte = bytes[index];
         let next = bytes.get(index + 1).copied();
+        if matches!(state, ScanState::Normal) && byte == b'\'' {
+            escape_string = super::lexical::escape_string_prefix(sql, index);
+        }
+        if matches!(state, ScanState::Normal) {
+            if let Some(end) = super::lexical::dollar_quoted_end(sql, index) {
+                finish_word(&mut in_word, &mut tokens)?;
+                count_token(&mut tokens)?;
+                index = end;
+                continue;
+            }
+        }
         match state {
             ScanState::Normal => scan_normal_byte(
                 byte,
@@ -47,7 +59,7 @@ pub(crate) fn preflight_sql(sql: &str) -> Result<(), SqlError> {
                     } else {
                         state = ScanState::Normal;
                     }
-                } else if byte == b'\\' && next.is_some() {
+                } else if escape_string && byte == b'\\' && next.is_some() {
                     index += 1;
                 }
             }
@@ -231,6 +243,36 @@ mod tests {
         // Assert
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn should_ignore_literal_nesting_given_dollar_quoted_delimiters_when_enforcing_preflight_limits(
+    ) {
+        // Arrange
+        let sql = format!("SELECT $té${}' /* literal */$té$", "(".repeat(256));
+
+        // Act
+        let result = preflight_sql(&sql);
+
+        // Assert
+        assert!(
+            result.is_ok(),
+            "dollar-quoted contents are one literal token"
+        );
+    }
+
+    #[test]
+    fn should_enforce_later_nesting_given_a_quote_inside_a_dollar_literal_when_preflighting_sql() {
+        // Arrange
+        let sql = format!("SELECT $$'$$, {}1{}", "(".repeat(129), ")".repeat(129));
+
+        // Act
+        let result = preflight_sql(&sql);
+
+        // Assert
+        let error = result.expect_err("literal quote must not hide a later oversized expression");
+        assert_eq!(error.kind(), SqlErrorKind::ResourceLimit);
+    }
+
     #[test]
     fn should_preserve_exact_selected_preflight_admission_boundaries() {
         // Arrange

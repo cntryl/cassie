@@ -68,7 +68,7 @@ fn validate_select_item_operand_families(
     match item {
         SelectItem::Wildcard | SelectItem::Column { .. } => Ok(()),
         SelectItem::Function { function, .. } => {
-            for argument in &function.args {
+            for argument in function.expressions() {
                 validate_expression_operand_families(argument, field_types)?;
             }
             vector::validate_vector_function_query(function, field_types)?;
@@ -121,7 +121,7 @@ fn expression_operand_family(
             field_types,
         ),
         Expr::Function(function) => {
-            for argument in &function.args {
+            for argument in function.expressions() {
                 validate_expression_operand_families(argument, field_types)?;
             }
             vector::validate_vector_function_query(function, field_types)?;
@@ -448,7 +448,9 @@ pub(super) fn parsed_statement_contains_parameters(statement: &ParsedStatement) 
 pub(super) fn select_item_contains_parameters(item: &SelectItem) -> bool {
     match item {
         SelectItem::Wildcard | SelectItem::Column { .. } => false,
-        SelectItem::Function { function, .. } => function.args.iter().any(expr_contains_parameters),
+        SelectItem::Function { function, .. } => {
+            function.expressions().any(expr_contains_parameters)
+        }
         SelectItem::Expr { expr, .. } => expr_contains_parameters(expr),
         SelectItem::WindowFunction { function, .. } => {
             function.args.iter().any(expr_contains_parameters)
@@ -466,7 +468,7 @@ pub(super) fn source_contains_parameters(source: &QuerySource) -> bool {
         QuerySource::Aliased { source, .. } => source_contains_parameters(source),
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
         QuerySource::TableFunction { function, .. } => {
-            function.args.iter().any(expr_contains_parameters)
+            function.expressions().any(expr_contains_parameters)
         }
         QuerySource::Subquery { select, .. } => select_contains_parameters(select),
         QuerySource::Join {
@@ -614,7 +616,7 @@ pub(super) fn validate_projection_references(
                     validate_aggregate_function_args(function, known_fields)?;
                     continue;
                 }
-                for arg in &function.args {
+                for arg in function.expressions() {
                     validate_expression(arg, known_fields, &HashSet::new(), false)?;
                 }
             }
@@ -770,12 +772,21 @@ pub(super) fn validate_aggregate_function_args(
             function.args.len()
         )));
     }
-    if function.name.eq_ignore_ascii_case("count")
-        && matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*")
-    {
-        return Ok(());
-    }
     for arg in &function.args {
+        if crate::sql::functions::function(&function.name)
+            .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::Count)
+            && matches!(arg, Expr::Column(name) if name == "*")
+        {
+            continue;
+        }
+        validate_expression(arg, known_fields, &HashSet::new(), false)?;
+    }
+    for arg in function
+        .filter
+        .iter()
+        .map(Box::as_ref)
+        .chain(function.order_by.iter().map(|order| &order.expr))
+    {
         validate_expression(arg, known_fields, &HashSet::new(), false)?;
     }
     Ok(())
@@ -830,7 +841,7 @@ fn collect_source_functions(source: &QuerySource, out: &mut Vec<FunctionCall>) {
         QuerySource::Aliased { source, .. } => collect_source_functions(source, out),
         QuerySource::TableFunction { function, .. } => {
             out.push(function.clone());
-            for arg in &function.args {
+            for arg in function.expressions() {
                 collect_expr(arg, out);
             }
         }
@@ -850,7 +861,7 @@ pub(super) fn collect_item(item: &SelectItem, out: &mut Vec<FunctionCall>) {
     match item {
         SelectItem::Function { function, .. } => {
             out.push(function.clone());
-            for arg in &function.args {
+            for arg in function.expressions() {
                 collect_expr(arg, out);
             }
         }
@@ -874,8 +885,8 @@ pub(super) fn collect_item(item: &SelectItem, out: &mut Vec<FunctionCall>) {
 
 pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
     if let Expr::Function(function) = expr {
-        out.push(function.clone());
-        for arg in &function.args {
+        out.push((**function).clone());
+        for arg in function.expressions() {
             collect_expr(arg, out);
         }
     }

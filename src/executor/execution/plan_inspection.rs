@@ -190,8 +190,7 @@ fn select_item_uses_view_function(
 ) -> bool {
     match item {
         SelectItem::Function { function, .. } => function
-            .args
-            .iter()
+            .expressions()
             .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views)),
         SelectItem::Expr { expr, .. } => {
             expr_uses_view_function(expr, function_name, catalog, visited_views)
@@ -254,8 +253,7 @@ fn query_source_uses_view_function(
                 || expr_uses_view_function(on, function_name, catalog, visited_views)
         }
         QuerySource::TableFunction { function, .. } => function
-            .args
-            .iter()
+            .expressions()
             .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views)),
         QuerySource::Cte(_) | QuerySource::SingleRow => false,
     }
@@ -346,7 +344,7 @@ fn query_source_needs_user_functions(source: &QuerySource) -> bool {
         QuerySource::Aliased { source, .. } => query_source_needs_user_functions(source),
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
         QuerySource::TableFunction { function, .. } => {
-            function.args.iter().any(expr_needs_user_functions)
+            function.expressions().any(expr_needs_user_functions)
         }
         QuerySource::Subquery { select, .. } => select_needs_user_functions(select),
         QuerySource::Join {
@@ -424,7 +422,7 @@ pub(super) fn function_needs_user_functions(function: &FunctionCall) -> bool {
             | "cast"
     ) || crate::sql::functions::is_aggregate_function(&function.name);
 
-    !is_builtin || function.args.iter().any(expr_needs_user_functions)
+    !is_builtin || function.expressions().any(expr_needs_user_functions)
 }
 
 fn cte_uses_function(cte: &CommonTableExpression, function_name: &str) -> bool {
@@ -481,7 +479,7 @@ fn function_uses_vector_operator(function: &crate::sql::ast::FunctionCall) -> bo
     {
         true
     } else {
-        function.args.iter().any(expr_uses_vector_operator)
+        function.expressions().any(expr_uses_vector_operator)
     }
 }
 
@@ -651,8 +649,7 @@ fn function_uses_function(function: &crate::sql::ast::FunctionCall, function_nam
     // Catalog names are qualified after startup, while plan calls may be unqualified.
     crate::catalog::scope::name_matches(function_name, &function.name)
         || function
-            .args
-            .iter()
+            .expressions()
             .any(|expr| expr_uses_function(expr, function_name))
 }
 
@@ -705,7 +702,7 @@ fn collect_fulltext_fields_from_function(
         }
     }
 
-    for arg in &function.args {
+    for arg in function.expressions() {
         collect_fulltext_fields_from_expr(arg, fields);
     }
 }
@@ -737,5 +734,59 @@ fn execution_source_name(source: &QuerySource) -> String {
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Join { .. } => "join".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_find_nested_routines_given_aggregate_filter_and_order_when_dependencies_are_inspected(
+    ) {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT SUM(n ORDER BY custom_key(n)) FILTER (WHERE custom_filter(flag)) FROM records",
+        )
+        .expect("aggregate clause syntax");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let uses_filter = plan_uses_function(&plan, "custom_filter");
+        let uses_key = plan_uses_function(&plan, "custom_key");
+        let needs_routines = plan_needs_user_functions(&plan);
+
+        // Assert
+        assert!(uses_filter);
+        assert!(uses_key);
+        assert!(needs_routines);
+        assert!(!plan_uses_function(&plan, "absent_routine"));
+    }
+
+    #[test]
+    fn should_find_search_fields_given_search_in_aggregate_clauses_when_search_inputs_are_collected(
+    ) {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT SUM(n ORDER BY search_score(title, 'needle')) \
+             FILTER (WHERE search(body, 'needle')) FROM records",
+        )
+        .expect("aggregate clause syntax");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let fields = fulltext_query_fields(&plan);
+
+        // Assert
+        assert_eq!(
+            fields,
+            HashSet::from(["body".to_owned(), "title".to_owned()])
+        );
     }
 }

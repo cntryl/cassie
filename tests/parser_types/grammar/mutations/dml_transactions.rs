@@ -4,7 +4,7 @@ use cassie::app::Cassie;
 use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::sql::ast::{
     BinaryOp, CteQuery, Expr, InsertSource, JoinKind, QuerySource, QueryStatement, SelectItem,
-    SetOperator, SortDirection,
+    SetOperator, SortDirection, TransactionAction, TransactionIsolation,
 };
 use cassie::sql::parse_statement;
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -139,28 +139,155 @@ fn should_parse_insert_on_conflict_do_update() {
 #[test]
 fn should_parse_transaction_control_statements() {
     // Arrange
-    let statements = ["BEGIN", "COMMIT", "ROLLBACK"];
+    let statements = [
+        ("BEGIN", TransactionAction::Begin),
+        ("COMMIT", TransactionAction::Commit),
+        ("ROLLBACK", TransactionAction::Rollback),
+    ];
 
     // Act
     let parsed = statements
         .iter()
-        .map(|sql| parse_statement(sql))
+        .map(|(sql, _)| parse_statement(sql).expect("transaction control parses"))
         .collect::<Vec<_>>();
 
     // Assert
-    assert!(parsed.iter().all(Result::is_ok));
-    assert!(matches!(
-        parsed[0].as_ref().unwrap().statement,
-        QueryStatement::Transaction(_)
-    ));
-    assert!(matches!(
-        parsed[1].as_ref().unwrap().statement,
-        QueryStatement::Transaction(_)
-    ));
-    assert!(matches!(
-        parsed[2].as_ref().unwrap().statement,
-        QueryStatement::Transaction(_)
-    ));
+    for (parsed, (sql, expected)) in parsed.into_iter().zip(statements) {
+        let QueryStatement::Transaction(statement) = parsed.statement else {
+            panic!("expected transaction statement for {sql}");
+        };
+        assert_eq!(statement.action, expected, "{sql}");
+        assert_eq!(statement.isolation, None, "{sql}");
+    }
+}
+
+#[test]
+fn should_preserve_begin_isolation_given_noise_words_when_transaction_aliases_are_parsed() {
+    // Arrange
+    let statements = [
+        ("BEGIN WORK", None),
+        ("BEGIN TRANSACTION", None),
+        ("START TRANSACTION", None),
+        (
+            "BEGIN WORK ISOLATION LEVEL READ COMMITTED",
+            Some(TransactionIsolation::ReadCommitted),
+        ),
+        (
+            "BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED",
+            Some(TransactionIsolation::ReadCommitted),
+        ),
+    ];
+
+    // Act
+    let parsed = statements
+        .iter()
+        .map(|(sql, _)| parse_statement(sql).expect("begin alias parses"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (parsed, (sql, isolation)) in parsed.into_iter().zip(statements) {
+        let QueryStatement::Transaction(statement) = parsed.statement else {
+            panic!("expected transaction statement for {sql}");
+        };
+        assert_eq!(statement.action, TransactionAction::Begin, "{sql}");
+        assert_eq!(statement.isolation, isolation, "{sql}");
+    }
+}
+
+#[test]
+fn should_preserve_action_given_end_aliases_and_no_chain_when_transactions_are_parsed() {
+    // Arrange
+    let mut statements = Vec::new();
+    for (command, action) in [
+        ("COMMIT", TransactionAction::Commit),
+        ("END", TransactionAction::Commit),
+        ("ROLLBACK", TransactionAction::Rollback),
+        ("ABORT", TransactionAction::Rollback),
+    ] {
+        for noise_word in ["", " WORK", " TRANSACTION"] {
+            for suffix in ["", " AND NO CHAIN"] {
+                statements.push((format!("{command}{noise_word}{suffix}"), action.clone()));
+            }
+        }
+    }
+
+    // Act
+    let parsed = statements
+        .iter()
+        .map(|(sql, _)| parse_statement(sql).expect("transaction end alias parses"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (parsed, (sql, expected)) in parsed.into_iter().zip(statements) {
+        let QueryStatement::Transaction(statement) = parsed.statement else {
+            panic!("expected transaction statement for {sql}");
+        };
+        assert_eq!(statement.action, expected, "{sql}");
+        assert_eq!(statement.isolation, None, "{sql}");
+    }
+}
+
+#[test]
+fn should_preserve_savepoint_given_rollback_noise_words_when_transaction_aliases_are_parsed() {
+    // Arrange
+    let statements = [
+        "ROLLBACK WORK TO keep_first",
+        "ROLLBACK WORK TO SAVEPOINT keep_first",
+        "ROLLBACK TRANSACTION TO keep_first",
+        "ROLLBACK TRANSACTION TO SAVEPOINT keep_first",
+    ];
+
+    // Act
+    let parsed = statements
+        .iter()
+        .map(|sql| parse_statement(sql).expect("rollback alias parses"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (parsed, sql) in parsed.into_iter().zip(statements) {
+        let QueryStatement::Transaction(statement) = parsed.statement else {
+            panic!("expected transaction statement for {sql}");
+        };
+        assert_eq!(
+            statement.action,
+            TransactionAction::RollbackTo {
+                name: "keep_first".to_string()
+            },
+            "{sql}"
+        );
+        assert_eq!(statement.isolation, None, "{sql}");
+    }
+}
+
+#[test]
+fn should_reject_invalid_suffixes_given_transaction_aliases_when_controls_are_parsed() {
+    // Arrange
+    let statements = [
+        "BEGIN WORK ignored",
+        "COMMIT WORK AND NO CHAIN ignored",
+        "END TRANSACTION ignored",
+        "ROLLBACK TRANSACTION AND NO CHAIN ignored",
+        "ABORT WORK ignored",
+        "ABORT TO SAVEPOINT keep_first",
+        "ROLLBACK WORK TO",
+        "ROLLBACK TRANSACTION TO",
+    ];
+
+    // Act
+    let errors = statements
+        .iter()
+        .map(|sql| parse_statement(sql).expect_err("transaction aliases must consume every token"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (error, sql) in errors.into_iter().zip(statements) {
+        let expected_message = if sql.ends_with(" TO") {
+            "ROLLBACK TO requires a savepoint name"
+        } else {
+            "unsupported transaction control statement"
+        };
+        assert_eq!(error.message(), expected_message, "{sql}");
+    }
 }
 
 #[test]
@@ -274,4 +401,80 @@ fn should_reject_two_phase_transaction_control() {
     // Assert
     assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
     assert!(error.message().contains("unsupported"));
+}
+
+#[test]
+fn should_preserve_characteristics_given_multiple_begin_modes_when_transaction_sql_is_parsed() {
+    // Arrange
+    let cases = [
+        "BEGIN WORK ISOLATION LEVEL READ UNCOMMITTED, READ ONLY, DEFERRABLE",
+        "START TRANSACTION READ ONLY DEFERRABLE ISOLATION LEVEL READ UNCOMMITTED",
+    ];
+
+    // Act
+    let statements = cases.map(|sql| parse_statement(sql).expect("valid transaction modes"));
+
+    // Assert
+    for parsed in statements {
+        let QueryStatement::Transaction(statement) = parsed.statement else {
+            panic!("transaction expected");
+        };
+        assert_eq!(statement.action, TransactionAction::Begin);
+        assert_eq!(
+            statement.isolation,
+            Some(TransactionIsolation::ReadUncommitted)
+        );
+        assert_eq!(statement.modes.read_only, Some(true));
+        assert_eq!(statement.modes.deferrable, Some(true));
+        assert!(!statement.chain);
+    }
+}
+
+#[test]
+fn should_distinguish_chain_given_end_controls_when_transaction_sql_is_parsed() {
+    // Arrange
+    let cases = [
+        ("COMMIT AND CHAIN", TransactionAction::Commit, true),
+        ("END TRANSACTION AND CHAIN", TransactionAction::Commit, true),
+        ("ROLLBACK WORK AND CHAIN", TransactionAction::Rollback, true),
+        ("ABORT AND NO CHAIN", TransactionAction::Rollback, false),
+    ];
+
+    // Act
+    let statements = cases
+        .each_ref()
+        .map(|(sql, _, _)| parse_statement(sql).expect("transaction chain control"));
+
+    // Assert
+    for (parsed, (_, action, chain)) in statements.into_iter().zip(cases) {
+        let QueryStatement::Transaction(statement) = parsed.statement else {
+            panic!("transaction expected");
+        };
+        assert_eq!(statement.action, action);
+        assert_eq!(statement.chain, chain);
+    }
+}
+
+#[test]
+fn should_reject_incomplete_modes_given_begin_options_when_transaction_sql_is_parsed() {
+    // Arrange
+    let cases = [
+        "BEGIN READ",
+        "BEGIN READ ONLY,",
+        "BEGIN , READ WRITE",
+        "BEGIN ISOLATION LEVEL READ",
+        "BEGIN NOT",
+        "COMMIT AND CHAIN ignored",
+    ];
+
+    // Act
+    let errors = cases.map(|sql| parse_statement(sql).expect_err("incomplete mode"));
+
+    // Assert
+    for error in errors {
+        assert!(matches!(
+            error.kind(),
+            cassie::sql::parser::SqlErrorKind::Syntax
+        ));
+    }
 }

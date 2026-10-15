@@ -353,10 +353,11 @@ fn should_preserve_parameter_null_classes_through_coalesce() {
     // Arrange
     let row = BatchRow::new(Vec::new());
     let functions = HashMap::new();
-    let expression = Expr::Function(FunctionCall {
+    let expression = Expr::Function(Box::new(FunctionCall {
         name: "coalesce".to_string(),
         args: vec![Expr::Param(0), Expr::Param(1)],
-    });
+        ..Default::default()
+    }));
     let cases = [
         (
             [Value::Null, Value::Json(serde_json::json!([[null]]))],
@@ -426,10 +427,11 @@ fn should_preserve_direct_column_value_carriers() {
 fn should_preserve_column_document_classes_through_coalesce() {
     // Arrange
     let functions = HashMap::new();
-    let expression = Expr::Function(FunctionCall {
+    let expression = Expr::Function(Box::new(FunctionCall {
         name: "coalesce".to_string(),
         args: vec![Expr::Column("doc".to_string()), Expr::Null],
-    });
+        ..Default::default()
+    }));
     let values = [
         Value::Null,
         Value::Json(serde_json::json!(null)),

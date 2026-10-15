@@ -84,6 +84,7 @@ fn should_admit_command_output_before_changing_session_settings() {
     let statement = SetStatement {
         variable: "application_name".to_owned(),
         value: Some("denied replacement".to_owned()),
+        action: crate::sql::ast::SettingAction::Set,
     };
     let controls = exhausted_controls();
 
@@ -99,5 +100,34 @@ fn should_admit_command_output_before_changing_session_settings() {
     };
     assert_eq!(error.descriptor().sql_state, "54000");
     assert_eq!(actual, "original");
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_settings_given_denied_output_when_reset_all_executes() {
+    // Arrange
+    let session = CassieSession::new("root".to_owned(), None);
+    session
+        .set_setting("application_name", "retained")
+        .expect("set override");
+    let statement = SetStatement {
+        variable: "all".to_owned(),
+        value: None,
+        action: crate::sql::ast::SettingAction::ResetAll,
+    };
+    let controls = exhausted_controls();
+
+    // Act
+    let result = super::super::session_command::execute_set(Some(&session), &statement, &controls);
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
+    ));
+    assert_eq!(
+        session.setting("application_name").expect("read override"),
+        "retained"
+    );
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

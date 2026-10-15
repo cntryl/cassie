@@ -29,14 +29,14 @@ fn exponent_sign(input: &str, position: usize) -> bool {
     let start = mantissa
         .char_indices()
         .rev()
-        .find(|(_, character)| !character.is_ascii_digit() && *character != '.')
+        .find(|(_, character)| !character.is_ascii_digit() && !matches!(*character, '.' | '_'))
         .map_or(0, |(index, character)| index + character.len_utf8());
     let number = &mantissa[start..];
     let identifier_prefix = mantissa[..start]
         .chars()
         .next_back()
         .is_some_and(super::lexical::identifier_character);
-    !identifier_prefix && !number.is_empty() && number.parse::<f64>().is_ok()
+    !identifier_prefix && super::expr::is_numeric_mantissa(number)
 }
 
 pub(super) fn numeric_exponent_prefix(input: &str) -> bool {
@@ -45,7 +45,7 @@ pub(super) fn numeric_exponent_prefix(input: &str) -> bool {
     };
     mantissa.starts_with(|character: char| {
         character.is_ascii_digit() || matches!(character, '+' | '-' | '.')
-    }) && mantissa.parse::<f64>().is_ok()
+    }) && super::expr::is_numeric_mantissa(mantissa)
 }
 
 fn binary_span(input: &str, start: usize, end: usize, token: &str) -> bool {

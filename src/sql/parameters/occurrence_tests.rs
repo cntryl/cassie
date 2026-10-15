@@ -22,6 +22,121 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
+fn should_infer_boolean_aggregate_parameters_given_unknown_wire_oids_when_inputs_are_resolved() {
+    // Arrange
+    let catalog = Catalog::new();
+    let statements = [
+        "SELECT BOOL_AND($1)",
+        "SELECT BOOL_OR($1)",
+        "SELECT EVERY($1)",
+        "SELECT COALESCE(pg_catalog.bool_and($1), FALSE)",
+    ];
+
+    // Act
+    for sql in statements {
+        let statement = parse_statement(sql).expect("Boolean aggregate syntax");
+        let controls = controls(1_024 * 1_024);
+        let admitted = checked_parse_parameter_types(&statement, &[0], &catalog, &controls)
+            .expect("fixed Boolean input signature");
+
+        // Assert
+        assert_eq!(admitted.types(), [16], "{sql}");
+        drop(admitted);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_reject_boolean_aggregate_overloads_given_known_non_boolean_oids_when_parse_is_admitted() {
+    // Arrange
+    let catalog = Catalog::new();
+    let statements = [
+        ("SELECT BOOL_AND(1)", vec![]),
+        ("SELECT BOOL_OR($1)", vec![23]),
+        ("SELECT EVERY(CAST(NULL AS TEXT))", vec![]),
+        ("SELECT BOOL_AND()", vec![]),
+        ("SELECT BOOL_OR(*)", vec![]),
+        ("SELECT EVERY(TRUE, FALSE)", vec![]),
+    ];
+
+    // Act
+    for (sql, supplied) in statements {
+        let statement = parse_statement(sql).expect("call syntax precedes overload resolution");
+        let controls = controls(1_024 * 1_024);
+        let result = checked_parse_parameter_types(&statement, &supplied, &catalog, &controls);
+
+        // Assert
+        let Err(ParameterAdmissionError::Semantic(diagnostic)) = result else {
+            panic!("undefined aggregate overload must fail during Parse: {sql}");
+        };
+        assert_eq!(diagnostic.code(), "42883", "{sql}");
+        let message = diagnostic.message();
+        assert!(message.capacity() >= message.len());
+        assert!(diagnostic.message_capacity() >= message.len());
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_reject_non_boolean_filters_given_typed_nulls_and_parameters_when_parse_is_admitted() {
+    // Arrange
+    let catalog = Catalog::new();
+    let cases = [
+        ("SELECT COUNT(*) FILTER (WHERE CAST(NULL AS INT))", vec![]),
+        (
+            "SELECT BOOL_AND(TRUE) FILTER (WHERE CAST(NULL AS TEXT))",
+            vec![],
+        ),
+        ("SELECT SUM(1) FILTER (WHERE CAST(NULL AS FLOAT8))", vec![]),
+        ("SELECT COUNT(*) FILTER (WHERE $1)", vec![23]),
+    ];
+
+    // Act
+    for (sql, supplied) in cases {
+        let statement = parse_statement(sql).expect("valid FILTER grammar");
+        let controls = controls(1_024 * 1_024);
+        let result = checked_parse_parameter_types(&statement, &supplied, &catalog, &controls);
+
+        // Assert
+        let Err(ParameterAdmissionError::Semantic(diagnostic)) = result else {
+            panic!("non-Boolean FILTER must fail during Parse: {sql}");
+        };
+        assert_eq!(diagnostic.code(), "42804", "{sql}");
+        assert!(diagnostic.message().contains("FILTER"), "{sql}");
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_preserve_boolean_filters_given_nulls_and_unknown_parameters_when_parse_is_admitted() {
+    // Arrange
+    let catalog = Catalog::new();
+    let cases = [
+        ("SELECT COUNT(*) FILTER (WHERE NULL)", vec![], vec![]),
+        (
+            "SELECT COUNT(*) FILTER (WHERE CAST(NULL AS BOOLEAN))",
+            vec![],
+            vec![],
+        ),
+        ("SELECT BOOL_AND(TRUE) FILTER (WHERE TRUE)", vec![], vec![]),
+        ("SELECT COUNT(*) FILTER (WHERE $1)", vec![0], vec![16]),
+    ];
+
+    // Act
+    for (sql, supplied, expected) in cases {
+        let statement = parse_statement(sql).expect("valid FILTER grammar");
+        let controls = controls(1_024 * 1_024);
+        let admitted = checked_parse_parameter_types(&statement, &supplied, &catalog, &controls)
+            .expect("Boolean or untyped NULL FILTER is valid");
+
+        // Assert
+        assert_eq!(admitted.types(), expected, "{sql}");
+        drop(admitted);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
 fn should_bound_repeated_parameter_occurrences_on_shared_controls() {
     // Arrange
     let wide = parse_statement(&format!(
@@ -133,6 +248,8 @@ fn should_bound_diagnostic_formatting_by_source_derived_capacities() {
             construct: BooleanConstruct::Where,
             actual: 1043,
         },
+        ParameterSemanticDiagnostic::DistinctAggregateOrder,
+        ParameterSemanticDiagnostic::MissingEquality { actual: 114 },
     ];
     // Act
     let formatted = diagnostics.map(|diagnostic| {

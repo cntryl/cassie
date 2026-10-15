@@ -8,6 +8,15 @@ use super::{
 
 #[path = "expr_case.rs"]
 mod case;
+#[path = "expression_depth.rs"]
+mod depth;
+#[path = "numeric_literals.rs"]
+mod numeric_literals;
+#[path = "string_literals.rs"]
+mod string_literals;
+
+pub(super) use numeric_literals::is_numeric_mantissa;
+pub(super) use string_literals::unicode_identifier_prefix;
 
 pub(super) fn split_csv(s: &str) -> Vec<&str> {
     let mut out = Vec::new();
@@ -21,37 +30,7 @@ pub(super) fn split_csv(s: &str) -> Vec<&str> {
 }
 
 pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError> {
-    let Some((open, _)) = super::clauses::find_top_level_keyword_span(raw, 0, "(") else {
-        return Ok(None);
-    };
-    let Some(close) = raw.rfind(')') else {
-        return Ok(None);
-    };
-    if close < open {
-        return Ok(None);
-    }
-    let name = super::lexical::trim_separators(&raw[..open]).to_string();
-    if name.is_empty() {
-        return Ok(None);
-    }
-    let args_raw = &raw[(open + 1)..close];
-    let args = if args_raw.trim().is_empty() {
-        Vec::new()
-    } else {
-        split_csv(args_raw)
-            .into_iter()
-            .map(parse_function_argument)
-            .collect::<Result<Vec<_>, _>>()?
-    };
-
-    Ok(Some(FunctionCall { name, args }))
-}
-
-/// Parses one function argument. An argument that is not a single token,
-/// such as `NOT EXISTS (...)` or a comparison, is parsed as a full boolean
-/// expression.
-fn parse_function_argument(raw: &str) -> Result<Expr, SqlError> {
-    parse_expr_token(raw).or_else(|error| parse_expression(raw).map_err(|_| error))
+    super::aggregate_call::parse_function(raw)
 }
 
 pub(crate) fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
@@ -104,6 +83,15 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         let inner = strip_parentheses(raw);
         if let Some(inner) = inner {
             return parse_expression(inner);
+        }
+    }
+
+    for (suffix, negated) in [(" isnull", false), (" notnull", true)] {
+        if let Some(operand) = super::lexical::strip_keyword_suffix(raw, suffix) {
+            return Ok(Expr::IsNull {
+                expr: Box::new(parse_comparison_expression(operand)?),
+                negated,
+            });
         }
     }
 
@@ -193,14 +181,6 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         }
     }
 
-    if let Some((left, right)) = split_top_level(raw, "::") {
-        let data_type = parse_data_type(right.trim())?;
-        return Ok(Expr::Cast {
-            expr: Box::new(parse_comparison_expression(left)?),
-            data_type,
-        });
-    }
-
     parse_arithmetic_expression(raw)
 }
 
@@ -223,7 +203,42 @@ fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
             op,
         });
     }
-    parse_expr_token(raw)
+    parse_postfix_expression(raw)
+}
+
+fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
+    let mut cast_positions = [0; depth::MAX_POSTFIX_DEPTH];
+    let mut cast_count = 0;
+
+    for position in super::lexical::top_level_cast_positions(raw) {
+        if cast_count == depth::MAX_POSTFIX_DEPTH {
+            return Err(depth::limit_error());
+        }
+        cast_positions[cast_count] = position;
+        cast_count += 1;
+    }
+    let operand_end = if cast_count == 0 {
+        raw.len()
+    } else {
+        cast_positions[0]
+    };
+    let mut expr = parse_expr_token(&raw[..operand_end])?;
+    if cast_count > 0 {
+        depth::validate(&expr, cast_count)?;
+    }
+    for (index, position) in cast_positions[..cast_count].iter().enumerate() {
+        let type_end = if index + 1 == cast_count {
+            raw.len()
+        } else {
+            cast_positions[index + 1]
+        };
+        let data_type = super::lexical::trim_separators(&raw[position + 2..type_end]);
+        expr = Expr::Cast {
+            expr: Box::new(expr),
+            data_type: parse_data_type(data_type)?,
+        };
+    }
+    Ok(expr)
 }
 
 fn split_arithmetic_operator<'a>(
@@ -349,12 +364,18 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     if raw.is_empty() {
         return Err(SqlError::new("invalid expression token".into()));
     }
+    if let Some(inner) = strip_parentheses(raw) {
+        return parse_expression(inner);
+    }
     if split_top_level(raw, "||").is_some() {
         return Err(SqlError::unsupported(
             "operator || is not supported; use concat()".into(),
         ));
     }
 
+    if let Some(value) = super::lexical::dollar_quoted_content(raw) {
+        return Ok(Expr::StringLiteral(value.to_owned()));
+    }
     if raw.starts_with('$') {
         let value = raw.trim_start_matches('$');
         if value.is_empty() {
@@ -388,16 +409,14 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
             column.lookup_key()
         }));
     }
-    if let Some(value) = parse_single_string_literal(raw) {
+    if let Some(value) = string_literals::parse(raw)? {
         return Ok(Expr::StringLiteral(value));
     }
-    // Integer tokens keep integer typing (PostgreSQL types them int4/int8);
-    // only tokens with a decimal point or exponent become float literals.
-    if is_integer_literal(raw) {
-        let value = raw
-            .parse::<i64>()
-            .map_err(|_| SqlError::new(format!("numeric literal out of range '{raw}'")))?;
-        return Ok(Expr::IntegerLiteral(value));
+    if let Some(value) = parse_typed_string_literal(raw)? {
+        return Ok(value);
+    }
+    if let Some(value) = numeric_literals::parse(raw)? {
+        return Ok(value);
     }
     if let Ok(value) = raw.parse::<f64>() {
         if !value.is_finite() {
@@ -420,7 +439,7 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
         return Err(SqlError::new(format!("invalid expression token '{raw}'")));
     }
     if let Some(func) = parse_function(raw)? {
-        return Ok(Expr::Function(func));
+        return Ok(Expr::Function(Box::new(func)));
     }
 
     if raw.chars().any(char::is_whitespace) {
@@ -431,27 +450,20 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     Ok(Expr::Column(path.lookup_key()))
 }
 
-/// Parses `raw` as exactly one single-quoted literal: the opening quote's
-/// match must be the final character, with `''` read as an escaped quote.
-fn parse_single_string_literal(raw: &str) -> Option<String> {
-    let inner = raw.strip_prefix('\'')?;
-    let mut value = String::with_capacity(inner.len());
-    let mut chars = inner.char_indices().peekable();
-    while let Some((idx, ch)) = chars.next() {
-        if ch != '\'' {
-            value.push(ch);
-        } else if chars.next_if(|&(_, next)| next == '\'').is_some() {
-            value.push('\'');
-        } else {
-            return (idx + 1 == inner.len()).then_some(value);
-        }
-    }
-    None
-}
-
-fn is_integer_literal(raw: &str) -> bool {
-    let digits = raw.strip_prefix(['+', '-']).unwrap_or(raw);
-    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+fn parse_typed_string_literal(raw: &str) -> Result<Option<Expr>, SqlError> {
+    let Some(quote) = raw.find('\'') else {
+        return Ok(None);
+    };
+    let Ok(data_type) = parse_data_type(raw[..quote].trim()) else {
+        return Ok(None);
+    };
+    let Some(value) = string_literals::parse(&raw[quote..])? else {
+        return Ok(None);
+    };
+    Ok(Some(Expr::Cast {
+        expr: Box::new(Expr::StringLiteral(value)),
+        data_type,
+    }))
 }
 
 pub(super) fn parse_exists_expression(raw: &str) -> Result<Option<Expr>, SqlError> {

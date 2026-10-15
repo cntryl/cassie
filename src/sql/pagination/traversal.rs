@@ -107,7 +107,7 @@ fn visit_items(items: &mut [SelectItem], visitor: &mut Visitor<'_>) -> Result<()
         match item {
             SelectItem::Expr { expr, .. } => visit_expr(expr, visitor)?,
             SelectItem::Function { function, .. } => {
-                for expr in &mut function.args {
+                for expr in function.expressions_mut() {
                     visit_expr(expr, visitor)?;
                 }
             }
@@ -137,7 +137,7 @@ fn visit_source(source: &mut QuerySource, visitor: &mut Visitor<'_>) -> Result<(
             visit_expr(on, visitor)?;
         }
         QuerySource::TableFunction { function, .. } => {
-            for expr in &mut function.args {
+            for expr in function.expressions_mut() {
                 visit_expr(expr, visitor)?;
             }
         }
@@ -183,7 +183,7 @@ fn visit_expr(expr: &mut Expr, visitor: &mut Visitor<'_>) -> Result<(), CassieEr
             }
         }
         Expr::Function(function) => {
-            for expr in &mut function.args {
+            for expr in function.expressions_mut() {
                 visit_expr(expr, visitor)?;
             }
         }

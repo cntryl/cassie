@@ -41,6 +41,11 @@ impl CassieSession {
             }
             return Ok(Accounted::from_admitted(value, memory));
         }
+        if let Some(value) = self.transaction_setting(name) {
+            return Accounted::try_new(controls, add(value.len(), size_of::<String>())?, || {
+                value.to_owned()
+            });
+        }
         let settings = self.settings.lock();
         let value = settings.get_ref(name)?;
         Accounted::try_new(controls, add(value.len(), size_of::<String>())?, || {

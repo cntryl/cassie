@@ -26,6 +26,10 @@ pub(crate) enum ParameterAdmissionError {
         input: String,
         _reservation: QueryMemoryReservation,
     },
+    NonAggregateModifier {
+        message: String,
+        _reservation: QueryMemoryReservation,
+    },
     Cancelled,
     Deadline,
     LegacyConflict(String),
@@ -188,6 +192,47 @@ pub(super) fn admit_invalid_boolean_literal(
     })
 }
 
+pub(super) fn admit_nonaggregate_modifier(
+    function: &str,
+    modifier: &'static str,
+    controls: &QueryExecutionControls,
+) -> Result<ParameterAdmissionError, ParameterAdmissionError> {
+    check_controls(controls)?;
+    let capacity = function
+        .len()
+        .checked_add(modifier.len())
+        .and_then(|length| {
+            length.checked_add(" specified, but  is not an aggregate function".len())
+        })
+        .ok_or_else(|| {
+            ParameterAdmissionError::Memory("function diagnostic capacity overflow".into())
+        })?;
+    let mut reservation = controls
+        .reserve_query_memory(capacity)
+        .map_err(memory_error)?;
+    check_controls(controls)?;
+    let mut admitted = String::new();
+    admitted.try_reserve_exact(capacity).map_err(|error| {
+        ParameterAdmissionError::Memory(format!("unable to allocate function diagnostic: {error}"))
+    })?;
+    if admitted.capacity() > capacity {
+        reservation
+            .try_grow(admitted.capacity() - capacity)
+            .map_err(memory_error)?;
+    }
+    check_controls(controls)?;
+    admitted.push_str(modifier);
+    admitted.push_str(" specified, but ");
+    let start = admitted.len();
+    admitted.push_str(function);
+    admitted[start..].make_ascii_lowercase();
+    admitted.push_str(" is not an aggregate function");
+    Ok(ParameterAdmissionError::NonAggregateModifier {
+        message: admitted,
+        _reservation: reservation,
+    })
+}
+
 struct WorkStack<'a, 'c> {
     frames: Vec<Frame<'a>>,
     reservation: QueryMemoryReservation,
@@ -303,6 +348,7 @@ enum Node<'a> {
     Item(&'a ast::SelectItem),
     Cte(&'a ast::CteQuery),
     Expr(&'a ast::Expr),
+    Function(&'a ast::FunctionCall),
     Expressions(&'a [ast::Expr]),
     Items(&'a [ast::SelectItem]),
     Orders(&'a [ast::OrderExpr]),
@@ -366,6 +412,7 @@ impl Node<'_> {
                 ast::CteQuery::Recursive { .. } => 2,
             },
             Self::Expr(expr) => expr_children(expr),
+            Self::Function(_) => 3,
             Self::Expressions(values) => values.len(),
             Self::Items(values) => values.len(),
             Self::Orders(values) => values.len(),
@@ -398,6 +445,11 @@ impl Node<'_> {
                 }
             },
             Self::Expr(expr) => expr_child(expr, index),
+            Self::Function(function) => match index {
+                0 => Some(Self::Expressions(&function.args)),
+                1 => function.filter.as_deref().map(Self::Expr),
+                _ => Some(Self::Orders(&function.order_by)),
+            },
             Self::Expressions(values) => values.get(index).map(Self::Expr),
             Self::Items(values) => values.get(index).map(Self::Item),
             Self::Orders(values) => values.get(index).map(|order| Self::Expr(&order.expr)),
@@ -569,7 +621,7 @@ fn select_child(select: &ast::SelectStatement, index: usize) -> Option<Node<'_>>
 fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
     match source {
         ast::QuerySource::Aliased { source, .. } => Some(Node::Source(source)),
-        ast::QuerySource::TableFunction { function, .. } => Some(Node::Expressions(&function.args)),
+        ast::QuerySource::TableFunction { function, .. } => Some(Node::Function(function)),
         ast::QuerySource::Subquery { select, .. } => Some(Node::Select(select)),
         ast::QuerySource::Join {
             left, right, on, ..
@@ -587,7 +639,7 @@ fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
 fn item_child(item: &ast::SelectItem, index: usize) -> Option<Node<'_>> {
     match item {
         ast::SelectItem::Wildcard | ast::SelectItem::Column { .. } => None,
-        ast::SelectItem::Function { function, .. } => Some(Node::Expressions(&function.args)),
+        ast::SelectItem::Function { function, .. } => Some(Node::Function(function)),
         ast::SelectItem::Expr { expr, .. } => Some(Node::Expr(expr)),
         ast::SelectItem::WindowFunction { function, .. } => Some(match index {
             0 => Node::Expressions(&function.args),
@@ -646,7 +698,7 @@ fn expr_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
             _ => high,
         })),
         ast::Expr::Exists(statement) => Some(Node::Query(&statement.statement)),
-        ast::Expr::Function(function) => Some(Node::Expressions(&function.args)),
+        ast::Expr::Function(function) => Some(Node::Function(function)),
         ast::Expr::Column(_)
         | ast::Expr::Param(_)
         | ast::Expr::StringLiteral(_)

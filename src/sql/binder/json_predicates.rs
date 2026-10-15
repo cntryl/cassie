@@ -7,7 +7,7 @@ pub(super) fn rewrite_select(select: &mut SelectStatement, fields: &crate::sql::
         match item {
             SelectItem::Expr { expr, .. } => rewrite(expr, fields),
             SelectItem::Function { function, .. } => {
-                for argument in &mut function.args {
+                for argument in function.expressions_mut() {
                     rewrite(argument, fields);
                 }
             }

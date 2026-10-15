@@ -71,7 +71,7 @@ pub(super) fn parse_create_rollup_statement(sql: &str) -> Result<ParsedStatement
         statement: QueryStatement::CreateRollup(CreateRollupStatement {
             name: name.to_string(),
             source: source.to_string(),
-            bucket,
+            bucket: *bucket,
             group_by,
             aggregates,
             filter,

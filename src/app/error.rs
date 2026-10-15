@@ -205,6 +205,14 @@ impl CassieError {
             | Self::UniqueViolation { .. }
             | Self::CheckViolation { .. }
             | Self::ForeignKeyViolation { .. } => constraint_descriptor(self),
+            Self::InvalidQuery(message) if message == "invalid Unicode escape in escape string" => {
+                bad_request_descriptor("22025", "invalid Unicode escape".into())
+            }
+            Self::InvalidQuery(message)
+                if message.starts_with("invalid byte sequence for encoding \"UTF8\":") =>
+            {
+                bad_request_descriptor("22021", message.clone())
+            }
             Self::Parse(message) | Self::InvalidQuery(message) => {
                 bad_request_descriptor("42601", message.clone())
             }
@@ -486,6 +494,9 @@ fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
 }
 
 fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
+    if message == "negative substring length not allowed" {
+        return bad_request_descriptor("22011", message.to_owned());
+    }
     let pagination_state = match message {
         "LIMIT must not be negative" => Some("2201W"),
         "OFFSET must not be negative" => Some("2201X"),
@@ -505,13 +516,41 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message.eq_ignore_ascii_case("division by zero") {
         return bad_request_descriptor("22012", message.to_string());
     }
+    if message.starts_with("invalid input syntax for type boolean:") {
+        return bad_request_descriptor("22P02", message.to_string());
+    }
+    if message.starts_with("invalid input syntax for type integer:") {
+        return bad_request_descriptor("22P02", message.to_string());
+    }
+    if message.starts_with("argument of FILTER must be type boolean, not type ") {
+        return bad_request_descriptor("42804", message.to_string());
+    }
+    if [
+        "DISTINCT specified, but ",
+        "ORDER BY specified, but ",
+        "FILTER specified, but ",
+    ]
+    .iter()
+    .any(|prefix| message.starts_with(prefix))
+        && message.ends_with(" is not an aggregate function")
+    {
+        return bad_request_descriptor("42809", message.to_string());
+    }
+    if message == "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
+    {
+        return bad_request_descriptor("42P10", message.to_string());
+    }
     if message.eq_ignore_ascii_case("aggregate integer overflow")
+        || message == "integer out of range"
         || message.eq_ignore_ascii_case(crate::types::numeric::FLOAT_OVERFLOW)
         || message.eq_ignore_ascii_case(crate::executor::filter::BIGINT_OUT_OF_RANGE)
     {
         return bad_request_descriptor("22003", message.to_string());
     }
     if message.starts_with("function ") && message.ends_with(") does not exist") {
+        return bad_request_descriptor("42883", message.to_string());
+    }
+    if message.starts_with("could not identify an equality operator for type ") {
         return bad_request_descriptor("42883", message.to_string());
     }
     if message.eq_ignore_ascii_case("query admission exhausted") {

@@ -90,6 +90,11 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
 }
 
 fn format_function(function: &FunctionCall) -> Result<String, String> {
+    if function.is_distinct() || function.filter.is_some() || !function.order_by.is_empty() {
+        return Err(
+            "aggregate modifiers are not supported in incremental rollup definitions".into(),
+        );
+    }
     let args = function
         .args
         .iter()

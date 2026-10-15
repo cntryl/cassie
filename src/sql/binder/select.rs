@@ -110,6 +110,7 @@ pub(super) fn bind_select_with_lateral_fields(
     }
     super::json_predicates::rewrite_select(&mut select, &field_types);
     super::case_unify::unify_select_case_results(&mut select, &field_types);
+    super::boolean_contexts::qualify_declared_boolean_functions(&mut select, catalog, context)?;
 
     let projection_aliases = collect_projection_aliases(&select);
     validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
@@ -179,7 +180,7 @@ pub(super) fn canonicalize_typed_predicate_literals(
             canonicalize_typed_predicate_literals(expr, field_types)
         }
         Expr::Function(function) => {
-            for argument in &mut function.args {
+            for argument in function.expressions_mut() {
                 canonicalize_typed_predicate_literals(argument, field_types)?;
             }
             Ok(())
@@ -297,7 +298,7 @@ fn validate_grouped_projection(
             {
                 continue;
             }
-            SelectItem::Function { function, .. } => Expr::Function(function.clone()),
+            SelectItem::Function { function, .. } => Expr::Function(Box::new(function.clone())),
             SelectItem::Expr { expr, .. } => expr.clone(),
             SelectItem::WindowFunction { .. } => continue,
         };
@@ -348,7 +349,7 @@ fn projection_has_aggregate(select: &SelectStatement) -> bool {
     select.projection.iter().any(|item| match item {
         SelectItem::Function { function, .. } => {
             crate::sql::functions::is_aggregate_function(&function.name)
-                || function.args.iter().any(is_aggregate)
+                || function.expressions().any(is_aggregate)
         }
         SelectItem::Expr { expr, .. } => is_aggregate(expr),
         SelectItem::Wildcard | SelectItem::Column { .. } | SelectItem::WindowFunction { .. } => {

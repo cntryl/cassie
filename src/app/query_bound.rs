@@ -80,6 +80,7 @@ impl Cassie {
         let (mut params, declared_oids, wire_output) = parameters;
         self.ensure_session_database_access(session)?;
         Self::ensure_statement_can_execute(session, &parsed, controls)?;
+        Self::mark_statement_transaction_query(session, &parsed.statement);
         let (parameter_types, bound_parameters) =
             super::query_parameters::prepare_bound_parameters(
                 self,
@@ -185,6 +186,15 @@ impl Cassie {
         }
 
         Ok(result)
+    }
+
+    fn mark_statement_transaction_query(session: &CassieSession, statement: &QueryStatement) {
+        if !matches!(
+            statement,
+            QueryStatement::Set(_) | QueryStatement::Show(_) | QueryStatement::Transaction(_)
+        ) {
+            session.mark_transaction_query();
+        }
     }
 
     fn execute_bound_plan_with_feedback(

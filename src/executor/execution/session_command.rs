@@ -1,6 +1,7 @@
 use super::{CassieSession, ColumnMeta, QueryError, QueryResult};
 use crate::catalog::DEFAULT_SCHEMA;
 use crate::runtime::QueryExecutionControls;
+use crate::sql::ast::SettingAction;
 
 /// The single column `SHOW` returns, shared by Describe and execution so the
 /// `RowDescription` of a prepared `SHOW` always matches its `DataRow`.
@@ -30,7 +31,7 @@ pub(super) fn execute_show(
         return Err(QueryError::General("SHOW requires a variable".to_string()));
     }
 
-    let value = if variable == "transaction isolation level" {
+    let value = if variable == "transaction isolation level" && session.is_none() {
         crate::runtime::accounted::Accounted::try_new(
             controls,
             std::mem::size_of::<String>() + "read committed".len(),
@@ -65,24 +66,25 @@ pub(super) fn execute_set(
         return Err(QueryError::General("SET requires a variable".to_string()));
     }
 
-    let output = super::command_output::empty("SET", controls)?;
-    if variable == "search_path" {
-        let value = statement.value.as_deref().unwrap_or("").trim();
-        let Some(session) = session else {
-            return Err(QueryError::General(
-                "SET search_path requires a session".to_string(),
-            ));
-        };
-        let path = parse_search_path(value);
-        session.set_search_path(path);
-    } else {
-        let Some(session) = session else {
-            return Err(QueryError::General(format!(
-                "SET {} requires a session",
-                statement.variable
-            )));
-        };
-        session.set_setting(&variable, statement.value.as_deref().unwrap_or(""))?;
+    let command = match statement.action {
+        SettingAction::Set | SettingAction::SetDefault => "SET",
+        SettingAction::Reset | SettingAction::ResetAll => "RESET",
+    };
+    // Admit the command response before changing session state.
+    let output = super::command_output::empty(command, controls)?;
+    let Some(session) = session else {
+        return Err(QueryError::General(format!("{command} requires a session")));
+    };
+    match statement.action {
+        SettingAction::ResetAll => session.reset_all_settings(),
+        SettingAction::Reset | SettingAction::SetDefault => session.reset_setting(&variable)?,
+        SettingAction::Set if variable == "search_path" => {
+            let path = parse_search_path(statement.value.as_deref().unwrap_or(""));
+            session.set_search_path(path);
+        }
+        SettingAction::Set => {
+            session.set_setting(&variable, statement.value.as_deref().unwrap_or(""))?;
+        }
     }
     Ok(output)
 }
@@ -103,13 +105,38 @@ fn setting_display_name(name: &str) -> &str {
 }
 
 fn parse_search_path(raw: &str) -> Vec<String> {
-    let path = raw
-        .split(',')
-        .map(|entry| entry.trim().trim_matches('"').to_ascii_lowercase())
-        .filter(|entry| !entry.is_empty())
-        .collect::<Vec<_>>();
+    let mut quoted = false;
+    let mut start = 0;
+    let mut path = Vec::new();
+    for (position, character) in raw.char_indices() {
+        match character {
+            '"' => quoted = !quoted,
+            ',' if !quoted => {
+                push_search_path_entry(&mut path, &raw[start..position]);
+                start = position + 1;
+            }
+            _ => {}
+        }
+    }
+    push_search_path_entry(&mut path, &raw[start..]);
     if path.is_empty() {
         return vec![DEFAULT_SCHEMA.to_string()];
     }
     path
+}
+
+fn push_search_path_entry(path: &mut Vec<String>, entry: &str) {
+    let entry = entry.trim();
+    if entry.is_empty() {
+        return;
+    }
+    path.push(
+        entry
+            .strip_prefix('"')
+            .and_then(|name| name.strip_suffix('"'))
+            .map_or_else(
+                || entry.to_ascii_lowercase(),
+                |name| name.replace("\"\"", "\""),
+            ),
+    );
 }

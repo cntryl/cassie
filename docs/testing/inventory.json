@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1535,
-    "rust_files": 1504,
-    "rust_test_declarations": 5414,
+    "files": 1538,
+    "rust_files": 1507,
+    "rust_test_declarations": 5474,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5542,
+    "registered_rust_instances": 5602,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -245,7 +245,7 @@
     "large_projected_destinations": [
       {
         "file": "tests/executor/commands/semantics.rs",
-        "test_body_lines": 809,
+        "test_body_lines": 810,
         "test_declarations": 13
       },
       {
@@ -11764,11 +11764,42 @@
       }
     },
     {
+      "id": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs::should_resolve_canonical_encoding_names_given_valid_invalid_and_null_ids_when_encoding_to_char_is_called",
+      "name": "should_resolve_canonical_encoding_names_given_valid_invalid_and_null_ids_when_encoding_to_char_is_called",
+      "current_file": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs",
+      "line": 32,
+      "end_line": 73,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "postgresql18_catalog_information::catalog_lookup::should_resolve_canonical_encoding_names_given_valid_invalid_and_null_ids_when_encoding_to_char_is_called"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/system_information",
+        "directory": "tests/catalog_security/catalogs/system_information",
+        "file": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs::should_describe_reserved_keywords_from_the_server_keyword_table",
       "name": "should_describe_reserved_keywords_from_the_server_keyword_table",
       "current_file": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs",
-      "line": 32,
-      "end_line": 63,
+      "line": 76,
+      "end_line": 107,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11798,8 +11829,8 @@
       "id": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs::should_report_the_single_node_recovery_state",
       "name": "should_report_the_single_node_recovery_state",
       "current_file": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs",
-      "line": 66,
-      "end_line": 78,
+      "line": 110,
+      "end_line": 122,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11829,8 +11860,8 @@
       "id": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs::should_return_zero_when_the_session_has_no_temporary_schema",
       "name": "should_return_zero_when_the_session_has_no_temporary_schema",
       "current_file": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs",
-      "line": 81,
-      "end_line": 93,
+      "line": 125,
+      "end_line": 137,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11860,8 +11891,8 @@
       "id": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs::should_report_zero_is_not_another_session_temporary_schema",
       "name": "should_report_zero_is_not_another_session_temporary_schema",
       "current_file": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs",
-      "line": 96,
-      "end_line": 108,
+      "line": 140,
+      "end_line": 152,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11891,8 +11922,8 @@
       "id": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs::should_report_postmaster_start_time_as_available",
       "name": "should_report_postmaster_start_time_as_available",
       "current_file": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs",
-      "line": 111,
-      "end_line": 123,
+      "line": 155,
+      "end_line": 167,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11922,8 +11953,8 @@
       "id": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs::should_report_a_loaded_configuration_timestamp",
       "name": "should_report_a_loaded_configuration_timestamp",
       "current_file": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs",
-      "line": 126,
-      "end_line": 138,
+      "line": 170,
+      "end_line": 182,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -13438,11 +13469,42 @@
       }
     },
     {
+      "id": "tests/catalog_security/catalogs/types/catalog_information/semantics.rs::should_scope_underlying_type_catalogs_given_same_named_tables_and_views_when_database_sessions_query_columns",
+      "name": "should_scope_underlying_type_catalogs_given_same_named_tables_and_views_when_database_sessions_query_columns",
+      "current_file": "tests/catalog_security/catalogs/types/catalog_information/semantics.rs",
+      "line": 91,
+      "end_line": 166,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "postgresql18_catalog_information::should_scope_underlying_type_catalogs_given_same_named_tables_and_views_when_database_sessions_query_columns"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/catalog_information",
+        "directory": "tests/catalog_security/catalogs/types/catalog_information",
+        "file": "tests/catalog_security/catalogs/types/catalog_information/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/catalog_security/catalogs/types/catalog_information/semantics.rs::should_resolve_builtin_range_subtype_in_pg_range",
       "name": "should_resolve_builtin_range_subtype_in_pg_range",
       "current_file": "tests/catalog_security/catalogs/types/catalog_information/semantics.rs",
-      "line": 91,
-      "end_line": 117,
+      "line": 169,
+      "end_line": 195,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -13472,8 +13534,8 @@
       "id": "tests/catalog_security/catalogs/types/catalog_information/semantics.rs::should_report_no_builtin_enum_labels_without_user_types",
       "name": "should_report_no_builtin_enum_labels_without_user_types",
       "current_file": "tests/catalog_security/catalogs/types/catalog_information/semantics.rs",
-      "line": 120,
-      "end_line": 132,
+      "line": 198,
+      "end_line": 210,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -13503,8 +13565,8 @@
       "id": "tests/catalog_security/catalogs/types/catalog_information/semantics.rs::should_report_builtin_int4_array_type_links_in_pg_type",
       "name": "should_report_builtin_int4_array_type_links_in_pg_type",
       "current_file": "tests/catalog_security/catalogs/types/catalog_information/semantics.rs",
-      "line": 135,
-      "end_line": 168,
+      "line": 213,
+      "end_line": 246,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -32666,6 +32728,161 @@
       }
     },
     {
+      "id": "tests/compatibility/lifecycle/sessions/set_session.rs::should_restore_connection_startup_value_given_setting_override_when_reset_or_set_default_runs",
+      "name": "should_restore_connection_startup_value_given_setting_override_when_reset_or_set_default_runs",
+      "current_file": "tests/compatibility/lifecycle/sessions/set_session.rs",
+      "line": 530,
+      "end_line": 601,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::session_transaction::set_session_contracts::should_restore_connection_startup_value_given_setting_override_when_reset_or_set_default_runs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/sessions",
+        "directory": "tests/compatibility/lifecycle/sessions",
+        "file": "tests/compatibility/lifecycle/sessions/set_session.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/sessions/set_session.rs::should_preserve_current_transaction_mode_given_reset_all_when_read_only_transaction_is_active",
+      "name": "should_preserve_current_transaction_mode_given_reset_all_when_read_only_transaction_is_active",
+      "current_file": "tests/compatibility/lifecycle/sessions/set_session.rs",
+      "line": 604,
+      "end_line": 648,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::session_transaction::set_session_contracts::should_preserve_current_transaction_mode_given_reset_all_when_read_only_transaction_is_active"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/sessions",
+        "directory": "tests/compatibility/lifecycle/sessions",
+        "file": "tests/compatibility/lifecycle/sessions/set_session.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/sessions/set_session.rs::should_reject_read_write_mode_given_prior_query_when_read_only_transaction_changes_mode",
+      "name": "should_reject_read_write_mode_given_prior_query_when_read_only_transaction_changes_mode",
+      "current_file": "tests/compatibility/lifecycle/sessions/set_session.rs",
+      "line": 651,
+      "end_line": 672,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::session_transaction::set_session_contracts::should_reject_read_write_mode_given_prior_query_when_read_only_transaction_changes_mode"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/sessions",
+        "directory": "tests/compatibility/lifecycle/sessions",
+        "file": "tests/compatibility/lifecycle/sessions/set_session.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/sessions/set_session.rs::should_reject_ordinary_table_ddl_and_copy_given_read_only_transaction_when_commands_execute",
+      "name": "should_reject_ordinary_table_ddl_and_copy_given_read_only_transaction_when_commands_execute",
+      "current_file": "tests/compatibility/lifecycle/sessions/set_session.rs",
+      "line": 675,
+      "end_line": 728,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::session_transaction::set_session_contracts::should_reject_ordinary_table_ddl_and_copy_given_read_only_transaction_when_commands_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/sessions",
+        "directory": "tests/compatibility/lifecycle/sessions",
+        "file": "tests/compatibility/lifecycle/sessions/set_session.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/sessions/set_session.rs::should_enforce_transaction_modes_given_postgresql_boolean_prefixes_when_settings_change",
+      "name": "should_enforce_transaction_modes_given_postgresql_boolean_prefixes_when_settings_change",
+      "current_file": "tests/compatibility/lifecycle/sessions/set_session.rs",
+      "line": 731,
+      "end_line": 796,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::session_transaction::set_session_contracts::should_enforce_transaction_modes_given_postgresql_boolean_prefixes_when_settings_change"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/sessions",
+        "directory": "tests/compatibility/lifecycle/sessions",
+        "file": "tests/compatibility/lifecycle/sessions/set_session.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/compatibility/lifecycle/sessions/timezone_settings.rs::should_restore_startup_timezone_after_reset",
       "name": "should_restore_startup_timezone_after_reset",
       "current_file": "tests/compatibility/lifecycle/sessions/timezone_settings.rs",
@@ -35243,7 +35460,7 @@
       "name": "should_map_read_uncommitted_mode_to_read_committed",
       "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs",
       "line": 112,
-      "end_line": 173,
+      "end_line": 175,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -35273,8 +35490,8 @@
       "id": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs::should_wait_for_unique_key_owner_before_returning_pgwire_insert",
       "name": "should_wait_for_unique_key_owner_before_returning_pgwire_insert",
       "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs",
-      "line": 245,
-      "end_line": 266,
+      "line": 247,
+      "end_line": 268,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -35304,8 +35521,8 @@
       "id": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs::should_restore_set_local_state_after_commit",
       "name": "should_restore_set_local_state_after_commit",
       "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs",
-      "line": 269,
-      "end_line": 310,
+      "line": 271,
+      "end_line": 312,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -35335,8 +35552,8 @@
       "id": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs::should_enforce_nowait_skip_locked_row_claims_across_sessions",
       "name": "should_enforce_nowait_skip_locked_row_claims_across_sessions",
       "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs",
-      "line": 312,
-      "end_line": 370,
+      "line": 314,
+      "end_line": 372,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -35366,8 +35583,8 @@
       "id": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs::should_conflict_for_update_nowait_with_a_for_share_row_lock",
       "name": "should_conflict_for_update_nowait_with_a_for_share_row_lock",
       "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs",
-      "line": 372,
-      "end_line": 444,
+      "line": 374,
+      "end_line": 446,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -35397,8 +35614,8 @@
       "id": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs::should_deliver_notifications_after_commit_once_per_duplicate_payload",
       "name": "should_deliver_notifications_after_commit_once_per_duplicate_payload",
       "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs",
-      "line": 446,
-      "end_line": 530,
+      "line": 448,
+      "end_line": 532,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -35428,8 +35645,8 @@
       "id": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs::should_conflict_table_locks_across_sessions_with_nowait",
       "name": "should_conflict_table_locks_across_sessions_with_nowait",
       "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs",
-      "line": 532,
-      "end_line": 616,
+      "line": 534,
+      "end_line": 618,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -36089,6 +36306,68 @@
         {
           "suite": "compatibility",
           "name": "compatibility::lifecycle::session_transaction::transaction_chaining::should_commit_without_opening_next_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/transactions",
+        "directory": "tests/compatibility/lifecycle/transactions",
+        "file": "tests/compatibility/lifecycle/transactions/transaction_chaining.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/transactions/transaction_chaining.rs::should_preserve_read_only_characteristics_given_commit_chain_when_followup_transaction_writes",
+      "name": "should_preserve_read_only_characteristics_given_commit_chain_when_followup_transaction_writes",
+      "current_file": "tests/compatibility/lifecycle/transactions/transaction_chaining.rs",
+      "line": 96,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::session_transaction::transaction_chaining::should_preserve_read_only_characteristics_given_commit_chain_when_followup_transaction_writes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/transactions",
+        "directory": "tests/compatibility/lifecycle/transactions",
+        "file": "tests/compatibility/lifecycle/transactions/transaction_chaining.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/transactions/transaction_chaining.rs::should_reject_idle_chaining_given_no_transaction_when_commit_or_rollback_requests_chain",
+      "name": "should_reject_idle_chaining_given_no_transaction_when_commit_or_rollback_requests_chain",
+      "current_file": "tests/compatibility/lifecycle/transactions/transaction_chaining.rs",
+      "line": 173,
+      "end_line": 202,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::session_transaction::transaction_chaining::should_reject_idle_chaining_given_no_transaction_when_commit_or_rollback_requests_chain"
         }
       ],
       "attributes": [
@@ -41846,7 +42125,7 @@
       "name": "should_fail_unknown_function_during_execution",
       "current_file": "tests/executor/commands/semantics.rs",
       "line": 187,
-      "end_line": 281,
+      "end_line": 282,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -41876,8 +42155,8 @@
       "id": "tests/executor/commands/semantics.rs::should_execute_table_lifecycle_commands",
       "name": "should_execute_table_lifecycle_commands",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 284,
-      "end_line": 356,
+      "line": 285,
+      "end_line": 357,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -41907,8 +42186,8 @@
       "id": "tests/executor/commands/semantics.rs::should_retry_table_creation_after_primary_key_publication_failure",
       "name": "should_retry_table_creation_after_primary_key_publication_failure",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 359,
-      "end_line": 398,
+      "line": 360,
+      "end_line": 399,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -41938,8 +42217,8 @@
       "id": "tests/executor/commands/semantics.rs::should_execute_alter_table_rename_column_command",
       "name": "should_execute_alter_table_rename_column_command",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 401,
-      "end_line": 461,
+      "line": 402,
+      "end_line": 462,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -41969,8 +42248,8 @@
       "id": "tests/executor/commands/semantics.rs::should_execute_index_lifecycle_commands",
       "name": "should_execute_index_lifecycle_commands",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 464,
-      "end_line": 526,
+      "line": 465,
+      "end_line": 527,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -42000,8 +42279,8 @@
       "id": "tests/executor/commands/semantics.rs::should_execute_create_composite_index_command",
       "name": "should_execute_create_composite_index_command",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 529,
-      "end_line": 585,
+      "line": 530,
+      "end_line": 586,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -42031,8 +42310,8 @@
       "id": "tests/executor/commands/semantics.rs::should_evaluate_user_function_body_after_create",
       "name": "should_evaluate_user_function_body_after_create",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 588,
-      "end_line": 668,
+      "line": 589,
+      "end_line": 669,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -42062,8 +42341,8 @@
       "id": "tests/executor/commands/semantics.rs::should_reject_function_use_after_drop",
       "name": "should_reject_function_use_after_drop",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 671,
-      "end_line": 729,
+      "line": 672,
+      "end_line": 730,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -42093,8 +42372,8 @@
       "id": "tests/executor/commands/semantics.rs::should_execute_procedure_body_with_arguments_after_restart",
       "name": "should_execute_procedure_body_with_arguments_after_restart",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 732,
-      "end_line": 784,
+      "line": 733,
+      "end_line": 785,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -42124,8 +42403,8 @@
       "id": "tests/executor/commands/semantics.rs::should_reject_procedure_bodies_with_transaction_control",
       "name": "should_reject_procedure_bodies_with_transaction_control",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 787,
-      "end_line": 816,
+      "line": 788,
+      "end_line": 817,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -42155,8 +42434,8 @@
       "id": "tests/executor/commands/semantics.rs::should_reject_recursive_procedure_calls",
       "name": "should_reject_recursive_procedure_calls",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 819,
-      "end_line": 856,
+      "line": 820,
+      "end_line": 857,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49158,11 +49437,135 @@
       }
     },
     {
+      "id": "tests/parser_types/grammar/core.rs::should_target_client_encoding_given_set_names_when_encoding_literals_are_parsed",
+      "name": "should_target_client_encoding_given_set_names_when_encoding_literals_are_parsed",
+      "current_file": "tests/parser_types/grammar/core.rs",
+      "line": 113,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_core::should_target_client_encoding_given_set_names_when_encoding_literals_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar",
+        "directory": "tests/parser_types/grammar",
+        "file": "tests/parser_types/grammar/core.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/core.rs::should_preserve_default_setting_representation_given_set_names_when_encoding_is_omitted",
+      "name": "should_preserve_default_setting_representation_given_set_names_when_encoding_is_omitted",
+      "current_file": "tests/parser_types/grammar/core.rs",
+      "line": 146,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_core::should_preserve_default_setting_representation_given_set_names_when_encoding_is_omitted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar",
+        "directory": "tests/parser_types/grammar",
+        "file": "tests/parser_types/grammar/core.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/core.rs::should_preserve_generic_names_setting_given_assignment_syntax_when_set_is_parsed",
+      "name": "should_preserve_generic_names_setting_given_assignment_syntax_when_set_is_parsed",
+      "current_file": "tests/parser_types/grammar/core.rs",
+      "line": 180,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_core::should_preserve_generic_names_setting_given_assignment_syntax_when_set_is_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar",
+        "directory": "tests/parser_types/grammar",
+        "file": "tests/parser_types/grammar/core.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/core.rs::should_reject_invalid_encoding_syntax_given_set_names_when_nonliteral_tokens_are_present",
+      "name": "should_reject_invalid_encoding_syntax_given_set_names_when_nonliteral_tokens_are_present",
+      "current_file": "tests/parser_types/grammar/core.rs",
+      "line": 201,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_core::should_reject_invalid_encoding_syntax_given_set_names_when_nonliteral_tokens_are_present"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar",
+        "directory": "tests/parser_types/grammar",
+        "file": "tests/parser_types/grammar/core.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/parser_types/grammar/core.rs::should_parse_non_select_statement",
       "name": "should_parse_non_select_statement",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 113,
-      "end_line": 122,
+      "line": 227,
+      "end_line": 236,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49192,8 +49595,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_parse_copy_from_stdin_csv_column_header_shape",
       "name": "should_parse_copy_from_stdin_csv_column_header_shape",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 125,
-      "end_line": 140,
+      "line": 239,
+      "end_line": 254,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49223,8 +49626,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_reject_copy_from_stdin_non_csv_format",
       "name": "should_reject_copy_from_stdin_non_csv_format",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 143,
-      "end_line": 152,
+      "line": 257,
+      "end_line": 266,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49254,8 +49657,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_parse_deterministically_across_invocations",
       "name": "should_parse_deterministically_across_invocations",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 155,
-      "end_line": 180,
+      "line": 269,
+      "end_line": 294,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49285,8 +49688,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_reject_unknown_clause_in_query",
       "name": "should_reject_unknown_clause_in_query",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 183,
-      "end_line": 192,
+      "line": 297,
+      "end_line": 306,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49316,8 +49719,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_reject_duplicate_limit_clauses",
       "name": "should_reject_duplicate_limit_clauses",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 195,
-      "end_line": 204,
+      "line": 309,
+      "end_line": 318,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49347,8 +49750,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_parse_signed_limit_literals_before_execution",
       "name": "should_parse_signed_limit_literals_before_execution",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 207,
-      "end_line": 219,
+      "line": 321,
+      "end_line": 333,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49378,8 +49781,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_accept_zero_offset_values",
       "name": "should_accept_zero_offset_values",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 222,
-      "end_line": 231,
+      "line": 336,
+      "end_line": 345,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49409,8 +49812,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_reject_malformed_parameter_tokens",
       "name": "should_reject_malformed_parameter_tokens",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 234,
-      "end_line": 246,
+      "line": 348,
+      "end_line": 360,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49440,8 +49843,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_reject_unknown_trailing_tokens_after_query",
       "name": "should_reject_unknown_trailing_tokens_after_query",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 249,
-      "end_line": 258,
+      "line": 363,
+      "end_line": 372,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49471,8 +49874,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_reject_unresolvable_order_by_identifier_during_binding",
       "name": "should_reject_unresolvable_order_by_identifier_during_binding",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 261,
-      "end_line": 293,
+      "line": 375,
+      "end_line": 407,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49502,8 +49905,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_allow_projection_alias_order_by_during_binding",
       "name": "should_allow_projection_alias_order_by_during_binding",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 296,
-      "end_line": 328,
+      "line": 410,
+      "end_line": 442,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49533,8 +49936,8 @@
       "id": "tests/parser_types/grammar/core.rs::should_reject_unknown_projection_column_during_binding",
       "name": "should_reject_unknown_projection_column_during_binding",
       "current_file": "tests/parser_types/grammar/core.rs",
-      "line": 331,
-      "end_line": 359,
+      "line": 445,
+      "end_line": 473,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -49543,6 +49946,37 @@
         {
           "suite": "parser_types",
           "name": "parser_core::should_reject_unknown_projection_column_during_binding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar",
+        "directory": "tests/parser_types/grammar",
+        "file": "tests/parser_types/grammar/core.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/core.rs::should_distinguish_reset_operations_given_settings_sql_when_default_is_quoted_or_unquoted",
+      "name": "should_distinguish_reset_operations_given_settings_sql_when_default_is_quoted_or_unquoted",
+      "current_file": "tests/parser_types/grammar/core.rs",
+      "line": 476,
+      "end_line": 515,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_core::should_distinguish_reset_operations_given_settings_sql_when_default_is_quoted_or_unquoted"
         }
       ],
       "attributes": [
@@ -51855,11 +52289,290 @@
       }
     },
     {
+      "id": "tests/parser_types/grammar/expressions/semantics.rs::should_bind_postfix_casts_before_arithmetic_given_mixed_operands_when_building_the_ast",
+      "name": "should_bind_postfix_casts_before_arithmetic_given_mixed_operands_when_building_the_ast",
+      "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
+      "line": 526,
+      "end_line": 580,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_expressions::should_bind_postfix_casts_before_arithmetic_given_mixed_operands_when_building_the_ast"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/expressions",
+        "directory": "tests/parser_types/grammar/expressions",
+        "file": "tests/parser_types/grammar/expressions/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/expressions/semantics.rs::should_nest_casts_in_source_order_given_a_cast_chain_when_building_the_ast",
+      "name": "should_nest_casts_in_source_order_given_a_cast_chain_when_building_the_ast",
+      "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
+      "line": 583,
+      "end_line": 619,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_expressions::should_nest_casts_in_source_order_given_a_cast_chain_when_building_the_ast"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/expressions",
+        "directory": "tests/parser_types/grammar/expressions",
+        "file": "tests/parser_types/grammar/expressions/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/expressions/semantics.rs::should_preserve_dollar_quoted_contents_given_operator_text_when_parsing_literal_and_parameter_targets",
+      "name": "should_preserve_dollar_quoted_contents_given_operator_text_when_parsing_literal_and_parameter_targets",
+      "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
+      "line": 622,
+      "end_line": 666,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_expressions::should_preserve_dollar_quoted_contents_given_operator_text_when_parsing_literal_and_parameter_targets"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/expressions",
+        "directory": "tests/parser_types/grammar/expressions",
+        "file": "tests/parser_types/grammar/expressions/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/expressions/semantics.rs::should_reject_incomplete_dollar_quotes_given_unmatched_delimiters_when_parsing_a_literal",
+      "name": "should_reject_incomplete_dollar_quotes_given_unmatched_delimiters_when_parsing_a_literal",
+      "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
+      "line": 669,
+      "end_line": 686,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_expressions::should_reject_incomplete_dollar_quotes_given_unmatched_delimiters_when_parsing_a_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/expressions",
+        "directory": "tests/parser_types/grammar/expressions",
+        "file": "tests/parser_types/grammar/expressions/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/expressions/semantics.rs::should_reject_nonexistent_qualified_types_given_builtin_aliases_when_parsing_a_cast",
+      "name": "should_reject_nonexistent_qualified_types_given_builtin_aliases_when_parsing_a_cast",
+      "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
+      "line": 689,
+      "end_line": 705,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_expressions::should_reject_nonexistent_qualified_types_given_builtin_aliases_when_parsing_a_cast"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/expressions",
+        "directory": "tests/parser_types/grammar/expressions",
+        "file": "tests/parser_types/grammar/expressions/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/expressions/semantics.rs::should_bound_postfix_cast_nesting_given_an_excessive_chain_when_parsing_an_expression",
+      "name": "should_bound_postfix_cast_nesting_given_an_excessive_chain_when_parsing_an_expression",
+      "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
+      "line": 708,
+      "end_line": 722,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_expressions::should_bound_postfix_cast_nesting_given_an_excessive_chain_when_parsing_an_expression"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/expressions",
+        "directory": "tests/parser_types/grammar/expressions",
+        "file": "tests/parser_types/grammar/expressions/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/expressions/semantics.rs::should_bound_combined_cast_depth_given_parenthesized_chains_when_parsing_an_expression",
+      "name": "should_bound_combined_cast_depth_given_parenthesized_chains_when_parsing_an_expression",
+      "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
+      "line": 725,
+      "end_line": 747,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_expressions::should_bound_combined_cast_depth_given_parenthesized_chains_when_parsing_an_expression"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/expressions",
+        "directory": "tests/parser_types/grammar/expressions",
+        "file": "tests/parser_types/grammar/expressions/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/expressions/semantics.rs::should_admit_independent_cast_chains_given_a_wide_projection_when_each_path_is_within_budget",
+      "name": "should_admit_independent_cast_chains_given_a_wide_projection_when_each_path_is_within_budget",
+      "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
+      "line": 750,
+      "end_line": 764,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_expressions::should_admit_independent_cast_chains_given_a_wide_projection_when_each_path_is_within_budget"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/expressions",
+        "directory": "tests/parser_types/grammar/expressions",
+        "file": "tests/parser_types/grammar/expressions/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/expressions/semantics.rs::should_bound_nested_query_cast_depth_given_an_exists_operand_when_postfix_casts_are_added",
+      "name": "should_bound_nested_query_cast_depth_given_an_exists_operand_when_postfix_casts_are_added",
+      "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
+      "line": 767,
+      "end_line": 781,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_expressions::should_bound_nested_query_cast_depth_given_an_exists_operand_when_postfix_casts_are_added"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/expressions",
+        "directory": "tests/parser_types/grammar/expressions",
+        "file": "tests/parser_types/grammar/expressions/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_parse_order_by_nulls_last",
       "name": "should_parse_order_by_nulls_last",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 526,
-      "end_line": 541,
+      "line": 784,
+      "end_line": 799,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -51889,8 +52602,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_parse_exists_predicate",
       "name": "should_parse_exists_predicate",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 544,
-      "end_line": 556,
+      "line": 802,
+      "end_line": 814,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -51920,8 +52633,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_parse_not_exists_predicate",
       "name": "should_parse_not_exists_predicate",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 559,
-      "end_line": 574,
+      "line": 817,
+      "end_line": 832,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -51951,8 +52664,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_reject_not_without_expression",
       "name": "should_reject_not_without_expression",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 577,
-      "end_line": 587,
+      "line": 835,
+      "end_line": 845,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -51982,8 +52695,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_reject_empty_in_list_predicate",
       "name": "should_reject_empty_in_list_predicate",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 590,
-      "end_line": 600,
+      "line": 848,
+      "end_line": 858,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52013,8 +52726,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_reject_exists_without_select_subquery",
       "name": "should_reject_exists_without_select_subquery",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 603,
-      "end_line": 613,
+      "line": 861,
+      "end_line": 871,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52351,11 +53064,73 @@
       }
     },
     {
+      "id": "tests/parser_types/grammar/functions/string/string_functions.rs::should_preserve_nested_keyword_arguments_given_quoted_clause_words_when_text_calls_execute",
+      "name": "should_preserve_nested_keyword_arguments_given_quoted_clause_words_when_text_calls_execute",
+      "current_file": "tests/parser_types/grammar/functions/string/string_functions.rs",
+      "line": 8,
+      "end_line": 35,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_string_functions::should_preserve_nested_keyword_arguments_given_quoted_clause_words_when_text_calls_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/functions/string",
+        "directory": "tests/parser_types/grammar/functions/string",
+        "file": "tests/parser_types/grammar/functions/string/string_functions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/functions/string/string_functions.rs::should_reject_missing_keyword_operands_given_text_call_syntax_when_statements_are_parsed",
+      "name": "should_reject_missing_keyword_operands_given_text_call_syntax_when_statements_are_parsed",
+      "current_file": "tests/parser_types/grammar/functions/string/string_functions.rs",
+      "line": 38,
+      "end_line": 57,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_string_functions::should_reject_missing_keyword_operands_given_text_call_syntax_when_statements_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/functions/string",
+        "directory": "tests/parser_types/grammar/functions/string",
+        "file": "tests/parser_types/grammar/functions/string/string_functions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/parser_types/grammar/functions/string/string_functions.rs::should_execute_substring_from_for_syntax",
       "name": "should_execute_substring_from_for_syntax",
       "current_file": "tests/parser_types/grammar/functions/string/string_functions.rs",
-      "line": 8,
-      "end_line": 20,
+      "line": 60,
+      "end_line": 72,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52385,8 +53160,8 @@
       "id": "tests/parser_types/grammar/functions/string/string_functions.rs::should_execute_substring_with_only_a_start_or_count",
       "name": "should_execute_substring_with_only_a_start_or_count",
       "current_file": "tests/parser_types/grammar/functions/string/string_functions.rs",
-      "line": 23,
-      "end_line": 40,
+      "line": 75,
+      "end_line": 92,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52416,8 +53191,8 @@
       "id": "tests/parser_types/grammar/functions/string/string_functions.rs::should_execute_position_substring_in_string_syntax",
       "name": "should_execute_position_substring_in_string_syntax",
       "current_file": "tests/parser_types/grammar/functions/string/string_functions.rs",
-      "line": 43,
-      "end_line": 55,
+      "line": 95,
+      "end_line": 107,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52447,8 +53222,8 @@
       "id": "tests/parser_types/grammar/functions/string/string_functions.rs::should_execute_trim_directions_with_explicit_character_sets",
       "name": "should_execute_trim_directions_with_explicit_character_sets",
       "current_file": "tests/parser_types/grammar/functions/string/string_functions.rs",
-      "line": 58,
-      "end_line": 78,
+      "line": 110,
+      "end_line": 130,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52478,8 +53253,8 @@
       "id": "tests/parser_types/grammar/functions/string/string_functions.rs::should_execute_trim_directions_with_default_space_sets",
       "name": "should_execute_trim_directions_with_default_space_sets",
       "current_file": "tests/parser_types/grammar/functions/string/string_functions.rs",
-      "line": 81,
-      "end_line": 99,
+      "line": 133,
+      "end_line": 151,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55331,7 +56106,7 @@
       "name": "should_parse_transaction_control_statements",
       "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
       "line": 140,
-      "end_line": 164,
+      "end_line": 162,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55358,11 +56133,135 @@
       }
     },
     {
+      "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_preserve_begin_isolation_given_noise_words_when_transaction_aliases_are_parsed",
+      "name": "should_preserve_begin_isolation_given_noise_words_when_transaction_aliases_are_parsed",
+      "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+      "line": 165,
+      "end_line": 195,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_dml_transactions::should_preserve_begin_isolation_given_noise_words_when_transaction_aliases_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/mutations",
+        "directory": "tests/parser_types/grammar/mutations",
+        "file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_preserve_action_given_end_aliases_and_no_chain_when_transactions_are_parsed",
+      "name": "should_preserve_action_given_end_aliases_and_no_chain_when_transactions_are_parsed",
+      "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+      "line": 198,
+      "end_line": 228,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_dml_transactions::should_preserve_action_given_end_aliases_and_no_chain_when_transactions_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/mutations",
+        "directory": "tests/parser_types/grammar/mutations",
+        "file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_preserve_savepoint_given_rollback_noise_words_when_transaction_aliases_are_parsed",
+      "name": "should_preserve_savepoint_given_rollback_noise_words_when_transaction_aliases_are_parsed",
+      "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+      "line": 231,
+      "end_line": 260,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_dml_transactions::should_preserve_savepoint_given_rollback_noise_words_when_transaction_aliases_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/mutations",
+        "directory": "tests/parser_types/grammar/mutations",
+        "file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_reject_invalid_suffixes_given_transaction_aliases_when_controls_are_parsed",
+      "name": "should_reject_invalid_suffixes_given_transaction_aliases_when_controls_are_parsed",
+      "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+      "line": 263,
+      "end_line": 291,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_dml_transactions::should_reject_invalid_suffixes_given_transaction_aliases_when_controls_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/mutations",
+        "directory": "tests/parser_types/grammar/mutations",
+        "file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_parse_savepoint_transaction_control_statement",
       "name": "should_parse_savepoint_transaction_control_statement",
       "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
-      "line": 167,
-      "end_line": 182,
+      "line": 294,
+      "end_line": 309,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55392,8 +56291,8 @@
       "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_parse_quoted_savepoint_transaction_control_statement",
       "name": "should_parse_quoted_savepoint_transaction_control_statement",
       "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
-      "line": 185,
-      "end_line": 202,
+      "line": 312,
+      "end_line": 329,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55423,8 +56322,8 @@
       "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_parse_rollback_to_savepoint_transaction_control_statement",
       "name": "should_parse_rollback_to_savepoint_transaction_control_statement",
       "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
-      "line": 205,
-      "end_line": 220,
+      "line": 332,
+      "end_line": 347,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55454,8 +56353,8 @@
       "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_parse_release_savepoint_transaction_control_statement",
       "name": "should_parse_release_savepoint_transaction_control_statement",
       "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
-      "line": 223,
-      "end_line": 238,
+      "line": 350,
+      "end_line": 365,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55485,8 +56384,8 @@
       "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_reject_savepoint_without_name",
       "name": "should_reject_savepoint_without_name",
       "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
-      "line": 241,
-      "end_line": 251,
+      "line": 368,
+      "end_line": 378,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55516,8 +56415,8 @@
       "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_reject_transaction_isolation_level_changes",
       "name": "should_reject_transaction_isolation_level_changes",
       "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
-      "line": 254,
-      "end_line": 264,
+      "line": 381,
+      "end_line": 391,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55547,8 +56446,8 @@
       "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_reject_two_phase_transaction_control",
       "name": "should_reject_two_phase_transaction_control",
       "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
-      "line": 267,
-      "end_line": 277,
+      "line": 394,
+      "end_line": 404,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55557,6 +56456,99 @@
         {
           "suite": "parser_types",
           "name": "parser_dml_transactions::should_reject_two_phase_transaction_control"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/mutations",
+        "directory": "tests/parser_types/grammar/mutations",
+        "file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_preserve_characteristics_given_multiple_begin_modes_when_transaction_sql_is_parsed",
+      "name": "should_preserve_characteristics_given_multiple_begin_modes_when_transaction_sql_is_parsed",
+      "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+      "line": 407,
+      "end_line": 431,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_dml_transactions::should_preserve_characteristics_given_multiple_begin_modes_when_transaction_sql_is_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/mutations",
+        "directory": "tests/parser_types/grammar/mutations",
+        "file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_distinguish_chain_given_end_controls_when_transaction_sql_is_parsed",
+      "name": "should_distinguish_chain_given_end_controls_when_transaction_sql_is_parsed",
+      "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+      "line": 434,
+      "end_line": 456,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_dml_transactions::should_distinguish_chain_given_end_controls_when_transaction_sql_is_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/mutations",
+        "directory": "tests/parser_types/grammar/mutations",
+        "file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/mutations/dml_transactions.rs::should_reject_incomplete_modes_given_begin_options_when_transaction_sql_is_parsed",
+      "name": "should_reject_incomplete_modes_given_begin_options_when_transaction_sql_is_parsed",
+      "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
+      "line": 459,
+      "end_line": 480,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_dml_transactions::should_reject_incomplete_modes_given_begin_options_when_transaction_sql_is_parsed"
         }
       ],
       "attributes": [
@@ -55854,8 +56846,8 @@
       }
     },
     {
-      "id": "tests/parser_types/grammar/parameters.rs::should_bind_postgres_chained_type_casts",
-      "name": "should_bind_postgres_chained_type_casts",
+      "id": "tests/parser_types/grammar/parameters.rs::should_accept_type_keyword_separators_given_double_precision_casts_when_projected",
+      "name": "should_accept_type_keyword_separators_given_double_precision_casts_when_projected",
       "current_file": "tests/parser_types/grammar/parameters.rs",
       "line": 17,
       "end_line": 28,
@@ -55866,7 +56858,162 @@
       "instances": [
         {
           "suite": "parser_types",
+          "name": "parser_types::postgresql18_grammar::should_accept_type_keyword_separators_given_double_precision_casts_when_projected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar",
+        "directory": "tests/parser_types/grammar",
+        "file": "tests/parser_types/grammar/parameters.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/parameters.rs::should_bind_postgres_chained_type_casts",
+      "name": "should_bind_postgres_chained_type_casts",
+      "current_file": "tests/parser_types/grammar/parameters.rs",
+      "line": 31,
+      "end_line": 42,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
           "name": "parser_types::postgresql18_grammar::should_bind_postgres_chained_type_casts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar",
+        "directory": "tests/parser_types/grammar",
+        "file": "tests/parser_types/grammar/parameters.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/parameters.rs::should_evaluate_parenthesized_cast_operands_given_nested_arithmetic_when_projected",
+      "name": "should_evaluate_parenthesized_cast_operands_given_nested_arithmetic_when_projected",
+      "current_file": "tests/parser_types/grammar/parameters.rs",
+      "line": 45,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_grammar::should_evaluate_parenthesized_cast_operands_given_nested_arithmetic_when_projected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar",
+        "directory": "tests/parser_types/grammar",
+        "file": "tests/parser_types/grammar/parameters.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/parameters.rs::should_preserve_builtin_identity_given_pg_catalog_qualified_casts_when_projected",
+      "name": "should_preserve_builtin_identity_given_pg_catalog_qualified_casts_when_projected",
+      "current_file": "tests/parser_types/grammar/parameters.rs",
+      "line": 63,
+      "end_line": 87,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_grammar::should_preserve_builtin_identity_given_pg_catalog_qualified_casts_when_projected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar",
+        "directory": "tests/parser_types/grammar",
+        "file": "tests/parser_types/grammar/parameters.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/parameters.rs::should_preserve_case_arguments_given_inner_operators_and_postfix_casts_when_functions_are_evaluated",
+      "name": "should_preserve_case_arguments_given_inner_operators_and_postfix_casts_when_functions_are_evaluated",
+      "current_file": "tests/parser_types/grammar/parameters.rs",
+      "line": 90,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_grammar::should_preserve_case_arguments_given_inner_operators_and_postfix_casts_when_functions_are_evaluated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar",
+        "directory": "tests/parser_types/grammar",
+        "file": "tests/parser_types/grammar/parameters.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/parameters.rs::should_preserve_dollar_quoted_case_results_given_keywords_and_apostrophes_when_projected_and_passed_to_functions",
+      "name": "should_preserve_dollar_quoted_case_results_given_keywords_and_apostrophes_when_projected_and_passed_to_functions",
+      "current_file": "tests/parser_types/grammar/parameters.rs",
+      "line": 114,
+      "end_line": 137,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_grammar::should_preserve_dollar_quoted_case_results_given_keywords_and_apostrophes_when_projected_and_passed_to_functions"
         }
       ],
       "attributes": [
@@ -62593,6 +63740,99 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs::should_reject_invalid_boolean_calls_given_wrong_types_literals_arity_and_star_when_parse_flush_is_sent",
+      "name": "should_reject_invalid_boolean_calls_given_wrong_types_literals_arity_and_star_when_parse_flush_is_sent",
+      "current_file": "tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs",
+      "line": 43,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_aggregate_errors::should_reject_invalid_boolean_calls_given_wrong_types_literals_arity_and_star_when_parse_flush_is_sent"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/boolean",
+        "directory": "tests/pgwire_extended/aggregates/boolean",
+        "file": "tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs::should_reject_invalid_boolean_calls_given_simple_queries_when_no_partial_result_is_published",
+      "name": "should_reject_invalid_boolean_calls_given_simple_queries_when_no_partial_result_is_published",
+      "current_file": "tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs",
+      "line": 88,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_aggregate_errors::should_reject_invalid_boolean_calls_given_simple_queries_when_no_partial_result_is_published"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/boolean",
+        "directory": "tests/pgwire_extended/aggregates/boolean",
+        "file": "tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs::should_reject_typed_non_boolean_inputs_given_an_empty_table_when_simple_and_parse_queries_are_sent",
+      "name": "should_reject_typed_non_boolean_inputs_given_an_empty_table_when_simple_and_parse_queries_are_sent",
+      "current_file": "tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs",
+      "line": 125,
+      "end_line": 185,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_aggregate_errors::should_reject_typed_non_boolean_inputs_given_an_empty_table_when_simple_and_parse_queries_are_sent"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/boolean",
+        "directory": "tests/pgwire_extended/aggregates/boolean",
+        "file": "tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs::should_cancel_boolean_aggregate_input_without_publishing_partial_output",
       "name": "should_cancel_boolean_aggregate_input_without_publishing_partial_output",
       "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs",
@@ -62668,6 +63908,68 @@
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::postgresql18_aggregate_errors::boolean_value_semantics::should_return_boolean_aggregate_truth_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/boolean",
+        "directory": "tests/pgwire_extended/aggregates/boolean",
+        "file": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs::should_preserve_boolean_parameter_and_result_identity_given_oid_zero_and_binary_bind_when_aggregates_execute",
+      "name": "should_preserve_boolean_parameter_and_result_identity_given_oid_zero_and_binary_bind_when_aggregates_execute",
+      "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs",
+      "line": 80,
+      "end_line": 138,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_aggregate_errors::boolean_value_semantics::should_preserve_boolean_parameter_and_result_identity_given_oid_zero_and_binary_bind_when_aggregates_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/boolean",
+        "directory": "tests/pgwire_extended/aggregates/boolean",
+        "file": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs::should_preserve_declared_scalar_calls_given_boolean_aggregate_names_when_scoped_routines_execute",
+      "name": "should_preserve_declared_scalar_calls_given_boolean_aggregate_names_when_scoped_routines_execute",
+      "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs",
+      "line": 141,
+      "end_line": 218,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_aggregate_errors::boolean_value_semantics::should_preserve_declared_scalar_calls_given_boolean_aggregate_names_when_scoped_routines_execute"
         }
       ],
       "attributes": [
@@ -63133,6 +64435,68 @@
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::postgresql18_aggregate_errors::distinct_order_by_argument::should_reject_distinct_aggregate_order_key_outside_arguments_with_42p10"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/modifiers",
+        "directory": "tests/pgwire_extended/aggregates/modifiers",
+        "file": "tests/pgwire_extended/aggregates/modifiers/distinct_order_by_argument.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/modifiers/distinct_order_by_argument.rs::should_preserve_modifier_semantics_given_real_tables_and_scoped_scalars_when_simple_and_parse_phases_execute",
+      "name": "should_preserve_modifier_semantics_given_real_tables_and_scoped_scalars_when_simple_and_parse_phases_execute",
+      "current_file": "tests/pgwire_extended/aggregates/modifiers/distinct_order_by_argument.rs",
+      "line": 59,
+      "end_line": 147,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_aggregate_errors::distinct_order_by_argument::should_preserve_modifier_semantics_given_real_tables_and_scoped_scalars_when_simple_and_parse_phases_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/modifiers",
+        "directory": "tests/pgwire_extended/aggregates/modifiers",
+        "file": "tests/pgwire_extended/aggregates/modifiers/distinct_order_by_argument.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/modifiers/distinct_order_by_argument.rs::should_reject_invalid_aggregate_types_given_empty_tables_and_false_filters_when_calls_are_bound",
+      "name": "should_reject_invalid_aggregate_types_given_empty_tables_and_false_filters_when_calls_are_bound",
+      "current_file": "tests/pgwire_extended/aggregates/modifiers/distinct_order_by_argument.rs",
+      "line": 150,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_aggregate_errors::distinct_order_by_argument::should_reject_invalid_aggregate_types_given_empty_tables_and_false_filters_when_calls_are_bound"
         }
       ],
       "attributes": [
@@ -67956,6 +69320,130 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/functions/string/text_selection.rs::should_infer_text_selection_parameters_given_unknown_oids_when_binary_results_are_described_and_executed",
+      "name": "should_infer_text_selection_parameters_given_unknown_oids_when_binary_results_are_described_and_executed",
+      "current_file": "tests/pgwire_extended/functions/string/text_selection.rs",
+      "line": 6,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_string_compat::text_selection::should_infer_text_selection_parameters_given_unknown_oids_when_binary_results_are_described_and_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "functions/string",
+        "directory": "tests/pgwire_extended/functions/string",
+        "file": "tests/pgwire_extended/functions/string/text_selection.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/functions/string/text_selection.rs::should_preserve_text_error_states_given_strict_null_controls_when_the_connection_is_reused",
+      "name": "should_preserve_text_error_states_given_strict_null_controls_when_the_connection_is_reused",
+      "current_file": "tests/pgwire_extended/functions/string/text_selection.rs",
+      "line": 116,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_string_compat::text_selection::should_preserve_text_error_states_given_strict_null_controls_when_the_connection_is_reused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "functions/string",
+        "directory": "tests/pgwire_extended/functions/string",
+        "file": "tests/pgwire_extended/functions/string/text_selection.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/functions/string/text_selection.rs::should_reject_invalid_text_overloads_given_typed_nulls_when_simple_and_parse_phases_are_checked",
+      "name": "should_reject_invalid_text_overloads_given_typed_nulls_when_simple_and_parse_phases_are_checked",
+      "current_file": "tests/pgwire_extended/functions/string/text_selection.rs",
+      "line": 170,
+      "end_line": 204,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_string_compat::text_selection::should_reject_invalid_text_overloads_given_typed_nulls_when_simple_and_parse_phases_are_checked"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "functions/string",
+        "directory": "tests/pgwire_extended/functions/string",
+        "file": "tests/pgwire_extended/functions/string/text_selection.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/functions/string/text_selection.rs::should_preserve_regex_overload_identity_given_unknown_substring_parameters_when_parse_describes_pending_execution",
+      "name": "should_preserve_regex_overload_identity_given_unknown_substring_parameters_when_parse_describes_pending_execution",
+      "current_file": "tests/pgwire_extended/functions/string/text_selection.rs",
+      "line": 207,
+      "end_line": 248,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_string_compat::text_selection::should_preserve_regex_overload_identity_given_unknown_substring_parameters_when_parse_describes_pending_execution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "functions/string",
+        "directory": "tests/pgwire_extended/functions/string",
+        "file": "tests/pgwire_extended/functions/string/text_selection.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/functions/temporal/clock_observation.rs::should_describe_pg_sleep_float8_result_as_void",
       "name": "should_describe_pg_sleep_float8_result_as_void",
       "current_file": "tests/pgwire_extended/functions/temporal/clock_observation.rs",
@@ -68700,6 +70188,99 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/grammar/chained_cast_binary.rs::should_preserve_unsized_varchar_identity_given_a_qualified_type_when_a_value_is_described",
+      "name": "should_preserve_unsized_varchar_identity_given_a_qualified_type_when_a_value_is_described",
+      "current_file": "tests/pgwire_extended/grammar/chained_cast_binary.rs",
+      "line": 160,
+      "end_line": 185,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::grammar_chained_cast_binary::should_preserve_unsized_varchar_identity_given_a_qualified_type_when_a_value_is_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/chained_cast_binary.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/dollar_quotes.rs::should_preserve_dollar_quoted_values_given_literal_delimiters_when_a_following_query_executes",
+      "name": "should_preserve_dollar_quoted_values_given_literal_delimiters_when_a_following_query_executes",
+      "current_file": "tests/pgwire_extended/grammar/dollar_quotes.rs",
+      "line": 7,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::grammar_dollar_quotes::should_preserve_dollar_quoted_values_given_literal_delimiters_when_a_following_query_executes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/dollar_quotes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/dollar_quotes.rs::should_reject_the_whole_batch_given_an_unmatched_dollar_quote_when_ddl_precedes_the_literal",
+      "name": "should_reject_the_whole_batch_given_an_unmatched_dollar_quote_when_ddl_precedes_the_literal",
+      "current_file": "tests/pgwire_extended/grammar/dollar_quotes.rs",
+      "line": 55,
+      "end_line": 99,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::grammar_dollar_quotes::should_reject_the_whole_batch_given_an_unmatched_dollar_quote_when_ddl_precedes_the_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/dollar_quotes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/grammar/errors.rs::should_report_postgres_collation_conflicts_with_sqlstate_42p21",
       "name": "should_report_postgres_collation_conflicts_with_sqlstate_42p21",
       "current_file": "tests/pgwire_extended/grammar/errors.rs",
@@ -68944,6 +70525,130 @@
         "file": "tests/pgwire_extended/grammar/join_using_errors.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/lexical_literals.rs::should_preserve_integer_literal_identities_given_radix_and_digit_separators_when_queries_execute",
+      "name": "should_preserve_integer_literal_identities_given_radix_and_digit_separators_when_queries_execute",
+      "current_file": "tests/pgwire_extended/grammar/lexical_literals.rs",
+      "line": 7,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::grammar_lexical_literals::should_preserve_integer_literal_identities_given_radix_and_digit_separators_when_queries_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/lexical_literals.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/lexical_literals.rs::should_decode_string_literal_forms_given_unicode_escapes_and_continuations_when_values_are_projected",
+      "name": "should_decode_string_literal_forms_given_unicode_escapes_and_continuations_when_values_are_projected",
+      "current_file": "tests/pgwire_extended/grammar/lexical_literals.rs",
+      "line": 63,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::grammar_lexical_literals::should_decode_string_literal_forms_given_unicode_escapes_and_continuations_when_values_are_projected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/lexical_literals.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/lexical_literals.rs::should_resolve_unicode_identifiers_given_default_and_custom_escapes_when_ddl_and_queries_share_names",
+      "name": "should_resolve_unicode_identifiers_given_default_and_custom_escapes_when_ddl_and_queries_share_names",
+      "current_file": "tests/pgwire_extended/grammar/lexical_literals.rs",
+      "line": 127,
+      "end_line": 160,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::grammar_lexical_literals::should_resolve_unicode_identifiers_given_default_and_custom_escapes_when_ddl_and_queries_share_names"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/lexical_literals.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/lexical_literals.rs::should_reject_malformed_literals_given_valid_typed_controls_when_the_connection_recovers_after_each_error",
+      "name": "should_reject_malformed_literals_given_valid_typed_controls_when_the_connection_recovers_after_each_error",
+      "current_file": "tests/pgwire_extended/grammar/lexical_literals.rs",
+      "line": 163,
+      "end_line": 215,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::grammar_lexical_literals::should_reject_malformed_literals_given_valid_typed_controls_when_the_connection_recovers_after_each_error"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/lexical_literals.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -71534,6 +73239,99 @@
         {
           "suite": "pgwire_extended",
           "name": "pgwire_portal_completion::should_drop_suspended_portal_when_extended_commit_ends_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "portals",
+        "directory": "tests/pgwire_extended/portals",
+        "file": "tests/pgwire_extended/portals/portal_completion.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/portals/portal_completion.rs::should_drop_suspended_portal_given_commit_chain_when_next_transaction_remains_open",
+      "name": "should_drop_suspended_portal_given_commit_chain_when_next_transaction_remains_open",
+      "current_file": "tests/pgwire_extended/portals/portal_completion.rs",
+      "line": 375,
+      "end_line": 455,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_portal_completion::should_drop_suspended_portal_given_commit_chain_when_next_transaction_remains_open"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "portals",
+        "directory": "tests/pgwire_extended/portals",
+        "file": "tests/pgwire_extended/portals/portal_completion.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/portals/portal_completion.rs::should_use_default_characteristics_given_failed_transaction_when_commit_or_rollback_chains",
+      "name": "should_use_default_characteristics_given_failed_transaction_when_commit_or_rollback_chains",
+      "current_file": "tests/pgwire_extended/portals/portal_completion.rs",
+      "line": 458,
+      "end_line": 496,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_portal_completion::should_use_default_characteristics_given_failed_transaction_when_commit_or_rollback_chains"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "portals",
+        "directory": "tests/pgwire_extended/portals",
+        "file": "tests/pgwire_extended/portals/portal_completion.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/portals/portal_completion.rs::should_report_transaction_status_given_implicit_begin_modes_when_prior_query_established_boundary",
+      "name": "should_report_transaction_status_given_implicit_begin_modes_when_prior_query_established_boundary",
+      "current_file": "tests/pgwire_extended/portals/portal_completion.rs",
+      "line": 499,
+      "end_line": 589,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_portal_completion::should_report_transaction_status_given_implicit_begin_modes_when_prior_query_established_boundary"
         }
       ],
       "attributes": [
@@ -138977,11 +140775,73 @@
       }
     },
     {
+      "id": "tests/sql_queries/names/own_qualified_references.rs::should_resolve_aggregate_clauses_given_own_qualified_columns_when_values_and_types_are_projected",
+      "name": "should_resolve_aggregate_clauses_given_own_qualified_columns_when_values_and_types_are_projected",
+      "current_file": "tests/sql_queries/names/own_qualified_references.rs",
+      "line": 9,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "own_qualified_references::should_resolve_aggregate_clauses_given_own_qualified_columns_when_values_and_types_are_projected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "names",
+        "directory": "tests/sql_queries/names",
+        "file": "tests/sql_queries/names/own_qualified_references.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/names/own_qualified_references.rs::should_resolve_aggregate_clauses_given_a_quoted_relation_alias_when_filter_parameters_are_bound",
+      "name": "should_resolve_aggregate_clauses_given_a_quoted_relation_alias_when_filter_parameters_are_bound",
+      "current_file": "tests/sql_queries/names/own_qualified_references.rs",
+      "line": 55,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "own_qualified_references::should_resolve_aggregate_clauses_given_a_quoted_relation_alias_when_filter_parameters_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "names",
+        "directory": "tests/sql_queries/names",
+        "file": "tests/sql_queries/names/own_qualified_references.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/names/own_qualified_references.rs::should_project_a_column_qualified_by_its_own_table",
       "name": "should_project_a_column_qualified_by_its_own_table",
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
-      "line": 45,
-      "end_line": 65,
+      "line": 121,
+      "end_line": 141,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -139011,8 +140871,8 @@
       "id": "tests/sql_queries/names/own_qualified_references.rs::should_filter_on_a_column_qualified_by_its_own_table",
       "name": "should_filter_on_a_column_qualified_by_its_own_table",
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
-      "line": 68,
-      "end_line": 97,
+      "line": 144,
+      "end_line": 173,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -139042,8 +140902,8 @@
       "id": "tests/sql_queries/names/own_qualified_references.rs::should_filter_an_indexed_column_qualified_by_its_own_table",
       "name": "should_filter_an_indexed_column_qualified_by_its_own_table",
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
-      "line": 100,
-      "end_line": 117,
+      "line": 176,
+      "end_line": 193,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -139073,8 +140933,8 @@
       "id": "tests/sql_queries/names/own_qualified_references.rs::should_aggregate_columns_qualified_by_their_own_table",
       "name": "should_aggregate_columns_qualified_by_their_own_table",
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
-      "line": 120,
-      "end_line": 142,
+      "line": 196,
+      "end_line": 218,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -139104,8 +140964,8 @@
       "id": "tests/sql_queries/names/own_qualified_references.rs::should_top_k_order_a_column_qualified_by_its_own_table",
       "name": "should_top_k_order_a_column_qualified_by_its_own_table",
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
-      "line": 145,
-      "end_line": 159,
+      "line": 221,
+      "end_line": 235,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -139135,8 +140995,8 @@
       "id": "tests/sql_queries/names/own_qualified_references.rs::should_filter_a_cte_column_qualified_by_the_cte_name",
       "name": "should_filter_a_cte_column_qualified_by_the_cte_name",
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
-      "line": 162,
-      "end_line": 176,
+      "line": 238,
+      "end_line": 252,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -139166,8 +141026,8 @@
       "id": "tests/sql_queries/names/own_qualified_references.rs::should_update_rows_matched_on_a_column_qualified_by_its_own_table",
       "name": "should_update_rows_matched_on_a_column_qualified_by_its_own_table",
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
-      "line": 179,
-      "end_line": 197,
+      "line": 255,
+      "end_line": 273,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -139197,8 +141057,8 @@
       "id": "tests/sql_queries/names/own_qualified_references.rs::should_delete_rows_matched_on_a_column_qualified_by_its_own_table",
       "name": "should_delete_rows_matched_on_a_column_qualified_by_its_own_table",
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
-      "line": 200,
-      "end_line": 214,
+      "line": 276,
+      "end_line": 290,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -139228,8 +141088,8 @@
       "id": "tests/sql_queries/names/own_qualified_references.rs::should_resolve_a_lateral_body_column_qualified_by_its_own_table",
       "name": "should_resolve_a_lateral_body_column_qualified_by_its_own_table",
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
-      "line": 217,
-      "end_line": 246,
+      "line": 293,
+      "end_line": 322,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -170694,9 +172554,9 @@
       "current_file": "tests/catalog_security/catalogs/system_information/catalog_lookup.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 138,
-      "sha256": "116a404fe0f43d3ff67b9ca502322317e47b60b6ce95896eb0aaaa6cbe1467c7",
-      "test_declarations": 7,
+      "lines": 182,
+      "sha256": "ae89aafeadd06063757a0d1e03fd9ded2a4e52173542e256a0414d6e8ee18d24",
+      "test_declarations": 8,
       "registered_suites": [
         "catalog_security"
       ],
@@ -170874,9 +172734,9 @@
       "current_file": "tests/catalog_security/catalogs/types/catalog_information/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 168,
-      "sha256": "c0fdeacd6c80653a71b2c9bca8a958fecf29f0ba2ae9ef37aacfb37f99b9533f",
-      "test_declarations": 5,
+      "lines": 246,
+      "sha256": "c70e9b8968533c9d80bc21671232aaeff15498c3bbfaf84c5d93cd0e2a06eeb1",
+      "test_declarations": 6,
       "registered_suites": [
         "catalog_security"
       ],
@@ -174804,9 +176664,9 @@
       "current_file": "tests/compatibility/lifecycle/sessions/set_session.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 527,
-      "sha256": "956b8febd6fba568935823bb4f350abf74163025cc2d1520255d7ffa9e4c0e9d",
-      "test_declarations": 11,
+      "lines": 796,
+      "sha256": "3c73e2007bd8d47ea5a18306362eef1b11efa40ae188b78f92d8ede50de4232a",
+      "test_declarations": 16,
       "registered_suites": [
         "compatibility"
       ],
@@ -175254,8 +177114,8 @@
       "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 616,
-      "sha256": "e7cf8509a024da856539ea92d32ccdd1d1b2abf7376a4a5e2f78a7ff62543710",
+      "lines": 618,
+      "sha256": "e98b95042beb149bdf26b33f94562eaa021c2d6827f35bdc3e711fff44354e0d",
       "test_declarations": 9,
       "registered_suites": [
         "compatibility"
@@ -175329,9 +177189,9 @@
       "current_file": "tests/compatibility/lifecycle/transactions/transaction_chaining.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 93,
-      "sha256": "84e77f99956b0cddd59d58ac701fcda60c75cde862a9511448a424ffaa2737a5",
-      "test_declarations": 2,
+      "lines": 202,
+      "sha256": "85c386a3ab18c2abd2312495fc47b6f855b48f617e324bde909f492de2fbf585",
+      "test_declarations": 4,
       "registered_suites": [
         "compatibility"
       ],
@@ -176527,8 +178387,8 @@
       "current_file": "tests/executor/commands/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 856,
-      "sha256": "e99b860f6d80c844bd2ae7050033b5598daf37adb17b569ac174bdcb490d95a0",
+      "lines": 857,
+      "sha256": "8c019ea0ae8fb1c95169e4f0d5fbe5dcfcd5d8d1b324614634ad9b111b0b6370",
       "test_declarations": 13,
       "registered_suites": [
         "executor"
@@ -177621,9 +179481,9 @@
       "current_file": "tests/parser_types/grammar/core.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 359,
-      "sha256": "2f00e4ee219e630759f28507e3f6e64d50023c62088c5a6d96ddba4387bbfc10",
-      "test_declarations": 17,
+      "lines": 515,
+      "sha256": "561bca7721974e12da4fa91c10bfae4667366813b9e20b5cc18a8788c3ff2b00",
+      "test_declarations": 22,
       "registered_suites": [
         "parser_types"
       ],
@@ -177756,9 +179616,9 @@
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 613,
-      "sha256": "081eeede9bf5327e5bf1bd2e83d8da387939428a62ab75dd7544619279bbd0b9",
-      "test_declarations": 26,
+      "lines": 871,
+      "sha256": "7751ae17639c4993ae0f449206f290e87929b4a4894b5103710ff40f670a1eaf",
+      "test_declarations": 35,
       "registered_suites": [
         "parser_types"
       ],
@@ -177831,9 +179691,9 @@
       "current_file": "tests/parser_types/grammar/functions/string/string_functions.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 99,
-      "sha256": "13ad6cb567542e93cf768591b4a2eb4dc4e2bccd1013e30c1ed62cac2b1691ef",
-      "test_declarations": 5,
+      "lines": 151,
+      "sha256": "c5098dc1333b73551e1f874cb04914fc6e2d5dff2fe7f1be1d68c9b0f8968988",
+      "test_declarations": 7,
       "registered_suites": [
         "parser_types"
       ],
@@ -178056,9 +179916,9 @@
       "current_file": "tests/parser_types/grammar/mutations/dml_transactions.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 277,
-      "sha256": "ff7bbd589f039ffa38911d7171c48d7059fb62fd54e813f58b78802984dee542",
-      "test_declarations": 13,
+      "lines": 480,
+      "sha256": "934e0857ca09816366f140ae72ad34b9a81ca859199f816ee41af426de5bbdc6",
+      "test_declarations": 20,
       "registered_suites": [
         "parser_types"
       ],
@@ -178131,9 +179991,9 @@
       "current_file": "tests/parser_types/grammar/parameters.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 28,
-      "sha256": "26b53215629296276ef95fffd44dc606c3b7b5b039c84b8fe790260a3d031a3a",
-      "test_declarations": 2,
+      "lines": 137,
+      "sha256": "a3d489a03040800ebaf9cb3025bc0a0f4ec5a150653192bd79003e57730aefae",
+      "test_declarations": 7,
       "registered_suites": [
         "parser_types"
       ],
@@ -179021,9 +180881,9 @@
       "current_file": "tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 40,
-      "sha256": "ced91601a47dec3fd9a30a0148427396d5661d11c04c6a783d89d7a35c40a0c9",
-      "test_declarations": 1,
+      "lines": 185,
+      "sha256": "786b3be7802c4e0b0fbfe5bc9b7f020ca41f086301297062814513a55990f268",
+      "test_declarations": 4,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -179066,9 +180926,9 @@
       "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 77,
-      "sha256": "73f83d8e4e5f030ccd638f27ffd0947fe55e0db81cca3dca74ef541a023304db",
-      "test_declarations": 1,
+      "lines": 218,
+      "sha256": "02861ebaf45289d6c56e85c6829c1dd5b304f50b2d09b4c1bc7815985c5c9e81",
+      "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -179201,9 +181061,9 @@
       "current_file": "tests/pgwire_extended/aggregates/modifiers/distinct_order_by_argument.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 56,
-      "sha256": "301e7b61128d678c97ac54a1dd765007fb21ec048a5c28c2d31415de97eb015c",
-      "test_declarations": 1,
+      "lines": 198,
+      "sha256": "8108b969ad7d8397cc589e6982714a125e51324c907205201393088ce1544626",
+      "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -180053,6 +181913,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/functions/string/text_selection.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 248,
+      "sha256": "6b45c8024da1c7723883c282075d6684dd841bd0a51cd1ce02d6fb6482334610",
+      "test_declarations": 4,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/functions/string/text_selection.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/functions/string_format.rs",
       "role": "module_registration",
       "action": "keep",
@@ -180071,8 +181946,8 @@
       "current_file": "tests/pgwire_extended/functions/string_functions.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 69,
-      "sha256": "91be1312c5aaaa15a704bf466f9bdffff5ac8ae6066ec8fdc13f095328936677",
+      "lines": 71,
+      "sha256": "a69f354603556efb70eb8059deb9a69c15367bd48e849f391b8c4baaae61e67a",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -180146,14 +182021,29 @@
       "current_file": "tests/pgwire_extended/grammar/chained_cast_binary.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 157,
-      "sha256": "6e8553646b3caeb2c074186f440575ef476959b785da9b04e76165de3afb962d",
-      "test_declarations": 1,
+      "lines": 185,
+      "sha256": "569723d397626f094b38a84547d1e2e09cb5f23172d4b0809dabb34311ab7051",
+      "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
       ],
       "destinations": [
         "tests/pgwire_extended/grammar/chained_cast_binary.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/dollar_quotes.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 99,
+      "sha256": "830e7a0ddaebf65cd7fcf4d7c9971f1d7f9b06aea830d1095118d776a9024bd5",
+      "test_declarations": 2,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/dollar_quotes.rs"
       ],
       "line_limit": 1000
     },
@@ -180184,6 +182074,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/grammar/join_using_errors.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/lexical_literals.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 215,
+      "sha256": "b12333dd1db4293df56aea5d63e61a21dbc55a94a9e09056190075b4e0b4474a",
+      "test_declarations": 4,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/lexical_literals.rs"
       ],
       "line_limit": 1000
     },
@@ -180476,8 +182381,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 169,
-      "sha256": "8ac726af5b6abe20bde6d3f26199585bcb667f2aa3550823827281d62901e33a",
+      "lines": 174,
+      "sha256": "46e28db1f879e35a73cccb255f1d758415b62c6fb1f2ea18a4ad47ff8961b04a",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -180821,9 +182726,9 @@
       "current_file": "tests/pgwire_extended/portals/portal_completion.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 372,
-      "sha256": "d59b100c5c9242dc678cf7ee15341981756124ef6362e43dfbac696a094c9b3d",
-      "test_declarations": 5,
+      "lines": 589,
+      "sha256": "5c8485ba4933755d5bf14c86ab3dd6e46e07a53050419a7380a009bdb725bc46",
+      "test_declarations": 8,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -188861,9 +190766,9 @@
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 246,
-      "sha256": "a782cecd64bb2ddb0aae4845b4139aad64b4a3bf64399706fa18bdcf3e3df98b",
-      "test_declarations": 9,
+      "lines": 322,
+      "sha256": "700a4999a01b921381a780347790f8bac729121909e04d4560d2cf4f92901499",
+      "test_declarations": 11,
       "registered_suites": [
         "sql_queries"
       ],
@@ -190557,8 +192462,8 @@
       "current_file": "tests/support/collection_aggregate_resources.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 397,
-      "sha256": "b91cf7f53cba5917c3dff01d8de122d9e4e7122a7bc706aea7cc69b43f4bd466",
+      "lines": 396,
+      "sha256": "33f0d3aded805555caacd98de30036f75767863c7dd1f181d7f1943b93ec11fc",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

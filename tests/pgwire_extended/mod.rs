@@ -84,6 +84,11 @@ mod functions_string_error_sqlstates;
 #[path = "grammar/chained_cast_binary.rs"]
 mod grammar_chained_cast_binary;
 
+#[path = "grammar/dollar_quotes.rs"]
+mod grammar_dollar_quotes;
+#[path = "grammar/lexical_literals.rs"]
+mod grammar_lexical_literals;
+
 #[path = "grammar/join_using_errors.rs"]
 mod grammar_join_using_errors;
 

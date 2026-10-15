@@ -43,21 +43,23 @@ fn should_merge_partial_array_extrema_without_losing_element_order() {
                 session,
                 "CREATE TABLE partial_arrays (arr BIGINT[])",
             );
-            for index in 0..1025 {
-                let array = match index {
-                    0 => serde_json::json!([2]),
-                    1024 => serde_json::json!([10]),
-                    _ => serde_json::json!([3]),
-                };
-                cassie
-                    .midge
-                    .put_document(
-                        "partial_arrays",
+            let documents = (0..1025)
+                .map(|index| {
+                    let array = match index {
+                        0 => serde_json::json!([2]),
+                        1024 => serde_json::json!([10]),
+                        _ => serde_json::json!([3]),
+                    };
+                    (
                         Some(format!("{index:04}")),
                         serde_json::json!({"arr":array}),
                     )
-                    .expect("partial ARRAY fixture");
-            }
+                })
+                .collect();
+            cassie
+                .midge
+                .put_documents("partial_arrays", documents)
+                .expect("partial ARRAY fixture");
             // Act
             let result = sql(
                 cassie,

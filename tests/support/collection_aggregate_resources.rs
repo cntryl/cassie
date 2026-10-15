@@ -83,21 +83,6 @@ async fn connect(address: SocketAddr) -> (OwnedReadHalf, OwnedWriteHalf, i32, i3
     (reader, writer, process_id, secret_key)
 }
 
-pub fn wide_input_query(aggregate_expression: &str) -> String {
-    let values = (1..=10)
-        .map(|value| format!("({value})"))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!(
-        "SELECT {aggregate_expression} \
-         FROM (VALUES {values}) AS a(n) \
-         CROSS JOIN (VALUES {values}) AS b(n) \
-         CROSS JOIN (VALUES {values}) AS c(n) \
-         CROSS JOIN (VALUES {values}) AS d(n) \
-         CROSS JOIN (VALUES {values}) AS e(n)"
-    )
-}
-
 pub fn integer_table_fixture_setup(table_name: &str, row_count: i32) -> Vec<String> {
     let mut statements = vec![format!("CREATE TABLE {table_name} (n INT4 PRIMARY KEY)")];
     for first in (1..=row_count).step_by(250) {
@@ -203,15 +188,6 @@ async fn wait_for_active_query_marker<R, W>(
     }
 }
 
-pub fn run_memory_budget_case(
-    label: &str,
-    control_sql: &str,
-    wide_control_sql: &str,
-    candidate_sql: &str,
-) -> ResourceCase {
-    run_memory_budget_case_with_setup(label, &[], control_sql, wide_control_sql, candidate_sql)
-}
-
 pub fn run_memory_budget_case_with_setup(
     label: &str,
     setup_sql: &[String],
@@ -269,14 +245,6 @@ pub fn run_memory_budget_case_with_setup(
     });
     drop(runtime);
     result
-}
-
-pub fn run_cancellation_case(
-    label: &str,
-    control_sql: &str,
-    candidate_sql: &str,
-) -> CancellationCase {
-    run_cancellation_case_with_setup(label, &[], control_sql, candidate_sql)
 }
 
 pub fn run_cancellation_case_with_setup(

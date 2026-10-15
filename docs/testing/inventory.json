@@ -5713,7 +5713,7 @@
       "name": "should_merge_partial_array_extrema_without_losing_element_order",
       "current_file": "tests/analytics/types/arrays/typed_array_extrema.rs",
       "line": 35,
-      "end_line": 84,
+      "end_line": 86,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -169659,8 +169659,8 @@
       "current_file": "tests/analytics/types/arrays/typed_array_extrema.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 84,
-      "sha256": "93710c9b96442bcd53e0ff10ba4c911c7f4bd5417b04db021e4995de03b1c03d",
+      "lines": 86,
+      "sha256": "1f9b3cfc428db2a9156787f4967c1aa7a27d0e60977c87a8a01a49e669927d26",
       "test_declarations": 2,
       "registered_suites": [
         "analytics"
@@ -190557,8 +190557,8 @@
       "current_file": "tests/support/collection_aggregate_resources.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 429,
-      "sha256": "f8a7782975a66e18c438c1ed0ddf75988c908b8c5bc63700efe3c585ff196697",
+      "lines": 397,
+      "sha256": "b91cf7f53cba5917c3dff01d8de122d9e4e7122a7bc706aea7cc69b43f4bd466",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

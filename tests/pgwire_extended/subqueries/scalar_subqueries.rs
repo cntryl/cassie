@@ -224,7 +224,7 @@ fn should_evaluate_an_uncorrelated_volatile_scalar_subquery_once() {
         "issue-762-uncorrelated-scalar-evaluate-once",
         vec![
             Step::ThroughReady(vec![wire::simple_query_frame(
-                "CREATE SEQUENCE issue_762_once_sequence START WITH 1",
+                "CREATE SEQUENCE issue_762_once_sequence",
             )]),
             Step::ThroughReady(vec![wire::simple_query_frame(
                 "CREATE TABLE issue_762_once_outer (id INT4 PRIMARY KEY)",
@@ -334,7 +334,7 @@ fn should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_re
         wire::write_frames(
             &mut writer,
             vec![wire::simple_query_frame(
-                "SELECT (SELECT 45 WHERE pg_sleep_for(INTERVAL '0 seconds') IS NOT NULL)",
+                "SELECT (SELECT 45 WHERE pg_sleep(0) IS NOT NULL)",
             )],
         )
         .await;
@@ -344,7 +344,7 @@ fn should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_re
         wire::write_frames(
             &mut writer,
             vec![wire::simple_query_frame(
-                "SELECT (SELECT 45 WHERE pg_sleep_for(INTERVAL '60 seconds') IS NOT NULL) \
+                "SELECT (SELECT 45 WHERE pg_sleep(60) IS NOT NULL) \
                  /* issue_762_scalar_cancel */",
             )],
         )

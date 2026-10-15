@@ -77322,7 +77322,7 @@
       "name": "should_return_21000_given_a_multirow_scalar_subquery_when_its_value_is_requested",
       "current_file": "tests/pgwire_extended/subqueries/cardinality.rs",
       "line": 7,
-      "end_line": 89,
+      "end_line": 69,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -77507,8 +77507,8 @@
       "id": "tests/pgwire_extended/subqueries/quantified_rows.rs::should_return_unknown_given_null_row_candidates_when_any_has_no_match",
       "name": "should_return_unknown_given_null_row_candidates_when_any_has_no_match",
       "current_file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
-      "line": 62,
-      "end_line": 78,
+      "line": 68,
+      "end_line": 84,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -77538,8 +77538,8 @@
       "id": "tests/pgwire_extended/subqueries/quantified_rows.rs::should_return_false_given_an_empty_row_subquery_when_any_is_evaluated",
       "name": "should_return_false_given_an_empty_row_subquery_when_any_is_evaluated",
       "current_file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
-      "line": 81,
-      "end_line": 97,
+      "line": 87,
+      "end_line": 103,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -77569,8 +77569,8 @@
       "id": "tests/pgwire_extended/subqueries/quantified_rows.rs::should_return_unknown_given_null_row_candidates_when_all_has_no_false_result",
       "name": "should_return_unknown_given_null_row_candidates_when_all_has_no_false_result",
       "current_file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
-      "line": 100,
-      "end_line": 116,
+      "line": 106,
+      "end_line": 122,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -77600,8 +77600,8 @@
       "id": "tests/pgwire_extended/subqueries/quantified_rows.rs::should_return_true_given_an_empty_row_subquery_when_all_is_evaluated",
       "name": "should_return_true_given_an_empty_row_subquery_when_all_is_evaluated",
       "current_file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
-      "line": 119,
-      "end_line": 135,
+      "line": 125,
+      "end_line": 141,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -77693,8 +77693,8 @@
       "id": "tests/pgwire_extended/subqueries/resource_limits.rs::should_release_resources_given_an_over_budget_subquery_when_execution_is_rejected",
       "name": "should_release_resources_given_an_over_budget_subquery_when_execution_is_rejected",
       "current_file": "tests/pgwire_extended/subqueries/resource_limits.rs",
-      "line": 95,
-      "end_line": 181,
+      "line": 77,
+      "end_line": 149,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -78469,7 +78469,7 @@
       "name": "should_return_42601_given_a_multicolumn_scalar_subquery_when_it_is_parsed",
       "current_file": "tests/pgwire_extended/subqueries/width.rs",
       "line": 7,
-      "end_line": 82,
+      "end_line": 65,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -181676,8 +181676,8 @@
       "current_file": "tests/pgwire_extended/subqueries/cardinality.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 89,
-      "sha256": "2f46b5cff0c64fc393f314fc184c6dc879cfe22901cfd8fe3f3396581e9d8621",
+      "lines": 69,
+      "sha256": "4c843283b88a5880a1d559aae7472b21a5c3bdd45a620ed212574603e98ac902",
       "test_declarations": 1,
       "registered_suites": [
         "pgwire_extended"
@@ -181707,7 +181707,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 126,
-      "sha256": "3a93b3afb38efb5af08997041ec298fd111929cbe228958ccb7a48bc2007e176",
+      "sha256": "be591e129c1ed988db339ef9cb5f2173c4527259485f0fbc2fa55199491e84e3",
       "test_declarations": 1,
       "registered_suites": [
         "pgwire_extended"
@@ -181751,8 +181751,8 @@
       "current_file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 135,
-      "sha256": "544bc3fa933a218c1f00061b0e90fd5e3797ac484bfbb30a5a2d697b11e5c1b9",
+      "lines": 141,
+      "sha256": "f1c7a11921f9ed78d1c072ada5ec38b24bb91b73b046602e8ae390892877c050",
       "test_declarations": 4,
       "registered_suites": [
         "pgwire_extended"
@@ -181796,8 +181796,8 @@
       "current_file": "tests/pgwire_extended/subqueries/resource_limits.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 181,
-      "sha256": "bf8f6548458106ee8e0fa110387992da21f1e676f4502e7938e5d1f7272b91d2",
+      "lines": 149,
+      "sha256": "083a3d9d3281e93a094f01c329c2352597908e692f307903931dff10959f68d1",
       "test_declarations": 1,
       "registered_suites": [
         "pgwire_extended"
@@ -181887,7 +181887,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 857,
-      "sha256": "fe3f8f98fc3a4590106d116ad42be147f520e73deb2ec4cdee01a221e0318f88",
+      "sha256": "4d3a60434e76ce67d238041ed7572a4b8157cbd8db26fc5a9a04a7b4e1e729e3",
       "test_declarations": 12,
       "registered_suites": [
         "pgwire_extended"
@@ -181946,8 +181946,8 @@
       "current_file": "tests/pgwire_extended/subqueries/width.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 82,
-      "sha256": "1db4c7b2f09fa0025545437ecdb5f0e5e023768133feb657b8681a4d33f3b8e7",
+      "lines": 65,
+      "sha256": "dbe55b826bba8dc0071ee178acd808a3cbb9bed844b8aeb2b126bcfb214e5df8",
       "test_declarations": 1,
       "registered_suites": [
         "pgwire_extended"
@@ -192133,7 +192133,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/subqueries",
       "file": "tests/pgwire_extended/subqueries/cardinality.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
       "actual_test": "should_return_21000_given_a_multirow_scalar_subquery_when_its_value_is_requested",
       "instances": [
@@ -192142,22 +192142,23 @@
           "name": "pgwire_extended::subqueries_cardinality::should_return_21000_given_a_multirow_scalar_subquery_when_its_value_is_requested"
         }
       ],
-      "asserted_contract": "One-row scalar control returns 10/OID 23; multirow scalar expression expects 21000 with the exact PostgreSQL cardinality message.",
+      "asserted_contract": "Table setup produces two rows; the multirow scalar expression expects SQLSTATE 21000 and the exact PostgreSQL cardinality message.",
       "mapping_basis": "authored",
       "oracle": {
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "blocked_prerequisite",
-      "prior_execution_evidence": "Root serialized run reached generic 42601 invalid expression token SELECT before the intended 21000 cardinality error.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier version failed its one-row scalar positive control with SQLSTATE 42601 before asserting the multirow cardinality result.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::subqueries_cardinality::should_return_21000_given_a_multirow_scalar_subquery_when_its_value_is_requested",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::subqueries_cardinality::should_return_21000_given_a_multirow_scalar_subquery_when_its_value_is_requested' (19424686) panicked at tests/pgwire_extended/subqueries/cardinality.rs:59:5:\nassertion `left == right` failed: single-row scalar-subquery ErrorResponse: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token 'SELECT value FROM scalar_cardinality_rows WHERE id'\")]]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 762,
@@ -192166,7 +192167,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/subqueries",
       "file": "tests/pgwire_extended/subqueries/width.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
       "actual_test": "should_return_42601_given_a_multicolumn_scalar_subquery_when_it_is_parsed",
       "instances": [
@@ -192175,22 +192176,23 @@
           "name": "pgwire_extended::subqueries_width::should_return_42601_given_a_multicolumn_scalar_subquery_when_it_is_parsed"
         }
       ],
-      "asserted_contract": "One-column scalar control returns 10/OID 23; two-column scalar subquery expects 42601 and exact width message.",
+      "asserted_contract": "The table control returns one two-column row; the multi-column scalar expression expects SQLSTATE 42601 and the exact PostgreSQL width diagnostic.",
       "mapping_basis": "authored",
       "oracle": {
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "blocked_prerequisite",
-      "prior_execution_evidence": "Root serialized run reached generic 42601 invalid expression token SELECT, not the PostgreSQL width diagnostic.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier version failed its one-column scalar positive control with SQLSTATE 42601 before checking the multi-column width diagnostic.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::subqueries_width::should_return_42601_given_a_multicolumn_scalar_subquery_when_it_is_parsed",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::subqueries_width::should_return_42601_given_a_multicolumn_scalar_subquery_when_it_is_parsed' (19424777) panicked at tests/pgwire_extended/subqueries/width.rs:59:5:\nassertion `left == right` failed\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 762,
@@ -192199,7 +192201,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/subqueries",
       "file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
       "actual_test": "should_return_unknown_given_null_row_candidates_when_any_has_no_match",
       "instances": [
@@ -192214,16 +192216,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "pending_root_cargo",
-      "prior_execution_evidence": "Test body and expected result are present; no Cargo result captured by this agent.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier shared row-comparison positive control failed with SQLSTATE 42601 before checking this quantified ANY/ALL result.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::subqueries_quantified_rows::should_return_unknown_given_null_row_candidates_when_any_has_no_match",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::subqueries_quantified_rows::should_return_unknown_given_null_row_candidates_when_any_has_no_match' (19424759) panicked at tests/pgwire_extended/subqueries/quantified_rows.rs:25:5:\nassertion `left == right` failed: row-comparison control ErrorResponse: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token 'SELECT first_value'\")]]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 762,
@@ -192232,7 +192235,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/subqueries",
       "file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
       "actual_test": "should_return_false_given_an_empty_row_subquery_when_any_is_evaluated",
       "instances": [
@@ -192247,16 +192250,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "pending_root_cargo",
-      "prior_execution_evidence": "Test body and expected result are present; no Cargo result captured by this agent.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier shared row-comparison positive control failed with SQLSTATE 42601 before checking this quantified ANY/ALL result.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::subqueries_quantified_rows::should_return_false_given_an_empty_row_subquery_when_any_is_evaluated",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::subqueries_quantified_rows::should_return_false_given_an_empty_row_subquery_when_any_is_evaluated' (19424721) panicked at tests/pgwire_extended/subqueries/quantified_rows.rs:25:5:\nassertion `left == right` failed: row-comparison control ErrorResponse: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token 'SELECT first_value'\")]]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 762,
@@ -192265,7 +192269,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/subqueries",
       "file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
       "actual_test": "should_return_unknown_given_null_row_candidates_when_all_has_no_false_result",
       "instances": [
@@ -192280,16 +192284,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "pending_root_cargo",
-      "prior_execution_evidence": "Test body and expected result are present; no Cargo result captured by this agent.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier shared row-comparison positive control failed with SQLSTATE 42601 before checking this quantified ANY/ALL result.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::subqueries_quantified_rows::should_return_unknown_given_null_row_candidates_when_all_has_no_false_result",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::subqueries_quantified_rows::should_return_unknown_given_null_row_candidates_when_all_has_no_false_result' (19424756) panicked at tests/pgwire_extended/subqueries/quantified_rows.rs:25:5:\nassertion `left == right` failed: row-comparison control ErrorResponse: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token 'SELECT first_value'\")]]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 762,
@@ -192298,7 +192303,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/subqueries",
       "file": "tests/pgwire_extended/subqueries/quantified_rows.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
       "actual_test": "should_return_true_given_an_empty_row_subquery_when_all_is_evaluated",
       "instances": [
@@ -192313,16 +192318,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "pending_root_cargo",
-      "prior_execution_evidence": "Test body and expected result are present; no Cargo result captured by this agent.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier shared row-comparison positive control failed with SQLSTATE 42601 before checking this quantified ANY/ALL result.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::subqueries_quantified_rows::should_return_true_given_an_empty_row_subquery_when_all_is_evaluated",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::subqueries_quantified_rows::should_return_true_given_an_empty_row_subquery_when_all_is_evaluated' (19424734) panicked at tests/pgwire_extended/subqueries/quantified_rows.rs:25:5:\nassertion `left == right` failed: row-comparison control ErrorResponse: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token 'SELECT first_value'\")]]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 762,
@@ -192331,7 +192337,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/subqueries",
       "file": "tests/pgwire_extended/subqueries/scalar_subqueries.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
       "actual_test": "should_evaluate_an_uncorrelated_volatile_scalar_subquery_once",
       "instances": [
@@ -192346,16 +192352,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "pending_root_cargo",
-      "prior_execution_evidence": "Test body and expected result are present; no Cargo result captured by this agent.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier sequence setup used the unsupported START option; the observed failure was 0A000 before the evaluation-count assertion.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::scalar_subqueries::should_evaluate_an_uncorrelated_volatile_scalar_subquery_once",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::scalar_subqueries::should_evaluate_an_uncorrelated_volatile_scalar_subquery_once' (19424583) panicked at tests/pgwire_extended/subqueries/scalar_subqueries.rs:212:5:\nuncorrelated subquery setup ErrorResponses: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported CREATE SEQUENCE option 'START'\")]]"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 762,
@@ -192364,7 +192371,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/subqueries",
       "file": "tests/pgwire_extended/subqueries/evaluation_count.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
       "actual_test": "should_evaluate_per_required_row_given_a_correlated_subquery_when_outer_rows_are_projected",
       "instances": [
@@ -192379,16 +192386,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "pending_root_cargo",
-      "prior_execution_evidence": "Test body and expected result are present; no Cargo result captured by this agent.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier sequence setup used the unsupported START option; the observed failure was 0A000 before the evaluation-count assertion.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::subqueries_evaluation_count::should_evaluate_per_required_row_given_a_correlated_subquery_when_outer_rows_are_projected",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::subqueries_evaluation_count::should_evaluate_per_required_row_given_a_correlated_subquery_when_outer_rows_are_projected' (19424702) panicked at tests/pgwire_extended/subqueries/evaluation_count.rs:55:5:\ncorrelated subquery setup ErrorResponses: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported CREATE SEQUENCE option 'START'\")]]"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 762,
@@ -192397,7 +192405,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/subqueries",
       "file": "tests/pgwire_extended/subqueries/resource_limits.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
       "actual_test": "should_release_resources_given_an_over_budget_subquery_when_execution_is_rejected",
       "instances": [
@@ -192412,16 +192420,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "blocked_prerequisite",
-      "prior_execution_evidence": "Root run failed its valid within-cap scalar-subquery control with 0A000 before result-cap behavior.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier within-cap scalar-subquery control failed with SQLSTATE 42601 before the over-budget assertion; the current test keeps a plain two-row result-cap control and checks the three-row scalar query directly.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::subqueries_resource_limits::should_release_resources_given_an_over_budget_subquery_when_execution_is_rejected",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::subqueries_resource_limits::should_release_resources_given_an_over_budget_subquery_when_execution_is_rejected' (19424776) panicked at tests/pgwire_extended/subqueries/resource_limits.rs:128:5:\nassertion `left == right` failed: within-cap scalar-subquery ErrorResponse: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token 'SELECT inner_row.value FROM scalar_limit_inner AS inner_row WHERE inner_row.id'\")]]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 762,
@@ -192430,7 +192439,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/subqueries",
       "file": "tests/pgwire_extended/subqueries/scalar_subqueries.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
       "actual_test": "should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results",
       "instances": [
@@ -192445,9 +192454,9 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "blocked_prerequisite",
-      "prior_execution_evidence": "Root run failed baseline with 42601 before CancelRequest/cancellation.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier baseline used INTERVAL input that Cassie rejected with 42601 before the cancellation flow; the current test uses PostgreSQL pg_sleep(float8) calls.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results",
@@ -192455,7 +192464,8 @@
           "failure_excerpt": "thread 'pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results' (19553426) panicked at tests/pgwire_extended/subqueries/scalar_subqueries.rs:389:5:\nassertion `left == right` failed: baseline scalar-subquery ErrorResponse: Some(\"S=ERROR, C=42601, M=invalid expression token 'INTERVAL '0 seconds''\")\n  left: Some(\"42601\")\n right: None\ntest pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results ... FAILED\ntest pgwire_extended_control::should_close_connection_on_cancel_request_without_response ... ok\ntest pgwire_portal_streaming::should_cancel_suspended_portal_before_resume ... ok\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 796,

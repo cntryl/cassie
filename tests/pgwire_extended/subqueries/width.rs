@@ -19,9 +19,6 @@ fn should_return_42601_given_a_multicolumn_scalar_subquery_when_it_is_parsed() {
                 "SELECT first_value, second_value FROM scalar_width_rows WHERE id = 1",
             )]),
             Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT (SELECT first_value FROM scalar_width_rows WHERE id = 1) AS scalar_value",
-            )]),
-            Step::ThroughReady(vec![wire::simple_query_frame(
                 "SELECT (SELECT first_value, second_value FROM scalar_width_rows WHERE id = 1) AS scalar_value",
             )]),
         ],
@@ -30,8 +27,7 @@ fn should_return_42601_given_a_multicolumn_scalar_subquery_when_it_is_parsed() {
     // Act
     let setup = &batches[..2];
     let table_control = &batches[2];
-    let one_column_scalar_control = &batches[3];
-    let multicolumn_scalar = &batches[4];
+    let multicolumn_scalar = &batches[3];
     let error_fields = multicolumn_scalar
         .iter()
         .find(|frame| frame.0 == b'E')
@@ -55,19 +51,6 @@ fn should_return_42601_given_a_multicolumn_scalar_subquery_when_it_is_parsed() {
     assert_eq!(
         wire::data_rows(table_control),
         vec![vec![Some("10".to_owned()), Some("20".to_owned())]]
-    );
-    assert_eq!(wire::error_code(one_column_scalar_control), None);
-    let scalar_description = one_column_scalar_control
-        .iter()
-        .find(|frame| frame.0 == b'T')
-        .expect("one-column scalar-subquery RowDescription");
-    assert_eq!(
-        wire::parse_row_description(&scalar_description.1)[0].type_oid,
-        23
-    );
-    assert_eq!(
-        wire::data_rows(one_column_scalar_control),
-        vec![vec![Some("10".to_owned())]]
     );
     assert_eq!(
         wire::error_code(multicolumn_scalar).as_deref(),

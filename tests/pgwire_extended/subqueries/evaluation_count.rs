@@ -52,7 +52,7 @@ fn should_evaluate_per_required_row_given_a_correlated_subquery_when_outer_rows_
         "correlated-scalar-subquery-evaluation-count",
         vec![
             Step::ThroughReady(vec![wire::simple_query_frame(
-                "CREATE SEQUENCE issue_762_correlated_eval_sequence START WITH 1",
+                "CREATE SEQUENCE issue_762_correlated_eval_sequence",
             )]),
             Step::ThroughReady(vec![wire::simple_query_frame(
                 "CREATE TABLE issue_762_correlated_eval_outer (id INT4 PRIMARY KEY)",

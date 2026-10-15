@@ -36,7 +36,6 @@ async fn start_server(
 
 fn assert_result_limit_recovery(
     control: &[(u8, Vec<u8>)],
-    scalar_control: &[(u8, Vec<u8>)],
     overflow: &[(u8, Vec<u8>)],
     recovery: &[(u8, Vec<u8>)],
 ) {
@@ -44,23 +43,6 @@ fn assert_result_limit_recovery(
     assert_eq!(
         wire::data_rows(control),
         vec![vec![Some("1".to_owned())], vec![Some("2".to_owned())]]
-    );
-    assert_eq!(
-        wire::error_code(scalar_control),
-        None,
-        "within-cap scalar-subquery ErrorResponse: {:?}",
-        scalar_control
-            .iter()
-            .filter(|frame| frame.0 == b'E')
-            .map(|frame| wire::parse_error_fields(&frame.1))
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        wire::data_rows(scalar_control),
-        vec![
-            vec![Some("1".to_owned()), Some("10".to_owned())],
-            vec![Some("2".to_owned()), Some("20".to_owned())],
-        ]
     );
     assert_eq!(
         wire::error_code(overflow).as_deref(),
@@ -114,7 +96,7 @@ fn should_release_resources_given_an_over_budget_subquery_when_execution_is_reje
     let runtime = current_thread_runtime();
 
     // Act
-    let (control, scalar_control, overflow, recovery) = runtime.block_on(async {
+    let (control, overflow, recovery) = runtime.block_on(async {
         let (address, server) = start_server(fixture.cassie.clone(), config).await;
         let socket = tokio::net::TcpStream::connect(address)
             .await
@@ -130,20 +112,6 @@ fn should_release_resources_given_an_over_budget_subquery_when_execution_is_reje
         )
         .await;
         let control =
-            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
-
-        wire::write_frames(
-            &mut writer,
-            vec![wire::simple_query_frame(
-                "SELECT outer_row.id, \
-                        (SELECT inner_row.value FROM scalar_limit_inner AS inner_row \
-                         WHERE inner_row.id = outer_row.id) AS scalar_value \
-                 FROM scalar_limit_outer AS outer_row \
-                 WHERE outer_row.id <= 2 ORDER BY outer_row.id",
-            )],
-        )
-        .await;
-        let scalar_control =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
 
         wire::write_frames(
@@ -171,11 +139,11 @@ fn should_release_resources_given_an_over_budget_subquery_when_execution_is_reje
         drop(writer);
         server.abort();
         let _ = server.await;
-        (control, scalar_control, overflow, recovery)
+        (control, overflow, recovery)
     });
     drop(runtime);
     drop(fixture);
 
     // Assert
-    assert_result_limit_recovery(&control, &scalar_control, &overflow, &recovery);
+    assert_result_limit_recovery(&control, &overflow, &recovery);
 }

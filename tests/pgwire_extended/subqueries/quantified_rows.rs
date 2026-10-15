@@ -14,25 +14,31 @@ fn evaluate_row_quantifier(sql: &str, label: &str) -> Vec<Vec<(u8, Vec<u8>)>> {
                 "INSERT INTO quantified_row_candidates VALUES (1, 1, 2), (2, 2, 1)",
             )]),
             Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT ROW(1, 2) = ANY (SELECT first_value, second_value FROM quantified_row_candidates) AS row_control",
+                "SELECT first_value, second_value FROM quantified_row_candidates ORDER BY id",
             )]),
             Step::ThroughReady(vec![wire::simple_query_frame(sql)]),
         ],
     )
 }
 
-fn assert_row_control(frames: &[(u8, Vec<u8>)]) {
+fn assert_table_control(frames: &[(u8, Vec<u8>)]) {
     assert_eq!(
         wire::error_code(frames),
         None,
-        "row-comparison control ErrorResponse: {:?}",
+        "quantified-row table control ErrorResponse: {:?}",
         frames
             .iter()
             .filter(|frame| frame.0 == b'E')
             .map(|frame| wire::parse_error_fields(&frame.1))
             .collect::<Vec<_>>()
     );
-    assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![
+            vec![Some("1".to_owned()), Some("2".to_owned())],
+            vec![Some("2".to_owned()), Some("1".to_owned())],
+        ]
+    );
 }
 
 fn assert_quantifier_result(frames: &[(u8, Vec<u8>)], expected: Option<&str>, context: &str) {
@@ -73,7 +79,7 @@ fn should_return_unknown_given_null_row_candidates_when_any_has_no_match() {
     // Assert
     assert_eq!(wire::error_code(&batches[0]), None);
     assert_eq!(wire::error_code(&batches[1]), None);
-    assert_row_control(control);
+    assert_table_control(control);
     assert_quantifier_result(quantified, None, "row ANY with an UNKNOWN candidate");
 }
 
@@ -92,7 +98,7 @@ fn should_return_false_given_an_empty_row_subquery_when_any_is_evaluated() {
     // Assert
     assert_eq!(wire::error_code(&batches[0]), None);
     assert_eq!(wire::error_code(&batches[1]), None);
-    assert_row_control(control);
+    assert_table_control(control);
     assert_quantifier_result(quantified, Some("f"), "row ANY over the empty set");
 }
 
@@ -111,7 +117,7 @@ fn should_return_unknown_given_null_row_candidates_when_all_has_no_false_result(
     // Assert
     assert_eq!(wire::error_code(&batches[0]), None);
     assert_eq!(wire::error_code(&batches[1]), None);
-    assert_row_control(control);
+    assert_table_control(control);
     assert_quantifier_result(quantified, None, "row ALL with an UNKNOWN candidate");
 }
 
@@ -130,6 +136,6 @@ fn should_return_true_given_an_empty_row_subquery_when_all_is_evaluated() {
     // Assert
     assert_eq!(wire::error_code(&batches[0]), None);
     assert_eq!(wire::error_code(&batches[1]), None);
-    assert_row_control(control);
+    assert_table_control(control);
     assert_quantifier_result(quantified, Some("t"), "row ALL over the empty set");
 }

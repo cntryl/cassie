@@ -66,11 +66,9 @@ pub fn named_cycle(
 pub fn assert_error(frames: &fixture::Frames, state: &str, ready: u8) {
     assert_eq!(wire::error_code(frames).as_deref(), Some(state));
     assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
-    assert!(
-        !frames
-            .iter()
-            .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C'))
-    );
+    assert!(!frames
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C')));
     assert_eq!(
         frames.last().map(|frame| frame.1.as_slice()),
         Some(&[ready][..])

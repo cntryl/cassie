@@ -1,8 +1,8 @@
 # pg18_parity test placements
 
-Generated from `inventory.json`. Destinations are proposed; execution status is not assessed.
+Generated from `inventory.json`. Selected destinations record the reviewed physical layout; other destinations are proposals. Execution status is recorded separately.
 
-| Test | Current source | Proposed file | Registration | Ignored | Instances | Placement review |
+| Test | Current source | Selected destination | Registration | Ignored | Instances | Placement review |
 | --- | --- | --- | --- | --- | ---: | --- |
 | `should_record_cli_cancellation_as_unavailable_and_retire_reference` | [tests/pg18_parity/test_cancellation.py:19](../../../tests/pg18_parity/test_cancellation.py#L19) | `tests/pg18_parity/test_cancellation.py` | python_harness | no | 0 | recommended |
 | `should_stop_owned_reference_when_the_runner_receives_sigterm` | [tests/pg18_parity/test_cancellation.py:60](../../../tests/pg18_parity/test_cancellation.py#L60) | `tests/pg18_parity/test_cancellation.py` | python_harness | no | 0 | recommended |

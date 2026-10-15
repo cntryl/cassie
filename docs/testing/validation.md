@@ -1,42 +1,77 @@
-# Organization validation
+# Backfill and organization validation
 
-Recorded on 2026-10-15 on `feature/postgres-18-compat`, working from `f4919658` plus the existing uncommitted test backfill and this organization pass. There is one checkout/worktree. These results qualify the inventory and the specific moves; they do not qualify the full PostgreSQL compatibility backlog.
+Recorded on 2026-10-15 on `feature/postgres-18-compat`, from checkpoint `00000118` (which preserved the existing dirty backfill). One branch and one worktree were used. Runtime source, Cargo configuration, corpus expectations and CI configuration are unchanged. This is a test-only change; no runtime fixes or issue closures are claimed.
 
-## Checks
+## Inventory and identity
+
+- All 138 identified remaining-list items link to 136 distinct registered tests (two pairs share bodies that assert both linked contracts): 124 have the inventory name, 13 link to refined names or existing equivalents, and one invalid large-object rejection proposal was corrected to the PostgreSQL-positive behavior.
+- All 69 open milestone owners have exact finite assertion anchors in [owner-assertions.md](owner-assertions.md). Closed milestone and historical owners remain scoped regression evidence in [the compatibility inventory](../postgresql18-test-inventory.md).
+- The baseline contains 5,263 Rust declarations and 5,387 registered instances. The current tree contains 5,414 Rust declarations and 16 Python declarations. Current registration totals are generated in [the summary](summary.md).
+- Cargo target names and CI shard membership remain unchanged: 32 targets, each in exactly one shard. No orphan tests, unresolved paths, repeated registrations, duplicate test identities or oversized Rust files remain. All 1,535 files are indexed, including 1,504 Rust files.
+- 5,380 baseline registered identities are preserved exactly. The seven exceptions below correct expectations or remove a duplicate. Moving a file did not otherwise rename its tests.
+
+| Baseline test suffix | Current assertion / reason |
+| --- | --- |
+| `sql_string_literals::should_parse_like_escape_as_a_pattern_expression` | `should_apply_escape_characters_given_literal_wildcards_when_matching_like_patterns`: distinguishing executed true/false values |
+| `sql_string_literals::should_reject_concatenation_instead_of_parsing_one_string_literal` | `should_evaluate_concatenation_given_literals_and_columns_when_used_in_queries_and_dml`: executed SELECT and DML values |
+| `pgwire_boolean_binary::should_normalize_boolean_elements_without_changing_legacy_array_identity` | `should_reject_legacy_boolean_array_oid_before_result_metadata`: approved standard-array identity policy |
+| `pgwire_boolean_binary::should_reject_trailing_boolean_array_container_bytes_as_malformed_input` | Removed duplicate legacy-OID case; standard-OID malformed framing is asserted by `should_classify_trailing_boolean_array_bytes_as_malformed_binary_data` |
+| `pgwire_scalar_receive_errors::should_classify_nested_scalar_receive_errors_with_legacy_array_metadata` | `should_classify_nested_scalar_receive_errors_with_standard_array_metadata`: standard PostgreSQL OIDs |
+| `sql_semantic_regressions::should_reject_non_finite_float_literals` | `should_preserve_numeric_literals_given_exponents_beyond_float8_range_when_selected`: `1e400` is a finite exact NUMERIC |
+| `sql_semantic_regressions::should_reject_out_of_range_integer_literals` | `should_infer_numeric_given_integer_literals_above_bigint_range_when_selected`: exact NUMERIC value and OID 1700 |
+
+Shared fixture registration was consolidated after Clippy found the same fixture loaded through three new storage leaves. Eight redundant helper instances introduced during authoring were removed; no baseline identity was lost by that consolidation. The nine existing ignored declarations remain ignored.
+
+## Final authoring confirmation
+
+The final readback inspected source declarations and module registrations without executing tests. All 138 planned items resolve to their current source functions and exact registered identities, representing 136 distinct tests. The inventory was regenerated after the last 15 naming refinements. No tests were run after the user directed this phase to remain authoring and organization only.
+
+## Previously recorded execution
+
+The complete `cargo test --locked --no-fail-fast` run executed all 32 integration targets, library tests, binary tests and doc tests. It finished with **3,787 passed, 2,683 failed and 9 ignored**. All 930 library unit tests passed. Of the 138 reconciled backfill items, **136 failed and 2 passed**. The two passes assert binary cast-chain identity and UUID binary persistence; they are finite positive behavior evidence.
+
+That broad run preceded the final cancellation/large-payload/I/O/extension-gating refinements and shared-fixture deduplication. Changed assertions were subsequently compiled and rerun separately. The final 15 name-only refinements were compiled but were not executed again; their current identities were checked statically. Do not interpret the broad totals as a current-head full-pass claim. Per-item observations and the broad suite totals are in [execution-results.json](execution-results.json); [the backfill ledger](planned-tests.md) keeps authoring and execution status separate.
 
 | Command or probe | Result |
 | --- | --- |
 | `cargo build --locked --bin cassie` | Passed |
-| `cargo test --locked --test backend_ci` | Passed: 2 tests; all 32 Cargo integration targets match exactly one CI shard |
-| `cargo test --locked --test pgwire_extended --test compatibility --no-run` | Passed: both owning suites compiled |
-| `cargo test --locked --test sql_queries identifier_case_resolution:: -- --nocapture` | Passed: all 16 moved tests, under the same registered module names |
-| Compiled test binaries with `--list` | Exact match with the static inventory: `sql_queries` 1,149; `compatibility` 663; `pgwire_extended` 1,082; `backend_ci` 2 |
-| Independent file-set and attribute census | Passed: all 673 files represented; 5,263 explicit Rust test attributes, 16 Python test declarations, unique source IDs and no registration/path/shard anomalies |
-| `target/test-inventory-tools312/bin/python tools/test_inventory.py --check` | Passed: generated inventory matches current source |
-| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Failed; a repeat with JSON diagnostics recorded 176 findings in 112 accumulated test files. No remaining findings in the nine organization files checked |
-| `cargo fmt --all -- --check` | Failed: existing formatting differences across the tree and rustfmt's failure to resolve the inline compatibility module's Prisma child path. The normal compiler resolves that path and the compatibility suite compiles |
-| `rustfmt --edition 2021 --check --config skip_children=true <organization Rust files>` | Passed for all nine organization files after formatting the touched suite root. This focused check does not replace the failed full formatter gate |
-| `cntryl-tools validate-tests -f <organization Rust file>` | Passed for all nine files: 334 compliant declarations; two registration hubs contain no tests |
-| `git diff --check` | Passed |
-| Full `cargo test --locked` | Not run in this organization pass. The branch intentionally contains failing compatibility tests |
+| `cargo test --locked --no-run --message-format=json` | Passed: all 32 integration targets compiled on the final test source |
+| Compiled binaries with `--list --format terse` | Passed before the final 15 name-only refinements: 5,542 names matched the static registration graph; current names were checked statically afterward |
+| `cargo test --locked --no-fail-fast` | Completed, exit 101: 3,787 passed / 2,683 failed / 9 ignored; intentional compatibility failures remain |
+| `cargo test --locked --test catalog_security catalogs_ -- --nocapture` | 30 failed / 316 filtered; updated catalog, policy and large-payload assertions remain RED |
+| `cargo test --locked --test pgwire_extended cancel -- --nocapture` | 2 passed / 27 failed / 1,108 filtered; same counts after the final helper refactors |
+| `cargo test --locked --test compatibility row_lock_cancellation -- --nocapture` | 2 failed / 699 filtered; owner-lock/progress controls retained |
+| `cargo test --locked --test compatibility pgcrypto_extension:: -- --nocapture` | 7 failed / 694 filtered; same counts after the final before-install guard refresh |
+| `cargo test --locked --test pgwire_extended cast_chain_identity` | Passed: 1 binary cast-chain test |
+| `cargo test --locked --test pgwire_extended uuid_binary_identity` | Passed: 1 UUID persistence test |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed before the final 15 name-only refinements: zero warnings or errors |
+| `cargo fmt --all -- --check` | Blocked by existing formatting in unmodified `src/sql/mod.rs:37` and `src/sql/parameters.rs:287`; no source edits made |
+| Scoped `rustfmt --edition 2021 --check --config skip_children=true` | Passed on all 1,504 Rust files before the final 15 name-only refinements |
+| `cntryl-tools validate-tests -f <current Rust file>` | Passed on all 1,504 Rust files before the final 15 name-only refinements |
+| `target/test-inventory-tools312/bin/python tools/test_inventory.py --check` | Passed: generated output matches the current source |
+| `cargo test --locked --test pgwire_extended mutations_ -- --nocapture` | 4 failed / 1,133 filtered; final mutation progress witnesses retained |
+| `cargo test --locked --test backend_ci` | Passed: 2 tests; exactly one shard for each of 32 targets |
+| `git diff --check` | Passed on the final patch |
 
-The Clippy findings include oversized test functions, empty-result assertions, documentation formatting and helper cleanup. They are defects in the accumulated suite and remain cleanup work. No lint suppressions or reductions were added. Runtime source, Cargo configuration and CI configuration were not modified.
+## Oracle and review evidence
 
-## Newly reachable and relocated failing tests
+The PostgreSQL 18.6 server and executable hashes match the pinned reference manifest. All 28 historical correction IDs are reconciled (27 SQL observations plus one protocol observation); the original 54 parse-only checks now map to 47 executed-value/metadata assertions, four structural AST assertions, one AST plus execution assertion, and two error assertions. See [oracle-corrections.md](oracle-corrections.md). These labels describe test contents, not Cassie passes.
 
-| Test | Observed stopping point | Acceptance limit |
-| --- | --- | --- |
-| `row_arity_aliases::should_select_mixed_type_null_values_through_explicit_column_aliases` | Positive row-constructor control returns SQLSTATE `42601` with an unresolved `1::int4` column reference | The intended VALUES alias/mixed-NULL assertions are not reached |
-| `row_arity_aliases::should_reject_row_comparisons_with_unequal_arity_using_postgres_syntax_error` | Equal-arity positive control returns the same `42601` error | Does not yet prove the unequal-arity rejection path |
-| `compatibility::lifecycle::session_transaction::isolation_commands::repeatable_read_row_lock_conflict::should_abort_repeatable_read_row_lock_after_concurrent_update` | Setup returns `0A000`: only READ COMMITTED isolation is supported | Repeatable-read conflict and session-recovery assertions are not reached |
-| `compatibility::lifecycle::large_objects::restart::should_restore_large_object_payload_after_storage_restart` | Setup rejects `lo_from_bytea` as unsupported | The persistence/restart assertion is not reached |
+Additional focused probes confirmed statistics restoration values, 17 backend-statistics/signaling observations, extension-gated `digest()`, and three live mutation cancellation scenarios. The latter observed sequence progress and the exact target backend waiting in `PgSleep`, then SQLSTATE 57014, no DataRows, rollback and reusable connections. The rule probe caught a real test-design error: source RETURNING runs before DO ALSO. The final test uses ordered rule actions, with its mutation before the sleep.
 
-All four tests fail. Their failures demonstrate missing prerequisites and must not be counted as proof of the later acceptance paths. Their expected values and SQLSTATE contracts were retained; no runtime fixes were attempted.
+Jev's post-mutation evidence-gap probability was 0.77. The focused live PostgreSQL probe confirmed the gap in the original rule ordering; the tests were corrected and all three final oracle probes passed. Its supported completion statement was limited to authoring the 138 identified remaining-list items, with external qualification gates separate. Source, assertions and runtime observations remain authoritative.
 
-## Review and remaining work
+## Limits on the observed failures
 
-Three independent source reviews checked query, type/catalog/aggregate and lifecycle/support placement. Their concrete findings corrected false keyword matches, including percentile versus NTILE, ordinary “every” wording versus `EVERY()`, type identity versus sequences, string functions versus grammar, and client traces versus PostgreSQL JSON behavior.
+The workspace formatter remains blocked only by the two pre-existing source differences listed above. All test files passed formatting before the final name-only refinements; the six renamed files were formatted afterward. The task was kept test-only.
 
-Jev's initial multi-claim overstatement probability was 0.49. The follow-up probe independently reconciled files, source attributes, unique IDs, registrations and the compiled name lists. Jev identified “all tests backfilled” as the unsupported claim (0.99 choice confidence); the narrowed census/provisional-placement statement had a 0.25 gap probability. The guide therefore explicitly distinguishes a mechanical census, proposed destinations, unfinished physical migration and unfinished semantic deduplication. Jev is advisory; the source and command results above are the evidence.
+A positive control must succeed before an intended rejection or cancellation can count as target-path evidence. The following tests are correctly authored but currently stop at earlier requirements:
 
-Remaining organization work is enumerated in [the summary](summary.md) and [the per-file destinations](files.md). The 138 proposed names need acceptance-level deduplication against existing assertions before being treated as additional missing tests. Existing tests also require their own RED/GREEN evidence; this inventory does not assign runtime outcomes to unexecuted declarations.
+- Scalar subqueries, VALUES and recursive CYCLE fail their parser/execution controls before the intended cardinality, width, resource or cancellation assertions.
+- Math overload/domain tests fail supported-function controls before their final SQLSTATE assertions.
+- Statistics restore/clear tests stop while binding valid typed arguments. Backend statistics stop at missing statistics functions. Current `pg_terminate_backend` execution reports unsupported function 42601; an earlier socket timeout is superseded and is not proof of successful signaling.
+- Role-sensitive catalog/rule/large-object tests stop at the #831 SET ROLE dependency. The approved physical-helper 0A000 and commit-tracking-off 55000 tests include signature/NULL/privilege controls; unsupported unrelated syntax cannot satisfy those assertions.
+- Mutation cancellation tests require sequence progress and `PgSleep` after actual mutation/action work. Other resource cancellation tests prove a marked active query plus no partial output and recovery; they do not claim a specific amount of retained state was already allocated.
+- Parallel aggregate tests observe declared support metadata, partial combine selection, worker metrics and exact output. They do not independently prove serialization callback invocation.
+
+Pinned pgvector is absent from the local PostgreSQL installation. Prisma, complete owner/form/path corpus execution, immutable workload/resource/restart profiles and native benchmark artifact identity remain qualification gates under #847–#849 and #927. Pending, ignored or reference-only cells are not Cassie passes.

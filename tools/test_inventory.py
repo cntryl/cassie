@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inventory tests/ declarations and propose subsystem-owned destinations.
+"""Inventory tests/ declarations and record subsystem-owned destinations.
 
 This reads Rust syntax trees, Python ASTs, Cargo metadata and the shard manifest.
 It does not execute tests, evaluate cfg expressions or move source files.
@@ -311,7 +311,13 @@ def owner_domain(path: str, name: str, target: str, domain: str, namespace: list
     return domain
 
 
-def choose_placement(path: str, test: dict, targets: list[str], file_lines: int) -> dict:
+def choose_placement(path: str, test: dict, targets: list[str], file_lines: int, decision=None) -> dict:
+    if decision is not None:
+        return {
+            "suite": decision["suite"], "category": decision["category"],
+            "directory": str(Path(path).parent), "file": path,
+            "basis": "reviewed_physical_layout", "review": "selected", "migration": "keep",
+        }
     parts = Path(path).parts
     inferred = Path(path).stem if len(parts) == 2 else parts[1]
     target = sorted(targets)[0] if targets else SPECIAL_TARGETS.get(inferred, inferred)
@@ -392,12 +398,16 @@ def gather():
     parsed = {p.resolve(): rust_declarations(p) for p in files if p.suffix == ".rs"}
     registrations = defaultdict(list)
     unresolved = []
+    repeated_registrations = []
     seen = set()
+    decisions_path = OUTPUT / "layout-decisions.json"
+    decisions = json.loads(decisions_path.read_text())["files"] if decisions_path.is_file() else {}
 
     def register(path, target, namespace=(), root=False, path_override=False):
         path = path.resolve()
         key = (path, target, namespace)
         if key in seen:
+            repeated_registrations.append({"source": relative(path), "suite": target, "module": "::".join(namespace)})
             return
         seen.add(key)
         if path not in parsed:
@@ -452,13 +462,19 @@ def gather():
         elif path in targets.values():
             role = "cargo_target"
         elif not source_tests:
-            role = "module_registration" if record else "fixture_data"
+            if record:
+                role = "module_registration" if record["modules"] or record["includes"] else "test_support"
+            else:
+                role = "fixture_data"
         destinations = set()
         lines = len(path.read_bytes().splitlines())
         for test in source_tests:
             local = "::".join(test["inline_modules"] + [test["name"]])
             instances = [{"suite": b["suite"], "name": "::".join(filter(None, [b["module"], local]))} for b in bindings]
-            placement = choose_placement(rel, test, suites, lines)
+            decision = decisions.get(rel)
+            if decision and decision["suite"] not in suites:
+                raise ValueError(f"Reviewed layout has an unregistered owner: {rel}")
+            placement = choose_placement(rel, test, suites, lines, decision)
             if path.suffix == ".py":
                 placement = {"suite": "pg18_parity", "category": "parity_harness", "directory": "tests/pg18_parity", "file": rel, "basis": "distinct_python_runtime", "review": "recommended", "migration": "keep"}
             destinations.add(placement["file"])
@@ -483,6 +499,14 @@ def gather():
         raise ValueError("Duplicate source declaration IDs; inspect conditional or macro definitions")
     if len({t["name"] for t in planned}) != len(planned):
         raise ValueError("Duplicate proposed test names")
+    identities = defaultdict(list)
+    for test in inventory:
+        for instance in test["instances"]:
+            identities[(instance["suite"], instance["name"])].append(test["id"])
+    duplicate_identities = [
+        {"suite": suite, "name": name, "sources": sources}
+        for (suite, name), sources in sorted(identities.items()) if len(sources) > 1
+    ]
     for test in planned:
         destination = Path(test["file"])
         if test["suite"] not in targets or destination.parts[:2] != ("tests", test["suite"]) or str(destination.parent) != test["directory"] or "/".join(destination.parts[2:-1]) != test["category"]:
@@ -493,10 +517,10 @@ def gather():
     conflicts = []
     large_destinations = []
     for destination, tests in sorted(projected.items()):
-        names = Counter(t["name"] for t in tests)
+        names = Counter("::".join(t["inline_modules"] + [t["name"]]) if t["placement"]["basis"] == "reviewed_physical_layout" else t["name"] for t in tests)
         for name, count in names.items():
             if count > 1:
-                conflicts.append({"file": destination, "name": name, "sources": [t["id"] for t in tests if t["name"] == name]})
+                conflicts.append({"file": destination, "name": name, "sources": [t["id"] for t in tests if t["name"] == name or "::".join(t["inline_modules"] + [t["name"]]) == name]})
         body_lines = sum(t["end_line"] - t["line"] + 1 for t in tests)
         if body_lines > 800:
             large_destinations.append({"file": destination, "test_body_lines": body_lines, "test_declarations": len(tests)})
@@ -509,13 +533,16 @@ def gather():
         "registered_rust_instances": sum(len(t["instances"]) for t in inventory if t["language"] == "rust"),
         "unregistered_rust_tests": [t["id"] for t in inventory if t["registration"] == "unregistered"],
         "unresolved_module_paths": unresolved,
+        "repeated_module_registrations": repeated_registrations,
+        "duplicate_registered_identities": duplicate_identities,
         "planned_tests": len(planned),
         "unsharded_targets": [name for name in sorted(targets) if len(sharded[name]) != 1],
         "unknown_shard_targets": sorted(set(sharded) - set(targets)),
         "oversized_files": [f["current_file"] for f in file_records if f["line_limit"] and f["lines"] > f["line_limit"]],
         "destination_name_conflicts": conflicts,
         "large_projected_destinations": large_destinations,
-        "placement_status": "Proposed source-derived placement; mixed-file rows explicitly require review before moves. No test result is inferred.",
+        "reviewed_layout_files": len(decisions),
+        "placement_status": "Reviewed physical placements are recorded in layout-decisions.json; remaining placements are proposals. No test result is inferred.",
     }
     return {"schema_version": 1, "summary": summary, "tests": inventory, "files": file_records, "planned_tests": planned}
 
@@ -535,12 +562,15 @@ def render(data):
         f"| Python test declarations | {summary['python_test_declarations']} |",
         f"| Static Rust registration instances | {summary['registered_rust_instances']} |",
         f"| Cargo test targets | {len(summary['cargo_targets'])} |",
-        f"| Proposed backfill names | {summary['planned_tests']} |",
+        f"| Reconciled backfill names | {summary['planned_tests']} |",
         f"| Unregistered Rust declarations | {len(summary['unregistered_rust_tests'])} |",
         f"| Unresolved module paths | {len(summary['unresolved_module_paths'])} |",
+        f"| Duplicate registered test identities | {len(summary['duplicate_registered_identities'])} |",
+        f"| Repeated module registrations | {len(summary['repeated_module_registrations'])} |",
+        f"| Files with a reviewed physical placement | {summary['reviewed_layout_files']} |",
         f"| Targets absent from exactly one CI shard | {len(summary['unsharded_targets'])} |",
         f"| Existing files over their line limit | {len(summary['oversized_files'])} |",
-        f"| Proposed files with duplicate bare test names | {len(summary['destination_name_conflicts'])} |", "",
+        f"| Destination name conflicts | {len(summary['destination_name_conflicts'])} |", "",
         "Shared support tests compile into several Cargo suites, so registration instances exceed physical source declarations. `cfg` expressions are not evaluated.", "",
         "## Existing tests by owner", "",
         "Each declaration appears on one owner page. Shared helper tests appear under `support`; their individual suite instances are retained in the JSON.", "",
@@ -556,28 +586,29 @@ def render(data):
     lines += ["", "## Proposed groups requiring size review", "", "These groups already exceed 800 lines of test bodies, before imports and helpers. Split further if the complete file would exceed 1,000 lines.", "", "| Proposed file | Test body lines | Tests |", "| --- | ---: | ---: |"]
     for group in summary["large_projected_destinations"]:
         lines.append(f"| `{group['file']}` | {group['test_body_lines']} | {group['test_declarations']} |")
-    lines += ["", "## Proposed backfill status", "", "These are planning labels carried from the backfill list. They are not evidence of a failing or passing Cassie run.", "", "| Status | Names |", "| --- | ---: |"]
+    lines += ["", "## Backfill authoring status", "", "Each item links to a registered assertion in the backfill list. Authoring status and Cassie execution status are separate.", "", "| Status | Names |", "| --- | ---: |"]
     for status, count in sorted(Counter(t["status"] for t in data["planned_tests"]).items()):
         lines.append(f"| `{status}` | {count} |")
     outputs[OUTPUT / "summary.md"] = "\n".join(lines) + "\n"
     for suite, tests in sorted(groups.items()):
-        lines = [f"# {suite} test placements", "", "Generated from `inventory.json`. Destinations are proposed; execution status is not assessed.", ""]
+        lines = [f"# {suite} test placements", "", "Generated from `inventory.json`. Selected destinations record the reviewed physical layout; other destinations are proposals. Execution status is recorded separately.", ""]
         if suite == "support":
             lines += ["`support` is a placement group, not a Cargo target. Helper tests compile inside the Cargo suites listed in each inventory record's `instances` field.", ""]
-        lines += ["| Test | Current source | Proposed file | Registration | Ignored | Instances | Placement review |", "| --- | --- | --- | --- | --- | ---: | --- |"]
+        lines += ["| Test | Current source | Selected destination | Registration | Ignored | Instances | Placement review |", "| --- | --- | --- | --- | --- | ---: | --- |"]
         for t in tests:
             label = "::".join(t["inline_modules"] + [t["name"]])
             link = f"../../../{t['current_file']}#L{t['line']}"
             lines.append(f"| `{label}` | [{t['current_file']}:{t['line']}]({link}) | `{t['placement']['file']}` | {t['registration']} | {'yes' if t['ignored'] else 'no'} | {len(t['instances'])} | {t['placement']['review']} |")
         outputs[OUTPUT / "inventory" / f"{suite}.md"] = "\n".join(lines) + "\n"
-    lines = ["# Test file inventory", "", "Every file under `tests/`, including support, fixtures, Python harness tests and oracle data.", "", "| Current file | Role | Lines | Tests | Registered suites | Action | Proposed destinations |", "| --- | --- | ---: | ---: | --- | --- | --- |"]
+    lines = ["# Test file inventory", "", "Every file under `tests/`, including support, fixtures, Python harness tests and oracle data.", "", "| Current file | Role | Lines | Tests | Registered suites | Action | Selected destinations |", "| --- | --- | ---: | ---: | --- | --- | --- |"]
     for f in data["files"]:
         destinations = "; ".join(f"`{d}`" for d in f["destinations"]) or "Registration/imports follow relocated children; no test body in this file."
         lines.append(f"| `{f['current_file']}` | {f['role']} | {f['lines']} | {f['test_declarations']} | {', '.join(f['registered_suites']) or '—'} | {f['action']} | {destinations} |")
     outputs[OUTPUT / "files.md"] = "\n".join(lines) + "\n"
-    lines = ["# Planned backfill placements", "", "These names are proposed acceptance tests, not observed Cassie failures. `strengthen` updates existing coverage; `blocked` requires its prerequisite route. Semantic deduplication against existing assertions remains required.", "", "| Issue | Owner / category | Proposed test | Destination | Status |", "| --- | --- | --- | --- | --- |"]
+    lines = ["# Reconciled backfill tests", "", "Every inventory item links to an actual registered test. A refined name or an existing equivalent retains the original planning name for traceability. Authoring a test does not establish that its intended runtime path is reached; see the separate execution status and validation record.", "", "| Issue | Owner / category | Inventory name | Actual assertion | Authoring | Cassie execution |", "| --- | --- | --- | --- | --- | --- |"]
     for t in data["planned_tests"]:
-        lines.append(f"| #{t['issue']} | `{t['suite']}/{t['category']}` | `{t['name']}` | `{t['file']}` | {t['status']} |")
+        actual = t.get("actual_test", t["name"])
+        lines.append(f"| #{t['issue']} | `{t['suite']}/{t['category']}` | `{t['name']}` | [`{actual}`](../../{t['file']}) | {t['status']} | {t['execution_status']} |")
     outputs[OUTPUT / "planned-tests.md"] = "\n".join(lines) + "\n"
     return outputs
 
@@ -607,8 +638,8 @@ def main():
         print("Inventory differs: " + ", ".join(drift), file=sys.stderr)
         return 1
     summary = data["summary"]
-    print(json.dumps({k: summary[k] for k in ["files", "rust_files", "rust_test_declarations", "python_test_declarations", "registered_rust_instances", "planned_tests", "unregistered_rust_tests", "unresolved_module_paths", "unsharded_targets", "unknown_shard_targets", "oversized_files", "destination_name_conflicts", "large_projected_destinations"]}, indent=2))
-    errors = [key for key in ["unregistered_rust_tests", "unresolved_module_paths", "unsharded_targets", "unknown_shard_targets", "destination_name_conflicts"] if summary[key]]
+    print(json.dumps({k: summary[k] for k in ["files", "rust_files", "rust_test_declarations", "python_test_declarations", "registered_rust_instances", "planned_tests", "unregistered_rust_tests", "unresolved_module_paths", "repeated_module_registrations", "duplicate_registered_identities", "unsharded_targets", "unknown_shard_targets", "oversized_files", "destination_name_conflicts", "large_projected_destinations"]}, indent=2))
+    errors = [key for key in ["unregistered_rust_tests", "unresolved_module_paths", "repeated_module_registrations", "duplicate_registered_identities", "unsharded_targets", "unknown_shard_targets", "oversized_files", "destination_name_conflicts"] if summary[key]]
     if errors:
         print("Inventory requires repair: " + ", ".join(errors), file=sys.stderr)
     return 1 if errors else 0

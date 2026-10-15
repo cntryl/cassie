@@ -1,7 +1,7 @@
 //! Current database authority at retained materialized and cursor portal pages.
 
 use crate::support_pgwire as wire;
-use crate::support_sql_fixture::{SqlFixture, sql_fixture_with_config};
+use crate::support_sql_fixture::{sql_fixture_with_config, SqlFixture};
 use cassie::app::{Cassie, CassieSession};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use std::time::Duration;

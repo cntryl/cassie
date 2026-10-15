@@ -2,7 +2,7 @@
 use cassie::app::Cassie;
 use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
 use cassie::embeddings::NormalizedVectorRecord;
-use cassie::embeddings::{DEFAULT_EMBEDDING_MODEL, openai::OpenAiConfig};
+use cassie::embeddings::{openai::OpenAiConfig, DEFAULT_EMBEDDING_MODEL};
 use cassie::midge::adapter::StorageFamily;
 use cntryl_midge::{TransactionMode, WriteOptions};
 use uuid::Uuid;

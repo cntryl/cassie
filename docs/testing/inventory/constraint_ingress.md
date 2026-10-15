@@ -1,9 +1,9 @@
 # constraint_ingress test placements
 
-Generated from `inventory.json`. Destinations are proposed; execution status is not assessed.
+Generated from `inventory.json`. Selected destinations record the reviewed physical layout; other destinations are proposals. Execution status is recorded separately.
 
-| Test | Current source | Proposed file | Registration | Ignored | Instances | Placement review |
+| Test | Current source | Selected destination | Registration | Ignored | Instances | Placement review |
 | --- | --- | --- | --- | --- | ---: | --- |
-| `should_apply_defaults_for_omitted_values_across_supported_ingress` | [tests/constraint_ingress.rs:10](../../../tests/constraint_ingress.rs#L10) | `tests/constraint_ingress/relations/semantics.rs` | registered | no | 1 | required |
-| `should_preserve_explicit_values_when_defaults_exist_across_ingress` | [tests/constraint_ingress.rs:74](../../../tests/constraint_ingress.rs#L74) | `tests/constraint_ingress/relations/semantics.rs` | registered | no | 1 | required |
-| `should_reject_explicit_null_across_supported_ingress` | [tests/constraint_ingress.rs:116](../../../tests/constraint_ingress.rs#L116) | `tests/constraint_ingress/semantics/errors.rs` | registered | no | 1 | required |
+| `should_reject_explicit_null_across_supported_ingress` | [tests/constraint_ingress/contracts/errors.rs:2](../../../tests/constraint_ingress/contracts/errors.rs#L2) | `tests/constraint_ingress/contracts/errors.rs` | registered | no | 1 | selected |
+| `should_apply_defaults_for_omitted_values_across_supported_ingress` | [tests/constraint_ingress/contracts/semantics.rs:2](../../../tests/constraint_ingress/contracts/semantics.rs#L2) | `tests/constraint_ingress/contracts/semantics.rs` | registered | no | 1 | selected |
+| `should_preserve_explicit_values_when_defaults_exist_across_ingress` | [tests/constraint_ingress/contracts/semantics.rs:66](../../../tests/constraint_ingress/contracts/semantics.rs#L66) | `tests/constraint_ingress/contracts/semantics.rs` | registered | no | 1 | selected |

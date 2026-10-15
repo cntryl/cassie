@@ -1,7 +1,7 @@
 # time_series_float_partitions test placements
 
-Generated from `inventory.json`. Destinations are proposed; execution status is not assessed.
+Generated from `inventory.json`. Selected destinations record the reviewed physical layout; other destinations are proposals. Execution status is recorded separately.
 
-| Test | Current source | Proposed file | Registration | Ignored | Instances | Placement review |
+| Test | Current source | Selected destination | Registration | Ignored | Instances | Placement review |
 | --- | --- | --- | --- | --- | ---: | --- |
-| `time_series_float_partitions::should_match_full_scan_for_whole_number_float_partition_values` | [tests/time_series_float_partitions.rs:41](../../../tests/time_series_float_partitions.rs#L41) | `tests/time_series_float_partitions/partitions/semantics.rs` | registered | no | 1 | required |
+| `should_match_full_scan_for_whole_number_float_partition_values` | [tests/time_series_float_partitions/partitions/semantics.rs:35](../../../tests/time_series_float_partitions/partitions/semantics.rs#L35) | `tests/time_series_float_partitions/partitions/semantics.rs` | registered | no | 1 | selected |

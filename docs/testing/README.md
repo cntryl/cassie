@@ -9,13 +9,14 @@ This inventory covers the entire current `tests/` tree, including untracked back
 | Record | Contents |
 | --- | --- |
 | [Summary and owner index](summary.md) | Current counts, every owner page, Cargo registrations, files over their size limit |
-| [Every existing file](files.md) | Current file, role, size, test count, registered suites, proposed destinations and migration action |
-| [Proposed backfill tests](planned-tests.md) | Each proposed `should_…_given_…_when_…` name, issue, destination and planning status |
-| [Machine-readable inventory](inventory.json) | Every existing declaration, source location, full registered test identities and proposed placement, plus all proposed tests |
-| [Editable backfill list](planned-tests.json) | The input list for proposed backfill names and destinations |
+| [Every existing file](files.md) | Current file, role, size, test count, registered suites, selected destinations and migration action |
+| [Reconciled backfill tests](planned-tests.md) | Each inventory `should_…_given_…_when_…` name, issue, actual assertion and authoring/execution status |
+| [Machine-readable inventory](inventory.json) | Every existing declaration, source location, full registered test identities and selected placement, plus every reconciled backfill item |
+| [Editable backfill list](planned-tests.json) | The editable issue-to-assertion ledger |
+| [Owner assertion anchors](owner-assertions.md) | Exact finite test links for all 69 open owners |
 | [Organization validation](validation.md) | Checks run for this pass, observed prerequisite failures and incomplete gates |
 
-The per-owner pages linked from the summary contain a row for every existing test. Each row names both its current file and its proposed destination file. The file inventory also accounts for files without test bodies.
+The per-owner pages linked from the summary contain a row for every existing test. Each row names both its current file and its selected destination file. The file inventory also accounts for files without test bodies.
 
 Counts refer to test declarations. A declaration can exercise several SQL cases; this census does not expand every table-driven assertion into a separate case.
 
@@ -64,13 +65,13 @@ Choose the suite from the assertion being made. A SQL statement can appear in se
 
 For example, scalar-subquery row values belong under `sql_queries/subqueries/`; their wire cardinality SQLSTATE belongs under `pgwire_extended/subqueries/`. Array aggregates belong under `aggregates/arrays/`; array binary framing belongs under `types/arrays/`. SQL-defined aggregate dependencies belong under `compatibility/lifecycle/aggregates/`.
 
-The generated destinations are proposals. Mixed files and large inline modules have `review: required`; other placements still require checking imports, helper ownership and the actual assertions before moving them. Source names alone do not prove the correct contract. Related helpers and module-registration hubs need coordinated edits when their children move.
+`layout-decisions.json` records the reviewed physical locations. Existing module aliases preserve established test names when files move. Shared support, external clients, corpus data and the Python harness retain their distinct boundaries. New placements require checking the actual assertion and helper ownership before updating that manifest.
 
 ## Naming and file size
 
 - Use behavior names for permanent directories and files: `subqueries/cardinality.rs`, `types/numeric/binary.rs`, `aggregates/ordered_set/percentiles.rs`, `lifecycle/operators/restart.rs`.
 - Give new tests `should_<outcome>_given_<conditions>_when_<action>` names and Arrange/Act/Assert sections. Preserve existing test identities during organization.
-- Keep Rust leaves and support files below 1,000 lines. The repository permits flat Cargo suite files up to 12,000 lines; gradually turn these into registration roots with focused leaves.
+- Keep Rust leaves and support files below 1,000 lines. The repository permits flat Cargo suite files up to 12,000 lines; keep these as registration roots with focused leaves.
 - Review groups with more than 800 lines of test bodies before moving them. Imports and fixtures also consume the 1,000 line allowance.
 - Separate independent contracts when a file mixes values, metadata, errors, resources and restart behavior. Keep small cohesive modules together when splitting would obscure shared setup.
 - Put reusable setup in `tests/support/`. Keep scenario tests in their owning suite, even when they use shared fixtures.
@@ -82,7 +83,7 @@ The generated destinations are proposals. Mixed files and large inline modules h
 3. Preserve test attributes, assertions, fixture scope, storage-mode selection and process isolation. Do not change expected results as part of a file move.
 4. Keep external-client Cargo projects, Python runtime boundaries and corpus paths intact until their callers and manifests are updated together.
 5. Record execution evidence separately. An authored or registered test is not a demonstrated failure or pass. Shared support declarations may appear in multiple test binaries.
-6. Deduplicate proposed backfill contracts against existing assertions before writing them. The proposed-name count is not a verified count of additional missing tests.
+6. Deduplicate proposed backfill contracts against existing assertions before writing them. The inventory-name count includes linked existing assertions and oracle-corrected proposals.
 
 ## Migration sequence and parallel ownership
 
@@ -95,16 +96,17 @@ Use one working branch and checkout. Give agents exclusive file sets; the integr
 | Transactions, lifecycle and qualification | `compatibility/`, process-isolated cases and qualification fixtures | Group by object/session contract; preserve subprocess, client and restart boundaries |
 | Integrator | `tests/*.rs`, shared support registrations, inventory tooling and manifests | Check names/counts, register leaves, serialize Cargo validation and review |
 
-Start with orphan registrations and accidental new Cargo targets, then files over the size limit, then history/wave filenames, then contract deduplication. The summary lists the current oversized files. Complete one coherent file group, compare registered identities before and after, compile its owning suite and run its focused tests. Existing compatibility failures remain visible; runtime fixes are outside this work.
+The organization pass extracted tests from every Cargo root and moved existing leaves into their behavior directories. All 32 Cargo target names and CI shard assignments are unchanged. The compiled binaries list exactly the same 5,542 test instances as the current static registration graph.
 
 ## What this pass changed
 
-- Built a complete source and placement inventory, including the proposed backfill names.
-- Registered the authored row-arity/VALUES tests and the repeatable-read lock-conflict test.
-- Put the large-object restart test inside the existing compatibility suite, removing its accidental standalone Cargo target.
-- Extracted identifier case-resolution tests into a focused module while preserving their registered names, bringing the SQL query root below its line limit.
+- Organized all existing `tests/**` declarations and support files, with no orphan registrations, duplicate identities, unresolved paths or oversized Rust files.
+- Reconciled all 138 remaining backfill items to registered tests or explicitly linked existing assertions. The ledger records corrected expectations and refined names.
+- Reconciled all 28 historical oracle corrections and replaced or strengthened all 54 original parse-only checks. See [oracle corrections](oracle-corrections.md).
+- Preserved 5,380 of the 5,387 baseline registered identities exactly. Seven deliberate replacements or deduplications are listed in [validation](validation.md).
+- Added scalar cast, catalog, aggregate resource, text-search, range/index and lifecycle tests. No runtime, Cargo or CI changes were made.
 
-The remaining destination rows describe the migration work. They do not indicate that all physical moves or semantic coverage reviews have been completed.
+Authored coverage, an observed failing test and complete feature qualification are separate states. The [validation record](validation.md) reports the full run and prerequisite failures. Named-client, complete corpus and immutable workload gates remain tracked in [the compatibility inventory](../postgresql18-test-inventory.md).
 
 ## Regenerate or check the inventory
 
@@ -117,4 +119,4 @@ target/test-inventory-tools312/bin/python tools/test_inventory.py
 target/test-inventory-tools312/bin/python tools/test_inventory.py --check
 ```
 
-Edit `planned-tests.json` or the generator's placement rules, then regenerate. Generated pages contain no runtime pass/fail evidence. The generator removes stale generated owner pages and preserves this hand-maintained guide.
+Edit `planned-tests.json` for assertion links or `layout-decisions.json` for reviewed locations, then regenerate. Generated pages contain no runtime pass/fail evidence. The generator removes stale generated owner pages and preserves this hand-maintained guide.

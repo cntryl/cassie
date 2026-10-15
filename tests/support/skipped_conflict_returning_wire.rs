@@ -1,7 +1,7 @@
 //! Wire transcripts for the finite skipped-conflict RETURNING qualification.
 
 use crate::support_pgwire as wire;
-use crate::support_sql_fixture::{SqlFixture, sql_fixture};
+use crate::support_sql_fixture::{sql_fixture, SqlFixture};
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};

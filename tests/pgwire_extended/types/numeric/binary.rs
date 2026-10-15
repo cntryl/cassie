@@ -1,0 +1,432 @@
+#[test]
+fn should_preserve_numeric_oid_typmod_text_binary_contract() {
+    // Arrange
+    let sql = "SELECT CAST($1 AS NUMERIC(5, 2))";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types("numeric_value", sql, &[1700])),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("numeric_value"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("numeric_text_portal", "numeric_value", &["12.34"]),
+            wire::describe_portal_frame("numeric_text_portal"),
+            wire::execute_frame("numeric_text_portal"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "numeric_binary_portal",
+                "numeric_value",
+                &[0],
+                &[Some(b"12.34")],
+                &[1],
+            ),
+            wire::describe_portal_frame("numeric_binary_portal"),
+            wire::execute_frame("numeric_binary_portal"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT CAST('10.00' AS NUMERIC(3, 2))",
+        )]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-numeric-codecs", steps);
+
+    // Assert
+    assert_eq!(
+        batches[0].iter().map(|(tag, _)| *tag).collect::<Vec<_>>(),
+        vec![b'1']
+    );
+    let described = &batches[1];
+    let parameter_types = described
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_types.1),
+        vec![1700]
+    );
+    let result_columns = described
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("RowDescription");
+    let numeric_column = &wire::parse_row_description(&result_columns.1)[0];
+    assert_eq!(numeric_column.type_oid, 1700);
+    assert_eq!(numeric_column.type_mod, 327_686);
+
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("12.34".to_owned())]]
+    );
+    let binary_description = batches[3]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("binary RowDescription");
+    let binary_column = &wire::parse_row_description(&binary_description.1)[0];
+    assert_eq!(binary_column.type_oid, 1700);
+    assert_eq!(binary_column.format_code, 1);
+    let binary_data = batches[3]
+        .iter()
+        .find(|(tag, _)| *tag == b'D')
+        .expect("binary DataRow");
+    let mut expected = 1_i16.to_be_bytes().to_vec();
+    expected.extend_from_slice(&12_i32.to_be_bytes());
+    expected.extend_from_slice(&2_i16.to_be_bytes());
+    expected.extend_from_slice(&0_i16.to_be_bytes());
+    expected.extend_from_slice(&0_u16.to_be_bytes());
+    expected.extend_from_slice(&2_i16.to_be_bytes());
+    expected.extend_from_slice(&12_u16.to_be_bytes());
+    expected.extend_from_slice(&3400_u16.to_be_bytes());
+    assert_eq!(binary_data.1, expected);
+
+    assert_eq!(wire::error_code(&batches[4]).as_deref(), Some("22003"));
+}
+
+#[test]
+fn should_decode_binary_numeric_values_beyond_thirty_eight_digits() {
+    // Arrange
+    let value = [
+        0x00, 0x12, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x14, 0x00, 0x0c, 0x0d, 0x80, 0x1e, 0xd2, 0x04,
+        0xd2, 0x16, 0x2e, 0x23, 0x34, 0x0d, 0x80, 0x1e, 0xd2, 0x04, 0xd2, 0x16, 0x2e, 0x23, 0x34,
+        0x0d, 0x80, 0x1e, 0xd2, 0x04, 0xd2, 0x16, 0x2e, 0x23, 0x34, 0x0d, 0x80, 0x1e, 0xd2,
+    ];
+    let sql = "SELECT $1::NUMERIC AS amount";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types("wide_numeric", sql, &[1700])),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("wide_numeric"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "wide_numeric_portal",
+                "wide_numeric",
+                &[1],
+                &[Some(&value)],
+                &[0],
+            ),
+            wire::describe_portal_frame("wide_numeric_portal"),
+            wire::execute_frame("wide_numeric_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-numeric-wide-binary-input", steps);
+
+    // Assert
+    assert_eq!(
+        wire::parse_parameter_description(
+            &batches[1]
+                .iter()
+                .find(|(tag, _)| *tag == b't')
+                .expect("wide numeric ParameterDescription")
+                .1
+        ),
+        vec![1700]
+    );
+    assert_eq!(wire::error_code(&batches[2]), None);
+    let description = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("wide numeric RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(column.type_oid, 1700);
+    assert_eq!(column.type_mod, -1);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some(
+            "12345678901234567890123456789012345678901234567890.12345678901234567890".to_owned()
+        )]]
+    );
+}
+
+#[test]
+fn should_preserve_wide_numeric_oid_zero_binary_round_trip() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let value = [
+        0x00, 0x12, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x14, 0x00, 0x0c, 0x0d, 0x80, 0x1e, 0xd2, 0x04,
+        0xd2, 0x16, 0x2e, 0x23, 0x34, 0x0d, 0x80, 0x1e, 0xd2, 0x04, 0xd2, 0x16, 0x2e, 0x23, 0x34,
+        0x0d, 0x80, 0x1e, 0xd2, 0x04, 0xd2, 0x16, 0x2e, 0x23, 0x34, 0x0d, 0x80, 0x1e, 0xd2,
+    ];
+    let statement = "wide_oid_zero_numeric";
+    let portal = "wide_oid_zero_numeric_portal";
+    let sql = "SELECT CAST($1 AS NUMERIC) AS amount";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(statement, sql, &[0])),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(portal, statement, &[1], &[Some(&value[..])], &[1]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-wide-numeric-oid-zero-binary", steps);
+
+    // Assert
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let statement_description = &batches[1];
+    assert_eq!(wire::error_code(statement_description), None);
+    let parameter_types = statement_description
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("wide numeric ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_types.1),
+        vec![1700]
+    );
+    let statement_row_description = statement_description
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("wide numeric statement RowDescription");
+    let statement_column = &wire::parse_row_description(&statement_row_description.1)[0];
+    assert_eq!(
+        (statement_column.type_oid, statement_column.type_size),
+        (1700, -1)
+    );
+
+    let result = &batches[2];
+    assert_eq!(wire::error_code(result), None);
+    fixture::assert_single_column_descriptors(result, (1700, -1, -1), 1, true);
+    assert_eq!(
+        fixture::data_row_payloads(result),
+        vec![fixture::one_field_row(&value)]
+    );
+}
+
+#[test]
+fn should_bind_an_oid_zero_numeric_parameter_in_binary_format() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let value = [
+        0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x13, 0x88,
+    ];
+    let sql = "SELECT CAST($1 AS NUMERIC) AS value";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types("oid_zero_numeric", sql, &[0])),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("oid_zero_numeric"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "oid_zero_numeric_portal",
+                "oid_zero_numeric",
+                &[1],
+                &[Some(&value)],
+                &[1],
+            ),
+            wire::describe_portal_frame("oid_zero_numeric_portal"),
+            wire::execute_frame("oid_zero_numeric_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-numeric-oid-zero-binary-bind", steps);
+
+    // Assert
+    let parameters = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("numeric ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), vec![1700]);
+    let result = &batches[2];
+    assert_eq!(wire::error_code(result), None);
+    fixture::assert_single_column_descriptors(result, (1700, -1, -1), 1, true);
+    assert_eq!(
+        fixture::data_row_payloads(result),
+        vec![fixture::one_field_row(&value)]
+    );
+}
+
+#[test]
+fn should_encode_numeric_special_values_in_binary() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let text_sql = "SELECT 'NaN'::NUMERIC AS nan_value, 'Infinity'::NUMERIC AS positive_infinity, '-Infinity'::NUMERIC AS negative_infinity, 'NaN'::NUMERIC = 'NaN'::NUMERIC AS nan_equal, 'Infinity'::NUMERIC > 999999::NUMERIC AS positive_infinity_orders_last, '-Infinity'::NUMERIC < -999999::NUMERIC AS negative_infinity_orders_first";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(text_sql)]),
+        Step::ParseFlush(wire::parse_frame(
+            "numeric_nan_binary_statement",
+            "SELECT 'NaN'::NUMERIC AS value",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "numeric_nan_binary_portal",
+                "numeric_nan_binary_statement",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("numeric_nan_binary_portal"),
+            wire::execute_frame("numeric_nan_binary_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-812-numeric-special-values", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let text_description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("numeric special-value RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&text_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1700, 1700, 1700, 16, 16, 16]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some("NaN".to_owned()),
+            Some("Infinity".to_owned()),
+            Some("-Infinity".to_owned()),
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+        ]]
+    );
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(batches[1].first().map(|(tag, _)| *tag), Some(b'1'));
+    assert_eq!(wire::error_code(&batches[2]), None);
+    let binary_description = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("binary numeric special-value RowDescription");
+    let column = &wire::parse_row_description(&binary_description.1)[0];
+    assert_eq!(
+        (
+            column.type_oid,
+            column.type_size,
+            column.type_mod,
+            column.format_code
+        ),
+        (1700, -1, -1, 1)
+    );
+    let numeric_nan_binary = [0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00];
+    assert_eq!(
+        fixture::data_row_payloads(&batches[2]),
+        vec![fixture::one_field_row(&numeric_nan_binary)]
+    );
+}
+
+#[test]
+fn should_encode_both_numeric_infinity_signs_in_binary_format() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let positive_infinity = [0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x20];
+    let negative_infinity = [0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x20];
+    let cases = [
+        (
+            "numeric_positive_infinity",
+            "SELECT 'Infinity'::NUMERIC AS value",
+            &positive_infinity[..],
+        ),
+        (
+            "numeric_negative_infinity",
+            "SELECT '-Infinity'::NUMERIC AS value",
+            &negative_infinity[..],
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (index, (statement, sql, _)) in cases.iter().enumerate() {
+        let portal = format!("numeric_infinity_portal_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame(statement, sql)));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(&portal, statement, &[], &[], &[1]),
+            wire::describe_portal_frame(&portal),
+            wire::execute_frame(&portal),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("issue-812-numeric-infinity-binary", steps);
+
+    // Assert
+    for (index, (statement, _, expected)) in cases.into_iter().enumerate() {
+        let result = &batches[index * 2 + 1];
+        assert_eq!(wire::error_code(result), None, "{statement}");
+        let description = result
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("numeric infinity RowDescription");
+        let column = &wire::parse_row_description(&description.1)[0];
+        assert_eq!((column.type_oid, column.format_code), (1700, 1));
+        assert_eq!(
+            fixture::data_row_payloads(result),
+            vec![fixture::one_field_row(expected)],
+            "{statement} binary payload"
+        );
+    }
+}
+
+#[test]
+fn should_decode_numeric_infinity_binary_parameters() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let positive_infinity = [0x00, 0x00, 0x00, 0x00, 0xd0, 0x00, 0x00, 0x20];
+    let negative_infinity = [0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x20];
+    let cases = [
+        (
+            "numeric_positive_infinity_input",
+            &positive_infinity[..],
+            "Infinity",
+        ),
+        (
+            "numeric_negative_infinity_input",
+            &negative_infinity[..],
+            "-Infinity",
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (statement, payload, _) in &cases {
+        let portal = format!("{statement}_portal");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            "SELECT $1 AS value",
+            &[1_700],
+        )));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(&portal, statement, &[1], &[Some(*payload)], &[0]),
+            wire::describe_portal_frame(&portal),
+            wire::execute_frame(&portal),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("issue-812-numeric-infinity-binary-input", steps);
+
+    // Assert
+    for (index, (statement, _, expected)) in cases.into_iter().enumerate() {
+        let result = &batches[index * 2 + 1];
+        assert_eq!(wire::error_code(result), None, "{statement}");
+        fixture::assert_single_column_descriptors(result, (1_700, -1, -1), 0, true);
+        assert_eq!(
+            wire::data_rows(result),
+            vec![vec![Some(expected.to_owned())]],
+            "{statement} text value"
+        );
+    }
+}

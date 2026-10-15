@@ -1,7 +1,7 @@
 //! The original persisted materialized-portal fixture with a measured source cap.
 
 use crate::support_pgwire as wire;
-use crate::support_sql_fixture::{SqlFixture, sql_fixture_with_config};
+use crate::support_sql_fixture::{sql_fixture_with_config, SqlFixture};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use std::sync::Arc;
 use std::time::Duration;

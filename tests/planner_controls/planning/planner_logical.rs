@@ -247,7 +247,7 @@ fn should_reject_invalid_logical_plan_shape_missing_collection() {
     let bound = BoundStatement {
         statement: ParsedStatement {
             raw_sql: "SELECT id FROM  LIMIT 1".to_string(),
-            statement: QueryStatement::Select(SelectStatement {
+            statement: QueryStatement::Select(Box::new(SelectStatement {
                 source: QuerySource::Collection(cassie::sql::IdentifierPath::from_components(
                     Vec::new(),
                 )),
@@ -266,7 +266,7 @@ fn should_reject_invalid_logical_plan_shape_missing_collection() {
                 limit: Some(Expr::IntegerLiteral(1)),
                 offset: Some(Expr::IntegerLiteral(0)),
                 set: None,
-            }),
+            })),
         },
         indexes: Vec::new(),
     };
@@ -288,7 +288,7 @@ fn should_reject_invalid_logical_plan_shape_empty_projection() {
     let bound = BoundStatement {
         statement: ParsedStatement {
             raw_sql: "SELECT FROM planner_projectionless".to_string(),
-            statement: QueryStatement::Select(SelectStatement {
+            statement: QueryStatement::Select(Box::new(SelectStatement {
                 source: QuerySource::Collection(
                     cassie::sql::IdentifierPath::parse("planner_projectionless")
                         .expect("relation path"),
@@ -305,7 +305,7 @@ fn should_reject_invalid_logical_plan_shape_empty_projection() {
                 limit: Some(Expr::IntegerLiteral(1)),
                 offset: Some(Expr::IntegerLiteral(0)),
                 set: None,
-            }),
+            })),
         },
         indexes: Vec::new(),
     };
@@ -327,7 +327,7 @@ fn should_reject_invalid_logical_plan_shape_negative_offset() {
     let bound = BoundStatement {
         statement: ParsedStatement {
             raw_sql: "SELECT id FROM planner_negative_offset".to_string(),
-            statement: QueryStatement::Select(SelectStatement {
+            statement: QueryStatement::Select(Box::new(SelectStatement {
                 source: QuerySource::Collection(
                     cassie::sql::IdentifierPath::parse("planner_negative_offset")
                         .expect("relation path"),
@@ -347,7 +347,7 @@ fn should_reject_invalid_logical_plan_shape_negative_offset() {
                 limit: Some(Expr::IntegerLiteral(10)),
                 offset: Some(Expr::IntegerLiteral(-1)),
                 set: None,
-            }),
+            })),
         },
         indexes: Vec::new(),
     };
@@ -369,7 +369,7 @@ fn should_reject_invalid_logical_plan_shape_negative_limit() {
     let bound = BoundStatement {
         statement: ParsedStatement {
             raw_sql: "SELECT id FROM planner_negative_limit".to_string(),
-            statement: QueryStatement::Select(SelectStatement {
+            statement: QueryStatement::Select(Box::new(SelectStatement {
                 source: QuerySource::Collection(
                     cassie::sql::IdentifierPath::parse("planner_negative_limit")
                         .expect("relation path"),
@@ -389,7 +389,7 @@ fn should_reject_invalid_logical_plan_shape_negative_limit() {
                 limit: Some(Expr::IntegerLiteral(-10)),
                 offset: Some(Expr::IntegerLiteral(0)),
                 set: None,
-            }),
+            })),
         },
         indexes: Vec::new(),
     };

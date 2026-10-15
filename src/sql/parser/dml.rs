@@ -79,7 +79,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
                 table,
                 columns,
-                source: InsertSource::Select(Box::new(select)),
+                source: InsertSource::Select(select),
                 on_conflict,
                 returning: Vec::new(),
             }),
@@ -98,7 +98,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
         statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
             table,
             columns,
-            source: InsertSource::Select(Box::new(select)),
+            source: InsertSource::Select(select),
             on_conflict,
             returning,
         }),

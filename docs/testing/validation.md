@@ -294,3 +294,52 @@ retained 25/19 and 17/40. Full pedantic Clippy reports only the three known
 large-enum findings. Formatting, touched-test validation (14/14 and 3/3),
 inventory check and diff whitespace check passed. Inventory contains 5,604
 integration instances; the 968 library tests are additional.
+
+## Approved SELECT ownership change after bb594e9b
+
+`QueryStatement::Select` and `RuntimeStatement::Select` now own
+`Box<SelectStatement>`. The user approved this public Rust constructor change.
+Parser construction, binder ownership transfers and direct test fixtures are
+updated together. INSERT SELECT and derived sources transfer an existing box
+instead of allocating a second one. Materialized projection planning clones the
+underlying SELECT value. SELECT fields and SQL/wire contracts are unchanged.
+
+The initial binary compile exposed 13 stale ownership/construction sites; the
+all-target test compile exposed four additional test sites. After those updates,
+`cargo build --locked --bin cassie` and `cargo test --locked --no-run` passed for
+all test targets. The complete 968-test library run passed. Jev's specific
+ownership/serialization/admission review returned a gap probability of 0.29;
+source review confirms serde's SELECT payload remains the same structure and
+existing pagination admission retains its conservative serialized-size bound.
+Evidence is in ignored `target/green-select-boxing-*` logs and JSON artifacts.
+Integration and analyzer results follow.
+
+The required `cargo test --locked` run passed library 968/0, then stopped at
+analytics 176/3. The three failures are stricter aggregate-admission conflicts
+from the earlier batch: numeric aggregates over JSON, JSON extrema, and existing
+Cassie vector extrema. They are not counted as passed. The next slice must
+preserve the established vector extension, keep PostgreSQL JSON overload
+rejection, and use explicit numeric casts for the mixed-JSON fallback witness.
+PostgreSQL 18.6 independently returned `42883` for `MIN(json)` and accepted
+`SUM/AVG/MIN/MAX(v::text::float8)` over numeric JSON scalars with
+`2.5|0.8333333333333334|-1|2`.
+
+Boxing-focused readback passed planner controls 126/0, derived sources 14/0,
+relation identifiers 15/0, set operations 15/0 and null-safe predicates 49/0.
+Complete parser/types retained 296/77 and the wire string groups retained 17/40,
+matching the preceding checkpoint. These unresolved parity failures do not
+become exclusions. No storage format or CI/release configuration changed.
+
+Final full workspace/all-target/all-feature pedantic Clippy passed after fixing
+16 previously masked integration-test findings: numeric literal separators,
+constant-size chunk iteration and diagnostics for empty-row assertions. These
+edits preserve asserted behavior. Rebuilt SQL/wire test targets passed compilation;
+the two changed scalar text regressions passed. The broader affected wire
+aggregate/lexical/text groups ran 19/7; failures include VALUES-source positive
+controls, grouped primary-key dependencies and unsupported aggregate spelling.
+They remain red and are not attributed to boxing or reported as completed.
+
+Final formatting, all 11 touched-test file validations, inventory refresh/check,
+whitespace check and touched Rust file size audit passed. All touched Rust files
+remain below 1,000 lines. No integration test instances were added or removed.
+This checkpoint clears the full Clippy gate; the full test gate remains red.

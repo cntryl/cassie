@@ -10,7 +10,7 @@ fn parsed_select(sql: &str) -> SelectStatement {
     let QueryStatement::Select(statement) = parsed.statement else {
         panic!("expected SELECT statement");
     };
-    statement
+    *statement
 }
 
 fn projection_function(statement: &SelectStatement, index: usize) -> &FunctionCall {

@@ -21,7 +21,7 @@ fn should_preserve_scalar_text_identity_given_unicode_nulls_and_signed_lengths_w
             Value::Int64(4),
             Value::Int64(8),
             Value::Int64(64),
-            Value::Int64(128578),
+            Value::Int64(128_578),
             Value::String("🙂".into()),
             Value::String("Aé🙂".into()),
             Value::String("é🙂Z".into()),

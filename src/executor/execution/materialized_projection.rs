@@ -551,7 +551,7 @@ fn plan_projection_query(
     crate::planner::logical::rewrite_reserved_id_references(&mut logical, &cassie.catalog);
     Ok(ProjectionBuildPlan {
         logical,
-        select: select.clone(),
+        select: select.as_ref().clone(),
         schema,
         source_collections,
     })

@@ -199,7 +199,7 @@ fn should_reject_malformed_literals_given_valid_typed_controls_when_the_connecti
     for (index, (_, expected)) in cases.iter().enumerate() {
         let rejected = &batches[index * 2 + 1];
         assert_eq!(wire::error_code(rejected).as_deref(), Some(*expected));
-        assert!(wire::data_rows(rejected).is_empty());
+        assert_eq!(wire::data_rows(rejected), Vec::<Vec<Option<String>>>::new());
         let recovered = &batches[index * 2 + 2];
         assert_eq!(wire::error_code(recovered), None);
         assert_eq!(

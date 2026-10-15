@@ -7,7 +7,7 @@ fn parsed_select(sql: &str) -> cassie::sql::ast::SelectStatement {
     let QueryStatement::Select(statement) = parsed.statement else {
         panic!("expected SELECT statement");
     };
-    statement
+    *statement
 }
 
 #[test]

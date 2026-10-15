@@ -254,13 +254,13 @@ pub(crate) fn bind_with_outer_ctes(
         QueryStatement::Select(select) if !outer_fields.is_empty() => {
             // A correlated subquery also sees the enclosing row's columns.
             let select = select::bind_select_with_lateral_fields(
-                select,
+                *select,
                 catalog,
                 &outer_ctes,
                 outer_fields,
                 context,
             )?;
-            parsed_statement(&statement.raw_sql, QueryStatement::Select(select))
+            parsed_statement(&statement.raw_sql, QueryStatement::Select(Box::new(select)))
         }
         other => bind_statement(
             ParsedStatement {
@@ -308,7 +308,7 @@ fn bind_runtime_route(
 ) -> Result<ParsedStatement, CassieError> {
     match statement {
         RuntimeStatement::Select(select) => {
-            bind_select_statement(select, catalog, outer_scope, raw_sql, context)
+            bind_select_statement(*select, catalog, outer_scope, raw_sql, context)
         }
         RuntimeStatement::Explain(statement) => {
             bind_explain_statement(statement, catalog, outer_scope, raw_sql, context)
@@ -672,7 +672,10 @@ fn bind_select_statement(
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let select = bind_select(select, catalog, outer_scope, context)?;
-    Ok(parsed_statement(raw_sql, QueryStatement::Select(select)))
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::Select(Box::new(select)),
+    ))
 }
 
 fn bind_explain_statement(

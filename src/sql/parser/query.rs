@@ -492,7 +492,7 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
         };
         return Ok(QuerySource::Subquery {
             alias: alias.to_string(),
-            select: Box::new(select),
+            select,
             lateral,
         });
     }

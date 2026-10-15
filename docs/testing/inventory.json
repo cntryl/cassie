@@ -69417,7 +69417,7 @@
       "name": "should_preserve_regex_overload_identity_given_unknown_substring_parameters_when_parse_describes_pending_execution",
       "current_file": "tests/pgwire_extended/functions/string/text_selection.rs",
       "line": 207,
-      "end_line": 248,
+      "end_line": 251,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -70254,7 +70254,7 @@
       "name": "should_reject_the_whole_batch_given_an_unmatched_dollar_quote_when_ddl_precedes_the_literal",
       "current_file": "tests/pgwire_extended/grammar/dollar_quotes.rs",
       "line": 55,
-      "end_line": 99,
+      "end_line": 102,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -179574,7 +179574,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 99,
-      "sha256": "ec80b4b6496ef8cf38f433540b961c70a3fc15e584d4ecf0be670955de9747c9",
+      "sha256": "5d13d3e26420b9dea0a0a592fa225b03fb6acfd8dd629a760e72c6e846ca3f12",
       "test_declarations": 5,
       "registered_suites": [
         "parser_types"
@@ -180204,7 +180204,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 368,
-      "sha256": "9c3beb97f2386b7354d0585a1249a2c44f311ae8af15adda6ff94ce3b4a5fca1",
+      "sha256": "1b246430fd227d289d8b9bf404723ebe8507fd0c68dd990379c4905e260eca25",
       "test_declarations": 10,
       "registered_suites": [
         "parser_types"
@@ -180944,7 +180944,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 185,
-      "sha256": "786b3be7802c4e0b0fbfe5bc9b7f020ca41f086301297062814513a55990f268",
+      "sha256": "c808a5f26882408fbbc6a110f92ffd27111a2806acae07f125c834d623260232",
       "test_declarations": 4,
       "registered_suites": [
         "pgwire_extended"
@@ -181124,7 +181124,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 198,
-      "sha256": "8108b969ad7d8397cc589e6982714a125e51324c907205201393088ce1544626",
+      "sha256": "54b010b14053aad4653b9a05bb42d9486e1f88e8c1e15d2910bec486a9a7dff7",
       "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"
@@ -181978,8 +181978,8 @@
       "current_file": "tests/pgwire_extended/functions/string/text_selection.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 248,
-      "sha256": "6b45c8024da1c7723883c282075d6684dd841bd0a51cd1ce02d6fb6482334610",
+      "lines": 251,
+      "sha256": "e1b9f2dade60d995261f190617a550e2b2d885fde96805f29119b28476f30279",
       "test_declarations": 4,
       "registered_suites": [
         "pgwire_extended"
@@ -182098,8 +182098,8 @@
       "current_file": "tests/pgwire_extended/grammar/dollar_quotes.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 99,
-      "sha256": "830e7a0ddaebf65cd7fcf4d7c9971f1d7f9b06aea830d1095118d776a9024bd5",
+      "lines": 102,
+      "sha256": "2c33f7198ce1a37a1572e816740acfd895053f232da6f1a16b5b7b1409f3084e",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -182144,7 +182144,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 215,
-      "sha256": "b12333dd1db4293df56aea5d63e61a21dbc55a94a9e09056190075b4e0b4474a",
+      "sha256": "26b8c6d0e11425fd8367e33d7454f69bdb0989140e4ad8de20f96cc154c4a656",
       "test_declarations": 4,
       "registered_suites": [
         "pgwire_extended"
@@ -186824,7 +186824,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 523,
-      "sha256": "7a045ea0fa7fd346d4e351f99c379b009e0bc08e0aa9285bbaf0823d5d0df89d",
+      "sha256": "42512f1d847fc1201ef0beb23832d6e08961fc13bc0a89551e584058cc000ca5",
       "test_declarations": 13,
       "registered_suites": [
         "planner_controls"
@@ -190589,7 +190589,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 85,
-      "sha256": "dce7b9e31d4645f394867996b8e1bc30150ed41dc37ab857500b4096e6742545",
+      "sha256": "78aa1978ca7c60c7cb59c58ca083d7af378364cf9612d413dcaf1ee5fc1b942f",
       "test_declarations": 3,
       "registered_suites": [
         "sql_queries"

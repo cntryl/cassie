@@ -134,10 +134,10 @@ fn should_preserve_modifier_semantics_given_real_tables_and_scoped_scalars_when_
     );
     assert_eq!(wire::error_code(&batches[5]), None);
     assert_eq!(wire::data_rows(&batches[5]), vec![vec![Some("x".into())]]);
-    for ((sql, expected), phases) in cases.iter().zip(batches[6..].chunks_exact(4)) {
+    for ((sql, expected), phases) in cases.iter().zip(batches[6..].as_chunks::<4>().0) {
         for error in &phases[..2] {
             assert_eq!(wire::error_code(error).as_deref(), Some(*expected), "{sql}");
-            assert!(wire::data_rows(error).is_empty());
+            assert_eq!(wire::data_rows(error), Vec::<Vec<Option<String>>>::new());
             assert!(!error.iter().any(|frame| frame.0 == b'C' || frame.0 == b'1'));
         }
         assert_eq!(phases[2].last().map(|frame| frame.0), Some(b'Z'));
@@ -185,10 +185,10 @@ fn should_reject_invalid_aggregate_types_given_empty_tables_and_false_filters_wh
         wire::data_rows(&batches[1]),
         vec![vec![Some("0".into()), Some("0".into()), None]]
     );
-    for (sql, phases) in cases.iter().zip(batches[2..].chunks_exact(4)) {
+    for (sql, phases) in cases.iter().zip(batches[2..].as_chunks::<4>().0) {
         for error in &phases[..2] {
             assert_eq!(wire::error_code(error).as_deref(), Some("42883"), "{sql}");
-            assert!(wire::data_rows(error).is_empty());
+            assert_eq!(wire::data_rows(error), Vec::<Vec<Option<String>>>::new());
             assert!(!error.iter().any(|frame| frame.0 == b'C' || frame.0 == b'1'));
         }
         assert_eq!(phases[2].last().map(|frame| frame.0), Some(b'Z'));

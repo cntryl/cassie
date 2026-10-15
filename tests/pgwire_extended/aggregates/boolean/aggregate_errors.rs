@@ -67,14 +67,14 @@ fn should_reject_invalid_boolean_calls_given_wrong_types_literals_arity_and_star
     let batches = run_script("issue-805-boolean-parse-errors", steps);
 
     // Assert
-    for ((sql, _, expected), batches) in cases.iter().zip(batches.chunks_exact(3)) {
+    for ((sql, _, expected), batches) in cases.iter().zip(batches.as_chunks::<3>().0) {
         assert_eq!(
             wire::error_code(&batches[0]).as_deref(),
             Some(*expected),
             "{sql}"
         );
         assert!(!batches[0].iter().any(|(tag, _)| *tag == b'1'));
-        assert!(wire::data_rows(&batches[0]).is_empty());
+        assert_eq!(wire::data_rows(&batches[0]), Vec::<Vec<Option<String>>>::new());
         assert_eq!(batches[1].last().map(|frame| frame.0), Some(b'Z'));
         assert_eq!(wire::error_code(&batches[2]), None);
         assert_eq!(
@@ -113,7 +113,7 @@ fn should_reject_invalid_boolean_calls_given_simple_queries_when_no_partial_resu
             Some(*expected),
             "{sql}"
         );
-        assert!(wire::data_rows(frames).is_empty());
+        assert_eq!(wire::data_rows(frames), Vec::<Vec<Option<String>>>::new());
         assert!(!frames.iter().any(|(tag, _)| *tag == b'C'));
     }
     let recovery = batches.last().expect("recovery query");
@@ -166,7 +166,7 @@ fn should_reject_typed_non_boolean_inputs_given_an_empty_table_when_simple_and_p
             .collect::<Vec<_>>(),
         vec![16, 16, 16]
     );
-    for (sql, phases) in cases.iter().zip(batches[2..].chunks_exact(4)) {
+    for (sql, phases) in cases.iter().zip(batches[2..].as_chunks::<4>().0) {
         for (index, error) in phases[..2].iter().enumerate() {
             assert_eq!(wire::error_code(error).as_deref(), Some("42883"), "{sql}");
             assert!(wire::data_rows(error).is_empty(), "{sql}");

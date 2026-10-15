@@ -74,11 +74,14 @@ fn should_reject_the_whole_batch_given_an_unmatched_dollar_quote_when_ddl_preced
     // Assert
     let rejected = &batches[0];
     assert_eq!(wire::error_code(rejected).as_deref(), Some("42601"));
-    assert!(wire::data_rows(rejected).is_empty());
+    assert_eq!(wire::data_rows(rejected), Vec::<Vec<Option<String>>>::new());
     assert!(rejected.iter().all(|frame| frame.0 != b'C'));
     let missing_relation = &batches[1];
     assert_eq!(wire::error_code(missing_relation).as_deref(), Some("42P01"));
-    assert!(wire::data_rows(missing_relation).is_empty());
+    assert_eq!(
+        wire::data_rows(missing_relation),
+        Vec::<Vec<Option<String>>>::new()
+    );
     for frames in [&batches[0], &batches[1], &batches[2]] {
         assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
         assert_eq!(frames.last().expect("ReadyForQuery").1.as_slice(), b"I");

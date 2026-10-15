@@ -278,7 +278,7 @@ pub(super) fn bind_create_view(
         ));
     };
 
-    let bound = bind_select(select, catalog, &HashMap::new(), context)?;
+    let bound = bind_select(*select, catalog, &HashMap::new(), context)?;
     if select_contains_parameters(&bound) {
         return Err(CassieError::Planner(
             "CREATE VIEW cannot contain bind parameters".into(),

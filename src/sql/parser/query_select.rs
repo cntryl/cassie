@@ -61,7 +61,7 @@ pub(super) fn parse_select_statement(
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
-        statement: QueryStatement::Select(SelectStatement {
+        statement: QueryStatement::Select(Box::new(SelectStatement {
             source,
             ctes: withs,
             recursive,
@@ -75,7 +75,7 @@ pub(super) fn parse_select_statement(
             limit: parsed_clauses.limit,
             offset: parsed_clauses.offset,
             set: None,
-        }),
+        })),
     })
 }
 
@@ -120,13 +120,13 @@ pub(super) fn parse_set_select_statement(
     root.offset = global_offset;
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
-        statement: QueryStatement::Select(root),
+        statement: QueryStatement::Select(Box::new(root)),
     })
 }
 
 fn parse_set_operand(sql: &str) -> Result<SelectStatement, SqlError> {
     match parse_select_statement(sql, Vec::new(), false)?.statement {
-        QueryStatement::Select(select) => Ok(select),
+        QueryStatement::Select(select) => Ok(*select),
         _ => Err(SqlError::new(
             "set operation requires SELECT operands".into(),
         )),

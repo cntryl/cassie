@@ -411,7 +411,7 @@ fn derived_cte_template_source(alias: &str, lateral: bool) -> QuerySource {
     select.source = QuerySource::Cte("c".into());
     QuerySource::Subquery {
         alias: alias.into(),
-        select: Box::new(select),
+        select,
         lateral,
     }
 }

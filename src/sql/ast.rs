@@ -46,7 +46,7 @@ pub enum Volatility {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueryStatement {
     Explain(ExplainStatement),
-    Select(SelectStatement),
+    Select(Box<SelectStatement>),
     Show(ShowStatement),
     Set(SetStatement),
     Copy(CopyStatement),

@@ -294,7 +294,7 @@ fn should_keep_lateral_output_charged_after_its_right_source_drops() {
         let left_source = QuerySource::SingleRow;
         let right_source = QuerySource::Subquery {
             alias: "right".to_owned(),
-            select: Box::new(select),
+            select,
             lateral: true,
         };
         let on = Expr::BoolLiteral(true);

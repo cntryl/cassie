@@ -110,7 +110,7 @@ pub enum StatementRoute {
 
 pub enum RuntimeStatement {
     Explain(ExplainStatement),
-    Select(SelectStatement),
+    Select(Box<SelectStatement>),
     Show(ShowStatement),
     Set(SetStatement),
     Copy(CopyStatement),

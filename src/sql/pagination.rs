@@ -39,7 +39,7 @@ pub(crate) fn resolve_plan(
     let reservation = admission::reserve_plan_clone(plan, controls)?;
     let mut statement = ParsedStatement {
         raw_sql: String::new(),
-        statement: QueryStatement::Select(SelectStatement {
+        statement: QueryStatement::Select(Box::new(SelectStatement {
             source: plan.source.clone(),
             ctes: plan.ctes.clone(),
             recursive: false,
@@ -53,7 +53,7 @@ pub(crate) fn resolve_plan(
             limit: plan.limit.clone(),
             offset: plan.offset.clone(),
             set: plan.set.clone(),
-        }),
+        })),
     };
     // Direct executor values carry concrete integer domains. The application
     // validates the original prepared OIDs before reaching this fallback.

@@ -155,7 +155,7 @@ fn should_preserve_text_error_states_given_strict_null_controls_when_the_connect
         (invalid_integer, "22P02"),
     ] {
         assert_eq!(wire::error_code(batch).as_deref(), Some(code));
-        assert!(wire::data_rows(batch).is_empty());
+        assert_eq!(wire::data_rows(batch), Vec::<Vec<Option<String>>>::new());
         assert!(!batch.iter().any(|frame| frame.0 == b'C'));
         assert_eq!(batch.last().map(|frame| frame.0), Some(b'Z'));
     }
@@ -193,10 +193,10 @@ fn should_reject_invalid_text_overloads_given_typed_nulls_when_simple_and_parse_
         wire::data_rows(&batches[0]),
         vec![vec![Some("b".into()), Some("b".into()), Some("b".into())]]
     );
-    for (sql, phases) in cases.iter().zip(batches[1..].chunks_exact(3)) {
+    for (sql, phases) in cases.iter().zip(batches[1..].as_chunks::<3>().0) {
         for batch in &phases[..2] {
             assert_eq!(wire::error_code(batch).as_deref(), Some("42883"), "{sql}");
-            assert!(wire::data_rows(batch).is_empty());
+            assert_eq!(wire::data_rows(batch), Vec::<Vec<Option<String>>>::new());
             assert!(!batch.iter().any(|frame| frame.0 == b'1' || frame.0 == b'C'));
         }
         assert_eq!(phases[2].last().map(|frame| frame.0), Some(b'Z'));
@@ -244,5 +244,8 @@ fn should_preserve_regex_overload_identity_given_unknown_substring_parameters_wh
     );
     // This is an explicit staged rejection, not a PostgreSQL regex execution pass.
     assert_eq!(wire::error_code(execution).as_deref(), Some("0A000"));
-    assert!(wire::data_rows(execution).is_empty());
+    assert_eq!(
+        wire::data_rows(execution),
+        Vec::<Vec<Option<String>>>::new()
+    );
 }

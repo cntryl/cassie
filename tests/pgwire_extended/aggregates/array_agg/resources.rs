@@ -2,25 +2,46 @@
 
 use crate::support_collection_aggregate_resources as support;
 
+const INPUT_ROW_COUNT: i32 = 50_000;
+
+fn array_agg_fixture_setup() -> Vec<String> {
+    let mut statements =
+        vec!["CREATE TABLE issue_811_array_agg_rows (n INT4 PRIMARY KEY)".to_owned()];
+    for first in (1..=INPUT_ROW_COUNT).step_by(250) {
+        let last = (first + 249).min(INPUT_ROW_COUNT);
+        let values = (first..=last)
+            .map(|value| format!("({value})"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        statements.push(format!(
+            "INSERT INTO issue_811_array_agg_rows VALUES {values}"
+        ));
+    }
+    statements
+}
+
 #[test]
 fn should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive() {
     // Arrange
+    let setup_sql = array_agg_fixture_setup();
     let control_sql = "SELECT cardinality(array_agg(repeat('x', 2))) \
-                       FROM (VALUES (1),(2),(3)) AS input(n)";
-    let candidate_sql = support::wide_input_query("cardinality(array_agg(repeat('x', 512)))");
-    let wide_control_sql = support::wide_input_query("count(*)");
+                       FROM issue_811_array_agg_rows WHERE n <= 3";
+    let candidate_sql = "SELECT cardinality(array_agg(repeat('x', 512))) \
+                         FROM issue_811_array_agg_rows";
+    let wide_control_sql = "SELECT count(*) FROM issue_811_array_agg_rows";
 
     // Act
-    let case = support::run_memory_budget_case(
+    let case = support::run_memory_budget_case_with_setup(
         "issue-811-array-agg-budget",
+        &setup_sql,
         control_sql,
-        &wide_control_sql,
-        &candidate_sql,
+        wide_control_sql,
+        candidate_sql,
     );
 
     // Assert
     support::assert_control_and_recovery(&case.control, "3", &case.recovery, "46");
-    support::assert_control_result(&case.wide_control, "100000");
+    support::assert_control_result(&case.wide_control, "50000");
     support::assert_rejected_without_partial_rows(&case.candidate, "54000");
 }
 
@@ -28,13 +49,19 @@ fn should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive(
 fn should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives(
 ) {
     // Arrange
+    let setup_sql = array_agg_fixture_setup();
     let control_sql = "SELECT cardinality(array_agg(repeat('x', 2))) \
-                       FROM (VALUES (1),(2),(3)) AS input(n)";
-    let candidate_sql = support::wide_input_query("cardinality(array_agg(repeat('x', 512)))");
+                       FROM issue_811_array_agg_rows WHERE n <= 3";
+    let candidate_sql = "SELECT cardinality(array_agg(repeat('x', 512))) \
+                         FROM issue_811_array_agg_rows";
 
     // Act
-    let case =
-        support::run_cancellation_case("issue-811-array-agg-cancel", control_sql, &candidate_sql);
+    let case = support::run_cancellation_case_with_setup(
+        "issue-811-array-agg-cancel",
+        &setup_sql,
+        control_sql,
+        candidate_sql,
+    );
 
     // Assert
     support::assert_control_and_recovery(&case.control, "3", &case.recovery, "47");

@@ -30,20 +30,10 @@ fn should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_lim
     );
 
     // Act
-    let control = control.expect("unlimited correlated lateral control");
     let limited = limited.expect("limited correlated lateral series");
+    let control = control.expect("unlimited correlated lateral control");
 
     // Assert
-    assert_eq!(
-        control.rows(),
-        &[
-            vec![Value::Int64(1), Value::Int64(1), Value::Int64(1)],
-            vec![Value::Int64(1), Value::Int64(2), Value::Int64(2)],
-            vec![Value::Int64(1), Value::Int64(3), Value::Int64(3)],
-            vec![Value::Int64(2), Value::Int64(1), Value::Int64(1)],
-            vec![Value::Int64(2), Value::Int64(2), Value::Int64(2)],
-        ]
-    );
     assert_eq!(
         limited
             .columns()
@@ -59,6 +49,16 @@ fn should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_lim
             vec![Value::Int64(1), Value::Int64(2), Value::Int64(2)],
             vec![Value::Int64(1), Value::Int64(3), Value::Int64(3)],
             vec![Value::Int64(2), Value::Int64(1), Value::Int64(1)],
+        ]
+    );
+    assert_eq!(
+        control.rows(),
+        &[
+            vec![Value::Int64(1), Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(1), Value::Int64(2), Value::Int64(2)],
+            vec![Value::Int64(1), Value::Int64(3), Value::Int64(3)],
+            vec![Value::Int64(2), Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(2), Value::Int64(2)],
         ]
     );
 }

@@ -98,6 +98,22 @@ pub fn wide_input_query(aggregate_expression: &str) -> String {
     )
 }
 
+fn seed_fixture(path: &str, setup_sql: &[String]) {
+    if setup_sql.is_empty() {
+        return;
+    }
+
+    let cassie = Cassie::new_with_data_dir(path).expect("create aggregate input fixture");
+    let session = cassie.create_session("tester", None);
+    for sql in setup_sql {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .unwrap_or_else(|error| panic!("execute aggregate fixture setup {sql:?}: {error}"));
+    }
+    drop(session);
+    drop(cassie);
+}
+
 fn marked_query(marker: &str, query: &str) -> String {
     format!("/* {marker} */ {query}")
 }
@@ -180,9 +196,20 @@ pub fn run_memory_budget_case(
     wide_control_sql: &str,
     candidate_sql: &str,
 ) -> ResourceCase {
+    run_memory_budget_case_with_setup(label, &[], control_sql, wide_control_sql, candidate_sql)
+}
+
+pub fn run_memory_budget_case_with_setup(
+    label: &str,
+    setup_sql: &[String],
+    control_sql: &str,
+    wide_control_sql: &str,
+    candidate_sql: &str,
+) -> ResourceCase {
     wire::use_local_storage();
     let path = wire::data_dir(label);
     let _directory = FixtureDirectory(path.clone());
+    seed_fixture(&path, setup_sql);
     let runtime = current_thread_runtime();
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_timeout_ms = 0;
@@ -236,9 +263,19 @@ pub fn run_cancellation_case(
     control_sql: &str,
     candidate_sql: &str,
 ) -> CancellationCase {
+    run_cancellation_case_with_setup(label, &[], control_sql, candidate_sql)
+}
+
+pub fn run_cancellation_case_with_setup(
+    label: &str,
+    setup_sql: &[String],
+    control_sql: &str,
+    candidate_sql: &str,
+) -> CancellationCase {
     wire::use_local_storage();
     let path = wire::data_dir(label);
     let _directory = FixtureDirectory(path.clone());
+    seed_fixture(&path, setup_sql);
     let runtime = current_thread_runtime();
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_timeout_ms = 0;

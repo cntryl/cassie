@@ -27,7 +27,7 @@ fn should_return_jsonb_identity_given_a_timezone_sensitive_path_when_query_first
     // Arrange
     let sql = "SELECT jsonb_path_query_first_tz(\
         '{\"at\":\"2024-11-03T01:30:00-04:00\"}'::JSONB, \
-        '$.at ? (@.datetime() > \"2024-11-03T00:00:00-04:00\".datetime())'::JSONPATH\
+        '$.at ? (@.datetime() > \"2024-11-03T00:00:00-04:00\".datetime())'\
     )";
     let cycles = vec![fixture::execute_cycle(sql, None, 0, true)];
 
@@ -43,7 +43,7 @@ fn should_return_null_given_a_timezone_sensitive_path_when_query_first_tz_has_no
     // Arrange
     let sql = "SELECT jsonb_path_query_first_tz(\
         '{\"at\":\"2024-11-03T01:30:00-04:00\"}'::JSONB, \
-        '$.at ? (@.datetime() > \"2024-11-03T03:00:00-04:00\".datetime())'::JSONPATH\
+        '$.at ? (@.datetime() > \"2024-11-03T03:00:00-04:00\".datetime())'\
     )";
     let cycles = vec![fixture::execute_cycle(sql, None, 0, true)];
 

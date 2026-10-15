@@ -62348,8 +62348,8 @@
       "id": "tests/pgwire_extended/aggregates/array_agg/resources.rs::should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "name": "should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "current_file": "tests/pgwire_extended/aggregates/array_agg/resources.rs",
-      "line": 6,
-      "end_line": 25,
+      "line": 24,
+      "end_line": 46,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62379,8 +62379,8 @@
       "id": "tests/pgwire_extended/aggregates/array_agg/resources.rs::should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "name": "should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/array_agg/resources.rs",
-      "line": 28,
-      "end_line": 42,
+      "line": 49,
+      "end_line": 69,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62875,8 +62875,8 @@
       "id": "tests/pgwire_extended/aggregates/json_agg/resources.rs::should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "name": "should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "current_file": "tests/pgwire_extended/aggregates/json_agg/resources.rs",
-      "line": 6,
-      "end_line": 25,
+      "line": 24,
+      "end_line": 46,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62906,8 +62906,8 @@
       "id": "tests/pgwire_extended/aggregates/json_agg/resources.rs::should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "name": "should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/json_agg/resources.rs",
-      "line": 28,
-      "end_line": 42,
+      "line": 49,
+      "end_line": 69,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62937,8 +62937,8 @@
       "id": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs::should_reject_json_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
       "name": "should_reject_json_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
       "current_file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
-      "line": 9,
-      "end_line": 30,
+      "line": 24,
+      "end_line": 46,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62968,8 +62968,8 @@
       "id": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs::should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "name": "should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
-      "line": 33,
-      "end_line": 52,
+      "line": 49,
+      "end_line": 69,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62999,8 +62999,8 @@
       "id": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs::should_reject_jsonb_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "name": "should_reject_jsonb_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "current_file": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs",
-      "line": 6,
-      "end_line": 25,
+      "line": 24,
+      "end_line": 46,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -63030,8 +63030,8 @@
       "id": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs::should_cancel_jsonb_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "name": "should_cancel_jsonb_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs",
-      "line": 28,
-      "end_line": 42,
+      "line": 49,
+      "end_line": 69,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -63061,8 +63061,8 @@
       "id": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs::should_reject_jsonb_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
       "name": "should_reject_jsonb_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
       "current_file": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs",
-      "line": 9,
-      "end_line": 30,
+      "line": 24,
+      "end_line": 46,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -63092,8 +63092,8 @@
       "id": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs::should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "name": "should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs",
-      "line": 33,
-      "end_line": 52,
+      "line": 49,
+      "end_line": 69,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -63743,8 +63743,8 @@
       "id": "tests/pgwire_extended/aggregates/string_agg/resources.rs::should_reject_string_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "name": "should_reject_string_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "current_file": "tests/pgwire_extended/aggregates/string_agg/resources.rs",
-      "line": 6,
-      "end_line": 25,
+      "line": 24,
+      "end_line": 46,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -63774,8 +63774,8 @@
       "id": "tests/pgwire_extended/aggregates/string_agg/resources.rs::should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "name": "should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/string_agg/resources.rs",
-      "line": 28,
-      "end_line": 42,
+      "line": 49,
+      "end_line": 69,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65975,8 +65975,8 @@
       "id": "tests/pgwire_extended/functions/math/overload_errors.rs::should_return_overload_errors_given_supported_math_controls_when_undefined_signatures_are_prepared",
       "name": "should_return_overload_errors_given_supported_math_controls_when_undefined_signatures_are_prepared",
       "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
-      "line": 69,
-      "end_line": 143,
+      "line": 70,
+      "end_line": 144,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -66006,8 +66006,8 @@
       "id": "tests/pgwire_extended/functions/math/overload_errors.rs::should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero",
       "name": "should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero",
       "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
-      "line": 146,
-      "end_line": 190,
+      "line": 147,
+      "end_line": 192,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -178991,8 +178991,8 @@
       "current_file": "tests/pgwire_extended/aggregates/array_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 42,
-      "sha256": "1213993c7f8064b6684333d1e2b968725c62fab5070abc3303c56fad2ef23e29",
+      "lines": 69,
+      "sha256": "3d2d537628423778cd6bd819277452396389bf5ff40f963def7b21a19e25871c",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -179141,8 +179141,8 @@
       "current_file": "tests/pgwire_extended/aggregates/json_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 42,
-      "sha256": "63f2ece114a64b12782000c50d00a0ed2477a358561ef0f78549fd96bb984e77",
+      "lines": 69,
+      "sha256": "d75fb8ad0d0ab369f103bfa19e9ad3dff60a144db5e3ea1f7124dc01355b98cc",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -179156,8 +179156,8 @@
       "current_file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 52,
-      "sha256": "8994b5618f26668dc89ef7ceecb1e2a066b9b0d2c0eb82bd4461bc80ccdf418c",
+      "lines": 69,
+      "sha256": "dd941995de610cf1b395641c2d2b0c7f40e7793c7f921cecc117038879489685",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -179171,8 +179171,8 @@
       "current_file": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 42,
-      "sha256": "9053fb3745fc5579cba183d411cb663561907a6c9d61f9b6c3aae9993e38a70d",
+      "lines": 69,
+      "sha256": "fec8f7ad78b3af49156419320a5cebf0a9186ecf1fce27c687a9ac96159886cc",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -179186,8 +179186,8 @@
       "current_file": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 52,
-      "sha256": "3dfe62327e2a0ca71b3643aaa018c0a3eaa59b4ebf9044ef6ba06ac2f1814e35",
+      "lines": 69,
+      "sha256": "fef93b7eaac41bbde4d3f5713fe051d38da81d3ee0a56190eb4dfe48300c0afd",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -179381,8 +179381,8 @@
       "current_file": "tests/pgwire_extended/aggregates/string_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 42,
-      "sha256": "99a6962e07066a541ba0909e7643468d3c251a0d96c1ec8f6ae84071cf67e9ed",
+      "lines": 69,
+      "sha256": "27f13b19c81de23992d60e72bfba71ef1a2e5b7241292386132d10d9f1d9c556",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -179756,8 +179756,8 @@
       "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 190,
-      "sha256": "679b9ea4658c431cc4d20a27bffd061388cba0b6fd8e900139ffc96ea83ed657",
+      "lines": 192,
+      "sha256": "c431791fd88cb5716bd58b1d51a5a87a47a062300f4fe001397eaafcc6845eb1",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -183492,7 +183492,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 279,
-      "sha256": "76b108bd8793ae4882503182a2d2501bd8fbc85b3bf8c5fe4f93a4046f265f43",
+      "sha256": "29736ad2a8aecbac0fe6d850c3f0b1d4067d64e82e3986859222be4418836aaa",
       "test_declarations": 1,
       "registered_suites": [
         "pgwire_extended"
@@ -183597,7 +183597,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 55,
-      "sha256": "3f76078cf6b505415d151e42f74fe7a119f596efa4dee999a9f3daef64e02248",
+      "sha256": "921d1980b48a11733b70e401a66069c1404c8e155a86fdadbff8226675a41197",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -189267,7 +189267,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 41,
-      "sha256": "8ae300a7e486fe336332882fe6aec490284e9859a575c1bf3f39394ffbe88263",
+      "sha256": "7d1da8b18cb05ad565dc5598a46dcac138c6e123d281b1e3e5af17404715ed5d",
       "test_declarations": 1,
       "registered_suites": [
         "sql_queries"
@@ -189282,7 +189282,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 64,
-      "sha256": "7993d56a6254c8aebf67fcc55315123c1efa5d27e83acd656f8c01da0458886c",
+      "sha256": "52eccab7ef0fed3c75c0b7a8eff8dd50bb94a89c83854407a8099cc82d0341e8",
       "test_declarations": 1,
       "registered_suites": [
         "sql_queries"
@@ -190557,8 +190557,8 @@
       "current_file": "tests/support/collection_aggregate_resources.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 379,
-      "sha256": "3b729db852b71843ee0ff60ab792568172254186bd508bbebd7384c840d65b17",
+      "lines": 416,
+      "sha256": "0e10b0b65e8c2680cc785425b09f0eaefb5c25b15ddff106d33ccab02972bdb4",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -192778,7 +192778,7 @@
       "suite": "sql_queries",
       "directory": "tests/sql_queries/set_returning",
       "file": "tests/sql_queries/set_returning/array_subscripts.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "set_returning",
       "actual_test": "should_return_ascending_subscripts_given_nondefault_array_bounds_when_generate_subscripts_uses_forward_order",
       "instances": [
@@ -192793,16 +192793,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "pending_root_cargo",
-      "prior_execution_evidence": "Test body and expected result are present; no Cargo result captured by this agent.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier assertion order stopped at the separate array bounds control before reporting the generate_subscripts query result. The current test evaluates and asserts the generate_subscripts result first.",
+      "prior_observations": [
         {
           "suite": "sql_queries",
           "name": "sql_queries::set_returning_array_subscripts::should_return_ascending_subscripts_given_nondefault_array_bounds_when_generate_subscripts_uses_forward_order",
           "status": "failed_observed",
           "failure_excerpt": "thread 'sql_queries::set_returning_array_subscripts::should_return_ascending_subscripts_given_nondefault_array_bounds_when_generate_subscripts_uses_forward_order' (19469709) panicked at tests/sql_queries/set_returning/array_subscripts.rs:23:25:\narray bounds control: Planner(\"unresolvable column reference ''[0:2]={10,20,30}'::int4[]'; known fields or aliases required\")"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 808,
@@ -192811,7 +192812,7 @@
       "suite": "sql_queries",
       "directory": "tests/sql_queries/set_returning",
       "file": "tests/sql_queries/set_returning/lateral_ordinality.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "set_returning",
       "actual_test": "should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_limit_is_applied",
       "instances": [
@@ -192826,16 +192827,17 @@
         "reference": "PostgreSQL18.6",
         "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
       },
-      "prior_execution_status": "pending_root_cargo",
-      "prior_execution_evidence": "Test body and expected result are present; no Cargo result captured by this agent.",
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier assertion order stopped at the unlimited lateral control. The current test evaluates the limited correlated LATERAL query and its ordinal result/type before checking the control.",
+      "prior_observations": [
         {
           "suite": "sql_queries",
           "name": "sql_queries::set_returning_lateral_ordinality::should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_limit_is_applied",
           "status": "failed_observed",
           "failure_excerpt": "thread 'sql_queries::set_returning_lateral_ordinality::should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_limit_is_applied' (19469714) panicked at tests/sql_queries/set_returning/lateral_ordinality.rs:33:27:\nunlimited correlated lateral control: InvalidQuery(\"invalid expression token 'source.stop_at) WITH ORDINALITY AS generated(value, ordinality'\")"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 809,
@@ -192844,7 +192846,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/types/json/jsonpath",
       "file": "tests/pgwire_extended/types/json/jsonpath/cancellation.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "types/json/jsonpath",
       "actual_test": "should_cancel_without_partial_rows_given_jsonpath_expansion_when_cancel_request_arrives",
       "instances": [
@@ -192859,9 +192861,9 @@
         "authority": "local PostgreSQL 18.6 psql",
         "evidence": "PG18.6 control: jsonb_path_query over [1,2,3] on each side returns COUNT(*)=9; explicit CancelRequest expects SQLSTATE 57014 and no DataRow/CommandComplete."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier run stopped at the positive control with SQLSTATE 42601 while the JSONPath argument used an explicit ::JSONPATH cast. The revised SQL follows the cast-free jsonb_path_query form used by the sibling JSON expansion test; the earlier result's cause is unconfirmed and this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::types_json_jsonpath_cancellation::should_cancel_without_partial_rows_given_jsonpath_expansion_when_cancel_request_arrives",
@@ -192869,7 +192871,8 @@
           "failure_excerpt": "thread 'pgwire_extended::types_json_jsonpath_cancellation::should_cancel_without_partial_rows_given_jsonpath_expansion_when_cancel_request_arrives' (19553427) panicked at tests/pgwire_extended/types/json/jsonpath/cancellation.rs:143:5:\nassertion `left == right` failed: valid JSONPath positive control must succeed before cancellation: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token ''$[*]'::JSONPATH) AS left_item(value'\")]]\n  left: Some(\"42601\")\n right: None\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 810,
@@ -192878,7 +192881,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/types/json",
       "file": "tests/pgwire_extended/types/json/jsonpath_timezone.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "types/json",
       "actual_test": "should_return_jsonb_identity_given_a_timezone_sensitive_path_when_query_first_tz_matches",
       "instances": [
@@ -192893,16 +192896,17 @@
         "authority": "local PostgreSQL 18.6 psql",
         "evidence": "PG18.6: jsonb_path_query_first_tz returns JSONB text `\"2024-11-03T01:30:00-04:00\"` for the matching datetime predicate."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier run reported 42601 while parsing the explicitly cast JSONPath argument. The revised call relies on PostgreSQL's unknown-string inference for the function's jsonpath argument; the earlier result's cause is unconfirmed and this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::types_json_jsonpath_timezone::should_return_jsonb_identity_given_a_timezone_sensitive_path_when_query_first_tz_matches",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::types_json_jsonpath_timezone::should_return_jsonb_identity_given_a_timezone_sensitive_path_when_query_first_tz_matches' (19424890) panicked at tests/support/wire_queries.rs:54:5:\nassertion `left == right` failed: wire errors: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token ''$.at ? (@.datetime() > \\\"2024-11-03T00:00:00-04:00\\\".datetime())'::JSONPATH'\")]]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 810,
@@ -192911,7 +192915,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/types/json",
       "file": "tests/pgwire_extended/types/json/jsonpath_timezone.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "types/json",
       "actual_test": "should_return_null_given_a_timezone_sensitive_path_when_query_first_tz_has_no_match",
       "instances": [
@@ -192926,16 +192930,17 @@
         "authority": "local PostgreSQL 18.6 psql",
         "evidence": "PG18.6: jsonb_path_query_first_tz returns SQL NULL when the timezone-aware predicate has no match."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier run reported 42601 while parsing the explicitly cast JSONPath argument. The revised call relies on PostgreSQL's unknown-string inference for the function's jsonpath argument; the earlier result's cause is unconfirmed and this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::types_json_jsonpath_timezone::should_return_null_given_a_timezone_sensitive_path_when_query_first_tz_has_no_match",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::types_json_jsonpath_timezone::should_return_null_given_a_timezone_sensitive_path_when_query_first_tz_has_no_match' (19424892) panicked at tests/support/wire_queries.rs:54:5:\nassertion `left == right` failed: wire errors: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token ''$.at ? (@.datetime() > \\\"2024-11-03T03:00:00-04:00\\\".datetime())'::JSONPATH'\")]]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -192944,7 +192949,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/string_agg",
       "file": "tests/pgwire_extended/aggregates/string_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/string_agg",
       "actual_test": "should_reject_string_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "instances": [
@@ -192953,22 +192958,23 @@
           "name": "pgwire_extended::aggregates_string_agg_resources::should_reject_string_agg_growth_given_a_memory_budget_when_more_values_arrive"
         }
       ],
-      "asserted_contract": "PG18.6 control length(string_agg(repeat(x,2),))=6 on three rows; target expects SQLSTATE 54000 after 100,000 retained 512-byte values exceed the 4,096-byte engine budget; cancellation target expects 57014.",
+      "asserted_contract": "PG18.6 control length(string_agg(repeat(x,2),))=6 on three rows; target expects SQLSTATE 54000 when 50,000 retained 512-byte values exceed the 4,096-byte engine budget.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control length(string_agg(repeat(x,2),))=6 on three rows; target expects SQLSTATE 54000 after 100,000 retained 512-byte values exceed the 4,096-byte engine budget; cancellation target expects 57014."
+        "evidence": "PG18.6 control length(string_agg(repeat(x,2),))=6 on three rows; target expects SQLSTATE 54000 when 50,000 retained 512-byte values exceed the 4,096-byte engine budget."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and reported 0A000 before reaching the string_agg assertion. The revised case seeds an ordinary table and runs both controls and the candidate against it; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_string_agg_resources::should_reject_string_agg_growth_given_a_memory_budget_when_more_values_arrive",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::aggregates_string_agg_resources::should_reject_string_agg_growth_given_a_memory_budget_when_more_values_arrive' (19418299) panicked at tests/pgwire_extended/aggregates/../../support/collection_aggregate_resources.rs:266:5:\nassertion `left == right` failed: small retained-value control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -192977,7 +192983,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/string_agg",
       "file": "tests/pgwire_extended/aggregates/string_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/string_agg",
       "actual_test": "should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "instances": [
@@ -192986,15 +192992,15 @@
           "name": "pgwire_extended::aggregates_string_agg_resources::should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives"
         }
       ],
-      "asserted_contract": "PG18.6 control length(string_agg(repeat(x,2),))=6; same 100,000-row 512-byte aggregate input becomes observable as active before CancelRequest; expected 57014, no partial rows, then recovery value 47.",
+      "asserted_contract": "PG18.6 control length(string_agg(repeat(x,2),))=6; same 50,000-row 512-byte aggregate input becomes observable as active before CancelRequest; expected 57014, no partial rows, then recovery value 47.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control length(string_agg(repeat(x,2),))=6; same 100,000-row 512-byte aggregate input becomes observable as active before CancelRequest; expected 57014, no partial rows, then recovery value 47."
+        "evidence": "PG18.6 control length(string_agg(repeat(x,2),))=6; same 50,000-row 512-byte aggregate input becomes observable as active before CancelRequest; expected 57014, no partial rows, then recovery value 47."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before the target query or CancelRequest. The revised case seeds 50,000 rows into a table and uses that table for its control and cancellation target; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_string_agg_resources::should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
@@ -193002,7 +193008,8 @@
           "failure_excerpt": "thread 'pgwire_extended::aggregates_string_agg_resources::should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives' (19553143) panicked at tests/support/collection_aggregate_resources.rs:353:5:\nassertion `left == right` failed: small retained-value cancellation control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -193011,7 +193018,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/array_agg",
       "file": "tests/pgwire_extended/aggregates/array_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/array_agg",
       "actual_test": "should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "instances": [
@@ -193020,22 +193027,23 @@
           "name": "pgwire_extended::aggregates_array_agg_resources::should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive"
         }
       ],
-      "asserted_contract": "PG18.6 control cardinality(array_agg(repeat(x,2)))=3; same 100,000-row nonretaining COUNT(*) control succeeds under 4,096 bytes; target expects 54000.",
+      "asserted_contract": "PG18.6 control cardinality(array_agg(repeat(x,2)))=3; same 50,000-row nonretaining COUNT(*) control succeeds under 4,096 bytes; target expects 54000.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control cardinality(array_agg(repeat(x,2)))=3; same 100,000-row nonretaining COUNT(*) control succeeds under 4,096 bytes; target expects 54000."
+        "evidence": "PG18.6 control cardinality(array_agg(repeat(x,2)))=3; same 50,000-row nonretaining COUNT(*) control succeeds under 4,096 bytes; target expects 54000."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before reaching array_agg. The revised case seeds 50,000 rows into a table and uses that table for both controls and the candidate; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_array_agg_resources::should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::aggregates_array_agg_resources::should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive' (19418121) panicked at tests/pgwire_extended/aggregates/../../support/collection_aggregate_resources.rs:266:5:\nassertion `left == right` failed: small retained-value control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -193044,7 +193052,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/array_agg",
       "file": "tests/pgwire_extended/aggregates/array_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/array_agg",
       "actual_test": "should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "instances": [
@@ -193053,15 +193061,15 @@
           "name": "pgwire_extended::aggregates_array_agg_resources::should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives"
         }
       ],
-      "asserted_contract": "PG18.6 control cardinality(array_agg(repeat(x,2)))=3; cancellation waits for runtime.running_queries to exceed baseline before CancelRequest; expected 57014 with no partial rows.",
+      "asserted_contract": "PG18.6 control cardinality(array_agg(repeat(x,2)))=3; the same 50,000-row 512-byte aggregate becomes active before CancelRequest; expected 57014 with no partial rows.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control cardinality(array_agg(repeat(x,2)))=3; cancellation waits for runtime.running_queries to exceed baseline before CancelRequest; expected 57014 with no partial rows."
+        "evidence": "PG18.6 control cardinality(array_agg(repeat(x,2)))=3; the same 50,000-row 512-byte aggregate becomes active before CancelRequest; expected 57014 with no partial rows."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before the target query or CancelRequest. The revised case seeds 50,000 rows into a table and uses that table for its control and cancellation target; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_array_agg_resources::should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
@@ -193069,7 +193077,8 @@
           "failure_excerpt": "thread 'pgwire_extended::aggregates_array_agg_resources::should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives' (19553137) panicked at tests/support/collection_aggregate_resources.rs:353:5:\nassertion `left == right` failed: small retained-value cancellation control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None\ntest pgwire_extended::aggregates_json_agg_resources::should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives ... FAILED\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -193078,7 +193087,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/json_agg",
       "file": "tests/pgwire_extended/aggregates/json_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/json_agg",
       "actual_test": "should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "instances": [
@@ -193087,22 +193096,23 @@
           "name": "pgwire_extended::aggregates_json_agg_resources::should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive"
         }
       ],
-      "asserted_contract": "PG18.6 control length(json_agg(repeat(x,2))::text)=18; same 100,000-row COUNT(*) control succeeds under the same 4,096-byte budget; target expects 54000.",
+      "asserted_contract": "PG18.6 control length(json_agg(repeat(x,2))::text)=18; same 50,000-row COUNT(*) control succeeds under the same 4,096-byte budget; target expects 54000.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control length(json_agg(repeat(x,2))::text)=18; same 100,000-row COUNT(*) control succeeds under the same 4,096-byte budget; target expects 54000."
+        "evidence": "PG18.6 control length(json_agg(repeat(x,2))::text)=18; same 50,000-row COUNT(*) control succeeds under the same 4,096-byte budget; target expects 54000."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before reaching json_agg. The revised case seeds 50,000 rows into a table and uses that table for both controls and the candidate; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_json_agg_resources::should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::aggregates_json_agg_resources::should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive' (19418155) panicked at tests/pgwire_extended/aggregates/../../support/collection_aggregate_resources.rs:266:5:\nassertion `left == right` failed: small retained-value control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -193111,7 +193121,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/json_agg",
       "file": "tests/pgwire_extended/aggregates/json_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/json_agg",
       "actual_test": "should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "instances": [
@@ -193120,15 +193130,15 @@
           "name": "pgwire_extended::aggregates_json_agg_resources::should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives"
         }
       ],
-      "asserted_contract": "PG18.6 control length(json_agg(repeat(x,2))::text)=18; active-query metric readiness precedes CancelRequest; expected 57014 with no partial rows.",
+      "asserted_contract": "PG18.6 control length(json_agg(repeat(x,2))::text)=18; the same 50,000-row 512-byte aggregate is observed active before CancelRequest; expected 57014 with no partial rows.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control length(json_agg(repeat(x,2))::text)=18; active-query metric readiness precedes CancelRequest; expected 57014 with no partial rows."
+        "evidence": "PG18.6 control length(json_agg(repeat(x,2))::text)=18; the same 50,000-row 512-byte aggregate is observed active before CancelRequest; expected 57014 with no partial rows."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before the target query or CancelRequest. The revised case seeds 50,000 rows into a table and uses that table for its control and cancellation target; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_json_agg_resources::should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
@@ -193136,7 +193146,8 @@
           "failure_excerpt": "thread 'pgwire_extended::aggregates_json_agg_resources::should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives' (19553138) panicked at tests/support/collection_aggregate_resources.rs:353:5:\nassertion `left == right` failed: small retained-value cancellation control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -193145,7 +193156,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/jsonb_agg",
       "file": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/jsonb_agg",
       "actual_test": "should_reject_jsonb_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "instances": [
@@ -193154,22 +193165,23 @@
           "name": "pgwire_extended::aggregates_jsonb_agg_resources::should_reject_jsonb_agg_growth_given_a_memory_budget_when_more_values_arrive"
         }
       ],
-      "asserted_contract": "PG18.6 control length(jsonb_agg(repeat(x,2))::text)=18; same-input COUNT(*) control returns 100000 under 4,096 bytes; target expects 54000.",
+      "asserted_contract": "PG18.6 control length(jsonb_agg(repeat(x,2))::text)=18; same-input COUNT(*) control returns 50000 under 4,096 bytes; target expects 54000.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control length(jsonb_agg(repeat(x,2))::text)=18; same-input COUNT(*) control returns 100000 under 4,096 bytes; target expects 54000."
+        "evidence": "PG18.6 control length(jsonb_agg(repeat(x,2))::text)=18; same-input COUNT(*) control returns 50000 under 4,096 bytes; target expects 54000."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before reaching jsonb_agg. The revised case seeds 50,000 rows into a table and uses that table for both controls and the candidate; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_jsonb_agg_resources::should_reject_jsonb_agg_growth_given_a_memory_budget_when_more_values_arrive",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::aggregates_jsonb_agg_resources::should_reject_jsonb_agg_growth_given_a_memory_budget_when_more_values_arrive' (19418181) panicked at tests/pgwire_extended/aggregates/../../support/collection_aggregate_resources.rs:266:5:\nassertion `left == right` failed: small retained-value control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -193178,7 +193190,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/jsonb_agg",
       "file": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/jsonb_agg",
       "actual_test": "should_cancel_jsonb_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "instances": [
@@ -193187,15 +193199,15 @@
           "name": "pgwire_extended::aggregates_jsonb_agg_resources::should_cancel_jsonb_agg_without_partial_output_given_retained_values_when_cancel_request_arrives"
         }
       ],
-      "asserted_contract": "PG18.6 control length(jsonb_agg(repeat(x,2))::text)=18; active-query metric readiness precedes CancelRequest; expected 57014 with no partial rows.",
+      "asserted_contract": "PG18.6 control length(jsonb_agg(repeat(x,2))::text)=18; the same 50,000-row 512-byte aggregate is observed active before CancelRequest; expected 57014 with no partial rows.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control length(jsonb_agg(repeat(x,2))::text)=18; active-query metric readiness precedes CancelRequest; expected 57014 with no partial rows."
+        "evidence": "PG18.6 control length(jsonb_agg(repeat(x,2))::text)=18; the same 50,000-row 512-byte aggregate is observed active before CancelRequest; expected 57014 with no partial rows."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before the target query or CancelRequest. The revised case seeds 50,000 rows into a table and uses that table for its control and cancellation target; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_jsonb_agg_resources::should_cancel_jsonb_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
@@ -193203,7 +193215,8 @@
           "failure_excerpt": "thread 'pgwire_extended::aggregates_jsonb_agg_resources::should_cancel_jsonb_agg_without_partial_output_given_retained_values_when_cancel_request_arrives' (19553140) panicked at tests/support/collection_aggregate_resources.rs:353:5:\nassertion `left == right` failed: small retained-value cancellation control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None\ntest pgwire_extended::aggregates_string_agg_resources::should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives ... FAILED\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -193212,7 +193225,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/json_object_agg",
       "file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/json_object_agg",
       "actual_test": "should_reject_json_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
       "instances": [
@@ -193221,22 +193234,23 @@
           "name": "pgwire_extended::aggregates_json_object_agg_resources::should_reject_json_object_agg_growth_given_a_memory_budget_when_more_entries_arrive"
         }
       ],
-      "asserted_contract": "PG18.6 control length(json_object_agg(key,repeat(x,2))::text)=38; same-input COUNT(*) control returns 100000 under 4,096 bytes; target expects 54000.",
+      "asserted_contract": "PG18.6 control length(json_object_agg(key,repeat(x,2))::text)=38; same-input COUNT(*) control returns 50000 under 4,096 bytes; target expects 54000.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control length(json_object_agg(key,repeat(x,2))::text)=38; same-input COUNT(*) control returns 100000 under 4,096 bytes; target expects 54000."
+        "evidence": "PG18.6 control length(json_object_agg(key,repeat(x,2))::text)=38; same-input COUNT(*) control returns 50000 under 4,096 bytes; target expects 54000."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before reaching json_object_agg. The revised case seeds 50,000 unique integer keys into a table and uses that table for both controls and the candidate; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_json_object_agg_resources::should_reject_json_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::aggregates_json_object_agg_resources::should_reject_json_object_agg_growth_given_a_memory_budget_when_more_entries_arrive' (19418170) panicked at tests/pgwire_extended/aggregates/../../support/collection_aggregate_resources.rs:266:5:\nassertion `left == right` failed: small retained-value control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -193245,7 +193259,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/json_object_agg",
       "file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/json_object_agg",
       "actual_test": "should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "instances": [
@@ -193254,15 +193268,15 @@
           "name": "pgwire_extended::aggregates_json_object_agg_resources::should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives"
         }
       ],
-      "asserted_contract": "PG18.6 control length(json_object_agg(key,repeat(x,2))::text)=38; active-query metric readiness precedes CancelRequest; expected 57014 with no partial rows.",
+      "asserted_contract": "PG18.6 control length(json_object_agg(key,repeat(x,2))::text)=38; the same 50,000 unique-key 512-byte aggregate is observed active before CancelRequest; expected 57014 with no partial rows.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control length(json_object_agg(key,repeat(x,2))::text)=38; active-query metric readiness precedes CancelRequest; expected 57014 with no partial rows."
+        "evidence": "PG18.6 control length(json_object_agg(key,repeat(x,2))::text)=38; the same 50,000 unique-key 512-byte aggregate is observed active before CancelRequest; expected 57014 with no partial rows."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before the target query or CancelRequest. The revised case seeds 50,000 unique integer keys into a table and uses that table for its control and cancellation target; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_json_object_agg_resources::should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
@@ -193270,7 +193284,8 @@
           "failure_excerpt": "thread 'pgwire_extended::aggregates_json_object_agg_resources::should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives' (19553139) panicked at tests/support/collection_aggregate_resources.rs:353:5:\nassertion `left == right` failed: small retained-value cancellation control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -193279,7 +193294,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/jsonb_object_agg",
       "file": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/jsonb_object_agg",
       "actual_test": "should_reject_jsonb_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
       "instances": [
@@ -193288,22 +193303,23 @@
           "name": "pgwire_extended::aggregates_jsonb_object_agg_resources::should_reject_jsonb_object_agg_growth_given_a_memory_budget_when_more_entries_arrive"
         }
       ],
-      "asserted_contract": "PG18.6 control length(jsonb_object_agg(key,repeat(x,2))::text)=33; same-input COUNT(*) control returns 100000 under 4,096 bytes; target expects 54000.",
+      "asserted_contract": "PG18.6 control length(jsonb_object_agg(key,repeat(x,2))::text)=33; same-input COUNT(*) control returns 50000 under 4,096 bytes; target expects 54000.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control length(jsonb_object_agg(key,repeat(x,2))::text)=33; same-input COUNT(*) control returns 100000 under 4,096 bytes; target expects 54000."
+        "evidence": "PG18.6 control length(jsonb_object_agg(key,repeat(x,2))::text)=33; same-input COUNT(*) control returns 50000 under 4,096 bytes; target expects 54000."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before reaching jsonb_object_agg. The revised case seeds 50,000 unique integer keys into a table and uses that table for both controls and the candidate; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_jsonb_object_agg_resources::should_reject_jsonb_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::aggregates_jsonb_object_agg_resources::should_reject_jsonb_object_agg_growth_given_a_memory_budget_when_more_entries_arrive' (19418249) panicked at tests/pgwire_extended/aggregates/../../support/collection_aggregate_resources.rs:266:5:\nassertion `left == right` failed: small retained-value control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 811,
@@ -193312,7 +193328,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/aggregates/jsonb_object_agg",
       "file": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "aggregates/jsonb_object_agg",
       "actual_test": "should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "instances": [
@@ -193321,15 +193337,15 @@
           "name": "pgwire_extended::aggregates_jsonb_object_agg_resources::should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives"
         }
       ],
-      "asserted_contract": "PG18.6 control length(jsonb_object_agg(key,repeat(x,2))::text)=33; active-query metric readiness precedes CancelRequest; expected 57014 with no partial rows.",
+      "asserted_contract": "PG18.6 control length(jsonb_object_agg(key,repeat(x,2))::text)=33; the same 50,000 unique-key 512-byte aggregate is observed active before CancelRequest; expected 57014 with no partial rows.",
       "mapping_basis": "authored_or_existing_exact_test",
       "oracle": {
         "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 control length(jsonb_object_agg(key,repeat(x,2))::text)=33; active-query metric readiness precedes CancelRequest; expected 57014 with no partial rows."
+        "evidence": "PG18.6 control length(jsonb_object_agg(key,repeat(x,2))::text)=33; the same 50,000 unique-key 512-byte aggregate is observed active before CancelRequest; expected 57014 with no partial rows."
       },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The earlier small control used FROM (VALUES ...) and returned 0A000 before the target query or CancelRequest. The revised case seeds 50,000 unique integer keys into a table and uses that table for its control and cancellation target; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::aggregates_jsonb_object_agg_resources::should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
@@ -193337,7 +193353,8 @@
           "failure_excerpt": "thread 'pgwire_extended::aggregates_jsonb_object_agg_resources::should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives' (19553141) panicked at tests/support/collection_aggregate_resources.rs:353:5:\nassertion `left == right` failed: small retained-value cancellation control ErrorResponse: [[('S', \"ERROR\"), ('C', \"0A000\"), ('M', \"unsupported feature: unsupported SQL statement\")]]\n  left: Some(\"0A000\")\n right: None\ntest pgwire_extended::ctes_cancellation::should_return_57014_given_cycle_recursion_has_started_when_cancel_request_arrives ... FAILED\ntest pgwire_extended::aggregates_ordered_set_resources::should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives ... FAILED\ntest pgwire_extended::aggregates_json_object_agg_resources::should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives ... FAILED\ntest pgwire_extended::aggregates_array_agg_resources::should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives ... FAILED\ntest pgwire_extended::aggregates_jsonb_agg_resources::should_cancel_jsonb_agg_without_partial_output_given_retained_values_when_cancel_request_arrives ... FAILED\ntest pgwire_extended::aggregates_jsonb_object_agg_resources::should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives ... FAILED\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 812,
@@ -196654,7 +196671,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/functions/math",
       "file": "tests/pgwire_extended/functions/math/overload_errors.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "functions/math",
       "actual_test": "should_return_overload_errors_given_supported_math_controls_when_undefined_signatures_are_prepared",
       "instances": [
@@ -196669,16 +196686,17 @@
         "authority": "local PostgreSQL 18.6 psql",
         "evidence": "PG18.6 ROUND(float8,int), TRUNC(float8,int), and LOG(float8,float8) have no matching overload (42883); positive controls are unary float8 ROUND/TRUNC/LOG. Root serialized Cassie evidence: the controls currently fail earlier with 42601 unsupported function, so these signatures remain unqualified until their sibling path exists."
       },
-      "prior_execution_status": "root_serialized_red_wrong_path_control_function_unavailable",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The previous assertion order stopped at the unary ROUND control with 42601 before reaching the prepared undefined-signature responses. The current assertion order checks each rejected Describe before its sibling control; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::functions_math_overload_errors::should_return_overload_errors_given_supported_math_controls_when_undefined_signatures_are_prepared",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::functions_math_overload_errors::should_return_overload_errors_given_supported_math_controls_when_undefined_signatures_are_prepared' (19418337) panicked at tests/pgwire_extended/functions/math/overload_errors.rs:100:9:\nassertion `left == right` failed: control Describe: [('S', \"ERROR\"), ('C', \"42601\"), ('M', \"unsupported function 'ROUND'\")]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 813,
@@ -196687,7 +196705,7 @@
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/functions/math",
       "file": "tests/pgwire_extended/functions/math/overload_errors.rs",
-      "execution_status": "failed_observed",
+      "execution_status": "not_run_after_test_refinement",
       "category": "functions/math",
       "actual_test": "should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero",
       "instances": [
@@ -196702,16 +196720,17 @@
         "authority": "local PostgreSQL 18.6 psql",
         "evidence": "PG18.6 DIV(9,2)=4 with numeric OID 1700; DIV(9,0) raises 22012 `division by zero`. Root serialized Cassie evidence currently returns 42601 unsupported DIV for the control, so 22012 remains pending."
       },
-      "prior_execution_status": "root_serialized_red_wrong_path_control_function_unavailable",
-      "prior_execution_evidence": null,
-      "observations": [
+      "prior_execution_status": "failed_observed_before_test_refinement",
+      "prior_execution_evidence": "The previous assertion order stopped at the nonzero DIV control with 42601 before checking the divide-by-zero response. The current assertion order checks the zero-divisor response first; this refinement has not been run.",
+      "prior_observations": [
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::functions_math_overload_errors::should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero",
           "status": "failed_observed",
           "failure_excerpt": "thread 'pgwire_extended::functions_math_overload_errors::should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero' (19418329) panicked at tests/pgwire_extended/functions/math/overload_errors.rs:158:5:\nassertion `left == right` failed: valid DIV control: [('S', \"ERROR\"), ('C', \"42601\"), ('M', \"unsupported function 'DIV'\")]\n  left: Some(\"42601\")\n right: None"
         }
-      ]
+      ],
+      "observations": []
     },
     {
       "issue": 816,

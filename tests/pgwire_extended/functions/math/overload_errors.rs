@@ -24,6 +24,16 @@ fn error_response_fields(frames: &[(u8, Vec<u8>)]) -> Vec<(char, String)> {
 }
 
 fn assert_overload_case(batches: &[Frames], offset: usize, case: &OverloadCase) {
+    assert_eq!(batches[offset + 3].first().map(|(tag, _)| *tag), Some(b'1'));
+    let rejected = &batches[offset + 4];
+    assert_eq!(wire::error_code(rejected).as_deref(), Some("42883"));
+    assert!(error_response_fields(rejected)
+        .iter()
+        .any(|(kind, message)| *kind == 'M' && message.starts_with(case.rejected_signature)));
+    assert!(!rejected
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
+
     assert_eq!(batches[offset].first().map(|(tag, _)| *tag), Some(b'1'));
     let control_description = &batches[offset + 1];
     assert_eq!(
@@ -49,15 +59,6 @@ fn assert_overload_case(batches: &[Frames], offset: usize, case: &OverloadCase) 
         vec![vec![Some(case.control_result.to_owned())]]
     );
 
-    assert_eq!(batches[offset + 3].first().map(|(tag, _)| *tag), Some(b'1'));
-    let rejected = &batches[offset + 4];
-    assert_eq!(wire::error_code(rejected).as_deref(), Some("42883"));
-    assert!(error_response_fields(rejected)
-        .iter()
-        .any(|(kind, message)| *kind == 'M' && message.starts_with(case.rejected_signature)));
-    assert!(!rejected
-        .iter()
-        .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
     assert_eq!(wire::error_code(&batches[offset + 5]), None);
     assert_eq!(
         wire::data_rows(&batches[offset + 5]),
@@ -159,6 +160,13 @@ fn should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero() 
     let batches = run_script("issue-813-div-zero-error", steps);
 
     // Assert
+    let rejected = &batches[1];
+    assert_eq!(wire::error_code(rejected).as_deref(), Some("22012"));
+    assert!(error_response_fields(rejected)
+        .iter()
+        .any(|(kind, message)| *kind == 'M' && message == "division by zero"));
+    assert_eq!(wire::data_rows(rejected), Vec::<Vec<Option<String>>>::new());
+
     let control = &batches[0];
     assert_eq!(
         wire::error_code(control),
@@ -176,12 +184,6 @@ fn should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero() 
     );
     assert_eq!(wire::data_rows(control), vec![vec![Some("4".to_owned())]]);
 
-    let rejected = &batches[1];
-    assert_eq!(wire::error_code(rejected).as_deref(), Some("22012"));
-    assert!(error_response_fields(rejected)
-        .iter()
-        .any(|(kind, message)| *kind == 'M' && message == "division by zero"));
-    assert_eq!(wire::data_rows(rejected), Vec::<Vec<Option<String>>>::new());
     assert_eq!(wire::error_code(&batches[2]), None);
     assert_eq!(
         wire::data_rows(&batches[2]),

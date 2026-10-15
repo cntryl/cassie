@@ -20,8 +20,8 @@ fn should_return_ascending_subscripts_given_nondefault_array_bounds_when_generat
     );
 
     // Act
-    let bounds = bounds.expect("array bounds control");
     let actual = actual.expect("forward subscripts of a nondefault-bound array");
+    let bounds = bounds.expect("array bounds control");
 
     // Assert
     assert_eq!(bounds.rows(), &[vec![Value::Int64(0), Value::Int64(2)]]);

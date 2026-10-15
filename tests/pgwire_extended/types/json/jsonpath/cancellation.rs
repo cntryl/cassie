@@ -134,8 +134,8 @@ async fn run_jsonpath_cancellation(
     let control_marker = "issue_809_jsonpath_expansion_control";
     let control_query = format!(
         "/* {control_marker} */ SELECT COUNT(*) FROM \
-         jsonb_path_query('[1,2,3]'::JSONB, '$[*]'::JSONPATH) AS left_item(value) \
-         CROSS JOIN jsonb_path_query('[1,2,3]'::JSONB, '$[*]'::JSONPATH) AS right_item(value)"
+         jsonb_path_query('[1,2,3]'::JSONB, '$[*]') AS left_item(value) \
+         CROSS JOIN jsonb_path_query('[1,2,3]'::JSONB, '$[*]') AS right_item(value)"
     );
 
     wire::write_frames(&mut writer, vec![wire::simple_query_frame(&control_query)]).await;
@@ -213,8 +213,8 @@ fn should_cancel_without_partial_rows_given_jsonpath_expansion_when_cancel_reque
     let marker = "issue_809_jsonpath_expansion_target";
     let query = format!(
         "/* {marker} */ SELECT COUNT(*) FROM \
-         jsonb_path_query('{document}'::JSONB, '$[*]'::JSONPATH) AS left_item(value) \
-         CROSS JOIN jsonb_path_query('{document}'::JSONB, '$[*]'::JSONPATH) AS right_item(value)"
+         jsonb_path_query('{document}'::JSONB, '$[*]') AS left_item(value) \
+         CROSS JOIN jsonb_path_query('{document}'::JSONB, '$[*]') AS right_item(value)"
     );
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

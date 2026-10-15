@@ -62,6 +62,13 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
             Some(FunctionInputSignature::Positional(&[25, 25]))
         }
         FunctionId::SplitPart => Some(FunctionInputSignature::Positional(&[25, 25, 23])),
+        FunctionId::Left | FunctionId::Right => Some(FunctionInputSignature::Positional(&[25, 23])),
+        FunctionId::Length
+        | FunctionId::OctetLength
+        | FunctionId::BitLength
+        | FunctionId::Ascii => Some(FunctionInputSignature::Positional(&[25])),
+        FunctionId::Chr => Some(FunctionInputSignature::Positional(&[23])),
+        FunctionId::StartsWith => Some(FunctionInputSignature::Positional(&[25, 25])),
         _ => None,
     }
 }

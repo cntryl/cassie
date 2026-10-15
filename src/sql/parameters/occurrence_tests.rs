@@ -22,6 +22,42 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
+fn should_admit_embedded_integer_carriers_given_bounded_values_when_wire_int8_is_still_rejected() {
+    // Arrange
+    let statement = parse_statement("SELECT split_part($1,$2,$3)").expect("split_part");
+    let catalog = Catalog::new();
+    let controls = controls(1_048_576);
+    let values = [
+        crate::types::Value::String("a,b".into()),
+        crate::types::Value::String(",".into()),
+        crate::types::Value::Int64(2),
+    ];
+
+    // Act
+    let embedded = super::checked_parameter_types_in_scope(
+        &statement,
+        super::PrivateParameterTypeInput::Embedded {
+            effective: &[25, 25, 20],
+            values: &values,
+        },
+        &catalog,
+        &controls,
+        None,
+    );
+    let wire = checked_parse_parameter_types(&statement, &[25, 25, 20], &catalog, &controls);
+
+    // Assert
+    let embedded = embedded.expect("existing untyped embedded integer carrier remains usable");
+    assert_eq!(embedded.types(), [25, 25, 20]);
+    let Err(ParameterAdmissionError::Semantic(diagnostic)) = wire else {
+        panic!("wire int8 cannot bind an int4-only overload");
+    };
+    assert_eq!(diagnostic.code(), "42883");
+    drop(embedded);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_infer_boolean_aggregate_parameters_given_unknown_wire_oids_when_inputs_are_resolved() {
     // Arrange
     let catalog = Catalog::new();

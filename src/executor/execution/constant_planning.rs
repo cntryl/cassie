@@ -519,6 +519,13 @@ impl Folder {
                 | FunctionId::Rtrim
                 | FunctionId::SplitPart
                 | FunctionId::Strpos
+                | FunctionId::Left
+                | FunctionId::Right
+                | FunctionId::OctetLength
+                | FunctionId::BitLength
+                | FunctionId::Ascii
+                | FunctionId::Chr
+                | FunctionId::StartsWith
                 | FunctionId::NullIf
                 | FunctionId::Greatest
                 | FunctionId::Least

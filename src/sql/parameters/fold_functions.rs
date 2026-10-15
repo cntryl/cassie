@@ -128,7 +128,10 @@ impl Fold<'_, '_> {
             && function.args.len() >= 2
             && !self.summaries.values[frame.start + 1..]
                 .iter()
-                .any(|summary| matches!(summary.oid, 21 | 23))
+                .any(|summary| {
+                    matches!(summary.oid, 21 | 23)
+                        || summary.oid == 20 && self.occurrences.embedded_int4_carrier(*summary)
+                })
         {
             Some(FunctionInputSignature::Positional(&[25, 25, 25]))
         } else {
@@ -147,7 +150,10 @@ impl Fold<'_, '_> {
             check_controls(self.controls)?;
             let accepted = match *oid {
                 25 => matches!(summary.oid, 0 | 25 | 1042 | 1043 | 705),
-                _ => matches!(summary.oid, 0 | 21 | 23 | 705),
+                _ => {
+                    matches!(summary.oid, 0 | 21 | 23 | 705)
+                        || summary.oid == 20 && self.occurrences.embedded_int4_carrier(*summary)
+                }
             };
             if !accepted && summary.qualified {
                 self.occurrences.undefined_function(
@@ -158,13 +164,11 @@ impl Fold<'_, '_> {
             }
             self.occurrences.coerce(summary, *oid, true)?;
         }
-        Ok(Summary::known(
-            if metadata.return_type == functions::FunctionReturnType::Int {
-                23
-            } else {
-                25
-            },
-        ))
+        Ok(Summary::known(match metadata.return_type {
+            functions::FunctionReturnType::Int => 23,
+            functions::FunctionReturnType::Boolean => 16,
+            _ => 25,
+        }))
     }
 
     fn validate_aggregate_inputs(

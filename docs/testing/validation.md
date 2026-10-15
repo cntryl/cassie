@@ -258,3 +258,39 @@ separate harness. This corrects any reading of the integration-only inventory
 as the complete Rust test total. Formatting, identifier parsing, expanding
 functions, regex execution and other failing cells above remain pending for
 later batches; the full repository gate is still red.
+
+## Scalar text inspection batch after 4a6ada4f
+
+The following #803 slice adds character/octet/bit lengths, signed LEFT/RIGHT,
+ASCII/CHR, STARTS_WITH and its `^@` syntax, and non-strict NULL counts. It also
+restores the existing embedded `Value::Int64` carrier for bounded int4-only
+function arguments without retyping its parameter slot. Wire Parse with an
+explicit int8 argument still rejects an int4-only overload with `42883`.
+
+The coherent run executed 1,442 cases: library 968/0, parser/types 296/77,
+SQL string and residual groups 25/19, and wire string groups 17/40
+(passed/failed). Thirteen previously failing cases pass, with no observed
+previously passing case failing; three behavioral regressions were added.
+Native PostgreSQL 18.6/Cassie paired probes agree on values and SQLSTATE for
+all seven scalar-text scenarios. The pinned reference's `right(text, INT_MIN)`
+retains the whole text, matching the int32-negation/clipping path in
+[REL_18_6 text_right](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/utils/adt/varlena.c).
+CHR preserves `22023` for negative codepoints and `54000` for zero, surrogates
+and values beyond Unicode's maximum. These program-limit SQLSTATEs are not
+claims about accounted-memory exhaustion.
+
+Jev gap probabilities were 0.17 for the embedded/wire carrier distinction,
+0.24 for scalar semantics and 0.27 for prefix precedence. Native probes include
+comparison/AND precedence and NULL prefix/NULL-count controls. Evidence is in
+ignored `target/green-text2-{results,comparison,oracle,probes,jev-response}.json`.
+The build and batched test compilation passed. A final private prefix-parser
+extraction fixes its pedantic function-length finding; the existing three
+exported AST-size findings remain open. This is a checkpoint of a still-red
+compatibility branch, not a completed #803 or full-repository gate.
+
+Final readback: rebuild and batched test compilation passed. After the private
+parser extraction, parameter occurrence tests passed 14/0; SQL and wire groups
+retained 25/19 and 17/40. Full pedantic Clippy reports only the three known
+large-enum findings. Formatting, touched-test validation (14/14 and 3/3),
+inventory check and diff whitespace check passed. Inventory contains 5,604
+integration instances; the 968 library tests are additional.

@@ -10,6 +10,8 @@ use time::{OffsetDateTime, UtcOffset};
 
 #[path = "encoding.rs"]
 mod encoding;
+#[path = "text_scalar.rs"]
+mod text_scalar;
 #[path = "text_selection.rs"]
 mod text_selection;
 
@@ -57,7 +59,9 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
         .or_else(|| super::conditional::evaluate(name, args))
         .or_else(|| {
             let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
-            text_selection::evaluate(local, args).or_else(|| evaluate_text_function(local, args))
+            text_selection::evaluate(local, args)
+                .or_else(|| text_scalar::evaluate(local, args))
+                .or_else(|| evaluate_text_function(local, args))
         })
         .or_else(|| evaluate_search_function(name, function, args, search_context))
         .or_else(|| evaluate_vector_function(name, function, args))
@@ -275,9 +279,6 @@ fn value_as_string(value: &Value) -> Option<String> {
 
 fn evaluate_text_function(name: &str, args: &[Value]) -> Option<Result<Value, QueryError>> {
     match name {
-        "length" | "len" => Some(unary_nullable_text(name, args, |text| {
-            Value::Int64(i64::try_from(text.chars().count()).unwrap_or(i64::MAX))
-        })),
         "lower" => Some(unary_nullable_text(name, args, |text| {
             Value::String(text.to_lowercase())
         })),

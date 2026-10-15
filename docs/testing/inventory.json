@@ -230,9 +230,9 @@
     ],
     "files": 1538,
     "rust_files": 1507,
-    "rust_test_declarations": 5474,
+    "rust_test_declarations": 5476,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5602,
+    "registered_rust_instances": 5604,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -136311,11 +136311,73 @@
       }
     },
     {
+      "id": "tests/sql_queries/functions/string/query/semantics.rs::should_preserve_scalar_text_identity_given_unicode_nulls_and_signed_lengths_when_functions_execute",
+      "name": "should_preserve_scalar_text_identity_given_unicode_nulls_and_signed_lengths_when_functions_execute",
+      "current_file": "tests/sql_queries/functions/string/query/semantics.rs",
+      "line": 8,
+      "end_line": 42,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_query_inventory_wave3::should_preserve_scalar_text_identity_given_unicode_nulls_and_signed_lengths_when_functions_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/string/query",
+        "directory": "tests/sql_queries/functions/string/query",
+        "file": "tests/sql_queries/functions/string/query/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/string/query/semantics.rs::should_bound_signed_text_slices_given_extreme_counts_when_utf8_boundaries_are_selected",
+      "name": "should_bound_signed_text_slices_given_extreme_counts_when_utf8_boundaries_are_selected",
+      "current_file": "tests/sql_queries/functions/string/query/semantics.rs",
+      "line": 45,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_query_inventory_wave3::should_bound_signed_text_slices_given_extreme_counts_when_utf8_boundaries_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/string/query",
+        "directory": "tests/sql_queries/functions/string/query",
+        "file": "tests/sql_queries/functions/string/query/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/functions/string/query/semantics.rs::should_parse_ident_in_non_strict_mode_before_trailing_text",
       "name": "should_parse_ident_in_non_strict_mode_before_trailing_text",
       "current_file": "tests/sql_queries/functions/string/query/semantics.rs",
-      "line": 8,
-      "end_line": 22,
+      "line": 71,
+      "end_line": 85,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -190526,9 +190588,9 @@
       "current_file": "tests/sql_queries/functions/string/query/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 22,
-      "sha256": "8c50609ad08ce2f14bb6bbbcd512e6ce479c49db147f12e1a3f26805a5ad49aa",
-      "test_declarations": 1,
+      "lines": 85,
+      "sha256": "dce7b9e31d4645f394867996b8e1bc30150ed41dc37ab857500b4096e6742545",
+      "test_declarations": 3,
       "registered_suites": [
         "sql_queries"
       ],

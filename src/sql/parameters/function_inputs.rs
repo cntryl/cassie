@@ -254,13 +254,13 @@ fn function_result_type(
         Some(FunctionInputSignature::Text) if metadata.return_type == FunctionReturnType::Text => {
             Ok(ArgumentType::Known(DataType::Text))
         }
-        Some(FunctionInputSignature::Positional(_)) => Ok(ArgumentType::Known(
-            if metadata.return_type == FunctionReturnType::Int {
-                DataType::Int
-            } else {
-                DataType::Text
-            },
-        )),
+        Some(FunctionInputSignature::Positional(_)) => {
+            Ok(ArgumentType::Known(match metadata.return_type {
+                FunctionReturnType::Int => DataType::Int,
+                FunctionReturnType::Boolean => DataType::Boolean,
+                _ => DataType::Text,
+            }))
+        }
         _ => Ok(ArgumentType::Unqualified),
     }
 }

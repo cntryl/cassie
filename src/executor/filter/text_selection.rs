@@ -13,6 +13,8 @@ pub(super) fn literal_argument(
     let name = name.strip_prefix("pg_catalog.").unwrap_or(name);
     let integer_position = match name {
         "substr" => index > 0,
+        "left" | "right" => index == 1,
+        "chr" => index == 0,
         "substring" => {
             index > 0
                 && arguments.iter().skip(1).any(|expression| match expression {
@@ -99,7 +101,7 @@ pub(super) fn evaluate(name: &str, args: &[Value]) -> Option<Result<Value, Query
     })())
 }
 
-fn text<'a>(name: &str, value: &'a Value) -> Result<&'a str, QueryError> {
+pub(super) fn text<'a>(name: &str, value: &'a Value) -> Result<&'a str, QueryError> {
     match value {
         Value::String(text) => Ok(text),
         _ => Err(QueryError::General(format!(

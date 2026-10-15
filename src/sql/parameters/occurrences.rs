@@ -301,6 +301,19 @@ impl<'a> Occurrences<'a> {
         Ok(())
     }
 
+    pub(super) fn embedded_int4_carrier(&self, summary: Summary) -> bool {
+        let PrivateParameterTypeInput::Embedded { values, .. } = self.input else {
+            return false;
+        };
+        summary
+            .occurrence
+            .and_then(|ordinal| self.ledger.values.get(ordinal))
+            .and_then(|occurrence| values.get(occurrence.slot))
+            .is_some_and(
+                |value| matches!(value, Value::Int64(value) if i32::try_from(*value).is_ok()),
+            )
+    }
+
     pub(super) fn boolean(
         &mut self,
         summary: &mut Summary,

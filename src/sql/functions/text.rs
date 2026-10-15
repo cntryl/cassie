@@ -20,6 +20,72 @@ const fn scalar(
 
 pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     scalar(
+        FunctionId::Length,
+        "char_length",
+        FunctionArity::Exact(1),
+        FunctionReturnType::Int,
+    ),
+    scalar(
+        FunctionId::Length,
+        "character_length",
+        FunctionArity::Exact(1),
+        FunctionReturnType::Int,
+    ),
+    scalar(
+        FunctionId::Left,
+        "left",
+        FunctionArity::Exact(2),
+        FunctionReturnType::Text,
+    ),
+    scalar(
+        FunctionId::Right,
+        "right",
+        FunctionArity::Exact(2),
+        FunctionReturnType::Text,
+    ),
+    scalar(
+        FunctionId::OctetLength,
+        "octet_length",
+        FunctionArity::Exact(1),
+        FunctionReturnType::Int,
+    ),
+    scalar(
+        FunctionId::BitLength,
+        "bit_length",
+        FunctionArity::Exact(1),
+        FunctionReturnType::Int,
+    ),
+    scalar(
+        FunctionId::Ascii,
+        "ascii",
+        FunctionArity::Exact(1),
+        FunctionReturnType::Int,
+    ),
+    scalar(
+        FunctionId::Chr,
+        "chr",
+        FunctionArity::Exact(1),
+        FunctionReturnType::Text,
+    ),
+    scalar(
+        FunctionId::StartsWith,
+        "starts_with",
+        FunctionArity::Exact(2),
+        FunctionReturnType::Boolean,
+    ),
+    scalar(
+        FunctionId::NumNulls,
+        "num_nulls",
+        FunctionArity::AtLeast(1),
+        FunctionReturnType::Int,
+    ),
+    scalar(
+        FunctionId::NumNonNulls,
+        "num_nonnulls",
+        FunctionArity::AtLeast(1),
+        FunctionReturnType::Int,
+    ),
+    scalar(
         FunctionId::Substring,
         "substr",
         FunctionArity::Range { min: 2, max: 3 },

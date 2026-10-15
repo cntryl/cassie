@@ -181,6 +181,22 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         }
     }
 
+    parse_prefix_expression(raw)
+}
+
+fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
+    if let Some((left, right)) = super::operators::split_operator(raw, "^@", true) {
+        return Ok(Expr::Function(Box::new(FunctionCall {
+            name: "pg_catalog.starts_with".into(),
+            args: vec![
+                parse_comparison_expression(left)?,
+                parse_arithmetic_expression(right)?,
+            ],
+            quantifier: crate::sql::ast::AggregateQuantifier::Default,
+            filter: None,
+            order_by: Vec::new(),
+        })));
+    }
     parse_arithmetic_expression(raw)
 }
 

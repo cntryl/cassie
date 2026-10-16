@@ -467,3 +467,37 @@ before truncation. Assignment and function coercion keep their existing bounded
 validation path. Compiled plans rebuild at epoch 11; persisted Value layouts
 and public AST variants are unchanged. This does not qualify assignment error
 SQLSTATEs, trailing-blank assignment coercion or general INSERT VALUES expressions.
+
+Selected PostgreSQL 18 integer/BYTEA casts reuse the
+existing INT2/INT4/INT8 and canonical hex BYTEA identities. Integer-to-BYTEA
+retains the declared source width and emits big-endian two's complement;
+BYTEA-to-integer zero-pads short inputs, interprets full-width inputs as signed,
+and rejects excess bytes (including leading zeroes) with 22003. Empty BYTEA
+converts to zero and NULL remains NULL. Native receipts establish these laws.
+
+This cast-only slice needs no function resolution, comparison operator or new
+storage type: #803 and the wider #796/#793/#816 obligations remain open. Existing
+integer/parameter/cast foundations and typed VALUES at `a5be39d5`, followed by
+`b181036f`, supply its implementation prerequisites. It retains source
+identity in the existing Cast AST field and invalidates rebuildable plans at
+epoch 12.
+The additive public `IntegerByteaError` exposes the target width and rejected
+byte count; transparent `CassieError::IntegerBytea` reports native 22003 range
+messages. Stored Value/AST layouts do not change.
+
+The integer/BYTEA phase probes also require Bind-time folding with decoded
+parameters and propagation of pure single-row VALUES CTE sources. Reuse the
+existing constant planner and accounted VALUES propagation, moving decoded
+parameter ownership through Bind validation without cloning it. Cached physical
+plans remain independent of values. The CTE optimization is limited to direct,
+nonrecursive, scope-free, parameter-free one-row VALUES bodies with identity column output and no
+filter, grouping, ordering, set operation or bounds. Wider CTE planning remains
+an open obligation; preserve reached/dead-definition behavior.
+
+Bound constant checks admit only reached primitive parameter copies through
+the existing lazy semantic evaluator. Decoded values move through Bind
+validation into the portal without entering cached physical plans. Execute
+uses the same bound-value law. Fixed integer/BYTEA output scratch is admitted
+before constant allocation. JSON/Vector parameters remain variable; complete
+family, CTE and resource qualification is still pending. Executed evidence is
+recorded in [validation.md](testing/validation.md).

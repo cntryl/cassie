@@ -99,7 +99,7 @@ fn probe(persisted: bool) -> Evidence {
     }
     let before = cassie.runtime.snapshot().plan_cache.misses;
     let error = cassie
-        .validate_pgwire_bind_with_controls(&session, parsed, fingerprint, &[], &controls)
+        .validate_pgwire_bind_with_controls(&session, parsed, fingerprint, &[], &[], &controls)
         .expect_err("current int4 signature overflows");
     let legacy_readable = if persisted {
         query_cache::lookup_plan(&cassie.midge, &cassie.runtime, &key)

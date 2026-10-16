@@ -9,9 +9,10 @@ pub(super) async fn validate(
     session: &CassieSession,
     state: &SessionState,
     prepared: PreparedStatement,
-) -> Result<(), ExtendedQueryError> {
+    parameters: Vec<crate::types::Value>,
+) -> Result<Vec<crate::types::Value>, ExtendedQueryError> {
     let Some(parsed) = prepared.parsed else {
-        return Ok(());
+        return Ok(parameters);
     };
     let registration = state
         .backend_registration
@@ -26,8 +27,10 @@ pub(super) async fn validate(
             parsed,
             prepared.sql_fingerprint,
             &prepared.parameter_types,
+            &parameters,
             &handle,
-        )
+        )?;
+        Ok(parameters)
     })
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))

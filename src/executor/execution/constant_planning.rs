@@ -7,8 +7,9 @@
 //! prunes as it goes: a constant FALSE or NULL `WHEN` drops its arm unprocessed,
 //! a constant TRUE `WHEN` ends the CASE, a deciding constant AND/OR input skips
 //! the inputs after it, and COALESCE stops at its first non-NULL constant.
-//! Row values, parameters, subqueries and non-immutable functions are not
-//! constant, so expressions that read them keep their runtime laziness.
+//! Row values, unbound parameters, subqueries and non-immutable functions are
+//! not constant. Bind checks can supply primitive parameter values without
+//! placing them in a cached plan; the semantic evaluator preserves laziness.
 //!
 //! The plan is not rewritten; this walk only reports the arithmetic error that
 //! folding raises. Constant subtrees are evaluated with the scalar evaluator,
@@ -36,10 +37,27 @@ pub(crate) fn check_plan(
     plan: &LogicalPlan,
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    check_with_parameters(plan, controls, None)
+}
+
+pub(crate) fn check_plan_with_parameters(
+    plan: &LogicalPlan,
+    controls: &crate::runtime::QueryExecutionControls,
+    parameters: &[crate::types::Value],
+) -> Result<(), QueryError> {
+    check_with_parameters(plan, controls, Some(parameters))
+}
+
+fn check_with_parameters(
+    plan: &LogicalPlan,
+    controls: &crate::runtime::QueryExecutionControls,
+    parameters: Option<&[crate::types::Value]>,
+) -> Result<(), QueryError> {
     super::check_timeout(controls)?;
     let folder = Folder {
         no_functions: HashMap::new(),
         controls,
+        parameters,
     };
     folder.check_select(&SelectParts::plan(plan))?;
     match &plan.command {
@@ -101,6 +119,7 @@ enum Truth {
 struct Folder<'a> {
     controls: &'a crate::runtime::QueryExecutionControls,
     no_functions: HashMap<String, FunctionMeta>,
+    parameters: Option<&'a [crate::types::Value]>,
 }
 
 impl Folder<'_> {
@@ -243,16 +262,36 @@ impl Folder<'_> {
     /// error; any other failure means the evaluator cannot fold this constant,
     /// which is left to run time.
     fn evaluate(&self, expr: &Expr) -> Result<Option<ScalarValue>, QueryError> {
-        let _character_memory = self
+        let _cast_memory = self
             .controls
-            .reserve_query_memory(filter::character_scratch_bytes(expr)?)?;
-        match filter::constant_scalar(expr) {
+            .reserve_query_memory(filter::cast_scratch_bytes(expr)?)?;
+        let (constant, _parameter_memory) = match self.parameters {
+            Some(parameters) => {
+                match filter::constant_scalar_with_parameters(expr, parameters, self.controls) {
+                    Ok((value, memory)) => (Ok(value), Some(memory)),
+                    Err(error) => (Err(error), None),
+                }
+            }
+            None => (filter::constant_scalar(expr), None),
+        };
+        match constant {
             Ok(Some(value)) => return Ok(Some(value)),
             Err(error) if is_folding_error(&error) => return Err(error),
             Ok(None) | Err(_) => {}
         }
+        if self.parameters.is_some() {
+            return Ok(None);
+        }
         let row: Vec<(String, crate::types::Value)> = Vec::new();
-        match filter::eval_scalar(&row, expr, &[], None, &self.no_functions, None, None) {
+        match filter::eval_scalar(
+            &row,
+            expr,
+            self.parameters.unwrap_or(&[]),
+            None,
+            &self.no_functions,
+            None,
+            None,
+        ) {
             Ok(value) => Ok(Some(value)),
             Err(error) if is_folding_error(&error) => Err(error),
             Err(_) => Ok(None),
@@ -275,7 +314,23 @@ impl Folder<'_> {
     fn fold(&self, expr: &Expr) -> Result<Fold, QueryError> {
         super::check_timeout(self.controls)?;
         match expr {
-            Expr::Column(_) | Expr::Param(_) => Ok(Fold::Variable),
+            Expr::Column(_) => Ok(Fold::Variable),
+            Expr::Param(index) => Ok(
+                if self
+                    .parameters
+                    .and_then(|params| params.get(*index))
+                    .is_some_and(|value| {
+                        !matches!(
+                            value,
+                            crate::types::Value::Json(_) | crate::types::Value::Vector(_)
+                        )
+                    })
+                {
+                    Fold::Constant
+                } else {
+                    Fold::Variable
+                },
+            ),
             Expr::Exists(statement) => {
                 self.check_exists(statement)?;
                 Ok(Fold::Variable)
@@ -627,7 +682,12 @@ fn is_folding_error(error: &QueryError) -> bool {
     matches!(
         error,
         QueryError::Cassie(
-            crate::app::CassieError::FloatInput(_) | crate::app::CassieError::BooleanInput(_)
+            crate::app::CassieError::FloatInput(_)
+                | crate::app::CassieError::BooleanInput(_)
+                | crate::app::CassieError::IntegerBytea(_)
+                | crate::app::CassieError::ResourceLimit(_)
+                | crate::app::CassieError::QueryCancelled
+                | crate::app::CassieError::DeadlineExceeded
         )
     ) || matches!(
         error,

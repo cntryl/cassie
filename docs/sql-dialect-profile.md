@@ -577,3 +577,28 @@ explicitly truncated INSERT SELECT output fits the column. General expressions
 inside INSERT VALUES, complete assignment coercion/error identities, user-defined
 casts and full #793/#911 acceptance remain pending. Private compiled-plan epoch
 11 invalidates older results without a storage or public API migration.
+
+### Selected integer/BYTEA casts (2026-10-16)
+
+INT2/INT4/INT8 casts to BYTEA emit the declared number of big-endian two's
+complement bytes. Reverse casts zero-pad shorter input, interpret full-width
+input as signed, return zero for empty BYTEA and reject excess bytes (including
+leading zeroes) with native 22003 range messages. NULL stays NULL. Existing
+canonical hex BYTEA storage and standard scalar OIDs remain unchanged.
+
+Declared source identity survives scalar/VALUES/CTE paths, mixed integer
+promotion, stored columns and supplied parameter formats. Bind and Execute
+check constants using supplied primitive values without putting values in
+cached plans. Lazy CASE/COALESCE/AND/OR behavior admits only reached parameter
+copies. Eligible parameter-free one-row VALUES CTEs reuse accounted source
+propagation with canonical exported-name lookup; wider CTEs retain their prior
+materialization path. Compiled plans rebuild at epoch 12.
+
+The additive public IntegerByteaError/CassieError variant carries width/byte
+count diagnostics and native range SQLSTATE/messages. No stored Value or AST
+layout, storage migration, CI/release configuration or second storage layer is
+introduced. Complete #793/#800/#816/#849 qualification remains open, including
+BYTEA input/escape/session output, wider casts and functions, BIT/VARBIT,
+network/UUID/hash/LSN families, complex/parameterized CTE planning and complete
+resource/restart behavior. JSON/Vector parameters remain variable in this new
+bound constant check; their broader qualification is not claimed.

@@ -1578,3 +1578,87 @@ remains 22000. Full assignment error/coercion parity, general INSERT VALUES
 expressions, user-defined casts and complete #793/#800/#911 acceptance remain
 pending. This checkpoint does not close owner issues or establish repository
 or hosted green. Receipts and logs are under ignored `target/green-varchar-*`.
+
+### Integer/BYTEA casts and bound constants checkpoint (2026-10-16)
+
+Following `b181036f`, the related #816/#793/#800 bundle adds 416 functions:
+225 wire, 187 SQL and four library admission controls. All pass against final
+compiled binaries. Native PostgreSQL 18.6 receipts retain both output formats,
+crossed supplied parameter formats, constant/parameter Bind errors, statement
+recovery and exact values, NULLs, names, OIDs, sizes, typmods and row bytes.
+The executable SHA256 remains
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+
+INT2/INT4/INT8-to-BYTEA uses the declared source width and big-endian two's
+complement. Reverse conversions zero-pad shorter inputs, interpret full-width
+values as signed, return zero for empty input and reject excess bytes even
+when they are leading zeroes. The additive public IntegerByteaError exposes
+width/byte_count; CassieError::IntegerBytea reports native 22003 range messages.
+Existing Cast source metadata and canonical BYTEA storage are reused; epoch 12
+invalidates older compiled plans. No stored Value/AST layout or migration,
+CI/release/version configuration or second storage abstraction changes.
+
+The initial selected run reproduced 259 wire and 194 SQL failures, including
+397 of the initial 404 new functions; seven new controls already passed. The
+first green attempt passed all 187 new SQL tests but exposed 21 wire gaps:
+native range-message identity, CTE propagation and parameter-dependent planning
+phases. Eight additional wire scope/laziness probes and four library controls
+were added. No native phase, payload or error assertion was relaxed.
+
+Bind moves decoded parameter ownership through its blocking validation task
+and back into the portal without cloning the vector or changing cached plans.
+Execute uses the same bound-value law. The existing lazy semantic evaluator
+admits only reached primitive parameter copies, so dead CASE/COALESCE/AND/OR
+branches stay dead. Pure parameter-free one-row VALUES CTEs with identity
+output reuse the existing admitted source inliner. Canonical exported-name
+lookup is admitted before mutation, preserving ordinary and quoted aliases;
+other CTE shapes retain their prior path.
+
+Jev selected typed-width conversion at 1.0; gap 0.80 prompted four mixed-width
+VALUES probes. Later gap 0.46 prompted native/Rust good → Bind error → good
+recovery checks on cached CASE/COALESCE statements across both input/output
+formats. All pass. Large dead parameters (200 KB) fit a 16 KiB budget without
+being copied or charged, while reached copies reject before allocation and
+release their owners. A one-byte budget rejects fixed BYTEA constant output
+before allocation with peak ownership zero. Source/result clone, cancellation,
+small-budget retry and changed/NULL parameter controls also pass. Final advisory
+dispositions: cached risk probed 1.0, selected admission bounded 1.0; full #849
+qualification remains open.
+
+The user interruption left unusable incremental linker artifacts. The final
+build/test/Clippy lane ran with CARGO_INCREMENTAL=0, without deleting source or
+weakening checks. Preflight Clippy found array-chunk syntax, helper placement
+and an oversized test function; these were corrected by standard array chunks,
+function placement and focused shared fixtures. The final ordered gate ran
+after all production fixes:
+
+- `cargo build --locked --bin cassie`: passed.
+- `cargo test --locked`: library 1,021/0, analytics 179/0, backend 2/0,
+  benchmark operations 16/0; stops at catalog/security 139/209. All 209 failure
+  identities match `b181036f`; later targets compile but do not execute here.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  passed without suppression or narrowing.
+- `cargo fmt --all -- --check`: passed.
+- `cntryl-tools validate-tests -f <path>`: all 25 touched test/support/root files
+  pass. Global validator: 8,101/8,101 compliant source tests, not runtime totals.
+- Fresh Cargo artifact metadata identifies the final test binaries. Expanded
+  compiled SQL is 691/30, wire 1,011/56. All 412 new integration functions and
+  four new library controls pass. No previously selected regression occurs.
+  The additional 14 SQL and 42 wire failures all already failed in the
+  pre-change red run. They are newly selected existing obligations, including
+  BYTEA functions/input formats, BIT/VARBIT and related aggregate/hash behavior.
+- Complete parser 299/74 and core wire 74/10 retain their exact failure identities.
+- Inventory refresh/check, whitespace and touched Rust file limits pass. Exactly
+  412 integration identities are added; none are removed and no existing test
+  record changes. There are 7,217 integration registrations plus 1,021 library
+  functions. Untouched size exceptions remain src/config.rs (1,034) and
+  src/midge/adapter/verification.rs (1,002). No benchmark timing is claimed.
+
+Full type/input/signature, function, CTE, resource/cancellation/restart and
+owner qualification remains open under #793/#800/#803/#816/#849. JSON/Vector
+parameters remain variable in this bound constant path. BYTEA escape/session
+output, wider casts/functions, BIT/network/UUID/hash/LSN and complex or
+parameterized CTE planning are not completed by this checkpoint. Known Boolean
+aggregate cancellation remains unqualified. Full repository/hosted green is
+not established. Native receipts, advisory requests/responses and logs are
+under ignored `target/green-byteacasts-*`.

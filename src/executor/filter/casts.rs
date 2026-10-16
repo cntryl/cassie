@@ -6,6 +6,16 @@ pub(super) fn scalar(
     target: &DataType,
     source: Option<&DataType>,
 ) -> Result<ScalarValue, QueryError> {
+    if *target == DataType::Bytea {
+        if let Some(width) = source.and_then(crate::types::IntegerWidth::from_data_type) {
+            return super::bytea_casts::encode(value, width);
+        }
+    }
+    if source == Some(&DataType::Bytea) {
+        if let Some(width) = crate::types::IntegerWidth::from_data_type(target) {
+            return super::bytea_casts::decode(value, width);
+        }
+    }
     // Explicit typmod casts truncate; assignment and function coercion still
     // use cast_scalar's bounded validation. Format the source before applying
     // the width so CHAR blanks and temporal spellings keep their SQL identity.
@@ -148,8 +158,8 @@ pub(super) fn character(
     Ok(ScalarValue::Str(result))
 }
 
-/// Upper bound for simultaneously retained character-cast intermediates.
-pub(crate) fn character_scratch_bytes(expr: &crate::sql::ast::Expr) -> Result<usize, QueryError> {
+/// Upper bound for simultaneously retained expanding cast intermediates.
+pub(crate) fn cast_scratch_bytes(expr: &crate::sql::ast::Expr) -> Result<usize, QueryError> {
     use crate::executor::retained_memory::{add, mul};
     let mut bytes = match expr {
         crate::sql::ast::Expr::Cast {
@@ -162,10 +172,15 @@ pub(crate) fn character_scratch_bytes(expr: &crate::sql::ast::Expr) -> Result<us
                 .map_err(|_| QueryError::General("CHAR width overflow".into()))?,
             8,
         )?,
+        crate::sql::ast::Expr::Cast {
+            data_type: DataType::Bytea,
+            source_type: Some(source),
+            ..
+        } => super::bytea_casts::scratch_bytes(source),
         _ => 0,
     };
     expr.try_visit_children(|child| {
-        bytes = add(bytes, character_scratch_bytes(child)?)?;
+        bytes = add(bytes, cast_scratch_bytes(child)?)?;
         Ok::<_, QueryError>(())
     })?;
     Ok(bytes)

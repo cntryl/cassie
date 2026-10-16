@@ -448,7 +448,7 @@ async fn handle_bind(
 
     let prepared_id = prepared.id;
     let described = prepared.described;
-    bind_planning::validate(cassie, session, state, prepared).await?;
+    let values = bind_planning::validate(cassie, session, state, prepared, values).await?;
 
     let replaced_portal = state.remove_portal(&portal).is_some();
     if !replaced_portal && state.portals.len() >= MAX_PORTALS_PER_CONNECTION {

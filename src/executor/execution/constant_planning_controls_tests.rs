@@ -83,3 +83,81 @@ fn should_release_values_scratch_given_folding_errors_when_constant_admission_is
     assert!(controls.peak_query_memory_bytes() > 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_skip_large_parameters_given_a_dead_bind_branch_when_the_budget_is_small() {
+    // Arrange
+    let plan = logical("SELECT CASE WHEN $1::BOOLEAN THEN $2::BYTEA::INT2 ELSE 7::INT2 END");
+    let controls = controls(16384);
+    let parameters = [
+        crate::types::Value::Bool(false),
+        crate::types::Value::String(format!("\\x{}", "00".repeat(100_000))),
+    ];
+    // Act
+    let result = super::check_plan_with_parameters(&plan, &controls, &parameters);
+    // Assert
+    result.expect("dead parameter is neither copied nor charged");
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+    assert!(controls.peak_query_memory_bytes() < 16384);
+}
+
+#[test]
+fn should_admit_large_parameters_given_a_live_bind_branch_when_cloning_would_exceed_the_budget() {
+    // Arrange
+    let plan = logical("SELECT CASE WHEN $1::BOOLEAN THEN $2::BYTEA::INT2 ELSE 7::INT2 END");
+    let controls = controls(16384);
+    let parameters = [
+        crate::types::Value::Bool(true),
+        crate::types::Value::String(format!("\\x{}", "00".repeat(100_000))),
+    ];
+    // Act
+    let result =
+        super::check_plan_with_parameters(&plan, &controls, &parameters).map_err(CassieError::from);
+    // Assert
+    assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_skip_large_parameters_given_deciding_boolean_inputs_when_bind_planning_short_circuits() {
+    // Arrange
+    let cases = [
+        ("SELECT $1::BOOLEAN AND ($2::BYTEA::INT2 > 0)", false),
+        ("SELECT $1::BOOLEAN OR ($2::BYTEA::INT2 > 0)", true),
+    ];
+    // Act
+    let results = cases.map(|(sql, value)| {
+        let plan = logical(sql);
+        let controls = controls(16384);
+        let parameters = [
+            crate::types::Value::Bool(value),
+            crate::types::Value::String(format!("\\x{}", "00".repeat(100_000))),
+        ];
+        let result = super::check_plan_with_parameters(&plan, &controls, &parameters);
+        (
+            result,
+            controls.current_query_memory_bytes(),
+            controls.peak_query_memory_bytes(),
+        )
+    });
+    // Assert
+    for (result, current, peak) in results {
+        result.expect("deciding input skips the large parameter");
+        assert_eq!(current, 0);
+        assert!(peak < 16384);
+    }
+}
+
+#[test]
+fn should_deny_integer_bytea_constants_given_an_insufficient_budget_when_bind_checks_output_allocation(
+) {
+    // Arrange
+    let plan = logical("SELECT 1::INT2::BYTEA");
+    let controls = controls(1);
+    // Act
+    let result = check_plan(&plan, &controls).map_err(CassieError::from);
+    // Assert
+    assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
+    assert_eq!(controls.peak_query_memory_bytes(), 0);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

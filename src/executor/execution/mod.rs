@@ -56,6 +56,7 @@ pub use types::{
 mod constant_planning;
 mod cte_reachability;
 pub(crate) use constant_planning::check_plan as check_plan_constants;
+pub(crate) use constant_planning::check_plan_with_parameters as check_bound_plan_constants;
 pub(crate) use cte_reachability::for_select as reached_ctes;
 mod cte;
 mod dispatch;

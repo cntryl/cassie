@@ -5,19 +5,64 @@ use super::{
 use crate::sql::ast::{BinaryOp, FunctionCall};
 use crate::sql::functions::{function, is_immutable_scalar, FunctionId};
 
+type ParameterResolver<'a> = dyn Fn(usize) -> Result<Option<ScalarValue>, QueryError> + 'a;
+
+#[derive(Clone, Copy)]
+struct ConstantContext<'a> {
+    evaluation: EvalContext<'a>,
+    parameter: Option<&'a ParameterResolver<'a>>,
+}
+
 pub(super) fn value<R: RowAccess + ?Sized>(
     expr: &Expr,
     row: &R,
     context: EvalContext<'_>,
 ) -> Result<Option<ScalarValue>, QueryError> {
+    resolve(
+        expr,
+        row,
+        ConstantContext {
+            evaluation: context,
+            parameter: None,
+        },
+    )
+}
+
+pub(super) fn logical<R: RowAccess + ?Sized>(
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+    row: &R,
+    context: EvalContext<'_>,
+) -> Result<Option<ScalarValue>, QueryError> {
+    resolved_logical(
+        left,
+        op,
+        right,
+        row,
+        ConstantContext {
+            evaluation: context,
+            parameter: None,
+        },
+    )
+}
+
+fn resolve<R: RowAccess + ?Sized>(
+    expr: &Expr,
+    row: &R,
+    context: ConstantContext<'_>,
+) -> Result<Option<ScalarValue>, QueryError> {
     match expr {
-        Expr::Column(_) | Expr::Param(_) | Expr::Exists(_) => Ok(None),
+        Expr::Column(_) | Expr::Exists(_) => Ok(None),
+        Expr::Param(index) => context
+            .parameter
+            .map_or(Ok(None), |resolve| resolve(*index)),
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
         | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
-        | Expr::Null => eval_scalar_with_context(row, expr, context).map(Some),
+        | Expr::Null => eval_scalar_with_context(row, expr, context.evaluation).map(Some),
         Expr::Case {
             operand,
             branches,
@@ -34,9 +79,9 @@ pub(super) fn value<R: RowAccess + ?Sized>(
             left,
             op: op @ (BinaryOp::And | BinaryOp::Or),
             right,
-        } => logical(left, op, right, row, context),
+        } => resolved_logical(left, op, right, row, context),
         Expr::Binary { left, op, right } => {
-            match (value(left, row, context)?, value(right, row, context)?) {
+            match (resolve(left, row, context)?, resolve(right, row, context)?) {
                 (Some(left), Some(right)) => binary_scalar(&left, op, &right).map(Some),
                 _ => Ok(None),
             }
@@ -50,24 +95,24 @@ pub(super) fn value<R: RowAccess + ?Sized>(
             if let Expr::NumericLiteral(input) = child.as_ref() {
                 return super::casts::numeric_literal(input, data_type, *identity).map(Some);
             }
-            value(child, row, context)?
+            resolve(child, row, context)?
                 .map(|value| super::casts::scalar(&value, data_type, source_type.as_ref()))
                 .transpose()
         }
-        Expr::UnaryNumeric { expr, op } => value(expr, row, context)?
+        Expr::UnaryNumeric { expr, op } => resolve(expr, row, context)?
             .map(|value| super::unary_numeric::evaluate(&value, *op))
             .transpose(),
-        Expr::IntegerNegate { expr, width } => value(expr, row, context)?
+        Expr::IntegerNegate { expr, width } => resolve(expr, row, context)?
             .map(|value| super::integers::negate(&value, *width))
             .transpose(),
-        Expr::Not { expr } => value(expr, row, context)?
+        Expr::Not { expr } => resolve(expr, row, context)?
             .map(|value| {
                 value
                     .predicate_result()
                     .map(|value| value.not().into_scalar())
             })
             .transpose(),
-        Expr::IsNull { expr, negated } => Ok(value(expr, row, context)?
+        Expr::IsNull { expr, negated } => Ok(resolve(expr, row, context)?
             .map(|value| ScalarValue::Bool(matches!(value, ScalarValue::Null) != *negated))),
         Expr::Between {
             expr,
@@ -86,7 +131,7 @@ pub(super) fn value<R: RowAccess + ?Sized>(
                 return Ok(None);
             }
             if let Some(decided) =
-                super::row_predicates::constant_decision(row, comparison, context)?
+                super::row_predicates::constant_decision(row, comparison, context.evaluation)?
             {
                 return Ok(Some(ScalarValue::Bool(decided)));
             }
@@ -96,12 +141,12 @@ pub(super) fn value<R: RowAccess + ?Sized>(
     }
 }
 
-pub(super) fn logical<R: RowAccess + ?Sized>(
+fn resolved_logical<R: RowAccess + ?Sized>(
     left: &Expr,
     op: &BinaryOp,
     right: &Expr,
     row: &R,
-    context: EvalContext<'_>,
+    context: ConstantContext<'_>,
 ) -> Result<Option<ScalarValue>, QueryError> {
     // Binding validates SQL operand types. Keep the same gate for callers
     // that evaluate an AST directly, without evaluating a dead expression.
@@ -115,18 +160,18 @@ pub(super) fn logical<R: RowAccess + ?Sized>(
                 | Expr::IntegerLiteral(_)
                 | Expr::NumericLiteral(_)
         ) {
-            eval_scalar_with_context(row, operand, context)?.predicate_result()?;
+            eval_scalar_with_context(row, operand, context.evaluation)?.predicate_result()?;
         }
     }
     let is_or = matches!(op, BinaryOp::Or);
-    let left = value(left, row, context)?;
+    let left = resolve(left, row, context)?;
     if let Some(left) = &left {
         left.predicate_result()?;
     }
     if matches!(&left, Some(ScalarValue::Bool(value)) if *value == is_or) {
         return Ok(left);
     }
-    let right = value(right, row, context)?;
+    let right = resolve(right, row, context)?;
     if let Some(right) = &right {
         right.predicate_result()?;
     }
@@ -144,11 +189,11 @@ fn case<R: RowAccess + ?Sized>(
     branches: &[(Expr, Expr)],
     else_expr: Option<&Expr>,
     row: &R,
-    context: EvalContext<'_>,
+    context: ConstantContext<'_>,
 ) -> Result<Option<ScalarValue>, QueryError> {
     let operand = match operand {
         Some(expr) => {
-            let Some(value) = value(expr, row, context)? else {
+            let Some(value) = resolve(expr, row, context)? else {
                 return Ok(None);
             };
             Some(value)
@@ -156,7 +201,7 @@ fn case<R: RowAccess + ?Sized>(
         None => None,
     };
     for (when, then) in branches {
-        let Some(condition) = value(when, row, context)? else {
+        let Some(condition) = resolve(when, row, context)? else {
             return Ok(None);
         };
         let condition = if let Some(operand) = &operand {
@@ -165,11 +210,11 @@ fn case<R: RowAccess + ?Sized>(
             condition
         };
         if condition.predicate_result()?.is_true() {
-            return value(then, row, context);
+            return resolve(then, row, context);
         }
     }
     else_expr.map_or(Ok(Some(ScalarValue::Null)), |expr| {
-        value(expr, row, context)
+        resolve(expr, row, context)
     })
 }
 
@@ -177,7 +222,7 @@ fn immutable<R: RowAccess + ?Sized>(
     expr: &Expr,
     call: &FunctionCall,
     row: &R,
-    context: EvalContext<'_>,
+    context: ConstantContext<'_>,
 ) -> Result<Option<ScalarValue>, QueryError> {
     let Some(metadata) = function(&call.name).filter(|metadata| is_immutable_scalar(metadata.id))
     else {
@@ -185,7 +230,7 @@ fn immutable<R: RowAccess + ?Sized>(
     };
     if metadata.id == FunctionId::Coalesce {
         for argument in &call.args {
-            match value(argument, row, context)? {
+            match resolve(argument, row, context)? {
                 Some(ScalarValue::Null) => {}
                 result => return Ok(result),
             }
@@ -198,12 +243,12 @@ fn immutable<R: RowAccess + ?Sized>(
 fn rebuilt<R: RowAccess + ?Sized>(
     expr: &Expr,
     row: &R,
-    context: EvalContext<'_>,
+    context: ConstantContext<'_>,
 ) -> Result<Option<ScalarValue>, QueryError> {
     let mut children = Vec::new();
     let mut constant = true;
     expr.try_visit_children(|child| {
-        match value(child, row, context)? {
+        match resolve(child, row, context)? {
             Some(value) => children.push(literal(value)),
             None => constant = false,
         }
@@ -214,7 +259,7 @@ fn rebuilt<R: RowAccess + ?Sized>(
     }
     let mut children = children.into_iter();
     let expr = expr.map_children(|_| children.next().expect("one value per constant child"));
-    eval_scalar_with_context(row, &expr, context).map(Some)
+    eval_scalar_with_context(row, &expr, context.evaluation).map(Some)
 }
 
 fn literal(value: ScalarValue) -> Expr {
@@ -239,10 +284,10 @@ fn between<R: RowAccess + ?Sized>(
     high: &Expr,
     negated: bool,
     row: &R,
-    context: EvalContext<'_>,
+    context: ConstantContext<'_>,
 ) -> Result<Option<ScalarValue>, QueryError> {
-    let operand = value(expr, row, context)?;
-    let low = value(low, row, context)?;
+    let operand = resolve(expr, row, context)?;
+    let low = resolve(low, row, context)?;
     let first = match (&operand, low) {
         (Some(operand), Some(low)) => Some(binary_scalar(
             operand,
@@ -254,7 +299,7 @@ fn between<R: RowAccess + ?Sized>(
     if matches!(&first, Some(ScalarValue::Bool(result)) if *result == negated) {
         return Ok(first);
     }
-    let high = value(high, row, context)?;
+    let high = resolve(high, row, context)?;
     let second = match (&operand, high) {
         (Some(operand), Some(high)) => Some(binary_scalar(
             operand,
@@ -278,18 +323,55 @@ fn between<R: RowAccess + ?Sized>(
 }
 
 pub(crate) fn constant_scalar(expression: &Expr) -> Result<Option<ScalarValue>, QueryError> {
+    evaluate_constant(expression, &[], None)
+}
+
+pub(crate) fn constant_scalar_with_parameters(
+    expression: &Expr,
+    parameters: &[super::Value],
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(Option<ScalarValue>, crate::runtime::QueryMemoryReservation), QueryError> {
+    use crate::executor::retained_memory::{mul, value_clone_bytes};
+    let memory = std::cell::RefCell::new(controls.reserve_query_memory(0)?);
+    let parameter = |index| {
+        controls.check_interruption()?;
+        let Some(value) = parameters.get(index) else {
+            return Ok(None);
+        };
+        if matches!(value, super::Value::Json(_) | super::Value::Vector(_)) {
+            return Ok(None);
+        }
+        // The lazy semantic walk calls this only for reached parameters.
+        // Reserve before copying into scalar/rewritten constant intermediates.
+        memory
+            .borrow_mut()
+            .try_grow(mul(value_clone_bytes(value)?, 4)?)?;
+        Ok(Some(super::scalar_from_value(value)))
+    };
+    let value = evaluate_constant(expression, parameters, Some(&parameter))?;
+    Ok((value, memory.into_inner()))
+}
+
+fn evaluate_constant(
+    expression: &Expr,
+    parameters: &[super::Value],
+    parameter: Option<&ParameterResolver<'_>>,
+) -> Result<Option<ScalarValue>, QueryError> {
     let functions = super::HashMap::new();
     let row: Vec<(String, super::Value)> = Vec::new();
-    value(
+    resolve(
         expression,
         &row,
-        EvalContext {
-            params: &[],
-            search_context: None,
-            user_functions: &functions,
-            local_args: None,
-            session: None,
-            exists: None,
+        ConstantContext {
+            evaluation: EvalContext {
+                params: parameters,
+                search_context: None,
+                user_functions: &functions,
+                local_args: None,
+                session: None,
+                exists: None,
+            },
+            parameter,
         },
     )
 }

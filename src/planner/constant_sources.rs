@@ -10,6 +10,7 @@ use std::mem::size_of;
 struct Input<'a> {
     cells: &'a [Expr],
     qualifier: Option<String>,
+    names: Option<Vec<String>>,
 }
 impl Input<'_> {
     fn column(&self, name: &str) -> Option<&Expr> {
@@ -17,6 +18,12 @@ impl Input<'_> {
             Some(qualifier) => name.strip_prefix(qualifier)?.strip_prefix('.')?,
             None => name,
         };
+        if let Some(names) = &self.names {
+            return names
+                .iter()
+                .position(|column| column == name)
+                .and_then(|index| self.cells.get(index));
+        }
         let digits = name.strip_prefix("column")?;
         if digits.starts_with('0') {
             return None;
@@ -34,7 +41,17 @@ pub(crate) fn inline(
     if plan.command.is_some() || plan.set.is_some() || has_scope_boundary(plan) {
         return Ok(None);
     }
-    let Some((cells, alias)) = producer(&plan.source) else {
+    // A wildcard's visible CTE aliases need a separate output-name handoff.
+    // Preserve materialization until that case is qualified.
+    if cte_source(&plan.source).is_some()
+        && plan
+            .projection
+            .iter()
+            .any(|item| matches!(item, SelectItem::Wildcard))
+    {
+        return Ok(None);
+    }
+    let Some((cells, alias, names)) = producer(&plan.source, &plan.ctes) else {
         return Ok(None);
     };
     if cells.iter().any(|cell| {
@@ -57,10 +74,20 @@ pub(crate) fn inline(
     // Qualifier encoding and every resulting allocation are admitted before
     // changing the owned plan. A failed compile never publishes a partial plan.
     let qualifier_bytes = alias.map_or(Ok(0), |alias| add(mul(alias.len(), 8)?, 128))?;
-    let mut memory = controls.reserve_query_memory(qualifier_bytes)?;
+    let mut names_bytes = mul(names.len(), 4 * size_of::<String>())?;
+    for name in names {
+        names_bytes = add(names_bytes, add(mul(name.len(), 8)?, 128)?)?;
+    }
+    let mut memory = controls.reserve_query_memory(add(qualifier_bytes, names_bytes)?)?;
     let input = Input {
         cells,
         qualifier: alias.map(crate::sql::binder::alias_row_qualifier),
+        names: (!names.is_empty()).then(|| {
+            names
+                .iter()
+                .map(|name| crate::sql::ColumnIdentifierPath::stored_field_key(name))
+                .collect()
+        }),
     };
     let capacity = plan.projection.iter().try_fold(0_usize, |count, item| {
         add(
@@ -167,15 +194,74 @@ fn rewrite_projection(
     Ok(())
 }
 
-fn producer(source: &QuerySource) -> Option<(&[Expr], Option<&str>)> {
+fn producer<'a>(
+    source: &'a QuerySource,
+    ctes: &'a [crate::sql::ast::CommonTableExpression],
+) -> Option<(&'a [Expr], Option<&'a str>, &'a [String])> {
     match source {
-        QuerySource::Values { rows } if rows.len() == 1 => Some((&rows[0], None)),
+        QuerySource::Values { rows } if rows.len() == 1 => Some((&rows[0], None, &[])),
         QuerySource::Aliased { source, alias, .. } => match source.as_ref() {
-            QuerySource::Values { rows } if rows.len() == 1 => Some((&rows[0], Some(alias))),
+            QuerySource::Values { rows } if rows.len() == 1 => Some((&rows[0], Some(alias), &[])),
+            _ => constant_cte(source, ctes)
+                .map(|(cells, _, names)| (cells, Some(alias.as_str()), names)),
+        },
+        _ => constant_cte(source, ctes),
+    }
+}
+
+fn cte_source(source: &QuerySource) -> Option<(&str, Option<&str>)> {
+    match source {
+        QuerySource::Cte(name) => Some((name, None)),
+        QuerySource::Aliased { source, alias, .. } => match source.as_ref() {
+            QuerySource::Cte(name) => Some((name, Some(alias))),
             _ => None,
         },
         _ => None,
     }
+}
+
+fn constant_cte<'a>(
+    source: &'a QuerySource,
+    ctes: &'a [crate::sql::ast::CommonTableExpression],
+) -> Option<(&'a [Expr], Option<&'a str>, &'a [String])> {
+    use crate::sql::ast::{CteQuery, QueryStatement};
+    let (name, alias) = cte_source(source)?;
+    let cte = ctes
+        .iter()
+        .find(|cte| cte.name.eq_ignore_ascii_case(name))?;
+    let CteQuery::Simple(statement) = &cte.query else {
+        return None;
+    };
+    let QueryStatement::Select(select) = &statement.statement else {
+        return None;
+    };
+    if !select.ctes.is_empty()
+        || select.distinct
+        || !select.distinct_on.is_empty()
+        || select.filter.is_some()
+        || !select.group_by.is_empty()
+        || select.having.is_some()
+        || !select.order.is_empty()
+        || select.limit.is_some()
+        || select.offset.is_some()
+        || select.set.is_some()
+    {
+        return None;
+    }
+    let QuerySource::Values { rows } = &select.source else {
+        return None;
+    };
+    if rows.len() != 1 {
+        return None;
+    }
+    let identity = matches!(select.projection.as_slice(), [SelectItem::Wildcard])
+        || (select.projection.len() == rows[0].len()
+            && select.projection.iter().enumerate().all(|(index, item)| {
+                matches!(item, SelectItem::Column { name, alias: None }
+                    if name.strip_prefix("column").and_then(|digits| digits.parse::<usize>().ok()) == Some(index + 1))
+            }));
+    (identity && (cte.aliases.is_empty() || cte.aliases.len() == rows[0].len()))
+        .then(|| (rows[0].as_slice(), alias, cte.aliases.as_slice()))
 }
 
 fn has_scope_boundary(plan: &LogicalPlan) -> bool {

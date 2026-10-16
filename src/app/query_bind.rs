@@ -12,6 +12,7 @@ impl Cassie {
         parsed: ParsedStatement,
         sql_fingerprint: u64,
         parameter_types: &[i32],
+        parameters: &[crate::types::Value],
         cancellation: &QueryCancellationHandle,
     ) -> Result<(), CassieError> {
         let controls = QueryExecutionControls::with_cancellation(
@@ -24,6 +25,7 @@ impl Cassie {
             parsed,
             sql_fingerprint,
             parameter_types,
+            parameters,
             &controls,
         );
         self.runtime.record_query_memory(&controls);
@@ -36,6 +38,7 @@ impl Cassie {
         parsed: ParsedStatement,
         sql_fingerprint: u64,
         parameter_types: &[i32],
+        parameters: &[crate::types::Value],
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         self.ensure_session_database_access(session)?;
@@ -75,7 +78,7 @@ impl Cassie {
                 parameter_types,
             )?
         };
-        crate::executor::check_plan_constants(&physical.logical, controls)?;
+        crate::executor::check_bound_plan_constants(&physical.logical, controls, parameters)?;
         controls.check_interruption()
     }
 }

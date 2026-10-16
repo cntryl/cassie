@@ -256,3 +256,45 @@ mod varchar_set;
 
 #[path = "pgwire_extended/grammar/varchar_parameters.rs"]
 mod varchar_parameters;
+
+#[path = "pgwire_extended/types/bit_bytea/casts_int2.rs"]
+mod bytea_int2;
+
+#[path = "pgwire_extended/types/bit_bytea/casts_int4.rs"]
+mod bytea_int4;
+
+#[path = "pgwire_extended/types/bit_bytea/casts_int8.rs"]
+mod bytea_int8;
+
+#[path = "pgwire_extended/types/bit_bytea/decode_int2.rs"]
+mod bytea_decode_int2;
+
+#[path = "pgwire_extended/types/bit_bytea/decode_int4.rs"]
+mod bytea_decode_int4;
+
+#[path = "pgwire_extended/types/bit_bytea/decode_int8.rs"]
+mod bytea_decode_int8;
+
+#[path = "pgwire_extended/types/bit_bytea/cast_errors.rs"]
+mod bytea_cast_errors;
+
+#[path = "pgwire_extended/types/bit_bytea/cast_parameters.rs"]
+mod bytea_cast_parameters;
+
+#[path = "pgwire_extended/types/bit_bytea/cast_mixed.rs"]
+mod bytea_cast_mixed;
+
+#[path = "pgwire_extended/types/bit_bytea/cast_parameter_errors.rs"]
+mod bytea_cast_parameter_errors;
+
+#[path = "pgwire_extended/types/bit_bytea/cast_scopes.rs"]
+mod bytea_cast_scopes;
+
+#[path = "pgwire_extended/types/bit_bytea/cast_lazy_parameters.rs"]
+mod bytea_cast_lazy_parameters;
+
+#[path = "support/bytea_cast_planning.rs"]
+mod support_bytea_cast_planning;
+
+#[path = "support/bytea_parameter_recovery.rs"]
+mod support_bytea_parameter_recovery;

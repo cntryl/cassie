@@ -503,6 +503,14 @@ fn cast_source_type(
     types: &ResultTypes,
     catalog: &Catalog,
 ) -> Option<DataType> {
+    if *target == DataType::Bytea || crate::types::IntegerWidth::from_data_type(target).is_some() {
+        return types.expression_type(expr).filter(|source| {
+            (*target == DataType::Bytea
+                && crate::types::IntegerWidth::from_data_type(source).is_some())
+                || (*source == DataType::Bytea
+                    && crate::types::IntegerWidth::from_data_type(target).is_some())
+        });
+    }
     if !matches!(
         target,
         DataType::Text | DataType::Varchar { .. } | DataType::Char { length: None }

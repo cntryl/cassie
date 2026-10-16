@@ -255,3 +255,24 @@ mod varchar_set;
 
 #[path = "sql_queries/casts/varchar_controls.rs"]
 mod varchar_controls;
+
+#[path = "sql_queries/casts/bytea_int2.rs"]
+mod bytea_int2;
+
+#[path = "sql_queries/casts/bytea_int4.rs"]
+mod bytea_int4;
+
+#[path = "sql_queries/casts/bytea_int8.rs"]
+mod bytea_int8;
+
+#[path = "sql_queries/casts/bytea_decode_int2.rs"]
+mod bytea_decode_int2;
+
+#[path = "sql_queries/casts/bytea_decode_int4.rs"]
+mod bytea_decode_int4;
+
+#[path = "sql_queries/casts/bytea_decode_int8.rs"]
+mod bytea_decode_int8;
+
+#[path = "sql_queries/casts/bytea_controls.rs"]
+mod bytea_cast_controls;

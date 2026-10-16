@@ -22,13 +22,15 @@ mod exists_value;
 pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
 pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<bool, QueryError> + 'a;
 
+#[path = "filter/bytea_casts.rs"]
+mod bytea_casts;
 #[path = "filter/coalesce.rs"]
 mod coalesce;
 #[path = "filter/conditional.rs"]
 mod conditional;
 #[path = "filter/numeric_comparison.rs"]
 mod numeric_comparison;
-pub(crate) use casts::character_scratch_bytes;
+pub(crate) use casts::cast_scratch_bytes;
 pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]
 mod functions;
@@ -296,7 +298,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
 mod casts;
 #[path = "filter/constants.rs"]
 mod constants;
-pub(crate) use constants::constant_scalar;
+pub(crate) use constants::{constant_scalar, constant_scalar_with_parameters};
 #[path = "filter/row_predicates.rs"]
 mod row_predicates;
 pub(crate) use row_predicates::field_result as row_field_result;

@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1609 |
-| Rust files | 1578 |
-| Rust test declarations | 6677 |
+| Files under `tests/` | 1630 |
+| Rust files | 1599 |
+| Rust test declarations | 7089 |
 | Python test declarations | 16 |
-| Static Rust registration instances | 6805 |
+| Static Rust registration instances | 7217 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 138 |
 | Unregistered Rust declarations | 0 |
@@ -44,7 +44,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [parser_types](inventory/parser_types.md) | 366 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 81 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 1922 | 0 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 2147 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 123 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 75 | 0 |
@@ -54,7 +54,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 51 | 0 |
 | [sql_mutations](inventory/sql_mutations.md) | 304 | 0 |
-| [sql_queries](inventory/sql_queries.md) | 1590 | 0 |
+| [sql_queries](inventory/sql_queries.md) | 1777 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
 | [storage_indexes](inventory/storage_indexes.md) | 154 | 0 |
@@ -118,6 +118,7 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 | `tests/parser_types/grammar/indexes/semantics.rs` | 878 | 27 |
 | `tests/pgwire_extended/grammar/values_casts_uuid.rs` | 849 | 24 |
 | `tests/pgwire_extended/type_resolution/output_source_seams.rs` | 847 | 14 |
+| `tests/pgwire_extended/types/bit_bytea/casts_int8.rs` | 812 | 45 |
 | `tests/sql_mutations/insert/insert_values.rs` | 836 | 20 |
 | `tests/sql_queries/functions/temporal/temporal_functions.rs` | 816 | 58 |
 | `tests/sql_queries/joins/semantics.rs` | 840 | 13 |

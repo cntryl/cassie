@@ -589,9 +589,10 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
             filter_binds_non_finite_param(Some(left), params)
                 || filter_binds_non_finite_param(Some(right), params)
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            filter_binds_non_finite_param(Some(expr), params)
-        }
+        Expr::IsNull { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => filter_binds_non_finite_param(Some(expr), params),
         Expr::InList { expr, values, .. } => {
             filter_binds_non_finite_param(Some(expr), params)
                 || values

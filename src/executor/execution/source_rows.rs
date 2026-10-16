@@ -643,6 +643,7 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
             expr_key(high)
         ),
         Expr::Not { expr } => format!("not {}", expr_key(expr)),
+        Expr::IntegerNegate { expr, width } => format!("negate:{width:?}({})", expr_key(expr)),
         Expr::Cast { expr, data_type } => format!("{}::{data_type:?}", expr_key(expr)),
         Expr::Exists(_) => "exists".to_string(),
     }

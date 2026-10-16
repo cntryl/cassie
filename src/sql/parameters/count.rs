@@ -252,9 +252,10 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
         ast::Expr::Binary { left, right, .. } => {
             parameter_count_expr(left).max(parameter_count_expr(right))
         }
-        ast::Expr::IsNull { expr, .. } | ast::Expr::Not { expr } | ast::Expr::Cast { expr, .. } => {
-            parameter_count_expr(expr)
-        }
+        ast::Expr::IsNull { expr, .. }
+        | ast::Expr::Not { expr }
+        | ast::Expr::Cast { expr, .. }
+        | ast::Expr::IntegerNegate { expr, .. } => parameter_count_expr(expr),
         ast::Expr::InList { expr, values, .. } => values
             .iter()
             .fold(parameter_count_expr(expr), |count, value| {

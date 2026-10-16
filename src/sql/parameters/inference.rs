@@ -379,7 +379,7 @@ pub(super) fn infer_parameter_type_oids_expr(
             infer_parameter_type_oids_expr(low, field_types, catalog, oids);
             infer_parameter_type_oids_expr(high, field_types, catalog, oids);
         }
-        ast::Expr::IsNull { expr, .. } => {
+        ast::Expr::IsNull { expr, .. } | ast::Expr::IntegerNegate { expr, .. } => {
             infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
         }
         ast::Expr::Not { expr } => {
@@ -546,6 +546,7 @@ fn infer_cast_parameters(expr: &Expr, oids: &mut ParameterInference) {
             infer_parameter_type_from_expected_expr(expr, data_type, oids);
             infer_cast_parameters(expr, oids);
         }
+        Expr::IntegerNegate { expr, .. } => infer_cast_parameters(expr, oids),
         Expr::Binary { left, right, .. } => {
             infer_cast_parameters(left, oids);
             infer_cast_parameters(right, oids);

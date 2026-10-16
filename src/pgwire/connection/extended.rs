@@ -837,28 +837,6 @@ impl ExtendedQueryError {
         }
     }
 
-    fn invalid_input_syntax(type_name: &str, input: &str) -> Self {
-        Self {
-            pg_error: Box::new(PgWireError::new(
-                PgWireSeverity::Error,
-                "22P02",
-                format!("invalid input syntax for type {type_name}: \"{input}\""),
-            )),
-            record_protocol_error: false,
-        }
-    }
-
-    fn numeric_value_out_of_range(type_name: &str, input: &str) -> Self {
-        Self {
-            pg_error: Box::new(PgWireError::new(
-                PgWireSeverity::Error,
-                "22003",
-                format!("value \"{input}\" is out of range for type {type_name}"),
-            )),
-            record_protocol_error: false,
-        }
-    }
-
     fn invalid_name(message: impl Into<String>) -> Self {
         Self {
             pg_error: Box::new(PgWireError::invalid_sql_statement_name(message)),
@@ -984,3 +962,6 @@ impl From<CassieError> for ExtendedQueryError {
         Self::cassie(&error)
     }
 }
+
+#[path = "extended/scalar_errors.rs"]
+mod scalar_errors;

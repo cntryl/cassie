@@ -454,3 +454,82 @@ module errors or touched Rust files above their limits. No test expectations,
 resource limits or lints were weakened. Build/test/review artifacts are in the
 ignored `target/green-values-*` files. This is a reviewable incremental
 checkpoint, not completion of #800 or a repository-wide green result.
+
+The next bundle is existing-width integer input and arithmetic under #796/#800.
+The selected #792 dialect and #752 current-type contracts already specify the
+16/32/64-bit families used here; the broader #792/#793 integration obligations
+remain open. No new logical storage family, schema layout or migration is
+introduced. A borrowed shared parser will serve text Bind and integer casts;
+resolved integer operators will retain their native width directly in the AST,
+without adding cast-wrapper nesting. Native PostgreSQL 18.6 `numutils.c` and
+local probes pin radix prefixes, separators, ASCII whitespace, signed minima,
+syntax/overflow precedence and INT2/INT4/INT8 result types. Existing scalar
+extensions outside this finite input/operator slice are preserved. Bare
+operator-inferred parameters and complete coercion/signature resolution remain
+pending; SQL runtime cast diagnostics qualify the error state with bounded
+messages, while wire input retains the existing detailed diagnostic path.
+
+
+### Existing-width integer input and arithmetic checkpoint
+
+The integer bundle introduces explicit `IntegerWidth`/`IntegerOperation` AST
+metadata and checked arithmetic over existing INT2/INT4/INT8 carriers. VALUES
+resolves operations before common-column coercion, preserving native overflow,
+integer division, exact BIGINT values, NULLs and output descriptors. Typed
+negation preserves postfix-cast-before-sign precedence. Public AST callers,
+visitors, parameter summaries, structural identity, normalized cache shapes,
+constant planning and pagination consume the selected width directly.
+
+The shared borrowed integer parser handles native radix prefixes, separators,
+signed minima and ASCII whitespace, including vertical tab. Text Bind validates
+UTF-8/NUL first and returns native 22021; integer syntax/range then return 22P02
+or 22003 with native priority. Runtime cast error strings remain bounded and
+qualify SQLSTATE rather than full input echo. Existing decimal-only JSON casts
+are preserved. Stored scalar encodings and SQL-string catalog definitions are
+unchanged; no workflow, release or version configuration changes are included.
+
+Test-only red runs failed all four initial SQL and three initial wire cases.
+Focused probes then exposed JSON radix broadening, UTF-8 priority, vertical-tab
+whitespace and signed postfix-cast precedence. Each confirmed defect was fixed;
+positive/rejection probes remain in the native Rust integration suites. The
+last related run was 77 passing/21 failing across 98 cases, including 29 library
+and two float-cast parser probes. All 14 new SQL/wire functions pass. Remaining
+selected failures concern CHAR, row constructors/USING, aggregate behavior and
+previously pending temporal/array receive paths; none were weakened or skipped.
+
+Jev's first implementation review returned parser/operator gap probabilities
+0.54/0.36; native UTF-8 and parameter/domain probes led to fixes. Its refined
+0.56/0.31 review triggered whitespace/postfix-sign probes, also fixed. The last
+0.64 parser/0.30 operator review triggered another 20 native raw-wire cases for
+ASCII/control whitespace, uppercase radix prefixes, decimal separators,
+overflow/tail priority and malformed multibyte UTF-8. Rust wire cases cover the
+distinguishing inputs, rebind recovery and signed overflow under a wider VALUES
+column; all pass. The carrier/conversion gap was 0.22. Advisory probabilities
+are not correctness proof. Full signature/coercion resolution, nonliteral unary
+operators, new NUMERIC carriers and CHAR remain broader #792/#793/#796/#800
+obligations. No owner is closed by this finite checkpoint.
+
+Build/test/review evidence is under ignored `target/green-integer-*` files.
+Final ordered validation results are recorded below after command completion.
+
+
+Ordered checkpoint validation: `cargo build --locked` passed; the full locked
+run passed library 977/0, analytics 179/0, backend CI 2/0 and benchmark
+operations 16/0, then stopped at catalog/security 139/209. The separate full
+parser target remained 296/77. The expanded final integer SQL/wire runs passed
+6/0 and 8/0. The post-Clippy-refactor rebuild and complete library rerun also
+passed 977/0. Clippy requested a unary-identity helper, equivalent walker-arm
+merges and a statement semicolon; these are behavior-preserving cleanups.
+
+Touched tests validate 23/23 across the two new unit files and two integration
+modules. Inventory refresh/check reports 5,628 integration instances plus 977
+library tests, no unregistered test/module findings, and no touched Rust size
+violations. Full workspace/all-target/all-feature pedantic Clippy and formatting
+results are recorded on the PR after the final pattern-format cleanup. This
+checkpoint does not establish a green full suite or completion of #796/#800.
+
+Final full pedantic Clippy and formatting passed. Clippy also refined empty-row
+assertions to print mismatching values; both final integer integration modules
+were rebuilt and rerun (wire 8/0, SQL 6/0). All four final validators passed
+23/23, and the final regenerated inventory check passed. No test limits,
+expectations, lint levels or broader pending obligations were weakened.

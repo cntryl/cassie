@@ -2,6 +2,7 @@ pub(crate) mod array;
 pub(crate) mod boolean;
 pub(crate) mod builtin;
 pub mod char_text;
+pub(crate) mod integer;
 pub(crate) mod json;
 pub mod numeric;
 pub mod row;
@@ -12,6 +13,7 @@ pub mod temporal;
 pub mod value;
 pub mod vector;
 
+pub use integer::{IntegerOperation, IntegerWidth};
 pub use row::Row;
 pub use schema::{DataType, FieldSchema, Schema};
 pub use value::Value;

@@ -76,3 +76,6 @@ mod types_geometry_operator_nulls;
 
 #[path = "relations/values_admission.rs"]
 mod postgresql18_values_admission;
+
+#[path = "casts/integer_inputs.rs"]
+mod postgresql18_integer_inputs;

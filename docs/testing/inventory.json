@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1539,
-    "rust_files": 1508,
-    "rust_test_declarations": 5486,
+    "files": 1541,
+    "rust_files": 1510,
+    "rust_test_declarations": 5500,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5614,
+    "registered_rust_instances": 5628,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -70467,6 +70467,254 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/grammar/integer_inputs.rs::should_preserve_integer_wire_values_given_radix_text_when_binary_portals_execute",
+      "name": "should_preserve_integer_wire_values_given_radix_text_when_binary_portals_execute",
+      "current_file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+      "line": 6,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_integer_inputs::should_preserve_integer_wire_values_given_radix_text_when_binary_portals_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/integer_inputs.rs::should_prioritize_integer_input_errors_given_malformed_text_when_the_statement_is_rebound",
+      "name": "should_prioritize_integer_input_errors_given_malformed_text_when_the_statement_is_rebound",
+      "current_file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+      "line": 81,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_integer_inputs::should_prioritize_integer_input_errors_given_malformed_text_when_the_statement_is_rebound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/integer_inputs.rs::should_preserve_integer_error_states_given_constant_casts_when_empty_outputs_are_planned",
+      "name": "should_preserve_integer_error_states_given_constant_casts_when_empty_outputs_are_planned",
+      "current_file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+      "line": 142,
+      "end_line": 179,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_integer_inputs::should_preserve_integer_error_states_given_constant_casts_when_empty_outputs_are_planned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/integer_inputs.rs::should_diagnose_resolved_integer_inputs_given_false_filters_when_boolean_aggregates_are_bound",
+      "name": "should_diagnose_resolved_integer_inputs_given_false_filters_when_boolean_aggregates_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+      "line": 182,
+      "end_line": 204,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_integer_inputs::should_diagnose_resolved_integer_inputs_given_false_filters_when_boolean_aggregates_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/integer_inputs.rs::should_preserve_existing_integer_storage_given_values_arithmetic_when_views_are_rebound_after_restart",
+      "name": "should_preserve_existing_integer_storage_given_values_arithmetic_when_views_are_rebound_after_restart",
+      "current_file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+      "line": 207,
+      "end_line": 250,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_integer_inputs::should_preserve_existing_integer_storage_given_values_arithmetic_when_views_are_rebound_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/integer_inputs.rs::should_prioritize_utf8_validation_given_invalid_text_bytes_when_integer_inputs_are_bound",
+      "name": "should_prioritize_utf8_validation_given_invalid_text_bytes_when_integer_inputs_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+      "line": 253,
+      "end_line": 306,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_integer_inputs::should_prioritize_utf8_validation_given_invalid_text_bytes_when_integer_inputs_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/integer_inputs.rs::should_preserve_operator_domains_given_wider_values_columns_when_prepared_statements_are_rebound",
+      "name": "should_preserve_operator_domains_given_wider_values_columns_when_prepared_statements_are_rebound",
+      "current_file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+      "line": 309,
+      "end_line": 379,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_integer_inputs::should_preserve_operator_domains_given_wider_values_columns_when_prepared_statements_are_rebound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/integer_inputs.rs::should_apply_postfix_casts_before_integer_negation_given_signed_minima_when_queries_execute",
+      "name": "should_apply_postfix_casts_before_integer_negation_given_signed_minima_when_queries_execute",
+      "current_file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+      "line": 382,
+      "end_line": 416,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_integer_inputs::should_apply_postfix_casts_before_integer_negation_given_signed_minima_when_queries_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/grammar/join_using_errors.rs::should_return_missing_column_errors_given_valid_join_sources_when_using_names_an_absent_column",
       "name": "should_return_missing_column_errors_given_valid_join_sources_when_using_names_an_absent_column",
       "current_file": "tests/pgwire_extended/grammar/join_using_errors.rs",
@@ -127817,6 +128065,192 @@
       }
     },
     {
+      "id": "tests/sql_queries/casts/integer_inputs.rs::should_accept_integer_text_spellings_given_existing_widths_when_explicit_casts_execute",
+      "name": "should_accept_integer_text_spellings_given_existing_widths_when_explicit_casts_execute",
+      "current_file": "tests/sql_queries/casts/integer_inputs.rs",
+      "line": 6,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_integer_inputs::should_accept_integer_text_spellings_given_existing_widths_when_explicit_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/integer_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/integer_inputs.rs::should_resolve_integer_widths_given_typed_values_operands_when_arithmetic_executes",
+      "name": "should_resolve_integer_widths_given_typed_values_operands_when_arithmetic_executes",
+      "current_file": "tests/sql_queries/casts/integer_inputs.rs",
+      "line": 40,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_integer_inputs::should_resolve_integer_widths_given_typed_values_operands_when_arithmetic_executes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/integer_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/integer_inputs.rs::should_retain_integer_source_types_given_empty_outputs_when_values_arithmetic_is_bound",
+      "name": "should_retain_integer_source_types_given_empty_outputs_when_values_arithmetic_is_bound",
+      "current_file": "tests/sql_queries/casts/integer_inputs.rs",
+      "line": 70,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_integer_inputs::should_retain_integer_source_types_given_empty_outputs_when_values_arithmetic_is_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/integer_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/integer_inputs.rs::should_preserve_json_conversion_boundaries_given_shared_text_parsing_when_integer_casts_execute",
+      "name": "should_preserve_json_conversion_boundaries_given_shared_text_parsing_when_integer_casts_execute",
+      "current_file": "tests/sql_queries/casts/integer_inputs.rs",
+      "line": 88,
+      "end_line": 104,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_integer_inputs::should_preserve_json_conversion_boundaries_given_shared_text_parsing_when_integer_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/integer_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/integer_inputs.rs::should_preserve_expression_depth_given_nested_integer_addition_when_values_are_bound",
+      "name": "should_preserve_expression_depth_given_nested_integer_addition_when_values_are_bound",
+      "current_file": "tests/sql_queries/casts/integer_inputs.rs",
+      "line": 107,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_integer_inputs::should_preserve_expression_depth_given_nested_integer_addition_when_values_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/integer_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/integer_inputs.rs::should_preserve_dead_case_branches_given_integer_division_when_constant_values_are_planned",
+      "name": "should_preserve_dead_case_branches_given_integer_division_when_constant_values_are_planned",
+      "current_file": "tests/sql_queries/casts/integer_inputs.rs",
+      "line": 121,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_integer_inputs::should_preserve_dead_case_branches_given_integer_division_when_constant_values_are_planned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/integer_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/casts/sql_casts.rs::should_apply_implicit_sql_defined_cast_during_function_resolution",
       "name": "should_apply_implicit_sql_defined_cast_during_function_resolution",
       "current_file": "tests/sql_queries/casts/sql_casts.rs",
@@ -182435,6 +182869,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/grammar/integer_inputs.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 416,
+      "sha256": "81efa4f4c6221eddd966822604c6c60e5ce7694f25992becd4c802ba7c4c0906",
+      "test_declarations": 8,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/integer_inputs.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/grammar/join_using_errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -182753,8 +183202,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 174,
-      "sha256": "46e28db1f879e35a73cccb255f1d758415b62c6fb1f2ea18a4ad47ff8961b04a",
+      "lines": 177,
+      "sha256": "2ba750b96cb240fd827e5f91a987ad5b31f523cf4f3cc54182e801644410ab99",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -190475,6 +190924,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/casts/integer_inputs.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 130,
+      "sha256": "be80e0bf7ffa60b217cbb5b30e854d25ee58b828ee0d55d2d98a88869e4df06c",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/grammar/integer_inputs.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/casts/sql_casts.rs",
       "role": "test_module",
       "action": "keep",
@@ -191123,8 +191587,8 @@
       "current_file": "tests/sql_queries/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 78,
-      "sha256": "e3a45c1f6cd1a84edca5e6d089b98b85e62cf04090045ac7c7d4bea30099ccb3",
+      "lines": 81,
+      "sha256": "622dbe696d0d547122600f412cc398671de74a01a334d9cbaa986da36c1edd06",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"

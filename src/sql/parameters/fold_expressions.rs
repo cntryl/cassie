@@ -31,6 +31,7 @@ impl Fold<'_, '_> {
             ast::Expr::Column(name) => Ok(self
                 .column_oid(frame.context, name)
                 .map_or_else(Summary::unqualified, Summary::known)),
+            ast::Expr::IntegerNegate { width, .. } => Ok(Summary::known(oid(&width.data_type()))),
             ast::Expr::Cast { data_type, .. } => Ok(Summary::known(oid(data_type))),
             ast::Expr::IsNull { .. } | ast::Expr::Not { .. } | ast::Expr::Exists(_) => {
                 Ok(Summary::known(16))
@@ -93,6 +94,9 @@ impl Fold<'_, '_> {
         }
         self.comparison_inputs(frame)?;
         Ok(match op {
+            ast::BinaryOp::Integer { width, .. } => {
+                Summary::known(super::expressions::oid(&width.data_type()))
+            }
             ast::BinaryOp::Add | ast::BinaryOp::Sub | ast::BinaryOp::Mul | ast::BinaryOp::Div => {
                 let left = self.summaries.values[frame.start];
                 let right = self.summaries.values[frame.start + 1];

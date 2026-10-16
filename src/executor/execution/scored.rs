@@ -906,9 +906,10 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
             ) && vector_prefilter_supported(left, schema)
                 && vector_prefilter_supported(right, schema)
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            vector_prefilter_supported(expr, schema)
-        }
+        Expr::IsNull { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => vector_prefilter_supported(expr, schema),
         Expr::InList { expr, values, .. } => {
             vector_prefilter_supported(expr, schema)
                 && values

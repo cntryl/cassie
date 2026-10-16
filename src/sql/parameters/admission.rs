@@ -665,6 +665,7 @@ fn expr_children(expr: &ast::Expr) -> usize {
         ast::Expr::Binary { .. } | ast::Expr::InList { .. } => 2,
         ast::Expr::IsNull { .. }
         | ast::Expr::Not { .. }
+        | ast::Expr::IntegerNegate { .. }
         | ast::Expr::Cast { .. }
         | ast::Expr::Exists(_)
         | ast::Expr::Function(_) => 1,
@@ -685,9 +686,10 @@ fn expr_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
         ast::Expr::Binary { left, right, .. } => {
             Some(Node::Expr(if index == 0 { left } else { right }))
         }
-        ast::Expr::IsNull { expr, .. } | ast::Expr::Not { expr } | ast::Expr::Cast { expr, .. } => {
-            Some(Node::Expr(expr))
-        }
+        ast::Expr::IsNull { expr, .. }
+        | ast::Expr::Not { expr }
+        | ast::Expr::Cast { expr, .. }
+        | ast::Expr::IntegerNegate { expr, .. } => Some(Node::Expr(expr)),
         ast::Expr::InList { expr, values, .. } => Some(if index == 0 {
             Node::Expr(expr)
         } else {

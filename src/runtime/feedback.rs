@@ -488,6 +488,10 @@ enum NormalizedExprShape {
         expr: Box<NormalizedExprShape>,
         negated: bool,
     },
+    IntegerNegate {
+        expr: Box<NormalizedExprShape>,
+        width: String,
+    },
     Not(Box<NormalizedExprShape>),
     Cast {
         expr: Box<NormalizedExprShape>,
@@ -564,6 +568,10 @@ impl From<&Expr> for NormalizedExprShape {
                 negated: *negated,
             },
             Expr::Not { expr } => Self::Not(Box::new(Self::from(expr.as_ref()))),
+            Expr::IntegerNegate { expr, width } => Self::IntegerNegate {
+                expr: Box::new(Self::from(expr.as_ref())),
+                width: format!("{width:?}"),
+            },
             Expr::Cast { expr, data_type } => Self::Cast {
                 expr: Box::new(Self::from(expr.as_ref())),
                 data_type: format!("{data_type:?}"),

@@ -604,6 +604,10 @@ pub(super) fn resolve_exists_expr<'a>(
             negated,
         } => resolve_between_exists_expr(context, expr, low, high, *negated),
         Expr::Not { expr } => resolve_not_exists_expr(context, expr),
+        Expr::IntegerNegate { expr, width } => Ok(Expr::IntegerNegate {
+            expr: Box::new(resolve_exists_expr(context, expr)?),
+            width: *width,
+        }),
         Expr::Cast { expr, data_type } => resolve_cast_exists_expr(context, expr, data_type),
         Expr::Exists(statement) => {
             let logical = build_exists_logical_plan(context, statement.as_ref())?;
@@ -906,9 +910,10 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
         Expr::Binary { left, right, .. } => {
             expression_expansion_weight(left).saturating_add(expression_expansion_weight(right))
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            expression_expansion_weight(expr)
-        }
+        Expr::IsNull { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => expression_expansion_weight(expr),
         Expr::InList { expr, values, .. } => values
             .iter()
             .fold(expression_expansion_weight(expr), |weight, value| {

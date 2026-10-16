@@ -351,6 +351,9 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
             negated,
         } => eval_between_expr(row, expr, low, high, *negated, context),
         Expr::Not { expr } => eval_not_expr(row, expr, context),
+        Expr::IntegerNegate { expr, width } => {
+            integers::negate(&eval_scalar_with_context(row, expr, context)?, *width)
+        }
         Expr::Cast { expr, data_type } => eval_cast_expr(row, expr, data_type, context),
         Expr::Exists(_) => context.exists.map_or_else(
             || {
@@ -388,17 +391,9 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
 
     match data_type {
         DataType::Null => Ok(ScalarValue::Null),
-        DataType::SmallInt => scalar_to_i64(value)
-            .and_then(|value| i16::try_from(value).ok())
-            .map(|value| ScalarValue::Int(i64::from(value)))
-            .ok_or_else(|| QueryError::General("cannot cast value to SMALLINT".to_string())),
-        DataType::Int => scalar_to_i64(value)
-            .and_then(|value| i32::try_from(value).ok())
-            .map(|value| ScalarValue::Int(i64::from(value)))
-            .ok_or_else(|| QueryError::General("cannot cast value to INT".to_string())),
-        DataType::BigInt => scalar_to_i64(value)
-            .map(ScalarValue::Int)
-            .ok_or_else(|| QueryError::General("cannot cast value to BIGINT".to_string())),
+        DataType::SmallInt => integers::cast(value, crate::types::IntegerWidth::I16),
+        DataType::Int => integers::cast(value, crate::types::IntegerWidth::I32),
+        DataType::BigInt => integers::cast(value, crate::types::IntegerWidth::I64),
         DataType::Float => value
             .to_f64()
             .filter(|value| value.is_finite())
@@ -522,18 +517,6 @@ fn cast_json_text(value: &ScalarValue) -> String {
     }
 }
 
-fn scalar_to_i64(value: &ScalarValue) -> Option<i64> {
-    match value {
-        ScalarValue::Int(value) => Some(*value),
-        ScalarValue::Bool(value) => Some(i64::from(*value)),
-        // PostgreSQL rounds float-to-integer casts to the nearest integer
-        // (ties to even, like `rint`) and fails only on range overflow.
-        ScalarValue::Float(value) if value.is_finite() => parse_f64_to_i64(value.round_ties_even()),
-        ScalarValue::Float(_) | ScalarValue::Null => None,
-        ScalarValue::Str(value) | ScalarValue::Json(value) => value.parse().ok(),
-    }
-}
-
 fn decode_bytea(value: &str) -> Result<(), QueryError> {
     if !value.starts_with("\\x") {
         return Err(QueryError::General(
@@ -590,6 +573,9 @@ fn binary_scalar(
         BinaryOp::Gt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_gt)),
         BinaryOp::Gte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_lt())),
         BinaryOp::Like => comparison_result(like_match(left.as_str(), right.as_str())?),
+        BinaryOp::Integer { operation, width } => {
+            integers::arithmetic(left, *operation, *width, right)?
+        }
         BinaryOp::Add => checked_math_result(left, right, i64::checked_add, |a, b| a + b)?,
         BinaryOp::Sub => checked_math_result(left, right, i64::checked_sub, |a, b| a - b)?,
         BinaryOp::Mul => checked_math_result(left, right, i64::checked_mul, |a, b| a * b)?,
@@ -943,13 +929,6 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
     }
 }
 
-fn parse_f64_to_i64(value: f64) -> Option<i64> {
-    if !value.is_finite() || value.fract() != 0.0 {
-        return None;
-    }
-    format!("{value:.0}").parse::<i64>().ok()
-}
-
 #[cfg(test)]
 #[path = "filter/tests.rs"]
 mod tests;
@@ -960,3 +939,6 @@ mod json_equality;
 #[cfg(test)]
 #[path = "filter/null_safe_tests.rs"]
 mod null_safe_tests;
+
+#[path = "filter/integers.rs"]
+mod integers;

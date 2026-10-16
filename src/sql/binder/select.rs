@@ -177,7 +177,10 @@ pub(super) fn canonicalize_typed_predicate_literals(
             canonicalize_typed_predicate_literals(low, field_types)?;
             canonicalize_typed_predicate_literals(high, field_types)
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+        Expr::IsNull { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => {
             canonicalize_typed_predicate_literals(expr, field_types)
         }
         Expr::Function(function) => {

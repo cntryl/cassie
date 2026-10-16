@@ -79,6 +79,7 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
             format_expression(high)?
         )),
         Expr::Not { expr } => Ok(format!("(NOT {})", format_expression(expr)?)),
+        Expr::IntegerNegate { expr, .. } => Ok(format!("(-{})", format_expression(expr)?)),
         Expr::Cast { expr, data_type } => Ok(format!(
             "CAST({} AS {})",
             format_expression(expr)?,
@@ -128,6 +129,7 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
         BinaryOp::Gte => ">=",
         BinaryOp::And => "AND",
         BinaryOp::Or => "OR",
+        BinaryOp::Integer { operation, .. } => operation.symbol(),
         BinaryOp::Add => "+",
         BinaryOp::Sub => "-",
         BinaryOp::Mul => "*",

@@ -253,7 +253,10 @@ fn collect_expr_columns(
             collect_expr_columns(left, fields, allocation)?;
             collect_expr_columns(right, fields, allocation)?;
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+        Expr::IsNull { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => {
             collect_expr_columns(expr, fields, allocation)?;
         }
         Expr::Between {

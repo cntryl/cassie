@@ -159,7 +159,10 @@ fn visit_expr(expr: &mut Expr, visitor: &mut Visitor<'_>) -> Result<(), CassieEr
             visit_expr(left, visitor)?;
             visit_expr(right, visitor)?;
         }
-        Expr::Cast { expr, .. } | Expr::IsNull { expr, .. } | Expr::Not { expr } => {
+        Expr::Cast { expr, .. }
+        | Expr::IntegerNegate { expr, .. }
+        | Expr::IsNull { expr, .. }
+        | Expr::Not { expr } => {
             visit_expr(expr, visitor)?;
         }
         Expr::InList { expr, values, .. } => {

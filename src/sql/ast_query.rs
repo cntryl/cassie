@@ -306,11 +306,16 @@ pub enum Expr {
         expr: Box<Expr>,
         data_type: DataType,
     },
+    /// Integer negation applied after its operand's casts.
+    IntegerNegate {
+        expr: Box<Expr>,
+        width: crate::types::IntegerWidth,
+    },
     Exists(Box<ParsedStatement>),
     Function(Box<FunctionCall>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BinaryOp {
     Eq,
     NotEq,
@@ -326,6 +331,11 @@ pub enum BinaryOp {
     Sub,
     Mul,
     Div,
+    /// A selected builtin integer operator, retaining its operand/result domain.
+    Integer {
+        operation: crate::types::IntegerOperation,
+        width: crate::types::IntegerWidth,
+    },
     Like,
     PgvectorCosine,
     PgvectorL2,

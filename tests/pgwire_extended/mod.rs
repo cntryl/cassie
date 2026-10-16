@@ -172,3 +172,6 @@ mod aggregates_string_agg_resources;
 
 #[path = "types/network/operator_errors.rs"]
 mod types_network_operator_errors;
+
+#[path = "grammar/integer_inputs.rs"]
+mod postgresql18_integer_inputs;

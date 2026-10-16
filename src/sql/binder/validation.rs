@@ -127,6 +127,10 @@ fn expression_operand_family(
             vector::validate_vector_function_query(function, field_types)?;
             Ok(None)
         }
+        Expr::IntegerNegate { expr, .. } => {
+            validate_expression_operand_families(expr, field_types)?;
+            Ok(Some(OperandFamily::Numeric))
+        }
         Expr::Cast { expr, data_type } => {
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(data_type_family(data_type)))
@@ -213,7 +217,11 @@ fn binary_operand_family(
             require_family(right_family, OperandFamily::Text, "LIKE")?;
             Ok(Some(OperandFamily::Boolean))
         }
-        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+        BinaryOp::Integer { .. }
+        | BinaryOp::Add
+        | BinaryOp::Sub
+        | BinaryOp::Mul
+        | BinaryOp::Div => {
             require_family(left_family, OperandFamily::Numeric, "arithmetic")?;
             require_family(right_family, OperandFamily::Numeric, "arithmetic")?;
             Ok(Some(OperandFamily::Numeric))
@@ -919,7 +927,7 @@ pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
         collect_expr(low, out);
         collect_expr(high, out);
     }
-    if let Expr::Cast { expr, .. } = expr {
+    if let Expr::Cast { expr, .. } | Expr::IntegerNegate { expr, .. } = expr {
         collect_expr(expr, out);
     }
     if let Expr::Not { expr } = expr {

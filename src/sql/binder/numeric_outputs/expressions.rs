@@ -49,6 +49,7 @@ impl Analyzer<'_> {
                 output.proven_float8 = false;
                 output
             }
+            Expr::IntegerNegate { width, .. } => OutputType::fixed(width.data_type()),
             Expr::IntegerLiteral(value) => {
                 OutputType::fixed(inference::integer_literal_type(*value))
             }
@@ -74,6 +75,7 @@ impl Analyzer<'_> {
                 BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                     OutputType::fixed(DataType::Float)
                 }
+                BinaryOp::Integer { width, .. } => OutputType::fixed(width.data_type()),
                 BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => arithmetic(
                     &self.expression(left, lookup)?,
                     &self.expression(right, lookup)?,

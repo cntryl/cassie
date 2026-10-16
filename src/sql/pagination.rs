@@ -103,6 +103,7 @@ fn is_admitted_at_depth(expr: &Expr, depth: usize) -> bool {
     }
     match expr {
         Expr::IntegerLiteral(_) | Expr::Null | Expr::Param(_) => true,
+        Expr::IntegerNegate { expr, .. } => is_admitted_at_depth(expr, depth + 1),
         Expr::Cast { expr, data_type } => {
             is_integer(data_type) && is_admitted_at_depth(expr, depth + 1)
         }
@@ -125,7 +126,7 @@ fn is_integer(data_type: &DataType) -> bool {
 pub(crate) fn has_parameters(expr: &Expr) -> bool {
     match expr {
         Expr::Param(_) => true,
-        Expr::Cast { expr, .. } => has_parameters(expr),
+        Expr::Cast { expr, .. } | Expr::IntegerNegate { expr, .. } => has_parameters(expr),
         Expr::Binary { left, right, .. } => has_parameters(left) || has_parameters(right),
         _ => false,
     }
@@ -178,6 +179,7 @@ fn validate_parameters(
         Expr::Cast { expr, data_type } => {
             validate_parameters(expr, oids, arithmetic, Some(data_type))?;
         }
+        Expr::IntegerNegate { expr, .. } => validate_parameters(expr, oids, arithmetic, cast)?,
         Expr::Binary { left, right, .. } => {
             // An outer cast does not select the argument operators.
             validate_parameters(left, oids, true, None)?;
@@ -275,6 +277,17 @@ fn evaluate(
                 Some(Value::Null) => Ok((None, domain)),
                 _ => Err(type_error()),
             }
+        }
+        Expr::IntegerNegate { expr, width } => {
+            let value = evaluate(expr, params, declared_oids, controls)?.0;
+            Ok((
+                value
+                    .map(|value| {
+                        crate::types::integer::negate(*width, value).map_err(|_| overflow())
+                    })
+                    .transpose()?,
+                width.data_type(),
+            ))
         }
         Expr::Cast { expr, data_type } if is_integer(data_type) => {
             let value = evaluate(expr, params, declared_oids, controls)?.0;

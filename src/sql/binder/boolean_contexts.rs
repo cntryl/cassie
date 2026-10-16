@@ -352,7 +352,7 @@ fn validate_expression(
                 validate_expression(result, types, catalog, context)?;
             }
         }
-        Expr::Cast { expr, .. } | Expr::IsNull { expr, .. } => {
+        Expr::Cast { expr, .. } | Expr::IntegerNegate { expr, .. } | Expr::IsNull { expr, .. } => {
             validate_expression(expr, types, catalog, context)?;
         }
         Expr::InList { expr, values, .. } => {

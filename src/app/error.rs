@@ -528,7 +528,13 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message.starts_with("invalid input syntax for type boolean:") {
         return bad_request_descriptor("22P02", message.to_string());
     }
-    if message.starts_with("invalid input syntax for type integer:") {
+    if matches!(
+        message,
+        "invalid input syntax for type smallint"
+            | "invalid input syntax for type integer"
+            | "invalid input syntax for type bigint"
+    ) || message.starts_with("invalid input syntax for type integer:")
+    {
         return bad_request_descriptor("22P02", message.to_string());
     }
     if message.starts_with("argument of FILTER must be type boolean, not type ") {
@@ -550,7 +556,7 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
         return bad_request_descriptor("42P10", message.to_string());
     }
     if message.eq_ignore_ascii_case("aggregate integer overflow")
-        || message == "integer out of range"
+        || matches!(message, "smallint out of range" | "integer out of range")
         || message.eq_ignore_ascii_case(crate::types::numeric::FLOAT_OVERFLOW)
         || message.eq_ignore_ascii_case(crate::executor::filter::BIGINT_OUT_OF_RANGE)
     {

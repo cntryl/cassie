@@ -227,7 +227,10 @@ fn rewrite_expr(expr: &mut Expr) {
             rewrite_expr(left);
             rewrite_expr(right);
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+        Expr::IsNull { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => {
             rewrite_expr(expr);
         }
         Expr::InList { expr, values, .. } => {

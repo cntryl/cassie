@@ -86,7 +86,9 @@ impl Reader<'_> {
             ));
         }
         match expr {
-            Expr::Cast { expr, .. } => self.bound_depth(expr, depth + 1)?,
+            Expr::Cast { expr, .. } | Expr::IntegerNegate { expr, .. } => {
+                self.bound_depth(expr, depth + 1)?;
+            }
             Expr::Binary { left, right, .. } => {
                 self.bound_depth(left, depth + 1)?;
                 self.bound_depth(right, depth + 1)?;
@@ -204,7 +206,10 @@ impl Reader<'_> {
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
             }
-            Expr::Cast { expr, .. } | Expr::IsNull { expr, .. } | Expr::Not { expr } => {
+            Expr::Cast { expr, .. }
+            | Expr::IntegerNegate { expr, .. }
+            | Expr::IsNull { expr, .. }
+            | Expr::Not { expr } => {
                 self.expr(expr, depth + 1)?;
             }
             Expr::InList { expr, values, .. } => {

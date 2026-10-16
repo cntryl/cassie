@@ -48,6 +48,7 @@ impl Fold<'_, '_> {
     pub(super) fn known_operand_oid(&self, expr: &ast::Expr, context: usize) -> Option<i32> {
         match expr {
             ast::Expr::Column(name) => self.column_oid(context, name),
+            ast::Expr::IntegerNegate { width, .. } => Some(oid(&width.data_type())),
             ast::Expr::Cast { data_type, .. } => Some(oid(data_type)),
             ast::Expr::StringLiteral(_) => Some(25),
             ast::Expr::NumberLiteral(_) => Some(701),

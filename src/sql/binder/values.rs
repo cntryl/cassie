@@ -28,13 +28,8 @@ pub(crate) fn schema(
                 actual_types.push(DataType::Null);
                 continue;
             }
-            let actual = super::inference::infer_expr_type(
-                expression,
-                &Schema { fields: Vec::new() },
-                functions,
-                params,
-            )
-            .unwrap_or(DataType::Null);
+            let actual =
+                arithmetic::inferred_type(expression, functions, params).unwrap_or(DataType::Null);
             actual_types.push(actual.clone());
             common = common_type(common.clone(), actual.clone()).ok_or_else(|| {
                 CassieError::Execution(format!(
@@ -83,8 +78,9 @@ pub(super) fn coerce(
     functions: &HashMap<String, FunctionMeta>,
     params: &[i32],
 ) -> Result<(), CassieError> {
-    for expression in rows.iter().flatten() {
+    for expression in rows.iter_mut().flatten() {
         validate(expression, false)?;
+        arithmetic::bind(expression, functions, params, 0)?;
     }
     let schema = schema(rows, functions, params)?;
     for row in rows {
@@ -107,6 +103,9 @@ pub(super) fn coerce(
     Ok(())
 }
 
+#[path = "values_arithmetic.rs"]
+mod arithmetic;
+
 #[path = "values_parameters.rs"]
 mod parameters;
 pub(crate) fn bind_input_types(
@@ -117,18 +116,6 @@ pub(crate) fn bind_input_types(
 }
 fn validate(expression: &Expr, float_context: bool) -> Result<(), CassieError> {
     match expression {
-        Expr::Binary {
-            op:
-                super::BinaryOp::Add
-                | super::BinaryOp::Sub
-                | super::BinaryOp::Mul
-                | super::BinaryOp::Div,
-            ..
-        } => {
-            return Err(CassieError::Unsupported(
-                "arithmetic in VALUES is not yet supported".into(),
-            ));
-        }
         Expr::Function(_) | Expr::Exists(_) => {
             return Err(CassieError::Unsupported(
                 "functions and subqueries in VALUES are not yet supported".into(),

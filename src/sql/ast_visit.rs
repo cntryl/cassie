@@ -36,7 +36,10 @@ impl Expr {
                 visit(left)?;
                 visit(right)?;
             }
-            Self::IsNull { expr, .. } | Self::Not { expr } | Self::Cast { expr, .. } => {
+            Self::IsNull { expr, .. }
+            | Self::Not { expr }
+            | Self::Cast { expr, .. }
+            | Self::IntegerNegate { expr, .. } => {
                 visit(expr)?;
             }
             Self::InList { expr, values, .. } => {
@@ -118,6 +121,10 @@ impl Expr {
             Self::Not { expr } => Self::Not {
                 expr: Box::new(map(expr)),
             },
+            Self::IntegerNegate { expr, width } => Self::IntegerNegate {
+                expr: Box::new(map(expr)),
+                width: *width,
+            },
             Self::Cast { expr, data_type } => Self::Cast {
                 expr: Box::new(map(expr)),
                 data_type: data_type.clone(),
@@ -188,7 +195,10 @@ impl Expr {
                 visit(left)?;
                 visit(right)?;
             }
-            Self::Cast { expr, .. } | Self::Not { expr } | Self::IsNull { expr, .. } => {
+            Self::Cast { expr, .. }
+            | Self::IntegerNegate { expr, .. }
+            | Self::Not { expr }
+            | Self::IsNull { expr, .. } => {
                 visit(expr)?;
             }
             Self::Between {
@@ -344,7 +354,7 @@ fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 right: right_right,
             },
         ) => {
-            std::mem::discriminant(left_op) == std::mem::discriminant(right_op)
+            left_op == right_op
                 && left_left.structurally_eq(right_left)
                 && left_right.structurally_eq(right_right)
         }
@@ -393,6 +403,12 @@ fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 && left_low.structurally_eq(right_low)
                 && left_high.structurally_eq(right_high)
         }
+        _ => unary_structurally_eq(left, right),
+    }
+}
+
+fn unary_structurally_eq(left: &Expr, right: &Expr) -> bool {
+    match (left, right) {
         (Expr::Not { expr: left }, Expr::Not { expr: right }) => left.structurally_eq(right),
         (
             Expr::Cast {
@@ -404,6 +420,16 @@ fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 data_type: right_type,
             },
         ) => left_type == right_type && left.structurally_eq(right),
+        (
+            Expr::IntegerNegate {
+                expr: left,
+                width: lw,
+            },
+            Expr::IntegerNegate {
+                expr: right,
+                width: rw,
+            },
+        ) => lw == rw && left.structurally_eq(right),
         _ => false,
     }
 }
@@ -423,3 +449,7 @@ fn all_structurally_eq(left: &[Expr], right: &[Expr]) -> bool {
             .zip(right)
             .all(|(left, right)| left.structurally_eq(right))
 }
+
+#[cfg(test)]
+#[path = "ast_visit_tests.rs"]
+mod tests;

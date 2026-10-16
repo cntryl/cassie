@@ -714,6 +714,7 @@ pub(crate) fn infer_expr_type(
         }
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
+        Expr::IntegerNegate { width, .. } => Some(width.data_type()),
         Expr::IntegerLiteral(value) => Some(integer_literal_type(*value)),
         Expr::BoolLiteral(_)
         | Expr::Exists(_)
@@ -739,6 +740,7 @@ pub(crate) fn infer_expr_type(
             | BinaryOp::Gt
             | BinaryOp::Gte
             | BinaryOp::Like => Some(DataType::Boolean),
+            BinaryOp::Integer { width, .. } => Some(width.data_type()),
             BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
                 let left_type =
                     infer_expr_type(left, source_schema, user_functions, parameter_types);
@@ -827,6 +829,7 @@ pub(crate) fn known_expr_type(
         Expr::Cast { data_type, .. } => Some(data_type.clone()),
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
+        Expr::IntegerNegate { width, .. } => Some(width.data_type()),
         Expr::IntegerLiteral(value) => Some(integer_literal_type(*value)),
         Expr::BoolLiteral(_) => Some(DataType::Boolean),
         Expr::Null => Some(DataType::Null),

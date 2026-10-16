@@ -106,7 +106,10 @@ fn qualify_expression(expression: &mut Expr, types: &ResultTypes) {
                 qualify_expression(value, types);
             }
         }
-        Expr::Cast { expr, .. } | Expr::Not { expr } | Expr::IsNull { expr, .. } => {
+        Expr::Cast { expr, .. }
+        | Expr::IntegerNegate { expr, .. }
+        | Expr::Not { expr }
+        | Expr::IsNull { expr, .. } => {
             qualify_expression(expr, types);
         }
         Expr::InList { expr, values, .. } => {

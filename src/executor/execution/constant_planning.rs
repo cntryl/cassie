@@ -327,7 +327,9 @@ impl Folder<'_> {
                 Fold::Decided(value) => Fold::Decided(value.map(|value| !value)),
                 fold => fold,
             }),
-            Expr::Cast { expr, .. } => self.fold_operands([&**expr], true, false),
+            Expr::Cast { expr, .. } | Expr::IntegerNegate { expr, .. } => {
+                self.fold_operands([&**expr], true, false)
+            }
             // `x IN (...)` folds as `x = ANY(ARRAY[...])`: every element folds,
             // although the runtime list test stops at its first match.
             Expr::InList { expr, values, .. } => {
@@ -669,6 +671,7 @@ fn is_folding_error(error: &QueryError) -> bool {
         error,
         QueryError::General(message)
             if message == "division by zero"
+                || matches!(message.as_str(), "smallint out of range" | "integer out of range" | "invalid input syntax for type smallint" | "invalid input syntax for type integer" | "invalid input syntax for type bigint")
                 || message == filter::BIGINT_OUT_OF_RANGE
                 || message == crate::types::numeric::FLOAT_OVERFLOW
     )

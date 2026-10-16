@@ -113,7 +113,7 @@ pub(crate) fn field_result(
     )
 }
 
-fn constant_decision<R: RowAccess + ?Sized>(
+pub(super) fn constant_decision<R: RowAccess + ?Sized>(
     row: &R,
     comparison: &RowComparison,
     context: EvalContext<'_>,
@@ -129,8 +129,8 @@ fn constant_decision<R: RowAccess + ?Sized>(
     );
     for (left, right) in comparison.left.iter().zip(&comparison.right) {
         if let (Some(left), Some(right)) = (
-            constants::value(left, row, context)?,
-            constants::value(right, row, context)?,
+            super::constants::value(left, row, context)?,
+            super::constants::value(right, row, context)?,
         ) {
             if let ScalarValue::Bool(value) = field_result(&left, comparison.op, &right)? {
                 if value == is_or {
@@ -141,6 +141,3 @@ fn constant_decision<R: RowAccess + ?Sized>(
     }
     Ok(None)
 }
-
-#[path = "row_constants.rs"]
-mod constants;

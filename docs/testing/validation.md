@@ -619,3 +619,54 @@ instances plus 978 library tests, no unregistered modules/tests and no touched
 Rust size violations. Final validators remain 43/43. Full pedantic Clippy,
 formatting and whitespace checks passed after the final nested-planning probes.
 The exact native oracle reports PostgreSQL 18.6 (Homebrew).
+
+
+The next source-constant bundle starts from pushed 90df9c30 and the retained
+#800 single-row VALUES/22012 red probe. Native probes also require pruning
+unused source arithmetic, preserving multi-field row-ordering opacity, folding
+row equality through identity casts, and scalar AND/OR constant pruning. The
+plan propagates original typed expressions after binder/parameter analysis,
+preserves names/types and unused supplied slots, and removes the eligible
+one-row source after consumer substitution. Eligibility is initially direct
+VALUES or one alias wrapper, without source parameters/functions/CHAR or
+consumer EXISTS/window/set boundaries. These wider forms remain obligations;
+no stored type/layout or durable null-safe law is selected. Checked clone/name/
+Vec admission precedes mutation, and cancellation is polled during traversal.
+The same source pass may serve SELECTs inside INSERT once their ordinary
+parameter/type binding is complete. Related Boolean execution shares the
+semantic constant evaluator; private fold metadata must preserve pruned scalar
+constants. Jev selected AST propagation at 1.0 and prioritized alias/parameter/
+scope probes. Eighteen new SQL/wire functions are authored before implementation.
+
+Source-constant implementation now propagates the original bound AST, retaining
+row-ordering opacity and checked integer widths, and shares semantic constants
+with scalar Boolean execution. It skips unused cells without evaluating them.
+The initial new modules were SQL 8/6 and wire 3/1; the retained source-inline
+22012 probe was also red. The green modules pass SQL 15/0 and wire 4/0, including
+three nested CASE/row/IN clone-budget rejection and recovery probes. All 11 row
+wire tests now pass. A complete library run exposed a runtime Boolean type-gate
+regression for direct AST callers; the gate was restored and the subsequent
+complete library run passed 978/0. Native type checking is not pruned away.
+Jev's scope/constant/ownership gap probabilities were 0.15/0.14/0.40; the
+ownership result prompted the nested clone probes. Parameters and functions in
+source cells, CHAR, nested scope/window/set boundaries and DML inlining remain
+pending rather than receiving an eager or lossy substitution. No persistent
+format or stored type identity changed. Artifacts are `target/green-source-*`.
+
+The ordered source checkpoint built successfully. `cargo test --locked` passed
+library 978/0, analytics 179/0, backend CI 2/0 and benchmark operations 16/0,
+then stopped at catalog/security 139/209, unchanged from the row checkpoint.
+The final related selection passes 132 and fails 15 across 147 cases: library
+30/0, float-cast parser 2/0, SQL 60/5 and wire 40/10. New modules pass 19/19;
+all 26 row SQL/wire functions pass. The remaining selected cases belong to
+whole-record/qualified-star/USING, CHAR, aggregate or scalar-receiver owners.
+Clippy found an oversized new helper and two missing semicolons; projection
+rewriting was extracted into its own helper, without changing behavior. The
+post-extraction build and complete library rerun pass 978/0. Final focused,
+full Clippy, formatting and validator results follow below.
+
+Final source checks pass: full workspace/all-target/all-feature pedantic Clippy,
+formatting, both test validators (19/19), refreshed inventory check, touched Rust
+size limits and whitespace. Inventory contains 5,673 integration registrations
+plus 978 library tests. The post-extraction related selection remains 132/15.
+The full-suite catalog failures remain open; no expectation or limit was weakened.

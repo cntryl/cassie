@@ -83,14 +83,20 @@ pub(super) fn check_plan(
 /// What folding learned about an expression.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Fold {
-    /// Only constant inputs; evaluating the original expression follows the
-    /// same pruned path, so evaluation is deferred to the outermost such node.
+    /// Semantically constant inputs, including already-pruned descendants.
+    /// Evaluate through the shared semantic-constant evaluator first.
     Constant,
     /// A Boolean (`None` is NULL) decided by short-circuit folding; the
     /// original expression may still contain non-constant inputs.
     Decided(Option<bool>),
     /// Reads a row, a parameter, a subquery or a non-immutable function.
     Variable,
+}
+
+impl Fold {
+    fn is_known(self) -> bool {
+        !matches!(self, Self::Variable)
+    }
 }
 
 /// A folded condition: a constant truth value (`None` is NULL), or unknown
@@ -242,7 +248,7 @@ impl Folder<'_> {
                 SelectItem::Expr { expr, .. } => self.check(expr)?,
                 SelectItem::Function { function, .. } => {
                     let fold = self.fold_function(function)?;
-                    if fold == Fold::Constant {
+                    if fold.is_known() {
                         self.evaluate(&Expr::Function(Box::new(function.clone())))?;
                     }
                 }
@@ -267,7 +273,7 @@ impl Folder<'_> {
 
     /// Evaluates a constant expression whose parent does not fold.
     fn settle(&self, fold: Fold, expr: &Expr) -> Result<(), QueryError> {
-        if fold == Fold::Constant && !is_literal(expr) {
+        if fold.is_known() && !is_literal(expr) {
             self.evaluate(expr)?;
         }
         Ok(())
@@ -277,6 +283,11 @@ impl Folder<'_> {
     /// error; any other failure means the evaluator cannot fold this constant,
     /// which is left to run time.
     fn evaluate(&self, expr: &Expr) -> Result<Option<ScalarValue>, QueryError> {
+        match filter::constant_scalar(expr) {
+            Ok(Some(value)) => return Ok(Some(value)),
+            Err(error) if is_folding_error(&error) => return Err(error),
+            Ok(None) | Err(_) => {}
+        }
         let row: Vec<(String, crate::types::Value)> = Vec::new();
         match filter::eval_scalar(&row, expr, &[], None, &self.no_functions, None, None) {
             Ok(value) => Ok(Some(value)),
@@ -423,7 +434,7 @@ impl Folder<'_> {
         for operand in operands {
             folded.push((self.fold(operand)?, operand));
         }
-        let constant = immutable && folded.iter().all(|(fold, _)| *fold == Fold::Constant);
+        let constant = immutable && folded.iter().all(|(fold, _)| fold.is_known());
         if !constant || settle_constants {
             for (fold, operand) in folded {
                 self.settle(fold, operand)?;
@@ -499,7 +510,7 @@ impl Folder<'_> {
         right_fold: Fold,
         right: &Expr,
     ) -> Result<Truth, QueryError> {
-        if left_fold == Fold::Constant && right_fold == Fold::Constant {
+        if left_fold.is_known() && right_fold.is_known() {
             let comparison = Expr::Binary {
                 left: Box::new(left.clone()),
                 op,
@@ -522,19 +533,15 @@ impl Folder<'_> {
         else_expr: Option<&Expr>,
     ) -> Result<Fold, QueryError> {
         // A simple CASE compares a constant operand with each WHEN value. A
-        // short-circuited operand is compared through its decided literal, so
-        // the original CASE is no longer safe to evaluate as a whole.
-        let mut deferrable = true;
+        // short-circuited operand is compared through its decided literal.
+        // The semantic evaluator preserves that pruning through parent casts.
         let operand = match operand {
             Some(operand) => {
                 let fold = self.fold(operand)?;
                 self.settle(fold, operand)?;
                 Some(match fold {
                     Fold::Constant => Some(operand.clone()),
-                    Fold::Decided(value) => {
-                        deferrable = false;
-                        Some(value.map_or(Expr::Null, Expr::BoolLiteral))
-                    }
+                    Fold::Decided(value) => Some(value.map_or(Expr::Null, Expr::BoolLiteral)),
                     Fold::Variable => None,
                 })
             }
@@ -544,11 +551,8 @@ impl Folder<'_> {
         for (when, then) in branches {
             let when_fold = self.fold(when)?;
             let condition = match &operand {
-                None => {
-                    deferrable &= !matches!(when_fold, Fold::Decided(_));
-                    self.truth(when_fold, when)?
-                }
-                Some(Some(operand)) if when_fold == Fold::Constant => {
+                None => self.truth(when_fold, when)?,
+                Some(Some(operand)) if when_fold.is_known() => {
                     self.truth(Fold::Constant, &simple_case_match(operand, when))?
                 }
                 Some(_) => {
@@ -558,7 +562,7 @@ impl Folder<'_> {
             };
             match condition {
                 Truth::Known(Some(false) | None) => {}
-                Truth::Known(Some(true)) => return self.case_result(then, variable, deferrable),
+                Truth::Known(Some(true)) => return self.case_result(then, variable),
                 Truth::Unknown => {
                     variable = true;
                     self.check(then)?;
@@ -566,20 +570,15 @@ impl Folder<'_> {
             }
         }
         match else_expr {
-            Some(else_expr) => self.case_result(else_expr, variable, deferrable),
+            Some(else_expr) => self.case_result(else_expr, variable),
             None if variable => Ok(Fold::Variable),
             None => Ok(Fold::Constant),
         }
     }
 
-    fn case_result(
-        &self,
-        result: &Expr,
-        variable: bool,
-        deferrable: bool,
-    ) -> Result<Fold, QueryError> {
+    fn case_result(&self, result: &Expr, variable: bool) -> Result<Fold, QueryError> {
         let fold = self.fold(result)?;
-        if fold == Fold::Constant && (variable || !deferrable) {
+        if fold.is_known() && variable {
             self.settle(fold, result)?;
             return Ok(Fold::Variable);
         }
@@ -603,7 +602,6 @@ impl Folder<'_> {
     /// constant; inputs after it are never processed.
     fn fold_coalesce(&self, args: &[Expr]) -> Result<Fold, QueryError> {
         let mut variable = false;
-        let mut deferrable = true;
         for arg in args {
             let fold = self.fold(arg)?;
             let is_null = match fold {
@@ -614,18 +612,15 @@ impl Folder<'_> {
                 Fold::Variable => None,
             };
             match is_null {
-                Some(true) => deferrable &= fold == Fold::Constant,
+                Some(true) => {}
                 Some(false) if variable => return Ok(Fold::Variable),
                 Some(false) => {
-                    return Ok(match fold {
-                        Fold::Constant if !deferrable => Fold::Variable,
-                        fold => fold,
-                    });
+                    return Ok(fold);
                 }
                 None => variable = true,
             }
         }
-        Ok(if variable || !deferrable {
+        Ok(if variable {
             Fold::Variable
         } else {
             Fold::Constant

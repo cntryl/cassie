@@ -82,3 +82,6 @@ mod postgresql18_integer_inputs;
 
 #[path = "relations/row_predicates.rs"]
 mod postgresql18_row_predicates;
+
+#[path = "relations/values_constants.rs"]
+mod postgresql18_values_constants;

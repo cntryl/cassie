@@ -178,3 +178,6 @@ mod postgresql18_integer_inputs;
 
 #[path = "grammar/row_predicates.rs"]
 mod postgresql18_row_predicates;
+
+#[path = "grammar/values_constants.rs"]
+mod postgresql18_values_constants;

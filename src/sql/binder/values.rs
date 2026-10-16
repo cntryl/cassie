@@ -88,10 +88,10 @@ pub(super) fn coerce(
             if matches!(expression, Expr::Param(_)) && params.is_empty() {
                 continue;
             }
-            if let Expr::Cast { data_type, .. } = expression {
-                if data_type == &field.data_type {
-                    continue;
-                }
+            if arithmetic::inferred_type(expression, functions, params).as_ref()
+                == Some(&field.data_type)
+            {
+                continue;
             }
             let original = std::mem::replace(expression, Expr::Null);
             *expression = Expr::Cast {

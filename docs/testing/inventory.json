@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1543,
-    "rust_files": 1512,
-    "rust_test_declarations": 5526,
+    "files": 1545,
+    "rust_files": 1514,
+    "rust_test_declarations": 5545,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5654,
+    "registered_rust_instances": 5673,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -72075,6 +72075,130 @@
         "file": "tests/pgwire_extended/grammar/unsupported_type_lookup.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/values_constants.rs::should_keep_row_ordering_opaque_given_propagated_fields_when_case_errors_are_planned",
+      "name": "should_keep_row_ordering_opaque_given_propagated_fields_when_case_errors_are_planned",
+      "current_file": "tests/pgwire_extended/grammar/values_constants.rs",
+      "line": 6,
+      "end_line": 24,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_values_constants::should_keep_row_ordering_opaque_given_propagated_fields_when_case_errors_are_planned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/values_constants.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/values_constants.rs::should_preserve_integer_field_widths_given_source_constants_when_empty_outputs_are_requested",
+      "name": "should_preserve_integer_field_widths_given_source_constants_when_empty_outputs_are_requested",
+      "current_file": "tests/pgwire_extended/grammar/values_constants.rs",
+      "line": 27,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_values_constants::should_preserve_integer_field_widths_given_source_constants_when_empty_outputs_are_requested"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/values_constants.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/values_constants.rs::should_retain_supplied_trailing_slots_given_constant_sources_when_prepared_statements_are_described",
+      "name": "should_retain_supplied_trailing_slots_given_constant_sources_when_prepared_statements_are_described",
+      "current_file": "tests/pgwire_extended/grammar/values_constants.rs",
+      "line": 55,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_values_constants::should_retain_supplied_trailing_slots_given_constant_sources_when_prepared_statements_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/values_constants.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/values_constants.rs::should_preserve_source_types_given_false_filters_when_prepared_outputs_are_described",
+      "name": "should_preserve_source_types_given_false_filters_when_prepared_outputs_are_described",
+      "current_file": "tests/pgwire_extended/grammar/values_constants.rs",
+      "line": 99,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_values_constants::should_preserve_source_types_given_false_filters_when_prepared_outputs_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/values_constants.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -147936,6 +148060,471 @@
       }
     },
     {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_prune_unused_constant_errors_given_single_values_rows_when_only_literals_are_selected",
+      "name": "should_prune_unused_constant_errors_given_single_values_rows_when_only_literals_are_selected",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 8,
+      "end_line": 18,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_prune_unused_constant_errors_given_single_values_rows_when_only_literals_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_count_rows_given_unused_constant_errors_when_values_fields_are_not_read",
+      "name": "should_count_rows_given_unused_constant_errors_when_values_fields_are_not_read",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 21,
+      "end_line": 30,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_count_rows_given_unused_constant_errors_when_values_fields_are_not_read"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_preserve_values_descriptors_given_constant_propagation_when_aliases_are_projected",
+      "name": "should_preserve_values_descriptors_given_constant_propagation_when_aliases_are_projected",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 33,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_preserve_values_descriptors_given_constant_propagation_when_aliases_are_projected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_preserve_delimited_aliases_given_unicode_names_when_constants_are_propagated",
+      "name": "should_preserve_delimited_aliases_given_unicode_names_when_constants_are_propagated",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 59,
+      "end_line": 69,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_preserve_delimited_aliases_given_unicode_names_when_constants_are_propagated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_preserve_repeated_fields_given_exact_bigints_when_source_references_are_replaced",
+      "name": "should_preserve_repeated_fields_given_exact_bigints_when_source_references_are_replaced",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 72,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_preserve_repeated_fields_given_exact_bigints_when_source_references_are_replaced"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_keep_multirow_fields_variable_given_late_division_when_row_ordering_short_circuits",
+      "name": "should_keep_multirow_fields_variable_given_late_division_when_row_ordering_short_circuits",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 94,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_keep_multirow_fields_variable_given_late_division_when_row_ordering_short_circuits"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_preserve_empty_descriptors_given_false_filters_when_source_columns_are_inlined",
+      "name": "should_preserve_empty_descriptors_given_false_filters_when_source_columns_are_inlined",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 108,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_preserve_empty_descriptors_given_false_filters_when_source_columns_are_inlined"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_keep_parameter_sources_typed_given_explicit_casts_when_constant_eligibility_is_checked",
+      "name": "should_keep_parameter_sources_typed_given_explicit_casts_when_constant_eligibility_is_checked",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 128,
+      "end_line": 148,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_keep_parameter_sources_typed_given_explicit_casts_when_constant_eligibility_is_checked"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_preserve_correlated_fields_given_exists_consumers_when_inlining_is_ineligible",
+      "name": "should_preserve_correlated_fields_given_exists_consumers_when_inlining_is_ineligible",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 151,
+      "end_line": 168,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_preserve_correlated_fields_given_exists_consumers_when_inlining_is_ineligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_keep_nested_alias_scopes_distinct_given_shadowed_names_when_values_are_read",
+      "name": "should_keep_nested_alias_scopes_distinct_given_shadowed_names_when_values_are_read",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 171,
+      "end_line": 185,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_keep_nested_alias_scopes_distinct_given_shadowed_names_when_values_are_read"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_preserve_scalar_row_foldability_given_source_boolean_fields_when_case_branches_are_pruned",
+      "name": "should_preserve_scalar_row_foldability_given_source_boolean_fields_when_case_branches_are_pruned",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 188,
+      "end_line": 201,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_preserve_scalar_row_foldability_given_source_boolean_fields_when_case_branches_are_pruned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_prune_logical_constants_given_arithmetic_errors_when_scalar_boolean_operators_execute",
+      "name": "should_prune_logical_constants_given_arithmetic_errors_when_scalar_boolean_operators_execute",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 204,
+      "end_line": 214,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_prune_logical_constants_given_arithmetic_errors_when_scalar_boolean_operators_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_skip_variable_errors_given_deciding_boolean_constants_when_table_predicates_execute",
+      "name": "should_skip_variable_errors_given_deciding_boolean_constants_when_table_predicates_execute",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 217,
+      "end_line": 235,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_skip_variable_errors_given_deciding_boolean_constants_when_table_predicates_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_release_constant_expansion_given_a_small_budget_when_follow_up_queries_execute",
+      "name": "should_release_constant_expansion_given_a_small_budget_when_follow_up_queries_execute",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 238,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_release_constant_expansion_given_a_small_budget_when_follow_up_queries_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_constants.rs::should_admit_nested_constant_clones_given_case_and_rows_when_source_fields_are_repeated",
+      "name": "should_admit_nested_constant_clones_given_case_and_rows_when_source_fields_are_repeated",
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "line": 264,
+      "end_line": 297,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_constants::should_admit_nested_constant_clones_given_case_and_rows_when_source_fields_are_repeated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_constants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/relations/values_rows.rs::should_return_default_column_names_from_standalone_values",
       "name": "should_return_default_column_names_from_standalone_values",
       "current_file": "tests/sql_queries/relations/values_rows.rs",
@@ -183915,6 +184504,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/grammar/values_constants.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 139,
+      "sha256": "84e88ec290dffc8302dc3f2790ab4e681e011a5cc3517bfbafcfe11c0227a194",
+      "test_declarations": 4,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/values_constants.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/grammar/values_errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -184023,8 +184627,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 180,
-      "sha256": "3748f0b75c87ba11bdbf55e5df04583f53587f909c1416e69d3fcfd5b91cb015",
+      "lines": 183,
+      "sha256": "9d8903f0c727075c79fbdeb0759702a7fb9b9cd091a0858ea0e54e7d8019aa64",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -192408,8 +193012,8 @@
       "current_file": "tests/sql_queries/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 84,
-      "sha256": "3e56003cb2b3cbc8179dc828a2a540ac8ed8987ae9192a6b3fa23b06efb76638",
+      "lines": 87,
+      "sha256": "32a64ec3c4cd68fa6f9fd9a6ddf57144b2072395e725b0b9146bd5f291af5d78",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -192792,6 +193396,21 @@
       ],
       "destinations": [
         "tests/sql_queries/relations/values_admission.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/relations/values_constants.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 297,
+      "sha256": "a140a4ba2d969457771b198d722174e060a1900397491c27c0b417f87a67cd69",
+      "test_declarations": 15,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/relations/values_constants.rs"
       ],
       "line_limit": 1000
     },

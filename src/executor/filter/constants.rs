@@ -1,5 +1,5 @@
-//! Semantic constants used by row AND/OR pruning; dead branches stay dead.
-use super::super::{
+//! Semantic constants used by AND/OR pruning; dead branches stay dead.
+use super::{
     binary_scalar, cast_scalar, eval_scalar_with_context, EvalContext, Expr, QueryError, RowAccess,
     ScalarValue,
 };
@@ -48,7 +48,7 @@ pub(super) fn value<R: RowAccess + ?Sized>(
             .map(|value| cast_scalar(&value, data_type))
             .transpose(),
         Expr::IntegerNegate { expr, width } => value(expr, row, context)?
-            .map(|value| super::super::integers::negate(&value, *width))
+            .map(|value| super::integers::negate(&value, *width))
             .transpose(),
         Expr::Not { expr } => value(expr, row, context)?
             .map(|value| {
@@ -75,7 +75,9 @@ pub(super) fn value<R: RowAccess + ?Sized>(
             {
                 return Ok(None);
             }
-            if let Some(decided) = super::constant_decision(row, comparison, context)? {
+            if let Some(decided) =
+                super::row_predicates::constant_decision(row, comparison, context)?
+            {
                 return Ok(Some(ScalarValue::Bool(decided)));
             }
             rebuilt(expr, row, context)
@@ -84,19 +86,39 @@ pub(super) fn value<R: RowAccess + ?Sized>(
     }
 }
 
-fn logical<R: RowAccess + ?Sized>(
+pub(super) fn logical<R: RowAccess + ?Sized>(
     left: &Expr,
     op: &BinaryOp,
     right: &Expr,
     row: &R,
     context: EvalContext<'_>,
 ) -> Result<Option<ScalarValue>, QueryError> {
+    // Binding validates SQL operand types. Keep the same gate for callers
+    // that evaluate an AST directly, without evaluating a dead expression.
+    for operand in [left, right] {
+        if matches!(
+            operand,
+            Expr::Param(_)
+                | Expr::Column(_)
+                | Expr::StringLiteral(_)
+                | Expr::NumberLiteral(_)
+                | Expr::IntegerLiteral(_)
+        ) {
+            eval_scalar_with_context(row, operand, context)?.predicate_result()?;
+        }
+    }
     let is_or = matches!(op, BinaryOp::Or);
     let left = value(left, row, context)?;
+    if let Some(left) = &left {
+        left.predicate_result()?;
+    }
     if matches!(&left, Some(ScalarValue::Bool(value)) if *value == is_or) {
         return Ok(left);
     }
     let right = value(right, row, context)?;
+    if let Some(right) = &right {
+        right.predicate_result()?;
+    }
     if matches!(&right, Some(ScalarValue::Bool(value)) if *value == is_or) {
         return Ok(right);
     }
@@ -240,4 +262,21 @@ fn between<R: RowAccess + ?Sized>(
         .map(Some),
         _ => Ok(None),
     }
+}
+
+pub(crate) fn constant_scalar(expression: &Expr) -> Result<Option<ScalarValue>, QueryError> {
+    let functions = super::HashMap::new();
+    let row: Vec<(String, super::Value)> = Vec::new();
+    value(
+        expression,
+        &row,
+        EvalContext {
+            params: &[],
+            search_context: None,
+            user_functions: &functions,
+            local_args: None,
+            session: None,
+            exists: None,
+        },
+    )
 }

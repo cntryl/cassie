@@ -289,6 +289,9 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
     )
 }
 
+#[path = "filter/constants.rs"]
+mod constants;
+pub(crate) use constants::constant_scalar;
 #[path = "filter/row_predicates.rs"]
 mod row_predicates;
 pub(crate) use row_predicates::field_result as row_field_result;
@@ -799,6 +802,17 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
     right: &Expr,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    if matches!(op, BinaryOp::And | BinaryOp::Or) {
+        if let Some(value) = constants::logical(left, op, right, row, context)? {
+            return Ok(value);
+        }
+        let left = eval_scalar_with_context(row, left, context)?;
+        if matches!(&left, ScalarValue::Bool(value) if *value == matches!(op, BinaryOp::Or)) {
+            return Ok(left);
+        }
+        let right = eval_scalar_with_context(row, right, context)?;
+        return binary_scalar(&left, op, &right);
+    }
     let left_value = eval_scalar_with_context(row, left, context)?;
     let right_value = eval_scalar_with_context(row, right, context)?;
     if matches!(

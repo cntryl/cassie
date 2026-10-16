@@ -327,6 +327,14 @@ existing Boolean identity (OID 16). Their primitive implementation adds no
 DataType variant, stored record representation, row codec or migration. Integer
 field operations retain INT2/INT4/INT8 signatures before common comparison
 coercion. Executed row/null/parameter/restart evidence and pending whole-record,
-extended-family and source-constant obligations are recorded in
+extended-family and broader source-constant obligations are recorded in
 [validation.md](testing/validation.md). Existing persisted-null-safe-definition
 admission continues to follow the separate null-safe predicate contract.
+
+Eligible single-row VALUES sources propagate their bound typed expressions
+into the consuming SELECT before planning-time constant checks. This preserves
+primitive widths, output names and parameter analysis while pruning unused
+cells. Propagation retains row-ordering expression structure; multi-field row
+ordering does not become a scalar constant merely because its fields do.
+Clone storage is admitted before substitution. Parameter/function/CHAR source
+cells and nested scope, window and set boundaries remain outside this increment.

@@ -237,3 +237,21 @@ mod values_cast_text;
 
 #[path = "sql_queries/relations/values_cast_controls.rs"]
 mod values_cast_controls;
+
+#[path = "sql_queries/casts/varchar_scalar.rs"]
+mod varchar_scalar;
+
+#[path = "sql_queries/casts/varchar_values.rs"]
+mod varchar_values;
+
+#[path = "sql_queries/casts/varchar_derived.rs"]
+mod varchar_derived;
+
+#[path = "sql_queries/casts/varchar_cte.rs"]
+mod varchar_cte;
+
+#[path = "sql_queries/casts/varchar_set.rs"]
+mod varchar_set;
+
+#[path = "sql_queries/casts/varchar_controls.rs"]
+mod varchar_controls;

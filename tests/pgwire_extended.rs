@@ -238,3 +238,21 @@ mod values_casts_semantics;
 
 #[path = "pgwire_extended/grammar/values_casts_cte.rs"]
 mod values_casts_cte;
+
+#[path = "pgwire_extended/grammar/varchar_scalar.rs"]
+mod varchar_scalar;
+
+#[path = "pgwire_extended/grammar/varchar_values.rs"]
+mod varchar_values;
+
+#[path = "pgwire_extended/grammar/varchar_derived.rs"]
+mod varchar_derived;
+
+#[path = "pgwire_extended/grammar/varchar_cte.rs"]
+mod varchar_cte;
+
+#[path = "pgwire_extended/grammar/varchar_set.rs"]
+mod varchar_set;
+
+#[path = "pgwire_extended/grammar/varchar_parameters.rs"]
+mod varchar_parameters;

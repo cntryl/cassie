@@ -1506,3 +1506,75 @@ The preliminary gate reproduced the catalog failures and one pedantic numeric
 literal finding in a test. After that correction and the confirmed CTE metadata
 fix, the full ordered gate was rerun. Final focused/source-family checks use the
 compiled final binaries. No full run was cancelled; no failures were skipped.
+
+### Explicit VARCHAR typmods checkpoint (2026-10-16)
+
+Following `a5be39d5`, the related cast bundle adds 200 functions: 102 wire and
+98 SQL/control tests. PostgreSQL 18.6 supplies 180 query observations in both
+output formats, 48 crossed parameter-format observations and six assignment
+witnesses. The native executable SHA256 remains
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+Exact row bytes, names, OIDs, sizes, typmods, NULLs and statement lifecycle are
+asserted across scalar, VALUES, derived, CTE and ordered UNION ALL contexts.
+Inputs include ASCII, multibyte/combining characters, spaces, CHAR, integers,
+Boolean, FLOAT8, TIME and TIMESTAMP; supplied TEXT/VARCHAR/bpchar parameters
+cross both input and output formats.
+
+Explicit VARCHAR casts truncate the source-aware text String at a valid UTF-8
+character boundary. Short input is not padded; NULL remains NULL. The existing
+assignment/function coercion path stays bounded. Compiled-plan epoch 11
+invalidates older results; public AST/API, stored Value layout and CI/release
+configuration are unchanged.
+
+The preliminary broad `varchar_` filters reproduced 80 wire failures (78 new)
+and 76 SQL failures. Two SQL failures initially used an incorrect expected
+assignment message; three used unsupported casts inside INSERT VALUES. The
+controls now assert the existing strict assignment message and exercise explicit
+casts through supported INSERT SELECT, recaptured against native PostgreSQL.
+The first green attempt exposed 17 set fixtures asserting row sequence without
+ORDER BY. Explicit ordering was added and native expectations recaptured;
+value/descriptor assertions were retained.
+
+Jev selected explicit-only interception at 1.0. Gap 0.53 prompted assignment
+controls; cache rebinding, NULL and large-width/short-input controls also pass.
+Final gap 0.51 prompted four focused padded-CHAR/bpchar probes. All four pass
+against native receipts; final advisory disposition is `probed` at 1.0.
+VARCHAR(100000) with a short parameter fits a 16 KiB budget and releases its
+result owners. Full #849 resource/cancellation qualification remains open.
+
+Ordered validation and final checks:
+
+- `cargo build --locked --bin cassie`: passed.
+- `cargo test --locked`: library 1,017/0, analytics 179/0, backend 2/0,
+  benchmark operations 16/0; stops at catalog/security 139/209. All 209 failure
+  identities match `a5be39d5`; later targets compile but are not executed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  final pass without suppression or narrowing. The first run found test-source
+  Unicode/empty-string/empty-assertion style defects. Decomposed characters now
+  use explicit Unicode escapes with identical runtime bytes. After these
+  test-only fixes, build, test-target compilation, full Clippy and formatting
+  passed; final compiled runs below verify the unchanged expectations.
+- `cargo fmt --all -- --check`: passed.
+- `cntryl-tools validate-tests -f <path>`: all twelve new files pass.
+  Global validator: 7,685/7,685 compliant source tests, not runtime pass totals.
+- Final compiled checks: library 110/0, parser selection 2/0, SQL 496/16,
+  wire 786/14. All 200 new functions pass. Retained SQL type-boundary and
+  core-wire explicit-character truncation tests are fixed.
+- Two newly selected wire failures (unbounded VARCHAR arrays across restart and
+  JSON serialization RETURNING VARCHAR) already failed in the pre-change red
+  run. No previously selected failure was introduced. The known Boolean
+  aggregate cancellation failure remains unqualified.
+- Complete parser 299/74 retains its exact failure identities. Core wire is
+  74/10, down from 73/11, with no new failures.
+- Inventory refresh/check and whitespace pass. Exactly 200 identities are added;
+  none are removed and no existing test record changes. The inventory contains
+  6,805 integration registrations plus 1,017 library functions.
+- All touched Rust files satisfy their size limits. The audit also retains two
+  untouched baseline exceptions: src/config.rs (1,034) and
+  src/midge/adapter/verification.rs (1,002). No benchmark timing is claimed.
+
+Native assignment overflow reports 22001; Cassie's existing assignment class
+remains 22000. Full assignment error/coercion parity, general INSERT VALUES
+expressions, user-defined casts and complete #793/#800/#911 acceptance remain
+pending. This checkpoint does not close owner issues or establish repository
+or hosted green. Receipts and logs are under ignored `target/green-varchar-*`.

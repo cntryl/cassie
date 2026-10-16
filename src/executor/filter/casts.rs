@@ -6,6 +6,25 @@ pub(super) fn scalar(
     target: &DataType,
     source: Option<&DataType>,
 ) -> Result<ScalarValue, QueryError> {
+    // Explicit typmod casts truncate; assignment and function coercion still
+    // use cast_scalar's bounded validation. Format the source before applying
+    // the width so CHAR blanks and temporal spellings keep their SQL identity.
+    if let DataType::Varchar {
+        length: Some(width),
+    } = target
+    {
+        let value = scalar(value, &DataType::Text, source)?;
+        return Ok(match value {
+            ScalarValue::Str(mut text) => {
+                let width = usize::try_from(*width).unwrap_or(usize::MAX);
+                if let Some((boundary, _)) = text.char_indices().nth(width) {
+                    text.truncate(boundary);
+                }
+                ScalarValue::Str(text)
+            }
+            value => value,
+        });
+    }
     if matches!(target, DataType::Text | DataType::Varchar { .. })
         && matches!(source, Some(DataType::Char { .. }))
     {

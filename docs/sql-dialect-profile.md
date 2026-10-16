@@ -564,3 +564,16 @@ under [#796](https://github.com/cntryl/cassie/issues/796). The native oracle's
 locale orders symbols differently from Cassie's current byte ordering; selected
 Unicode identity witnesses therefore use independent integer ordering or ASCII
 prefixes, with all native value bytes retained. No collation support is claimed.
+
+### Selected explicit VARCHAR typmods (2026-10-16)
+
+Explicit `VARCHAR(n)` casts now truncate by character count, including Unicode
+and combining characters, across scalar projection, VALUES, derived sources,
+CTEs, UNION ALL and supplied TEXT/VARCHAR/bpchar parameters. Selected text/binary
+payloads and descriptors match PostgreSQL 18.6. NULL remains NULL, short input
+is not padded, and CHAR/temporal/FLOAT8 source formatting precedes truncation.
+Stored VARCHAR column assignment still rejects the selected nonblank overflows;
+explicitly truncated INSERT SELECT output fits the column. General expressions
+inside INSERT VALUES, complete assignment coercion/error identities, user-defined
+casts and full #793/#911 acceptance remain pending. Private compiled-plan epoch
+11 invalidates older results without a storage or public API migration.

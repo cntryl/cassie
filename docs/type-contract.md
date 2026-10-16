@@ -459,3 +459,11 @@ ownership. Unknown VALUES parameters infer the selected existing scalar OIDs.
 Compiled-plan epoch 10 invalidates older binding laws; storage encoding and AST
 variants do not change. Full family, collation and resource qualification
 remain pending; see [validation.md](testing/validation.md).
+
+Explicit scalar `VARCHAR(n)` casts truncate by Unicode character count after
+source-aware text conversion. NULL stays NULL; short input is not padded;
+CHAR blanks and temporal/FLOAT8 output use their existing source identities
+before truncation. Assignment and function coercion keep their existing bounded
+validation path. Compiled plans rebuild at epoch 11; persisted Value layouts
+and public AST variants are unchanged. This does not qualify assignment error
+SQLSTATEs, trailing-blank assignment coercion or general INSERT VALUES expressions.

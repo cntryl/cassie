@@ -333,6 +333,17 @@ fn validate_expression(
             }
             validate_expression(left, types, catalog, context)?;
             validate_expression(right, types, catalog, context)?;
+            // Referenced parameters retain their later parameter-aware owner.
+            // Select concrete integer signatures before constants are planned.
+            if !super::validation::expr_contains_parameters(left)
+                && !super::validation::expr_contains_parameters(right)
+            {
+                super::integer_operators::resolve(
+                    op,
+                    types.expression_type(left).as_ref(),
+                    types.expression_type(right).as_ref(),
+                )?;
+            }
         }
         Expr::Not { expr } => {
             require_boolean(expr, types, "NOT")?;

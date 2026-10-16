@@ -114,6 +114,7 @@ mod operational;
 mod portal_reads;
 pub(crate) use portal_reads::PortalReadSpec;
 mod query;
+mod query_bind;
 mod query_bound;
 mod query_cache_keys;
 mod query_describe;

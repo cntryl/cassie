@@ -89,6 +89,10 @@ impl PgWireError {
         Self::new(PgWireSeverity::Error, "26000", message)
     }
 
+    pub(super) fn invalid_cursor_name(message: impl Into<String>) -> Self {
+        Self::new(PgWireSeverity::Error, "34000", message)
+    }
+
     pub(super) fn from_cassie_error(severity: PgWireSeverity, error: &CassieError) -> Self {
         let descriptor = error.descriptor();
         let mut pg_error = Self::new(severity, descriptor.sql_state, descriptor.message);

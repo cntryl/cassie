@@ -193,3 +193,6 @@ mod primitive_literal_inputs;
 
 #[path = "protocol/parse_analysis.rs"]
 mod parse_analysis;
+
+#[path = "protocol/bind_planning.rs"]
+mod bind_planning;

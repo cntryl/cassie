@@ -187,3 +187,6 @@ mod support_scalar_presentation;
 
 #[path = "support/primitive_literal_inputs.rs"]
 mod support_primitive_literal_inputs;
+
+#[path = "support/bind_planning.rs"]
+mod support_bind_planning;

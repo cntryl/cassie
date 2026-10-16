@@ -382,6 +382,19 @@ rebinding, and does not invoke physical planning or constant folding. Shared
 parameter occurrence/type admission precedes semantic binding; final trailing-slot
 checks follow it.
 Selected native phase/order and recovery witnesses pass; broader mixed-error
-precedence and Describe/Bind planning phases remain under #794/#796. Clone
+precedence and parameter-dependent planning remain under #794/#796/#821. Clone
 admission covers the new temporary raw tree; legacy binder catalog/type/name
 allocation and expansion are separate resource qualification boundaries.
+
+
+Wire Bind now checks independently constant planning errors for SELECT and DML
+before portal storage or BindComplete, after parameter count/format/receiver
+validation. It compiles under registered cancellation and query controls and
+reuses the executor's constant checker without executing query rows or writes.
+EXPLAIN remains a utility at Bind and checks its contained plan at Execute.
+Concrete parameter-free integer arithmetic selects existing checked integer
+signatures; referenced-parameter/custom-plan folding remains unqualified.
+Rebuildable compiled-plan epoch 5 separates earlier fallback arithmetic plans,
+including persisted L2 entries; it changes no stored data format. Missing
+portals report 34000, while missing prepared statements retain 26000. Wider
+portal/prepared lifecycle parity remains with #821.

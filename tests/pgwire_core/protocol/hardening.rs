@@ -296,7 +296,7 @@ fn should_invalidate_portals_when_unnamed_statement_is_replaced() {
         assert_eq!(frames[1].0, b'2');
         assert_eq!(frames[2].0, b'1');
         assert_eq!(frames[3].0, b'E');
-        assert_eq!(error_code(&frames[3].1).as_deref(), Some("26000"));
+        assert_eq!(error_code(&frames[3].1).as_deref(), Some("34000"));
         assert_eq!(frames[4].0, b'Z');
 
         drop(socket);

@@ -1,4 +1,4 @@
-//! Observe the Parse+Flush reply before sending Sync, using the existing wire fixture.
+//! Observe a Parse or Bind reply after Flush, before sending Sync.
 
 use crate::support_pgwire as wire;
 use crate::support_type_metadata_contract::{Cycle, Frames};
@@ -6,6 +6,7 @@ use cassie::app::Cassie;
 
 pub enum Step {
     ParseFlush(Vec<u8>),
+    BindFlush(Vec<u8>),
     ThroughReady(Cycle),
 }
 
@@ -37,14 +38,14 @@ pub fn run_script(label: &str, steps: Vec<Step>) -> Vec<Frames> {
         let mut batches = Vec::new();
         for step in steps {
             let frames = match step {
-                Step::ParseFlush(parse) => {
-                    wire::write_frames(&mut writer, vec![parse, wire::flush_frame()]).await;
+                Step::ParseFlush(frame) | Step::BindFlush(frame) => {
+                    wire::write_frames(&mut writer, vec![frame, wire::flush_frame()]).await;
                     let first = tokio::time::timeout(
                         std::time::Duration::from_secs(5),
                         wire::read_wire_frame(&mut reader),
                     )
                     .await
-                    .expect("Parse+Flush must reply before Sync");
+                    .expect("frontend message plus Flush must reply before Sync");
                     vec![first]
                 }
                 Step::ThroughReady(cycle) => {

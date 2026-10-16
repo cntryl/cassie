@@ -20,7 +20,7 @@ fn should_destroy_preparation_only_portals_at_idle_sync() {
             .collect::<Vec<_>>(),
         b"12Z"
     );
-    assert_eq!(wire::error_code(&result.tail[0]).as_deref(), Some("26000"));
+    assert_eq!(wire::error_code(&result.tail[0]).as_deref(), Some("34000"));
     assert_eq!(
         result.tail[0].last().map(|frame| frame.1.as_slice()),
         Some(&b"I"[..])
@@ -63,7 +63,7 @@ fn should_reset_unnamed_portals_without_destroying_named_statements() {
         wire::data_rows(&result.tail[0]),
         vec![vec![Some("1".to_string())]]
     );
-    assert_eq!(wire::error_code(&result.tail[1]).as_deref(), Some("26000"));
+    assert_eq!(wire::error_code(&result.tail[1]).as_deref(), Some("34000"));
     assert_eq!(wire::error_code(&result.tail[3]), None);
     assert_eq!(
         wire::data_rows(&result.tail[3]),
@@ -108,7 +108,7 @@ fn should_close_named_portals_derived_from_an_unnamed_statement_on_simple_query(
         result.tail[0].last().map(|frame| frame.1.as_slice()),
         Some(&b"T"[..])
     );
-    assert_eq!(wire::error_code(&result.tail[1]).as_deref(), Some("26000"));
+    assert_eq!(wire::error_code(&result.tail[1]).as_deref(), Some("34000"));
     assert_eq!(
         wire::data_rows(&result.terminal),
         vec![vec![Some("0".to_string())]]

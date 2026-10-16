@@ -1,3 +1,6 @@
+#[path = "extended/bind_planning.rs"]
+mod bind_planning;
+
 #[path = "extended/parse_analysis.rs"]
 mod parse_analysis;
 
@@ -416,7 +419,8 @@ async fn handle_bind(
         .cloned()
         .ok_or_else(|| missing_statement_error(&statement))?;
     if !result_formats.is_empty() {
-        let columns = describe_prepared(cassie, session.clone(), prepared.clone()).await?;
+        let columns =
+            describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?;
         validate_result_formats(&columns, &result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
     }
@@ -442,6 +446,10 @@ async fn handle_bind(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    let prepared_id = prepared.id;
+    let described = prepared.described;
+    bind_planning::validate(cassie, session, state, prepared).await?;
+
     let replaced_portal = state.remove_portal(&portal).is_some();
     if !replaced_portal && state.portals.len() >= MAX_PORTALS_PER_CONNECTION {
         return Err(ExtendedQueryError::cassie(&CassieError::ResourceLimit(
@@ -453,10 +461,10 @@ async fn handle_bind(
         Portal {
             name: portal,
             statement_name: statement,
-            prepared_id: prepared.id,
+            prepared_id,
             params: values,
             result_formats,
-            described: prepared.described,
+            described,
             suspended: None,
             completed_command: None,
         },
@@ -803,7 +811,12 @@ fn missing_statement_error(name: &str) -> ExtendedQueryError {
 }
 
 fn missing_portal_error(name: &str) -> ExtendedQueryError {
-    ExtendedQueryError::invalid_name(format!("portal '{name}' is not bound"))
+    ExtendedQueryError {
+        pg_error: Box::new(PgWireError::invalid_cursor_name(format!(
+            "portal '{name}' is not bound"
+        ))),
+        record_protocol_error: false,
+    }
 }
 
 #[derive(Debug)]

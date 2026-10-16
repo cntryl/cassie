@@ -65,8 +65,7 @@ fn should_deduplicate_globally_given_repeated_values_across_partitions_when_dist
 }
 
 #[test]
-fn should_bound_distinct_and_ordered_extrema_given_wide_text_typed_arrays_and_nulls_when_admission_is_exact(
-) {
+fn should_bound_modified_extrema_given_wide_text_typed_arrays_and_nulls_when_admission_is_exact() {
     // Arrange
     let plan = aggregate_plan(
         "SELECT MIN(DISTINCT payload ORDER BY payload DESC NULLS FIRST) FROM events",

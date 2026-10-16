@@ -12,7 +12,7 @@ impl Drop for FixtureDirectory {
 }
 
 #[test]
-fn should_match_index_and_scan_results_given_equal_instants_with_different_offsets_when_timestamptz_rows_are_filtered(
+fn should_match_indexed_results_given_equal_instants_with_different_offsets_when_timestamptz_rows_are_filtered(
 ) {
     // Arrange
     crate::support_sql::use_local_storage();

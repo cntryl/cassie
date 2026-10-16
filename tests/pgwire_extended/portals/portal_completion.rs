@@ -363,7 +363,7 @@ fn should_drop_suspended_portal_when_extended_commit_ends_transaction() {
 
         // Assert
         assert!(data_values(&resumed).is_empty(), "{resumed:?}");
-        assert_eq!(error_code(&resumed).as_deref(), Some("26000"));
+        assert_eq!(error_code(&resumed).as_deref(), Some("34000"));
 
         drop(socket);
         server.stop().await;
@@ -446,7 +446,7 @@ fn should_drop_suspended_portal_given_commit_chain_when_next_transaction_remains
 
         // Assert
         assert!(data_values(&resumed).is_empty(), "{resumed:?}");
-        assert_eq!(error_code(&resumed).as_deref(), Some("26000"));
+        assert_eq!(error_code(&resumed).as_deref(), Some("34000"));
 
         drop(socket);
         server.stop().await;

@@ -955,3 +955,80 @@ registration instances plus 986 library tests; these are not all-green counts.
 Broader mixed error precedence, native Describe/Bind planning phases and the
 existing PostgreSQL parity owners remain incomplete. The repository is not
 fully green. Evidence is retained under ignored `target/green-parse-*` paths.
+
+## 2026-10-16 — Larger Bind planning and recovery batch
+
+SELECT and DML Bind now compile under registered cancellation and query controls,
+then invoke the existing constant-planning checker before storing a portal or
+sending BindComplete. Parameter count, formats and receivers retain precedence.
+The validation path does not execute query rows or apply writes. Utilities such
+as EXPLAIN defer their contained planning to Execute; EXPLAIN now reports
+constant errors before formatting its plan. INSERT VALUES shares the expression
+parser used by standalone VALUES, allowing arithmetic to reach its native phase.
+
+Concrete parameter-free arithmetic selects the existing checked integer kernel.
+Compiled-plan epoch 5 isolates earlier fallback signatures in L1 and persisted
+L2 caches without deleting the old records or changing stored data formats.
+Missing portal errors now use 34000; missing prepared statements retain 26000.
+Existing portal assertions were corrected to that distinction after native
+Describe/Execute observations, preserving their lifecycle/value assertions.
+Wider prepared/portal lifecycle parity and parameter-dependent custom/generic
+planning remain with #821.
+
+The batch adds 40 functions: 34 wire and six near-code control/cache tests.
+Initial red run: 4/16 across the first 20 wire functions. Final new wire module:
+32/2; all six control/cache functions pass, giving 38/40 new functions green.
+Two native expectations remain red without skips or weakened assertions:
+
+- Parenthesized unary negation is rejected at Parse rather than reaching Bind
+  (#794/#796).
+- An unused SELECT CTE still executes and raises its constant error at Execute
+  (#800/#801), despite being correctly skipped by the Bind constant checker.
+
+Native PostgreSQL 18.6 matched 63 error-phase cases across default/text/binary
+result formats, 14 pruning/result cases, five DML Bind-without-Execute controls,
+portal/prepared name states, receiver/count precedence, explicit transaction
+failure and EXPLAIN phase frames. Real Rust connections additionally verify
+failed-portal absence and reuse, repeated cached-plan rejection, Sync recovery,
+implicit-write rollback and successful DML Bind without mutation.
+
+Jev's triage question about the next phase/lifecycle risk selected portal
+ownership at 0.82; native lifecycle frames and Rust recovery tests cover it.
+Its adversarial question about a concrete introduced risk selected cache at
+0.59 (overall gap probability 0.48). Focused L1/L2 probes reproduce the old
+incorrect 2,147,483,648 result, then verify current Bind rejects 22003 and leaves
+zero live query reservation while the old derived artifact remains readable.
+Those probes pass. Jev remains advisory rather than correctness proof.
+
+Validation:
+
+- `cargo build --locked --bin cassie`: passed.
+- Locked affected-test compilation: passed for library, parser, wire core/wire
+  extended, SQL, storage/index and compatibility targets. Wire extended was
+  rebuilt after a test-only missing-statement expectation correction.
+- Final `cargo test --locked`: library 992/0, analytics 179/0, backend CI 2/0 and
+  benchmark operations 16/0 passed; stopped at catalog/security 139/209.
+  Later targets were not executed by that command.
+- Related compiled-binary selection: 279/16 across 295 functions (library 44/0,
+  parser selection 2/0, SQL 105/6, wire 128/10), including all 40 new functions.
+- Affected portal/transaction/Boolean sibling selection: 51/1. Its remaining
+  failure is the existing unsupported explicit-transaction TRUNCATE case.
+- Complete parser: 299/74, improving one CASE/function-expression case from
+  298/75 with no newly failing parser cases. Complete wire core: unchanged 73/11.
+- Three renamed-test behavior probes pass. Existing TIMESTAMPTZ setup and
+  persisted-operator grammar probes still fail; their bodies are unchanged.
+- Full workspace/all-target/all-feature strict pedantic Clippy and formatting:
+  passed. No lint suppression or CI/release configuration changes.
+- `cntryl-tools validate-tests -f <path>`: 99/99 across 14 touched test files.
+- The exact global CI command `cntryl-tools validate-tests`: 6,661/6,661 source
+  tests compliant after five naming-only repairs. This is a static guideline
+  gate, not 6,661 passing runtime tests.
+- Inventory refresh/check, touched Rust file limits and whitespace: passed.
+  Inventory records 5,806 integration registration instances plus 992 library
+  tests, distinct from passing counts.
+
+An intermediate full run was explicitly cancelled during analytics when the
+INSERT parser defect superseded it; it is not counted as a completed gate.
+The final complete run above includes all runtime changes. Ignored
+`target/green-bind-*` files retain commands, native packets and test evidence.
+Full PostgreSQL parity and a green repository remain incomplete.

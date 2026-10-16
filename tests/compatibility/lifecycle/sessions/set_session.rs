@@ -672,7 +672,7 @@ fn should_reject_read_write_mode_given_prior_query_when_read_only_transaction_ch
 }
 
 #[test]
-fn should_reject_ordinary_table_ddl_and_copy_given_read_only_transaction_when_commands_execute() {
+fn should_reject_ordinary_table_mutations_given_read_only_transaction_when_commands_execute() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {

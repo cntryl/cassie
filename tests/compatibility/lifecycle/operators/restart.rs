@@ -2,7 +2,7 @@ use super::*;
 use cassie::types::Value;
 
 #[test]
-fn should_preserve_operator_resolution_and_index_results_given_persisted_operator_objects_when_storage_restarts(
+fn should_preserve_persisted_operator_behavior_given_persisted_operator_objects_when_storage_restarts(
 ) {
     // Arrange
     support::use_local_storage();

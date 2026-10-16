@@ -77,8 +77,7 @@ fn should_return_boolean_aggregate_truth_table() {
 }
 
 #[test]
-fn should_preserve_boolean_parameter_and_result_identity_given_oid_zero_and_binary_bind_when_aggregates_execute(
-) {
+fn should_preserve_boolean_wire_identity_given_oid_zero_and_binary_bind_when_aggregates_execute() {
     // Arrange
     let mut steps = Vec::new();
     for name in ["bool_and", "bool_or", "every"] {

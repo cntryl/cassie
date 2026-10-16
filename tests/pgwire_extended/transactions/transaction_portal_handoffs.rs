@@ -44,7 +44,7 @@ fn should_finish_preparation_only_portals_on_idle_simple_query_completion() {
             result.boundary.last().map(|frame| frame.1.as_slice()),
             Some(&b"I"[..])
         );
-        assert_eq!(wire::error_code(&result.tail[0]).as_deref(), Some("26000"));
+        assert_eq!(wire::error_code(&result.tail[0]).as_deref(), Some("34000"));
         assert_eq!(wire::error_code(&result.tail[1]), None);
         assert_eq!(
             wire::data_rows(&result.tail[1]),
@@ -88,7 +88,7 @@ fn should_finish_preparation_only_portals_on_error_recovery_sync() {
         result.boundary.last().map(|frame| frame.1.as_slice()),
         Some(&b"I"[..])
     );
-    assert_eq!(wire::error_code(&result.tail[0]).as_deref(), Some("26000"));
+    assert_eq!(wire::error_code(&result.tail[0]).as_deref(), Some("34000"));
     assert_eq!(wire::error_code(&result.tail[1]), None);
     assert_eq!(
         wire::data_rows(&result.tail[1]),
@@ -192,7 +192,7 @@ fn should_roll_back_implicit_read_ownership_on_revoked_copy_access() {
             failed.last().map(|frame| frame.1.as_slice()),
             Some(&b"I"[..])
         );
-        assert_eq!(wire::error_code(&stale).as_deref(), Some("26000"));
+        assert_eq!(wire::error_code(&stale).as_deref(), Some("34000"));
         assert_eq!(wire::error_code(&recovered), None);
         assert_eq!(
             wire::data_rows(&recovered),
@@ -241,7 +241,7 @@ fn should_finish_unsynced_implicit_work_on_simple_commit_or_rollback() {
             wire::data_rows(&result.after),
             vec![vec![Some(count.to_owned())]]
         );
-        assert_eq!(wire::error_code(&result.tail[0]).as_deref(), Some("26000"));
+        assert_eq!(wire::error_code(&result.tail[0]).as_deref(), Some("34000"));
         assert_eq!(wire::error_code(&result.tail[1]), None);
         assert_eq!(
             wire::data_rows(&result.tail[1]),

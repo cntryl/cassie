@@ -1,4 +1,4 @@
-use super::expr::{parse_expr_token, parse_expression, split_csv};
+use super::expr::{parse_expression, split_csv};
 use super::identifiers::{normalize_column_identifier, parse_relation_path_prefix};
 use super::query::parse_projection_items;
 use super::{
@@ -201,7 +201,7 @@ pub(super) fn split_statement_and_returning(
 }
 
 pub(super) fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr>>, SqlError> {
-    parse_values_rows(values_part, parse_expr_token)
+    parse_values_rows(values_part, parse_expression)
 }
 
 pub(super) fn parse_values_rows(

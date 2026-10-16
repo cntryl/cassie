@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1555,
-    "rust_files": 1524,
-    "rust_test_declarations": 5644,
+    "files": 1557,
+    "rust_files": 1526,
+    "rust_test_declarations": 5678,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5772,
+    "registered_rust_instances": 5806,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -27644,8 +27644,8 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/operators/restart.rs::should_preserve_operator_resolution_and_index_results_given_persisted_operator_objects_when_storage_restarts",
-      "name": "should_preserve_operator_resolution_and_index_results_given_persisted_operator_objects_when_storage_restarts",
+      "id": "tests/compatibility/lifecycle/operators/restart.rs::should_preserve_persisted_operator_behavior_given_persisted_operator_objects_when_storage_restarts",
+      "name": "should_preserve_persisted_operator_behavior_given_persisted_operator_objects_when_storage_restarts",
       "current_file": "tests/compatibility/lifecycle/operators/restart.rs",
       "line": 5,
       "end_line": 54,
@@ -27656,7 +27656,7 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::operator_restart::should_preserve_operator_resolution_and_index_results_given_persisted_operator_objects_when_storage_restarts"
+          "name": "compatibility::lifecycle::operator_restart::should_preserve_persisted_operator_behavior_given_persisted_operator_objects_when_storage_restarts"
         }
       ],
       "attributes": [
@@ -32821,8 +32821,8 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/sessions/set_session.rs::should_reject_ordinary_table_ddl_and_copy_given_read_only_transaction_when_commands_execute",
-      "name": "should_reject_ordinary_table_ddl_and_copy_given_read_only_transaction_when_commands_execute",
+      "id": "tests/compatibility/lifecycle/sessions/set_session.rs::should_reject_ordinary_table_mutations_given_read_only_transaction_when_commands_execute",
+      "name": "should_reject_ordinary_table_mutations_given_read_only_transaction_when_commands_execute",
       "current_file": "tests/compatibility/lifecycle/sessions/set_session.rs",
       "line": 675,
       "end_line": 728,
@@ -32833,7 +32833,7 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::session_transaction::set_session_contracts::should_reject_ordinary_table_ddl_and_copy_given_read_only_transaction_when_commands_execute"
+          "name": "compatibility::lifecycle::session_transaction::set_session_contracts::should_reject_ordinary_table_mutations_given_read_only_transaction_when_commands_execute"
         }
       ],
       "attributes": [
@@ -63926,11 +63926,11 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs::should_preserve_boolean_parameter_and_result_identity_given_oid_zero_and_binary_bind_when_aggregates_execute",
-      "name": "should_preserve_boolean_parameter_and_result_identity_given_oid_zero_and_binary_bind_when_aggregates_execute",
+      "id": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs::should_preserve_boolean_wire_identity_given_oid_zero_and_binary_bind_when_aggregates_execute",
+      "name": "should_preserve_boolean_wire_identity_given_oid_zero_and_binary_bind_when_aggregates_execute",
       "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs",
       "line": 80,
-      "end_line": 138,
+      "end_line": 137,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -63938,7 +63938,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::postgresql18_aggregate_errors::boolean_value_semantics::should_preserve_boolean_parameter_and_result_identity_given_oid_zero_and_binary_bind_when_aggregates_execute"
+          "name": "pgwire_extended::postgresql18_aggregate_errors::boolean_value_semantics::should_preserve_boolean_wire_identity_given_oid_zero_and_binary_bind_when_aggregates_execute"
         }
       ],
       "attributes": [
@@ -63960,8 +63960,8 @@
       "id": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs::should_preserve_declared_scalar_calls_given_boolean_aggregate_names_when_scoped_routines_execute",
       "name": "should_preserve_declared_scalar_calls_given_boolean_aggregate_names_when_scoped_routines_execute",
       "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs",
-      "line": 141,
-      "end_line": 218,
+      "line": 140,
+      "end_line": 217,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -75207,6 +75207,1060 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_division_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_division_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 8,
+      "end_line": 15,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_division_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_integer_arithmetic_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_integer_arithmetic_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 18,
+      "end_line": 28,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_integer_arithmetic_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_integer_negation_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_integer_negation_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 31,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_integer_negation_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_numeric_narrowing_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_numeric_narrowing_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 41,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_numeric_narrowing_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_typed_integer_inputs_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_typed_integer_inputs_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 55,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_typed_integer_inputs_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_typed_boolean_inputs_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_typed_boolean_inputs_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 68,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_typed_boolean_inputs_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_typed_float_inputs_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_typed_float_inputs_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 78,
+      "end_line": 88,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_typed_float_inputs_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_selected_case_arms_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_selected_case_arms_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 91,
+      "end_line": 98,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_selected_case_arms_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_reached_coalesce_arguments_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_reached_coalesce_arguments_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 101,
+      "end_line": 109,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_reached_coalesce_arguments_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_values_outputs_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_values_outputs_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 112,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_values_outputs_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_referenced_ctes_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_referenced_ctes_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 125,
+      "end_line": 132,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_referenced_ctes_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_ordering_keys_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_ordering_keys_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 135,
+      "end_line": 142,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_ordering_keys_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_false_filtered_outputs_given_bind_flush_when_planning_precedes_portal_publication",
+      "name": "should_reject_false_filtered_outputs_given_bind_flush_when_planning_precedes_portal_publication",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 145,
+      "end_line": 156,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_false_filtered_outputs_given_bind_flush_when_planning_precedes_portal_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_prune_dead_case_arms_given_bind_planning_when_constants_decide_reachability",
+      "name": "should_prune_dead_case_arms_given_bind_planning_when_constants_decide_reachability",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 159,
+      "end_line": 166,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_prune_dead_case_arms_given_bind_planning_when_constants_decide_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_prune_later_coalesce_arguments_given_bind_planning_when_constants_decide_reachability",
+      "name": "should_prune_later_coalesce_arguments_given_bind_planning_when_constants_decide_reachability",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 169,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_prune_later_coalesce_arguments_given_bind_planning_when_constants_decide_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_prune_false_boolean_operands_given_bind_planning_when_constants_decide_reachability",
+      "name": "should_prune_false_boolean_operands_given_bind_planning_when_constants_decide_reachability",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 179,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_prune_false_boolean_operands_given_bind_planning_when_constants_decide_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_prune_true_boolean_operands_given_bind_planning_when_constants_decide_reachability",
+      "name": "should_prune_true_boolean_operands_given_bind_planning_when_constants_decide_reachability",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 189,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_prune_true_boolean_operands_given_bind_planning_when_constants_decide_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_prune_exists_targets_given_bind_planning_when_constants_decide_reachability",
+      "name": "should_prune_exists_targets_given_bind_planning_when_constants_decide_reachability",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 199,
+      "end_line": 206,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_prune_exists_targets_given_bind_planning_when_constants_decide_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_prune_unused_values_fields_given_bind_planning_when_constants_decide_reachability",
+      "name": "should_prune_unused_values_fields_given_bind_planning_when_constants_decide_reachability",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 209,
+      "end_line": 216,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_prune_unused_values_fields_given_bind_planning_when_constants_decide_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_prune_unused_ctes_given_bind_planning_when_constants_decide_reachability",
+      "name": "should_prune_unused_ctes_given_bind_planning_when_constants_decide_reachability",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 219,
+      "end_line": 226,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_prune_unused_ctes_given_bind_planning_when_constants_decide_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_leave_failed_portals_absent_given_bind_planning_errors_when_sync_recovers",
+      "name": "should_leave_failed_portals_absent_given_bind_planning_errors_when_sync_recovers",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 229,
+      "end_line": 251,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_leave_failed_portals_absent_given_bind_planning_errors_when_sync_recovers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_recheck_constant_errors_given_repeated_bind_attempts_when_prepared_metadata_is_cached",
+      "name": "should_recheck_constant_errors_given_repeated_bind_attempts_when_prepared_metadata_is_cached",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 254,
+      "end_line": 280,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_recheck_constant_errors_given_repeated_bind_attempts_when_prepared_metadata_is_cached"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reuse_failed_portal_names_given_valid_statements_when_sync_has_recovered",
+      "name": "should_reuse_failed_portal_names_given_valid_statements_when_sync_has_recovered",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 283,
+      "end_line": 303,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reuse_failed_portal_names_given_valid_statements_when_sync_has_recovered"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_abort_explicit_transactions_given_bind_planning_errors_when_sync_reports_status",
+      "name": "should_abort_explicit_transactions_given_bind_planning_errors_when_sync_reports_status",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 306,
+      "end_line": 326,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_abort_explicit_transactions_given_bind_planning_errors_when_sync_reports_status"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_roll_back_implicit_writes_given_bind_planning_errors_when_the_cycle_aborts",
+      "name": "should_roll_back_implicit_writes_given_bind_planning_errors_when_the_cycle_aborts",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 329,
+      "end_line": 357,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_roll_back_implicit_writes_given_bind_planning_errors_when_the_cycle_aborts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_defer_insert_writes_given_successful_bind_when_execute_has_not_been_sent",
+      "name": "should_defer_insert_writes_given_successful_bind_when_execute_has_not_been_sent",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 392,
+      "end_line": 403,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_defer_insert_writes_given_successful_bind_when_execute_has_not_been_sent"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_defer_update_writes_given_successful_bind_when_execute_has_not_been_sent",
+      "name": "should_defer_update_writes_given_successful_bind_when_execute_has_not_been_sent",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 406,
+      "end_line": 417,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_defer_update_writes_given_successful_bind_when_execute_has_not_been_sent"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_defer_delete_writes_given_successful_bind_when_execute_has_not_been_sent",
+      "name": "should_defer_delete_writes_given_successful_bind_when_execute_has_not_been_sent",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 420,
+      "end_line": 431,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_defer_delete_writes_given_successful_bind_when_execute_has_not_been_sent"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_insert_constants_given_bind_planning_when_no_row_has_been_written",
+      "name": "should_reject_insert_constants_given_bind_planning_when_no_row_has_been_written",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 434,
+      "end_line": 442,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_insert_constants_given_bind_planning_when_no_row_has_been_written"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_reject_update_constants_given_bind_planning_when_no_row_has_been_written",
+      "name": "should_reject_update_constants_given_bind_planning_when_no_row_has_been_written",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 445,
+      "end_line": 453,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_reject_update_constants_given_bind_planning_when_no_row_has_been_written"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_prefer_text_receiver_errors_given_invalid_parameters_when_bind_also_has_constant_errors",
+      "name": "should_prefer_text_receiver_errors_given_invalid_parameters_when_bind_also_has_constant_errors",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 456,
+      "end_line": 482,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_prefer_text_receiver_errors_given_invalid_parameters_when_bind_also_has_constant_errors"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_prefer_binary_receiver_errors_given_invalid_parameters_when_bind_also_has_constant_errors",
+      "name": "should_prefer_binary_receiver_errors_given_invalid_parameters_when_bind_also_has_constant_errors",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 485,
+      "end_line": 511,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_prefer_binary_receiver_errors_given_invalid_parameters_when_bind_also_has_constant_errors"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_prefer_parameter_count_errors_given_missing_values_when_bind_also_has_constant_errors",
+      "name": "should_prefer_parameter_count_errors_given_missing_values_when_bind_also_has_constant_errors",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 514,
+      "end_line": 533,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_prefer_parameter_count_errors_given_missing_values_when_bind_also_has_constant_errors"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/bind_planning.rs::should_defer_explain_planning_given_bind_when_the_utility_statement_has_not_executed",
+      "name": "should_defer_explain_planning_given_bind_when_the_utility_statement_has_not_executed",
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "line": 536,
+      "end_line": 551,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::bind_planning::should_defer_explain_planning_given_bind_when_the_utility_statement_has_not_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/bind_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -170074,8 +171128,8 @@
       }
     },
     {
-      "id": "tests/storage_indexes/types/temporal/instant_equality.rs::should_match_index_and_scan_results_given_equal_instants_with_different_offsets_when_timestamptz_rows_are_filtered",
-      "name": "should_match_index_and_scan_results_given_equal_instants_with_different_offsets_when_timestamptz_rows_are_filtered",
+      "id": "tests/storage_indexes/types/temporal/instant_equality.rs::should_match_indexed_results_given_equal_instants_with_different_offsets_when_timestamptz_rows_are_filtered",
+      "name": "should_match_indexed_results_given_equal_instants_with_different_offsets_when_timestamptz_rows_are_filtered",
       "current_file": "tests/storage_indexes/types/temporal/instant_equality.rs",
       "line": 15,
       "end_line": 63,
@@ -170086,7 +171140,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "types_temporal_instant_equality::should_match_index_and_scan_results_given_equal_instants_with_different_offsets_when_timestamptz_rows_are_filtered"
+          "name": "types_temporal_instant_equality::should_match_indexed_results_given_equal_instants_with_different_offsets_when_timestamptz_rows_are_filtered"
         }
       ],
       "attributes": [
@@ -180810,7 +181864,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 54,
-      "sha256": "0353128d9e7a596d99812e5ab971410261882a2fa32c772af3910f046bb348b1",
+      "sha256": "437e694490c219c5ff7c23c47b8ff6c24fa45aefb3326aaaaed070a0e14f45ba",
       "test_declarations": 1,
       "registered_suites": [
         "compatibility"
@@ -181935,7 +182989,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 796,
-      "sha256": "3c73e2007bd8d47ea5a18306362eef1b11efa40ae188b78f92d8ede50de4232a",
+      "sha256": "52cab6ce6c8cb939a3cc88ba359a48c02d5c58a9ce384aa0150c14f1f172f478",
       "test_declarations": 16,
       "registered_suites": [
         "compatibility"
@@ -185897,7 +186951,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 508,
-      "sha256": "31c5dbb47a00545bd6368d543be2415a4c69b0a4ab6b609848392bd9b7b1a2f8",
+      "sha256": "d454adf86a59cc338a1f4dc15f7e25bbd2dd6b008817c995bc323e733cf11eee",
       "test_declarations": 8,
       "registered_suites": [
         "pgwire_core"
@@ -186196,8 +187250,8 @@
       "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_value_semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 218,
-      "sha256": "02861ebaf45289d6c56e85c6829c1dd5b304f50b2d09b4c1bc7815985c5c9e81",
+      "lines": 217,
+      "sha256": "f32032b88e7fa5cced1a780a3c6ca359268745d5c42e87dbfd0cbe54f52911c3",
       "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"
@@ -187696,8 +188750,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 195,
-      "sha256": "ebe1af9c7a94b4e08101520c61e0dde1bba42b4059ae421ff5be488c8711ed55",
+      "lines": 198,
+      "sha256": "ab6bb8beb6d4bec5531a5a25f1af3a65a7e846a147de0aaa22fc07326676025b",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -188042,7 +189096,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 589,
-      "sha256": "5c8485ba4933755d5bf14c86ab3dd6e46e07a53050419a7380a009bdb725bc46",
+      "sha256": "9dde8c1a7148ea0dc8f66089f27cd8ffeae0ea4923e7fd30f7eb009d4dce350e",
       "test_declarations": 8,
       "registered_suites": [
         "pgwire_extended"
@@ -188117,7 +189171,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 116,
-      "sha256": "cdd622bee248a0cdf2f39c16d6597a4a2ed1b8a7ff5ab61d1d9dbfc4a182b0e1",
+      "sha256": "4d29898469ea563dd3e4bb0467cce7be34dd23e967251713067ae0a305b95c28",
       "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"
@@ -188132,7 +189186,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 59,
-      "sha256": "f5b1d3a4c09fcce67f40c575927bcfadb023addc9ee5c2ece5446335f66b0aaa",
+      "sha256": "08146147f06a6bcc5b541a67b2fc8bf2360cfb726c3e646f9032c4dd4b849538",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -188199,6 +189253,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/protocol/alter_rule_lifecycle/semantics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/bind_planning.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 551,
+      "sha256": "3b6dec6223a86f3affc60c2e4ed754733fd68487e6af3cc83428a23420e81d55",
+      "test_declarations": 34,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/parameters/bind_planning.rs"
       ],
       "line_limit": 1000
     },
@@ -189347,7 +190416,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 639,
-      "sha256": "0f51d17e1810951a777736ac27ff493cd8086d4ad9af59f607d23bdf47edbc9b",
+      "sha256": "a51248d344fb78068df1b16a3e88f8eb73739097b9213cb038ba04d5940217fe",
       "test_declarations": 11,
       "registered_suites": [
         "pgwire_extended"
@@ -191881,8 +192950,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 189,
-      "sha256": "c00e1a505cc373d5c5628c3e931ea9784b5afbdc5de31ef3f4a53f1315abe5f5",
+      "lines": 192,
+      "sha256": "f77df34e8c149b4b2d05c0f5871635ee6cb1287bc61809b5e96bd5a2a9772214",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -197779,7 +198848,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 63,
-      "sha256": "683d36c48d1970195952bbdc27438d34b88c499e925645884554b262f3bf0211",
+      "sha256": "9f58626b1971b47600d1839f086f7b1e91309916712a2ae489e5851981717bbe",
       "test_declarations": 1,
       "registered_suites": [
         "storage_indexes"
@@ -197892,6 +198961,21 @@
       ],
       "destinations": [
         "tests/support/backfill_provider.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/bind_planning.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 140,
+      "sha256": "d4b0cb9c4e7341bbcd1316e1b5cf24ba71ec0ac9e277864e8e630baf4a67f2ca",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/bind_planning.rs"
       ],
       "line_limit": 1000
     },
@@ -198236,8 +199320,8 @@
       "current_file": "tests/support/parameter_occurrence_wire.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 67,
-      "sha256": "f5bf9907fc1228838a5be84b743f36ccba3fa6880800b47535694c078498f720",
+      "lines": 68,
+      "sha256": "503dac39e284437bdaae10f344f5cd1c48950c6066926bc3a2346caaa9c011cb",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

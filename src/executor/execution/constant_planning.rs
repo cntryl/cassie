@@ -32,10 +32,11 @@ use crate::sql::functions::FunctionId;
 /// # Errors
 ///
 /// Returns the folding error, such as division by zero.
-pub(super) fn check_plan(
+pub(crate) fn check_plan(
     plan: &LogicalPlan,
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    super::check_timeout(controls)?;
     let folder = Folder {
         no_functions: HashMap::new(),
         controls,
@@ -310,6 +311,7 @@ impl Folder<'_> {
     }
 
     fn fold(&self, expr: &Expr) -> Result<Fold, QueryError> {
+        super::check_timeout(self.controls)?;
         match expr {
             Expr::Column(_) | Expr::Param(_) => Ok(Fold::Variable),
             Expr::Exists(statement) => {
@@ -720,3 +722,7 @@ fn is_folding_error(error: &QueryError) -> bool {
                 || message == crate::types::numeric::FLOAT_OVERFLOW
     )
 }
+
+#[cfg(test)]
+#[path = "constant_planning_controls_tests.rs"]
+mod controls_tests;

@@ -26,7 +26,7 @@ fn should_keep_typed_materialized_portals_on_their_original_concurrent_snapshot(
                 .map(|n| vec![Some(n.to_string())])
                 .collect::<Vec<_>>()
         );
-        assert_eq!(wire::error_code(&pages.closed).as_deref(), Some("26000"));
+        assert_eq!(wire::error_code(&pages.closed).as_deref(), Some("34000"));
     }
 }
 
@@ -54,6 +54,6 @@ fn should_keep_initial_staged_rows_in_typed_portals_after_later_staged_changes()
                 .map(|n| vec![Some(n.to_string())])
                 .collect::<Vec<_>>()
         );
-        assert_eq!(wire::error_code(&pages.closed).as_deref(), Some("26000"));
+        assert_eq!(wire::error_code(&pages.closed).as_deref(), Some("34000"));
     }
 }

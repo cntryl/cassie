@@ -9,8 +9,9 @@ use super::{
     QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement,
 };
 // Discard compiled plans from earlier Boolean/conditional binding and literal-only pagination.
-// Alias namespaces and expression bounds share this rebuildable cache epoch.
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 4;
+// Alias namespaces, expression bounds and concrete integer signatures share this
+// rebuildable cache epoch.
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 5;
 
 pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,
@@ -675,6 +676,7 @@ impl Cassie {
             &self.binding_context_for_session(Some(session)),
             parameter_type_oids,
         )?;
+        crate::executor::check_plan_constants(&physical.logical, controls)?;
         let mut plan = super::query_explain::plan_line(self, &physical, controls)?;
         let mut structured = super::query_explain::structured_plan(self, &physical, controls)?;
 

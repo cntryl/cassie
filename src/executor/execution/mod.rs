@@ -54,6 +54,7 @@ pub use types::{
 };
 
 mod constant_planning;
+pub(crate) use constant_planning::check_plan as check_plan_constants;
 mod cte;
 mod dispatch;
 mod entrypoints;

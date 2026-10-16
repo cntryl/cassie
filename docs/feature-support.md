@@ -27,6 +27,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Null-safe comparisons | `IS DISTINCT FROM` / `IS NOT DISTINCT FROM` over selected current scalar/ARRAY equality in query and DML expressions; native typed numeric filter/projection/aggregate-predicate kernels and projected-scan pruning, scalar/residual fallback otherwise (including joins), persisted-definition rejection. See [finite contract](null-safe-predicate-contract.md). | Experimental |
 | Existing operator spelling | Compact and spaced `=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`, `+`, `-`, `*`, and `/` share expression precedence, literal boundaries and parameter identity. Generic parser and bound-query witnesses live in `tests/parser_types/dialect_syntax.rs`; [#794](https://github.com/cntryl/cassie/issues/794) tracks qualification. | Experimental |
 | Ordering and pagination | `ORDER BY`, null placement, `LIMIT`, `OFFSET` | Stable |
+| SQL-standard pagination spelling | Selected integer `FETCH FIRST/NEXT … ROW/ROWS ONLY` and `OFFSET … ROW/ROWS`, including omitted FETCH count, checked parameters, and local/global set-query bounds. `WITH TIES` rejects 0A000 and remains pending. | Experimental |
 | Deduplication | `DISTINCT`, `DISTINCT ON` | Stable |
 | Aggregation | `count`, `sum`, `avg`, `min`, `max`, grouping and `HAVING` | Stable |
 | Join syntax | Inner, left, right, full outer, cross, lateral, apply, semi, and anti forms with legality-preserving planning | Experimental |

@@ -26,6 +26,8 @@ pub(super) fn strip_select_own_qualifiers(select: &mut SelectStatement) {
     strip_optional(&mut select.filter, &qualifiers);
     strip_all(&mut select.group_by, &qualifiers);
     strip_optional(&mut select.having, &qualifiers);
+    strip_optional(&mut select.limit, &qualifiers);
+    strip_optional(&mut select.offset, &qualifiers);
     strip_order(&mut select.order, &qualifiers);
     strip_all(&mut select.distinct_on, &qualifiers);
 }

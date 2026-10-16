@@ -566,7 +566,14 @@ pub(super) fn parse_cte_definitions(
         let (name, aliases) = parse_cte_header(head)?;
         let body_sql = parse_enclosed_parenthesized(body)
             .ok_or_else(|| SqlError::new(format!("invalid CTE body for '{name}'")))?;
-        let query = if let Some(query) = parse_recursive_cte_query(&body_sql)? {
+        // UNION is also valid in an ordinary CTE; the WITH keyword controls
+        // whether its body may use the recursive representation.
+        let recursive_query = if recursive {
+            parse_recursive_cte_query(&body_sql)?
+        } else {
+            None
+        };
+        let query = if let Some(query) = recursive_query {
             query
         } else {
             let parsed_body = parse_statement(&body_sql).map_err(|error| {
@@ -579,11 +586,6 @@ pub(super) fn parse_cte_definitions(
             return Err(SqlError::new(format!(
                 "recursive CTE '{name}' must include UNION ALL between anchor and recursive queries"
             )));
-        }
-        if !recursive && matches!(query, CteQuery::Recursive { .. }) {
-            return Err(SqlError::new(
-                "WITH clause is not marked RECURSIVE".to_string(),
-            ));
         }
 
         out.push(CommonTableExpression {

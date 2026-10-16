@@ -432,3 +432,17 @@ same scope-aware mask as planning/materialization; all definitions still receive
 semantic validation. Rebuildable compiled-plan epoch 7 isolates the earlier
 pagination planning law, including derived L2 plans, without changing stored
 Value layouts.
+
+
+SQL-standard FETCH FIRST/NEXT ROW/ROWS ONLY and OFFSET ROW/ROWS reuse the
+existing integer bound AST, including default count 1. Parenthesized set
+operands retain local bounds through existing derived-source nodes. Ordinary
+UNION CTE bodies remain simple CTEs. Concrete integer siblings select arithmetic
+signatures for otherwise unknown bound parameters; unknown-plus-unknown stays
+ambiguous even below an outer cast. Bound names use the source namespace before
+row-variable rejection (42P10). The additive public
+`CassieError::AmbiguousColumn(String)` carries SQLSTATE 42702 and telemetry kind
+`ambiguous_column`; unknown columns retain 42703. Private compiled-plan epoch 8
+isolates the new parsing/binding law without changing stored Value layouts.
+WITH TIES, general FLOAT8/NUMERIC bounds and complete owner qualification remain
+pending; see [validation.md](testing/validation.md) for executed evidence.

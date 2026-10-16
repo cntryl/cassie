@@ -97,3 +97,6 @@ mod primitive_literal_inputs;
 
 #[path = "expressions/unary_numeric.rs"]
 mod unary_numeric;
+
+#[path = "expressions/fetch.rs"]
+mod fetch;

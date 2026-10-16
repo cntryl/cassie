@@ -23,3 +23,7 @@ pub(super) fn parse_bound(sql: &str, offset: bool) -> Result<Option<Expr>, SqlEr
     // ambiguous/undefined operator errors behind an unsupported syntax error.
     Ok(Some(expr))
 }
+
+#[path = "pagination_fetch.rs"]
+mod fetch;
+pub(super) use fetch::{parse_fetch, parse_offset, validate_fetch_order};

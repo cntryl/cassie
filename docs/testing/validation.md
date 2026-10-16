@@ -1255,3 +1255,98 @@ Full repository green and PostgreSQL qualification remain incomplete. The native
 executable SHA256 remains
 `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`, recorded
 with the version readback in `target/green-page-native-version.log`.
+
+## 2026-10-16 — SQL-standard FETCH counts and set-query scope
+
+This bundle repairs retained #800 FETCH/OFFSET spelling failures over the
+existing integer-bound and CTE-reachability foundation at `6feb79ca`. Complete
+#793/#797/#800/#801/#821 acceptance remains open. The batch adds 144 functions:
+132 wire, eight stored-row/direct-executor SQL controls and four parser controls.
+The first 96-function red run was 26/70. Expanded scope/name controls reproduced
+120/8 before the parenthesized set, source namespace and CTE fixes. Final
+parameter probes additionally check concrete INT4/INT8 inference and preserve
+unknown-plus-unknown ambiguity beneath an outer cast.
+
+`FETCH FIRST/NEXT`, `ROW/ROWS`, omitted count 1 and `ONLY` lower to the existing
+limit expression; OFFSET's optional ROW/ROWS suffix uses the standard count
+syntax. Parentheses are required around arithmetic, postfix casts or
+nonliteral unary expressions in standard counts. Ordinary LIMIT/OFFSET
+expression grammar remains available. LIMIT/FETCH share a duplicate-limit guard,
+and OFFSET may precede or follow FETCH. Comments, quoted identifiers and clause
+ordering have native controls. Valid selected WITH TIES forms reject 0A000;
+peer-aware execution remains an open obligation.
+
+Parenthesized set operands use the existing derived-source representation so
+local ordering/bounds survive global UNION pagination. Ordinary UNION CTE
+bodies remain simple CTEs instead of being mistaken for recursive bodies. Bound
+names use the existing alias/own-qualifier source authority before row-variable
+rejection: unknown columns report 42703, ambiguous columns 42702 and forbidden
+selected integer source variables 42P10. Projection aliases do not enter count scope. The
+additive public `CassieError::AmbiguousColumn(String)` preserves native error
+identity through SQLSTATE and telemetry (`ambiguous_column`). A concrete integer
+sibling selects an arithmetic signature for an otherwise unknown parameter;
+unknown-plus-unknown remains ambiguous even inside a result cast.
+
+No new query AST variant, stored Value layout, codec migration, CI/release or
+versioning configuration is introduced. Private rebuildable plan epoch 8
+invalidates the earlier parsing/binding law. General floating/NUMERIC bound
+coercions, complete recursive-CTE behavior, WITH TIES and complete custom Bind
+planning remain pending owner obligations, not excluded or completed cells.
+
+Native PostgreSQL 18.6 supplies 240 wire phase/value observations across the 132
+wire functions, including text/binary parameter inputs crossed with text/binary
+outputs for ten parameter cases. Exact OIDs, typmods, output formats and row
+payloads are asserted. Nineteen additional native statements exercise stored
+rows, cache-equivalent bounds, unused CTEs, zero/positive DELETE/UPDATE EXISTS
+controls and a view definition. Direct execution additionally tests memory
+admission and cancellation with zero retained query memory. The native server
+version and executable SHA256 are retained in `target/green-fetch-native-version.log`;
+the hash remains
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+
+Jev selected lowering to the existing bound AST at 1.0. Count-grammar risk 0.82
+prompted sixteen lexical/order/signed-count probes. Adversarial gap 0.58 and set
+scope risk 0.45 prompted eight global/local UNION and CTE/EXISTS probes; the
+confirmed parser and CTE classification failures were fixed. Subsequent gap
+0.35 and parameter risk 0.48 prompted four concrete-sibling/ambiguous-operator
+probes, alongside existing pagination sibling controls. Jev is advisory, not
+correctness evidence. Ignored `target/green-fetch-*` artifacts retain requests,
+native frames, red/green logs, dispositions and validation receipts.
+
+Validation:
+
+- `cargo build --locked --bin cassie`: passed, including the final binary rebuild.
+- `cargo test --locked`: completed through the existing catalog/security blocker:
+  library 1,014/0, analytics 179/0, backend CI 2/0 and benchmark operations 16/0;
+  catalog/security 139/209. All 209 failure identities match the prior batch.
+  Later targets compiled but were not executed by that full command. The run
+  was not cancelled.
+- Final locked targeted runs: parser 4/0, wire 132/0 and SQL 8/0. The four
+  additional parameter probes and a validator-driven test-label rename were
+  included in final focused execution. No assertion or expected native state
+  was weakened; no skip was added.
+- Related compiled Rust selection: 683/32 across 715 functions (library 68/0,
+  parser selection 2/0, SQL 159/19, wire 454/13). Every previously passing case
+  in the retained selection stays green. The retained parameterized FETCH SQL
+  failure is fixed. The broader SQL selection includes thirteen previously
+  unselected pending cases: explicit DISTINCT/ALL set spellings, VALUES set
+  branches, WITH TIES, ORDER BY USING, SELECT ALL and wider numeric expression
+  contracts. Their failures do not become qualified or excluded cells.
+- Complete parser 299/74 and wire core 73/11 retain exactly their prior failure
+  identities.
+- Full `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+  and `cargo fmt --all -- --check`: passed, including final source checks after
+  test-label cleanup. No lint suppression or narrowed Clippy invocation.
+- `cntryl-tools validate-tests -f <path>` passes for the eight touched
+  `tests/pgwire_extended/protocol/fetch_*.rs` modules (132 functions),
+  `tests/sql_queries/expressions/fetch.rs` (eight),
+  `src/sql/parser/pagination_fetch_tests.rs` (four), and the two focused support
+  modules. Global validation: 7,026/7,026 compliant source tests, not runtime
+  passing totals. One ambiguous `_and_` test label was renamed while retaining
+  its exact native assertions.
+- Inventory refresh/check, touched Rust file limits and whitespace: passed.
+  Inventory records 6,149 integration registration instances plus 1,014 library
+  tests (7,163 total), distinct from executed/passing totals. No benchmark
+  timing is claimed.
+
+Full repository green and PostgreSQL qualification remain incomplete.

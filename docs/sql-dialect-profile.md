@@ -349,9 +349,11 @@ This changes the public query AST, not a stored catalog/type/layout contract.
 The selected initial expression allowlist is: signed integer literals, NULL,
 parentheses, parameters, checked + / - / * over admitted integer operands, and
 explicit casts to current SMALLINT/INT/BIGINT. Infer a standalone untyped
-LIMIT/OFFSET parameter as BIGINT (OID 20). Parameters inside arithmetic must
-have explicit integer casts or declared integer parameter types; do not
-conveniently force every unknown operand to BIGINT. PostgreSQL 18.6 rejects
+LIMIT/OFFSET parameter as BIGINT (OID 20). Arithmetic selects an integer
+signature from explicit casts, declared parameter types, or a concrete integer
+sibling operand. A concrete `1` gives an otherwise unknown `$1 + 1` parameter
+OID 23; an outer result cast does not select unknown argument operators. Do not
+force unknown-plus-unknown operands to BIGINT. PostgreSQL 18.6 rejects
 LIMIT $1 + $2 * $3 with 42725 (ambiguous operator), while explicitly BIGINT-cast
 operands describe as three bigint parameters and execute. Validate explicit
 declared/cast integer domains.
@@ -480,3 +482,30 @@ public AST, prove compatibility or close an acceptance criterion.
 Documentation policy validation passed for 48 Markdown documents; local profile
 links resolved (64 checked), and git diff --check passed. No runtime changes or
 Cargo checks were performed for this documentation-only proposal.
+
+
+### SQL-standard pagination spelling checkpoint (2026-10-16)
+
+`FETCH FIRST` and `FETCH NEXT`, singular/plural `ROW`/`ROWS`, omitted count
+(default 1), and `ONLY` lower to the existing checked integer limit expression.
+An optional `ROW`/`ROWS` suffix after OFFSET uses the same standard count
+syntax. Ordinary LIMIT/OFFSET expressions retain their existing grammar;
+standard counts require parentheses around arithmetic, postfix casts or
+nonliteral unary expressions. Single signed numeric constants remain valid.
+LIMIT and FETCH share one duplicate-limit guard. OFFSET can precede or follow
+FETCH; WHERE/GROUP/HAVING/ORDER clauses precede pagination.
+
+Parenthesized set operands retain local bounds through the existing derived
+source representation; the unparenthesized final FETCH/OFFSET tail applies to
+the complete set query. Ordinary UNION CTE bodies remain nonrecursive. Known
+integer row-dependent bound variables reject 42P10; source lookup first distinguishes
+unknown columns (42703) from ambiguous columns (42702), and projection aliases
+do not enter count scope. Typed `CassieError::AmbiguousColumn` retains that
+semantic identity through SQLSTATE and telemetry.
+
+These are finite PostgreSQL 18.6 witnesses over the existing integer foundation.
+`WITH TIES` remains an open peer-aware execution obligation under #800/#821;
+valid selected spellings reject 0A000. General floating/NUMERIC bound coercions,
+functions/subqueries and complete recursive-CTE qualification remain pending.
+The stored Value layout and query AST variants do not change; private compiled
+plan epoch 8 invalidates earlier derived parsing/binding plans.

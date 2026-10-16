@@ -241,7 +241,7 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
             return Ok(format!("{}.{field}", namespace.qualifier));
         }
         if ambiguous_field(namespace, &field) {
-            return Err(CassieError::Planner(format!("ambiguous column '{name}'")));
+            return Err(CassieError::AmbiguousColumn(name.to_string()));
         }
         let physical = if field == "_id" && namespace.reserved_identity {
             "_id"
@@ -251,7 +251,7 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
                 .iter()
                 .find(|(visible, _)| *visible == field)
                 .map(|(_, physical)| physical.as_str())
-                .ok_or_else(|| CassieError::Planner(format!("unknown column '{name}'")))?
+                .ok_or_else(|| CassieError::UndefinedColumn(name.to_string()))?
         };
         return Ok(if single {
             physical.to_string()
@@ -267,7 +267,7 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
             .count()
             > 1
     }) {
-        return Err(CassieError::Planner(format!("ambiguous column '{name}'")));
+        return Err(CassieError::AmbiguousColumn(name.to_string()));
     }
     let mut matches = namespaces.iter().filter_map(|namespace| {
         let physical = if field == "_id" && namespace.reserved_identity {
@@ -288,12 +288,12 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
                 .iter()
                 .any(|(visible, physical)| *physical == field && *visible != field)
         }) {
-            return Err(CassieError::Planner(format!("unknown column '{name}'")));
+            return Err(CassieError::UndefinedColumn(name.to_string()));
         }
         return Ok(name.to_string());
     };
     if matches.next().is_some() {
-        return Err(CassieError::Planner(format!("ambiguous column '{name}'")));
+        return Err(CassieError::AmbiguousColumn(name.to_string()));
     }
     Ok(if single {
         physical.to_string()
@@ -441,15 +441,7 @@ pub(super) fn lower_select(
         projection.push(item);
     }
     select.projection = projection;
-    for expr in select
-        .filter
-        .iter_mut()
-        .chain(&mut select.having)
-        .chain(&mut select.group_by)
-        .chain(&mut select.distinct_on)
-    {
-        rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
-    }
+    rewrite_source_clauses(select, &spaces, single, lateral_fields)?;
     for order in &mut select.order {
         if let Expr::Column(name) = &order.expr {
             if ColumnIdentifierPath::parse(name).is_ok_and(|path| !path.is_qualified())
@@ -465,6 +457,26 @@ pub(super) fn lower_select(
         if let QuerySource::Aliased { source, .. } = source {
             select.source = *source;
         }
+    }
+    Ok(())
+}
+
+fn rewrite_source_clauses(
+    select: &mut SelectStatement,
+    spaces: &[Namespace],
+    single: bool,
+    lateral_fields: &std::collections::HashSet<String>,
+) -> Result<(), CassieError> {
+    for expr in select
+        .filter
+        .iter_mut()
+        .chain(&mut select.having)
+        .chain(&mut select.group_by)
+        .chain(&mut select.distinct_on)
+        .chain(&mut select.limit)
+        .chain(&mut select.offset)
+    {
+        rewrite_with_outer(expr, spaces, single, lateral_fields)?;
     }
     Ok(())
 }

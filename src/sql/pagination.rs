@@ -8,6 +8,7 @@ use crate::types::{DataType, Value};
 mod admission;
 mod constants;
 pub(crate) use constants::check as check_constants;
+mod parameters;
 mod traversal;
 mod unary;
 
@@ -195,8 +196,10 @@ fn validate_parameters(
         }
         Expr::Binary { left, right, .. } => {
             // An outer cast does not select the argument operators.
-            validate_parameters(left, oids, true, None)?;
-            validate_parameters(right, oids, true, None)?;
+            let left_type = parameters::signature(left, oids);
+            let right_type = parameters::signature(right, oids);
+            validate_parameters(left, oids, true, right_type.as_ref())?;
+            validate_parameters(right, oids, true, left_type.as_ref())?;
         }
         _ => {}
     }

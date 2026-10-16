@@ -208,3 +208,27 @@ mod pagination_unary;
 
 #[path = "protocol/pagination_planning.rs"]
 mod pagination_planning;
+
+#[path = "protocol/fetch_counts.rs"]
+mod fetch_counts;
+
+#[path = "protocol/fetch_offsets.rs"]
+mod fetch_offsets;
+
+#[path = "protocol/fetch_contexts.rs"]
+mod fetch_contexts;
+
+#[path = "protocol/fetch_errors.rs"]
+mod fetch_errors;
+
+#[path = "protocol/fetch_parameters.rs"]
+mod fetch_parameters;
+
+#[path = "protocol/fetch_boundaries.rs"]
+mod fetch_boundaries;
+
+#[path = "protocol/fetch_names.rs"]
+mod fetch_names;
+
+#[path = "protocol/fetch_global.rs"]
+mod fetch_global;

@@ -280,6 +280,7 @@ fn validate_bound_select_references(
         projection_aliases,
         false,
     )?;
+    super::pagination_references::validate(select, known_fields, projection_aliases)?;
     validate_order_by_references(&select.order, known_fields, projection_aliases)?;
     validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
     Ok(())

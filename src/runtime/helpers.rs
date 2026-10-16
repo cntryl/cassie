@@ -91,6 +91,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::Parse(_) => "parse",
         CassieError::InvalidQuery(_) => "invalid_query",
         CassieError::UndefinedColumn(_) => "undefined_column",
+        CassieError::AmbiguousColumn(_) => "ambiguous_column",
         CassieError::Planner(_) => "planner",
         CassieError::Execution(_) | CassieError::FloatInput(_) | CassieError::BooleanInput(_) => {
             "execution"

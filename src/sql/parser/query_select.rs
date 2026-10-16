@@ -19,11 +19,10 @@ pub(super) fn parse_select_statement(
     withs: Vec<CommonTableExpression>,
     recursive: bool,
 ) -> Result<ParsedStatement, SqlError> {
-    ensure_select_statement(sql)?;
-
     let trimmed = crate::sql::parser::lexical::trim_separators(sql)
         .trim_end_matches(';')
         .trim();
+    let (trimmed, _) = strip_query_parentheses(trimmed)?;
     if let Some((set_pos, set_len, set_operator)) = find_set_operation(trimmed) {
         return parse_set_select_statement(
             trimmed,
@@ -35,6 +34,7 @@ pub(super) fn parse_select_statement(
         );
     }
 
+    ensure_select_statement(trimmed)?;
     if crate::sql::parser::lexical::pattern_end(trimmed, 0, "values").is_some() {
         return values::parse(trimmed, withs, recursive);
     }
@@ -131,12 +131,31 @@ pub(super) fn parse_set_select_statement(
 }
 
 fn parse_set_operand(sql: &str) -> Result<SelectStatement, SqlError> {
+    let (sql, parenthesized) = strip_query_parentheses(sql)?;
     match parse_select_statement(sql, Vec::new(), false)?.statement {
-        QueryStatement::Select(select) => Ok(*select),
+        QueryStatement::Select(select) => Ok(if parenthesized {
+            derived_set_operand(*select)
+        } else {
+            *select
+        }),
         _ => Err(SqlError::new(
             "set operation requires SELECT operands".into(),
         )),
     }
+}
+
+fn strip_query_parentheses(mut sql: &str) -> Result<(&str, bool), SqlError> {
+    let mut stripped = false;
+    for _ in 0..=128 {
+        let Some(inner) = crate::sql::parser::clauses::strip_parentheses(sql) else {
+            return Ok((sql, stripped));
+        };
+        stripped = true;
+        sql = inner;
+    }
+    Err(SqlError::resource_limit(
+        "set operand nesting exceeds 128 levels".into(),
+    ))
 }
 
 /// Folds operands into a tree where every operator is left-associative and
@@ -255,7 +274,18 @@ type SetRightAndResultClauses = (String, Vec<OrderExpr>, Option<Expr>, Option<Ex
 pub(super) fn split_set_right_and_global_clauses(
     right_sql: &str,
 ) -> Result<SetRightAndResultClauses, SqlError> {
-    let trimmed = right_sql.trim();
+    let trimmed = crate::sql::parser::lexical::trim_separators(right_sql);
+    if trimmed.starts_with('(') {
+        let close = crate::sql::parser::lexical::matching_paren(trimmed, 0)
+            .ok_or_else(|| SqlError::syntax("unclosed set operand".into()))?;
+        let rest = crate::sql::parser::lexical::trim_separators(&trimmed[close + 1..]);
+        let (order, limit, offset) = if rest.is_empty() {
+            (Vec::new(), None, None)
+        } else {
+            parse_global_result_clauses(rest)?
+        };
+        return Ok((trimmed[..=close].to_string(), order, limit, offset));
+    }
     ensure_select_statement(trimmed)?;
 
     let after_select = crate::sql::parser::lexical::trim_separators(&trimmed[6..]);
@@ -265,7 +295,9 @@ pub(super) fn split_set_right_and_global_clauses(
         .find(|clause| {
             matches!(
                 clause.token,
-                ClauseToken::Recognized(Clause::Order | Clause::Limit | Clause::Offset)
+                ClauseToken::Recognized(
+                    Clause::Order | Clause::Limit | Clause::Offset | Clause::Fetch
+                )
             )
         })
         .map(|clause| clause.position)
@@ -281,6 +313,7 @@ pub(super) fn split_set_right_and_global_clauses(
 
 pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, SqlError> {
     let clauses = parse_clauses(rest)?;
+    pagination::validate_fetch_order(&clauses)?;
     let mut order = Vec::new();
     let mut limit = None;
     let mut offset = None;
@@ -296,7 +329,10 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
                 clause.text()
             )));
         };
-        if !matches!(kind, Clause::Order | Clause::Limit | Clause::Offset) {
+        if !matches!(
+            kind,
+            Clause::Order | Clause::Limit | Clause::Offset | Clause::Fetch
+        ) {
             return Err(SqlError::new(format!(
                 "unsupported global set operation clause '{}'",
                 clause.text()
@@ -318,17 +354,21 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
                 }
                 order = parse_order_by(raw_value)?;
             }
-            Clause::Limit => {
+            Clause::Limit | Clause::Fetch => {
                 if !seen.insert("limit") {
                     return Err(SqlError::new("duplicate LIMIT clause".into()));
                 }
-                limit = pagination::parse_bound(raw_value, false)?;
+                limit = if matches!(kind, Clause::Fetch) {
+                    pagination::parse_fetch(raw_value)?
+                } else {
+                    pagination::parse_bound(raw_value, false)?
+                };
             }
             Clause::Offset => {
                 if !seen.insert("offset") {
                     return Err(SqlError::new("duplicate OFFSET clause".into()));
                 }
-                offset = pagination::parse_bound(raw_value, true)?;
+                offset = pagination::parse_offset(raw_value)?;
             }
             Clause::Where | Clause::Group | Clause::Having => unreachable!(),
         }
@@ -486,6 +526,7 @@ fn parse_select_clauses(
     rest: &str,
     clauses: &[ClauseMatch],
 ) -> Result<ParsedSelectClauses, SqlError> {
+    pagination::validate_fetch_order(clauses)?;
     let mut parsed = ParsedSelectClauses {
         where_sql: None,
         group_sql: None,
@@ -541,17 +582,21 @@ fn parse_select_clauses(
                     raw_value.to_string(),
                     "duplicate ORDER BY clause",
                 )?,
-                Clause::Limit => {
+                Clause::Limit | Clause::Fetch => {
                     if !seen.insert("limit") {
                         return Err(SqlError::new("duplicate LIMIT clause".into()));
                     }
-                    parsed.limit = pagination::parse_bound(raw_value, false)?;
+                    parsed.limit = if matches!(kind, Clause::Fetch) {
+                        pagination::parse_fetch(raw_value)?
+                    } else {
+                        pagination::parse_bound(raw_value, false)?
+                    };
                 }
                 Clause::Offset => {
                     if !seen.insert("offset") {
                         return Err(SqlError::new("duplicate OFFSET clause".into()));
                     }
-                    parsed.offset = pagination::parse_bound(raw_value, true)?;
+                    parsed.offset = pagination::parse_offset(raw_value)?;
                 }
             },
         }

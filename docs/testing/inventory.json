@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1564,
-    "rust_files": 1533,
-    "rust_test_declarations": 5881,
+    "files": 1575,
+    "rust_files": 1544,
+    "rust_test_declarations": 6021,
     "python_test_declarations": 16,
-    "registered_rust_instances": 6009,
+    "registered_rust_instances": 6149,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -80790,6 +80790,4098 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_reject_double_plus_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "name": "should_reject_double_plus_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 6,
+      "end_line": 14,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_reject_double_plus_given_standard_counts_when_native_grammar_requires_parentheses_or_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_reject_double_minus_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "name": "should_reject_double_minus_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 17,
+      "end_line": 26,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_reject_double_minus_given_standard_counts_when_native_grammar_requires_parentheses_or_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_reject_signed_parenthesis_plus_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "name": "should_reject_signed_parenthesis_plus_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 29,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_reject_signed_parenthesis_plus_given_standard_counts_when_native_grammar_requires_parentheses_or_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_reject_signed_parenthesis_minus_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "name": "should_reject_signed_parenthesis_minus_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 41,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_reject_signed_parenthesis_minus_given_standard_counts_when_native_grammar_requires_parentheses_or_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_reject_offset_signed_parenthesis_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "name": "should_reject_offset_signed_parenthesis_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 53,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_reject_offset_signed_parenthesis_given_standard_counts_when_native_grammar_requires_parentheses_or_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_reject_offset_double_sign_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "name": "should_reject_offset_double_sign_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 64,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_reject_offset_double_sign_given_standard_counts_when_native_grammar_requires_parentheses_or_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_reject_late_order_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "name": "should_reject_late_order_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 75,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_reject_late_order_given_standard_counts_when_native_grammar_requires_parentheses_or_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_reject_late_where_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "name": "should_reject_late_where_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 86,
+      "end_line": 94,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_reject_late_where_given_standard_counts_when_native_grammar_requires_parentheses_or_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_reject_late_group_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "name": "should_reject_late_group_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 97,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_reject_late_group_given_standard_counts_when_native_grammar_requires_parentheses_or_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_reject_late_offset_order_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "name": "should_reject_late_offset_order_given_standard_counts_when_native_grammar_requires_parentheses_or_order",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 108,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_reject_late_offset_order_given_standard_counts_when_native_grammar_requires_parentheses_or_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_preserve_comments_given_lexical_boundaries_when_fetch_is_lowered",
+      "name": "should_preserve_comments_given_lexical_boundaries_when_fetch_is_lowered",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 119,
+      "end_line": 135,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_preserve_comments_given_lexical_boundaries_when_fetch_is_lowered"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_preserve_signed_comment_given_lexical_boundaries_when_fetch_is_lowered",
+      "name": "should_preserve_signed_comment_given_lexical_boundaries_when_fetch_is_lowered",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 138,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_preserve_signed_comment_given_lexical_boundaries_when_fetch_is_lowered"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_preserve_quoted_alias_given_lexical_boundaries_when_fetch_is_lowered",
+      "name": "should_preserve_quoted_alias_given_lexical_boundaries_when_fetch_is_lowered",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 154,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_preserve_quoted_alias_given_lexical_boundaries_when_fetch_is_lowered"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_preserve_quoted_count_alias_given_lexical_boundaries_when_fetch_is_lowered",
+      "name": "should_preserve_quoted_count_alias_given_lexical_boundaries_when_fetch_is_lowered",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 170,
+      "end_line": 183,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_preserve_quoted_count_alias_given_lexical_boundaries_when_fetch_is_lowered"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_preserve_quoted_marker_given_lexical_boundaries_when_fetch_is_lowered",
+      "name": "should_preserve_quoted_marker_given_lexical_boundaries_when_fetch_is_lowered",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 186,
+      "end_line": 199,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_preserve_quoted_marker_given_lexical_boundaries_when_fetch_is_lowered"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_boundaries.rs::should_preserve_reverse_comments_given_lexical_boundaries_when_fetch_is_lowered",
+      "name": "should_preserve_reverse_comments_given_lexical_boundaries_when_fetch_is_lowered",
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "line": 202,
+      "end_line": 215,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_boundaries::should_preserve_reverse_comments_given_lexical_boundaries_when_fetch_is_lowered"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_values_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_values_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 6,
+      "end_line": 13,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_values_0_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_values_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_values_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 16,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_values_1_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_values_2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_values_2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 32,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_values_2_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_derived_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_derived_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 51,
+      "end_line": 58,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_derived_0_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_derived_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_derived_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 61,
+      "end_line": 74,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_derived_1_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_derived_2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_derived_2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 77,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_derived_2_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_cte_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_cte_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 93,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_cte_0_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_cte_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_cte_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 103,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_cte_1_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_cte_2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_cte_2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 119,
+      "end_line": 132,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_cte_2_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_union_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_union_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 135,
+      "end_line": 142,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_union_0_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_union_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_union_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 145,
+      "end_line": 158,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_union_1_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_contexts.rs::should_preserve_union_2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_union_2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "line": 161,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_contexts::should_preserve_union_2_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_row_default_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_row_default_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 6,
+      "end_line": 19,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_row_default_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_row_zero_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_row_zero_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 22,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_row_zero_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_row_one_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_row_one_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 32,
+      "end_line": 45,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_row_one_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_row_two_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_row_two_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 48,
+      "end_line": 64,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_row_two_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_row_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_row_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 67,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_row_null_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_row_expression_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_row_expression_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 92,
+      "end_line": 109,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_row_expression_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_rows_default_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_rows_default_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 112,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_rows_default_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_rows_zero_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_rows_zero_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 128,
+      "end_line": 135,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_rows_zero_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_rows_one_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_rows_one_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 138,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_rows_one_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_rows_two_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_rows_two_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 154,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_rows_two_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_rows_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_rows_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 173,
+      "end_line": 195,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_rows_null_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_first_rows_expression_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_rows_expression_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 198,
+      "end_line": 215,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_first_rows_expression_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_row_default_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_row_default_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 218,
+      "end_line": 231,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_row_default_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_row_zero_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_row_zero_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 234,
+      "end_line": 241,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_row_zero_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_row_one_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_row_one_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 244,
+      "end_line": 257,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_row_one_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_row_two_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_row_two_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 260,
+      "end_line": 276,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_row_two_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_row_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_row_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 279,
+      "end_line": 300,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_row_null_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_row_expression_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_row_expression_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 303,
+      "end_line": 320,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_row_expression_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_rows_default_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_rows_default_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 323,
+      "end_line": 336,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_rows_default_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_rows_zero_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_rows_zero_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 339,
+      "end_line": 346,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_rows_zero_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_rows_one_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_rows_one_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 349,
+      "end_line": 362,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_rows_one_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_rows_two_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_rows_two_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 365,
+      "end_line": 381,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_rows_two_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_rows_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_rows_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 384,
+      "end_line": 406,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_rows_null_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_counts.rs::should_preserve_next_rows_expression_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_next_rows_expression_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "line": 409,
+      "end_line": 426,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_counts::should_preserve_next_rows_expression_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 5,
+      "end_line": 12,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_0_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 15,
+      "end_line": 22,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_1_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 25,
+      "end_line": 32,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_2_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_3_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_3_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 35,
+      "end_line": 42,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_3_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_4_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_4_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 45,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_4_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_5_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_5_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 56,
+      "end_line": 64,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_5_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_6_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_6_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 67,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_6_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_7_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_7_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 78,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_7_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_8_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_8_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 88,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_8_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_9_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_9_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 99,
+      "end_line": 107,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_9_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_10_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_10_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 110,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_10_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_11_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_11_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 121,
+      "end_line": 129,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_11_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_12_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_12_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 132,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_12_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_13_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_13_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 142,
+      "end_line": 149,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_13_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_14_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_14_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 152,
+      "end_line": 159,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_14_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_15_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_15_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 162,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_15_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_16_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_16_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 173,
+      "end_line": 181,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_16_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_17_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_17_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 184,
+      "end_line": 192,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_17_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_18_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_18_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 195,
+      "end_line": 202,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_18_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_19_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_19_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 205,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_19_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_20_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_20_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 215,
+      "end_line": 222,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_20_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_21_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_21_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 225,
+      "end_line": 233,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_21_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_22_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_22_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 236,
+      "end_line": 243,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_22_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_syntax_23_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_syntax_23_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 246,
+      "end_line": 254,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_syntax_23_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_unknown_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_unknown_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 257,
+      "end_line": 265,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_unknown_null_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_unknown_string_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_unknown_string_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 268,
+      "end_line": 276,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_unknown_string_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_true_plus_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_true_plus_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 279,
+      "end_line": 287,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_true_plus_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_false_minus_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_false_minus_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 290,
+      "end_line": 298,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_false_minus_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_text_minus_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_text_minus_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 301,
+      "end_line": 308,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_text_minus_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_bool_null_plus_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_bool_null_plus_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 311,
+      "end_line": 318,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_bool_null_plus_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_varchar_plus_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_varchar_plus_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 321,
+      "end_line": 328,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_varchar_plus_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_nested_unknown_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_nested_unknown_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 331,
+      "end_line": 338,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_nested_unknown_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_int2_overflow_first_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_int2_overflow_first_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 341,
+      "end_line": 349,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_int2_overflow_first_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_int2_overflow_next_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_int2_overflow_next_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 352,
+      "end_line": 360,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_int2_overflow_next_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_int4_overflow_first_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_int4_overflow_first_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 363,
+      "end_line": 371,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_int4_overflow_first_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_int4_overflow_next_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_int4_overflow_next_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 374,
+      "end_line": 382,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_int4_overflow_next_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_int8_overflow_first_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_int8_overflow_first_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 385,
+      "end_line": 393,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_int8_overflow_first_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_int8_overflow_next_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_int8_overflow_next_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 396,
+      "end_line": 404,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_int8_overflow_next_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_widen_after_first_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_widen_after_first_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 407,
+      "end_line": 415,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_widen_after_first_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_preserve_widen_after_next_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_widen_after_next_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 418,
+      "end_line": 426,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_preserve_widen_after_next_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_reject_unknown_pair_given_fetch_count_parameters_when_no_argument_signature_is_selected",
+      "name": "should_reject_unknown_pair_given_fetch_count_parameters_when_no_argument_signature_is_selected",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 429,
+      "end_line": 438,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_reject_unknown_pair_given_fetch_count_parameters_when_no_argument_signature_is_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_errors.rs::should_reject_outer_cast_unknown_given_fetch_count_parameters_when_no_argument_signature_is_selected",
+      "name": "should_reject_outer_cast_unknown_given_fetch_count_parameters_when_no_argument_signature_is_selected",
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "line": 441,
+      "end_line": 449,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_errors::should_reject_outer_cast_unknown_given_fetch_count_parameters_when_no_argument_signature_is_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_global.rs::should_preserve_local_right_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "name": "should_preserve_local_right_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/fetch_global.rs",
+      "line": 6,
+      "end_line": 19,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_global::should_preserve_local_right_given_fetch_clauses_when_set_query_scopes_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_global.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_global.rs::should_preserve_local_left_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "name": "should_preserve_local_left_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/fetch_global.rs",
+      "line": 22,
+      "end_line": 35,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_global::should_preserve_local_left_given_fetch_clauses_when_set_query_scopes_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_global.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_global.rs::should_preserve_local_bound_scope_given_nested_fetch_counts_when_the_set_query_is_limited",
+      "name": "should_preserve_local_bound_scope_given_nested_fetch_counts_when_the_set_query_is_limited",
+      "current_file": "tests/pgwire_extended/protocol/fetch_global.rs",
+      "line": 38,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_global::should_preserve_local_bound_scope_given_nested_fetch_counts_when_the_set_query_is_limited"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_global.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_global.rs::should_preserve_derived_right_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "name": "should_preserve_derived_right_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/fetch_global.rs",
+      "line": 54,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_global::should_preserve_derived_right_given_fetch_clauses_when_set_query_scopes_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_global.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_global.rs::should_preserve_zero_global_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "name": "should_preserve_zero_global_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/fetch_global.rs",
+      "line": 70,
+      "end_line": 77,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_global::should_preserve_zero_global_given_fetch_clauses_when_set_query_scopes_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_global.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_global.rs::should_preserve_offset_global_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "name": "should_preserve_offset_global_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/fetch_global.rs",
+      "line": 80,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_global::should_preserve_offset_global_given_fetch_clauses_when_set_query_scopes_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_global.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_global.rs::should_preserve_nested_cte_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "name": "should_preserve_nested_cte_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/fetch_global.rs",
+      "line": 96,
+      "end_line": 109,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_global::should_preserve_nested_cte_given_fetch_clauses_when_set_query_scopes_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_global.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_global.rs::should_preserve_exists_zero_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "name": "should_preserve_exists_zero_given_fetch_clauses_when_set_query_scopes_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/fetch_global.rs",
+      "line": 112,
+      "end_line": 119,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_global::should_preserve_exists_zero_given_fetch_clauses_when_set_query_scopes_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_global.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_names.rs::should_reject_unknown_row_given_pagination_counts_when_native_source_name_rules_apply",
+      "name": "should_reject_unknown_row_given_pagination_counts_when_native_source_name_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_names.rs",
+      "line": 4,
+      "end_line": 11,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_names::should_reject_unknown_row_given_pagination_counts_when_native_source_name_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_names.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_names.rs::should_reject_unknown_fetch_given_pagination_counts_when_native_source_name_rules_apply",
+      "name": "should_reject_unknown_fetch_given_pagination_counts_when_native_source_name_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_names.rs",
+      "line": 14,
+      "end_line": 21,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_names::should_reject_unknown_fetch_given_pagination_counts_when_native_source_name_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_names.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_names.rs::should_reject_source_column_given_pagination_counts_when_native_source_name_rules_apply",
+      "name": "should_reject_source_column_given_pagination_counts_when_native_source_name_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_names.rs",
+      "line": 24,
+      "end_line": 31,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_names::should_reject_source_column_given_pagination_counts_when_native_source_name_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_names.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_names.rs::should_reject_qualified_column_given_pagination_counts_when_native_source_name_rules_apply",
+      "name": "should_reject_qualified_column_given_pagination_counts_when_native_source_name_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_names.rs",
+      "line": 34,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_names::should_reject_qualified_column_given_pagination_counts_when_native_source_name_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_names.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_names.rs::should_reject_unknown_qualified_given_pagination_counts_when_native_source_name_rules_apply",
+      "name": "should_reject_unknown_qualified_given_pagination_counts_when_native_source_name_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_names.rs",
+      "line": 44,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_names::should_reject_unknown_qualified_given_pagination_counts_when_native_source_name_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_names.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_names.rs::should_reject_output_alias_given_pagination_counts_when_native_source_name_rules_apply",
+      "name": "should_reject_output_alias_given_pagination_counts_when_native_source_name_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_names.rs",
+      "line": 54,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_names::should_reject_output_alias_given_pagination_counts_when_native_source_name_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_names.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_names.rs::should_reject_ambiguous_given_pagination_counts_when_native_source_name_rules_apply",
+      "name": "should_reject_ambiguous_given_pagination_counts_when_native_source_name_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_names.rs",
+      "line": 64,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_names::should_reject_ambiguous_given_pagination_counts_when_native_source_name_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_names.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_names.rs::should_reject_quoted_row_given_pagination_counts_when_native_source_name_rules_apply",
+      "name": "should_reject_quoted_row_given_pagination_counts_when_native_source_name_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_names.rs",
+      "line": 74,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_names::should_reject_quoted_row_given_pagination_counts_when_native_source_name_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_names.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_before_row_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_before_row_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 6,
+      "end_line": 22,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_before_row_0_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_before_row_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_before_row_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 25,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_before_row_1_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_before_row_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_before_row_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 44,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_before_row_null_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_before_rows_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_before_rows_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 63,
+      "end_line": 79,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_before_rows_0_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_before_rows_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_before_rows_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 82,
+      "end_line": 98,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_before_rows_1_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_before_rows_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_before_rows_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 101,
+      "end_line": 117,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_before_rows_null_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_after_row_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_after_row_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 120,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_after_row_0_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_after_row_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_after_row_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 139,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_after_row_1_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_after_row_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_after_row_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 158,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_after_row_null_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_after_rows_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_after_rows_0_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 177,
+      "end_line": 193,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_after_rows_0_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_after_rows_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_after_rows_1_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 196,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_after_rows_1_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_offsets.rs::should_preserve_offset_after_rows_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_after_rows_null_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "line": 215,
+      "end_line": 231,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_offsets::should_preserve_offset_after_rows_null_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_parameters.rs::should_preserve_first_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_first_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "line": 5,
+      "end_line": 24,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_parameters::should_preserve_first_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/fetch_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_parameters.rs::should_preserve_sum_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_sum_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "line": 27,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_parameters::should_preserve_sum_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/core",
+        "directory": "tests/pgwire_extended/aggregates/core",
+        "file": "tests/pgwire_extended/aggregates/core/fetch_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_parameters.rs::should_preserve_offset_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_offset_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "line": 49,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_parameters::should_preserve_offset_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/fetch_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_parameters.rs::should_preserve_reverse_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_reverse_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "line": 68,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_parameters::should_preserve_reverse_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/fetch_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_parameters.rs::should_preserve_negative_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_negative_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "line": 87,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_parameters::should_preserve_negative_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/fetch_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_parameters.rs::should_preserve_int2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_int2_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "line": 109,
+      "end_line": 128,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_parameters::should_preserve_int2_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/fetch_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_parameters.rs::should_preserve_int8_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_int8_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "line": 131,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_parameters::should_preserve_int8_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/fetch_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_parameters.rs::should_preserve_nested_given_fetch_syntax_when_native_pagination_rules_apply",
+      "name": "should_preserve_nested_given_fetch_syntax_when_native_pagination_rules_apply",
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "line": 153,
+      "end_line": 169,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_parameters::should_preserve_nested_given_fetch_syntax_when_native_pagination_rules_apply"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/fetch_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_parameters.rs::should_infer_concrete_int4_given_a_concrete_sibling_when_fetch_parameters_are_bound",
+      "name": "should_infer_concrete_int4_given_a_concrete_sibling_when_fetch_parameters_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "line": 172,
+      "end_line": 192,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_parameters::should_infer_concrete_int4_given_a_concrete_sibling_when_fetch_parameters_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/fetch_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/fetch_parameters.rs::should_infer_concrete_int8_given_a_concrete_sibling_when_fetch_parameters_are_bound",
+      "name": "should_infer_concrete_int8_given_a_concrete_sibling_when_fetch_parameters_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "line": 195,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::fetch_parameters::should_infer_concrete_int8_given_a_concrete_sibling_when_fetch_parameters_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "parameters",
+        "directory": "tests/pgwire_extended/parameters",
+        "file": "tests/pgwire_extended/parameters/fetch_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/protocol/lifecycle.rs::should_close_statement_cascade_referenced_portals_before_reuse",
       "name": "should_close_statement_cascade_referenced_portals_before_reuse",
       "current_file": "tests/pgwire_extended/protocol/lifecycle.rs",
@@ -143751,6 +147843,254 @@
       }
     },
     {
+      "id": "tests/sql_queries/expressions/fetch.rs::should_fetch_filtered_stored_rows_given_ordered_bounds_when_offset_precedes_fetch",
+      "name": "should_fetch_filtered_stored_rows_given_ordered_bounds_when_offset_precedes_fetch",
+      "current_file": "tests/sql_queries/expressions/fetch.rs",
+      "line": 7,
+      "end_line": 19,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::fetch::should_fetch_filtered_stored_rows_given_ordered_bounds_when_offset_precedes_fetch"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/fetch.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/fetch.rs::should_rebind_cached_fetch_counts_given_repeated_executions_when_parameter_values_change",
+      "name": "should_rebind_cached_fetch_counts_given_repeated_executions_when_parameter_values_change",
+      "current_file": "tests/sql_queries/expressions/fetch.rs",
+      "line": 22,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::fetch::should_rebind_cached_fetch_counts_given_repeated_executions_when_parameter_values_change"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/fetch.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/fetch.rs::should_prune_unused_fetch_bounds_given_cte_definitions_when_only_the_root_query_runs",
+      "name": "should_prune_unused_fetch_bounds_given_cte_definitions_when_only_the_root_query_runs",
+      "current_file": "tests/sql_queries/expressions/fetch.rs",
+      "line": 49,
+      "end_line": 59,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::fetch::should_prune_unused_fetch_bounds_given_cte_definitions_when_only_the_root_query_runs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/fetch.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/fetch.rs::should_resolve_fetch_before_deleting_rows_given_an_exists_count_when_the_bound_is_zero",
+      "name": "should_resolve_fetch_before_deleting_rows_given_an_exists_count_when_the_bound_is_zero",
+      "current_file": "tests/sql_queries/expressions/fetch.rs",
+      "line": 62,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::fetch::should_resolve_fetch_before_deleting_rows_given_an_exists_count_when_the_bound_is_zero"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/fetch.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/fetch.rs::should_resolve_fetch_before_updating_rows_given_an_exists_count_when_the_bound_is_zero",
+      "name": "should_resolve_fetch_before_updating_rows_given_an_exists_count_when_the_bound_is_zero",
+      "current_file": "tests/sql_queries/expressions/fetch.rs",
+      "line": 92,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::fetch::should_resolve_fetch_before_updating_rows_given_an_exists_count_when_the_bound_is_zero"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/fetch.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/fetch.rs::should_preserve_fetch_bounds_given_a_stored_view_when_its_rows_are_selected",
+      "name": "should_preserve_fetch_bounds_given_a_stored_view_when_its_rows_are_selected",
+      "current_file": "tests/sql_queries/expressions/fetch.rs",
+      "line": 126,
+      "end_line": 137,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::fetch::should_preserve_fetch_bounds_given_a_stored_view_when_its_rows_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/fetch.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/fetch.rs::should_admit_fetch_plan_copies_given_a_small_memory_budget_when_direct_execution_resolves_parameters",
+      "name": "should_admit_fetch_plan_copies_given_a_small_memory_budget_when_direct_execution_resolves_parameters",
+      "current_file": "tests/sql_queries/expressions/fetch.rs",
+      "line": 140,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::fetch::should_admit_fetch_plan_copies_given_a_small_memory_budget_when_direct_execution_resolves_parameters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/fetch.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/fetch.rs::should_cancel_fetch_given_a_cancelled_query_when_direct_execution_starts",
+      "name": "should_cancel_fetch_given_a_cancelled_query_when_direct_execution_starts",
+      "current_file": "tests/sql_queries/expressions/fetch.rs",
+      "line": 164,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::fetch::should_cancel_fetch_given_a_cancelled_query_when_direct_execution_starts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/fetch.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/expressions/inheritance_dml/semantics.rs::should_preserve_parent_insert_scope_when_deleting_descendants",
       "name": "should_preserve_parent_insert_scope_when_deleting_descendants",
       "current_file": "tests/sql_queries/expressions/inheritance_dml/semantics.rs",
@@ -195058,8 +199398,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 210,
-      "sha256": "cdbc081f97943178f97db4cd58d440def3233a168d06ff439f8fefd072c57b9e",
+      "lines": 234,
+      "sha256": "cd23f2c90f0090c9c76f2a0719cb79bc754c4f785769c653a99de1d3a345ebae",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -195726,6 +200066,127 @@
       ],
       "destinations": [
         "tests/pgwire_extended/protocol/explain_options.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/fetch_boundaries.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 215,
+      "sha256": "85906f74f9467d2f44609bab80351078870b1ed9b27df35823af6b8fd16c40e8",
+      "test_declarations": 16,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/protocol/fetch_boundaries.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/fetch_contexts.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 177,
+      "sha256": "304286d03e3523c7be472127f99ae6bc7906dd84c81c5ade279c6ef33f912351",
+      "test_declarations": 12,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/protocol/fetch_contexts.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/fetch_counts.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 426,
+      "sha256": "df89765519da95a0a9d4b6d982ee5b970ad66cc699673ddf936d00f72cc7d2cc",
+      "test_declarations": 24,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/protocol/fetch_counts.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/fetch_errors.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 449,
+      "sha256": "8d2f3a62ebf135a5c3b87d7c3a0b95717fd3e719de0c580287502d120a8572e2",
+      "test_declarations": 42,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/protocol/fetch_errors.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/fetch_global.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 119,
+      "sha256": "1d3598252a5e5d8ae57104e6ec5b48d3ec8e9d07d54fd337907f517f1024969a",
+      "test_declarations": 8,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/protocol/fetch_global.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/fetch_names.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 81,
+      "sha256": "83c2c327f2efff59488acc40114221e5d5ca6f36cee9541c47fcd2becfedfd5a",
+      "test_declarations": 8,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/protocol/fetch_names.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/fetch_offsets.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 231,
+      "sha256": "1f968ffdcd5f7dfd05e08707c37a345c133d82d44f1f6c136f51ea5fc76c61c5",
+      "test_declarations": 12,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/protocol/fetch_offsets.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/fetch_parameters.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 211,
+      "sha256": "b5a85f5a9441eec1966c9ef5b307e180e571b922dba138dc638f58ede8d1ba5a",
+      "test_declarations": 10,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/aggregates/core/fetch_parameters.rs",
+        "tests/pgwire_extended/parameters/fetch_parameters.rs"
       ],
       "line_limit": 1000
     },
@@ -199304,8 +203765,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 198,
-      "sha256": "bc92b1d4aba0e59682d869904bd5afb6853aa536a799e43b88e52ac3be833f19",
+      "lines": 201,
+      "sha256": "de3e7aae61356cd835d2130a5eb4f0cad7178a93cca687b0921b788eb20c2ba7",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -203247,6 +207708,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/expressions/fetch.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 186,
+      "sha256": "68c5cea82076524d008c8a81de24a04d6f7ffc3606422427a3142e76140dcc77",
+      "test_declarations": 8,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/expressions/fetch.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/expressions/inheritance_dml/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -203626,8 +208102,8 @@
       "current_file": "tests/sql_queries/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 99,
-      "sha256": "360819b48ef83e936b5396b3db45b8034f87bf4b2f652152fd6ea58292261171",
+      "lines": 102,
+      "sha256": "18c7457f97b42ba6550ec34777c2abba887afaef03e97524abc30990711a991a",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -204602,8 +209078,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 209,
-      "sha256": "c37e3114374783ccd46c55f3d2e6acff9b4f25d79564fbfd7c2e401fe979b913",
+      "lines": 212,
+      "sha256": "d903d571fb9a4a93520f0265a201f7775b052e3761711043e4aa9e988d2bffa7",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -205546,6 +210022,36 @@
       ],
       "destinations": [
         "tests/support/failpoints.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/fetch.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 72,
+      "sha256": "ef318ab5beea39e56f488899ddc996f455ca7d0b7fb4e5e70d02789cc71c277c",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/fetch.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/fetch_sql.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 20,
+      "sha256": "3a4397e9acbd9e96dcf256e72ea682c78048ee88fb3d8e5cff08471010bc2637",
+      "test_declarations": 0,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/support/fetch_sql.rs"
       ],
       "line_limit": 1000
     },

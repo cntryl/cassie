@@ -1,5 +1,6 @@
 #[path = "binder/integer_operators.rs"]
 mod integer_operators;
+mod pagination_references;
 #[path = "binder/unary_numeric.rs"]
 pub(crate) mod unary_numeric;
 #[path = "binder/values.rs"]

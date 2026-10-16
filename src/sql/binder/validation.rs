@@ -727,9 +727,7 @@ fn validate_column_reference(
         .as_ref()
         .is_some_and(crate::sql::ColumnIdentifierPath::is_qualified);
     if !is_qualified && known_fields.contains(&format!("__cassie_ambiguous__.{name}")) {
-        return Err(CassieError::Planner(format!(
-            "column reference '{name}' is ambiguous"
-        )));
+        return Err(CassieError::AmbiguousColumn(name.to_string()));
     }
     if known_fields.contains("*") || known_fields.contains(name) {
         return Ok(());

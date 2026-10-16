@@ -66,6 +66,9 @@ pub enum CassieError {
     #[error("unresolvable column reference '{0}'; known fields or aliases required")]
     UndefinedColumn(String),
 
+    #[error("column reference '{0}' is ambiguous")]
+    AmbiguousColumn(String),
+
     #[error(transparent)]
     BooleanInput(#[from] crate::types::BooleanInputError),
 
@@ -204,6 +207,7 @@ impl CassieError {
     pub(crate) fn descriptor(&self) -> CassieErrorDescriptor {
         match self {
             Self::UndefinedColumn(_) => bad_request_descriptor("42703", self.to_string()),
+            Self::AmbiguousColumn(_) => bad_request_descriptor("42702", self.to_string()),
             Self::BooleanInput(error) => bad_request_descriptor("22P02", error.to_string()),
             Self::FloatInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::CollectionNotFound(table) => missing_relation_descriptor(table),
@@ -509,6 +513,18 @@ fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
     bad_request_descriptor("42601", message.to_string())
 }
 
+fn pagination_sql_state(message: &str) -> Option<&'static str> {
+    match message {
+        "LIMIT must not be negative" => Some("2201W"),
+        "OFFSET must not be negative" => Some("2201X"),
+        "pagination operator is ambiguous for unknown parameters" => Some("42725"),
+        "pagination requires an admitted integer expression" => Some("42804"),
+        "argument of LIMIT must not contain variables"
+        | "argument of OFFSET must not contain variables" => Some("42P10"),
+        _ => None,
+    }
+}
+
 fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message.starts_with("VALUES types ") && message.ends_with(" cannot be matched") {
         return bad_request_descriptor("42804", message.to_string());
@@ -522,13 +538,7 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message == "negative substring length not allowed" {
         return bad_request_descriptor("22011", message.to_owned());
     }
-    let pagination_state = match message {
-        "LIMIT must not be negative" => Some("2201W"),
-        "OFFSET must not be negative" => Some("2201X"),
-        "pagination operator is ambiguous for unknown parameters" => Some("42725"),
-        "pagination requires an admitted integer expression" => Some("42804"),
-        _ => None,
-    };
+    let pagination_state = pagination_sql_state(message);
     if let Some(sql_state) = pagination_state {
         return bad_request_descriptor(sql_state, message.to_string());
     }

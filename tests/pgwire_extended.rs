@@ -196,3 +196,6 @@ mod support_unary_numeric;
 
 #[path = "support/pagination_unary.rs"]
 mod support_pagination_unary;
+
+#[path = "support/fetch.rs"]
+mod support_fetch;

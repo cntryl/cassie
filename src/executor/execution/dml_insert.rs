@@ -279,6 +279,7 @@ fn insert_source_rows(
                 command: None,
                 source: select.source.clone(),
                 collection: match &select.source {
+                    QuerySource::Values { .. } => "values".into(),
                     QuerySource::Aliased { source, .. } => {
                         crate::planner::logical::source_name(source)
                     }

@@ -23,6 +23,9 @@ pub enum CteQuery {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QuerySource {
+    Values {
+        rows: Vec<Vec<Expr>>,
+    },
     Collection(IdentifierPath),
     Cte(String),
     Aliased {
@@ -52,6 +55,16 @@ pub enum QuerySource {
 impl PartialEq for QuerySource {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Values { rows: left }, Self::Values { rows: right }) => {
+                left.len() == right.len()
+                    && left.iter().zip(right).all(|(left, right)| {
+                        left.len() == right.len()
+                            && left
+                                .iter()
+                                .zip(right)
+                                .all(|(left, right)| left.structurally_eq(right))
+                    })
+            }
             (Self::Collection(left), Self::Collection(right)) => left == right,
             (Self::Cte(left), Self::Cte(right)) => left == right,
             (

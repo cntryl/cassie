@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1538,
-    "rust_files": 1507,
-    "rust_test_declarations": 5477,
+    "files": 1539,
+    "rust_files": 1508,
+    "rust_test_declarations": 5486,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5605,
+    "registered_rust_instances": 5614,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -71583,6 +71583,37 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/grammar/values_errors.rs::should_reject_values_column_type_conflicts_given_unknown_parameters_when_parse_flush_runs",
+      "name": "should_reject_values_column_type_conflicts_given_unknown_parameters_when_parse_flush_runs",
+      "current_file": "tests/pgwire_extended/grammar/values_errors.rs",
+      "line": 137,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::grammar_values_errors::should_reject_values_column_type_conflicts_given_unknown_parameters_when_parse_flush_runs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/values_errors.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/grammar/values_typed_source_descriptors.rs::should_describe_derived_values_default_columns_with_mixed_nulls",
       "name": "should_describe_derived_values_default_columns_with_mixed_nulls",
       "current_file": "tests/pgwire_extended/grammar/values_typed_source_descriptors.rs",
@@ -71596,6 +71627,68 @@
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::postgresql18_grammar::values_typed_source_descriptors::should_describe_derived_values_default_columns_with_mixed_nulls"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/values_typed_source_descriptors.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/values_typed_source_descriptors.rs::should_preserve_exact_bigint_values_given_unknown_values_parameter_oids_when_binary_portals_execute",
+      "name": "should_preserve_exact_bigint_values_given_unknown_values_parameter_oids_when_binary_portals_execute",
+      "current_file": "tests/pgwire_extended/grammar/values_typed_source_descriptors.rs",
+      "line": 49,
+      "end_line": 99,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_grammar::values_typed_source_descriptors::should_preserve_exact_bigint_values_given_unknown_values_parameter_oids_when_binary_portals_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/values_typed_source_descriptors.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/values_typed_source_descriptors.rs::should_preserve_unconstrained_character_parameters_given_a_values_type_context_when_parse_and_bind_execute",
+      "name": "should_preserve_unconstrained_character_parameters_given_a_values_type_context_when_parse_and_bind_execute",
+      "current_file": "tests/pgwire_extended/grammar/values_typed_source_descriptors.rs",
+      "line": 102,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_grammar::values_typed_source_descriptors::should_preserve_unconstrained_character_parameters_given_a_values_type_context_when_parse_and_bind_execute"
         }
       ],
       "attributes": [
@@ -146417,6 +146510,192 @@
       }
     },
     {
+      "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_parameter_identities_given_typed_values_columns_when_boolean_and_bigint_results_are_described",
+      "name": "should_preserve_parameter_identities_given_typed_values_columns_when_boolean_and_bigint_results_are_described",
+      "current_file": "tests/sql_queries/relations/values_admission.rs",
+      "line": 9,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_admission::should_preserve_parameter_identities_given_typed_values_columns_when_boolean_and_bigint_results_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_admission.rs::should_release_values_owners_given_result_and_memory_limits_when_follow_up_queries_execute",
+      "name": "should_release_values_owners_given_result_and_memory_limits_when_follow_up_queries_execute",
+      "current_file": "tests/sql_queries/relations/values_admission.rs",
+      "line": 53,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_admission::should_release_values_owners_given_result_and_memory_limits_when_follow_up_queries_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_values_text_given_different_varchar_typmods_when_unknown_literals_are_coerced",
+      "name": "should_preserve_values_text_given_different_varchar_typmods_when_unknown_literals_are_coerced",
+      "current_file": "tests/sql_queries/relations/values_admission.rs",
+      "line": 96,
+      "end_line": 117,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_admission::should_preserve_values_text_given_different_varchar_typmods_when_unknown_literals_are_coerced"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_values_character_identity_given_mixed_text_types_when_padding_is_coerced",
+      "name": "should_preserve_values_character_identity_given_mixed_text_types_when_padding_is_coerced",
+      "current_file": "tests/sql_queries/relations/values_admission.rs",
+      "line": 120,
+      "end_line": 157,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_admission::should_preserve_values_character_identity_given_mixed_text_types_when_padding_is_coerced"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_admission.rs::should_validate_nested_ctes_given_a_values_body_when_a_declared_relation_is_missing",
+      "name": "should_validate_nested_ctes_given_a_values_body_when_a_declared_relation_is_missing",
+      "current_file": "tests/sql_queries/relations/values_admission.rs",
+      "line": 160,
+      "end_line": 171,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_admission::should_validate_nested_ctes_given_a_values_body_when_a_declared_relation_is_missing"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_integer_operator_width_given_values_rows_when_addition_is_evaluated",
+      "name": "should_preserve_integer_operator_width_given_values_rows_when_addition_is_evaluated",
+      "current_file": "tests/sql_queries/relations/values_admission.rs",
+      "line": 174,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_admission::should_preserve_integer_operator_width_given_values_rows_when_addition_is_evaluated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/relations/values_rows.rs::should_return_default_column_names_from_standalone_values",
       "name": "should_return_default_column_names_from_standalone_values",
       "current_file": "tests/sql_queries/relations/values_rows.rs",
@@ -182369,9 +182648,9 @@
       "current_file": "tests/pgwire_extended/grammar/values_errors.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 134,
-      "sha256": "0be377898842efa4192d06ec6bb4a98be40ced0a99e84eb27f5c31b5a5868769",
-      "test_declarations": 3,
+      "lines": 170,
+      "sha256": "f8668e6d8834394782fa6df7e33d7b126ac7df7cd0a7d49707963235c0b6d5d9",
+      "test_declarations": 4,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -182384,9 +182663,9 @@
       "current_file": "tests/pgwire_extended/grammar/values_typed_source_descriptors.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 46,
-      "sha256": "774fa4b72a32090afea99e134b885f5bc17000490c73340cfb693d30552f20a7",
-      "test_declarations": 1,
+      "lines": 146,
+      "sha256": "7e22e9e32b2e794d0edbb9784afc34f775bbf8736ed919e8773c254c37a33eb1",
+      "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -190844,8 +191123,8 @@
       "current_file": "tests/sql_queries/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 75,
-      "sha256": "6149c66e93ff651042210fd2edbd94f9f0e22550aa733c44b239ccd81bab45d7",
+      "lines": 78,
+      "sha256": "e3a45c1f6cd1a84edca5e6d089b98b85e62cf04090045ac7c7d4bea30099ccb3",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -191197,6 +191476,21 @@
       ],
       "destinations": [
         "tests/sql_queries/relations/relations.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/relations/values_admission.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 186,
+      "sha256": "387de4faa64d84f48df53c145b6cc4d7205ca281cd7614b80eb191a2e704e591",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/relations/values_admission.rs"
       ],
       "line_limit": 1000
     },

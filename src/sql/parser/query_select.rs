@@ -11,6 +11,8 @@ use crate::sql::parser::order_ordinals::resolve_order_ordinals;
 
 #[path = "pagination.rs"]
 mod pagination;
+#[path = "values.rs"]
+mod values;
 
 pub(super) fn parse_select_statement(
     sql: &str,
@@ -31,6 +33,10 @@ pub(super) fn parse_select_statement(
             set_len,
             set_operator,
         );
+    }
+
+    if crate::sql::parser::lexical::pattern_end(trimmed, 0, "values").is_some() {
+        return values::parse(trimmed, withs, recursive);
     }
 
     let after_select = crate::sql::parser::lexical::trim_separators(&trimmed[6..]);
@@ -332,7 +338,9 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
 }
 
 fn ensure_select_statement(sql: &str) -> Result<(), SqlError> {
-    if crate::sql::parser::lexical::pattern_end(sql, 0, "select").is_some() {
+    if crate::sql::parser::lexical::pattern_end(sql, 0, "select").is_some()
+        || crate::sql::parser::lexical::pattern_end(sql, 0, "values").is_some()
+    {
         Ok(())
     } else {
         Err(SqlError::new(

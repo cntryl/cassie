@@ -28,6 +28,8 @@ pub(super) fn columns(
     scope: &CteScope,
 ) -> Result<Vec<(String, String)>, CassieError> {
     let (names, implicit_identity) = match source {
+        QuerySource::Values { rows } => (super::values::names(rows).collect(), false),
+
         QuerySource::Collection(name) => {
             let schema = super::inference::relation_output_schema(catalog, name)?;
             let implicit = catalog.get_view(name).is_none()
@@ -186,7 +188,7 @@ fn namespaces(
             fields: columns(source, &[], catalog, scope)?,
             reserved_identity: false,
         }),
-        QuerySource::SingleRow => {}
+        QuerySource::Values { .. } | QuerySource::SingleRow => {}
     }
     Ok(())
 }

@@ -293,6 +293,10 @@ pub(super) fn infer_source_schema_with_outer(
     outer_fields: Option<&Schema>,
 ) -> Result<Schema, CassieError> {
     let schema = match source {
+        QuerySource::Values { rows } => {
+            super::values::schema(rows, user_functions, parameter_types)?
+        }
+
         QuerySource::Aliased { source, alias, .. } => {
             let mut schema = infer_source_schema_with_outer(
                 source,
@@ -376,6 +380,7 @@ pub(super) fn infer_source_schema_with_outer(
             QuerySource::Collection(name) => qualify_schema(&schema, name),
             QuerySource::Cte(name) => qualify_schema(&schema, name),
             QuerySource::SingleRow
+            | QuerySource::Values { .. }
             | QuerySource::Aliased { .. }
             | QuerySource::TableFunction { .. }
             | QuerySource::Subquery { .. }

@@ -494,6 +494,15 @@ fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
 }
 
 fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
+    if message.starts_with("VALUES types ") && message.ends_with(" cannot be matched") {
+        return bad_request_descriptor("42804", message.to_string());
+    }
+    if message.starts_with("table \"")
+        && message.contains(" columns available but ")
+        && message.ends_with(" columns specified")
+    {
+        return bad_request_descriptor("42P10", message.to_string());
+    }
     if message == "negative substring length not allowed" {
         return bad_request_descriptor("22011", message.to_owned());
     }

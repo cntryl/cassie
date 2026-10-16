@@ -127,6 +127,12 @@ fn visit_items(items: &mut [SelectItem], visitor: &mut Visitor<'_>) -> Result<()
 
 fn visit_source(source: &mut QuerySource, visitor: &mut Visitor<'_>) -> Result<(), CassieError> {
     match source {
+        QuerySource::Values { rows } => {
+            for expr in rows.iter_mut().flatten() {
+                visit_expr(expr, visitor)?;
+            }
+        }
+
         QuerySource::Aliased { source, .. } => visit_source(source, visitor)?,
         QuerySource::Subquery { select, .. } => visit_select(select, visitor)?,
         QuerySource::Join {

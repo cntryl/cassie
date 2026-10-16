@@ -174,6 +174,69 @@ impl Expr {
         }
     }
 
+    /// Mutates each direct sub-expression in structural order.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error produced by `visit`.
+    pub fn try_visit_children_mut<E>(
+        &mut self,
+        mut visit: impl FnMut(&mut Expr) -> Result<(), E>,
+    ) -> Result<(), E> {
+        match self {
+            Self::Binary { left, right, .. } => {
+                visit(left)?;
+                visit(right)?;
+            }
+            Self::Cast { expr, .. } | Self::Not { expr } | Self::IsNull { expr, .. } => {
+                visit(expr)?;
+            }
+            Self::Between {
+                expr, low, high, ..
+            } => {
+                visit(expr)?;
+                visit(low)?;
+                visit(high)?;
+            }
+            Self::InList { expr, values, .. } => {
+                visit(expr)?;
+                for value in values {
+                    visit(value)?;
+                }
+            }
+            Self::Case {
+                operand,
+                branches,
+                else_expr,
+            } => {
+                if let Some(operand) = operand {
+                    visit(operand)?;
+                }
+                for (when, then) in branches {
+                    visit(when)?;
+                    visit(then)?;
+                }
+                if let Some(otherwise) = else_expr {
+                    visit(otherwise)?;
+                }
+            }
+            Self::Function(function) => {
+                for argument in function.expressions_mut() {
+                    visit(argument)?;
+                }
+            }
+            Self::Column(_)
+            | Self::Param(_)
+            | Self::StringLiteral(_)
+            | Self::NumberLiteral(_)
+            | Self::IntegerLiteral(_)
+            | Self::BoolLiteral(_)
+            | Self::Null
+            | Self::Exists(_) => {}
+        }
+        Ok(())
+    }
+
     /// Returns the first `Some` produced by `visit` over direct sub-expressions.
     pub fn find_map_child<'a, T>(
         &'a self,

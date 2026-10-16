@@ -171,6 +171,8 @@ fn select(query: &SelectStatement) -> Result<(), CassieError> {
 
 fn source(query: &QuerySource) -> Result<(), CassieError> {
     match query {
+        QuerySource::Values { rows } => rows.iter().flatten().try_for_each(expression)?,
+
         QuerySource::Aliased { source: query, .. } => source(query)?,
         QuerySource::Subquery { select: query, .. } => select(query)?,
         QuerySource::Join {

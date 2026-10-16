@@ -27,7 +27,7 @@ fn source_claims(source: &QuerySource, qualifier: &str) -> bool {
         QuerySource::Join { left, right, .. } => {
             source_claims(left, qualifier) || source_claims(right, qualifier)
         }
-        QuerySource::SingleRow => false,
+        QuerySource::Values { .. } | QuerySource::SingleRow => false,
     }
 }
 

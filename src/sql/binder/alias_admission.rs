@@ -160,7 +160,7 @@ impl Walk<'_> {
                     .extend(crate::catalog::qualifier_variants(name));
                 false
             }
-            QuerySource::SingleRow => false,
+            QuerySource::Values { .. } | QuerySource::SingleRow => false,
         })
     }
 

@@ -80,7 +80,7 @@ pub(super) fn null_row(
         QuerySource::Collection(name) => Some(name.to_string()),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => Some(name.clone()),
         QuerySource::Subquery { alias, .. } => Some(alias.clone()),
-        QuerySource::SingleRow | QuerySource::Join { .. } => None,
+        QuerySource::Values { .. } | QuerySource::SingleRow | QuerySource::Join { .. } => None,
     };
     Ok(match qualifier {
         Some(qualifier) => qualify_row(row, &qualifier),

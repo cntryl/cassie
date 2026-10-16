@@ -194,6 +194,17 @@ fn validate_source_predicates(
     context: &BindingContext,
 ) -> Result<(), CassieError> {
     match source {
+        QuerySource::Values { rows } => {
+            super::values::coerce(
+                rows,
+                &std::collections::HashMap::new(),
+                types.parameter_types(),
+            )?;
+            for expr in rows.iter_mut().flatten() {
+                validate_expression(expr, types, catalog, context)?;
+            }
+        }
+
         QuerySource::Aliased { source, .. } => {
             validate_source_predicates(source, types, catalog, context)?;
         }
@@ -519,7 +530,10 @@ fn resolve_nested_source(
             resolve_nested_source(left, names, catalog, context)?;
             resolve_nested_source(right, names, catalog, context)?;
         }
-        QuerySource::Cte(_) | QuerySource::SingleRow | QuerySource::TableFunction { .. } => {}
+        QuerySource::Cte(_)
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow
+        | QuerySource::TableFunction { .. } => {}
     }
     Ok(())
 }

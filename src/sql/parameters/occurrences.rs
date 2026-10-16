@@ -147,6 +147,18 @@ impl<'a> Occurrences<'a> {
         })
     }
 
+    pub(super) fn values_width(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::ValuesWidth)
+    }
+
+    pub(super) fn values_types(
+        &mut self,
+        left: i32,
+        right: i32,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::ValuesTypes { left, right })
+    }
+
     pub(super) fn invalid_distinct_order(&mut self) -> Result<(), ParameterAdmissionError> {
         self.report(ParameterSemanticDiagnostic::DistinctAggregateOrder)
     }

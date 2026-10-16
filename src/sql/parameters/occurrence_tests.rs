@@ -284,6 +284,11 @@ fn should_bound_diagnostic_formatting_by_source_derived_capacities() {
             construct: BooleanConstruct::Where,
             actual: 1043,
         },
+        ParameterSemanticDiagnostic::ValuesWidth,
+        ParameterSemanticDiagnostic::ValuesTypes {
+            left: 23,
+            right: 25,
+        },
         ParameterSemanticDiagnostic::DistinctAggregateOrder,
         ParameterSemanticDiagnostic::MissingEquality { actual: 114 },
         ParameterSemanticDiagnostic::UndefinedFunction {

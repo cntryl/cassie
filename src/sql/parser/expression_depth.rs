@@ -93,6 +93,12 @@ fn select(query: &SelectStatement, depth: usize) -> Result<(), SqlError> {
 fn source(query: &QuerySource, depth: usize) -> Result<(), SqlError> {
     guard(depth)?;
     match query {
+        QuerySource::Values { rows } => {
+            for expr in rows.iter().flatten() {
+                validate(expr, depth + 1)?;
+            }
+        }
+
         QuerySource::Aliased { source: child, .. } => source(child, depth + 1)?,
         QuerySource::TableFunction { function, .. } => {
             for arg in function.expressions() {

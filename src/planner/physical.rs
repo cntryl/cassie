@@ -727,6 +727,7 @@ fn source_contains_join(source: &QuerySource) -> bool {
         QuerySource::Collection(_)
         | QuerySource::Cte(_)
         | QuerySource::TableFunction { .. }
+        | QuerySource::Values { .. }
         | QuerySource::SingleRow => false,
     }
 }

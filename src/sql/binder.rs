@@ -1,3 +1,5 @@
+#[path = "binder/values.rs"]
+pub(crate) mod values;
 pub(crate) use coalesce_coercion::has_float_domain as coalesce_has_float_domain;
 mod coalesce_coercion;
 mod result_coercion;
@@ -128,7 +130,9 @@ use schema::{
 };
 use schema_sequences::{bind_create_sequence, bind_drop_sequence};
 use select::bind_select;
-pub(crate) use source_schema::{derived_source_schema, joined_source_schema};
+pub(crate) use source_schema::{
+    derived_source_schema, derived_source_schema_with_parameters, joined_source_schema,
+};
 use validation::{
     collect_expr, collect_item, collect_projection_aliases, qualified_fields,
     recursive_cte_reference_count, recursive_cte_references_self, select_contains_parameters,
@@ -136,7 +140,10 @@ use validation::{
     validate_expression_references, validate_function_calls, validate_functions,
     validate_order_by_references, validate_projection_references, validate_select_operand_families,
 };
-pub(crate) use wildcard::{cte_row_fields, source_row_fields, wildcard_output_fields_and_identity};
+pub(crate) use wildcard::{
+    cte_row_fields, source_row_fields, wildcard_output_fields_and_identity,
+    wildcard_output_shape_with_parameters,
+};
 
 pub(crate) fn parameter_data_type_for_oid(oid: i32) -> Option<DataType> {
     inference::data_type_for_parameter_oid(oid)
@@ -212,7 +219,10 @@ fn source_collection(source: &QuerySource) -> Option<String> {
         QuerySource::Collection(collection) => Some(collection.to_string()),
         QuerySource::Subquery { select, .. } => source_collection(&select.source),
         QuerySource::Join { left, .. } => source_collection(left),
-        QuerySource::Cte(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => None,
+        QuerySource::Cte(_)
+        | QuerySource::TableFunction { .. }
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow => None,
     }
 }
 

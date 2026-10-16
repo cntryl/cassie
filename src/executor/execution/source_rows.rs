@@ -129,7 +129,10 @@ pub(in crate::executor::execution) fn source_contains_lateral(source: &QuerySour
         QuerySource::Subquery { lateral, .. } | QuerySource::TableFunction { lateral, .. } => {
             *lateral
         }
-        QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
+        QuerySource::Collection(_)
+        | QuerySource::Cte(_)
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow => false,
     }
 }
 

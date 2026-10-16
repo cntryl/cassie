@@ -113,6 +113,13 @@ fn parameter_count_cte_query(query: &ast::CteQuery) -> usize {
 
 fn parameter_count_query_source(source: &ast::QuerySource) -> usize {
     match source {
+        ast::QuerySource::Values { rows } => rows
+            .iter()
+            .flatten()
+            .map(parameter_count_expr)
+            .max()
+            .unwrap_or(0),
+
         ast::QuerySource::Aliased { source, .. } => parameter_count_query_source(source),
         ast::QuerySource::Collection(_)
         | ast::QuerySource::Cte(_)

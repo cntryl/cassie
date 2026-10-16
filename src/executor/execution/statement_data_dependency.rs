@@ -51,6 +51,8 @@ fn cte_query(query: &CteQuery) -> bool {
 
 fn source(query: &QuerySource) -> bool {
     match query {
+        QuerySource::Values { rows } => rows.iter().flatten().any(expression),
+
         QuerySource::SingleRow => false,
         QuerySource::Aliased { source: query, .. } => source(query),
         QuerySource::Subquery { select: query, .. } => select(query),

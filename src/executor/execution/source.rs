@@ -1,3 +1,5 @@
+#[path = "source_values.rs"]
+mod source_values;
 use super::plan_inspection;
 #[cfg(test)]
 use super::reserve_projection_output_before_building;
@@ -10,6 +12,7 @@ use super::{
     Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, QueryError,
     QueryExecutionControls, QuerySource, Value,
 };
+pub(super) use source_values::scratch_bytes as values_scratch_bytes;
 
 #[path = "source_join.rs"]
 mod source_join;
@@ -45,6 +48,7 @@ pub(super) fn execute_query_source(
     row_budget: Option<usize>,
 ) -> SourceExecution {
     let (mut batches, text_fields) = match source {
+        QuerySource::Values { rows } => source_values::execute(env, rows, row_budget),
         QuerySource::Aliased { source, alias, .. } => {
             let (batches, text_fields) =
                 execute_query_source(env, source, cte_context, false, outer_row, row_budget)?;

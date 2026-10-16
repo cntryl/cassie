@@ -197,6 +197,12 @@ fn infer_source_parameter_type_oids(
         return;
     }
     match source {
+        ast::QuerySource::Values { rows } => {
+            for expr in rows.iter().flatten() {
+                infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
+            }
+        }
+
         ast::QuerySource::Aliased { source, .. } => {
             infer_source_parameter_type_oids(source, field_types, catalog, oids);
         }

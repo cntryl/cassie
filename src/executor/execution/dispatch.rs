@@ -277,9 +277,10 @@ pub(super) fn source_has_cte_boundary(source: &crate::sql::ast::QuerySource) -> 
             source_has_cte_boundary(left) || source_has_cte_boundary(right)
         }
         QuerySource::Subquery { select, .. } => select_has_cte_boundary(select),
-        QuerySource::Collection(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => {
-            false
-        }
+        QuerySource::Collection(_)
+        | QuerySource::TableFunction { .. }
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow => false,
     }
 }
 
@@ -481,7 +482,10 @@ fn source_reads_materialized_projection(cassie: &Cassie, source: &QuerySource) -
             source_reads_materialized_projection(cassie, left)
                 || source_reads_materialized_projection(cassie, right)
         }
-        QuerySource::Cte(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => false,
+        QuerySource::Cte(_)
+        | QuerySource::TableFunction { .. }
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow => false,
     }
 }
 

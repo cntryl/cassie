@@ -132,3 +132,39 @@ fn should_return_type_errors_given_a_valid_values_control_when_column_types_are_
         "incompatible VALUES column types",
     );
 }
+
+#[test]
+fn should_reject_values_column_type_conflicts_given_unknown_parameters_when_parse_flush_runs() {
+    // Arrange
+    let cases = [
+        (
+            "VALUES ($1), (1::INT4), ('x'::TEXT)",
+            "42804",
+            "VALUES types integer and text cannot be matched",
+        ),
+        (
+            "VALUES ($1,$1),(1::BIGINT,'x'::TEXT)",
+            "42P08",
+            "inconsistent types deduced for parameter $1",
+        ),
+    ];
+    // Act
+    let outcomes = cases.map(|(sql, state, message)| {
+        (
+            run_script(
+                "values-parse-conflict",
+                vec![Step::ParseFlush(wire::parse_frame_with_types(
+                    "conflict",
+                    sql,
+                    &[0],
+                ))],
+            ),
+            state,
+            message,
+        )
+    });
+    // Assert
+    for (batches, state, message) in outcomes {
+        assert_error(&batches[0], state, message, "VALUES Parse conflict");
+    }
+}

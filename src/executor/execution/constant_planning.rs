@@ -32,8 +32,14 @@ use crate::sql::functions::FunctionId;
 /// # Errors
 ///
 /// Returns the folding error, such as division by zero.
-pub(super) fn check_plan(plan: &LogicalPlan) -> Result<(), QueryError> {
-    let folder = Folder::default();
+pub(super) fn check_plan(
+    plan: &LogicalPlan,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(), QueryError> {
+    let folder = Folder {
+        no_functions: HashMap::new(),
+        controls,
+    };
     folder.check_select(&SelectParts {
         ctes: &plan.ctes,
         source: &plan.source,
@@ -123,12 +129,12 @@ impl<'a> SelectParts<'a> {
     }
 }
 
-#[derive(Default)]
-struct Folder {
+struct Folder<'a> {
+    controls: &'a crate::runtime::QueryExecutionControls,
     no_functions: HashMap<String, FunctionMeta>,
 }
 
-impl Folder {
+impl Folder<'_> {
     fn check_select(&self, select: &SelectParts<'_>) -> Result<(), QueryError> {
         self.check_ctes(select)?;
         self.check_source(select.source)?;
@@ -187,6 +193,20 @@ impl Folder {
 
     fn check_source(&self, source: &QuerySource) -> Result<(), QueryError> {
         match source {
+            QuerySource::Values { rows } => {
+                for expression in rows.iter().flatten() {
+                    super::check_timeout(self.controls)?;
+                    let _scratch =
+                        self.controls
+                            .reserve_query_memory(super::source::values_scratch_bytes(
+                                expression,
+                                &[],
+                            )?)?;
+                    self.check(expression)?;
+                }
+                Ok(())
+            }
+
             QuerySource::Aliased { source, .. } => self.check_source(source),
             QuerySource::TableFunction { function, .. } => self.check_all(function.expressions()),
             QuerySource::Subquery { select, .. } => self.check_statement_select(select),
@@ -586,7 +606,8 @@ fn source_names(source: &QuerySource, names: &mut HashSet<String>) {
             source_names(left, names);
             source_names(right, names);
         }
-        QuerySource::TableFunction { .. } | QuerySource::SingleRow => {}
+        QuerySource::TableFunction { .. } | QuerySource::Values { .. } | QuerySource::SingleRow => {
+        }
     }
 }
 

@@ -201,6 +201,13 @@ pub(super) fn split_statement_and_returning(
 }
 
 pub(super) fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr>>, SqlError> {
+    parse_values_rows(values_part, parse_expr_token)
+}
+
+pub(super) fn parse_values_rows(
+    values_part: &str,
+    parse: fn(&str) -> Result<Expr, SqlError>,
+) -> Result<Vec<Vec<Expr>>, SqlError> {
     let mut rows = Vec::new();
     let mut rest = super::lexical::trim_separators(values_part);
 
@@ -224,7 +231,7 @@ pub(super) fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr
         rows.push(
             split_csv(values_raw)
                 .into_iter()
-                .map(parse_expr_token)
+                .map(parse)
                 .collect::<Result<Vec<_>, _>>()?,
         );
 

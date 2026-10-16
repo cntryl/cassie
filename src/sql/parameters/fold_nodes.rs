@@ -30,7 +30,7 @@ impl<'a> Fold<'a, '_> {
     ) -> Result<Option<Child<'a>>, ParameterAdmissionError> {
         loop {
             let frame = &mut self.frames.values[frame_index];
-            if frame.next >= children(frame.node) {
+            if frame.next >= children(frame.node)? {
                 return Ok(None);
             }
             let index = frame.next;
@@ -73,11 +73,17 @@ impl<'a> Fold<'a, '_> {
     }
 }
 
-fn children(node: Node<'_>) -> usize {
-    match node {
+fn children(node: Node<'_>) -> Result<usize, ParameterAdmissionError> {
+    Ok(match node {
         Node::Query(_) | Node::Item(_) => 1,
         Node::Select(_) => 11,
         Node::Source(source) => match source {
+            ast::QuerySource::Values { rows } => rows
+                .len()
+                .checked_mul(rows.first().map_or(0, Vec::len))
+                .ok_or_else(|| {
+                    ParameterAdmissionError::Memory("VALUES expression count overflow".into())
+                })?,
             ast::QuerySource::Join { .. } => 3,
             ast::QuerySource::Aliased { .. } | ast::QuerySource::Subquery { .. } => 1,
             ast::QuerySource::Collection(_)
@@ -100,7 +106,7 @@ fn children(node: Node<'_>) -> usize {
             }
         }
         Node::Window(_) => 3,
-    }
+    })
 }
 
 fn query_child(query: &QueryStatement) -> Option<Node<'_>> {
@@ -178,6 +184,11 @@ fn select_child(select: &ast::SelectStatement, index: usize) -> Option<Node<'_>>
 
 fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
     match source {
+        ast::QuerySource::Values { rows } => {
+            let width = rows.first()?.len();
+            rows.get(index / width)?.get(index % width).map(Node::Expr)
+        }
+
         ast::QuerySource::Aliased { source, .. } => Some(Node::Source(source)),
         ast::QuerySource::Subquery { select, .. } => Some(Node::Select(select)),
         ast::QuerySource::Join {

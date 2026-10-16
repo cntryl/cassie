@@ -120,7 +120,9 @@ fn source_resolves_id_to_identity(
             .is_some_and(|select| inner_resolves_id_to_identity(select, ctes, catalog)),
         // A table function's rows and the single synthetic row have no
         // document identity to resolve to, so `id` is left as written.
-        QuerySource::TableFunction { .. } | QuerySource::SingleRow => false,
+        QuerySource::TableFunction { .. } | QuerySource::Values { .. } | QuerySource::SingleRow => {
+            false
+        }
     }
 }
 

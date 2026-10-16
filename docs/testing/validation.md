@@ -389,6 +389,68 @@ Rust files remain under 1,000 lines. Inventory now contains 5,605 integration
 instances; the 968 library tests are additional. One SQL behavioral probe was
 added. No CI/release configuration or durable scalar layout changed.
 
-The next proposed batch is native typed VALUES sources under #800, using
-existing primitive types and a flat row-expression source. Its public AST
-variant requires direction under AGENTS.md; implementation has not begun.
+The current batch implements native flat VALUES sources under #800 using the
+existing primitive carriers. The user authorized idiomatic public API changes;
+`QuerySource::Values` retains row expressions as PostgreSQL's VALUES range-table
+entry does. `Expr::try_visit_children_mut` provides the matching mutable child
+visitor. No stored scalar or collection layout changes.
+
+The live #795 alias prerequisite is closed; its implemented alias foundation is
+consumed by this slice. #793 remains open for extended scalar/wire/storage
+contracts. Existing primitive identities are already specified by
+`docs/type-contract.md`; this slice introduces none of #793's new families.
+It does not claim either broad prerequisite or #800 complete. Standalone,
+FROM and CTE VALUES, per-column supported primitive common types, aliases, ordering,
+pagination, descriptors and typed parameters form the bundle. Functions and
+subqueries inside VALUES, correlated LATERAL, nonprimitive casts, NUMERIC/new
+carriers, row constructors, USING joins and TABLESAMPLE remain pending and
+unsupported. Native character probes exposed shared #796 gaps in padding and
+unconstrained bpchar typmods. Unconstrained CHAR VALUES columns deliberately
+reject 0A000 before output while that shared type path is pending; the native
+positive probes remain failing obligations, not exclusions. Existing bounded
+character casts retain their preexisting support boundary. Full PostgreSQL
+expression parity remains a dependency obligation.
+
+Initial batch evidence: parser 296/77, selected SQL 5/17 and wire 10/10. The SQL
+selection includes row constructors and USING joins outside this slice. Probes
+confirmed parser token shortcuts bypassed postfix casts, native-source result
+metadata was absent, and alias-count diagnostics exposed a private carrier.
+Those defects are refined in this batch. Native PostgreSQL 18.6 also confirms
+mixed VARCHAR typmods must be removed without truncating the longer row.
+Jev's first parameter gap probability was 0.66 and allocation gap was 0.30;
+focused probes cover binary BIGINT, incompatible columns at Parse, differing
+VARCHAR typmods, oversized CHAR during planning, nonprimitive nested CHAR array
+admission, result-row limits versus aggregate inputs, owner release and recovery.
+The refined review returned 0.34 for primitive parameter/expression admission
+and 0.20 for bounded evaluation. Its focused live probe confirmed the shared
+arithmetic gap: Cassie returned 2147483648 for an INT4 overflow inside VALUES,
+while PostgreSQL 18.6 rejects it. Arithmetic row expressions now reject before
+output pending the shared #796/#800 operator implementation, and the native
+positive probe remains red. No valid expected value or descriptor was weakened.
+
+A 1 KiB library admission regression exposed extra retained frame size from
+caching child counts. The refinement keeps the original frame size and obtains
+rectangular VALUES child counts with checked constant-time multiplication;
+row widths are checked once with cancellation checks. Malformed manual AST
+sources receive a bounded syntax diagnostic instead of an indexing panic.
+Final ordered validation and current-head evidence follow after execution.
+
+
+VALUES checkpoint readback: the final ordered binary build passed. The full
+locked test command passed library 968/0, analytics 179/0, backend CI 2/0 and
+benchmark operations 16/0, then stopped at catalog/security 139/209. Later
+integration targets were not run by that command. The independent complete
+parser run remained 296/77. The 49-case related SQL/wire run was 30/19; within
+its 23-case VALUES group, 20 pass and three native character/arithmetic probes
+remain red under #796/#800. Fifteen existing selected failures are now green;
+nine probes were added, six passing and three retaining pending obligations.
+
+Full workspace/all-target/all-feature pedantic Clippy and formatting passed.
+The touched-test validator required one naming refinement to express the
+binary BIGINT case as one behavior; its rebuilt exact wire case passed. All
+four touched-test validations now pass 27/27. Inventory refresh/check reports
+5,614 integration instances plus 968 library tests; no unregistered tests,
+module errors or touched Rust files above their limits. No test expectations,
+resource limits or lints were weakened. Build/test/review artifacts are in the
+ignored `target/green-values-*` files. This is a reviewable incremental
+checkpoint, not completion of #800 or a repository-wide green result.

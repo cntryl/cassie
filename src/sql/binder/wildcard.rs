@@ -90,7 +90,7 @@ pub(super) fn wildcard_output_fields_with_parameters(
         .map(|(fields, _)| fields)
 }
 
-fn wildcard_output_shape_with_parameters(
+pub(crate) fn wildcard_output_shape_with_parameters(
     source: &QuerySource,
     ctes: &[CommonTableExpression],
     catalog: &Catalog,
@@ -240,6 +240,10 @@ fn source_fields(
     outer_fields: Option<&Schema>,
 ) -> Result<Vec<FieldSchema>, CassieError> {
     match source {
+        QuerySource::Values { rows } => {
+            Ok(super::values::schema(rows, user_functions, parameter_types)?.fields)
+        }
+
         QuerySource::Aliased { source, .. } => source_fields(
             source,
             scope,
@@ -322,6 +326,7 @@ fn source_consumes_outer_fields(source: &QuerySource) -> bool {
         }
         QuerySource::Collection(_)
         | QuerySource::Cte(_)
+        | QuerySource::Values { .. }
         | QuerySource::SingleRow
         | QuerySource::TableFunction { .. } => false,
     }

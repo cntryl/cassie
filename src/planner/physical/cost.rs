@@ -255,6 +255,8 @@ fn estimated_source_rows<S: BuildHasher>(
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> u64 {
     match source {
+        QuerySource::Values { rows } => u64::try_from(rows.len()).unwrap_or(u64::MAX),
+
         QuerySource::Aliased { source, .. } => estimated_source_rows(source, cardinality_stats),
         QuerySource::Collection(collection) => collection_stats(collection, cardinality_stats)
             .map_or(PlanEstimates::DEFAULT_ROWS, |stats| stats.row_count),

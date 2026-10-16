@@ -226,7 +226,9 @@ fn parse_query_or_dml_statement(
         Ok(Some(parse_update_statement(trimmed)?))
     } else if starts_statement(lower, "delete") {
         Ok(Some(parse_delete_statement(trimmed)?))
-    } else if lexical::pattern_end(lower, 0, "select").is_some() {
+    } else if lexical::pattern_end(lower, 0, "select").is_some()
+        || lexical::pattern_end(lower, 0, "values").is_some()
+    {
         Ok(Some(parse_select_statement(trimmed, Vec::new(), false)?))
     } else if is_transaction_control_statement(lower) {
         Ok(Some(parse_transaction_statement(trimmed)?))

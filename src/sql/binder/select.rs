@@ -86,6 +86,7 @@ pub(super) fn bind_select_with_lateral_fields(
         bound_ctes.push(bound_cte);
     }
 
+    super::values::validate_aliases(&select.source)?;
     super::aliases::allocate_scope(&mut select)?;
     let source = bind_query_source_with_lateral_fields(
         select.source.clone(),
@@ -556,6 +557,11 @@ pub(super) fn bind_query_source_with_lateral_fields(
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
     match source {
+        QuerySource::Values { mut rows } => {
+            super::values::coerce(&mut rows, &HashMap::new(), &[])?;
+            Ok(QuerySource::Values { rows })
+        }
+
         QuerySource::Aliased {
             source,
             alias,
@@ -659,6 +665,8 @@ pub(super) fn source_fields(
     scope: &CteScope,
 ) -> Result<HashSet<String>, CassieError> {
     match source {
+        QuerySource::Values { rows } => Ok(super::values::names(rows).collect()),
+
         QuerySource::Aliased { source, alias, .. } => {
             let names = super::aliases::columns(source, &[], catalog, scope)?;
             let qualifier = super::aliases::qualifier(alias);

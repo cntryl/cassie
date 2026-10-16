@@ -34,6 +34,11 @@ impl BooleanConstruct {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ParameterSemanticDiagnostic {
     DistinctAggregateOrder,
+    ValuesWidth,
+    ValuesTypes {
+        left: i32,
+        right: i32,
+    },
     MissingEquality {
         actual: i32,
     },
@@ -64,6 +69,7 @@ impl ParameterSemanticDiagnostic {
         matches!(
             self,
             Self::DistinctAggregateOrder
+                | Self::ValuesTypes { .. }
                 | Self::MissingEquality { .. }
                 | Self::UndefinedFunction { .. }
                 | Self::BooleanOperand {
@@ -74,11 +80,12 @@ impl ParameterSemanticDiagnostic {
     }
     pub(crate) const fn code(self) -> &'static str {
         match self {
+            Self::ValuesWidth => "42601",
             Self::DistinctAggregateOrder => "42P10",
             Self::MissingEquality { .. } | Self::UndefinedFunction { .. } => "42883",
             Self::Inconsistent { .. } | Self::Indeterminate { .. } => "42P08",
             Self::Unresolved { .. } => "42P18",
-            Self::BooleanOperand { .. } => "42804",
+            Self::ValuesTypes { .. } | Self::BooleanOperand { .. } => "42804",
         }
     }
 
@@ -91,6 +98,12 @@ impl ParameterSemanticDiagnostic {
 
     pub(crate) fn message_capacity(self) -> usize {
         match self {
+            Self::ValuesWidth => "VALUES lists must all be the same length".len(),
+            Self::ValuesTypes { left, right } => {
+                "VALUES types  and  cannot be matched".len()
+                    + type_name(left).len()
+                    + type_name(right).len()
+            }
             Self::DistinctAggregateOrder => {
                 "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
                     .len()
@@ -127,6 +140,13 @@ impl ParameterSemanticDiagnostic {
 
     pub(crate) fn write_message(self, output: &mut impl Write) -> fmt::Result {
         match self {
+            Self::ValuesWidth => output.write_str("VALUES lists must all be the same length"),
+            Self::ValuesTypes { left, right } => write!(
+                output,
+                "VALUES types {} and {} cannot be matched",
+                type_name(left),
+                type_name(right)
+            ),
             Self::DistinctAggregateOrder => output.write_str(
                 "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list",
             ),
@@ -191,6 +211,8 @@ impl ParameterSemanticDiagnostic {
             | Self::BooleanOperand { .. }
             | Self::UndefinedFunction { .. }
             | Self::DistinctAggregateOrder
+            | Self::ValuesTypes { .. }
+            | Self::ValuesWidth
             | Self::MissingEquality { .. } => None,
         }
     }

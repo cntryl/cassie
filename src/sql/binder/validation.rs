@@ -465,6 +465,8 @@ pub(super) fn select_item_contains_parameters(item: &SelectItem) -> bool {
 
 pub(super) fn source_contains_parameters(source: &QuerySource) -> bool {
     match source {
+        QuerySource::Values { rows } => rows.iter().flatten().any(expr_contains_parameters),
+
         QuerySource::Aliased { source, .. } => source_contains_parameters(source),
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
         QuerySource::TableFunction { function, .. } => {
@@ -838,6 +840,12 @@ pub(super) fn collect_functions(statement: &SelectStatement, out: &mut Vec<Funct
 
 fn collect_source_functions(source: &QuerySource, out: &mut Vec<FunctionCall>) {
     match source {
+        QuerySource::Values { rows } => {
+            for expr in rows.iter().flatten() {
+                collect_expr(expr, out);
+            }
+        }
+
         QuerySource::Aliased { source, .. } => collect_source_functions(source, out),
         QuerySource::TableFunction { function, .. } => {
             out.push(function.clone());
@@ -935,7 +943,9 @@ fn source_cte_reference_count(source: &QuerySource, cte_name: &str) -> usize {
         QuerySource::Aliased { source, .. } => source_cte_reference_count(source, cte_name),
         QuerySource::Cte(name) => usize::from(name.eq_ignore_ascii_case(cte_name)),
         QuerySource::Collection(name) => usize::from(name.as_str().eq_ignore_ascii_case(cte_name)),
-        QuerySource::TableFunction { .. } | QuerySource::SingleRow => 0,
+        QuerySource::TableFunction { .. } | QuerySource::Values { .. } | QuerySource::SingleRow => {
+            0
+        }
         QuerySource::Subquery { select, .. } => {
             source_cte_reference_count(&select.source, cte_name)
         }

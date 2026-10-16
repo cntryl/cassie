@@ -73,3 +73,6 @@ mod set_returning_lateral_ordinality;
 
 #[path = "types/geometry/operator_nulls.rs"]
 mod types_geometry_operator_nulls;
+
+#[path = "relations/values_admission.rs"]
+mod postgresql18_values_admission;

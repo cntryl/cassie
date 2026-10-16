@@ -33,6 +33,7 @@ impl Fold<'_, '_> {
             ast::QuerySource::Aliased { .. }
             | ast::QuerySource::Join { .. }
             | ast::QuerySource::TableFunction { .. }
+            | ast::QuerySource::Values { .. }
             | ast::QuerySource::SingleRow => false,
         };
         if own {

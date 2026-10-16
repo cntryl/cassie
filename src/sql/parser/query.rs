@@ -36,7 +36,10 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
         remainder
     };
 
-    let select_pos = find_top_level_keyword(after_recursive, 0, "select")
+    let select_pos = ["select", "values"]
+        .iter()
+        .filter_map(|keyword| find_top_level_keyword(after_recursive, 0, keyword))
+        .min()
         .ok_or_else(|| SqlError::new("missing SELECT after WITH clause".into()))?;
 
     let cte_sql = after_recursive[..select_pos].trim();
@@ -45,7 +48,9 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
             "missing CTE definition in WITH clause".into(),
         ));
     }
-    if super::lexical::pattern_end(&after_recursive[select_pos..], 0, "select").is_none() {
+    if super::lexical::pattern_end(&after_recursive[select_pos..], 0, "select").is_none()
+        && super::lexical::pattern_end(&after_recursive[select_pos..], 0, "values").is_none()
+    {
         return Err(SqlError::new(
             "only SELECT statements are supported in this stage".into(),
         ));
@@ -478,18 +483,32 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
         let alias = super::lexical::pattern_end(alias_raw, 0, "as").map_or(alias_raw, |end| {
             super::lexical::trim_separators(&alias_raw[end..])
         });
-        if alias.is_empty() || alias.split_whitespace().count() != 1 {
-            return Err(SqlError::new(
-                "FROM subquery requires a deterministic alias".into(),
-            ));
-        }
-
         let parsed = parse_statement(subquery_sql)?;
         let QueryStatement::Select(select) = parsed.statement else {
             return Err(SqlError::new(
                 "FROM subquery must be a SELECT statement".into(),
             ));
         };
+        if matches!(select.source, QuerySource::Values { .. })
+            && select.ctes.is_empty()
+            && select.order.is_empty()
+            && select.limit.is_none()
+            && select.offset.is_none()
+            && select.set.is_none()
+        {
+            if lateral {
+                return Err(SqlError::unsupported(
+                    "lateral VALUES is not yet supported".into(),
+                ));
+            }
+            return relation_alias::parse(select.source, alias_raw);
+        }
+        if alias.is_empty() || alias.split_whitespace().count() != 1 {
+            return Err(SqlError::new(
+                "FROM subquery requires a deterministic alias".into(),
+            ));
+        }
+
         return Ok(QuerySource::Subquery {
             alias: alias.to_string(),
             select,

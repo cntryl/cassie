@@ -98,6 +98,21 @@ impl Analyzer<'_> {
     ) -> Result<SourceScope, CassieError> {
         self.check_controls()?;
         match source {
+            QuerySource::Values { rows } => {
+                let fields =
+                    super::super::values::schema(rows, self.functions, self.declared_oids)?
+                        .fields
+                        .into_iter()
+                        .map(|field| OutputField {
+                            name: field.name,
+                            value: super::OutputType::fixed(field.data_type),
+                            nullable: true,
+                            wildcard_identity: false,
+                        })
+                        .collect();
+                Ok(exported_scope(fields, &[]))
+            }
+
             QuerySource::Aliased { source, alias, .. } => {
                 let inner = self.source(source, ctes, outer_fields)?;
                 let qualifier = super::super::aliases::qualifier(alias);

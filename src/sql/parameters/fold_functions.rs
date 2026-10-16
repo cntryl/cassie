@@ -315,6 +315,53 @@ impl Fold<'_, '_> {
         Ok(())
     }
 
+    pub(super) fn values_columns(
+        &mut self,
+        rows: &[Vec<ast::Expr>],
+        frame: &Frame<'_>,
+    ) -> Result<(), ParameterAdmissionError> {
+        let width = rows.first().map_or(0, Vec::len);
+        // Transform every row before selecting common column types. In
+        // particular, repeated unknown parameters retain their creation OID
+        // until column coercion reports a conflicting demand as 42P08.
+        for column in 0..width {
+            let mut result = Summary::literal();
+            for row in 0..rows.len() {
+                check_controls(self.controls)?;
+                let summary = self.summaries.values[frame.start + row * width + column];
+                if !summary.qualified {
+                    result = Summary::unqualified();
+                    break;
+                }
+                let next = if matches!(result.oid, 25 | 1042 | 1043)
+                    && matches!(summary.oid, 25 | 1042 | 1043)
+                {
+                    Some(result.oid)
+                } else {
+                    common(result, summary)
+                };
+                let Some(next) = next else {
+                    self.occurrences.values_types(result.oid, summary.oid)?;
+                    result = Summary::unqualified();
+                    break;
+                };
+                result = Summary::known(next);
+            }
+            if !result.qualified {
+                continue;
+            }
+            if matches!(result.oid, 0 | 705) {
+                result = Summary::known(25);
+            }
+            for row in 0..rows.len() {
+                check_controls(self.controls)?;
+                let summary = &mut self.summaries.values[frame.start + row * width + column];
+                self.occurrences.coerce(summary, result.oid, true)?;
+            }
+        }
+        Ok(())
+    }
+
     fn common_function(&mut self, frame: &Frame<'_>) -> Result<Summary, ParameterAdmissionError> {
         let mut result = Summary::literal();
         for summary in &self.summaries.values[frame.start..] {

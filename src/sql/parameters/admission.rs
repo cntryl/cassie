@@ -394,7 +394,8 @@ impl Node<'_> {
             Self::Query(query) => query_children(query),
             Self::Select(_) => 11,
             Self::Source(source) => match source {
-                ast::QuerySource::Aliased { .. }
+                ast::QuerySource::Values { .. }
+                | ast::QuerySource::Aliased { .. }
                 | ast::QuerySource::TableFunction { .. }
                 | ast::QuerySource::Subquery { .. } => 1,
                 ast::QuerySource::Join { .. } => 3,
@@ -620,6 +621,8 @@ fn select_child(select: &ast::SelectStatement, index: usize) -> Option<Node<'_>>
 
 fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
     match source {
+        ast::QuerySource::Values { rows } => Some(Node::Rows(rows)),
+
         ast::QuerySource::Aliased { source, .. } => Some(Node::Source(source)),
         ast::QuerySource::TableFunction { function, .. } => Some(Node::Function(function)),
         ast::QuerySource::Subquery { select, .. } => Some(Node::Select(select)),

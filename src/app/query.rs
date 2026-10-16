@@ -794,6 +794,7 @@ fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> b
             query_source_uses_virtual_catalog(left) || query_source_uses_virtual_catalog(right)
         }
         crate::sql::ast::QuerySource::Cte(_)
+        | crate::sql::ast::QuerySource::Values { .. }
         | crate::sql::ast::QuerySource::SingleRow
         | crate::sql::ast::QuerySource::TableFunction { .. } => false,
     }

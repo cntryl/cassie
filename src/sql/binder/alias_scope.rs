@@ -82,7 +82,7 @@ fn scope_names(
         | QuerySource::Subquery { alias: name, .. } => {
             visible.extend(crate::catalog::qualifier_variants(name));
         }
-        QuerySource::SingleRow => {}
+        QuerySource::Values { .. } | QuerySource::SingleRow => {}
     }
 }
 
@@ -183,7 +183,7 @@ fn source_names(source: &QuerySource, names: &mut HashSet<String>) {
                 expression_names(expr, names);
             }
         }
-        QuerySource::SingleRow => {}
+        QuerySource::Values { .. } | QuerySource::SingleRow => {}
     }
 }
 

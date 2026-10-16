@@ -15,7 +15,9 @@ pub mod parser;
 mod source_identity;
 mod source_types;
 pub(crate) use source_identity::physical_collection;
-pub(crate) use source_types::source_field_type_map_with_ctes;
+pub(crate) use source_types::{
+    source_field_type_map_with_ctes, source_field_type_map_with_parameters,
+};
 
 pub use ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,

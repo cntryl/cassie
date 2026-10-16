@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1549,
-    "rust_files": 1518,
-    "rust_test_declarations": 5574,
+    "files": 1551,
+    "rust_files": 1520,
+    "rust_test_declarations": 5595,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5702,
+    "registered_rust_instances": 5723,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -76357,6 +76357,223 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/protocol/exact_numeric_literals.rs::should_report_numeric_range_errors_given_live_casts_when_statements_execute",
+      "name": "should_report_numeric_range_errors_given_live_casts_when_statements_execute",
+      "current_file": "tests/pgwire_extended/protocol/exact_numeric_literals.rs",
+      "line": 7,
+      "end_line": 26,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::exact_numeric_literals::should_report_numeric_range_errors_given_live_casts_when_statements_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/numeric",
+        "directory": "tests/pgwire_extended/types/numeric",
+        "file": "tests/pgwire_extended/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/exact_numeric_literals.rs::should_preserve_text_oid_given_exact_integer_casts_when_result_formats_vary",
+      "name": "should_preserve_text_oid_given_exact_integer_casts_when_result_formats_vary",
+      "current_file": "tests/pgwire_extended/protocol/exact_numeric_literals.rs",
+      "line": 29,
+      "end_line": 47,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::exact_numeric_literals::should_preserve_text_oid_given_exact_integer_casts_when_result_formats_vary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/numeric",
+        "directory": "tests/pgwire_extended/types/numeric",
+        "file": "tests/pgwire_extended/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/exact_numeric_literals.rs::should_preserve_float8_oid_given_exact_integer_casts_when_result_formats_vary",
+      "name": "should_preserve_float8_oid_given_exact_integer_casts_when_result_formats_vary",
+      "current_file": "tests/pgwire_extended/protocol/exact_numeric_literals.rs",
+      "line": 50,
+      "end_line": 74,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::exact_numeric_literals::should_preserve_float8_oid_given_exact_integer_casts_when_result_formats_vary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/numeric",
+        "directory": "tests/pgwire_extended/types/numeric",
+        "file": "tests/pgwire_extended/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/exact_numeric_literals.rs::should_recover_after_numeric_range_errors_given_sync_when_the_connection_is_reused",
+      "name": "should_recover_after_numeric_range_errors_given_sync_when_the_connection_is_reused",
+      "current_file": "tests/pgwire_extended/protocol/exact_numeric_literals.rs",
+      "line": 77,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::exact_numeric_literals::should_recover_after_numeric_range_errors_given_sync_when_the_connection_is_reused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/numeric",
+        "directory": "tests/pgwire_extended/types/numeric",
+        "file": "tests/pgwire_extended/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/exact_numeric_literals.rs::should_enforce_numeric_digit_limits_given_dead_integer_conversions_when_statements_are_parsed",
+      "name": "should_enforce_numeric_digit_limits_given_dead_integer_conversions_when_statements_are_parsed",
+      "current_file": "tests/pgwire_extended/protocol/exact_numeric_literals.rs",
+      "line": 99,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::exact_numeric_literals::should_enforce_numeric_digit_limits_given_dead_integer_conversions_when_statements_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/numeric",
+        "directory": "tests/pgwire_extended/types/numeric",
+        "file": "tests/pgwire_extended/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/exact_numeric_literals.rs::should_preserve_varchar_typmods_given_exact_numeric_casts_when_result_formats_vary",
+      "name": "should_preserve_varchar_typmods_given_exact_numeric_casts_when_result_formats_vary",
+      "current_file": "tests/pgwire_extended/protocol/exact_numeric_literals.rs",
+      "line": 121,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::exact_numeric_literals::should_preserve_varchar_typmods_given_exact_numeric_casts_when_result_formats_vary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/numeric",
+        "directory": "tests/pgwire_extended/types/numeric",
+        "file": "tests/pgwire_extended/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/exact_numeric_literals.rs::should_preserve_supplied_parameter_slots_given_exact_numeric_casts_when_statements_are_described",
+      "name": "should_preserve_supplied_parameter_slots_given_exact_numeric_casts_when_statements_are_described",
+      "current_file": "tests/pgwire_extended/protocol/exact_numeric_literals.rs",
+      "line": 142,
+      "end_line": 187,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::exact_numeric_literals::should_preserve_supplied_parameter_slots_given_exact_numeric_casts_when_statements_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/numeric",
+        "directory": "tests/pgwire_extended/types/numeric",
+        "file": "tests/pgwire_extended/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/protocol/execution.rs::should_execute_binary_extended_query_lifecycle_return_backend_frames",
       "name": "should_execute_binary_extended_query_lifecycle_return_backend_frames",
       "current_file": "tests/pgwire_extended/protocol/execution.rs",
@@ -128868,6 +129085,440 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_preserve_decimal_digits_given_large_integer_tokens_when_text_casts_execute",
+      "name": "should_preserve_decimal_digits_given_large_integer_tokens_when_text_casts_execute",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 6,
+      "end_line": 24,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_preserve_decimal_digits_given_large_integer_tokens_when_text_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_normalize_radix_magnitudes_given_large_integer_tokens_when_text_casts_execute",
+      "name": "should_normalize_radix_magnitudes_given_large_integer_tokens_when_text_casts_execute",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 27,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_normalize_radix_magnitudes_given_large_integer_tokens_when_text_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_round_float8_once_given_exact_large_integer_tokens_when_explicit_conversion_executes",
+      "name": "should_round_float8_once_given_exact_large_integer_tokens_when_explicit_conversion_executes",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 51,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_round_float8_once_given_exact_large_integer_tokens_when_explicit_conversion_executes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_prune_integer_range_errors_given_dead_case_arms_when_numeric_tokens_are_exact",
+      "name": "should_prune_integer_range_errors_given_dead_case_arms_when_numeric_tokens_are_exact",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 68,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_prune_integer_range_errors_given_dead_case_arms_when_numeric_tokens_are_exact"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_prune_integer_range_errors_given_deciding_boolean_operands_when_numeric_casts_are_dead",
+      "name": "should_prune_integer_range_errors_given_deciding_boolean_operands_when_numeric_casts_are_dead",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 93,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_prune_integer_range_errors_given_deciding_boolean_operands_when_numeric_casts_are_dead"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_prune_integer_range_errors_given_nonnull_coalesce_input_when_numeric_casts_are_dead",
+      "name": "should_prune_integer_range_errors_given_nonnull_coalesce_input_when_numeric_casts_are_dead",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 108,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_prune_integer_range_errors_given_nonnull_coalesce_input_when_numeric_casts_are_dead"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_discard_numeric_conversions_given_unused_values_fields_when_source_constants_inline",
+      "name": "should_discard_numeric_conversions_given_unused_values_fields_when_source_constants_inline",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 121,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_discard_numeric_conversions_given_unused_values_fields_when_source_constants_inline"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_preserve_exact_text_given_values_aliases_when_source_constants_inline",
+      "name": "should_preserve_exact_text_given_values_aliases_when_source_constants_inline",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 134,
+      "end_line": 147,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_preserve_exact_text_given_values_aliases_when_source_constants_inline"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_preserve_bigint_minimum_given_cast_function_syntax_when_sign_belongs_to_operand",
+      "name": "should_preserve_bigint_minimum_given_cast_function_syntax_when_sign_belongs_to_operand",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 150,
+      "end_line": 160,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_preserve_bigint_minimum_given_cast_function_syntax_when_sign_belongs_to_operand"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_apply_varchar_width_given_exact_integer_digits_when_explicit_text_conversion_executes",
+      "name": "should_apply_varchar_width_given_exact_integer_digits_when_explicit_text_conversion_executes",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 163,
+      "end_line": 173,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_apply_varchar_width_given_exact_integer_digits_when_explicit_text_conversion_executes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_canonicalize_signs_given_leading_zero_integer_tokens_when_exact_text_casts_execute",
+      "name": "should_canonicalize_signs_given_leading_zero_integer_tokens_when_exact_text_casts_execute",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 176,
+      "end_line": 194,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_canonicalize_signs_given_leading_zero_integer_tokens_when_exact_text_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_reject_lossy_numeric_materialization_given_exact_integer_tokens_when_unsupported_carriers_are_requested",
+      "name": "should_reject_lossy_numeric_materialization_given_exact_integer_tokens_when_unsupported_carriers_are_requested",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 197,
+      "end_line": 219,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_reject_lossy_numeric_materialization_given_exact_integer_tokens_when_unsupported_carriers_are_requested"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_release_numeric_clone_reservations_given_repeated_values_fields_when_memory_admission_rejects_expansion",
+      "name": "should_release_numeric_clone_reservations_given_repeated_values_fields_when_memory_admission_rejects_expansion",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 222,
+      "end_line": 252,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_release_numeric_clone_reservations_given_repeated_values_fields_when_memory_admission_rejects_expansion"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/exact_numeric_literals.rs::should_store_existing_primitive_values_given_exact_numeric_casts_when_insert_select_executes",
+      "name": "should_store_existing_primitive_values_given_exact_numeric_casts_when_insert_select_executes",
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "line": 255,
+      "end_line": 273,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::exact_numeric_literals::should_store_existing_primitive_values_given_exact_numeric_casts_when_insert_select_executes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/exact_numeric_literals.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -185526,8 +186177,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 186,
-      "sha256": "0ae056ba42dec0bccceba0b336067aae00f3d2c08ebdf5cac8a2a34f966119f1",
+      "lines": 189,
+      "sha256": "dd0fe533239a169dc8df1102445595516bb96dea90d88603aa2b5b18a19fe1db",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -186119,6 +186770,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/protocol/cte.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/exact_numeric_literals.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 187,
+      "sha256": "0e4a1730d1cbd9da58486ad59da6b32e8293d59ae0b71f75a61c6b938be54a2c",
+      "test_declarations": 7,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/numeric/exact_numeric_literals.rs"
       ],
       "line_limit": 1000
     },
@@ -193263,6 +193929,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/casts/exact_numeric_literals.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 273,
+      "sha256": "7c6dc774762b406c349422eb3487109ca2d260e095e564b19f41d619a58069fc",
+      "test_declarations": 14,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/types/numeric/exact_numeric_literals.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/casts/integer_inputs.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -193942,8 +194623,8 @@
       "current_file": "tests/sql_queries/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 90,
-      "sha256": "151a81fa0239b626c76a6f69c5a35c504f6a51ed05ca531699274efc4249c904",
+      "lines": 93,
+      "sha256": "a935fcfa7f13a5b316496d74dce96229cfc179386912ef33bf6c450a024f43ba",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"

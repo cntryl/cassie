@@ -128,6 +128,19 @@ fn validate(expression: &Expr, float_context: bool) -> Result<(), CassieError> {
                 "unknown column {name:?} in VALUES"
             )))
         }
+        Expr::NumericLiteral(_) => {
+            return Err(CassieError::Unsupported(
+                "unmaterialized NUMERIC VALUES literals are not yet supported".into(),
+            ));
+        }
+        Expr::Cast {
+            expr,
+            data_type,
+            identity,
+            ..
+        } if matches!(expr.as_ref(), Expr::NumericLiteral(_)) => {
+            return super::boolean_contexts::validate_numeric_literal_cast(data_type, *identity);
+        }
         Expr::NumberLiteral(_) if !float_context => {
             return Err(CassieError::Unsupported(
                 "NUMERIC VALUES literals are not yet supported".into(),

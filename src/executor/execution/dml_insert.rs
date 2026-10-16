@@ -912,7 +912,8 @@ fn insert_expr_to_value(expr: &Expr, params: &[Value]) -> Result<Value, String> 
             .get(*index)
             .ok_or_else(|| format!("missing bind parameter ${}", index + 1))
             .cloned(),
-        Expr::Column(_)
+        Expr::NumericLiteral(_)
+        | Expr::Column(_)
         | Expr::Case { .. }
         | Expr::Function(_)
         | Expr::IsNull { .. }

@@ -70,6 +70,7 @@ impl Expr {
             | Self::StringLiteral(_)
             | Self::NumberLiteral(_)
             | Self::IntegerLiteral(_)
+            | Self::NumericLiteral(_)
             | Self::BoolLiteral(_)
             | Self::Null
             | Self::Exists(_) => {}
@@ -166,6 +167,7 @@ impl Expr {
             | Self::StringLiteral(_)
             | Self::NumberLiteral(_)
             | Self::IntegerLiteral(_)
+            | Self::NumericLiteral(_)
             | Self::BoolLiteral(_)
             | Self::Null
             | Self::Exists(_) => self.clone(),
@@ -262,6 +264,7 @@ impl Expr {
             | Self::StringLiteral(_)
             | Self::NumberLiteral(_)
             | Self::IntegerLiteral(_)
+            | Self::NumericLiteral(_)
             | Self::BoolLiteral(_)
             | Self::Null
             | Self::Exists(_) => {}
@@ -299,6 +302,7 @@ impl Expr {
     pub fn structurally_eq(&self, other: &Expr) -> bool {
         match (self, other) {
             (Self::Column(left), Self::Column(right))
+            | (Self::NumericLiteral(left), Self::NumericLiteral(right))
             | (Self::StringLiteral(left), Self::StringLiteral(right)) => left == right,
             (Self::Param(left), Self::Param(right)) => left == right,
             (Self::NumberLiteral(left), Self::NumberLiteral(right)) => {

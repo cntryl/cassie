@@ -417,6 +417,7 @@ pub(super) fn infer_parameter_type_oids_expr(
         | ast::Expr::StringLiteral(_)
         | ast::Expr::NumberLiteral(_)
         | ast::Expr::IntegerLiteral(_)
+        | ast::Expr::NumericLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => {}
     }

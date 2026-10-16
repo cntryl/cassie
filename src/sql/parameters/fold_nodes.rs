@@ -237,6 +237,7 @@ fn expression_children(expr: &ast::Expr) -> usize {
         | ast::Expr::StringLiteral(_)
         | ast::Expr::NumberLiteral(_)
         | ast::Expr::IntegerLiteral(_)
+        | ast::Expr::NumericLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => 0,
         ast::Expr::RowCompare(comparison) => comparison.left.len() + comparison.right.len(),
@@ -305,6 +306,7 @@ fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
         | ast::Expr::StringLiteral(_)
         | ast::Expr::NumberLiteral(_)
         | ast::Expr::IntegerLiteral(_)
+        | ast::Expr::NumericLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => None,
     }

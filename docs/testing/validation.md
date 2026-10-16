@@ -747,3 +747,75 @@ Final test-policy result: 126/126 pass across 15 touched files, including
 29/29 new functions after the three name corrections. Final formatting,
 refreshed inventory check (5,702 integration registrations/978 library tests),
 size and whitespace checks pass. Runtime assertions and pending probes are unchanged.
+
+## Exact transient integer literal batch after b08fbf84
+
+This #796/#812 prerequisite preserves overflowing decimal integer tokens as an
+exact, transient numeric AST leaf, distinct from quoted unknown strings. The
+bundle covers decimal digits and separators, radix magnitudes through u64,
+explicit existing integer/FLOAT8/TEXT/VARCHAR conversions, native signed-minimum
+syntax, CASE/Boolean/COALESCE pruning, single-row VALUES substitution, primitive
+wire descriptors and both result formats, range errors and connection recovery.
+Native PostgreSQL 18.6 witnesses are recorded in ignored
+`target/green-literals-native.json`. Quoted input validation before pruning,
+NUMERIC storage/output, decimal arithmetic, and radix magnitudes beyond u64 remain
+with their existing owners. No stored format or codec is introduced here.
+
+Implemented `Expr::NumericLiteral(String)` as exact normalized integer syntax,
+including the lifted positive magnitude of postfix INT8 minimum negation.
+Primitive casts share borrowed integer/FLOAT8 input and exact text conversion;
+VARCHAR truncates explicit numeric text conversion to its declared width.
+Structural traversal/equality, parameter counting/admission, feedback shapes,
+expression keys, scalar accounting and source-clone admission preserve the leaf.
+No numeric stored carrier, catalog format, or codec was added. A typed parser
+`NumericRange` classification reports native 22003 for more than 131,072
+significant decimal digits, even inside an otherwise dead conversion.
+
+Red evidence on b08fbf84: the initial SQL module passed 1/10 and wire passed 0/4;
+large tokens failed at parsing. The first implementation exposed explicit
+VARCHAR truncation and review found a VALUES coercion escape. Jev's escape
+probabilities 0.66 then 0.74 prompted focused probes: an uncast VALUES numeric
+incorrectly returned TEXT OID 25, while native PostgreSQL reports NUMERIC OID
+1700. The regression now requires explicit unsupported admission until #812;
+VALUES validates new leaves before generating implicit casts. The same selected
+cast gate rejects legacy NUMERIC/DECIMAL materialization of exact leaves.
+Final focused advisory gap probabilities were 0.25 for that escape and 0.15 for
+primitive cast rejection; passing Rust behavior remains the evidence.
+
+Final batch evidence:
+
+- New SQL module: 14/14 passed. New wire module: 7/7 passed. New AST identity and
+  serde regression: passed. All 22 new functions are green. The earlier retained
+  large-integer CASE pruning probe also passes.
+- Actual native extended protocol preserves supplied trailing parameter OIDs
+  23/20 and TEXT OID 25 through statement/portal descriptions and binary output.
+  Native sign, radix, digit-limit, cast/error and pruning witnesses are retained
+  under ignored `target/green-literals-native*` artifacts.
+- `cargo build --locked --bin cassie`: passed, including after cleanup.
+- `cargo test --locked`: library 979/0, analytics 179/0, backend CI 2/0 and
+  benchmark operations 16/0 passed; stopped at catalog/security 139/209. Later
+  targets were not executed by that command. This final broad run includes the
+  VALUES fix and precedes removal of one redundant `None` match arm for Clippy.
+- `cargo test --locked --lib --test sql_queries --test pgwire_extended --test parser_types --test pgwire_core --no-run`:
+  passed after cleanup.
+- Compiled-binary related selection after cleanup: 184/15 across 199 functions
+  (library 31/0, parser 2/0, SQL 92/6, wire 59/9). The remaining failures have their
+  existing subsystem owners. New modules and the retained numeric pruning probe
+  are included.
+- Complete parser target: 298/75. Complete wire-core target: 73/11. The earlier
+  296/77 parser checkpoint predates the already implemented FLOAT8/temporal
+  presentation fixes; its two now-passing tests are not attributed to this batch.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  passed after removing the redundant arm; no lint suppression was added.
+- `cargo fmt --all -- --check`: passed.
+- `cntryl-tools validate-tests -f <path>`: 25/25 across the two new modules and
+  touched AST test module.
+- Inventory refresh/check, touched Rust file limits and whitespace checks:
+  passed. Inventory records 5,723 integration registration instances; the library
+  has 979 tests. These are registration counts, not passing-suite claims.
+
+The two retained scalar-presentation probes still red are temporal VALUES
+admission (#800/#814) and quoted unknown-literal input errors before pruning
+(#796/#800). NUMERIC storage/output/arithmetic, implicit exact-numeric coercion
+and radix magnitudes beyond u64 remain pending under #812. Full parity, external
+qualification and an entirely green repository are not claimed.

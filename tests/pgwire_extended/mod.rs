@@ -184,3 +184,6 @@ mod postgresql18_values_constants;
 
 #[path = "protocol/scalar_presentation.rs"]
 mod postgresql18_scalar_presentation;
+
+#[path = "protocol/exact_numeric_literals.rs"]
+mod exact_numeric_literals;

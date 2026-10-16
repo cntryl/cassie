@@ -282,6 +282,9 @@ pub enum Expr {
     StringLiteral(String),
     NumberLiteral(f64),
     IntegerLiteral(i64),
+    /// Exact normalized decimal integer outside the existing signed carrier.
+    /// Materializes only through an explicitly supported primitive cast.
+    NumericLiteral(String),
     BoolLiteral(bool),
     Null,
     Case {

@@ -538,6 +538,7 @@ impl From<&Expr> for NormalizedExprShape {
             | Expr::StringLiteral(_)
             | Expr::NumberLiteral(_)
             | Expr::IntegerLiteral(_)
+            | Expr::NumericLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::Null => Self::Value,
             Expr::Exists(_) => Self::Exists,

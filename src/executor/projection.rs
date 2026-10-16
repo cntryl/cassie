@@ -410,6 +410,7 @@ fn projection_expr_key(expr: &Expr) -> String {
         Expr::BoolLiteral(value) => value.to_string(),
         Expr::NumberLiteral(value) => value.to_string(),
         Expr::IntegerLiteral(value) => value.to_string(),
+        Expr::NumericLiteral(value) => format!("numeric:{value}"),
         Expr::StringLiteral(value) => format!("'{value}'"),
         Expr::Function(function)
             if function.is_distinct()

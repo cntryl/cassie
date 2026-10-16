@@ -27,6 +27,7 @@ use std::collections::HashSet;
 pub enum SqlErrorKind {
     Syntax,
     Unsupported,
+    NumericRange,
     ResourceLimit,
 }
 
@@ -55,6 +56,14 @@ impl SqlError {
     pub fn unsupported(message: String) -> Self {
         Self {
             kind: SqlErrorKind::Unsupported,
+            message,
+        }
+    }
+
+    #[must_use]
+    pub fn numeric_range(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::NumericRange,
             message,
         }
     }

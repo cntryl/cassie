@@ -712,6 +712,7 @@ pub(crate) fn infer_expr_type(
         Expr::Function(function) => {
             infer_function_return_type(function, source_schema, user_functions, parameter_types)
         }
+        Expr::NumericLiteral(_) => None,
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
         Expr::IntegerNegate { width, .. } => Some(width.data_type()),

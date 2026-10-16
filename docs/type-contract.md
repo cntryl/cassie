@@ -357,3 +357,13 @@ unbound and unrelated casts leave it absent. Catalog definitions persist SQL
 and rebind against the schema. Full DateStyle, extra_float_digits, extended
 temporal families and native literal-input phase qualification remain pending.
 Executed evidence and the explicit pending probes remain in the validation log.
+
+`Expr::NumericLiteral` preserves normalized decimal integer magnitudes outside
+INT8 as transient syntax, distinct from quoted unknown strings. Explicit
+INT2/INT4/INT8, FLOAT8, TEXT and VARCHAR casts materialize existing primitive
+identities; numeric conversion errors remain eligible for native constant
+pruning. Integer tokens obey PostgreSQL's 131,072 significant decimal digit
+limit before pruning. Radix conversion currently extends through u64 only.
+Bare exact NUMERIC outputs and legacy NUMERIC/DECIMAL casts of these new leaves
+are explicitly unsupported, rather than publishing rounded FLOAT8 values.
+This AST addition introduces no stored NUMERIC carrier or persistent layout.

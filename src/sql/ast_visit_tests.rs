@@ -78,3 +78,18 @@ fn should_preserve_row_operator_identity_given_child_mapping_when_expression_sha
     assert!(fields[0].structurally_eq(&Expr::Param(0)));
     assert!(fields[1].structurally_eq(&Expr::Param(1)));
 }
+
+#[test]
+fn should_distinguish_numeric_tokens_given_equal_quoted_digits_when_ast_leaves_are_mapped() {
+    // Arrange
+    let numeric = Expr::NumericLiteral("9223372036854775808".into());
+    let quoted = Expr::StringLiteral("9223372036854775808".into());
+    // Act
+    let mapped = numeric.map_children(Clone::clone);
+    let encoded = serde_json::to_string(&mapped).expect("encode numeric AST");
+    let decoded: Expr = serde_json::from_str(&encoded).expect("decode numeric AST");
+    // Assert
+    assert!(numeric.structurally_eq(&mapped));
+    assert!(numeric.structurally_eq(&decoded));
+    assert!(!numeric.structurally_eq(&quoted));
+}

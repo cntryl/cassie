@@ -136,6 +136,7 @@ fn qualify_expression(expression: &mut Expr, types: &ResultTypes) {
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Exists(_) => {}
     }

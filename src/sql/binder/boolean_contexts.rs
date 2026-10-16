@@ -345,15 +345,7 @@ fn validate_expression(
         } => {
             validate_case(operand, branches, else_expr, types, catalog, context)?;
         }
-        Expr::Cast {
-            expr,
-            data_type,
-            source_type,
-            ..
-        } => {
-            validate_expression(expr, types, catalog, context)?;
-            *source_type = cast_source_type(expr, data_type, types, catalog);
-        }
+        expression @ Expr::Cast { .. } => validate_cast(expression, types, catalog, context)?,
         Expr::IntegerNegate { expr, .. } | Expr::IsNull { expr, .. } => {
             validate_expression(expr, types, catalog, context)?;
         }
@@ -384,6 +376,11 @@ fn validate_expression(
         Expr::Exists(statement) => {
             validate_nested_statement(statement, types, true, catalog, context)?;
         }
+        Expr::NumericLiteral(_) => {
+            return Err(CassieError::Unsupported(
+                "unmaterialized NUMERIC literal requires an explicit primitive cast".into(),
+            ))
+        }
         Expr::Column(_)
         | Expr::Param(_)
         | Expr::StringLiteral(_)
@@ -391,6 +388,52 @@ fn validate_expression(
         | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
+    }
+    Ok(())
+}
+
+fn validate_cast(
+    expression: &mut Expr,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let Expr::Cast {
+        expr,
+        data_type,
+        source_type,
+        identity,
+    } = expression
+    else {
+        unreachable!("only casts reach cast validation");
+    };
+    if matches!(expr.as_ref(), Expr::NumericLiteral(_)) {
+        validate_numeric_literal_cast(data_type, *identity)?;
+    } else {
+        validate_expression(expr, types, catalog, context)?;
+    }
+    *source_type = cast_source_type(expr, data_type, types, catalog);
+    Ok(())
+}
+
+pub(super) fn validate_numeric_literal_cast(
+    data_type: &DataType,
+    identity: crate::sql::ast::CastIdentity,
+) -> Result<(), CassieError> {
+    if identity != crate::sql::ast::CastIdentity::Scalar
+        || !matches!(
+            data_type,
+            DataType::SmallInt
+                | DataType::Int
+                | DataType::BigInt
+                | DataType::Float
+                | DataType::Text
+                | DataType::Varchar { .. }
+        )
+    {
+        return Err(CassieError::Unsupported(
+            "exact NUMERIC literal requires a supported primitive cast".into(),
+        ));
     }
     Ok(())
 }

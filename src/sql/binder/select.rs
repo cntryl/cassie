@@ -199,6 +199,7 @@ pub(super) fn canonicalize_typed_predicate_literals(
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_)

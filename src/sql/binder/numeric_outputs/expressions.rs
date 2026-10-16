@@ -52,6 +52,11 @@ impl Analyzer<'_> {
                 OutputType::common_result(&values)?
             }
             Expr::Function(function) => self.function(function, lookup)?,
+            Expr::NumericLiteral(_) => {
+                return Err(CassieError::Unsupported(
+                    "unmaterialized NUMERIC literal requires an explicit primitive cast".into(),
+                ))
+            }
             Expr::StringLiteral(_) => OutputType::fixed(DataType::Text),
             Expr::NumberLiteral(_) => {
                 let mut output = OutputType::fixed(DataType::Float);

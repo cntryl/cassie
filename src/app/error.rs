@@ -564,7 +564,10 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
         return bad_request_descriptor("42P10", message.to_string());
     }
     if message.eq_ignore_ascii_case("aggregate integer overflow")
-        || matches!(message, "smallint out of range" | "integer out of range")
+        || matches!(
+            message,
+            "smallint out of range" | "integer out of range" | "value overflows numeric format"
+        )
         || message.eq_ignore_ascii_case(crate::types::numeric::FLOAT_OVERFLOW)
         || message.eq_ignore_ascii_case(crate::executor::filter::BIGINT_OUT_OF_RANGE)
     {
@@ -681,6 +684,7 @@ impl From<crate::sql::SqlError> for CassieError {
     fn from(value: crate::sql::SqlError) -> Self {
         match value.kind() {
             crate::sql::SqlErrorKind::Syntax => CassieError::InvalidQuery(value.to_string()),
+            crate::sql::SqlErrorKind::NumericRange => CassieError::Execution(value.to_string()),
             crate::sql::SqlErrorKind::Unsupported => CassieError::Unsupported(value.to_string()),
             crate::sql::SqlErrorKind::ResourceLimit => {
                 CassieError::ResourceLimit(value.to_string())

@@ -21,11 +21,22 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
     let normalized = normalize_decimal(raw)?;
     let digits = normalized.strip_prefix(['+', '-']).unwrap_or(&normalized);
     if digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        if digits.trim_start_matches('0').len() > 131_072 {
+            return Err(SqlError::numeric_range(
+                "value overflows numeric format".into(),
+            ));
+        }
         return normalized
             .parse::<i64>()
             .map(Expr::IntegerLiteral)
             .map(Some)
-            .map_err(|_| unsupported_numeric(raw));
+            .or_else(|_| {
+                Ok(Some(Expr::NumericLiteral(format!(
+                    "{}{}",
+                    if normalized.starts_with('-') { "-" } else { "" },
+                    digits.trim_start_matches('0')
+                ))))
+            });
     }
     let value = normalized
         .parse::<f64>()
@@ -70,9 +81,16 @@ fn parse_radix(raw: &str, digits: &str, radix: u32) -> Result<Expr, SqlError> {
             .or_else(|| (value == 1u64 << 63).then_some(i64::MIN))
     } else {
         i64::try_from(value).ok()
-    }
-    .ok_or_else(|| unsupported_numeric(raw))?;
-    Ok(Expr::IntegerLiteral(signed))
+    };
+    Ok(signed.map_or_else(
+        || {
+            Expr::NumericLiteral(format!(
+                "{}{value}",
+                if raw.starts_with('-') { "-" } else { "" }
+            ))
+        },
+        Expr::IntegerLiteral,
+    ))
 }
 
 fn normalize_decimal(raw: &str) -> Result<Cow<'_, str>, SqlError> {

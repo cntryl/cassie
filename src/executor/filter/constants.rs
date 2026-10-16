@@ -15,6 +15,7 @@ pub(super) fn value<R: RowAccess + ?Sized>(
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => eval_scalar_with_context(row, expr, context).map(Some),
         Expr::Case {
@@ -44,10 +45,15 @@ pub(super) fn value<R: RowAccess + ?Sized>(
             expr: child,
             data_type,
             source_type,
-            ..
-        } => value(child, row, context)?
-            .map(|value| super::casts::scalar(&value, data_type, source_type.as_ref()))
-            .transpose(),
+            identity,
+        } => {
+            if let Expr::NumericLiteral(input) = child.as_ref() {
+                return super::casts::numeric_literal(input, data_type, *identity).map(Some);
+            }
+            value(child, row, context)?
+                .map(|value| super::casts::scalar(&value, data_type, source_type.as_ref()))
+                .transpose()
+        }
         Expr::IntegerNegate { expr, width } => value(expr, row, context)?
             .map(|value| super::integers::negate(&value, *width))
             .transpose(),
@@ -104,6 +110,7 @@ pub(super) fn logical<R: RowAccess + ?Sized>(
                 | Expr::StringLiteral(_)
                 | Expr::NumberLiteral(_)
                 | Expr::IntegerLiteral(_)
+                | Expr::NumericLiteral(_)
         ) {
             eval_scalar_with_context(row, operand, context)?.predicate_result()?;
         }

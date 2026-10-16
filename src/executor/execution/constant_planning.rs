@@ -319,6 +319,7 @@ impl Folder<'_> {
             Expr::StringLiteral(_)
             | Expr::NumberLiteral(_)
             | Expr::IntegerLiteral(_)
+            | Expr::NumericLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::Null => Ok(Fold::Constant),
             Expr::RowCompare(comparison) => self.fold_row(comparison),
@@ -698,6 +699,7 @@ const fn is_literal(expr: &Expr) -> bool {
         Expr::StringLiteral(_)
             | Expr::NumberLiteral(_)
             | Expr::IntegerLiteral(_)
+            | Expr::NumericLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::Null
     )

@@ -44,3 +44,44 @@ pub(super) fn scalar(
     }
     cast_scalar(value, target)
 }
+
+/// Conversions from exact integer NUMERIC tokens stay in the folding/runtime
+/// phase. They must never acquire unknown-string input semantics.
+pub(super) fn numeric_literal(
+    input: &str,
+    target: &DataType,
+    identity: crate::sql::ast::CastIdentity,
+) -> Result<ScalarValue, QueryError> {
+    if identity != crate::sql::ast::CastIdentity::Scalar {
+        return Err(QueryError::Cassie(crate::app::CassieError::Unsupported(
+            "exact NUMERIC literal conversion is not yet supported".into(),
+        )));
+    }
+    if let Some(width) = crate::types::IntegerWidth::from_data_type(target) {
+        return super::integers::input(input, width);
+    }
+    if *target == DataType::Float {
+        return crate::types::float_input::parse(input)
+            .map(ScalarValue::Float)
+            .map_err(|error| QueryError::Cassie(crate::app::CassieError::FloatInput(error)));
+    }
+    match target {
+        DataType::Text | DataType::Varchar { length: None } => {
+            return Ok(ScalarValue::Str(input.into()))
+        }
+        DataType::Varchar {
+            length: Some(length),
+        } => {
+            return Ok(ScalarValue::Str(
+                input
+                    .chars()
+                    .take(usize::try_from(*length).unwrap_or(usize::MAX))
+                    .collect(),
+            ))
+        }
+        _ => {}
+    }
+    Err(QueryError::General(
+        "NUMERIC literal conversion requires a supported primitive target".into(),
+    ))
+}

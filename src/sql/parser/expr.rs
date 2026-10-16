@@ -236,7 +236,7 @@ fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
     let mut expr = parse_expr_token(operand_sql)?;
     let negative_width = if cast_count > 0
         && operand_sql.starts_with('-')
-        && matches!(expr, Expr::IntegerLiteral(_))
+        && matches!(expr, Expr::IntegerLiteral(_) | Expr::NumericLiteral(_))
     {
         let last = cast_positions[cast_count - 1];
         crate::types::IntegerWidth::from_data_type(&parse_data_type(
@@ -246,14 +246,19 @@ fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
         None
     };
     if negative_width.is_some() {
-        let Expr::IntegerLiteral(value) = expr else {
-            unreachable!("integer literal checked above");
+        expr = match expr {
+            Expr::IntegerLiteral(value) => {
+                let magnitude = value.unsigned_abs();
+                i64::try_from(magnitude).map_or_else(
+                    |_| Expr::NumericLiteral(magnitude.to_string()),
+                    Expr::IntegerLiteral,
+                )
+            }
+            Expr::NumericLiteral(value) => {
+                Expr::NumericLiteral(value.trim_start_matches('-').into())
+            }
+            _ => unreachable!("integer literal checked above"),
         };
-        let magnitude = value.unsigned_abs();
-        expr = i64::try_from(magnitude).map_or_else(
-            |_| Expr::StringLiteral(magnitude.to_string()),
-            Expr::IntegerLiteral,
-        );
     }
     if cast_count > 0 {
         depth::validate(&expr, cast_count)?;

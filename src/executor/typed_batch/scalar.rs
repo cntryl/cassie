@@ -174,7 +174,7 @@ fn expression_weight(expr: &Expr) -> usize {
 
 fn literal_bytes(expr: &Expr, params: &[Value]) -> Result<usize, crate::app::CassieError> {
     let mut bytes = match expr {
-        Expr::StringLiteral(text) => Ok(text.len()),
+        Expr::StringLiteral(text) | Expr::NumericLiteral(text) => Ok(text.len()),
         Expr::Cast {
             data_type,
             source_type,

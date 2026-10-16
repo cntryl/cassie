@@ -309,6 +309,9 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),
         Expr::IntegerLiteral(value) => Ok(ScalarValue::Int(*value)),
+        Expr::NumericLiteral(_) => Err(QueryError::General(
+            "unmaterialized NUMERIC literal requires an explicit primitive cast".into(),
+        )),
         Expr::BoolLiteral(value) => Ok(ScalarValue::Bool(*value)),
         Expr::Null => Ok(ScalarValue::Null),
         Expr::Case {
@@ -954,6 +957,9 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
     identity: crate::sql::ast::CastIdentity,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    if let Expr::NumericLiteral(value) = expr {
+        return casts::numeric_literal(value, data_type, identity);
+    }
     let value = eval_scalar_with_context(row, expr, context)?;
     if identity == crate::sql::ast::CastIdentity::Scalar
         && *data_type == DataType::Float

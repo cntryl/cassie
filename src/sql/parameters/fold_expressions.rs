@@ -28,6 +28,7 @@ impl Fold<'_, '_> {
                 Ok(Summary::known(oid(&binder::integer_literal_type(*value))))
             }
             ast::Expr::NumberLiteral(_) => Ok(Summary::known(701)),
+            ast::Expr::NumericLiteral(_) => Ok(Summary::unqualified()),
             ast::Expr::Column(name) => Ok(self
                 .column_oid(frame.context, name)
                 .map_or_else(Summary::unqualified, Summary::known)),

@@ -623,6 +623,7 @@ pub(super) fn resolve_exists_expr<'a>(
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => Ok(expr.clone()),
         Expr::Function(function) => {
@@ -934,6 +935,7 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => 1,
     }

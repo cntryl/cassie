@@ -585,6 +585,7 @@ async fn write_simple_query_split_error(
 ) -> ConnectionStep {
     let (sqlstate, message, protocol_error) = match error {
         simple_query::SplitError::Syntax(message) => ("42601", message, true),
+        simple_query::SplitError::NumericRange(message) => ("22003", message, true),
         simple_query::SplitError::Unsupported(message) => ("0A000", message, true),
         simple_query::SplitError::ResourceLimit(message) => ("54000", message, false),
     };

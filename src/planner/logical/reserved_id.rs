@@ -263,6 +263,7 @@ fn rewrite_expr(expr: &mut Expr) {
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
     }

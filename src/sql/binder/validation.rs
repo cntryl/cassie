@@ -107,7 +107,9 @@ fn expression_operand_family(
             .filter(|data_type| !matches!(data_type, DataType::Null))
             .map(data_type_family)),
         Expr::StringLiteral(value) => Ok(Some(string_literal_family(value))),
-        Expr::NumberLiteral(_) | Expr::IntegerLiteral(_) => Ok(Some(OperandFamily::Numeric)),
+        Expr::NumberLiteral(_) | Expr::IntegerLiteral(_) | Expr::NumericLiteral(_) => {
+            Ok(Some(OperandFamily::Numeric))
+        }
         Expr::BoolLiteral(_) => Ok(Some(OperandFamily::Boolean)),
         Expr::Null | Expr::Param(_) | Expr::Exists(_) => Ok(None),
         Expr::Case {

@@ -635,6 +635,7 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => false,
     }

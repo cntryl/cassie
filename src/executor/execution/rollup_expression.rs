@@ -10,6 +10,7 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
         Expr::Column(name) if name == "*" => Ok("*".to_string()),
         Expr::Column(name) => Ok(quote_identifier(name)),
         Expr::Param(index) => Ok(format!("${}", index + 1)),
+        Expr::NumericLiteral(value) => Ok(value.clone()),
         Expr::StringLiteral(value) => Ok(format!("'{}'", value.replace('\'', "''"))),
         Expr::NumberLiteral(value) => format_float(*value),
         Expr::IntegerLiteral(value) => Ok(value.to_string()),

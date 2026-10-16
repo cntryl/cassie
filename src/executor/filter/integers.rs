@@ -74,3 +74,12 @@ pub(super) fn negate(value: &ScalarValue, width: IntegerWidth) -> Result<ScalarV
         )),
     }
 }
+
+pub(super) fn input(input: &str, width: IntegerWidth) -> Result<ScalarValue, QueryError> {
+    integer::parse(input, width)
+        .map(ScalarValue::Int)
+        .map_err(|error| match error {
+            IntegerInputError::Syntax => QueryError::General(width.syntax_message().into()),
+            IntegerInputError::Range => range(width),
+        })
+}

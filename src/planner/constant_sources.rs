@@ -268,7 +268,7 @@ fn clone_bound(
     }
     let mut bytes = 4 * size_of::<Expr>();
     match expr {
-        Expr::StringLiteral(text) | Expr::Column(text) => {
+        Expr::StringLiteral(text) | Expr::NumericLiteral(text) | Expr::Column(text) => {
             bytes = add(bytes, mul(text.capacity(), 4)?)?;
         }
         Expr::Cast {

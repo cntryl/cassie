@@ -88,3 +88,6 @@ mod postgresql18_values_constants;
 
 #[path = "casts/scalar_presentation.rs"]
 mod postgresql18_scalar_presentation;
+
+#[path = "casts/exact_numeric_literals.rs"]
+mod exact_numeric_literals;

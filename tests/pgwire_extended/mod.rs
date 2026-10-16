@@ -196,3 +196,6 @@ mod parse_analysis;
 
 #[path = "protocol/bind_planning.rs"]
 mod bind_planning;
+
+#[path = "protocol/cte_reachability.rs"]
+mod cte_reachability;

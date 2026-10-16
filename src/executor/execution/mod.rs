@@ -54,6 +54,7 @@ pub use types::{
 };
 
 mod constant_planning;
+mod cte_reachability;
 pub(crate) use constant_planning::check_plan as check_plan_constants;
 mod cte;
 mod dispatch;
@@ -158,3 +159,6 @@ pub(crate) use statement_visibility::JoinReadProbe;
 
 #[cfg(test)]
 mod exists_phase_tests;
+
+#[cfg(test)]
+mod cte_reachability_tests;

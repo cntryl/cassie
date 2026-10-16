@@ -110,7 +110,16 @@ pub fn pruned(label: &str, sql: &str) -> Vec<fixture::Frames> {
 pub fn assert_pruned(batches: &[fixture::Frames], oid: i32, text: &str) {
     assert_eq!(batches.len(), 10);
     for (i, batch) in batches.as_chunks::<5>().0.iter().enumerate() {
-        assert_eq!(batch[0][0].0, b'1');
+        assert_eq!(
+            batch[0][0].0,
+            b'1',
+            "Parse errors: {:?}",
+            batch[0]
+                .iter()
+                .filter(|frame| frame.0 == b'E')
+                .map(|frame| wire::parse_error_fields(&frame.1))
+                .collect::<Vec<_>>()
+        );
         fixture::assert_success(&batch[1]);
         assert_eq!(batch[2].iter().map(|f| f.0).collect::<Vec<_>>(), vec![b'2']);
         fixture::assert_success(&batch[3]);

@@ -188,7 +188,14 @@ fn execute_plan_with_physical(
     // A CTE body is an input relation: the result-row cap applies to the
     // final result only and must not truncate it.
     let cte_controls = env.controls.for_uncapped_input();
-    for cte in &plan.ctes {
+    let live_ctes = super::cte_reachability::used(
+        &super::cte_reachability::SelectParts::plan(plan),
+        &cte_controls,
+    )?;
+    for (index, cte) in plan.ctes.iter().enumerate() {
+        if !live_ctes.contains(index) {
+            continue;
+        }
         let rows = execute_cte(
             env.cassie,
             env.session,

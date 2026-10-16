@@ -1032,3 +1032,73 @@ INSERT parser defect superseded it; it is not counted as a completed gate.
 The final complete run above includes all runtime changes. Ignored
 `target/green-bind-*` files retain commands, native packets and test evidence.
 Full PostgreSQL parity and a green repository remain incomplete.
+
+## 2026-10-16 — CTE reachability and local EXISTS planning batch
+
+Bind constant checks and Execute materialization now share a borrowed,
+interruptible CTE dependency walk. Only reached SELECT definitions and their
+transitive dependencies are inspected or materialized. Nested scopes resolve
+names against the nearest visible definition; a nonrecursive CTE body sees
+preceding definitions, while an admitted recursive body can reference itself.
+The walk includes expression subqueries, joins, set branches, VALUES/table
+function inputs and pagination/window expressions. Qualified catalog relations
+do not become CTE references merely because their final name matches.
+Unused CTEs still undergo semantic binding: missing relations and columns retain
+native Parse errors. Non-SELECT definitions are conservatively retained; this
+does not implement data-modifying CTE support or its dependency semantics.
+
+The dependency stack and live masks reserve query memory before allocation.
+Cancellation/deadline checks and a 128-level traversal bound remain active;
+the returned mask owns its reservation until the caller releases it. Queries
+without local CTEs avoid scratch allocation. Local WITH definitions inside
+simplified EXISTS now undergo constant checks before irrelevant targets are
+pruned. The previous batch's unused-CTE Execute failure is resolved; its unary
+negation Parse expectation remains pending.
+
+The batch adds 48 functions: 38 wire and ten scope/resource controls. Initial
+red run of the first 24 wire functions was 9 passing / 15 failing. The expanded
+38-function wire run was 31/7 before the local EXISTS correction. Final focused
+results are wire 33/5 and controls 10/0, giving 43/48 new functions green.
+Five native expectations remain explicit: two subqueries-in-VALUES cases reject
+0A000, and three nested CTE outer-shape cases reject 42601 at Parse. These remain
+with #796/#800/#801; the dependency-only controls pass but do not qualify the
+complete wire behavior. No skips or weakened assertions were introduced.
+
+PostgreSQL 18.6 matched 72 text/binary phase/value probes and two independent
+unused-definition semantic Parse controls. Jev selected shared reachability at
+1.0; its initial gap probability 0.61 prompted eight expression/scope probes.
+Adversarial scope risk 0.63 and gap 0.39 prompted the same-name outer-read,
+nested-unused, qualified-relation and recursive-cycle controls. The last review
+still assigns gap 0.34; pending full nested-shape support stays linked to
+#800/#801. Jev is advisory; executed evidence defines support.
+
+A broader column-inference candidate was reverted after it admitted inputs whose
+Describe phase timed out or lost enclosing relation metadata. Its superseded
+focused run was cancelled; no partial binder change remains. Existing Parse
+rejection and the failing native expectations are preserved. Ignored
+`target/green-reachability-*` artifacts retain commands, native frames, review
+questions, dispositions and validation logs.
+
+Validation of the final runtime:
+
+- `cargo build --locked --bin cassie`: passed.
+- `cargo test --locked`: library 1,002/0, analytics 179/0, backend CI 2/0 and
+  benchmark operations 16/0 passed; catalog/security 139/209 stopped the run.
+  Later targets were compiled but not executed by that command.
+- Related compiled-binary selection: 323/20 across 343 functions (library 54/0,
+  parser selection 2/0, SQL 105/6, wire 162/14). Comparing failure identities
+  with the prior batch shows the unused-CTE expectation fixed, no prior passing
+  case newly failing, and only the five added pending cases newly red.
+- The broader SQL CTE-owner selection remains 0/31, with identical failure
+  identities before and after this batch; MATERIALIZED/SEARCH/CYCLE and other
+  complete-owner obligations remain open.
+- Full workspace/all-target/all-feature strict pedantic Clippy and formatting:
+  passed without lint suppression or CI/release configuration changes.
+- Touched wire/unit validators: 48/48 compliant; the changed support fixture
+  also validates. Global `cntryl-tools validate-tests`: 6,709/6,709 compliant.
+  These are source guideline counts, not runtime passing counts.
+- Inventory refresh/check, touched Rust file limits and whitespace: passed.
+  Inventory records 5,844 integration registration instances plus 1,002 library
+  tests, distinct from executed/passing totals. No benchmark timing is claimed.
+
+Full repository green and PostgreSQL qualification remain incomplete.

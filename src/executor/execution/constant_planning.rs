@@ -15,14 +15,14 @@
 //! once, at the outermost node that still folds. An `EXISTS` subquery is
 //! checked after discarding the clauses PostgreSQL drops from it.
 
+use super::cte_reachability::{self, SelectParts};
 use super::exists_target::ExistsClauses;
 use super::{filter, Expr, FunctionMeta, HashMap, LogicalCommand, LogicalPlan, QueryError};
-use super::{CommonTableExpression, CteQuery, HashSet, InsertSource, QuerySource};
+use super::{CteQuery, InsertSource, QuerySource};
 use super::{QueryStatement, SelectItem};
 use crate::executor::filter::ScalarValue;
 use crate::sql::ast::{
-    BinaryOp, FunctionCall, InsertConflictAction, OrderExpr, ParsedStatement, SelectSet,
-    SelectStatement,
+    BinaryOp, FunctionCall, InsertConflictAction, ParsedStatement, SelectStatement,
 };
 use crate::sql::functions::FunctionId;
 
@@ -41,17 +41,7 @@ pub(crate) fn check_plan(
         no_functions: HashMap::new(),
         controls,
     };
-    folder.check_select(&SelectParts {
-        ctes: &plan.ctes,
-        source: &plan.source,
-        projection: &plan.projection,
-        filter: plan.filter.as_ref(),
-        group_by: &plan.group_by,
-        having: plan.having.as_ref(),
-        order: &plan.order,
-        distinct_on: &plan.distinct_on,
-        set: plan.set.as_deref(),
-    })?;
+    folder.check_select(&SelectParts::plan(plan))?;
     match &plan.command {
         Some(LogicalCommand::Insert(insert)) => {
             match &insert.source {
@@ -108,34 +98,6 @@ enum Truth {
     Unknown,
 }
 
-struct SelectParts<'a> {
-    ctes: &'a [CommonTableExpression],
-    source: &'a QuerySource,
-    projection: &'a [SelectItem],
-    filter: Option<&'a Expr>,
-    group_by: &'a [Expr],
-    having: Option<&'a Expr>,
-    order: &'a [OrderExpr],
-    distinct_on: &'a [Expr],
-    set: Option<&'a SelectSet>,
-}
-
-impl<'a> SelectParts<'a> {
-    fn of(select: &'a SelectStatement) -> Self {
-        Self {
-            ctes: &select.ctes,
-            source: &select.source,
-            projection: &select.projection,
-            filter: select.filter.as_ref(),
-            group_by: &select.group_by,
-            having: select.having.as_ref(),
-            order: &select.order,
-            distinct_on: &select.distinct_on,
-            set: select.set.as_deref(),
-        }
-    }
-}
-
 struct Folder<'a> {
     controls: &'a crate::runtime::QueryExecutionControls,
     no_functions: HashMap<String, FunctionMeta>,
@@ -166,16 +128,9 @@ impl Folder<'_> {
         if select.ctes.is_empty() {
             return Ok(());
         }
-        let mut referenced = HashSet::new();
-        source_names(select.source, &mut referenced);
-        if let Some(set) = select.set {
-            select_names(&set.right, &mut referenced);
-        }
-        for cte in select.ctes {
-            cte_names(&cte.query, &mut referenced);
-        }
-        for cte in select.ctes {
-            if !referenced.contains(&cte.name.to_ascii_lowercase()) {
+        let live = cte_reachability::used(select, self.controls)?;
+        for (index, cte) in select.ctes.iter().enumerate() {
+            if !live.contains(index) {
                 continue;
             }
             match &cte.query {
@@ -235,6 +190,7 @@ impl Folder<'_> {
             return Ok(());
         };
         if ExistsClauses::of_select(select).target_is_irrelevant() {
+            self.check_ctes(&SelectParts::of(select))?;
             self.check_source(&select.source)?;
             self.check_all(&select.filter)
         } else {
@@ -628,52 +584,6 @@ impl Folder<'_> {
         } else {
             Fold::Constant
         })
-    }
-}
-
-/// Collects the relation names a FROM tree reads, through nested subqueries.
-fn source_names(source: &QuerySource, names: &mut HashSet<String>) {
-    match source {
-        QuerySource::Cte(name) => {
-            names.insert(name.to_ascii_lowercase());
-        }
-        QuerySource::Collection(path) => {
-            if let Some(name) = path.values().last() {
-                names.insert(name.to_ascii_lowercase());
-            }
-        }
-        QuerySource::Aliased { source, .. } => source_names(source, names),
-        QuerySource::Subquery { select, .. } => select_names(select, names),
-        QuerySource::Join { left, right, .. } => {
-            source_names(left, names);
-            source_names(right, names);
-        }
-        QuerySource::TableFunction { .. } | QuerySource::Values { .. } | QuerySource::SingleRow => {
-        }
-    }
-}
-
-fn select_names(select: &SelectStatement, names: &mut HashSet<String>) {
-    source_names(&select.source, names);
-    if let Some(set) = &select.set {
-        select_names(&set.right, names);
-    }
-    for cte in &select.ctes {
-        cte_names(&cte.query, names);
-    }
-}
-
-fn cte_names(query: &CteQuery, names: &mut HashSet<String>) {
-    let statements: [Option<&ParsedStatement>; 2] = match query {
-        CteQuery::Simple(statement) => [Some(statement), None],
-        CteQuery::Recursive {
-            base, recursive, ..
-        } => [Some(base), Some(recursive)],
-    };
-    for statement in statements.into_iter().flatten() {
-        if let QueryStatement::Select(select) = &statement.statement {
-            select_names(select, names);
-        }
     }
 }
 

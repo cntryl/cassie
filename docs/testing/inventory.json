@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1557,
-    "rust_files": 1526,
-    "rust_test_declarations": 5678,
+    "files": 1558,
+    "rust_files": 1527,
+    "rust_test_declarations": 5716,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5806,
+    "registered_rust_instances": 5844,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -77408,6 +77408,1184 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_unused_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_unused_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 5,
+      "end_line": 12,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_unused_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_dead_chain_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_dead_chain_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 15,
+      "end_line": 22,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_dead_chain_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_dead_branch_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_dead_branch_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 25,
+      "end_line": 32,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_dead_branch_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_live_chain_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_live_chain_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 35,
+      "end_line": 42,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_live_chain_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_aliases_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_aliases_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 45,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_aliases_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_nested_unused_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_nested_unused_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 55,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_nested_unused_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_shadow_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_shadow_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 65,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_shadow_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_shadow_dependency_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_shadow_dependency_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 75,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_shadow_dependency_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_outer_dependency_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_outer_dependency_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 85,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_outer_dependency_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_unused_recursive_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_unused_recursive_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 96,
+      "end_line": 104,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_unused_recursive_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_exists_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_exists_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 107,
+      "end_line": 114,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_exists_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_exists_shadow_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_exists_shadow_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 117,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_exists_shadow_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_set_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_set_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 127,
+      "end_line": 134,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_set_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_nested_dead_chain_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_nested_dead_chain_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 137,
+      "end_line": 144,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_nested_dead_chain_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_dead_cast_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_dead_cast_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 147,
+      "end_line": 154,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_dead_cast_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_dead_overflow_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_dead_overflow_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 157,
+      "end_line": 164,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_dead_overflow_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_shadow_body_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_shadow_body_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 167,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_shadow_body_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_exists_case_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_exists_case_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 177,
+      "end_line": 184,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_exists_case_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_exists_function_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_exists_function_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 187,
+      "end_line": 194,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_exists_function_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_exists_values_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_exists_values_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 197,
+      "end_line": 204,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_exists_values_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_exists_where_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_exists_where_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 207,
+      "end_line": 214,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_exists_where_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_direct_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_direct_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 217,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_direct_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_transitive_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_transitive_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 227,
+      "end_line": 237,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_transitive_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_nested_outer_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_nested_outer_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 240,
+      "end_line": 250,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_nested_outer_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_exists_filter_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_exists_filter_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 253,
+      "end_line": 263,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_exists_filter_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_join_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_join_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 266,
+      "end_line": 273,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_join_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_set_right_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_set_right_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 276,
+      "end_line": 286,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_set_right_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_live_cast_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_live_cast_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 289,
+      "end_line": 299,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_live_cast_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_live_overflow_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_live_overflow_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 302,
+      "end_line": 312,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_live_overflow_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_exists_case_error_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_exists_case_error_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 315,
+      "end_line": 322,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_exists_case_error_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_exists_function_error_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_exists_function_error_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 325,
+      "end_line": 335,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_exists_function_error_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_exists_values_error_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_exists_values_error_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 338,
+      "end_line": 348,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_exists_values_error_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_analyze_unused_relations_given_parse_flush_when_execution_would_prune_ctes",
+      "name": "should_analyze_unused_relations_given_parse_flush_when_execution_would_prune_ctes",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 351,
+      "end_line": 367,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_analyze_unused_relations_given_parse_flush_when_execution_would_prune_ctes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_analyze_unused_columns_given_parse_flush_when_execution_would_prune_ctes",
+      "name": "should_analyze_unused_columns_given_parse_flush_when_execution_would_prune_ctes",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 370,
+      "end_line": 386,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_analyze_unused_columns_given_parse_flush_when_execution_would_prune_ctes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_prune_exists_local_unused_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_prune_exists_local_unused_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 389,
+      "end_line": 396,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_prune_exists_local_unused_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_shadow_body_error_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_shadow_body_error_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 399,
+      "end_line": 409,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_shadow_body_error_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_exists_local_error_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_exists_local_error_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 412,
+      "end_line": 422,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_exists_local_error_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/cte_reachability.rs::should_plan_exists_local_chain_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "name": "should_plan_exists_local_chain_given_cte_scopes_when_binding_reaches_only_used_queries",
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "line": 425,
+      "end_line": 432,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::cte_reachability::should_plan_exists_local_chain_given_cte_scopes_when_binding_reaches_only_used_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/cte_reachability.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -188750,8 +189928,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 198,
-      "sha256": "ab6bb8beb6d4bec5531a5a25f1af3a65a7e846a147de0aaa22fc07326676025b",
+      "lines": 201,
+      "sha256": "88bff59de00cce4ced74cd0333af5fbf537fb019b1a687be30311b2810b22a6b",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -189358,6 +190536,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/protocol/cte.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/cte_reachability.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 432,
+      "sha256": "5cc118da6cb7a5c63889e9359afa6c5f9f33b08e58a7e0c6abbd6ddde6407744",
+      "test_declarations": 38,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/ctes/cte_reachability.rs"
       ],
       "line_limit": 1000
     },
@@ -198968,8 +200161,8 @@
       "current_file": "tests/support/bind_planning.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 140,
-      "sha256": "d4b0cb9c4e7341bbcd1316e1b5cf24ba71ec0ac9e277864e8e630baf4a67f2ca",
+      "lines": 149,
+      "sha256": "736a443b9c5a4d563745a57c8f0c5ad07ae8873f36fd404f8777fc565656d7d1",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

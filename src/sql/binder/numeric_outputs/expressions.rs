@@ -53,7 +53,8 @@ impl Analyzer<'_> {
             Expr::IntegerLiteral(value) => {
                 OutputType::fixed(inference::integer_literal_type(*value))
             }
-            Expr::BoolLiteral(_)
+            Expr::RowCompare(_)
+            | Expr::BoolLiteral(_)
             | Expr::Exists(_)
             | Expr::IsNull { .. }
             | Expr::InList { .. }

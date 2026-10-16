@@ -923,7 +923,7 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
                 && vector_prefilter_supported(low, schema)
                 && vector_prefilter_supported(high, schema)
         }
-        Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => false,
+        Expr::RowCompare(_) | Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => false,
     }
 }
 

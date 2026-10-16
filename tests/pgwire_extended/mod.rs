@@ -175,3 +175,6 @@ mod types_network_operator_errors;
 
 #[path = "grammar/integer_inputs.rs"]
 mod postgresql18_integer_inputs;
+
+#[path = "grammar/row_predicates.rs"]
+mod postgresql18_row_predicates;

@@ -289,12 +289,17 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
     )
 }
 
+#[path = "filter/row_predicates.rs"]
+mod row_predicates;
+pub(crate) use row_predicates::field_result as row_field_result;
+
 fn eval_scalar_with_context<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
     match expr {
+        Expr::RowCompare(comparison) => row_predicates::evaluate(row, comparison, context),
         Expr::Column(name) => Ok(eval_column_value(row, name, context.local_args)),
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),

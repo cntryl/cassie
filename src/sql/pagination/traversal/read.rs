@@ -202,6 +202,11 @@ impl Reader<'_> {
         self.guard(depth)?;
         match expr {
             Expr::Exists(statement) => self.statement(statement, depth + 1)?,
+            Expr::RowCompare(comparison) => {
+                for field in comparison.left.iter().chain(&comparison.right) {
+                    self.expr(field, depth + 1)?;
+                }
+            }
             Expr::Binary { left, right, .. } => {
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;

@@ -662,6 +662,7 @@ fn expr_children(expr: &ast::Expr) -> usize {
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => 0,
         ast::Expr::Case { .. } | ast::Expr::Between { .. } => 3,
+        ast::Expr::RowCompare(comparison) => comparison.left.len() + comparison.right.len(),
         ast::Expr::Binary { .. } | ast::Expr::InList { .. } => 2,
         ast::Expr::IsNull { .. }
         | ast::Expr::Not { .. }
@@ -683,6 +684,15 @@ fn expr_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
             1 => Some(Node::Branches(branches)),
             _ => else_expr.as_deref().map(Node::Expr),
         },
+        ast::Expr::RowCompare(comparison) => comparison
+            .left
+            .get(index)
+            .or_else(|| {
+                index
+                    .checked_sub(comparison.left.len())
+                    .and_then(|index| comparison.right.get(index))
+            })
+            .map(Node::Expr),
         ast::Expr::Binary { left, right, .. } => {
             Some(Node::Expr(if index == 0 { left } else { right }))
         }

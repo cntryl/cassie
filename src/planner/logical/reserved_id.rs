@@ -223,6 +223,11 @@ fn rewrite_expr(expr: &mut Expr) {
                 *name = ROW_IDENTITY_COLUMN.to_string();
             }
         }
+        Expr::RowCompare(comparison) => comparison
+            .left
+            .iter_mut()
+            .chain(&mut comparison.right)
+            .for_each(rewrite_expr),
         Expr::Binary { left, right, .. } => {
             rewrite_expr(left);
             rewrite_expr(right);

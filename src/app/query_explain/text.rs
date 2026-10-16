@@ -249,6 +249,11 @@ fn collect_expr_columns(
             let field = allocation.field_key(field)?;
             allocation.push(fields, field)?;
         }
+        Expr::RowCompare(comparison) => {
+            for field in comparison.left.iter().chain(&comparison.right) {
+                collect_expr_columns(field, fields, allocation)?;
+            }
+        }
         Expr::Binary { left, right, .. } => {
             collect_expr_columns(left, fields, allocation)?;
             collect_expr_columns(right, fields, allocation)?;

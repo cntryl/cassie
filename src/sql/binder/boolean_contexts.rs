@@ -6,6 +6,8 @@ use super::{
 
 #[path = "boolean_aggregates.rs"]
 mod boolean_aggregates;
+#[path = "row_predicates.rs"]
+mod row_predicates;
 
 pub(super) fn validate_boolean_aggregate(
     function: &mut crate::sql::ast::FunctionCall,
@@ -298,6 +300,12 @@ fn validate_expression(
     context: &BindingContext,
 ) -> Result<(), CassieError> {
     match expr {
+        Expr::RowCompare(comparison) => {
+            for field in comparison.left.iter_mut().chain(&mut comparison.right) {
+                validate_expression(field, types, catalog, context)?;
+            }
+            row_predicates::qualify(comparison, types)?;
+        }
         Expr::Binary {
             left,
             op: BinaryOp::And | BinaryOp::Or,

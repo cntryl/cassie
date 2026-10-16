@@ -320,3 +320,13 @@ temporal error priority, existing array-element delegation and indexed scalar
 mutations across savepoint recovery and restart. Independent packet/value
 fixtures retain the current adapters. Whole PostgreSQL comparisons, including
 still-pending temporal and standard-array forms, remain in the default corpus.
+
+
+Row-constructor predicates use transient expression metadata and produce the
+existing Boolean identity (OID 16). Their primitive implementation adds no
+DataType variant, stored record representation, row codec or migration. Integer
+field operations retain INT2/INT4/INT8 signatures before common comparison
+coercion. Executed row/null/parameter/restart evidence and pending whole-record,
+extended-family and source-constant obligations are recorded in
+[validation.md](testing/validation.md). Existing persisted-null-safe-definition
+admission continues to follow the separate null-safe predicate contract.

@@ -239,6 +239,7 @@ fn expression_children(expr: &ast::Expr) -> usize {
         | ast::Expr::IntegerLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => 0,
+        ast::Expr::RowCompare(comparison) => comparison.left.len() + comparison.right.len(),
         ast::Expr::Binary { .. } => 2,
         ast::Expr::Between { .. } => 3,
         ast::Expr::Case { branches, .. } => 2 + branches.len() * 2,
@@ -254,6 +255,15 @@ fn expression_children(expr: &ast::Expr) -> usize {
 
 fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
     match expr {
+        ast::Expr::RowCompare(comparison) => comparison
+            .left
+            .get(index)
+            .or_else(|| {
+                index
+                    .checked_sub(comparison.left.len())
+                    .and_then(|index| comparison.right.get(index))
+            })
+            .map(Node::Expr),
         ast::Expr::Binary { left, right, .. } => {
             Some(Node::Expr(if index == 0 { left } else { right }))
         }

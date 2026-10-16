@@ -155,6 +155,11 @@ fn visit_source(source: &mut QuerySource, visitor: &mut Visitor<'_>) -> Result<(
 fn visit_expr(expr: &mut Expr, visitor: &mut Visitor<'_>) -> Result<(), CassieError> {
     match expr {
         Expr::Exists(statement) => visit_statement(statement, visitor)?,
+        Expr::RowCompare(comparison) => {
+            for field in comparison.left.iter_mut().chain(&mut comparison.right) {
+                visit_expr(field, visitor)?;
+            }
+        }
         Expr::Binary { left, right, .. } => {
             visit_expr(left, visitor)?;
             visit_expr(right, visitor)?;

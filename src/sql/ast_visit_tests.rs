@@ -54,3 +54,27 @@ fn should_preserve_negation_width_given_child_mapping_when_identity_is_compared(
     });
     assert_eq!(children, 1);
 }
+
+#[test]
+fn should_preserve_row_operator_identity_given_child_mapping_when_expression_shapes_are_compared() {
+    // Arrange
+    let original = Expr::RowCompare(Box::new(super::super::RowComparison {
+        left: vec![Expr::Param(0)],
+        op: super::super::RowComparisonOp::Eq,
+        right: vec![Expr::Param(1)],
+    }));
+    let mut distinct = original.clone();
+    if let Expr::RowCompare(comparison) = &mut distinct {
+        comparison.op = super::super::RowComparisonOp::IsNotDistinctFrom;
+    }
+    // Act
+    let mapped = original.map_children(Clone::clone);
+    let mut fields = Vec::new();
+    original.for_each_child(|field| fields.push(field.clone()));
+    // Assert
+    assert!(original.structurally_eq(&mapped));
+    assert!(!original.structurally_eq(&distinct));
+    assert_eq!(fields.len(), 2);
+    assert!(fields[0].structurally_eq(&Expr::Param(0)));
+    assert!(fields[1].structurally_eq(&Expr::Param(1)));
+}

@@ -86,6 +86,11 @@ fn qualify_function(
 fn qualify_expression(expression: &mut Expr, types: &ResultTypes) {
     match expression {
         Expr::Function(function) => qualify_function(function, types, None),
+        Expr::RowCompare(comparison) => comparison
+            .left
+            .iter_mut()
+            .chain(&mut comparison.right)
+            .for_each(|field| qualify_expression(field, types)),
         Expr::Binary { left, right, .. } => {
             qualify_expression(left, types);
             qualify_expression(right, types);

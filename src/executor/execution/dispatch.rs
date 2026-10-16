@@ -590,6 +590,7 @@ pub(super) fn resolve_exists_expr<'a>(
                 else_expr,
             })
         }
+        Expr::RowCompare(comparison) => resolve_row_exists_expr(context, comparison),
         Expr::Binary { left, op, right } => resolve_binary_exists_expr(context, left, op, right),
         Expr::IsNull { expr, negated } => resolve_is_null_exists_expr(context, expr, *negated),
         Expr::InList {
@@ -658,6 +659,25 @@ pub(super) fn resolve_exists_expr<'a>(
             Ok(Expr::Function(function))
         }
     }
+}
+
+fn resolve_row_exists_expr<'a>(
+    context: &'a ExistsResolutionContext<'a>,
+    comparison: &'a crate::sql::ast::RowComparison,
+) -> ExprResolution<'a> {
+    Ok(Expr::RowCompare(Box::new(crate::sql::ast::RowComparison {
+        left: comparison
+            .left
+            .iter()
+            .map(|field| resolve_exists_expr(context, field))
+            .collect::<Result<_, _>>()?,
+        op: comparison.op,
+        right: comparison
+            .right
+            .iter()
+            .map(|field| resolve_exists_expr(context, field))
+            .collect::<Result<_, _>>()?,
+    })))
 }
 
 fn resolve_binary_exists_expr<'a>(
@@ -901,6 +921,12 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
                     .as_ref()
                     .map_or(0, |expr| expression_expansion_weight(expr)),
             ),
+        Expr::RowCompare(comparison) => comparison
+            .left
+            .iter()
+            .chain(&comparison.right)
+            .map(expression_expansion_weight)
+            .sum(),
         Expr::Function(function) => function
             .args
             .iter()

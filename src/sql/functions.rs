@@ -1,3 +1,5 @@
+mod constant_folding;
+pub(crate) use constant_folding::is_immutable_scalar;
 mod inputs;
 mod text;
 pub(crate) use inputs::{

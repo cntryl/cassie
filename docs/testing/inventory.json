@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1541,
-    "rust_files": 1510,
-    "rust_test_declarations": 5500,
+    "files": 1543,
+    "rust_files": 1512,
+    "rust_test_declarations": 5526,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5628,
+    "registered_rust_instances": 5654,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -47984,7 +47984,7 @@
       "name": "should_reject_persisted_view_null_safe_predicates_before_publication",
       "current_file": "tests/null_safe_predicates/definitions.rs",
       "line": 5,
-      "end_line": 20,
+      "end_line": 26,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48014,8 +48014,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_preserve_keyword_text_in_existing_view_definitions",
       "name": "should_preserve_keyword_text_in_existing_view_definitions",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 23,
-      "end_line": 37,
+      "line": 29,
+      "end_line": 43,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48045,8 +48045,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_direct_durable_null_safe_metadata_admission",
       "name": "should_reject_direct_durable_null_safe_metadata_admission",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 40,
-      "end_line": 91,
+      "line": 46,
+      "end_line": 97,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48076,8 +48076,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_sql_routine_null_safe_definitions",
       "name": "should_reject_sql_routine_null_safe_definitions",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 94,
-      "end_line": 109,
+      "line": 100,
+      "end_line": 115,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48107,8 +48107,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_remaining_sql_null_safe_definition_carriers",
       "name": "should_reject_remaining_sql_null_safe_definition_carriers",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 112,
-      "end_line": 136,
+      "line": 118,
+      "end_line": 142,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48138,8 +48138,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_null_safe_predicates_in_nested_procedure_definitions",
       "name": "should_reject_null_safe_predicates_in_nested_procedure_definitions",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 139,
-      "end_line": 161,
+      "line": 145,
+      "end_line": 167,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48169,8 +48169,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_direct_default_expression_publication",
       "name": "should_reject_direct_default_expression_publication",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 164,
-      "end_line": 206,
+      "line": 170,
+      "end_line": 212,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48200,8 +48200,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_null_safe_arguments_in_stored_procedure_calls",
       "name": "should_reject_null_safe_arguments_in_stored_procedure_calls",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 209,
-      "end_line": 230,
+      "line": 215,
+      "end_line": 236,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48231,8 +48231,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_loaded_default_expression_use",
       "name": "should_reject_loaded_default_expression_use",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 233,
-      "end_line": 258,
+      "line": 239,
+      "end_line": 264,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48262,8 +48262,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_loaded_index_predicate_use",
       "name": "should_reject_loaded_index_predicate_use",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 261,
-      "end_line": 298,
+      "line": 267,
+      "end_line": 304,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48293,8 +48293,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_nested_default_parser_guard_before_procedure_publication",
       "name": "should_reject_nested_default_parser_guard_before_procedure_publication",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 301,
-      "end_line": 330,
+      "line": 307,
+      "end_line": 336,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48324,8 +48324,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_nested_check_parser_guard_before_procedure_publication",
       "name": "should_reject_nested_check_parser_guard_before_procedure_publication",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 333,
-      "end_line": 361,
+      "line": 339,
+      "end_line": 367,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48355,8 +48355,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_preserve_unrelated_procedure_parser_admission",
       "name": "should_preserve_unrelated_procedure_parser_admission",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 364,
-      "end_line": 404,
+      "line": 370,
+      "end_line": 410,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48386,8 +48386,8 @@
       "id": "tests/null_safe_predicates/definitions.rs::should_reject_recursive_procedure_parser_guard",
       "name": "should_reject_recursive_procedure_parser_guard",
       "current_file": "tests/null_safe_predicates/definitions.rs",
-      "line": 407,
-      "end_line": 434,
+      "line": 413,
+      "end_line": 440,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -71424,6 +71424,347 @@
         "file": "tests/pgwire_extended/grammar/row_ordering_null_stopping.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_reject_row_arity_given_mismatched_constructors_when_queries_are_parsed",
+      "name": "should_reject_row_arity_given_mismatched_constructors_when_queries_are_parsed",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 6,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_reject_row_arity_given_mismatched_constructors_when_queries_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_reject_empty_ordered_rows_given_native_operators_when_connections_are_reused",
+      "name": "should_reject_empty_ordered_rows_given_native_operators_when_connections_are_reused",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 44,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_reject_empty_ordered_rows_given_native_operators_when_connections_are_reused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_preserve_constant_errors_given_later_row_fields_when_no_output_rows_are_requested",
+      "name": "should_preserve_constant_errors_given_later_row_fields_when_no_output_rows_are_requested",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 70,
+      "end_line": 101,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_preserve_constant_errors_given_later_row_fields_when_no_output_rows_are_requested"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_retain_parameter_types_given_row_comparisons_when_binary_portals_are_rebound",
+      "name": "should_retain_parameter_types_given_row_comparisons_when_binary_portals_are_rebound",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 104,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_retain_parameter_types_given_row_comparisons_when_binary_portals_are_rebound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_infer_row_slots_independently_given_unknown_parameters_when_statements_are_described",
+      "name": "should_infer_row_slots_independently_given_unknown_parameters_when_statements_are_described",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 164,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_infer_row_slots_independently_given_unknown_parameters_when_statements_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_validate_later_field_types_given_decisive_prefixes_when_empty_results_are_requested",
+      "name": "should_validate_later_field_types_given_decisive_prefixes_when_empty_results_are_requested",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 199,
+      "end_line": 221,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_validate_later_field_types_given_decisive_prefixes_when_empty_results_are_requested"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_enforce_native_row_width_given_oversized_constructors_when_queries_are_reused",
+      "name": "should_enforce_native_row_width_given_oversized_constructors_when_queries_are_reused",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 224,
+      "end_line": 240,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_enforce_native_row_width_given_oversized_constructors_when_queries_are_reused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_reject_conflicting_row_slot_types_given_repeated_parameters_when_statements_are_parsed",
+      "name": "should_reject_conflicting_row_slot_types_given_repeated_parameters_when_statements_are_parsed",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 243,
+      "end_line": 259,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_reject_conflicting_row_slot_types_given_repeated_parameters_when_statements_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_preserve_integer_field_domains_given_row_predicates_when_constant_overflow_is_planned",
+      "name": "should_preserve_integer_field_domains_given_row_predicates_when_constant_overflow_is_planned",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 262,
+      "end_line": 284,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_preserve_integer_field_domains_given_row_predicates_when_constant_overflow_is_planned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_preserve_row_predicate_descriptors_given_persisted_views_when_the_database_restarts",
+      "name": "should_preserve_row_predicate_descriptors_given_persisted_views_when_the_database_restarts",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 287,
+      "end_line": 319,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_preserve_row_predicate_descriptors_given_persisted_views_when_the_database_restarts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/row_predicates.rs::should_fold_single_values_source_fields_given_row_predicates_when_constant_errors_are_planned",
+      "name": "should_fold_single_values_source_fields_given_row_predicates_when_constant_errors_are_planned",
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "line": 322,
+      "end_line": 341,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_row_predicates::should_fold_single_values_source_fields_given_row_predicates_when_constant_errors_are_planned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/row_predicates.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -146944,6 +147285,471 @@
       }
     },
     {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_resolve_null_equality_given_later_unequal_fields_when_rows_are_compared",
+      "name": "should_resolve_null_equality_given_later_unequal_fields_when_rows_are_compared",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 6,
+      "end_line": 21,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_resolve_null_equality_given_later_unequal_fields_when_rows_are_compared"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_preserve_exact_fields_given_bigint_and_text_when_tuple_ordering_executes",
+      "name": "should_preserve_exact_fields_given_bigint_and_text_when_tuple_ordering_executes",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 24,
+      "end_line": 34,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_preserve_exact_fields_given_bigint_and_text_when_tuple_ordering_executes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_parse_row_grouping_given_explicit_singletons_when_parentheses_are_nested",
+      "name": "should_parse_row_grouping_given_explicit_singletons_when_parentheses_are_nested",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 37,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_parse_row_grouping_given_explicit_singletons_when_parentheses_are_nested"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/grouping",
+        "directory": "tests/sql_queries/aggregates/grouping",
+        "file": "tests/sql_queries/aggregates/grouping/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_compare_empty_rows_given_null_safe_operators_when_distinctness_is_requested",
+      "name": "should_compare_empty_rows_given_null_safe_operators_when_distinctness_is_requested",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 51,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_compare_empty_rows_given_null_safe_operators_when_distinctness_is_requested"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_filter_values_given_row_predicates_when_columns_are_bound",
+      "name": "should_filter_values_given_row_predicates_when_columns_are_bound",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 65,
+      "end_line": 77,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_filter_values_given_row_predicates_when_columns_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_preserve_boolean_descriptors_given_false_filters_when_rows_are_compared",
+      "name": "should_preserve_boolean_descriptors_given_false_filters_when_rows_are_compared",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 80,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_preserve_boolean_descriptors_given_false_filters_when_rows_are_compared"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_stop_runtime_fields_given_decisive_ordering_when_later_division_would_fail",
+      "name": "should_stop_runtime_fields_given_decisive_ordering_when_later_division_would_fail",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 93,
+      "end_line": 109,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_stop_runtime_fields_given_decisive_ordering_when_later_division_would_fail"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_preserve_dead_case_branches_given_row_constant_errors_when_expressions_are_planned",
+      "name": "should_preserve_dead_case_branches_given_row_constant_errors_when_expressions_are_planned",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 112,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_preserve_dead_case_branches_given_row_constant_errors_when_expressions_are_planned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_prune_variable_fields_given_deciding_constants_when_row_equality_is_planned",
+      "name": "should_prune_variable_fields_given_deciding_constants_when_row_equality_is_planned",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 125,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_prune_variable_fields_given_deciding_constants_when_row_equality_is_planned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_preserve_text_identity_given_timestamp_spellings_when_row_fields_are_compared",
+      "name": "should_preserve_text_identity_given_timestamp_spellings_when_row_fields_are_compared",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 149,
+      "end_line": 166,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_preserve_text_identity_given_timestamp_spellings_when_row_fields_are_compared"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_prune_dead_variable_branches_given_conditional_constants_when_row_equality_is_planned",
+      "name": "should_prune_dead_variable_branches_given_conditional_constants_when_row_equality_is_planned",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 169,
+      "end_line": 185,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_prune_dead_variable_branches_given_conditional_constants_when_row_equality_is_planned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_release_row_admission_given_a_memory_limit_when_follow_up_queries_execute",
+      "name": "should_release_row_admission_given_a_memory_limit_when_follow_up_queries_execute",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 188,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_release_row_admission_given_a_memory_limit_when_follow_up_queries_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_recover_row_queries_given_prior_cancellation_when_the_same_instance_is_reused",
+      "name": "should_recover_row_queries_given_prior_cancellation_when_the_same_instance_is_reused",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 214,
+      "end_line": 236,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_recover_row_queries_given_prior_cancellation_when_the_same_instance_is_reused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_select_float_comparisons_given_explicit_casts_when_integer_fields_are_promoted",
+      "name": "should_select_float_comparisons_given_explicit_casts_when_integer_fields_are_promoted",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 239,
+      "end_line": 253,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_select_float_comparisons_given_explicit_casts_when_integer_fields_are_promoted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/relations/row_predicates.rs::should_reuse_grouped_row_values_given_equivalent_function_names_when_predicates_are_projected",
+      "name": "should_reuse_grouped_row_values_given_equivalent_function_names_when_predicates_are_projected",
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "line": 256,
+      "end_line": 275,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_row_predicates::should_reuse_grouped_row_values_given_equivalent_function_names_when_predicates_are_projected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/row_predicates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_parameter_identities_given_typed_values_columns_when_boolean_and_bigint_results_are_described",
       "name": "should_preserve_parameter_identities_given_typed_values_columns_when_boolean_and_bigint_results_are_described",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
@@ -180137,8 +180943,8 @@
       "current_file": "tests/null_safe_predicates/definitions.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 434,
-      "sha256": "6192a716c99899e5629b28f986881c17b3cb039003d11cc5a3baf23f5318776b",
+      "lines": 440,
+      "sha256": "3898e283e971bb95e51113d5f5505a4de157363651388eebb13ae88c5da7d0aa",
       "test_declarations": 14,
       "registered_suites": [
         "null_safe_predicates"
@@ -183049,6 +183855,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/grammar/row_predicates.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 341,
+      "sha256": "8b381bf2d1829b0375d02f9824f0484a068ff549b90726a8e49bd1c7915be7b5",
+      "test_declarations": 11,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/row_predicates.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/grammar/rows/arity_aliases.rs",
       "role": "test_module",
       "action": "keep",
@@ -183202,8 +184023,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 177,
-      "sha256": "2ba750b96cb240fd827e5f91a987ad5b31f523cf4f3cc54182e801644410ab99",
+      "lines": 180,
+      "sha256": "3748f0b75c87ba11bdbf55e5df04583f53587f909c1416e69d3fcfd5b91cb015",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -191587,8 +192408,8 @@
       "current_file": "tests/sql_queries/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 81,
-      "sha256": "622dbe696d0d547122600f412cc398671de74a01a334d9cbaa986da36c1edd06",
+      "lines": 84,
+      "sha256": "3e56003cb2b3cbc8179dc828a2a540ac8ed8987ae9192a6b3fa23b06efb76638",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -191940,6 +192761,22 @@
       ],
       "destinations": [
         "tests/sql_queries/relations/relations.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/relations/row_predicates.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 275,
+      "sha256": "2d88a5567d9a87c2acc1d25f99c966f1f7c438c2b614f69fff4cb17b1d255182",
+      "test_declarations": 15,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/grouping/row_predicates.rs",
+        "tests/sql_queries/relations/row_predicates.rs"
       ],
       "line_limit": 1000
     },

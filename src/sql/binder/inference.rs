@@ -716,7 +716,8 @@ pub(crate) fn infer_expr_type(
         Expr::NumberLiteral(_) => Some(DataType::Float),
         Expr::IntegerNegate { width, .. } => Some(width.data_type()),
         Expr::IntegerLiteral(value) => Some(integer_literal_type(*value)),
-        Expr::BoolLiteral(_)
+        Expr::RowCompare(_)
+        | Expr::BoolLiteral(_)
         | Expr::Exists(_)
         | Expr::IsNull { .. }
         | Expr::InList { .. }
@@ -831,7 +832,7 @@ pub(crate) fn known_expr_type(
         Expr::NumberLiteral(_) => Some(DataType::Float),
         Expr::IntegerNegate { width, .. } => Some(width.data_type()),
         Expr::IntegerLiteral(value) => Some(integer_literal_type(*value)),
-        Expr::BoolLiteral(_) => Some(DataType::Boolean),
+        Expr::RowCompare(_) | Expr::BoolLiteral(_) => Some(DataType::Boolean),
         Expr::Null => Some(DataType::Null),
         _ => None,
     }

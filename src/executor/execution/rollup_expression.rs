@@ -79,6 +79,7 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
             format_expression(high)?
         )),
         Expr::Not { expr } => Ok(format!("(NOT {})", format_expression(expr)?)),
+        Expr::RowCompare(comparison) => format_row_comparison(comparison),
         Expr::IntegerNegate { expr, .. } => Ok(format!("(-{})", format_expression(expr)?)),
         Expr::Cast { expr, data_type } => Ok(format!(
             "CAST({} AS {})",
@@ -146,6 +147,31 @@ fn quote_identifier(identifier: &str) -> String {
         |_| format!("\"{}\"", identifier.replace('"', "\"\"")),
         |column| column.canonical_sql(),
     )
+}
+
+fn format_row_comparison(comparison: &crate::sql::ast::RowComparison) -> Result<String, String> {
+    let fields = |fields: &[Expr]| {
+        fields
+            .iter()
+            .map(format_expression)
+            .collect::<Result<Vec<_>, _>>()
+            .map(|fields| fields.join(", "))
+    };
+    let op = match comparison.op {
+        crate::sql::ast::RowComparisonOp::Eq => "=",
+        crate::sql::ast::RowComparisonOp::NotEq => "<>",
+        crate::sql::ast::RowComparisonOp::Lt => "<",
+        crate::sql::ast::RowComparisonOp::Lte => "<=",
+        crate::sql::ast::RowComparisonOp::Gt => ">",
+        crate::sql::ast::RowComparisonOp::Gte => ">=",
+        crate::sql::ast::RowComparisonOp::IsDistinctFrom => "IS DISTINCT FROM",
+        crate::sql::ast::RowComparisonOp::IsNotDistinctFrom => "IS NOT DISTINCT FROM",
+    };
+    Ok(format!(
+        "(ROW({}) {op} ROW({}))",
+        fields(&comparison.left)?,
+        fields(&comparison.right)?
+    ))
 }
 
 #[cfg(test)]

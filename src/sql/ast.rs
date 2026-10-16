@@ -15,6 +15,9 @@ pub use ast_schema::{AlterTableOperation, AlterTableStatement};
 
 #[path = "ast_query.rs"]
 mod ast_query;
+#[path = "ast_row.rs"]
+mod ast_row;
+pub use ast_row::{RowComparison, RowComparisonOp};
 #[path = "ast_visit.rs"]
 mod ast_visit;
 pub use ast_query::{

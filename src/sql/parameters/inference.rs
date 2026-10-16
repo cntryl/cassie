@@ -356,6 +356,18 @@ pub(super) fn infer_parameter_type_oids_expr(
             }
             infer_case_result_parameter_types(branches, else_expr.as_deref(), field_types, oids);
         }
+        ast::Expr::RowCompare(comparison) => {
+            for (left, right) in comparison.left.iter().zip(&comparison.right) {
+                infer_binary_parameter_type_oids(
+                    left,
+                    &comparison.op.binary(),
+                    right,
+                    field_types,
+                    catalog,
+                    oids,
+                );
+            }
+        }
         ast::Expr::Binary { left, op, right } => {
             infer_binary_parameter_type_oids(left, op, right, field_types, catalog, oids);
         }

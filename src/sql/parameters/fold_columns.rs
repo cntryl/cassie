@@ -53,7 +53,7 @@ impl Fold<'_, '_> {
             ast::Expr::StringLiteral(_) => Some(25),
             ast::Expr::NumberLiteral(_) => Some(701),
             ast::Expr::IntegerLiteral(value) => Some(oid(&binder::integer_literal_type(*value))),
-            ast::Expr::BoolLiteral(_) => Some(16),
+            ast::Expr::RowCompare(_) | ast::Expr::BoolLiteral(_) => Some(16),
             ast::Expr::Null => Some(oid(&crate::types::DataType::Null)),
             ast::Expr::Param(_)
             | ast::Expr::Binary { .. }

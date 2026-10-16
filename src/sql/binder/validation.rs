@@ -127,6 +127,12 @@ fn expression_operand_family(
             vector::validate_vector_function_query(function, field_types)?;
             Ok(None)
         }
+        Expr::RowCompare(comparison) => {
+            for (left, right) in comparison.left.iter().zip(&comparison.right) {
+                binary_operand_family(left, &comparison.op.binary(), right, field_types)?;
+            }
+            Ok(Some(OperandFamily::Boolean))
+        }
         Expr::IntegerNegate { expr, .. } => {
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(OperandFamily::Numeric))
@@ -900,6 +906,11 @@ pub(super) fn collect_item(item: &SelectItem, out: &mut Vec<FunctionCall>) {
 }
 
 pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
+    if let Expr::RowCompare(comparison) = expr {
+        for field in comparison.left.iter().chain(&comparison.right) {
+            collect_expr(field, out);
+        }
+    }
     if let Expr::Function(function) = expr {
         out.push((**function).clone());
         for arg in function.expressions() {

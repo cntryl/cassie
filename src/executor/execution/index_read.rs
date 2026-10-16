@@ -585,6 +585,11 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
     match filter {
         Expr::Param(index) => params.get(*index).is_some_and(is_non_finite_float),
         Expr::Exists(_) => params.iter().any(is_non_finite_float),
+        Expr::RowCompare(comparison) => comparison
+            .left
+            .iter()
+            .chain(&comparison.right)
+            .any(|field| filter_binds_non_finite_param(Some(field), params)),
         Expr::Binary { left, right, .. } => {
             filter_binds_non_finite_param(Some(left), params)
                 || filter_binds_non_finite_param(Some(right), params)

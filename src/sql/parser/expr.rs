@@ -9,9 +9,11 @@ use super::{
 #[path = "expr_case.rs"]
 mod case;
 #[path = "expression_depth.rs"]
-mod depth;
+pub(super) mod depth;
 #[path = "numeric_literals.rs"]
 mod numeric_literals;
+#[path = "row_predicates.rs"]
+mod row_predicates;
 #[path = "string_literals.rs"]
 mod string_literals;
 
@@ -111,11 +113,7 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
                     "chained null-safe comparisons require parentheses".into(),
                 ));
             }
-            return Ok(Expr::Binary {
-                left: Box::new(parse_comparison_expression(left)?),
-                right: Box::new(parse_comparison_expression(right)?),
-                op,
-            });
+            return row_predicates::comparison(left, op, right);
         }
     }
 
@@ -173,11 +171,7 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
             super::operators::split_operator(raw, op, false)
         };
         if let Some((left, right)) = split {
-            return Ok(Expr::Binary {
-                left: Box::new(parse_comparison_expression(left)?),
-                right: Box::new(parse_comparison_expression(right)?),
-                op: parsed,
-            });
+            return row_predicates::comparison(left, parsed, right);
         }
     }
 

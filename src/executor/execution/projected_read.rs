@@ -854,7 +854,7 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
             collect_projected_scan_filter_columns(low, fields)?;
             collect_projected_scan_filter_columns(high, fields)
         }
-        Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => None,
+        Expr::RowCompare(_) | Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => None,
     }
 }
 

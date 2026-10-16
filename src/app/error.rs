@@ -420,7 +420,11 @@ fn cancellation_descriptor() -> CassieErrorDescriptor {
 fn resource_limit_descriptor(message: String) -> CassieErrorDescriptor {
     CassieErrorDescriptor {
         http_status: 400,
-        sql_state: "54000",
+        sql_state: if message == "ROW expressions can have at most 1664 entries" {
+            "54011"
+        } else {
+            "54000"
+        },
         message,
         table: None,
         column: None,
@@ -563,6 +567,9 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
         return bad_request_descriptor("22003", message.to_string());
     }
     if message.starts_with("function ") && message.ends_with(") does not exist") {
+        return bad_request_descriptor("42883", message.to_string());
+    }
+    if message.starts_with("operator does not exist: ") {
         return bad_request_descriptor("42883", message.to_string());
     }
     if message.starts_with("could not identify an equality operator for type ") {

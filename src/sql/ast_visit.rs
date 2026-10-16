@@ -32,6 +32,11 @@ impl Expr {
                     visit(else_expr)?;
                 }
             }
+            Self::RowCompare(comparison) => {
+                for field in comparison.left.iter().chain(&comparison.right) {
+                    visit(field)?;
+                }
+            }
             Self::Binary { left, right, .. } => {
                 visit(left)?;
                 visit(right)?;
@@ -89,6 +94,11 @@ impl Expr {
                     .collect(),
                 else_expr: else_expr.as_deref().map(|expr| Box::new(map(expr))),
             },
+            Self::RowCompare(comparison) => Self::RowCompare(Box::new(super::RowComparison {
+                left: comparison.left.iter().map(&mut map).collect(),
+                op: comparison.op,
+                right: comparison.right.iter().map(&mut map).collect(),
+            })),
             Self::Binary { left, op, right } => Self::Binary {
                 left: Box::new(map(left)),
                 op: op.clone(),
@@ -191,6 +201,11 @@ impl Expr {
         mut visit: impl FnMut(&mut Expr) -> Result<(), E>,
     ) -> Result<(), E> {
         match self {
+            Self::RowCompare(comparison) => {
+                for field in comparison.left.iter_mut().chain(&mut comparison.right) {
+                    visit(field)?;
+                }
+            }
             Self::Binary { left, right, .. } => {
                 visit(left)?;
                 visit(right)?;
@@ -285,6 +300,11 @@ impl Expr {
             (Self::IntegerLiteral(left), Self::IntegerLiteral(right)) => left == right,
             (Self::BoolLiteral(left), Self::BoolLiteral(right)) => left == right,
             (Self::Null, Self::Null) => true,
+            (Self::RowCompare(left), Self::RowCompare(right)) => {
+                left.op == right.op
+                    && all_structurally_eq(&left.left, &right.left)
+                    && all_structurally_eq(&left.right, &right.right)
+            }
             (Self::Function(left), Self::Function(right)) => {
                 left.name.eq_ignore_ascii_case(&right.name)
                     && all_structurally_eq(&left.args, &right.args)

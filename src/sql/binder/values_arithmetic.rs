@@ -2,7 +2,7 @@
 use super::{CassieError, DataType, Expr, HashMap};
 use crate::catalog::FunctionMeta;
 use crate::sql::ast::BinaryOp;
-use crate::types::{IntegerOperation, IntegerWidth, Schema};
+use crate::types::{IntegerWidth, Schema};
 
 pub(super) fn bind(
     expression: &mut Expr,
@@ -28,34 +28,14 @@ pub(super) fn bind(
     let Expr::Binary { left, op, right } = expression else {
         return Ok(());
     };
-    let (operation, selected) = match op {
-        BinaryOp::Add => (IntegerOperation::Add, None),
-        BinaryOp::Sub => (IntegerOperation::Sub, None),
-        BinaryOp::Mul => (IntegerOperation::Mul, None),
-        BinaryOp::Div => (IntegerOperation::Div, None),
-        BinaryOp::Integer { operation, width } => (*operation, Some(*width)),
-        _ => return Ok(()),
-    };
     let schema = Schema { fields: Vec::new() };
     let left = super::super::inference::infer_expr_type(left, &schema, functions, params);
     let right = super::super::inference::infer_expr_type(right, &schema, functions, params);
-    let width = match (left.as_ref(), right.as_ref()) {
-        (Some(DataType::Null), Some(right)) => IntegerWidth::from_data_type(right),
-        (Some(left), Some(DataType::Null)) => IntegerWidth::from_data_type(left),
-        (Some(left), Some(right)) => IntegerWidth::from_data_type(left)
-            .zip(IntegerWidth::from_data_type(right))
-            .map(|(left, right)| left.max(right)),
-        _ => None,
-    }
-    .ok_or_else(|| {
-        CassieError::Unsupported("VALUES arithmetic requires resolved integer operands".into())
-    })?;
-    if selected.is_some_and(|selected| selected != width) {
-        return Err(CassieError::Planner(
-            "resolved integer operator does not match its operand types".into(),
+    if !super::super::integer_operators::resolve(op, left.as_ref(), right.as_ref())? {
+        return Err(CassieError::Unsupported(
+            "VALUES arithmetic requires resolved integer operands".into(),
         ));
     }
-    *op = BinaryOp::Integer { operation, width };
     Ok(())
 }
 

@@ -310,6 +310,7 @@ impl Folder<'_> {
             | Expr::IntegerLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::Null => Ok(Fold::Constant),
+            Expr::RowCompare(comparison) => self.fold_row(comparison),
             Expr::Binary { left, op, right } => match op {
                 BinaryOp::And => self.fold_logical(left, right, false),
                 BinaryOp::Or => self.fold_logical(left, right, true),
@@ -347,6 +348,66 @@ impl Folder<'_> {
                 else_expr,
             } => self.fold_case(operand.as_deref(), branches, else_expr.as_deref()),
             Expr::Function(function) => self.fold_function(function),
+        }
+    }
+
+    fn fold_row(&self, comparison: &crate::sql::ast::RowComparison) -> Result<Fold, QueryError> {
+        use crate::sql::ast::RowComparisonOp;
+        let equality = matches!(comparison.op, RowComparisonOp::Eq | RowComparisonOp::NotEq)
+            || comparison.op.null_safe();
+        if !equality {
+            let folded =
+                self.fold_operands(comparison.left.iter().chain(&comparison.right), true, true)?;
+            // PostgreSQL retains multi-field RowCompareExpr nodes after
+            // folding arguments. Singletons lower to scalar operators.
+            return Ok(if comparison.left.len() == 1 {
+                folded
+            } else {
+                Fold::Variable
+            });
+        }
+        let is_or = matches!(
+            comparison.op,
+            RowComparisonOp::NotEq | RowComparisonOp::IsDistinctFrom
+        );
+        let mut variable = false;
+        let mut has_null = false;
+        for (left, right) in comparison.left.iter().zip(&comparison.right) {
+            super::check_timeout(self.controls)?;
+            let left_fold = self.fold(left)?;
+            let right_fold = self.fold(right)?;
+            if left_fold != Fold::Variable && right_fold != Fold::Variable {
+                if let (Some(left), Some(right)) = (
+                    self.folded_value(left_fold, left)?,
+                    self.folded_value(right_fold, right)?,
+                ) {
+                    match filter::row_field_result(&left, comparison.op, &right)? {
+                        ScalarValue::Bool(value) if value == is_or => {
+                            return Ok(Fold::Decided(Some(value)))
+                        }
+                        ScalarValue::Null => has_null = true,
+                        ScalarValue::Bool(_) => {}
+                        _ => variable = true,
+                    }
+                    continue;
+                }
+            }
+            self.settle(left_fold, left)?;
+            self.settle(right_fold, right)?;
+            variable = true;
+        }
+        Ok(combined(variable, has_null, is_or))
+    }
+
+    fn folded_value(
+        &self,
+        fold: Fold,
+        expression: &Expr,
+    ) -> Result<Option<ScalarValue>, QueryError> {
+        match fold {
+            Fold::Constant => self.evaluate(expression),
+            Fold::Decided(value) => Ok(Some(value.map_or(ScalarValue::Null, ScalarValue::Bool))),
+            Fold::Variable => Ok(None),
         }
     }
 
@@ -531,28 +592,9 @@ impl Folder<'_> {
         let id = crate::sql::functions::function(&function.name).map(|metadata| metadata.id);
         match id {
             Some(FunctionId::Coalesce) => self.fold_coalesce(&function.args),
-            Some(
-                FunctionId::Length
-                | FunctionId::Lower
-                | FunctionId::Upper
-                | FunctionId::Substring
-                | FunctionId::Trim
-                | FunctionId::Ltrim
-                | FunctionId::Rtrim
-                | FunctionId::SplitPart
-                | FunctionId::Strpos
-                | FunctionId::Left
-                | FunctionId::Right
-                | FunctionId::OctetLength
-                | FunctionId::BitLength
-                | FunctionId::Ascii
-                | FunctionId::Chr
-                | FunctionId::StartsWith
-                | FunctionId::NullIf
-                | FunctionId::Greatest
-                | FunctionId::Least
-                | FunctionId::Abs,
-            ) => self.fold_operands(&function.args, true, false),
+            Some(id) if crate::sql::functions::is_immutable_scalar(id) => {
+                self.fold_operands(&function.args, true, false)
+            }
             _ => self.fold_operands(&function.args, false, false),
         }
     }

@@ -501,6 +501,11 @@ fn select_item_uses_vector_operator(item: &crate::sql::ast::SelectItem) -> bool 
 
 fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
     match expr {
+        crate::sql::ast::Expr::RowCompare(comparison) => comparison
+            .left
+            .iter()
+            .chain(&comparison.right)
+            .any(expr_uses_vector_operator),
         crate::sql::ast::Expr::Binary {
             left, right, op, ..
         } => {
@@ -676,6 +681,11 @@ fn collect_fulltext_fields_from_select_item(
 
 fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut HashSet<String>) {
     match expr {
+        crate::sql::ast::Expr::RowCompare(comparison) => {
+            for field in comparison.left.iter().chain(&comparison.right) {
+                collect_fulltext_fields_from_expr(field, fields);
+            }
+        }
         crate::sql::ast::Expr::Binary { left, right, .. } => {
             collect_fulltext_fields_from_expr(left, fields);
             collect_fulltext_fields_from_expr(right, fields);

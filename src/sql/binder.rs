@@ -1,3 +1,5 @@
+#[path = "binder/integer_operators.rs"]
+mod integer_operators;
 #[path = "binder/values.rs"]
 pub(crate) mod values;
 pub(crate) use coalesce_coercion::has_float_domain as coalesce_has_float_domain;

@@ -643,6 +643,12 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
             expr_key(high)
         ),
         Expr::Not { expr } => format!("not {}", expr_key(expr)),
+        Expr::RowCompare(comparison) => format!(
+            "row:{:?}:{:?}:{:?}",
+            comparison.op,
+            comparison.left.iter().map(expr_key).collect::<Vec<_>>(),
+            comparison.right.iter().map(expr_key).collect::<Vec<_>>()
+        ),
         Expr::IntegerNegate { expr, width } => format!("negate:{width:?}({})", expr_key(expr)),
         Expr::Cast { expr, data_type } => format!("{}::{data_type:?}", expr_key(expr)),
         Expr::Exists(_) => "exists".to_string(),

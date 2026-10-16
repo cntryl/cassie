@@ -488,6 +488,11 @@ enum NormalizedExprShape {
         expr: Box<NormalizedExprShape>,
         negated: bool,
     },
+    RowCompare {
+        left: Vec<NormalizedExprShape>,
+        op: String,
+        right: Vec<NormalizedExprShape>,
+    },
     IntegerNegate {
         expr: Box<NormalizedExprShape>,
         width: String,
@@ -568,6 +573,11 @@ impl From<&Expr> for NormalizedExprShape {
                 negated: *negated,
             },
             Expr::Not { expr } => Self::Not(Box::new(Self::from(expr.as_ref()))),
+            Expr::RowCompare(comparison) => Self::RowCompare {
+                left: comparison.left.iter().map(Self::from).collect(),
+                op: format!("{:?}", comparison.op),
+                right: comparison.right.iter().map(Self::from).collect(),
+            },
             Expr::IntegerNegate { expr, width } => Self::IntegerNegate {
                 expr: Box::new(Self::from(expr.as_ref())),
                 width: format!("{width:?}"),

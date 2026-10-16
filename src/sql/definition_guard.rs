@@ -30,6 +30,9 @@ pub(crate) fn expression(expr: &Expr) -> Result<(), CassieError> {
             }
         }
     }
+    if matches!(expr, Expr::RowCompare(comparison) if comparison.op.null_safe()) {
+        return Err(CassieError::Unsupported(DIAGNOSTIC.into()));
+    }
     if matches!(
         expr,
         Expr::Binary {

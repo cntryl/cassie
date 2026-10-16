@@ -249,6 +249,13 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => 0,
         ast::Expr::Param(index) => index + 1,
+        ast::Expr::RowCompare(comparison) => comparison
+            .left
+            .iter()
+            .chain(&comparison.right)
+            .map(parameter_count_expr)
+            .max()
+            .unwrap_or(0),
         ast::Expr::Binary { left, right, .. } => {
             parameter_count_expr(left).max(parameter_count_expr(right))
         }

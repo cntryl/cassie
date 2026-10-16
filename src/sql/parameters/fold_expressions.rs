@@ -36,6 +36,10 @@ impl Fold<'_, '_> {
             ast::Expr::IsNull { .. } | ast::Expr::Not { .. } | ast::Expr::Exists(_) => {
                 Ok(Summary::known(16))
             }
+            ast::Expr::RowCompare(comparison) => {
+                self.row_inputs(comparison, frame)?;
+                Ok(Summary::known(16))
+            }
             ast::Expr::Function(_) => Ok(first()),
             ast::Expr::Binary { op, left, right } => {
                 if matches!(
@@ -121,6 +125,39 @@ impl Fold<'_, '_> {
             | ast::BinaryOp::And
             | ast::BinaryOp::Or => Summary::known(16),
         })
+    }
+
+    fn row_inputs(
+        &mut self,
+        comparison: &ast::RowComparison,
+        frame: &Frame<'_>,
+    ) -> Result<(), ParameterAdmissionError> {
+        for index in 0..comparison.left.len() {
+            check_controls(self.controls)?;
+            let indices = [
+                frame.start + index,
+                frame.start + comparison.left.len() + index,
+            ];
+            let candidate = indices
+                .iter()
+                .map(|index| self.summaries.values[*index])
+                .find(|summary| summary.oid != 705 && summary.qualified)
+                .map_or(25, |summary| summary.oid);
+            for (index, expr) in indices
+                .into_iter()
+                .zip([&comparison.left[index], &comparison.right[index]])
+            {
+                if candidate == 16 && self.summaries.values[index].oid == 705 {
+                    if let ast::Expr::StringLiteral(input) = expr {
+                        self.occurrences
+                            .invalid_boolean_literal(input, self.controls)?;
+                    }
+                }
+                self.occurrences
+                    .coerce(&mut self.summaries.values[index], candidate, true)?;
+            }
+        }
+        Ok(())
     }
 
     fn comparison_inputs(&mut self, frame: &Frame<'_>) -> Result<(), ParameterAdmissionError> {

@@ -311,6 +311,8 @@ pub enum Expr {
         expr: Box<Expr>,
         width: crate::types::IntegerWidth,
     },
+    /// A predicate comparing corresponding row-constructor fields.
+    RowCompare(Box<super::RowComparison>),
     Exists(Box<ParsedStatement>),
     Function(Box<FunctionCall>),
 }

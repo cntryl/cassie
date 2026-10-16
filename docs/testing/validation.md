@@ -533,3 +533,89 @@ assertions to print mismatching values; both final integer integration modules
 were rebuilt and rerun (wire 8/0, SQL 6/0). All four final validators passed
 23/23, and the final regenerated inventory check passed. No test limits,
 expectations, lint levels or broader pending obligations were weakened.
+
+
+The next #800 bundle covers constructor-to-constructor row predicates over
+existing scalar types: equality/inequality, lexicographic ordering, NULL rules,
+distinctness, arity, prepared-wire descriptors and bounded traversal. Primitive
+foundations are committed at 0641d0fe (977 library tests and 14 integer SQL/wire
+functions pass); #795 is closed. #793 remains a wider composite/scalar integration
+owner. These predicates need no composite stored carrier or format decision.
+An explicit boxed RowComparison AST payload preserves scalar AST size and
+selects a dedicated predicate enum. Whole-record and qualified-star row paths,
+row output codecs and row-subquery #762 remain pending distinct obligations.
+Native PostgreSQL 18.6 probes pin ordinary zero-field comparison as 0A000,
+zero-field distinctness as Boolean, unequal arity as 42601, and eager constant
+folding versus runtime pair short-circuiting. Jev selected this explicit
+predicate design at 1.0 and prioritized arity probes. Six existing constructor
+tests are red; twelve new SQL/wire regressions are authored before implementation.
+
+
+### Primitive row-predicate checkpoint
+
+Constructor equality/inequality, lexicographic ordering and distinctness now
+use a boxed `RowComparison` AST with a dedicated operator enum. The result is
+an existing Boolean value; there is no stored composite carrier or record
+wire codec. Shared visitors, parameter admission/inference, source and output
+types, expression identity, grouped projection keys, EXISTS/pagination
+traversal, diagnostics and dependency inspection consume the new shape.
+Native integer fields use the same checked signature resolver as VALUES.
+Explicit FLOAT8 operands select floating comparison; exact NUMERIC operands
+and extended-family/whole-record/star/subquery obligations remain pending.
+
+Six existing constructor tests started red and now pass. The first twelve new
+SQL/wire functions were 0/8 SQL and 1/3 wire: the apparent arity pass reported
+a generic syntax error, so it now checks the intended native diagnostic.
+Focused tests exposed eager constant errors for ordering, conditional-constant
+pruning and missing INT2/INT4 field overflow. Native probes guided each fix.
+Table-backed fixtures distinguish runtime variables from single-row VALUES,
+which PostgreSQL can inline; the initial VALUES fixtures were corrected against
+the oracle rather than used as false evidence of runtime laziness.
+
+PostgreSQL 18.6 retains a multi-field RowCompareExpr after folding its inputs;
+a singleton lowers to a scalar operator. Native CASE/CAST/NOT/nested-row probes
+pin that distinction, including division errors in otherwise dead branches.
+Equality/distinctness follow AND/OR constant pruning, including CASE, COALESCE,
+immutable text functions and Boolean/BETWEEN expressions. The thirteen-case
+native conditional matrix passes in Rust. Runtime partial evaluation shares
+the original immutable-function set with constant planning. Text row fields
+retain lexical identity rather than timestamp-like normalization.
+
+Jev's first review was 0.75 planning / 0.58 typing / 0.43 resources. Native and
+Rust probes cover conditional pruning, independently inferred INT4/BOOL slots,
+repeated-slot 42P08, later invalid-field 42883, native 1664-field/54011 admission,
+128 KiB memory rejection and owner release, fresh cancellation recovery and
+Boolean view descriptors before/after restart. The original 1 KiB parameter
+frame budget also passes. Refined review chose source-constant binding as the
+next batch (0.99), with primitive-kernel gap 0.50 and owner gap 0.22. The
+required extra kernel probe checks multi-field ordering opacity through
+CAST/NOT/nested CASE and contrasts nested equality pruning; these pass.
+
+A new native error-priority probe remains red under #800:
+`SELECT ROW(a, 1/b) < ROW(a+1, 0) FROM (VALUES (1,0)) AS v(a,b)` must raise
+22012 after PostgreSQL inlines the source constants. Cassie still treats these
+columns as runtime variables. This is the next coherent source-binding bundle;
+it is neither an exclusion nor a passing cell. Whole-record comparison,
+qualified-star expansion, USING and character behavior remain visible failures.
+The existing persisted-null-safe-definition boundary also covers RowCompare,
+with its original diagnostic; its separate compatibility-law decision remains
+pending. Native ordering-view SQL persists and rebinds across restart.
+
+Ordered validation: build passed; the full locked run passed library 978/0,
+analytics 179/0, backend CI 2/0 and benchmark operations 16/0, then stopped at
+catalog/security 139/209. Parser remains 296/77. The post-cleanup complete
+library rerun passed 978/0. The final related selection is 109/16 across 125
+cases: library 30/0, float-cast parser 2/0, SQL 42/5 and wire 35/11. Of the 26
+new SQL/wire functions, 25 pass and the source-constant probe is red. The
+complete null-safe target passed 49/0 after extending its definition guard.
+Full workspace/all-target/all-feature pedantic Clippy and formatting passed.
+All four touched-test validators passed 43/43. No expectation, resource cap or
+lint was weakened. Final inventory and push readback follow this checkpoint.
+Artifacts are ignored `target/green-row-*` files; #800 and full-suite gates
+remain open.
+
+Final row inventory refresh/check passed: 5,654 integration registration
+instances plus 978 library tests, no unregistered modules/tests and no touched
+Rust size violations. Final validators remain 43/43. Full pedantic Clippy,
+formatting and whitespace checks passed after the final nested-planning probes.
+The exact native oracle reports PostgreSQL 18.6 (Homebrew).

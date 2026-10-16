@@ -338,3 +338,22 @@ cells. Propagation retains row-ordering expression structure; multi-field row
 ordering does not become a scalar constant merely because its fields do.
 Clone storage is admitted before substitution. Parameter/function/CHAR source
 cells and nested scope, window and set boundaries remain outside this increment.
+
+
+Scalar text output uses the existing declared identities. Default FLOAT8 output
+uses PostgreSQL's scientific thresholds, ties to even and strict midpoint
+selection; transient cast metadata retains proven FLOAT8 source identity for
+SQL text output without relabeling unresolved NUMERIC proxies. TIME and
+TIMESTAMP use ISO text with compact fractions for wire output and bound
+TEXT/VARCHAR casts. Their existing persisted normalization is unchanged.
+`Expr::Cast::source_type` is optional bound metadata, preserved through AST
+mapping, structural equality, expression keys and EXISTS reconstruction.
+`CastIdentity` retains requested NUMERIC/DECIMAL cast origin while the legacy
+parser still shares their carrier with FLOAT8. Those casts cannot become proven
+FLOAT8 sources. Exact NUMERIC storage, codecs and legacy schema aliases remain
+unqualified under #793/#812; preserving cast origin does not implement them.
+Current binding populates it for the selected primitive output conversions;
+unbound and unrelated casts leave it absent. Catalog definitions persist SQL
+and rebind against the schema. Full DateStyle, extra_float_digits, extended
+temporal families and native literal-input phase qualification remain pending.
+Executed evidence and the explicit pending probes remain in the validation log.

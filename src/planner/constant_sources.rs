@@ -271,8 +271,15 @@ fn clone_bound(
         Expr::StringLiteral(text) | Expr::Column(text) => {
             bytes = add(bytes, mul(text.capacity(), 4)?)?;
         }
-        Expr::Cast { data_type, .. } => {
+        Expr::Cast {
+            data_type,
+            source_type,
+            ..
+        } => {
             bytes = add(bytes, mul(data_type_clone_bytes(data_type)?, 4)?)?;
+            if let Some(source) = source_type {
+                bytes = add(bytes, mul(data_type_clone_bytes(source)?, 4)?)?;
+            }
         }
         Expr::RowCompare(_) => bytes = add(bytes, 4 * size_of::<crate::sql::ast::RowComparison>())?,
         _ => {}

@@ -104,9 +104,9 @@ fn is_admitted_at_depth(expr: &Expr, depth: usize) -> bool {
     match expr {
         Expr::IntegerLiteral(_) | Expr::Null | Expr::Param(_) => true,
         Expr::IntegerNegate { expr, .. } => is_admitted_at_depth(expr, depth + 1),
-        Expr::Cast { expr, data_type } => {
-            is_integer(data_type) && is_admitted_at_depth(expr, depth + 1)
-        }
+        Expr::Cast {
+            expr, data_type, ..
+        } => is_integer(data_type) && is_admitted_at_depth(expr, depth + 1),
         Expr::Binary { left, op, right } => {
             matches!(op, BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul)
                 && is_admitted_at_depth(left, depth + 1)
@@ -176,7 +176,9 @@ fn validate_parameters(
                 ));
             }
         }
-        Expr::Cast { expr, data_type } => {
+        Expr::Cast {
+            expr, data_type, ..
+        } => {
             validate_parameters(expr, oids, arithmetic, Some(data_type))?;
         }
         Expr::IntegerNegate { expr, .. } => validate_parameters(expr, oids, arithmetic, cast)?,
@@ -289,7 +291,9 @@ fn evaluate(
                 width.data_type(),
             ))
         }
-        Expr::Cast { expr, data_type } if is_integer(data_type) => {
+        Expr::Cast {
+            expr, data_type, ..
+        } if is_integer(data_type) => {
             let value = evaluate(expr, params, declared_oids, controls)?.0;
             Ok((
                 value

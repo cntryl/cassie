@@ -46,6 +46,7 @@ fn assert_bytea_literal(expression: &Expr, expected_value: &str) {
     let Expr::Cast {
         expr,
         data_type: DataType::Bytea,
+        ..
     } = expression
     else {
         panic!("expected explicit bytea cast");

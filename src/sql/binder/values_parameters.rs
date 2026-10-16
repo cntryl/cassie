@@ -72,6 +72,8 @@ fn expression(expr: &mut Expr, oids: &[i32]) -> Result<(), CassieError> {
                 *expr = Expr::Cast {
                     expr: Box::new(original),
                     data_type,
+                    source_type: None,
+                    identity: crate::sql::ast::CastIdentity::Scalar,
                 };
             }
         }

@@ -81,7 +81,9 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
         Expr::Not { expr } => Ok(format!("(NOT {})", format_expression(expr)?)),
         Expr::RowCompare(comparison) => format_row_comparison(comparison),
         Expr::IntegerNegate { expr, .. } => Ok(format!("(-{})", format_expression(expr)?)),
-        Expr::Cast { expr, data_type } => Ok(format!(
+        Expr::Cast {
+            expr, data_type, ..
+        } => Ok(format!(
             "CAST({} AS {})",
             format_expression(expr)?,
             data_type.type_name()

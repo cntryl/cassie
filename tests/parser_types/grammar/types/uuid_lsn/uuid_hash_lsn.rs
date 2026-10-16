@@ -35,6 +35,7 @@ fn assert_uuid_cast_expr(expr: &Expr, expected_literal: &str) {
     let Expr::Cast {
         expr,
         data_type: DataType::Uuid,
+        ..
     } = expr
     else {
         panic!("expected UUID cast expression");
@@ -210,10 +211,17 @@ fn should_preserve_pg_lsn_constructor_argument_cast_ast() {
     let [argument] = function_projection(&projection[0], "pg_lsn") else {
         panic!("expected one pg_lsn argument");
     };
-    let Expr::Cast { expr, data_type } = argument else {
+    let Expr::Cast {
+        expr,
+        data_type,
+        identity,
+        ..
+    } = argument
+    else {
         panic!("expected generic cast argument");
     };
     assert_eq!(data_type, &DataType::Float);
+    assert_eq!(*identity, cassie::sql::ast::CastIdentity::Numeric);
     let Expr::StringLiteral(literal) = expr.as_ref() else {
         panic!("expected string input literal");
     };
@@ -238,7 +246,10 @@ fn should_parse_postgresql_hashing_calls() {
     let [argument] = function_projection(&projection[1], "sha256") else {
         panic!("expected one sha256 argument");
     };
-    let Expr::Cast { expr, data_type } = argument else {
+    let Expr::Cast {
+        expr, data_type, ..
+    } = argument
+    else {
         panic!("expected generic bytea cast argument");
     };
     assert_eq!(data_type, &DataType::Bytea);

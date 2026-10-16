@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1545,
-    "rust_files": 1514,
-    "rust_test_declarations": 5545,
+    "files": 1549,
+    "rust_files": 1518,
+    "rust_test_declarations": 5574,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5673,
+    "registered_rust_instances": 5702,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -52293,7 +52293,7 @@
       "name": "should_bind_postfix_casts_before_arithmetic_given_mixed_operands_when_building_the_ast",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
       "line": 526,
-      "end_line": 580,
+      "end_line": 582,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52323,8 +52323,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_nest_casts_in_source_order_given_a_cast_chain_when_building_the_ast",
       "name": "should_nest_casts_in_source_order_given_a_cast_chain_when_building_the_ast",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 583,
-      "end_line": 619,
+      "line": 585,
+      "end_line": 624,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52354,8 +52354,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_preserve_dollar_quoted_contents_given_operator_text_when_parsing_literal_and_parameter_targets",
       "name": "should_preserve_dollar_quoted_contents_given_operator_text_when_parsing_literal_and_parameter_targets",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 622,
-      "end_line": 666,
+      "line": 627,
+      "end_line": 671,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52385,8 +52385,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_reject_incomplete_dollar_quotes_given_unmatched_delimiters_when_parsing_a_literal",
       "name": "should_reject_incomplete_dollar_quotes_given_unmatched_delimiters_when_parsing_a_literal",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 669,
-      "end_line": 686,
+      "line": 674,
+      "end_line": 691,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52416,8 +52416,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_reject_nonexistent_qualified_types_given_builtin_aliases_when_parsing_a_cast",
       "name": "should_reject_nonexistent_qualified_types_given_builtin_aliases_when_parsing_a_cast",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 689,
-      "end_line": 705,
+      "line": 694,
+      "end_line": 710,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52447,8 +52447,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_bound_postfix_cast_nesting_given_an_excessive_chain_when_parsing_an_expression",
       "name": "should_bound_postfix_cast_nesting_given_an_excessive_chain_when_parsing_an_expression",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 708,
-      "end_line": 722,
+      "line": 713,
+      "end_line": 727,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52478,8 +52478,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_bound_combined_cast_depth_given_parenthesized_chains_when_parsing_an_expression",
       "name": "should_bound_combined_cast_depth_given_parenthesized_chains_when_parsing_an_expression",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 725,
-      "end_line": 747,
+      "line": 730,
+      "end_line": 752,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52509,8 +52509,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_admit_independent_cast_chains_given_a_wide_projection_when_each_path_is_within_budget",
       "name": "should_admit_independent_cast_chains_given_a_wide_projection_when_each_path_is_within_budget",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 750,
-      "end_line": 764,
+      "line": 755,
+      "end_line": 769,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52540,8 +52540,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_bound_nested_query_cast_depth_given_an_exists_operand_when_postfix_casts_are_added",
       "name": "should_bound_nested_query_cast_depth_given_an_exists_operand_when_postfix_casts_are_added",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 767,
-      "end_line": 781,
+      "line": 772,
+      "end_line": 786,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52571,8 +52571,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_parse_order_by_nulls_last",
       "name": "should_parse_order_by_nulls_last",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 784,
-      "end_line": 799,
+      "line": 789,
+      "end_line": 804,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52602,8 +52602,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_parse_exists_predicate",
       "name": "should_parse_exists_predicate",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 802,
-      "end_line": 814,
+      "line": 807,
+      "end_line": 819,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52633,8 +52633,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_parse_not_exists_predicate",
       "name": "should_parse_not_exists_predicate",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 817,
-      "end_line": 832,
+      "line": 822,
+      "end_line": 837,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52664,8 +52664,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_reject_not_without_expression",
       "name": "should_reject_not_without_expression",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 835,
-      "end_line": 845,
+      "line": 840,
+      "end_line": 850,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52695,8 +52695,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_reject_empty_in_list_predicate",
       "name": "should_reject_empty_in_list_predicate",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 848,
-      "end_line": 858,
+      "line": 853,
+      "end_line": 863,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52726,8 +52726,8 @@
       "id": "tests/parser_types/grammar/expressions/semantics.rs::should_reject_exists_without_select_subquery",
       "name": "should_reject_exists_without_select_subquery",
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
-      "line": 861,
-      "end_line": 871,
+      "line": 866,
+      "end_line": 876,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -58895,8 +58895,8 @@
       "id": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs::should_parse_binary_plus_hex_bit_string_constants",
       "name": "should_parse_binary_plus_hex_bit_string_constants",
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
-      "line": 61,
-      "end_line": 88,
+      "line": 62,
+      "end_line": 89,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -58926,8 +58926,8 @@
       "id": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs::should_report_bit_type_modifiers_in_information_schema",
       "name": "should_report_bit_type_modifiers_in_information_schema",
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
-      "line": 91,
-      "end_line": 128,
+      "line": 92,
+      "end_line": 129,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -58957,8 +58957,8 @@
       "id": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs::should_execute_bitwise_operator_forms_with_postgres_values",
       "name": "should_execute_bitwise_operator_forms_with_postgres_values",
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
-      "line": 131,
-      "end_line": 163,
+      "line": 132,
+      "end_line": 164,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -58988,8 +58988,8 @@
       "id": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs::should_execute_bit_string_functions_with_postgres_values",
       "name": "should_execute_bit_string_functions_with_postgres_values",
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
-      "line": 166,
-      "end_line": 198,
+      "line": 167,
+      "end_line": 199,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -59019,8 +59019,8 @@
       "id": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs::should_execute_bytea_operator_cast_forms_with_postgres_values",
       "name": "should_execute_bytea_operator_cast_forms_with_postgres_values",
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
-      "line": 201,
-      "end_line": 220,
+      "line": 202,
+      "end_line": 221,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -59050,8 +59050,8 @@
       "id": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs::should_preserve_bytea_substring_function_operands",
       "name": "should_preserve_bytea_substring_function_operands",
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
-      "line": 223,
-      "end_line": 237,
+      "line": 224,
+      "end_line": 238,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -59081,8 +59081,8 @@
       "id": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs::should_preserve_bytea_overlay_function_operands",
       "name": "should_preserve_bytea_overlay_function_operands",
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
-      "line": 240,
-      "end_line": 255,
+      "line": 241,
+      "end_line": 256,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -59112,8 +59112,8 @@
       "id": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs::should_preserve_bytea_position_function_operands",
       "name": "should_preserve_bytea_position_function_operands",
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
-      "line": 258,
-      "end_line": 271,
+      "line": 259,
+      "end_line": 272,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -59143,8 +59143,8 @@
       "id": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs::should_preserve_bytea_trim_function_operands",
       "name": "should_preserve_bytea_trim_function_operands",
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
-      "line": 274,
-      "end_line": 287,
+      "line": 275,
+      "end_line": 288,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -59174,8 +59174,8 @@
       "id": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs::should_parse_bytea_encoding_conversion_access_functions",
       "name": "should_parse_bytea_encoding_conversion_access_functions",
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
-      "line": 290,
-      "end_line": 368,
+      "line": 291,
+      "end_line": 369,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -59918,8 +59918,8 @@
       "id": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs::should_parse_uuid_alternative_input_casts",
       "name": "should_parse_uuid_alternative_input_casts",
       "current_file": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs",
-      "line": 49,
-      "end_line": 61,
+      "line": 50,
+      "end_line": 62,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -59949,8 +59949,8 @@
       "id": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs::should_parse_postgresql_uuid_generation_calls_as_generic_function_nodes",
       "name": "should_parse_postgresql_uuid_generation_calls_as_generic_function_nodes",
       "current_file": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs",
-      "line": 64,
-      "end_line": 82,
+      "line": 65,
+      "end_line": 83,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -59980,8 +59980,8 @@
       "id": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs::should_return_uuid_v7_extraction_values",
       "name": "should_return_uuid_v7_extraction_values",
       "current_file": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs",
-      "line": 85,
-      "end_line": 112,
+      "line": 86,
+      "end_line": 113,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -60011,8 +60011,8 @@
       "id": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs::should_preserve_uuid_comparison_as_binary_cast_nodes",
       "name": "should_preserve_uuid_comparison_as_binary_cast_nodes",
       "current_file": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs",
-      "line": 115,
-      "end_line": 139,
+      "line": 116,
+      "end_line": 140,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -60042,8 +60042,8 @@
       "id": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs::should_preserve_pg_lsn_operator_outputs",
       "name": "should_preserve_pg_lsn_operator_outputs",
       "current_file": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs",
-      "line": 142,
-      "end_line": 171,
+      "line": 143,
+      "end_line": 172,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -60073,8 +60073,8 @@
       "id": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs::should_evaluate_pg_lsn_functions_with_postgres_result_types",
       "name": "should_evaluate_pg_lsn_functions_with_postgres_result_types",
       "current_file": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs",
-      "line": 174,
-      "end_line": 198,
+      "line": 175,
+      "end_line": 199,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -60104,8 +60104,8 @@
       "id": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs::should_preserve_pg_lsn_constructor_argument_cast_ast",
       "name": "should_preserve_pg_lsn_constructor_argument_cast_ast",
       "current_file": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs",
-      "line": 201,
-      "end_line": 221,
+      "line": 202,
+      "end_line": 229,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -60135,8 +60135,8 @@
       "id": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs::should_parse_postgresql_hashing_calls",
       "name": "should_parse_postgresql_hashing_calls",
       "current_file": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs",
-      "line": 224,
-      "end_line": 263,
+      "line": 232,
+      "end_line": 274,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -76943,6 +76943,347 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_preserve_float8_wire_identity_given_native_bit_witnesses_when_parameter_formats_vary",
+      "name": "should_preserve_float8_wire_identity_given_native_bit_witnesses_when_parameter_formats_vary",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 8,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_preserve_float8_wire_identity_given_native_bit_witnesses_when_parameter_formats_vary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_format_float8_text_given_binary_inputs_when_sql_casts_keep_native_rounding",
+      "name": "should_format_float8_text_given_binary_inputs_when_sql_casts_keep_native_rounding",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 54,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_format_float8_text_given_binary_inputs_when_sql_casts_keep_native_rounding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_format_timestamp_text_given_native_precision_cases_when_parameter_formats_vary",
+      "name": "should_format_timestamp_text_given_native_precision_cases_when_parameter_formats_vary",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 83,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_format_timestamp_text_given_native_precision_cases_when_parameter_formats_vary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_preserve_declared_source_types_given_identical_text_when_timestamp_parameters_are_cast",
+      "name": "should_preserve_declared_source_types_given_identical_text_when_timestamp_parameters_are_cast",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 129,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_preserve_declared_source_types_given_identical_text_when_timestamp_parameters_are_cast"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_preserve_timestamp_source_types_given_case_and_coalesce_when_binary_parameters_are_cast",
+      "name": "should_preserve_timestamp_source_types_given_case_and_coalesce_when_binary_parameters_are_cast",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 177,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_preserve_timestamp_source_types_given_case_and_coalesce_when_binary_parameters_are_cast"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_recover_timestamp_text_casts_given_invalid_binary_values_when_a_named_statement_is_reused",
+      "name": "should_recover_timestamp_text_casts_given_invalid_binary_values_when_a_named_statement_is_reused",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 199,
+      "end_line": 235,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_recover_timestamp_text_casts_given_invalid_binary_values_when_a_named_statement_is_reused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_preserve_time_wire_identity_given_native_fraction_cases_when_parameters_execute",
+      "name": "should_preserve_time_wire_identity_given_native_fraction_cases_when_parameters_execute",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 238,
+      "end_line": 280,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_preserve_time_wire_identity_given_native_fraction_cases_when_parameters_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_preserve_time_source_identity_given_typed_parameters_when_text_casts_execute",
+      "name": "should_preserve_time_source_identity_given_typed_parameters_when_text_casts_execute",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 283,
+      "end_line": 300,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_preserve_time_source_identity_given_typed_parameters_when_text_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_recover_float8_text_parameters_given_native_input_errors_when_named_statements_are_rebound",
+      "name": "should_recover_float8_text_parameters_given_native_input_errors_when_named_statements_are_rebound",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 303,
+      "end_line": 347,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_recover_float8_text_parameters_given_native_input_errors_when_named_statements_are_rebound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_preserve_unknown_literal_input_errors_given_pruned_consumers_when_statements_are_parsed",
+      "name": "should_preserve_unknown_literal_input_errors_given_pruned_consumers_when_statements_are_parsed",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 350,
+      "end_line": 373,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_preserve_unknown_literal_input_errors_given_pruned_consumers_when_statements_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/scalar_presentation.rs::should_preserve_float8_wire_identity_given_integer_storage_carriers_when_result_formats_vary",
+      "name": "should_preserve_float8_wire_identity_given_integer_storage_carriers_when_result_formats_vary",
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "line": 376,
+      "end_line": 403,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_scalar_presentation::should_preserve_float8_wire_identity_given_integer_storage_carriers_when_result_formats_vary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -128716,6 +129057,564 @@
       }
     },
     {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_format_float8_text_given_native_bit_witnesses_when_explicit_casts_execute",
+      "name": "should_format_float8_text_given_native_bit_witnesses_when_explicit_casts_execute",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 7,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_format_float8_text_given_native_bit_witnesses_when_explicit_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_preserve_float8_bits_given_native_text_casts_when_finite_parameters_roundtrip",
+      "name": "should_preserve_float8_bits_given_native_text_casts_when_finite_parameters_roundtrip",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 30,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_preserve_float8_bits_given_native_text_casts_when_finite_parameters_roundtrip"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_preserve_float8_notation_given_conditional_outputs_when_nested_casts_execute",
+      "name": "should_preserve_float8_notation_given_conditional_outputs_when_nested_casts_execute",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 59,
+      "end_line": 74,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_preserve_float8_notation_given_conditional_outputs_when_nested_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_format_timestamp_text_given_native_precision_cases_when_constant_casts_execute",
+      "name": "should_format_timestamp_text_given_native_precision_cases_when_constant_casts_execute",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 77,
+      "end_line": 102,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_format_timestamp_text_given_native_precision_cases_when_constant_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_format_timestamp_text_given_typed_table_fields_when_conditionals_are_projected",
+      "name": "should_format_timestamp_text_given_typed_table_fields_when_conditionals_are_projected",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 105,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_format_timestamp_text_given_typed_table_fields_when_conditionals_are_projected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_preserve_timestamp_source_identity_given_aggregates_when_cast_projection_is_rewritten",
+      "name": "should_preserve_timestamp_source_identity_given_aggregates_when_cast_projection_is_rewritten",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 133,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_preserve_timestamp_source_identity_given_aggregates_when_cast_projection_is_rewritten"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/core",
+        "directory": "tests/sql_queries/aggregates/core",
+        "file": "tests/sql_queries/aggregates/core/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_preserve_timestamp_source_identity_given_values_fields_when_constants_are_substituted",
+      "name": "should_preserve_timestamp_source_identity_given_values_fields_when_constants_are_substituted",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 149,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_preserve_timestamp_source_identity_given_values_fields_when_constants_are_substituted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_preserve_text_identity_given_timestamp_shaped_strings_when_text_is_cast",
+      "name": "should_preserve_text_identity_given_timestamp_shaped_strings_when_text_is_cast",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 164,
+      "end_line": 180,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_preserve_text_identity_given_timestamp_shaped_strings_when_text_is_cast"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_format_float8_text_given_bounded_varchar_casts_when_native_output_fits_the_width",
+      "name": "should_format_float8_text_given_bounded_varchar_casts_when_native_output_fits_the_width",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 183,
+      "end_line": 208,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_format_float8_text_given_bounded_varchar_casts_when_native_output_fits_the_width"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_format_timestamp_text_given_varchar_casts_when_declared_source_identity_is_available",
+      "name": "should_format_timestamp_text_given_varchar_casts_when_declared_source_identity_is_available",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 211,
+      "end_line": 237,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_format_timestamp_text_given_varchar_casts_when_declared_source_identity_is_available"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_format_time_text_given_native_fraction_cases_when_casts_execute",
+      "name": "should_format_time_text_given_native_fraction_cases_when_casts_execute",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 240,
+      "end_line": 266,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_format_time_text_given_native_fraction_cases_when_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_prune_numeric_casts_given_large_integer_magnitudes_when_they_are_distinct_from_quoted_input",
+      "name": "should_prune_numeric_casts_given_large_integer_magnitudes_when_they_are_distinct_from_quoted_input",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 269,
+      "end_line": 283,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_prune_numeric_casts_given_large_integer_magnitudes_when_they_are_distinct_from_quoted_input"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_preserve_temporal_cast_sources_given_exists_conditions_when_expressions_are_resolved",
+      "name": "should_preserve_temporal_cast_sources_given_exists_conditions_when_expressions_are_resolved",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 286,
+      "end_line": 307,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_preserve_temporal_cast_sources_given_exists_conditions_when_expressions_are_resolved"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_preserve_temporal_cast_keys_given_grouped_outputs_when_conditional_values_are_reused",
+      "name": "should_preserve_temporal_cast_keys_given_grouped_outputs_when_conditional_values_are_reused",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 310,
+      "end_line": 326,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_preserve_temporal_cast_keys_given_grouped_outputs_when_conditional_values_are_reused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_rebind_scalar_cast_sources_given_persisted_views_when_the_database_restarts",
+      "name": "should_rebind_scalar_cast_sources_given_persisted_views_when_the_database_restarts",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 329,
+      "end_line": 349,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_rebind_scalar_cast_sources_given_persisted_views_when_the_database_restarts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_preserve_float8_aggregate_sources_given_declared_inputs_when_results_are_cast_to_text",
+      "name": "should_preserve_float8_aggregate_sources_given_declared_inputs_when_results_are_cast_to_text",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 352,
+      "end_line": 380,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_preserve_float8_aggregate_sources_given_declared_inputs_when_results_are_cast_to_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/core",
+        "directory": "tests/sql_queries/aggregates/core",
+        "file": "tests/sql_queries/aggregates/core/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_preserve_declared_float8_identity_given_integer_assignment_when_text_outputs_are_selected",
+      "name": "should_preserve_declared_float8_identity_given_integer_assignment_when_text_outputs_are_selected",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 383,
+      "end_line": 400,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_preserve_declared_float8_identity_given_integer_assignment_when_text_outputs_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/scalar_presentation.rs::should_distinguish_numeric_text_from_float8_given_explicit_casts_when_source_identities_are_selected",
+      "name": "should_distinguish_numeric_text_from_float8_given_explicit_casts_when_source_identities_are_selected",
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "line": 403,
+      "end_line": 420,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_scalar_presentation::should_distinguish_numeric_text_from_float8_given_explicit_casts_when_source_identities_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/scalar_presentation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/casts/sql_casts.rs::should_apply_implicit_sql_defined_cast_during_function_resolution",
       "name": "should_apply_implicit_sql_defined_cast_during_function_resolution",
       "current_file": "tests/sql_queries/casts/sql_casts.rs",
@@ -134486,7 +135385,7 @@
       "name": "should_reject_direct_constructed_bound_depth_before_temporary_plan_clone",
       "current_file": "tests/sql_queries/expressions/pagination.rs",
       "line": 339,
-      "end_line": 374,
+      "end_line": 376,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -134516,8 +135415,8 @@
       "id": "tests/sql_queries/expressions/pagination.rs::should_reject_deep_nested_direct_bound_before_temporary_plan_clone",
       "name": "should_reject_deep_nested_direct_bound_before_temporary_plan_clone",
       "current_file": "tests/sql_queries/expressions/pagination.rs",
-      "line": 377,
-      "end_line": 416,
+      "line": 379,
+      "end_line": 420,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -134547,8 +135446,8 @@
       "id": "tests/sql_queries/expressions/pagination.rs::should_admit_direct_bounds_at_the_existing_nesting_envelope",
       "name": "should_admit_direct_bounds_at_the_existing_nesting_envelope",
       "current_file": "tests/sql_queries/expressions/pagination.rs",
-      "line": 419,
-      "end_line": 445,
+      "line": 423,
+      "end_line": 451,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -134578,8 +135477,8 @@
       "id": "tests/sql_queries/expressions/pagination.rs::should_guard_deep_direct_expression_before_recursive_bound_detection",
       "name": "should_guard_deep_direct_expression_before_recursive_bound_detection",
       "current_file": "tests/sql_queries/expressions/pagination.rs",
-      "line": 448,
-      "end_line": 492,
+      "line": 454,
+      "end_line": 498,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -181817,8 +182716,8 @@
       "current_file": "tests/parser_types/grammar/expressions/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 871,
-      "sha256": "7751ae17639c4993ae0f449206f290e87929b4a4894b5103710ff40f670a1eaf",
+      "lines": 876,
+      "sha256": "8a8b1eb6ddf962db27b6f0dbe0d6b847afc1007e6eb81ac4fc51cbe04063b228",
       "test_declarations": 35,
       "registered_suites": [
         "parser_types"
@@ -182342,8 +183241,8 @@
       "current_file": "tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 368,
-      "sha256": "1b246430fd227d289d8b9bf404723ebe8507fd0c68dd990379c4905e260eca25",
+      "lines": 369,
+      "sha256": "ee852779fe1f5331eeb1d38a44185aa7943122cd4fd0824b0e16fae12fcfa093",
       "test_declarations": 10,
       "registered_suites": [
         "parser_types"
@@ -182417,8 +183316,8 @@
       "current_file": "tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 263,
-      "sha256": "810cead56a10e2738ef918189b1cd70e851316509c20e54d942808d6ebe300dc",
+      "lines": 274,
+      "sha256": "437065223d1ab1b98073bf5c762d892b14eed9de67a56a7e1d74df28f7ddbebe",
       "test_declarations": 8,
       "registered_suites": [
         "parser_types"
@@ -184627,8 +185526,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 183,
-      "sha256": "9d8903f0c727075c79fbdeb0759702a7fb9b9cd091a0858ea0e54e7d8019aa64",
+      "lines": 186,
+      "sha256": "0ae056ba42dec0bccceba0b336067aae00f3d2c08ebdf5cac8a2a34f966119f1",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -185370,6 +186269,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/protocol/rule_semantics/transactions.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/scalar_presentation.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 403,
+      "sha256": "8ffe97ff0118742200db3521d331f31c80184fe4cf70a644e997a26f15a677c1",
+      "test_declarations": 11,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/protocol/scalar_presentation.rs"
       ],
       "line_limit": 1000
     },
@@ -188752,8 +189666,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 183,
-      "sha256": "d20356e5053d82c718911e3d3648da26b3d452538525369f1c0f8beee2c30c66",
+      "lines": 186,
+      "sha256": "b79b8f1722df69f544a7056f6529792a817370d95b3256b03a156d171e5dfa51",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -192364,6 +193278,22 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 420,
+      "sha256": "cbe36c2dc220a5447d430aad5993189a002353723b3023b8455d07fd12228371",
+      "test_declarations": 18,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/core/scalar_presentation.rs",
+        "tests/sql_queries/grammar/scalar_presentation.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/casts/sql_casts.rs",
       "role": "test_module",
       "action": "keep",
@@ -192682,8 +193612,8 @@
       "current_file": "tests/sql_queries/expressions/pagination.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 492,
-      "sha256": "55c8169415efede208da999726ee5a77b1cf6c129823d137bef6c83ae051c2ca",
+      "lines": 498,
+      "sha256": "4a3bc9dde16f83b8eb65dd2beb796f0800c9f9be4904f148779488a9a7647b05",
       "test_declarations": 14,
       "registered_suites": [
         "sql_queries"
@@ -193012,8 +193942,8 @@
       "current_file": "tests/sql_queries/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 87,
-      "sha256": "32a64ec3c4cd68fa6f9fd9a6ddf57144b2072395e725b0b9146bd5f291af5d78",
+      "lines": 90,
+      "sha256": "151a81fa0239b626c76a6f69c5a35c504f6a51ed05ca531699274efc4249c904",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -193988,8 +194918,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 200,
-      "sha256": "b52626e4e7d7c2bbecec8f2c9c374096cb5cc9d0448ad48b31beb70d810c7235",
+      "lines": 206,
+      "sha256": "a467364fee39bd69e35785c6595c0383a2d7198275000835a5b919ba892e3ea6",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -195410,6 +196340,37 @@
       ],
       "destinations": [
         "tests/support/retrieval_provider.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/scalar_presentation.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 833,
+      "sha256": "b55ab5a80244061975519db0186781cde3695f21f65b3ceb2a61dc9b345f1080",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended",
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/support/scalar_presentation.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/scalar_presentation_restart.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 56,
+      "sha256": "c8da4b03cf41e3a748e3a103356b10b8d8a1a87586dca56063b63a880405a3fd",
+      "test_declarations": 0,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/support/scalar_presentation_restart.rs"
       ],
       "line_limit": 1000
     },

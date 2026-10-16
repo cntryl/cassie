@@ -1,7 +1,6 @@
 //! Semantic constants used by AND/OR pruning; dead branches stay dead.
 use super::{
-    binary_scalar, cast_scalar, eval_scalar_with_context, EvalContext, Expr, QueryError, RowAccess,
-    ScalarValue,
+    binary_scalar, eval_scalar_with_context, EvalContext, Expr, QueryError, RowAccess, ScalarValue,
 };
 use crate::sql::ast::{BinaryOp, FunctionCall};
 use crate::sql::functions::{function, is_immutable_scalar, FunctionId};
@@ -44,8 +43,10 @@ pub(super) fn value<R: RowAccess + ?Sized>(
         Expr::Cast {
             expr: child,
             data_type,
+            source_type,
+            ..
         } => value(child, row, context)?
-            .map(|value| cast_scalar(&value, data_type))
+            .map(|value| super::casts::scalar(&value, data_type, source_type.as_ref()))
             .transpose(),
         Expr::IntegerNegate { expr, width } => value(expr, row, context)?
             .map(|value| super::integers::negate(&value, *width))
@@ -216,6 +217,8 @@ fn literal(value: ScalarValue) -> Expr {
         ScalarValue::Json(value) => Expr::Cast {
             expr: Box::new(Expr::StringLiteral(value)),
             data_type: crate::types::DataType::Json,
+            source_type: None,
+            identity: crate::sql::ast::CastIdentity::Scalar,
         },
     }
 }

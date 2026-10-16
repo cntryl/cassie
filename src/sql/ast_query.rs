@@ -265,6 +265,16 @@ pub enum NullsOrder {
     Last,
 }
 
+/// Requested cast identity when a legacy carrier is shared by SQL families.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CastIdentity {
+    #[default]
+    Scalar,
+    /// NUMERIC/DECIMAL has no qualified exact carrier in the current runtime.
+    Numeric,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Expr {
     Column(String),
@@ -305,6 +315,11 @@ pub enum Expr {
     Cast {
         expr: Box<Expr>,
         data_type: DataType,
+        /// Bound source identity required by the selected conversion.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source_type: Option<DataType>,
+        #[serde(default)]
+        identity: CastIdentity,
     },
     /// Integer negation applied after its operand's casts.
     IntegerNegate {

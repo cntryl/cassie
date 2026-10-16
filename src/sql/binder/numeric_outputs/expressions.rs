@@ -20,8 +20,17 @@ impl Analyzer<'_> {
             // A declared existing-type CAST is the selected output ABI
             // boundary. Ordinary expression/Boolean validation still visits
             // its child in the core path; this does not excuse invalid input.
-            Expr::Cast { data_type, .. } => {
-                if let Some(original) = super::super::result_coercion::original_operand(expression)
+            Expr::Cast {
+                data_type,
+                identity,
+                ..
+            } => {
+                if *identity == crate::sql::ast::CastIdentity::Numeric {
+                    let mut output = OutputType::fixed(data_type.clone());
+                    output.proven_float8 = false;
+                    output
+                } else if let Some(original) =
+                    super::super::result_coercion::original_operand(expression)
                 {
                     self.expression(original, lookup)?
                 } else {

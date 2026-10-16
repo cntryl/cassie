@@ -198,3 +198,9 @@ mod identifier_case_resolution;
 mod support_typed_join;
 #[path = "sql_queries/joins/typed_join.rs"]
 mod typed_join;
+
+#[path = "support/scalar_presentation.rs"]
+mod support_scalar_presentation;
+
+#[path = "support/scalar_presentation_restart.rs"]
+mod support_scalar_presentation_restart;

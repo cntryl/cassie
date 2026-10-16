@@ -175,8 +175,17 @@ fn expression_weight(expr: &Expr) -> usize {
 fn literal_bytes(expr: &Expr, params: &[Value]) -> Result<usize, crate::app::CassieError> {
     let mut bytes = match expr {
         Expr::StringLiteral(text) => Ok(text.len()),
-        Expr::Cast { data_type, .. } => {
-            crate::executor::retained_memory::data_type_clone_bytes(data_type)
+        Expr::Cast {
+            data_type,
+            source_type,
+            ..
+        } => {
+            let target = crate::executor::retained_memory::data_type_clone_bytes(data_type)?;
+            let source = source_type.as_ref().map_or(
+                Ok(0),
+                crate::executor::retained_memory::data_type_clone_bytes,
+            )?;
+            add(target, source)
         }
         Expr::Param(index) => params.get(*index).map_or(Ok(0), value_clone_bytes),
         _ => Ok(0),

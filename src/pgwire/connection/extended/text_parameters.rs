@@ -97,9 +97,14 @@ fn parse_integer(
 }
 
 fn parse_float(text: &str) -> Result<f64, ExtendedQueryError> {
-    text.trim()
-        .parse::<f64>()
-        .map_err(|_| ExtendedQueryError::protocol("invalid float bind parameter"))
+    crate::types::float_input::parse(text).map_err(|error| match error {
+        crate::types::FloatInputError::Syntax => {
+            ExtendedQueryError::invalid_input_syntax("double precision", text)
+        }
+        crate::types::FloatInputError::Range => {
+            ExtendedQueryError::numeric_value_out_of_range("double precision", text)
+        }
+    })
 }
 
 /// NUMERIC has no exact storage type, so integral text keeps full `i64`

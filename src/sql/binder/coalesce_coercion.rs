@@ -27,7 +27,7 @@ pub(super) fn coerce_function(function: &mut FunctionCall, scope: &ResultTypes) 
 
 pub(crate) fn has_float_domain(function: &FunctionCall) -> bool {
     function.args.last().is_some_and(|argument| {
-        matches!(argument, Expr::Cast { expr, data_type: DataType::Float } if matches!(expr.as_ref(), Expr::Null))
+        matches!(argument, Expr::Cast { expr, data_type: DataType::Float, .. } if matches!(expr.as_ref(), Expr::Null))
             || super::result_coercion::original_operand(argument)
                 .is_some_and(|original| matches!(original, Expr::Null))
     })

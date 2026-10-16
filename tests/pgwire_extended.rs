@@ -181,3 +181,6 @@ mod null_safe_predicates;
 
 #[path = "support/collection_aggregate_resources.rs"]
 mod support_collection_aggregate_resources;
+
+#[path = "support/scalar_presentation.rs"]
+mod support_scalar_presentation;

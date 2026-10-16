@@ -63,6 +63,9 @@ pub(crate) struct CassieErrorDescriptor {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CassieError {
+    #[error(transparent)]
+    FloatInput(#[from] crate::types::FloatInputError),
+
     #[error("collection not found: {0}")]
     CollectionNotFound(String),
 
@@ -194,6 +197,7 @@ pub enum CassieError {
 impl CassieError {
     pub(crate) fn descriptor(&self) -> CassieErrorDescriptor {
         match self {
+            Self::FloatInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::CollectionNotFound(table) => missing_relation_descriptor(table),
             Self::CatalogObjectNotFound { kind, name } => {
                 missing_catalog_object_descriptor(*kind, name, self.to_string())

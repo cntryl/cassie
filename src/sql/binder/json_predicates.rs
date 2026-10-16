@@ -87,6 +87,8 @@ fn cast_column(expr: &mut Expr, fields: &crate::sql::FieldTypeMap) {
             *expr = Expr::Cast {
                 expr: Box::new(expr.clone()),
                 data_type: DataType::Json,
+                source_type: None,
+                identity: crate::sql::ast::CastIdentity::Scalar,
             };
         }
     }

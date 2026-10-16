@@ -181,3 +181,6 @@ mod postgresql18_row_predicates;
 
 #[path = "grammar/values_constants.rs"]
 mod postgresql18_values_constants;
+
+#[path = "protocol/scalar_presentation.rs"]
+mod postgresql18_scalar_presentation;

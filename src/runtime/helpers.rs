@@ -91,7 +91,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::Parse(_) => "parse",
         CassieError::InvalidQuery(_) => "invalid_query",
         CassieError::Planner(_) => "planner",
-        CassieError::Execution(_) => "execution",
+        CassieError::Execution(_) | CassieError::FloatInput(_) => "execution",
         CassieError::Transaction { .. } => "transaction",
         CassieError::DeadlineExceeded => "deadline_exceeded",
         CassieError::QueryCancelled => "query_cancelled",

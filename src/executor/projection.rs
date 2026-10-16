@@ -474,7 +474,15 @@ fn projection_expr_key(expr: &Expr) -> String {
         Expr::IntegerNegate { expr, width } => {
             format!("negate:{width:?}({})", projection_expr_key(expr))
         }
-        Expr::Cast { expr, data_type } => format!("{}::{data_type:?}", projection_expr_key(expr)),
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            identity,
+        } => format!(
+            "{}::{data_type:?}[{source_type:?},{identity:?}]",
+            projection_expr_key(expr)
+        ),
         Expr::Exists(_) => "exists".to_string(),
     }
 }

@@ -85,3 +85,6 @@ mod postgresql18_row_predicates;
 
 #[path = "relations/values_constants.rs"]
 mod postgresql18_values_constants;
+
+#[path = "casts/scalar_presentation.rs"]
+mod postgresql18_scalar_presentation;

@@ -135,9 +135,16 @@ impl Expr {
                 expr: Box::new(map(expr)),
                 width: *width,
             },
-            Self::Cast { expr, data_type } => Self::Cast {
+            Self::Cast {
+                expr,
+                data_type,
+                source_type,
+                identity,
+            } => Self::Cast {
                 expr: Box::new(map(expr)),
                 data_type: data_type.clone(),
+                source_type: source_type.clone(),
+                identity: *identity,
             },
             Self::Function(function) => Self::Function(Box::new(super::ast_query::FunctionCall {
                 name: function.name.clone(),
@@ -434,12 +441,21 @@ fn unary_structurally_eq(left: &Expr, right: &Expr) -> bool {
             Expr::Cast {
                 expr: left,
                 data_type: left_type,
+                source_type: left_source,
+                identity: left_identity,
             },
             Expr::Cast {
                 expr: right,
                 data_type: right_type,
+                source_type: right_source,
+                identity: right_identity,
             },
-        ) => left_type == right_type && left.structurally_eq(right),
+        ) => {
+            left_type == right_type
+                && left_source == right_source
+                && left_identity == right_identity
+                && left.structurally_eq(right)
+        }
         (
             Expr::IntegerNegate {
                 expr: left,

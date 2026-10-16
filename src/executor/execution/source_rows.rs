@@ -650,7 +650,15 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
             comparison.right.iter().map(expr_key).collect::<Vec<_>>()
         ),
         Expr::IntegerNegate { expr, width } => format!("negate:{width:?}({})", expr_key(expr)),
-        Expr::Cast { expr, data_type } => format!("{}::{data_type:?}", expr_key(expr)),
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            identity,
+        } => format!(
+            "{}::{data_type:?}[{source_type:?},{identity:?}]",
+            expr_key(expr)
+        ),
         Expr::Exists(_) => "exists".to_string(),
     }
 }

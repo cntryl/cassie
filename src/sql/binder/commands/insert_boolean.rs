@@ -281,6 +281,8 @@ fn validate_known_type(
     let mut expression = Expr::Cast {
         expr: Box::new(Expr::Null),
         data_type: data_type.clone(),
+        source_type: None,
+        identity: crate::sql::ast::CastIdentity::Scalar,
     };
     boolean_contexts::validate_value(&mut expression, types, expected, catalog, context)
 }

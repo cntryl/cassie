@@ -706,6 +706,9 @@ const fn is_literal(expr: &Expr) -> bool {
 fn is_folding_error(error: &QueryError) -> bool {
     matches!(
         error,
+        QueryError::Cassie(crate::app::CassieError::FloatInput(_))
+    ) || matches!(
+        error,
         QueryError::General(message)
             if message == "division by zero"
                 || matches!(message.as_str(), "smallint out of range" | "integer out of range" | "invalid input syntax for type smallint" | "invalid input syntax for type integer" | "invalid input syntax for type bigint")

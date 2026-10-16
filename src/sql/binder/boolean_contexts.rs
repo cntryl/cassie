@@ -343,24 +343,18 @@ fn validate_expression(
             branches,
             else_expr,
         } => {
-            let searched = operand.is_none();
-            if let Some(operand) = operand {
-                validate_expression(operand, types, catalog, context)?;
-            }
-            for (condition, result) in branches {
-                if searched {
-                    require_boolean(condition, types, "CASE WHEN")?;
-                } else if let Some(operand) = operand {
-                    canonicalize_boolean_pair(operand, condition, types)?;
-                }
-                validate_expression(condition, types, catalog, context)?;
-                validate_expression(result, types, catalog, context)?;
-            }
-            if let Some(result) = else_expr {
-                validate_expression(result, types, catalog, context)?;
-            }
+            validate_case(operand, branches, else_expr, types, catalog, context)?;
         }
-        Expr::Cast { expr, .. } | Expr::IntegerNegate { expr, .. } | Expr::IsNull { expr, .. } => {
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            ..
+        } => {
+            validate_expression(expr, types, catalog, context)?;
+            *source_type = cast_source_type(expr, data_type, types, catalog);
+        }
+        Expr::IntegerNegate { expr, .. } | Expr::IsNull { expr, .. } => {
             validate_expression(expr, types, catalog, context)?;
         }
         Expr::InList { expr, values, .. } => {
@@ -399,6 +393,51 @@ fn validate_expression(
         | Expr::Null => {}
     }
     Ok(())
+}
+
+fn validate_case(
+    operand: &mut Option<Box<Expr>>,
+    branches: &mut [(Expr, Expr)],
+    else_expr: &mut Option<Box<Expr>>,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let searched = operand.is_none();
+    if let Some(operand) = operand {
+        validate_expression(operand, types, catalog, context)?;
+    }
+    for (condition, result) in branches {
+        if searched {
+            require_boolean(condition, types, "CASE WHEN")?;
+        } else if let Some(operand) = operand {
+            canonicalize_boolean_pair(operand, condition, types)?;
+        }
+        validate_expression(condition, types, catalog, context)?;
+        validate_expression(result, types, catalog, context)?;
+    }
+    if let Some(result) = else_expr {
+        validate_expression(result, types, catalog, context)?;
+    }
+    Ok(())
+}
+
+fn cast_source_type(
+    expr: &Expr,
+    target: &DataType,
+    types: &ResultTypes,
+    catalog: &Catalog,
+) -> Option<DataType> {
+    if !matches!(target, DataType::Text | DataType::Varchar { .. }) {
+        return None;
+    }
+    // These selected output conversions need source identity. Unresolved
+    // NUMERIC carriers must not be relabeled as proven FLOAT8, and no heap
+    // type descriptor is cloned just to annotate an unrelated cast.
+    types.expression_type(expr).filter(|kind| {
+        matches!(kind, DataType::Time | DataType::Timestamp)
+            || (*kind == DataType::Float && types.proven_float8(expr, catalog))
+    })
 }
 
 fn coerce_numeric_pair(left: &mut Expr, right: &mut Expr, types: &ResultTypes, catalog: &Catalog) {

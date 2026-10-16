@@ -28,7 +28,16 @@ pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
         }
         Value::Bool(v) => v.to_string(),
         Value::Int64(v) => v.to_string(),
-        Value::Float64(v) => float8_text(*v),
+        Value::Float64(v) if type_oid == 701 || !v.is_finite() => {
+            crate::types::float_text::format(*v)
+        }
+        Value::Float64(v) => v.to_string(),
+        Value::String(v) if type_oid == 1114 => {
+            crate::types::temporal::timestamp_text(v).unwrap_or_else(|_| v.clone())
+        }
+        Value::String(v) if type_oid == 1083 => {
+            crate::types::temporal::time_text(v).unwrap_or_else(|_| v.clone())
+        }
         Value::String(v) => v.clone(),
         Value::Vector(v) => format!(
             "[{}]",
@@ -39,21 +48,6 @@ pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
                 .join(",")
         ),
         Value::Json(v) => v.to_string(),
-    }
-}
-
-/// float8out spelling: `Infinity`, `-Infinity` and `NaN` for the non-finite
-/// values Rust would print as `inf`, `-inf` and `NaN`.
-fn float8_text(value: f64) -> String {
-    if value.is_infinite() {
-        if value.is_sign_positive() {
-            "Infinity"
-        } else {
-            "-Infinity"
-        }
-        .to_string()
-    } else {
-        value.to_string()
     }
 }
 

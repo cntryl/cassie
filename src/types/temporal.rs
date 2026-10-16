@@ -64,6 +64,29 @@ pub fn format_timestamp(datetime: PrimitiveDateTime) -> String {
     )
 }
 
+/// ISO output for the existing TIMESTAMP carrier; storage stays fixed width.
+pub(crate) fn timestamp_text(value: &str) -> Result<String, String> {
+    let datetime = parse_timestamp(value)?;
+    Ok(format!(
+        "{} {}",
+        format_date(datetime.date()),
+        compact_time(datetime.time())
+    ))
+}
+
+/// ISO output for the existing TIME carrier.
+pub(crate) fn time_text(value: &str) -> Result<String, String> {
+    parse_time(value).map(compact_time)
+}
+
+fn compact_time(value: Time) -> String {
+    let mut text = format_time(value);
+    if value.microsecond() != 0 {
+        text.truncate(text.trim_end_matches('0').len());
+    }
+    text
+}
+
 /// Returns the text that orders `value` chronologically against other
 /// canonical timestamps. A string shaped like a canonical UTC timestamp
 /// (`YYYY-MM-DDTHH:MM:SS[.f{1,6}]Z`, including the variable-width form

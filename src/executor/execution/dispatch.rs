@@ -1,5 +1,7 @@
 #[path = "dispatch/exists_binding.rs"]
 mod exists_binding;
+#[path = "dispatch/exists_predicate.rs"]
+mod exists_predicate;
 pub(super) use exists_binding::build_exists_logical_plan_with_fields;
 
 #[cfg(test)]
@@ -609,41 +611,13 @@ pub(super) fn resolve_exists_expr<'a>(
             expr: Box::new(resolve_exists_expr(context, expr)?),
             width: *width,
         }),
-        Expr::Cast { expr, data_type } => resolve_cast_exists_expr(context, expr, data_type),
-        Expr::Exists(statement) => {
-            let logical = build_exists_logical_plan(context, statement.as_ref())?;
-            let (logical, _bound_memory) =
-                if crate::sql::pagination::plan_needs_resolution(&logical, context.controls)? {
-                    let (resolved, reservation) = crate::sql::pagination::resolve_plan(
-                        &logical,
-                        context.params,
-                        context.controls,
-                    )?;
-                    (resolved, Some(reservation))
-                } else {
-                    (logical, None)
-                };
-            let logical = super::exists_target::bounded_exists_logical(logical);
-            let mut subquery_context = context.cte_context.copy(context.controls)?;
-            let env = plan_execution_env(
-                context.cassie,
-                context.session,
-                context.user_functions,
-                context.params,
-                context.controls,
-            );
-            let outer_row = context
-                .outer_row
-                .map(|row| super::exists_correlated::scoped_outer_row(context, &logical, row))
-                .transpose()?;
-            let rows = execute_plan_with_outer_row(
-                &env,
-                &logical,
-                &mut subquery_context,
-                outer_row.as_ref(),
-            )?;
-            Ok(Expr::BoolLiteral(!rows.is_empty()))
-        }
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            identity,
+        } => resolve_cast_exists_expr(context, expr, data_type, source_type.as_ref(), *identity),
+        Expr::Exists(statement) => exists_predicate::execute(context, statement),
         Expr::Column(_)
         | Expr::Param(_)
         | Expr::StringLiteral(_)
@@ -750,10 +724,14 @@ fn resolve_cast_exists_expr<'a>(
     context: &'a ExistsResolutionContext<'a>,
     expr: &'a Expr,
     data_type: &'a crate::types::DataType,
+    source_type: Option<&'a crate::types::DataType>,
+    identity: crate::sql::ast::CastIdentity,
 ) -> ExprResolution<'a> {
     Ok(Expr::Cast {
         expr: Box::new(resolve_exists_expr(context, expr)?),
         data_type: data_type.clone(),
+        source_type: source_type.cloned(),
+        identity,
     })
 }
 

@@ -97,6 +97,8 @@ pub(super) fn coerce(
             *expression = Expr::Cast {
                 expr: Box::new(original),
                 data_type: field.data_type.clone(),
+                source_type: None,
+                identity: crate::sql::ast::CastIdentity::Scalar,
             };
         }
     }
@@ -152,6 +154,7 @@ fn validate(expression: &Expr, float_context: bool) -> Result<(), CassieError> {
         Expr::Cast {
             data_type: DataType::Float,
             expr,
+            ..
         } => return validate(expr, true),
         _ => {}
     }

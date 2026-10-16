@@ -268,6 +268,8 @@ fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
         expr = Expr::Cast {
             expr: Box::new(expr),
             data_type: parse_data_type(data_type)?,
+            source_type: None,
+            identity: cast_identity(data_type),
         };
     }
     if let Some(width) = negative_width {
@@ -502,6 +504,8 @@ fn parse_typed_string_literal(raw: &str) -> Result<Option<Expr>, SqlError> {
     Ok(Some(Expr::Cast {
         expr: Box::new(Expr::StringLiteral(value)),
         data_type,
+        source_type: None,
+        identity: cast_identity(raw[..quote].trim()),
     }))
 }
 
@@ -534,6 +538,8 @@ pub(super) fn parse_cast_expression(raw: &str) -> Result<Option<Expr>, SqlError>
     Ok(Some(Expr::Cast {
         expr: Box::new(parse_expression(expr_raw)?),
         data_type,
+        source_type: None,
+        identity: cast_identity(type_raw),
     }))
 }
 
@@ -548,4 +554,13 @@ pub(super) fn parse_alias(raw: &str) -> (&str, Option<String>) {
         return (left.trim(), Some(alias));
     }
     (token, None)
+}
+
+fn cast_identity(raw: &str) -> crate::sql::ast::CastIdentity {
+    let base = raw.split_once('(').map_or(raw, |(base, _)| base).trim();
+    if base.eq_ignore_ascii_case("numeric") || base.eq_ignore_ascii_case("decimal") {
+        crate::sql::ast::CastIdentity::Numeric
+    } else {
+        crate::sql::ast::CastIdentity::Scalar
+    }
 }

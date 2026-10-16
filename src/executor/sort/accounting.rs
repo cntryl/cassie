@@ -55,8 +55,15 @@ impl TypeShape {
             Expr::Function(function) => {
                 self.longest_name = self.longest_name.max(function.name.len());
             }
-            Expr::Cast { data_type, .. } => {
+            Expr::Cast {
+                data_type,
+                source_type,
+                ..
+            } => {
                 self.maximum_type = self.maximum_type.max(data_type_clone_bytes(data_type)?);
+                if let Some(source) = source_type {
+                    self.maximum_type = self.maximum_type.max(data_type_clone_bytes(source)?);
+                }
             }
             _ => {}
         }

@@ -501,6 +501,9 @@ enum NormalizedExprShape {
     Cast {
         expr: Box<NormalizedExprShape>,
         data_type: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_type: Option<String>,
+        identity: crate::sql::ast::CastIdentity,
     },
     Case {
         operand: Option<Box<NormalizedExprShape>>,
@@ -582,9 +585,16 @@ impl From<&Expr> for NormalizedExprShape {
                 expr: Box::new(Self::from(expr.as_ref())),
                 width: format!("{width:?}"),
             },
-            Expr::Cast { expr, data_type } => Self::Cast {
+            Expr::Cast {
+                expr,
+                data_type,
+                source_type,
+                identity,
+            } => Self::Cast {
                 expr: Box::new(Self::from(expr.as_ref())),
                 data_type: format!("{data_type:?}"),
+                source_type: source_type.as_ref().map(|kind| format!("{kind:?}")),
+                identity: *identity,
             },
         }
     }

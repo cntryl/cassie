@@ -137,7 +137,9 @@ fn expression_operand_family(
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(OperandFamily::Numeric))
         }
-        Expr::Cast { expr, data_type } => {
+        Expr::Cast {
+            expr, data_type, ..
+        } => {
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(data_type_family(data_type)))
         }

@@ -558,6 +558,7 @@ fn should_bind_postfix_casts_before_arithmetic_given_mixed_operands_when_buildin
     let Expr::Cast {
         expr,
         data_type: DataType::BigInt,
+        ..
     } = left.as_ref()
     else {
         panic!("expected INT8 cast on the first multiplication operand");
@@ -566,6 +567,7 @@ fn should_bind_postfix_casts_before_arithmetic_given_mixed_operands_when_buildin
     let Expr::Cast {
         expr,
         data_type: DataType::BigInt,
+        ..
     } = right.as_ref()
     else {
         panic!("expected INT8 cast on the parenthesized multiplication operand");
@@ -597,6 +599,7 @@ fn should_nest_casts_in_source_order_given_a_cast_chain_when_building_the_ast() 
     let Expr::Cast {
         expr,
         data_type: DataType::BigInt,
+        ..
     } = &function.args[0]
     else {
         panic!("expected final INT8 cast");
@@ -604,6 +607,7 @@ fn should_nest_casts_in_source_order_given_a_cast_chain_when_building_the_ast() 
     let Expr::Cast {
         expr,
         data_type: DataType::Int,
+        ..
     } = expr.as_ref()
     else {
         panic!("expected preceding INT4 cast");
@@ -611,6 +615,7 @@ fn should_nest_casts_in_source_order_given_a_cast_chain_when_building_the_ast() 
     let Expr::Cast {
         expr,
         data_type: DataType::Text,
+        ..
     } = expr.as_ref()
     else {
         panic!("expected first TEXT cast");

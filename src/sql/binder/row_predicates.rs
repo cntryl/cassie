@@ -102,6 +102,8 @@ fn cast(expr: &mut Expr, kind: &DataType) {
     *expr = Expr::Cast {
         expr: Box::new(original),
         data_type: kind.clone(),
+        source_type: None,
+        identity: crate::sql::ast::CastIdentity::Scalar,
     };
 }
 
@@ -110,6 +112,7 @@ fn numeric_literals(expression: &Expr) -> Result<(), CassieError> {
         Expr::Cast {
             expr,
             data_type: DataType::Float,
+            ..
         } if matches!(expr.as_ref(), Expr::NumberLiteral(_)) => Ok(()),
         Expr::NumberLiteral(_) => Err(CassieError::Unsupported(
             "NUMERIC row comparison operands are not yet supported".into(),

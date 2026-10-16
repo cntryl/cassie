@@ -347,6 +347,8 @@ fn should_reject_direct_constructed_bound_depth_before_temporary_plan_clone() {
         expr = cassie::sql::ast::Expr::Cast {
             expr: Box::new(expr),
             data_type: cassie::types::DataType::BigInt,
+            source_type: None,
+            identity: cassie::sql::ast::CastIdentity::Scalar,
         };
     }
     logical.limit = Some(expr);
@@ -389,6 +391,8 @@ fn should_reject_deep_nested_direct_bound_before_temporary_plan_clone() {
         expr = cassie::sql::ast::Expr::Cast {
             expr: Box::new(expr),
             data_type: cassie::types::DataType::BigInt,
+            source_type: None,
+            identity: cassie::sql::ast::CastIdentity::Scalar,
         };
     }
     select.limit = Some(expr);
@@ -427,6 +431,8 @@ fn should_admit_direct_bounds_at_the_existing_nesting_envelope() {
         expr = cassie::sql::ast::Expr::Cast {
             expr: Box::new(expr),
             data_type: cassie::types::DataType::BigInt,
+            source_type: None,
+            identity: cassie::sql::ast::CastIdentity::Scalar,
         };
     }
     logical.limit = Some(expr);

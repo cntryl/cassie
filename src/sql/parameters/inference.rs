@@ -398,7 +398,9 @@ pub(super) fn infer_parameter_type_oids_expr(
             infer_parameter_type_from_expected_expr(expr, &DataType::Boolean, oids);
             infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
         }
-        ast::Expr::Cast { expr, data_type } => {
+        ast::Expr::Cast {
+            expr, data_type, ..
+        } => {
             oids.without_context_demands(|oids| {
                 infer_parameter_type_from_expected_expr(expr, data_type, oids);
             });
@@ -523,7 +525,9 @@ pub(super) fn infer_parameter_type_from_expected_expr(
     }
     match expr {
         ast::Expr::Param(index) => set_parameter_type_oid(oids, *index, data_type),
-        ast::Expr::Cast { expr, data_type } => {
+        ast::Expr::Cast {
+            expr, data_type, ..
+        } => {
             oids.without_context_demands(|oids| {
                 infer_parameter_type_from_expected_expr(expr, data_type, oids);
             });
@@ -544,7 +548,9 @@ fn set_parameter_type_oid(oids: &mut ParameterInference, index: usize, data_type
 fn infer_bound_parameter_types(expr: &Expr, oids: &mut ParameterInference) {
     match expr {
         Expr::Param(index) => set_parameter_type_oid(oids, *index, &DataType::BigInt),
-        Expr::Cast { expr, data_type } => {
+        Expr::Cast {
+            expr, data_type, ..
+        } => {
             infer_parameter_type_from_expected_expr(expr, data_type, oids);
             infer_cast_parameters(expr, oids);
         }
@@ -554,7 +560,9 @@ fn infer_bound_parameter_types(expr: &Expr, oids: &mut ParameterInference) {
 
 fn infer_cast_parameters(expr: &Expr, oids: &mut ParameterInference) {
     match expr {
-        Expr::Cast { expr, data_type } => {
+        Expr::Cast {
+            expr, data_type, ..
+        } => {
             infer_parameter_type_from_expected_expr(expr, data_type, oids);
             infer_cast_parameters(expr, oids);
         }

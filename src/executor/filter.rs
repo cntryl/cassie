@@ -289,6 +289,8 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
     )
 }
 
+#[path = "filter/casts.rs"]
+mod casts;
 #[path = "filter/constants.rs"]
 mod constants;
 pub(crate) use constants::constant_scalar;
@@ -362,7 +364,19 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
         Expr::IntegerNegate { expr, width } => {
             integers::negate(&eval_scalar_with_context(row, expr, context)?, *width)
         }
-        Expr::Cast { expr, data_type } => eval_cast_expr(row, expr, data_type, context),
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            identity,
+        } => eval_cast_expr(
+            row,
+            expr,
+            data_type,
+            source_type.as_ref(),
+            *identity,
+            context,
+        ),
         Expr::Exists(_) => context.exists.map_or_else(
             || {
                 Err(QueryError::General(
@@ -936,15 +950,18 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
     data_type: &DataType,
+    source_type: Option<&DataType>,
+    identity: crate::sql::ast::CastIdentity,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
     let value = eval_scalar_with_context(row, expr, context)?;
-    if *data_type == DataType::Float
+    if identity == crate::sql::ast::CastIdentity::Scalar
+        && *data_type == DataType::Float
         && crate::sql::binder::generated_float_coercion_case_operand(expr).is_some()
     {
         numeric_comparison::float_scalar(&value)
     } else {
-        cast_scalar(&value, data_type)
+        casts::scalar(&value, data_type, source_type)
     }
 }
 

@@ -190,3 +190,6 @@ mod exact_numeric_literals;
 
 #[path = "protocol/primitive_literal_inputs.rs"]
 mod primitive_literal_inputs;
+
+#[path = "protocol/parse_analysis.rs"]
+mod parse_analysis;

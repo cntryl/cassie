@@ -894,3 +894,64 @@ three files. Final new-module reruns report SQL 13/0 and wire 11/1, preserving t
 Parse+Flush expectation. Inventory refresh/check, touched Rust file limits and
 whitespace checks passed. Inventory records 5,748 integration registration
 instances plus 979 library tests, not an all-green result.
+
+## 2026-10-16 — Larger Parse semantic-analysis batch
+
+The new wire admission module runs checked parameter occurrence/type analysis,
+then shared SELECT/EXPLAIN SELECT binding, then existing final slot validation.
+Semantic errors occur before ParseComplete and prepared storage. The physical
+planner is not called: division by zero, numeric narrowing and explicit TEXT
+conversion errors remain beyond Parse. The raw submitted AST is retained for
+later catalog/session rebinding.
+
+A borrowed, checked footprint walk admits the temporary raw analysis copy
+before cloning; its lease spans binding and releases on success or failure.
+This covers the new raw clone, not legacy binder catalog/name/type allocations
+or subsequent expansion. Cancellation, deadline and nesting are checked during
+preflight. There are no format, storage-layer or CI changes.
+
+Red baseline: 11 failed and five passed among the first 16 new wire functions.
+The final batch has 31 passing functions: 24 wire and seven resource/ownership
+functions. The previous primitive Parse+Flush probe also passes, making that
+batch's primitive modules 25/25. New matrices cover 160 invalid primitive
+Parse cases, ignored messages until Sync, failed-name reuse, unrelated named
+statement survival, unnamed recovery, close/reuse, binary binding, inferred
+Boolean parameters, trailing-slot checks, raw VALUES rebinding and deferred
+constant evaluation. Pinned native PostgreSQL 18.6 independently matched all
+160 errors plus three Parse-success/Describe-success/Bind-error sequences.
+
+Sibling coverage exposed an initial BOOL_AND arity regression (42601 instead
+of 42883). Keeping shared occurrence analysis before binder validation restores
+its original expectation. Jev selected the admitted-copy approach; clone-gap
+probabilities 0.57 and 0.68 prompted a seven-shape large-payload admission probe.
+With raw SQL cleared, nested function/row/CASE/alias/identifier/window/VALUES
+payloads exceed the 16-KiB budget before clone allocation and leave zero
+peak/live reservation. The probe passes; full legacy binder resource behavior
+remains a separate boundary. Jev is advisory rather than proof.
+
+Validation before mechanical Clippy extraction:
+
+- `cargo build --locked --bin cassie`: passed.
+- `cargo test --locked`: library 986/0, analytics 179/0, backend CI 2/0 and
+  benchmark operations 16/0 passed; stopped at catalog/security 139/209.
+  Later targets were not run by that command.
+- Related compiled-binary selection: 241/14 across 255 functions, comprising
+  library 38/0, parser 2/0, SQL 105/6 and wire 96/8.
+- Complete wire core: 73/11, matching the previous checkpoint.
+
+The full run contains the final semantic ordering. Subsequent mechanical
+extraction moves that sequence to a focused wire module to satisfy the
+100-line Clippy function limit; a missing statement terminator is also fixed.
+Final build and locked affected-test compilation passed after the extraction.
+The related selection remained 241/14. A test-only slice-borrow cleanup passed
+Clippy; matrix helpers were then separated into Act and Assert phases for the
+test validator. The final new wire module rerun passed 24/24; the preceding
+combined new/primitive/aggregate-arity rerun passed 37/37. Full strict workspace,
+all-target, all-feature pedantic Clippy and formatting passed. Touched-test
+validators passed 31/31 across two files. Inventory refresh/check, touched Rust
+file limits and whitespace checks passed. Inventory records 5,772 integration
+registration instances plus 986 library tests; these are not all-green counts.
+
+Broader mixed error precedence, native Describe/Bind planning phases and the
+existing PostgreSQL parity owners remain incomplete. The repository is not
+fully green. Evidence is retained under ignored `target/green-parse-*` paths.

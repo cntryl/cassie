@@ -1,4 +1,5 @@
 pub(crate) mod literal_inputs;
+pub(crate) mod parse_analysis;
 use std::collections::HashMap;
 
 use crate::catalog::FieldMeta;
@@ -97,3 +98,6 @@ pub(crate) fn field_type_for_column<'a>(
         .or_else(|| field_types.get(&column.lookup_key()))
         .or_else(|| field_types.get(&column.field_lookup_key()))
 }
+
+#[cfg(test)]
+mod parse_analysis_tests;

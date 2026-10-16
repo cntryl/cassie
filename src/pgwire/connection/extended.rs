@@ -1,3 +1,6 @@
+#[path = "extended/parse_analysis.rs"]
+mod parse_analysis;
+
 #[path = "extended/transaction_boundary.rs"]
 mod transaction_boundary;
 
@@ -286,23 +289,13 @@ async fn handle_parse(
         .authorize_statement(&parsed.statement)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let controls = runtime.query_controls(std::time::Instant::now());
-    let admitted = with_function_input_scope(&cassie, session, |scope| {
-        crate::sql::checked_wire_parse_parameter_types_in_scope(
-            &parsed,
-            &parameter_type_oids,
-            &cassie.catalog,
-            &controls,
-            Some(scope),
-        )
-    })
-    .map_err(|error| ExtendedQueryError::parameter_admission(error, &controls))?;
-    if let Some(oid) = unknown_high_bit_projection_oid(&parsed, admitted.types()) {
-        return Err(ExtendedQueryError::unknown_type_oid(oid));
-    }
-    crate::sql::pagination::validate_statement(&mut parsed, Some(admitted.types()))
-        .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    crate::sql::validate_wire_parse_parameter_slots(admitted.types(), &controls)
-        .map_err(|error| ExtendedQueryError::parameter_admission(error, &controls))?;
+    let admitted = parse_analysis::admit(
+        &cassie,
+        session,
+        &mut parsed,
+        &parameter_type_oids,
+        &controls,
+    )?;
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let parameter_types = admitted
         .into_vec()

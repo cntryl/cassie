@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1554,
-    "rust_files": 1523,
-    "rust_test_declarations": 5620,
+    "files": 1555,
+    "rust_files": 1524,
+    "rust_test_declarations": 5644,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5748,
+    "registered_rust_instances": 5772,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -77067,6 +77067,750 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_reject_direct_inputs_given_parse_flush_when_trailing_parameter_slots_are_supplied",
+      "name": "should_reject_direct_inputs_given_parse_flush_when_trailing_parameter_slots_are_supplied",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 71,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_reject_direct_inputs_given_parse_flush_when_trailing_parameter_slots_are_supplied"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_reject_dead_case_inputs_given_parse_flush_when_branches_will_be_pruned",
+      "name": "should_reject_dead_case_inputs_given_parse_flush_when_branches_will_be_pruned",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 81,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_reject_dead_case_inputs_given_parse_flush_when_branches_will_be_pruned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_reject_values_inputs_given_parse_flush_when_output_columns_are_unused",
+      "name": "should_reject_values_inputs_given_parse_flush_when_output_columns_are_unused",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 93,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_reject_values_inputs_given_parse_flush_when_output_columns_are_unused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_reject_coalesce_inputs_given_parse_flush_when_first_argument_is_nonnull",
+      "name": "should_reject_coalesce_inputs_given_parse_flush_when_first_argument_is_nonnull",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 103,
+      "end_line": 110,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_reject_coalesce_inputs_given_parse_flush_when_first_argument_is_nonnull"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_reject_exists_inputs_given_parse_flush_when_target_columns_are_unused",
+      "name": "should_reject_exists_inputs_given_parse_flush_when_target_columns_are_unused",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 113,
+      "end_line": 120,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_reject_exists_inputs_given_parse_flush_when_target_columns_are_unused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_reject_cte_inputs_given_parse_flush_when_ctes_are_unused",
+      "name": "should_reject_cte_inputs_given_parse_flush_when_ctes_are_unused",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 123,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_reject_cte_inputs_given_parse_flush_when_ctes_are_unused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_reject_explain_inputs_given_parse_flush_when_analysis_does_not_execute_the_query",
+      "name": "should_reject_explain_inputs_given_parse_flush_when_analysis_does_not_execute_the_query",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 134,
+      "end_line": 141,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_reject_explain_inputs_given_parse_flush_when_analysis_does_not_execute_the_query"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_report_earlier_columns_given_invalid_inputs_when_parse_analyzes_projection_order",
+      "name": "should_report_earlier_columns_given_invalid_inputs_when_parse_analyzes_projection_order",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 144,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_report_earlier_columns_given_invalid_inputs_when_parse_analyzes_projection_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_report_earlier_inputs_given_missing_columns_when_parse_analyzes_projection_order",
+      "name": "should_report_earlier_inputs_given_missing_columns_when_parse_analyzes_projection_order",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 154,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_report_earlier_inputs_given_missing_columns_when_parse_analyzes_projection_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_report_missing_relations_given_invalid_inputs_when_parse_resolves_sources_first",
+      "name": "should_report_missing_relations_given_invalid_inputs_when_parse_resolves_sources_first",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 164,
+      "end_line": 171,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_report_missing_relations_given_invalid_inputs_when_parse_resolves_sources_first"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_accept_division_by_zero_given_parse_flush_when_constant_evaluation_is_deferred",
+      "name": "should_accept_division_by_zero_given_parse_flush_when_constant_evaluation_is_deferred",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 205,
+      "end_line": 216,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_accept_division_by_zero_given_parse_flush_when_constant_evaluation_is_deferred"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_accept_numeric_overflow_given_parse_flush_when_conversion_is_deferred",
+      "name": "should_accept_numeric_overflow_given_parse_flush_when_conversion_is_deferred",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 219,
+      "end_line": 230,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_accept_numeric_overflow_given_parse_flush_when_conversion_is_deferred"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_accept_typed_text_inputs_given_parse_flush_when_conversion_is_deferred",
+      "name": "should_accept_typed_text_inputs_given_parse_flush_when_conversion_is_deferred",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 233,
+      "end_line": 244,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_accept_typed_text_inputs_given_parse_flush_when_conversion_is_deferred"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_accept_valid_inputs_given_parse_flush_when_primitive_domains_are_preserved",
+      "name": "should_accept_valid_inputs_given_parse_flush_when_primitive_domains_are_preserved",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 247,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_accept_valid_inputs_given_parse_flush_when_primitive_domains_are_preserved"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_preserve_raw_values_given_parse_analysis_when_describe_and_execute_rebind",
+      "name": "should_preserve_raw_values_given_parse_analysis_when_describe_and_execute_rebind",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 264,
+      "end_line": 294,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_preserve_raw_values_given_parse_analysis_when_describe_and_execute_rebind"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_recover_unnamed_statements_given_parse_failure_when_sync_resets_the_protocol",
+      "name": "should_recover_unnamed_statements_given_parse_failure_when_sync_resets_the_protocol",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 297,
+      "end_line": 320,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_recover_unnamed_statements_given_parse_failure_when_sync_resets_the_protocol"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_preserve_named_statements_given_another_parse_failure_when_sync_recovers",
+      "name": "should_preserve_named_statements_given_another_parse_failure_when_sync_recovers",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 323,
+      "end_line": 345,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_preserve_named_statements_given_another_parse_failure_when_sync_recovers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_reuse_closed_statement_names_given_analysis_when_prepared_storage_is_released",
+      "name": "should_reuse_closed_statement_names_given_analysis_when_prepared_storage_is_released",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 348,
+      "end_line": 364,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_reuse_closed_statement_names_given_analysis_when_prepared_storage_is_released"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_reject_inputs_given_typed_parameters_when_parse_has_completed_slot_admission",
+      "name": "should_reject_inputs_given_typed_parameters_when_parse_has_completed_slot_admission",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 367,
+      "end_line": 391,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_reject_inputs_given_typed_parameters_when_parse_has_completed_slot_admission"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_preserve_typed_parameters_given_analysis_when_binary_values_are_bound",
+      "name": "should_preserve_typed_parameters_given_analysis_when_binary_values_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 394,
+      "end_line": 425,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_preserve_typed_parameters_given_analysis_when_binary_values_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_preserve_boolean_parameter_inference_given_analysis_when_parse_has_no_declared_types",
+      "name": "should_preserve_boolean_parameter_inference_given_analysis_when_parse_has_no_declared_types",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 428,
+      "end_line": 445,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_preserve_boolean_parameter_inference_given_analysis_when_parse_has_no_declared_types"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_prefer_input_errors_given_unresolved_trailing_slots_when_no_parameters_are_referenced",
+      "name": "should_prefer_input_errors_given_unresolved_trailing_slots_when_no_parameters_are_referenced",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 448,
+      "end_line": 459,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_prefer_input_errors_given_unresolved_trailing_slots_when_no_parameters_are_referenced"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_reject_unresolved_trailing_slots_given_valid_analysis_when_slot_validation_runs",
+      "name": "should_reject_unresolved_trailing_slots_given_valid_analysis_when_slot_validation_runs",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 462,
+      "end_line": 473,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_reject_unresolved_trailing_slots_given_valid_analysis_when_slot_validation_runs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/parse_analysis.rs::should_prefer_input_errors_given_unresolved_referenced_slots_when_native_parse_visits_inputs",
+      "name": "should_prefer_input_errors_given_unresolved_referenced_slots_when_native_parse_visits_inputs",
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "line": 476,
+      "end_line": 486,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::parse_analysis::should_prefer_input_errors_given_unresolved_referenced_slots_when_native_parse_visits_inputs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -186952,8 +187696,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 192,
-      "sha256": "aff309b123623c572a1667a88c12d47b9ea01b20affe5f8fac19337b5172ac7f",
+      "lines": 195,
+      "sha256": "ebe1af9c7a94b4e08101520c61e0dde1bba42b4059ae421ff5be488c8711ed55",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -187665,6 +188409,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/protocol/parameter_occurrences/errors.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/parse_analysis.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 486,
+      "sha256": "ae13243cb2c5b3adb0dec3413f671d474e633677845c2e5b0cc60b32979fb253",
+      "test_declarations": 24,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/protocol/parse_analysis.rs"
       ],
       "line_limit": 1000
     },

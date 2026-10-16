@@ -375,6 +375,13 @@ TEXT conversions retain their later folding/runtime phase. Exact NumericLiteral
 syntax and legacy NUMERIC/DECIMAL cast identities remain separate from unknown
 string input. BooleanInput and UndefinedColumn typed public errors retain
 22P02 and 42703 respectively. BOOLEAN binary receive rules are unchanged.
-Standalone wire Parse still defers semantic binding; its new Parse+Flush error
-probe remains pending under #794/#796. Parameter admission precedes binder
-validation, so complete mixed-error precedence is not qualified by this slice.
+Standalone wire Parse now binds SELECT and EXPLAIN SELECT semantics before
+publishing ParseComplete or storing a prepared statement. It admits a temporary
+analysis tree, retains the original raw tree for subsequent catalog/session
+rebinding, and does not invoke physical planning or constant folding. Shared
+parameter occurrence/type admission precedes semantic binding; final trailing-slot
+checks follow it.
+Selected native phase/order and recovery witnesses pass; broader mixed-error
+precedence and Describe/Bind planning phases remain under #794/#796. Clone
+admission covers the new temporary raw tree; legacy binder catalog/type/name
+allocation and expansion are separate resource qualification boundaries.

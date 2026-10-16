@@ -91,3 +91,6 @@ mod postgresql18_scalar_presentation;
 
 #[path = "casts/exact_numeric_literals.rs"]
 mod exact_numeric_literals;
+
+#[path = "casts/primitive_literal_inputs.rs"]
+mod primitive_literal_inputs;

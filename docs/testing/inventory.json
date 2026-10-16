@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1551,
-    "rust_files": 1520,
-    "rust_test_declarations": 5595,
+    "files": 1554,
+    "rust_files": 1523,
+    "rust_test_declarations": 5620,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5723,
+    "registered_rust_instances": 5748,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -77070,6 +77070,378 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_report_quoted_input_errors_given_dead_case_arms_when_simple_queries_execute",
+      "name": "should_report_quoted_input_errors_given_dead_case_arms_when_simple_queries_execute",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 8,
+      "end_line": 32,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_report_quoted_input_errors_given_dead_case_arms_when_simple_queries_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_report_quoted_input_errors_given_unused_values_fields_when_simple_queries_execute",
+      "name": "should_report_quoted_input_errors_given_unused_values_fields_when_simple_queries_execute",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 35,
+      "end_line": 59,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_report_quoted_input_errors_given_unused_values_fields_when_simple_queries_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_preserve_name_error_order_given_invalid_quoted_inputs_when_projection_items_are_bound",
+      "name": "should_preserve_name_error_order_given_invalid_quoted_inputs_when_projection_items_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 62,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_preserve_name_error_order_given_invalid_quoted_inputs_when_projection_items_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_report_quoted_input_errors_given_deciding_boolean_operands_when_inputs_are_bound",
+      "name": "should_report_quoted_input_errors_given_deciding_boolean_operands_when_inputs_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 81,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_report_quoted_input_errors_given_deciding_boolean_operands_when_inputs_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_reject_boolean_text_input_given_invalid_spellings_when_named_parameters_are_rebound",
+      "name": "should_reject_boolean_text_input_given_invalid_spellings_when_named_parameters_are_rebound",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 100,
+      "end_line": 133,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_reject_boolean_text_input_given_invalid_spellings_when_named_parameters_are_rebound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_reject_quoted_input_errors_given_parse_flush_when_metadata_has_not_been_published",
+      "name": "should_reject_quoted_input_errors_given_parse_flush_when_metadata_has_not_been_published",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 136,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_reject_quoted_input_errors_given_parse_flush_when_metadata_has_not_been_published"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_report_quoted_input_errors_given_exists_targets_when_output_expressions_are_pruned",
+      "name": "should_report_quoted_input_errors_given_exists_targets_when_output_expressions_are_pruned",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 177,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_report_quoted_input_errors_given_exists_targets_when_output_expressions_are_pruned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_report_quoted_input_errors_given_unused_ctes_when_relations_are_bound",
+      "name": "should_report_quoted_input_errors_given_unused_ctes_when_relations_are_bound",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 189,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_report_quoted_input_errors_given_unused_ctes_when_relations_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_report_typed_text_input_errors_given_false_filters_when_immutable_conversions_are_folded",
+      "name": "should_report_typed_text_input_errors_given_false_filters_when_immutable_conversions_are_folded",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 201,
+      "end_line": 225,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_report_typed_text_input_errors_given_false_filters_when_immutable_conversions_are_folded"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_preserve_boolean_oid_given_valid_text_inputs_when_result_formats_vary",
+      "name": "should_preserve_boolean_oid_given_valid_text_inputs_when_result_formats_vary",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 228,
+      "end_line": 245,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_preserve_boolean_oid_given_valid_text_inputs_when_result_formats_vary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_recover_given_large_invalid_boolean_literals_when_input_validation_fails",
+      "name": "should_recover_given_large_invalid_boolean_literals_when_input_validation_fails",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 248,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_recover_given_large_invalid_boolean_literals_when_input_validation_fails"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs::should_match_native_boolean_inputs_given_prefixes_and_control_characters_when_result_formats_vary",
+      "name": "should_match_native_boolean_inputs_given_prefixes_and_control_characters_when_result_formats_vary",
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "line": 264,
+      "end_line": 319,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::primitive_literal_inputs::should_match_native_boolean_inputs_given_prefixes_and_control_characters_when_result_formats_vary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/protocol/query/errors.rs::should_return_pg_input_error_info_as_a_star_expanded_row",
       "name": "should_return_pg_input_error_info_as_a_star_expanded_row",
       "current_file": "tests/pgwire_extended/protocol/query/errors.rs",
@@ -129702,6 +130074,409 @@
         "category": "grammar",
         "directory": "tests/sql_queries/grammar",
         "file": "tests/sql_queries/grammar/integer_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_validate_quoted_inputs_given_dead_case_arms_when_primitive_casts_are_bound",
+      "name": "should_validate_quoted_inputs_given_dead_case_arms_when_primitive_casts_are_bound",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 7,
+      "end_line": 30,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_validate_quoted_inputs_given_dead_case_arms_when_primitive_casts_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_validate_quoted_inputs_given_unused_values_fields_when_source_constants_are_pruned",
+      "name": "should_validate_quoted_inputs_given_unused_values_fields_when_source_constants_are_pruned",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 33,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_validate_quoted_inputs_given_unused_values_fields_when_source_constants_are_pruned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_prune_typed_text_conversions_given_dead_case_arms_when_input_is_already_text",
+      "name": "should_prune_typed_text_conversions_given_dead_case_arms_when_input_is_already_text",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 59,
+      "end_line": 79,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_prune_typed_text_conversions_given_dead_case_arms_when_input_is_already_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_prune_typed_text_conversions_given_unused_values_fields_when_input_is_already_text",
+      "name": "should_prune_typed_text_conversions_given_unused_values_fields_when_input_is_already_text",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 82,
+      "end_line": 102,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_prune_typed_text_conversions_given_unused_values_fields_when_input_is_already_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_preserve_boolean_prefixes_given_ascii_whitespace_when_quoted_casts_execute",
+      "name": "should_preserve_boolean_prefixes_given_ascii_whitespace_when_quoted_casts_execute",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 105,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_preserve_boolean_prefixes_given_ascii_whitespace_when_quoted_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_preserve_integer_extrema_given_quoted_input_when_primitive_widths_are_bound",
+      "name": "should_preserve_integer_extrema_given_quoted_input_when_primitive_widths_are_bound",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 133,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_preserve_integer_extrema_given_quoted_input_when_primitive_widths_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_validate_quoted_inputs_given_nonnull_coalesce_inputs_when_later_arguments_are_pruned",
+      "name": "should_validate_quoted_inputs_given_nonnull_coalesce_inputs_when_later_arguments_are_pruned",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 153,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_validate_quoted_inputs_given_nonnull_coalesce_inputs_when_later_arguments_are_pruned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_validate_quoted_inputs_given_false_filters_when_result_rows_are_discarded",
+      "name": "should_validate_quoted_inputs_given_false_filters_when_result_rows_are_discarded",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 180,
+      "end_line": 197,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_validate_quoted_inputs_given_false_filters_when_result_rows_are_discarded"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_validate_quoted_inputs_given_exists_targets_when_output_expressions_are_pruned",
+      "name": "should_validate_quoted_inputs_given_exists_targets_when_output_expressions_are_pruned",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 200,
+      "end_line": 207,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_validate_quoted_inputs_given_exists_targets_when_output_expressions_are_pruned"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_validate_quoted_inputs_given_unused_ctes_when_relations_are_bound",
+      "name": "should_validate_quoted_inputs_given_unused_ctes_when_relations_are_bound",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 210,
+      "end_line": 217,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_validate_quoted_inputs_given_unused_ctes_when_relations_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_fold_typed_text_input_errors_given_false_filters_when_immutable_conversions_are_live",
+      "name": "should_fold_typed_text_input_errors_given_false_filters_when_immutable_conversions_are_live",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 220,
+      "end_line": 243,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_fold_typed_text_input_errors_given_false_filters_when_immutable_conversions_are_live"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_preserve_typed_boolean_values_given_null_rows_when_source_columns_are_projected",
+      "name": "should_preserve_typed_boolean_values_given_null_rows_when_source_columns_are_projected",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 246,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_preserve_typed_boolean_values_given_null_rows_when_source_columns_are_projected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/casts/primitive_literal_inputs.rs::should_match_native_boolean_input_given_prefixes_and_control_characters_when_quoted_casts_execute",
+      "name": "should_match_native_boolean_input_given_prefixes_and_control_characters_when_quoted_casts_execute",
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "line": 264,
+      "end_line": 286,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::primitive_literal_inputs::should_match_native_boolean_input_given_prefixes_and_control_characters_when_quoted_casts_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/primitive_literal_inputs.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -184363,7 +185138,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 277,
-      "sha256": "bf88c83885da9a20c6e4f27c4c8521c742c134104b32679c63e57cf8a1e963b6",
+      "sha256": "f6a6477269a094fa08c262eafc351bed4521279effd13243de229a94bd7669bb",
       "test_declarations": 6,
       "registered_suites": [
         "pgwire_core"
@@ -186177,8 +186952,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 189,
-      "sha256": "dd0fe533239a169dc8df1102445595516bb96dea90d88603aa2b5b18a19fe1db",
+      "lines": 192,
+      "sha256": "aff309b123623c572a1667a88c12d47b9ea01b20affe5f8fac19337b5172ac7f",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -186890,6 +187665,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/protocol/parameter_occurrences/errors.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/primitive_literal_inputs.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 319,
+      "sha256": "15e1cd610d2d57f70c2cccffef68e0bef13cab5a2d2ec835a1ebbdb15502afe8",
+      "test_declarations": 12,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/primitive_literal_inputs.rs"
       ],
       "line_limit": 1000
     },
@@ -190332,8 +191122,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 186,
-      "sha256": "b79b8f1722df69f544a7056f6529792a817370d95b3256b03a156d171e5dfa51",
+      "lines": 189,
+      "sha256": "c00e1a505cc373d5c5628c3e931ea9784b5afbdc5de31ef3f4a53f1315abe5f5",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -193959,6 +194749,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/casts/primitive_literal_inputs.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 286,
+      "sha256": "6c43980eb2691c183bc4eec6d8fbbd07c2b7112261112ef9f9c61f823b55bed3",
+      "test_declarations": 13,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/grammar/primitive_literal_inputs.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/casts/scalar_presentation.rs",
       "role": "test_module",
       "action": "split_by_contract",
@@ -194623,8 +195428,8 @@
       "current_file": "tests/sql_queries/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 93,
-      "sha256": "a935fcfa7f13a5b316496d74dce96229cfc179386912ef33bf6c450a024f43ba",
+      "lines": 96,
+      "sha256": "7820ea0330f2a8c26e532fbc8500fe9bc6afa839ddaa7fd7a1e9ce0bd3116adf",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -195599,8 +196404,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 206,
-      "sha256": "a467364fee39bd69e35785c6595c0383a2d7198275000835a5b919ba892e3ea6",
+      "lines": 209,
+      "sha256": "c37e3114374783ccd46c55f3d2e6acff9b4f25d79564fbfd7c2e401fe979b913",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -196768,6 +197573,22 @@
       ],
       "destinations": [
         "tests/support/portal_memory_calibration.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/primitive_literal_inputs.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 162,
+      "sha256": "ed88cc41171c3c1625db02c24137acce533666999f14806aa552a29d47f56e93",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended",
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/support/primitive_literal_inputs.rs"
       ],
       "line_limit": 1000
     },

@@ -75,7 +75,7 @@ pub(super) fn decode_text_parameter(
 /// with surrounding whitespace ignored.
 pub(super) fn parse_bool(text: &str) -> Result<bool, ExtendedQueryError> {
     crate::types::boolean::parse_text(text)
-        .ok_or_else(|| ExtendedQueryError::protocol("invalid boolean bind parameter"))
+        .ok_or_else(|| ExtendedQueryError::invalid_input_syntax("boolean", text))
 }
 
 fn parse_integer(

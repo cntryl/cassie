@@ -204,3 +204,6 @@ mod support_scalar_presentation;
 
 #[path = "support/scalar_presentation_restart.rs"]
 mod support_scalar_presentation_restart;
+
+#[path = "support/primitive_literal_inputs.rs"]
+mod support_primitive_literal_inputs;

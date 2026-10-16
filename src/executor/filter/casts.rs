@@ -6,6 +6,17 @@ pub(super) fn scalar(
     target: &DataType,
     source: Option<&DataType>,
 ) -> Result<ScalarValue, QueryError> {
+    if *target == DataType::Boolean {
+        if let ScalarValue::Str(input) = value {
+            return crate::types::boolean::parse_text(input)
+                .map(ScalarValue::Bool)
+                .ok_or_else(|| {
+                    QueryError::Cassie(crate::app::CassieError::from(
+                        crate::types::BooleanInputError,
+                    ))
+                });
+        }
+    }
     if *target == DataType::Float {
         match value {
             ScalarValue::Float(value) => return Ok(ScalarValue::Float(*value)),

@@ -124,7 +124,7 @@ Text and binary support below describe the selected finite current profile. Nume
 | Int | trim + exact i64 parse + i32 range; decimal output | exact 4-byte network-endian signed integer |
 | BigInt | trim + exact i64 parse; decimal output | exact 8-byte network-endian signed integer; float-backed output requires finite integral in-range value |
 | Float | OID 700/701 -> f64; OID 1700 -> i64 if integral/in-range otherwise f64; text output Infinity/-Infinity/NaN where query values exist | OID 701: exact 8-byte network-endian f64; inexact i64-to-f64 output rejected; OID 700 and 1700 unsupported |
-| Boolean | PostgreSQL-style accepted vocabulary through shared boolean parser; result t/f | receive exactly one byte, nonzero means true; send canonical 0/1; empty input 08P01, excess bytes 22P03 |
+| Boolean | Native unique prefixes and ASCII whitespace through shared parser; invalid text input 22P02; result t/f | receive exactly one byte, nonzero means true; send canonical 0/1; empty input 08P01, excess bytes 22P03 |
 | Text | raw UTF-8 | raw UTF-8, invalid UTF-8 rejected |
 | Char | raw input -> write validation; raw unpadded output | UTF-8 text payload |
 | Varchar | raw input -> write validation; raw output | UTF-8 text payload |
@@ -367,3 +367,14 @@ limit before pruning. Radix conversion currently extends through u64 only.
 Bare exact NUMERIC outputs and legacy NUMERIC/DECIMAL casts of these new leaves
 are explicitly unsupported, rather than publishing rounded FLOAT8 values.
 This AST addition introduces no stored NUMERIC carrier or persistent layout.
+
+
+Selected quoted unknown INT2/INT4/INT8, FLOAT8 and BOOLEAN inputs are validated
+while binding before expression pruning and VALUES coercion. Explicitly typed
+TEXT conversions retain their later folding/runtime phase. Exact NumericLiteral
+syntax and legacy NUMERIC/DECIMAL cast identities remain separate from unknown
+string input. BooleanInput and UndefinedColumn typed public errors retain
+22P02 and 42703 respectively. BOOLEAN binary receive rules are unchanged.
+Standalone wire Parse still defers semantic binding; its new Parse+Flush error
+probe remains pending under #794/#796. Parameter admission precedes binder
+validation, so complete mixed-error precedence is not qualified by this slice.

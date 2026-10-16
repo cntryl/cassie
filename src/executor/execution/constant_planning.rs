@@ -708,7 +708,9 @@ const fn is_literal(expr: &Expr) -> bool {
 fn is_folding_error(error: &QueryError) -> bool {
     matches!(
         error,
-        QueryError::Cassie(crate::app::CassieError::FloatInput(_))
+        QueryError::Cassie(
+            crate::app::CassieError::FloatInput(_) | crate::app::CassieError::BooleanInput(_)
+        )
     ) || matches!(
         error,
         QueryError::General(message)

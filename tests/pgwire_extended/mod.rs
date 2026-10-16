@@ -187,3 +187,6 @@ mod postgresql18_scalar_presentation;
 
 #[path = "protocol/exact_numeric_literals.rs"]
 mod exact_numeric_literals;
+
+#[path = "protocol/primitive_literal_inputs.rs"]
+mod primitive_literal_inputs;

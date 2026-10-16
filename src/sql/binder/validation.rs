@@ -739,9 +739,7 @@ fn validate_column_reference(
     {
         return Ok(());
     }
-    Err(CassieError::Planner(format!(
-        "unresolvable column reference '{name}'; known fields or aliases required"
-    )))
+    Err(CassieError::UndefinedColumn(name.into()))
 }
 
 pub(super) fn validate_expression(
@@ -774,7 +772,17 @@ pub(super) fn validate_expression(
             projection_aliases,
             allow_projection_alias,
         )
-    })
+    })?;
+    if let Expr::Cast {
+        expr,
+        data_type,
+        identity,
+        ..
+    } = expr
+    {
+        crate::sql::literal_inputs::validate(expr, data_type, *identity)?;
+    }
+    Ok(())
 }
 
 pub(super) fn validate_aggregate_function_args(

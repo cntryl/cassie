@@ -819,3 +819,78 @@ admission (#800/#814) and quoted unknown-literal input errors before pruning
 (#796/#800). NUMERIC storage/output/arithmetic, implicit exact-numeric coercion
 and radix magnitudes beyond u64 remain pending under #812. Full parity, external
 qualification and an entirely green repository are not claimed.
+
+## Primitive quoted-input binding batch after e179ded8
+
+This #796/#800 batch validates quoted unknown INT2/INT4/INT8, FLOAT8 and BOOLEAN
+inputs in binder reference order and before VALUES coercion/pruning. It preserves
+pruning of explicitly typed TEXT conversions, exact numeric AST provenance,
+integer extrema and native Boolean spellings. It also qualifies BOOLEAN text
+Bind syntax errors and recovery. Parameter admission continues to precede binder
+validation; broader cross-phase parameter/function/type error precedence remains
+pending. Temporal VALUES admission requires its own native input grammar work,
+including precision and offsets, and is not widened by this primitive validator.
+
+Implemented borrowed unknown-literal validation for selected scalar casts in
+reference order, before VALUES coercion, and in nested Boolean binding contexts.
+Quoted unknown input is validated even when CASE, Boolean operands, unused
+VALUES cells, EXISTS targets or CTEs later disappear. Explicitly typed TEXT
+conversions retain planning/runtime pruning, and exact NumericLiteral leaves
+retain their separate provenance. NUMERIC/DECIMAL aliases do not invoke the new
+FLOAT8 input validator. New typed BooleanInput and UndefinedColumn public errors
+retain native 22P02/42703 classifications; missing-column display text remains
+compatible. Boolean text input now uses native ASCII whitespace (including VT),
+and text Bind rejects invalid spellings with semantic 22P02 rather than 08P01.
+
+Red evidence: initial SQL 4/6, wire 0/5; expanded baseline SQL 6/12, wire 2/11.
+After implementation/refinement, the final new modules report SQL 13/13 and wire
+11/12. Thus 24 of 25 new functions pass. The retained prior quoted-input pruning
+probe also passes. No expectations were weakened or tests ignored. One existing
+wire-core expectation for Boolean `o` changed from 08P01 to native 22P02, verified
+against real native Parse/Bind/Execute frames.
+
+The new Parse+Flush probe intentionally remains red under #794/#796. Native
+returns 22P02 before ParseComplete and ignores Describe until Sync. Cassie's
+handle_parse currently performs parameter admission and stores the raw AST,
+deferring semantic binding to Describe/Execute. The next Parse analysis slice
+must resolve names/scopes and validate input before prepared-statement storage,
+retain checked parameter metadata/ownership, and leave numeric conversion
+folding in its later native phase. Calling the physical planner during Parse
+would incorrectly move arithmetic/conversion errors into that phase. Parameter
+admission still precedes binder validation; broader mixed-error precedence is
+also pending. Temporal VALUES remains with #800/#814: precision, 24-hour TIME,
+DateStyle and ignored TIMESTAMP offsets need their own input-law qualification.
+
+Native PostgreSQL 18.6 matched 120 primitive cast/pruning witnesses (20 invalid
+inputs across six contexts), 50 Boolean prefix/control-character witnesses,
+text Bind error/recovery frames and the new failing Parse phase contract.
+Ignored `target/green-inputs-native*` files retain these oracle observations.
+Jev's initial EXISTS gap 0.50 and typed-TEXT gap 0.30 prompted focused EXISTS/CTE,
+empty-result and typed-conversion pruning probes, which pass. Its final Boolean
+candidate probability 0.47 and overall new-gap probability 0.46 prompted the
+50-case native/SQL input and 100-cycle Rust wire-format matrix; no Boolean
+mismatch was confirmed. These are advisory judgments, not correctness proof.
+
+Validation:
+
+- `cargo build --locked --bin cassie`: passed, including after test-only cleanup.
+- `cargo test --locked`: library 979/0, analytics 179/0, backend CI 2/0 and
+  benchmark operations 16/0 passed; stopped at catalog/security 139/209. Later
+  targets were not executed by that command.
+- Targeted locked compilation passed. Related compiled-binary selection: 209/15
+  across 224 functions (library 31/0, parser 2/0, SQL 105/6, wire 71/9). All 25 new
+  functions and the retained quoted-input pruning probe are included.
+- Complete parser target: 298/75. Complete wire-core target: 73/11.
+- Full workspace/all-target/all-feature pedantic Clippy, formatting, touched-test
+  validators, inventory, touched Rust file limits and whitespace results are
+  recorded in the final checkpoint below.
+
+Full PostgreSQL parity, Parse-phase qualification, external readiness and a fully
+green repository remain incomplete.
+
+Final checkpoint: full strict Clippy passed after test-only readability/chunk
+iteration fixes. Formatting passed; touched-test validation passed 31/31 across
+three files. Final new-module reruns report SQL 13/0 and wire 11/1, preserving the
+Parse+Flush expectation. Inventory refresh/check, touched Rust file limits and
+whitespace checks passed. Inventory records 5,748 integration registration
+instances plus 979 library tests, not an all-green result.

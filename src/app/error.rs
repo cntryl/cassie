@@ -63,6 +63,12 @@ pub(crate) struct CassieErrorDescriptor {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CassieError {
+    #[error("unresolvable column reference '{0}'; known fields or aliases required")]
+    UndefinedColumn(String),
+
+    #[error(transparent)]
+    BooleanInput(#[from] crate::types::BooleanInputError),
+
     #[error(transparent)]
     FloatInput(#[from] crate::types::FloatInputError),
 
@@ -197,6 +203,8 @@ pub enum CassieError {
 impl CassieError {
     pub(crate) fn descriptor(&self) -> CassieErrorDescriptor {
         match self {
+            Self::UndefinedColumn(_) => bad_request_descriptor("42703", self.to_string()),
+            Self::BooleanInput(error) => bad_request_descriptor("22P02", error.to_string()),
             Self::FloatInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::CollectionNotFound(table) => missing_relation_descriptor(table),
             Self::CatalogObjectNotFound { kind, name } => {

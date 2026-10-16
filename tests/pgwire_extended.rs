@@ -184,3 +184,6 @@ mod support_collection_aggregate_resources;
 
 #[path = "support/scalar_presentation.rs"]
 mod support_scalar_presentation;
+
+#[path = "support/primitive_literal_inputs.rs"]
+mod support_primitive_literal_inputs;

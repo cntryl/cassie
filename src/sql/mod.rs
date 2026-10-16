@@ -1,3 +1,4 @@
+pub(crate) mod literal_inputs;
 use std::collections::HashMap;
 
 use crate::catalog::FieldMeta;

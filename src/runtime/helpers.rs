@@ -90,8 +90,11 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::CardinalityViolation(_) => "cardinality_violation",
         CassieError::Parse(_) => "parse",
         CassieError::InvalidQuery(_) => "invalid_query",
+        CassieError::UndefinedColumn(_) => "undefined_column",
         CassieError::Planner(_) => "planner",
-        CassieError::Execution(_) | CassieError::FloatInput(_) => "execution",
+        CassieError::Execution(_) | CassieError::FloatInput(_) | CassieError::BooleanInput(_) => {
+            "execution"
+        }
         CassieError::Transaction { .. } => "transaction",
         CassieError::DeadlineExceeded => "deadline_exceeded",
         CassieError::QueryCancelled => "query_cancelled",

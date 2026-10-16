@@ -270,7 +270,7 @@ fn should_accept_postgres_text_bool_integer_spellings() {
         assert_eq!(first_column(frames), keys(&["1"]));
     }
     assert_eq!(first_column(&batches[4]), keys(&["2", "3"]));
-    assert_eq!(support::error_code(&batches[5]).as_deref(), Some("08P01"));
+    assert_eq!(support::error_code(&batches[5]).as_deref(), Some("22P02"));
     assert_eq!(first_column(&batches[6]), keys(&["1"]));
     assert_eq!(first_column(&batches[7]), keys(&["3"]));
     assert_eq!(support::error_code(&batches[8]).as_deref(), Some("22003"));

@@ -407,6 +407,7 @@ fn validate_cast(
     else {
         unreachable!("only casts reach cast validation");
     };
+    crate::sql::literal_inputs::validate(expr, data_type, *identity)?;
     if matches!(expr.as_ref(), Expr::NumericLiteral(_)) {
         validate_numeric_literal_cast(data_type, *identity)?;
     } else {

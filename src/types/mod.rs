@@ -15,6 +15,7 @@ pub mod temporal;
 pub mod value;
 pub mod vector;
 
+pub use boolean::BooleanInputError;
 pub use float_input::FloatInputError;
 pub use integer::{IntegerOperation, IntegerWidth};
 pub use row::Row;

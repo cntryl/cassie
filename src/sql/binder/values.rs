@@ -117,6 +117,15 @@ pub(crate) fn bind_input_types(
     parameters::bind(statement, oids)
 }
 fn validate(expression: &Expr, float_context: bool) -> Result<(), CassieError> {
+    if let Expr::Cast {
+        expr,
+        data_type,
+        identity,
+        ..
+    } = expression
+    {
+        crate::sql::literal_inputs::validate(expr, data_type, *identity)?;
+    }
     match expression {
         Expr::Function(_) | Expr::Exists(_) => {
             return Err(CassieError::Unsupported(

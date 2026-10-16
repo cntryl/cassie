@@ -202,3 +202,39 @@ mod support_fetch;
 
 #[path = "pgwire_extended/protocol/set_quantifiers.rs"]
 mod set_quantifiers;
+
+#[path = "support/values_casts.rs"]
+mod support_values_casts;
+
+#[path = "pgwire_extended/grammar/values_casts_date.rs"]
+mod values_casts_date;
+
+#[path = "pgwire_extended/grammar/values_casts_time.rs"]
+mod values_casts_time;
+
+#[path = "pgwire_extended/grammar/values_casts_timestamp.rs"]
+mod values_casts_timestamp;
+
+#[path = "pgwire_extended/grammar/values_casts_uuid.rs"]
+mod values_casts_uuid;
+
+#[path = "pgwire_extended/grammar/values_casts_bytea.rs"]
+mod values_casts_bytea;
+
+#[path = "pgwire_extended/grammar/values_casts_char.rs"]
+mod values_casts_char;
+
+#[path = "pgwire_extended/grammar/values_casts_varchar.rs"]
+mod values_casts_varchar;
+
+#[path = "pgwire_extended/grammar/values_casts_parameters.rs"]
+mod values_casts_parameters;
+
+#[path = "pgwire_extended/grammar/values_casts_character.rs"]
+mod values_casts_character;
+
+#[path = "pgwire_extended/grammar/values_casts_semantics.rs"]
+mod values_casts_semantics;
+
+#[path = "pgwire_extended/grammar/values_casts_cte.rs"]
+mod values_casts_cte;

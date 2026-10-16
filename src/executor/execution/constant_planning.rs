@@ -243,6 +243,9 @@ impl Folder<'_> {
     /// error; any other failure means the evaluator cannot fold this constant,
     /// which is left to run time.
     fn evaluate(&self, expr: &Expr) -> Result<Option<ScalarValue>, QueryError> {
+        let _character_memory = self
+            .controls
+            .reserve_query_memory(filter::character_scratch_bytes(expr)?)?;
         match filter::constant_scalar(expr) {
             Ok(Some(value)) => return Ok(Some(value)),
             Err(error) if is_folding_error(&error) => return Err(error),

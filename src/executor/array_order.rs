@@ -46,6 +46,14 @@ pub(super) fn key<R: RowAccess + ?Sized>(
     value: &Value,
     functions: &HashMap<String, FunctionMeta>,
 ) -> SemanticValue {
+    let declared = match expr {
+        Expr::Column(name) => row.column_type(name),
+        Expr::Cast { data_type, .. } => Some(data_type),
+        _ => None,
+    };
+    if matches!(declared, Some(DataType::Char { .. })) {
+        return super::semantic::typed_value(value, declared);
+    }
     if !row.has_array_types() {
         return SemanticValue::from_value(value);
     }

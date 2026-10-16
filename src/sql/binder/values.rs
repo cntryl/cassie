@@ -49,11 +49,6 @@ pub(crate) fn schema(
                 other => other,
             };
         }
-        if matches!(common, DataType::Char { length: None }) {
-            return Err(CassieError::Unsupported(
-                "unconstrained CHAR VALUES columns are not yet supported".into(),
-            ));
-        }
         fields.push(FieldSchema {
             name,
             data_type: common,
@@ -93,11 +88,12 @@ pub(super) fn coerce(
             {
                 continue;
             }
+            let source_type = arithmetic::inferred_type(expression, functions, params);
             let original = std::mem::replace(expression, Expr::Null);
             *expression = Expr::Cast {
                 expr: Box::new(original),
                 data_type: field.data_type.clone(),
-                source_type: None,
+                source_type,
                 identity: crate::sql::ast::CastIdentity::Scalar,
             };
         }
@@ -167,6 +163,11 @@ fn validate(expression: &Expr, float_context: bool) -> Result<(), CassieError> {
                     | DataType::Text
                     | DataType::Char { .. }
                     | DataType::Varchar { .. }
+                    | DataType::Uuid
+                    | DataType::Bytea
+                    | DataType::Date
+                    | DataType::Time
+                    | DataType::Timestamp
             ) =>
         {
             return Err(CassieError::Unsupported(

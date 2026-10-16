@@ -231,3 +231,9 @@ mod quantifiers_left_association;
 
 #[path = "sql_queries/set_operations/quantifiers_probes.rs"]
 mod quantifiers_probes;
+
+#[path = "sql_queries/relations/values_cast_text.rs"]
+mod values_cast_text;
+
+#[path = "sql_queries/relations/values_cast_controls.rs"]
+mod values_cast_controls;

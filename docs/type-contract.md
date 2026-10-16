@@ -446,3 +446,16 @@ row-variable rejection (42P10). The additive public
 isolates the new parsing/binding law without changing stored Value layouts.
 WITH TIES, general FLOAT8/NUMERIC bounds and complete owner qualification remain
 pending; see [validation.md](testing/validation.md) for executed evidence.
+
+
+Selected typed VALUES casts now retain DATE/TIME/TIMESTAMP/UUID/BYTEA and
+character source identity through common-column coercion and text output.
+Internal `DataType::Char { length: None }` is unbounded bpchar (OID 1042, typmod
+-1); SQL CHAR's default remains `length: Some(1)` (typmod 5). Padded cast
+results retain their bytes while character comparison and DISTINCT keys ignore
+trailing ASCII blanks according to the selected native signature. Declared
+character metadata survives projection and CTE materialization with admitted
+ownership. Unknown VALUES parameters infer the selected existing scalar OIDs.
+Compiled-plan epoch 10 invalidates older binding laws; storage encoding and AST
+variants do not change. Full family, collation and resource qualification
+remain pending; see [validation.md](testing/validation.md).

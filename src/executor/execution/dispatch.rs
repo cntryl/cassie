@@ -926,6 +926,15 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
         Expr::Binary { left, right, .. } => {
             expression_expansion_weight(left).saturating_add(expression_expansion_weight(right))
         }
+        Expr::Cast {
+            expr,
+            data_type:
+                crate::types::DataType::Char {
+                    length: Some(width),
+                },
+            ..
+        } => expression_expansion_weight(expr)
+            .saturating_add(usize::try_from(*width).unwrap_or(usize::MAX)),
         Expr::IsNull { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }

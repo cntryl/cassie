@@ -120,10 +120,9 @@ impl DataType {
                     .unwrap_or(-1)
             }
             Self::Char { length } => length
-                .unwrap_or(1)
-                .checked_add(4)
+                .and_then(|length| length.checked_add(4))
                 .and_then(|length| i32::try_from(length).ok())
-                .unwrap_or(5),
+                .unwrap_or(-1),
             _ => -1,
         }
     }

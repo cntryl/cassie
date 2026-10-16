@@ -20,6 +20,37 @@ pub(super) fn execute(
             + 2 * size_of::<usize>(),
         mul(count, size_of::<BatchRow>())?,
     )?)?;
+    let character_types = if count > 0
+        && rows.iter().flatten().any(|expr| {
+            expr.any_descendant_or_self(&mut |expr| {
+                matches!(
+                    expr,
+                    Expr::Cast {
+                        data_type: crate::types::DataType::Char { .. },
+                        ..
+                    }
+                )
+            })
+        }) {
+        let width = rows.first().map_or(0, Vec::len);
+        memory.try_grow(add(
+            size_of::<Vec<crate::types::DataType>>() + 2 * size_of::<usize>(),
+            mul(
+                width,
+                size_of::<crate::types::FieldSchema>() + size_of::<crate::types::DataType>() + 26,
+            )?,
+        )?)?;
+        let schema = crate::sql::binder::values::schema(rows, env.user_functions, &[])?;
+        Some(Arc::new(
+            schema
+                .fields
+                .into_iter()
+                .map(|field| field.data_type)
+                .collect(),
+        ))
+    } else {
+        None
+    };
     let mut output = Vec::with_capacity(count);
     for expressions in rows.iter().take(count) {
         check_timeout(env.controls)?;
@@ -47,7 +78,10 @@ pub(super) fn execute(
             values.push((format!("column{}", index + 1), value));
             drop(scratch);
         }
-        output.push(BatchRow::from_projected_values(values));
+        output.push(
+            BatchRow::from_projected_values(values)
+                .with_optional_data_types(character_types.clone()),
+        );
     }
     check_timeout(env.controls)?;
     let memory = Arc::new(memory);

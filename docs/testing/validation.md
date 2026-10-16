@@ -1416,3 +1416,93 @@ compile; after correction, the complete ordered gate above was rerun. Initial
 focused green attempts also exposed the ordinal, exported-name and derived
 alias defects before their fixes. No failures were skipped or assertions
 weakened, and no full run was cancelled.
+
+## 2026-10-16 — Typed VALUES scalar identity and character ownership
+
+This #800 checkpoint follows set quantifiers at `cf85b849`. It adds 258
+functions: 210 wire, 42 SQL text-conversion witnesses and six SQL resource/cache
+controls. The first 168-function wire run reproduced 24 passing/144 failing
+cases before runtime changes. Native PostgreSQL 18.6 provides 448 wire
+input/output-format observations plus 42 text-conversion statements. Version
+and executable SHA256 are retained in `target/green-valuescasts-native-version.log`:
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`,
+Homebrew aarch64 Darwin 25.6.
+
+Selected existing DATE/TIME/TIMESTAMP/UUID/BYTEA casts are now admitted in
+VALUES, including NULL/unknown common-column inputs, standalone/derived/CTE/set
+contexts and inferred/supplied input OIDs. Inferred parameters cross text/binary
+inputs and outputs. Assertions check native names, OIDs, sizes, typmods, exact
+row bytes and five prepared-statement lifecycle phases. Common-column coercion
+retains source identity for character and temporal text conversion.
+
+SQL CHAR defaults to width 1; internal unbounded bpchar advertises typmod -1.
+Explicit CHAR casts pad/truncate by Unicode character count. Character-to-text
+coercion and comparison signature selection preserve PostgreSQL trailing-blank
+laws. Padded output values remain intact while declared character keys ignore
+blanks for selected comparisons and DISTINCT. Projection and CTE descriptor
+handoffs retain character identity with admitted backing and owner lifetimes.
+Compiled plans rebuild at epoch 10; AST variants, public API surface and stored
+Value layouts are unchanged.
+
+Jev selected reuse of the existing cast pipeline at 1.0. Gap 0.70 and character
+probe weight 0.95 prompted 16 typmod/coercion controls. Eight semantic probes
+then reproduced 1/7 after adding padding; comparison and DISTINCT defects were
+fixed, producing 8/0. Follow-up gap 0.65, memory weight 0.47 and CTE weight 0.35
+prompted two more resource tests and four exact native CTE controls. CTE
+DISTINCT first returned 2 instead of native 1; the remaining ARRAY-only metadata
+gate was corrected to retain CHAR as well, producing 4/0. Constant and parameter
+CHAR(100000) under a 16 KiB budget reject without retaining owners; a retry of
+the same parameter plan with a larger budget returns the full padded value and
+releases its owners on drop. Constant folding and projection admit character
+expansion before allocation. Final focused advisory judgments: CTE risk
+addressed 0.76, selected resource coverage bounded 1.0; neither establishes full
+#849 acceptance. Requests, responses, native receipts and logs are under ignored
+`target/green-valuescasts-*`.
+
+Native locale sorting of symbols differs from Cassie's current byte ordering.
+The exact symbol/letter probes were retained in the native receipts, and the
+identity cases were recaptured with independent integer ordering or ASCII
+prefixes while preserving Unicode input/value assertions. This is an open
+collation obligation under [#796](https://github.com/cntryl/cassie/issues/796),
+whose acceptance explicitly includes libc/ICU comparison, ordering and keys.
+No collation completion is claimed. Broader type/input errors, coercions,
+functions/subqueries in VALUES and full #793/#800/#849 acceptance remain open.
+No benchmark timing is claimed.
+
+Final ordered validation:
+
+- `cargo build --locked --bin cassie`: passed.
+- `cargo test --locked`: library 1,017/0, analytics 179/0, backend 2/0,
+  benchmark operations 16/0; stops at catalog/security 139/209. All 209
+  failure identities match `cf85b849`. Later targets compiled but were not
+  executed by this command.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  passed without suppression or narrowing.
+- `cargo fmt --all -- --check`: passed.
+- `cntryl-tools validate-tests -f <path>`: all eleven new wire files, both SQL
+  files and the shared support file pass. Global validator: 7,485/7,485 compliant
+  source tests, not runtime pass totals.
+- Final selected compiled Rust run: library 110/0, parser selection 2/0,
+  SQL 397/17 and wire 683/12. All 258 new functions pass. Retained timestamp
+  VALUES text identity, mixed character coercion and unconstrained character
+  parameter tests are fixed. Seven additional existing cast tests were selected:
+  five user-defined/composite cast prerequisites remain absent, explicit
+  VARCHAR truncation remains pending, and the older cast-error evidence fixture
+  still expects a generic message instead of the native integer error identity.
+  Their failure triggers are outside the implemented slice; no assertion was
+  weakened. These are newly selected cases, not newly failing baseline cases.
+- Boolean-aggregate cancellation returned 54000 instead of 57014 in this run.
+  This differs from the preceding batch's passing observation but exactly
+  repeats the earlier FETCH receipt at
+  `target/green-fetch-regression-pgwire_extended.log:516`. Its stability was
+  already unqualified; #805/#849 cancellation/resource acceptance remains open.
+- Complete parser 299/74 and core wire 73/11: unchanged failure identities.
+- Inventory refresh/check, Rust file limits and whitespace: passed. The
+  integration inventory adds exactly 258 identities, removes none and changes
+  no existing test record. It contains 6,605 registrations plus 1,017 library
+  functions. Large textual inventory diffs come from inserting generated records.
+
+The preliminary gate reproduced the catalog failures and one pedantic numeric
+literal finding in a test. After that correction and the confirmed CTE metadata
+fix, the full ordered gate was rerun. Final focused/source-family checks use the
+compiled final binaries. No full run was cancelled; no failures were skipped.

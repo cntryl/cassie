@@ -129,7 +129,15 @@ pub(super) fn compare_query_values(left: &Value, right: &Value) -> CmpOrdering {
 }
 
 pub(super) fn row_signature(row: &impl RowAccess) -> SemanticKey {
-    SemanticKey::from_values(row.entries().iter().map(|(_, value)| value))
+    SemanticKey::from_semantic_values(
+        row.entries()
+            .iter()
+            .enumerate()
+            .map(|(index, (_, value))| {
+                crate::executor::semantic::typed_value(value, row.entry_type(index))
+            })
+            .collect(),
+    )
 }
 
 pub(super) fn deduce_text_fields<R: RowAccess>(rows: &[R]) -> Vec<String> {

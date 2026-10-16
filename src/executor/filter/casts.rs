@@ -6,6 +6,16 @@ pub(super) fn scalar(
     target: &DataType,
     source: Option<&DataType>,
 ) -> Result<ScalarValue, QueryError> {
+    if matches!(target, DataType::Text | DataType::Varchar { .. })
+        && matches!(source, Some(DataType::Char { .. }))
+    {
+        if let ScalarValue::Str(text) = value {
+            return cast_scalar(
+                &ScalarValue::Str(crate::types::char_text::canonical_char_text(text).to_owned()),
+                target,
+            );
+        }
+    }
     if *target == DataType::Boolean {
         if let ScalarValue::Str(input) = value {
             return crate::types::boolean::parse_text(input)
@@ -95,4 +105,49 @@ pub(super) fn numeric_literal(
     Err(QueryError::General(
         "NUMERIC literal conversion requires a supported primitive target".into(),
     ))
+}
+
+/// SQL explicit character casts apply a character-counted typmod. An absent
+/// typmod is the unbounded bpchar input/result identity, not SQL CHAR's default 1.
+pub(super) fn character(
+    value: &ScalarValue,
+    width: Option<u32>,
+) -> Result<ScalarValue, QueryError> {
+    let Some(text) = super::cast_to_text(value) else {
+        return Ok(ScalarValue::Null);
+    };
+    let Some(width) = width else {
+        return Ok(ScalarValue::Str(text));
+    };
+    let width =
+        usize::try_from(width).map_err(|_| QueryError::General("CHAR width overflow".into()))?;
+    let mut result: String = text.chars().take(width).collect();
+    result.extend(std::iter::repeat_n(
+        ' ',
+        width.saturating_sub(result.chars().count()),
+    ));
+    Ok(ScalarValue::Str(result))
+}
+
+/// Upper bound for simultaneously retained character-cast intermediates.
+pub(crate) fn character_scratch_bytes(expr: &crate::sql::ast::Expr) -> Result<usize, QueryError> {
+    use crate::executor::retained_memory::{add, mul};
+    let mut bytes = match expr {
+        crate::sql::ast::Expr::Cast {
+            data_type: DataType::Char {
+                length: Some(width),
+            },
+            ..
+        } => mul(
+            usize::try_from(*width)
+                .map_err(|_| QueryError::General("CHAR width overflow".into()))?,
+            8,
+        )?,
+        _ => 0,
+    };
+    expr.try_visit_children(|child| {
+        bytes = add(bytes, character_scratch_bytes(child)?)?;
+        Ok::<_, QueryError>(())
+    })?;
+    Ok(bytes)
 }

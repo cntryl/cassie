@@ -19,6 +19,7 @@ pub(crate) use boolean_parameters::validate_plan as validate_boolean_parameter_p
 mod boolean_bindings;
 #[path = "binder/boolean_contexts.rs"]
 mod boolean_contexts;
+mod character_comparison;
 pub(crate) use boolean_bindings::bind_boolean_parameters;
 use std::collections::{HashMap, HashSet};
 use std::mem;

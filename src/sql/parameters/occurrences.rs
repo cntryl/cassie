@@ -65,7 +65,10 @@ impl Summary {
 }
 
 pub(super) const fn primitive_oid(oid: i32) -> bool {
-    matches!(oid, 16 | 20 | 21 | 23 | 25 | 700 | 701 | 1042 | 1043 | 1700)
+    matches!(
+        oid,
+        16 | 17 | 20 | 21 | 23 | 25 | 700 | 701 | 1042 | 1043 | 1082 | 1083 | 1114 | 1700 | 2950
+    )
 }
 
 #[derive(Clone, Copy)]

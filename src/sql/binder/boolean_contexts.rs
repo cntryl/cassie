@@ -344,6 +344,7 @@ fn validate_expression(
                     types.expression_type(right).as_ref(),
                 )?;
             }
+            super::character_comparison::qualify(op, left, right, types);
         }
         prefix @ (Expr::Not { .. } | Expr::UnaryNumeric { .. }) => {
             validate_prefix(prefix, types, catalog, context)?;
@@ -502,15 +503,20 @@ fn cast_source_type(
     types: &ResultTypes,
     catalog: &Catalog,
 ) -> Option<DataType> {
-    if !matches!(target, DataType::Text | DataType::Varchar { .. }) {
+    if !matches!(
+        target,
+        DataType::Text | DataType::Varchar { .. } | DataType::Char { length: None }
+    ) {
         return None;
     }
     // These selected output conversions need source identity. Unresolved
     // NUMERIC carriers must not be relabeled as proven FLOAT8, and no heap
     // type descriptor is cloned just to annotate an unrelated cast.
     types.expression_type(expr).filter(|kind| {
-        matches!(kind, DataType::Time | DataType::Timestamp)
-            || (*kind == DataType::Float && types.proven_float8(expr, catalog))
+        matches!(
+            kind,
+            DataType::Time | DataType::Timestamp | DataType::Char { .. }
+        ) || (*kind == DataType::Float && types.proven_float8(expr, catalog))
     })
 }
 

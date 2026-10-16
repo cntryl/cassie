@@ -124,9 +124,12 @@ impl TupleKeys {
         for row in rows {
             check_controls(controls)?;
             let mut tuple = Vec::with_capacity(row.entries().len());
-            for (_, value) in row.entries() {
+            for (column, (_, value)) in row.entries().iter().enumerate() {
                 check_controls(controls)?;
-                tuple.push(SemanticValue::from_value(value));
+                tuple.push(crate::executor::semantic::typed_value(
+                    value,
+                    row.data_types().get(column),
+                ));
             }
             values.push(tuple);
         }
@@ -171,7 +174,10 @@ impl TupleKeys {
             let mut tuple = Vec::with_capacity(columns.len());
             for &column in columns {
                 check_controls(controls)?;
-                tuple.push(SemanticValue::from_value(&row.entries()[column].1));
+                tuple.push(crate::executor::semantic::typed_value(
+                    &row.entries()[column].1,
+                    row.data_types().get(column),
+                ));
             }
             values.push(tuple);
         }

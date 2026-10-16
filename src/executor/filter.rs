@@ -28,6 +28,7 @@ mod coalesce;
 mod conditional;
 #[path = "filter/numeric_comparison.rs"]
 mod numeric_comparison;
+pub(crate) use casts::character_scratch_bytes;
 pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]
 mod functions;
@@ -444,7 +445,7 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
             ScalarValue::Null => String::new(),
         })),
-        DataType::Char { length } => cast_bounded_text(value, length.unwrap_or(1), "CHAR"),
+        DataType::Char { length } => casts::character(value, *length),
         DataType::Varchar { length } => cast_varchar_text(value, *length),
         DataType::Bytea => {
             let value = value
@@ -507,19 +508,6 @@ fn cast_boolean_scalar(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
         }
         ScalarValue::Null => Ok(ScalarValue::Null),
     }
-}
-
-fn cast_bounded_text(
-    value: &ScalarValue,
-    max_length: u32,
-    type_name: &str,
-) -> Result<ScalarValue, QueryError> {
-    let value = cast_to_text(value)
-        .filter(|value| {
-            usize::try_from(max_length).is_ok_and(|max_length| value.chars().count() <= max_length)
-        })
-        .ok_or_else(|| QueryError::General(format!("cannot cast value to {type_name}")))?;
-    Ok(ScalarValue::Str(value))
 }
 
 fn cast_varchar_text(

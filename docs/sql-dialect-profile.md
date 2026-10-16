@@ -530,3 +530,37 @@ or storage migration changes. Older binaries do not understand newly stored
 query definitions using the new operators. Complete #800 acceptance, wider
 set-type coercions, recursive CTE qualification, WITH TIES and ORDER BY USING
 remain open.
+
+
+### Selected typed VALUES scalar identities (2026-10-16)
+
+VALUES now admits the existing DATE, TIME, TIMESTAMP, UUID and BYTEA scalar
+casts alongside its integer, Boolean and character foundations. Selected valid
+inputs retain their native column names, OIDs, sizes, typmods, NULL behavior
+and text/binary payloads in standalone, derived, CTE and set-branch queries.
+Unknown VALUES parameters infer these scalar input identities; supplied OIDs
+retain their earlier contract. This is selected valid-input qualification,
+not complete type-family or input-error acceptance.
+
+SQL CHAR without a width still parses as CHAR(1). Internal bpchar with no
+typmod means unbounded character input/result identity and advertises typmod
+-1. Explicit CHAR casts truncate/pad by character count. Common-column
+coercion preserves the first selected character-family identity, erasing width
+when input typmods differ or an unknown input participates. Conversion from
+CHAR to TEXT/VARCHAR drops trailing ASCII blanks; native comparison with
+CHAR/VARCHAR/unknown operands ignores those blanks, while a typed TEXT operand
+keeps its own blanks significant. Character keys retain declared identity
+through projection and CTE handoffs so padded output does not change DISTINCT.
+
+Character expansion is admitted before VALUES evaluation, constant folding
+and projection; copied character descriptors remain charged to their owners.
+Compiled plans rebuild at epoch 10. No new AST variant, public API surface, stored
+Value layout, physical storage migration or second storage layer is introduced.
+
+Complete #793/#800/#849 acceptance remains open, including broader type/input
+errors, common-type conversions, functions/subqueries in VALUES and all
+resource/lifecycle paths. Locale-aware comparison, sorting and keys remain
+under [#796](https://github.com/cntryl/cassie/issues/796). The native oracle's
+locale orders symbols differently from Cassie's current byte ordering; selected
+Unicode identity witnesses therefore use independent integer ordering or ASCII
+prefixes, with all native value bytes retained. No collation support is claimed.

@@ -54,6 +54,9 @@ pub(super) fn value<R: RowAccess + ?Sized>(
                 .map(|value| super::casts::scalar(&value, data_type, source_type.as_ref()))
                 .transpose()
         }
+        Expr::UnaryNumeric { expr, op } => value(expr, row, context)?
+            .map(|value| super::unary_numeric::evaluate(&value, *op))
+            .transpose(),
         Expr::IntegerNegate { expr, width } => value(expr, row, context)?
             .map(|value| super::integers::negate(&value, *width))
             .transpose(),

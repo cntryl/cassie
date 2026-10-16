@@ -23,7 +23,7 @@ mod ast_visit;
 pub use ast_query::{
     AggregateQuantifier, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression, CteQuery, Expr,
     FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet,
-    SelectStatement, SetOperator, SortDirection, WindowFrame, WindowFrameBound,
+    SelectStatement, SetOperator, SortDirection, UnaryNumericOp, WindowFrame, WindowFrameBound,
     WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
 };
 

@@ -261,6 +261,7 @@ fn collect_expr_columns(
         Expr::IsNull { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => {
             collect_expr_columns(expr, fields, allocation)?;
         }

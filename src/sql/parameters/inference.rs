@@ -377,21 +377,11 @@ pub(super) fn infer_parameter_type_oids_expr(
         ast::Expr::Between {
             expr, low, high, ..
         } => {
-            if let Some(data_type) = column_expr_type(expr, field_types) {
-                oids.without_context_demands(|oids| {
-                    infer_parameter_type_from_expected_expr(low, data_type, oids);
-                    infer_parameter_type_from_expected_expr(high, data_type, oids);
-                });
-            }
-            record_operand_parameter_demand(low, expr, field_types, oids);
-            record_operand_parameter_demand(high, expr, field_types, oids);
-            record_operand_parameter_demand(expr, low, field_types, oids);
-            record_operand_parameter_demand(expr, high, field_types, oids);
-            infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
-            infer_parameter_type_oids_expr(low, field_types, catalog, oids);
-            infer_parameter_type_oids_expr(high, field_types, catalog, oids);
+            infer_between_parameter_type_oids([expr, low, high], field_types, catalog, oids);
         }
-        ast::Expr::IsNull { expr, .. } | ast::Expr::IntegerNegate { expr, .. } => {
+        ast::Expr::IsNull { expr, .. }
+        | ast::Expr::UnaryNumeric { expr, .. }
+        | ast::Expr::IntegerNegate { expr, .. } => {
             infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
         }
         ast::Expr::Not { expr } => {
@@ -421,6 +411,27 @@ pub(super) fn infer_parameter_type_oids_expr(
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => {}
     }
+}
+
+fn infer_between_parameter_type_oids(
+    [expr, low, high]: [&ast::Expr; 3],
+    field_types: &FieldTypeMap,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut ParameterInference,
+) {
+    if let Some(data_type) = column_expr_type(expr, field_types) {
+        oids.without_context_demands(|oids| {
+            infer_parameter_type_from_expected_expr(low, data_type, oids);
+            infer_parameter_type_from_expected_expr(high, data_type, oids);
+        });
+    }
+    record_operand_parameter_demand(low, expr, field_types, oids);
+    record_operand_parameter_demand(high, expr, field_types, oids);
+    record_operand_parameter_demand(expr, low, field_types, oids);
+    record_operand_parameter_demand(expr, high, field_types, oids);
+    infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
+    infer_parameter_type_oids_expr(low, field_types, catalog, oids);
+    infer_parameter_type_oids_expr(high, field_types, catalog, oids);
 }
 
 fn infer_in_list_parameter_type_oids(
@@ -567,7 +578,9 @@ fn infer_cast_parameters(expr: &Expr, oids: &mut ParameterInference) {
             infer_parameter_type_from_expected_expr(expr, data_type, oids);
             infer_cast_parameters(expr, oids);
         }
-        Expr::IntegerNegate { expr, .. } => infer_cast_parameters(expr, oids),
+        Expr::UnaryNumeric { expr, .. } | Expr::IntegerNegate { expr, .. } => {
+            infer_cast_parameters(expr, oids);
+        }
         Expr::Binary { left, right, .. } => {
             infer_cast_parameters(left, oids);
             infer_cast_parameters(right, oids);

@@ -190,3 +190,6 @@ mod support_primitive_literal_inputs;
 
 #[path = "support/bind_planning.rs"]
 mod support_bind_planning;
+
+#[path = "support/unary_numeric.rs"]
+mod support_unary_numeric;

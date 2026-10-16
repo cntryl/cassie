@@ -16,6 +16,8 @@ mod numeric_literals;
 mod row_predicates;
 #[path = "string_literals.rs"]
 mod string_literals;
+#[path = "unary_numeric.rs"]
+mod unary_numeric;
 
 pub(super) use numeric_literals::is_numeric_mantissa;
 pub(super) use string_literals::unicode_identifier_prefix;
@@ -213,7 +215,7 @@ fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
             op,
         });
     }
-    parse_postfix_expression(raw)
+    unary_numeric::parse(raw)
 }
 
 fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
@@ -234,32 +236,6 @@ fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
     };
     let operand_sql = super::lexical::trim_separators(&raw[..operand_end]);
     let mut expr = parse_expr_token(operand_sql)?;
-    let negative_width = if cast_count > 0
-        && operand_sql.starts_with('-')
-        && matches!(expr, Expr::IntegerLiteral(_) | Expr::NumericLiteral(_))
-    {
-        let last = cast_positions[cast_count - 1];
-        crate::types::IntegerWidth::from_data_type(&parse_data_type(
-            super::lexical::trim_separators(&raw[last + 2..]),
-        )?)
-    } else {
-        None
-    };
-    if negative_width.is_some() {
-        expr = match expr {
-            Expr::IntegerLiteral(value) => {
-                let magnitude = value.unsigned_abs();
-                i64::try_from(magnitude).map_or_else(
-                    |_| Expr::NumericLiteral(magnitude.to_string()),
-                    Expr::IntegerLiteral,
-                )
-            }
-            Expr::NumericLiteral(value) => {
-                Expr::NumericLiteral(value.trim_start_matches('-').into())
-            }
-            _ => unreachable!("integer literal checked above"),
-        };
-    }
     if cast_count > 0 {
         depth::validate(&expr, cast_count)?;
     }
@@ -275,13 +251,6 @@ fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
             data_type: parse_data_type(data_type)?,
             source_type: None,
             identity: cast_identity(data_type),
-        };
-    }
-    if let Some(width) = negative_width {
-        depth::validate(&expr, 1)?;
-        expr = Expr::IntegerNegate {
-            expr: Box::new(expr),
-            width,
         };
     }
     Ok(expr)

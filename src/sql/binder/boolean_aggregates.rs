@@ -112,6 +112,7 @@ fn qualify_expression(expression: &mut Expr, types: &ResultTypes) {
             }
         }
         Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. }
         | Expr::Not { expr }
         | Expr::IsNull { expr, .. } => {

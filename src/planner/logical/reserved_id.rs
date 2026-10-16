@@ -235,6 +235,7 @@ fn rewrite_expr(expr: &mut Expr) {
         Expr::IsNull { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => {
             rewrite_expr(expr);
         }

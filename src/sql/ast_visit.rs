@@ -44,6 +44,7 @@ impl Expr {
             Self::IsNull { expr, .. }
             | Self::Not { expr }
             | Self::Cast { expr, .. }
+            | Self::UnaryNumeric { expr, .. }
             | Self::IntegerNegate { expr, .. } => {
                 visit(expr)?;
             }
@@ -131,6 +132,10 @@ impl Expr {
             },
             Self::Not { expr } => Self::Not {
                 expr: Box::new(map(expr)),
+            },
+            Self::UnaryNumeric { expr, op } => Self::UnaryNumeric {
+                expr: Box::new(map(expr)),
+                op: *op,
             },
             Self::IntegerNegate { expr, width } => Self::IntegerNegate {
                 expr: Box::new(map(expr)),
@@ -220,6 +225,7 @@ impl Expr {
                 visit(right)?;
             }
             Self::Cast { expr, .. }
+            | Self::UnaryNumeric { expr, .. }
             | Self::IntegerNegate { expr, .. }
             | Self::Not { expr }
             | Self::IsNull { expr, .. } => {
@@ -460,6 +466,16 @@ fn unary_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 && left_identity == right_identity
                 && left.structurally_eq(right)
         }
+        (
+            Expr::UnaryNumeric {
+                expr: left,
+                op: lop,
+            },
+            Expr::UnaryNumeric {
+                expr: right,
+                op: rop,
+            },
+        ) => lop == rop && left.structurally_eq(right),
         (
             Expr::IntegerNegate {
                 expr: left,

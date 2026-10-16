@@ -16,6 +16,10 @@ pub(super) fn bind(
         ));
     }
     expression.try_visit_children_mut(|child| bind(child, functions, params, depth + 1))?;
+    if let Expr::UnaryNumeric { expr, .. } = expression {
+        let actual = inferred_type(expr, functions, params);
+        return super::super::unary_numeric::resolve(expression, actual.as_ref());
+    }
     if let Expr::IntegerNegate { expr, width } = expression {
         let actual = inferred_type(expr, functions, params);
         if actual.as_ref() != Some(&width.data_type()) && actual != Some(DataType::Null) {

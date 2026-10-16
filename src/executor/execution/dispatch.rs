@@ -614,6 +614,10 @@ pub(super) fn resolve_exists_expr<'a>(
             negated,
         } => resolve_between_exists_expr(context, expr, low, high, *negated),
         Expr::Not { expr } => resolve_not_exists_expr(context, expr),
+        Expr::UnaryNumeric { expr, op } => Ok(Expr::UnaryNumeric {
+            expr: Box::new(resolve_exists_expr(context, expr)?),
+            op: *op,
+        }),
         Expr::IntegerNegate { expr, width } => Ok(Expr::IntegerNegate {
             expr: Box::new(resolve_exists_expr(context, expr)?),
             width: *width,
@@ -925,6 +929,7 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
         Expr::IsNull { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => expression_expansion_weight(expr),
         Expr::InList { expr, values, .. } => values
             .iter()

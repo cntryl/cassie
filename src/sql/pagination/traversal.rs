@@ -165,6 +165,7 @@ fn visit_expr(expr: &mut Expr, visitor: &mut Visitor<'_>) -> Result<(), CassieEr
             visit_expr(right, visitor)?;
         }
         Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. }
         | Expr::IsNull { expr, .. }
         | Expr::Not { expr } => {

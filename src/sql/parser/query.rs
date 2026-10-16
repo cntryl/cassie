@@ -99,6 +99,7 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
             alias,
         },
         Expr::RowCompare(_)
+        | Expr::UnaryNumeric { .. }
         | Expr::IntegerNegate { .. }
         | Expr::Cast { .. }
         | Expr::Case { .. }

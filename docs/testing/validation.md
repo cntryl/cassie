@@ -1102,3 +1102,81 @@ Validation of the final runtime:
   tests, distinct from executed/passing totals. No benchmark timing is claimed.
 
 Full repository green and PostgreSQL qualification remain incomplete.
+
+## 2026-10-16 — Primitive unary operators and type propagation
+
+The retained parenthesized unary-negation gap now reaches native Bind planning.
+Numeric prefix signs have an explicit `UnaryNumeric` AST node. Parsing consumes
+prefix chains iteratively, preserves postfix-cast precedence, folds direct
+numeric constants and bounds combined operand/prefix depth before allocating
+wrappers. Concrete integer minus binds to the existing width-specific checked
+kernel; plus preserves its concrete operand type. FLOAT8 minus preserves signed
+zero and infinity. Unresolved integer operands never receive a guessed BIGINT
+runtime signature. Rebuildable compiled-plan epoch 6 invalidates earlier derived
+plans; stored Value layouts are unchanged. The additive public AST contract is
+recorded in [type-contract.md](../type-contract.md).
+
+Raw unknown constants select FLOAT8 for unary plus and report 42725 for unary
+minus. Known nonnumeric operands report 42883; invalid selected FLOAT8 input
+reports 22P02. The selected type is visible to enclosing Boolean contexts and
+parameter/CASE inference before unary rewriting. Explicitly cast parameters
+retain their inferred OIDs and concrete operand signatures. Bare-parameter
+operator defaults, parameter-dependent custom Bind planning, full NUMERIC and
+interval/geometric/extension overloads remain with #793/#794/#796/#821.
+
+The batch adds 77 functions: 61 wire, eight stored-row SQL and eight parser/kernel
+controls. Initial wire red run was 2/39 among 41 functions. A signed-minimum
+parser control reproduced 7/1, then became green after reclassifying the signed
+literal carrier. Four additional native context controls reproduced 2/2: WHERE
++NULL was accepted and simple CASE inferred TEXT instead of FLOAT8 for a
+parameter. Both failures are fixed through shared unary result-type inference
+and bounded parameter-fold lookup. The 61-function wire module is now 61/0;
+the eight SQL and eight parser/kernel controls also pass.
+
+PostgreSQL 18.6 records 104 default/text/binary phase/value observations, six
+independent Parse signature/input errors, eight explicitly cast parameter
+observations and seven enclosing-context observations. Successful Rust wire
+assertions use captured native payload bytes and check result OIDs/formats;
+error controls verify Parse versus Bind and Sync recovery. Stored rows verify
+all three integer-width overflow boundaries, filtering, aggregate arguments,
+NULL propagation and repeated cache reads. Traversal, structural identity,
+combined depth and IEEE sign controls cover the new AST node.
+
+Jev selected the explicit AST design at 1.0. Its signed-minimum risk 0.90 prompted
+four widening-before/after-negation probes. Adversarial gap 0.39, minimum risk
+0.57 and parameter risk 0.40 prompted the widening controls and four explicitly
+cast parameter probes. Additional source review found the two context failures
+above; all four context controls now pass. Jev is advisory, not correctness
+proof. Ignored `target/green-unary-*` artifacts retain requests, dispositions,
+native packets and validation logs. No CI/release/version configuration or lint
+suppression is introduced.
+
+Final validation after extracting focused prefix-validation and BETWEEN-demand
+helpers to satisfy the strict function-size limits:
+
+- `cargo build --locked --bin cassie`: passed.
+- `cargo test --locked`: library 1,010/0, analytics 179/0, backend CI 2/0 and
+  benchmark operations 16/0 passed; catalog/security 139/209 stopped the run.
+  Later targets compiled but were not executed by that command.
+- Related compiled-binary selection: 401/19 across 420 functions (library 62/0,
+  parser selection 2/0, SQL 113/6, wire 224/13). All 77 new functions pass;
+  prior failure identities show the retained unary-negation case fixed and no
+  prior passing case newly failing. The preceding Bind batch's 40 functions
+  are now all green. The five staged CTE expectations remain red.
+- Complete parser: unchanged 299/74. Complete wire core: unchanged 73/11.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  passed. The earlier completed gate reported five Clippy defects; all were
+  fixed without suppression, and the ordered gate was rerun on the final code.
+- `cargo fmt --all -- --check`: passed.
+- Touched wire/SQL/parser/kernel validators: 77/77 compliant; the new support
+  fixture also validates. Global `cntryl-tools validate-tests`: 6,786/6,786
+  compliant. These are source guideline counts, not runtime pass totals.
+- Inventory refresh/check, Rust file limits and whitespace: passed. Inventory
+  records 5,913 integration registration instances plus 1,010 library tests,
+  distinct from executed/passing counts. No benchmark timing is claimed.
+
+Both full test invocations completed through the known catalog failure; no full
+run was cancelled. Full repository green and PostgreSQL qualification remain
+incomplete. The oracle server reports PostgreSQL 18.6; the native executable
+SHA256 is `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`,
+recorded in `target/green-unary-native-version.log` with the version readback.

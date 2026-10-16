@@ -63,6 +63,15 @@ impl Analyzer<'_> {
                 output.proven_float8 = false;
                 output
             }
+            Expr::UnaryNumeric { expr, op } => {
+                if *op == crate::sql::ast::UnaryNumericOp::Plus
+                    && super::super::unary_numeric::is_unknown_operand(expr)
+                {
+                    OutputType::fixed(DataType::Float)
+                } else {
+                    self.expression(expr, lookup)?
+                }
+            }
             Expr::IntegerNegate { width, .. } => OutputType::fixed(width.data_type()),
             Expr::IntegerLiteral(value) => {
                 OutputType::fixed(inference::integer_literal_type(*value))

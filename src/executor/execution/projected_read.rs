@@ -840,6 +840,7 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
         Expr::IsNull { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => collect_projected_scan_filter_columns(expr, fields),
         Expr::InList { expr, values, .. } => {
             collect_projected_scan_filter_columns(expr, fields)?;

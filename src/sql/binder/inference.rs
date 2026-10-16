@@ -715,6 +715,11 @@ pub(crate) fn infer_expr_type(
         Expr::NumericLiteral(_) => None,
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
+        Expr::UnaryNumeric { expr, op } => super::unary_numeric::result_type(
+            *op,
+            expr,
+            infer_expr_type(expr, source_schema, user_functions, parameter_types),
+        ),
         Expr::IntegerNegate { width, .. } => Some(width.data_type()),
         Expr::IntegerLiteral(value) => Some(integer_literal_type(*value)),
         Expr::RowCompare(_)
@@ -831,6 +836,9 @@ pub(crate) fn known_expr_type(
         Expr::Cast { data_type, .. } => Some(data_type.clone()),
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
+        Expr::UnaryNumeric { expr, op } => {
+            super::unary_numeric::result_type(*op, expr, known_expr_type(expr, field_types))
+        }
         Expr::IntegerNegate { width, .. } => Some(width.data_type()),
         Expr::IntegerLiteral(value) => Some(integer_literal_type(*value)),
         Expr::RowCompare(_) | Expr::BoolLiteral(_) => Some(DataType::Boolean),

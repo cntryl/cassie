@@ -35,6 +35,8 @@ mod functions;
 mod like;
 #[path = "filter/search.rs"]
 mod search;
+#[path = "filter/unary_numeric.rs"]
+mod unary_numeric;
 
 use functions::{evaluate_function, parse_vector_text};
 pub(crate) use like::like_matches;
@@ -364,6 +366,9 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
             negated,
         } => eval_between_expr(row, expr, low, high, *negated, context),
         Expr::Not { expr } => eval_not_expr(row, expr, context),
+        Expr::UnaryNumeric { expr, op } => {
+            unary_numeric::evaluate(&eval_scalar_with_context(row, expr, context)?, *op)
+        }
         Expr::IntegerNegate { expr, width } => {
             integers::negate(&eval_scalar_with_context(row, expr, context)?, *width)
         }

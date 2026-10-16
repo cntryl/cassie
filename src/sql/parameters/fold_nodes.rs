@@ -247,6 +247,7 @@ fn expression_children(expr: &ast::Expr) -> usize {
         ast::Expr::InList { values, .. } => 1 + values.len(),
         ast::Expr::IsNull { .. }
         | ast::Expr::Not { .. }
+        | ast::Expr::UnaryNumeric { .. }
         | ast::Expr::IntegerNegate { .. }
         | ast::Expr::Cast { .. }
         | ast::Expr::Exists(_)
@@ -271,6 +272,7 @@ fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
         ast::Expr::IsNull { expr, .. }
         | ast::Expr::Not { expr }
         | ast::Expr::Cast { expr, .. }
+        | ast::Expr::UnaryNumeric { expr, .. }
         | ast::Expr::IntegerNegate { expr, .. } => Some(Node::Expr(expr)),
         ast::Expr::Exists(statement) => Some(Node::Query(&statement.statement)),
         ast::Expr::Function(function) => Some(Node::Function(function)),

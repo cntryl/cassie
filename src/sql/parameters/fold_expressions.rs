@@ -32,6 +32,15 @@ impl Fold<'_, '_> {
             ast::Expr::Column(name) => Ok(self
                 .column_oid(frame.context, name)
                 .map_or_else(Summary::unqualified, Summary::known)),
+            ast::Expr::UnaryNumeric { expr, op } => Ok(
+                if *op == ast::UnaryNumericOp::Plus
+                    && binder::unary_numeric::is_unknown_operand(expr)
+                {
+                    Summary::known(701)
+                } else {
+                    first()
+                },
+            ),
             ast::Expr::IntegerNegate { width, .. } => Ok(Summary::known(oid(&width.data_type()))),
             ast::Expr::Cast { data_type, .. } => Ok(Summary::known(oid(data_type))),
             ast::Expr::IsNull { .. } | ast::Expr::Not { .. } | ast::Expr::Exists(_) => {

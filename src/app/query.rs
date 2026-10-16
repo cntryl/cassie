@@ -9,9 +9,9 @@ use super::{
     QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement,
 };
 // Discard compiled plans from earlier Boolean/conditional binding and literal-only pagination.
-// Alias namespaces, expression bounds and concrete integer signatures share this
-// rebuildable cache epoch.
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 5;
+// Alias namespaces, expression bounds, concrete integer signatures and numeric
+// unary binding share this rebuildable cache epoch.
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 6;
 
 pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,

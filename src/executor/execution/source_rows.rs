@@ -650,6 +650,7 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
             comparison.left.iter().map(expr_key).collect::<Vec<_>>(),
             comparison.right.iter().map(expr_key).collect::<Vec<_>>()
         ),
+        Expr::UnaryNumeric { expr, op } => format!("unary:{op:?}({})", expr_key(expr)),
         Expr::IntegerNegate { expr, width } => format!("negate:{width:?}({})", expr_key(expr)),
         Expr::Cast {
             expr,

@@ -324,6 +324,11 @@ pub enum Expr {
         #[serde(default)]
         identity: CastIdentity,
     },
+    /// Numeric prefix operator, resolved against its operand during binding.
+    UnaryNumeric {
+        expr: Box<Expr>,
+        op: UnaryNumericOp,
+    },
     /// Integer negation applied after its operand's casts.
     IntegerNegate {
         expr: Box<Expr>,
@@ -366,4 +371,10 @@ pub enum BinaryOp {
 pub struct Bm25Params {
     pub k1: f64,
     pub b: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnaryNumericOp {
+    Plus,
+    Minus,
 }

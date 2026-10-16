@@ -398,3 +398,22 @@ Rebuildable compiled-plan epoch 5 separates earlier fallback arithmetic plans,
 including persisted L2 entries; it changes no stored data format. Missing
 portals report 34000, while missing prepared statements retain 26000. Wider
 portal/prepared lifecycle parity remains with #821.
+
+Numeric prefix syntax uses the additive public `Expr::UnaryNumeric` node and
+`UnaryNumericOp::{Plus, Minus}`. The parser preserves signs outside postfix
+casts, folds signs on direct numeric constants and bounds combined prefix/tree
+nesting before wrapping an operand. Concrete integer minus binds to the existing
+`IntegerNegate` signature for SMALLINT, INT or BIGINT. Concrete numeric plus
+retains its operand identity. FLOAT8 minus preserves IEEE signed zero and
+infinity; an unresolved integer unary node never guesses a BIGINT signature.
+Raw unknown text/NULL select FLOAT8 for unary plus, while unary minus reports
+42725. The selected type participates in Boolean context and CASE/parameter
+inference before the temporary unary node is rewritten. Explicit typed text
+and Boolean operands report 42883. These contracts use PostgreSQL 18.6 probes.
+
+Rebuildable compiled-plan epoch 6 separates the earlier literal-specific unary
+parser from the new binding law, including persisted derived L2 plans. Stored
+Value types/layouts remain unchanged. Explicitly cast parameter operands are
+covered; bare-parameter overload defaults, parameter-dependent Bind planning,
+full NUMERIC and interval/geometric/extension unary families remain pending
+under #793/#794/#796/#821. This finite primitive increment does not close them.

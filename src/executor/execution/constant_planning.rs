@@ -298,9 +298,9 @@ impl Folder<'_> {
                 Fold::Decided(value) => Fold::Decided(value.map(|value| !value)),
                 fold => fold,
             }),
-            Expr::Cast { expr, .. } | Expr::IntegerNegate { expr, .. } => {
-                self.fold_operands([&**expr], true, false)
-            }
+            Expr::Cast { expr, .. }
+            | Expr::UnaryNumeric { expr, .. }
+            | Expr::IntegerNegate { expr, .. } => self.fold_operands([&**expr], true, false),
             // `x IN (...)` folds as `x = ANY(ARRAY[...])`: every element folds,
             // although the runtime list test stops at its first match.
             Expr::InList { expr, values, .. } => {

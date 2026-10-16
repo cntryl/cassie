@@ -135,7 +135,7 @@ fn expression_operand_family(
             }
             Ok(Some(OperandFamily::Boolean))
         }
-        Expr::IntegerNegate { expr, .. } => {
+        Expr::UnaryNumeric { expr, .. } | Expr::IntegerNegate { expr, .. } => {
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(OperandFamily::Numeric))
         }
@@ -950,7 +950,10 @@ pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
         collect_expr(low, out);
         collect_expr(high, out);
     }
-    if let Expr::Cast { expr, .. } | Expr::IntegerNegate { expr, .. } = expr {
+    if let Expr::Cast { expr, .. }
+    | Expr::UnaryNumeric { expr, .. }
+    | Expr::IntegerNegate { expr, .. } = expr
+    {
         collect_expr(expr, out);
     }
     if let Expr::Not { expr } = expr {

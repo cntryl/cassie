@@ -186,6 +186,7 @@ pub(super) fn canonicalize_typed_predicate_literals(
         Expr::IsNull { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => {
             canonicalize_typed_predicate_literals(expr, field_types)
         }

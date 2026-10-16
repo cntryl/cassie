@@ -493,6 +493,10 @@ enum NormalizedExprShape {
         op: String,
         right: Vec<NormalizedExprShape>,
     },
+    UnaryNumeric {
+        expr: Box<NormalizedExprShape>,
+        op: crate::sql::ast::UnaryNumericOp,
+    },
     IntegerNegate {
         expr: Box<NormalizedExprShape>,
         width: String,
@@ -581,6 +585,10 @@ impl From<&Expr> for NormalizedExprShape {
                 left: comparison.left.iter().map(Self::from).collect(),
                 op: format!("{:?}", comparison.op),
                 right: comparison.right.iter().map(Self::from).collect(),
+            },
+            Expr::UnaryNumeric { expr, op } => Self::UnaryNumeric {
+                expr: Box::new(Self::from(expr.as_ref())),
+                op: *op,
             },
             Expr::IntegerNegate { expr, width } => Self::IntegerNegate {
                 expr: Box::new(Self::from(expr.as_ref())),

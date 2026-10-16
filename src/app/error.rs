@@ -584,6 +584,9 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message.starts_with("function ") && message.ends_with(") does not exist") {
         return bad_request_descriptor("42883", message.to_string());
     }
+    if message.starts_with("operator is not unique: ") {
+        return bad_request_descriptor("42725", message.to_string());
+    }
     if message.starts_with("operator does not exist: ") {
         return bad_request_descriptor("42883", message.to_string());
     }

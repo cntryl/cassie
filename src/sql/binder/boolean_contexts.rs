@@ -345,9 +345,8 @@ fn validate_expression(
                 )?;
             }
         }
-        Expr::Not { expr } => {
-            require_boolean(expr, types, "NOT")?;
-            validate_expression(expr, types, catalog, context)?;
+        prefix @ (Expr::Not { .. } | Expr::UnaryNumeric { .. }) => {
+            validate_prefix(prefix, types, catalog, context)?;
         }
         Expr::Case {
             operand,
@@ -401,6 +400,26 @@ fn validate_expression(
         | Expr::Null => {}
     }
     Ok(())
+}
+
+fn validate_prefix(
+    prefix: &mut Expr,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    match prefix {
+        Expr::Not { expr } => {
+            require_boolean(expr, types, "NOT")?;
+            validate_expression(expr, types, catalog, context)
+        }
+        Expr::UnaryNumeric { expr, .. } => {
+            validate_expression(expr, types, catalog, context)?;
+            let data_type = types.expression_type(expr);
+            super::unary_numeric::resolve(prefix, data_type.as_ref())
+        }
+        _ => unreachable!("prefix matched by expression validation"),
+    }
 }
 
 fn validate_cast(

@@ -263,6 +263,7 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
         ast::Expr::IsNull { expr, .. }
         | ast::Expr::Not { expr }
         | ast::Expr::Cast { expr, .. }
+        | ast::Expr::UnaryNumeric { expr, .. }
         | ast::Expr::IntegerNegate { expr, .. } => parameter_count_expr(expr),
         ast::Expr::InList { expr, values, .. } => values
             .iter()

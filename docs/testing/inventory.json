@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1558,
-    "rust_files": 1527,
-    "rust_test_declarations": 5716,
+    "files": 1561,
+    "rust_files": 1530,
+    "rust_test_declarations": 5785,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5844,
+    "registered_rust_instances": 5913,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -72048,6 +72048,1897 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int2_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_int2_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 6,
+      "end_line": 17,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int2_minus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int4_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_int4_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 20,
+      "end_line": 34,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int4_minus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int8_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_int8_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 37,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int8_minus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_float8_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_float8_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 54,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_float8_minus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int2_plus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_int2_plus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 71,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int2_plus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int4_plus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_int4_plus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 85,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int4_plus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int8_plus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_int8_plus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 99,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int8_plus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_float8_plus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_float8_plus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 116,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_float8_plus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_sum_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_sum_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 133,
+      "end_line": 147,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_sum_operand_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_product_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_product_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 150,
+      "end_line": 164,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_product_operand_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_multiply_precedence_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_multiply_precedence_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 167,
+      "end_line": 179,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_multiply_precedence_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_divide_signed_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_divide_signed_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 182,
+      "end_line": 197,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_divide_signed_operand_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_subtract_signed_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_subtract_signed_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 200,
+      "end_line": 215,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_subtract_signed_operand_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_nested_signs_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_nested_signs_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 218,
+      "end_line": 229,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_nested_signs_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_plus_signed_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_plus_signed_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 232,
+      "end_line": 246,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_plus_signed_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_case_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_case_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 249,
+      "end_line": 263,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_case_operand_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_function_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_function_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 266,
+      "end_line": 280,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_function_operand_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_typed_int_null_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_typed_int_null_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 283,
+      "end_line": 294,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_typed_int_null_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_typed_float_null_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_typed_float_null_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 297,
+      "end_line": 308,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_typed_float_null_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_negative_zero_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_negative_zero_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 311,
+      "end_line": 325,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_negative_zero_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_positive_negative_zero_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_positive_negative_zero_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 328,
+      "end_line": 343,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_positive_negative_zero_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_double_negative_zero_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_double_negative_zero_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 346,
+      "end_line": 361,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_double_negative_zero_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_positive_infinity_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_positive_infinity_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 364,
+      "end_line": 378,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_positive_infinity_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_negative_infinity_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_negative_infinity_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 381,
+      "end_line": 395,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_negative_infinity_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_cast_after_parentheses_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_cast_after_parentheses_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 398,
+      "end_line": 413,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_cast_after_parentheses_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_cast_before_negation_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_cast_before_negation_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 416,
+      "end_line": 431,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_cast_before_negation_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_minimum_literal_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_minimum_literal_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 434,
+      "end_line": 450,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_minimum_literal_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_minimum_int8_literal_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_minimum_int8_literal_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 453,
+      "end_line": 471,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_minimum_int8_literal_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_values_int_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_values_int_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 474,
+      "end_line": 488,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_values_int_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_values_float_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_values_float_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 491,
+      "end_line": 505,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_values_float_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_coalesce_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_coalesce_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 508,
+      "end_line": 522,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_coalesce_operand_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_boolean_comparison_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_boolean_comparison_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 525,
+      "end_line": 537,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_boolean_comparison_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_pruned_dead_arm_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_pruned_dead_arm_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 540,
+      "end_line": 551,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_pruned_dead_arm_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int2_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_int2_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 554,
+      "end_line": 561,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int2_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int4_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_int4_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 564,
+      "end_line": 571,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int4_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int8_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_int8_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 574,
+      "end_line": 581,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int8_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_cast_precedence_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_cast_precedence_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 584,
+      "end_line": 591,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_cast_precedence_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_parenthesized_minimum_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_parenthesized_minimum_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 594,
+      "end_line": 602,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_parenthesized_minimum_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_division_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_division_operand_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 605,
+      "end_line": 612,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_division_operand_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_dead_dynamic_arm_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_dead_dynamic_arm_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 615,
+      "end_line": 622,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_dead_dynamic_arm_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_values_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_values_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 625,
+      "end_line": 632,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_values_overflow_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_widen_int2_before_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_widen_int2_before_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 635,
+      "end_line": 650,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_widen_int2_before_minus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_widen_int4_before_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_widen_int4_before_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 653,
+      "end_line": 668,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_widen_int4_before_minus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_widen_int2_after_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_widen_int2_after_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 671,
+      "end_line": 679,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_widen_int2_after_minus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_widen_int4_after_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_widen_int4_after_minus_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 682,
+      "end_line": 690,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_widen_int4_after_minus_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_reject_unknown_minus_null_given_parse_flush_when_unary_signatures_require_resolution",
+      "name": "should_reject_unknown_minus_null_given_parse_flush_when_unary_signatures_require_resolution",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 693,
+      "end_line": 700,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_reject_unknown_minus_null_given_parse_flush_when_unary_signatures_require_resolution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_reject_unknown_minus_text_given_parse_flush_when_unary_signatures_require_resolution",
+      "name": "should_reject_unknown_minus_text_given_parse_flush_when_unary_signatures_require_resolution",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 703,
+      "end_line": 710,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_reject_unknown_minus_text_given_parse_flush_when_unary_signatures_require_resolution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_reject_unknown_minus_bad_given_parse_flush_when_unary_signatures_require_resolution",
+      "name": "should_reject_unknown_minus_bad_given_parse_flush_when_unary_signatures_require_resolution",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 713,
+      "end_line": 720,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_reject_unknown_minus_bad_given_parse_flush_when_unary_signatures_require_resolution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_reject_known_minus_boolean_given_parse_flush_when_unary_signatures_require_resolution",
+      "name": "should_reject_known_minus_boolean_given_parse_flush_when_unary_signatures_require_resolution",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 723,
+      "end_line": 730,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_reject_known_minus_boolean_given_parse_flush_when_unary_signatures_require_resolution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_reject_known_plus_text_given_parse_flush_when_unary_signatures_require_resolution",
+      "name": "should_reject_known_plus_text_given_parse_flush_when_unary_signatures_require_resolution",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 733,
+      "end_line": 740,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_reject_known_plus_text_given_parse_flush_when_unary_signatures_require_resolution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_reject_unknown_plus_bad_given_parse_flush_when_unary_signatures_require_resolution",
+      "name": "should_reject_unknown_plus_bad_given_parse_flush_when_unary_signatures_require_resolution",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 743,
+      "end_line": 750,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_reject_unknown_plus_bad_given_parse_flush_when_unary_signatures_require_resolution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_unknown_plus_null_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_unknown_plus_null_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 753,
+      "end_line": 764,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_unknown_plus_null_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_unknown_plus_text_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "name": "should_apply_unknown_plus_text_given_unary_syntax_when_native_numeric_rules_select_the_result",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 767,
+      "end_line": 781,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_unknown_plus_text_given_unary_syntax_when_native_numeric_rules_select_the_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int2_parameter_given_cast_signatures_when_parameters_are_described_then_executed",
+      "name": "should_apply_int2_parameter_given_cast_signatures_when_parameters_are_described_then_executed",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 784,
+      "end_line": 796,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int2_parameter_given_cast_signatures_when_parameters_are_described_then_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int4_parameter_given_cast_signatures_when_parameters_are_described_then_executed",
+      "name": "should_apply_int4_parameter_given_cast_signatures_when_parameters_are_described_then_executed",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 799,
+      "end_line": 814,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int4_parameter_given_cast_signatures_when_parameters_are_described_then_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_int8_parameter_given_cast_signatures_when_parameters_are_described_then_executed",
+      "name": "should_apply_int8_parameter_given_cast_signatures_when_parameters_are_described_then_executed",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 817,
+      "end_line": 832,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_int8_parameter_given_cast_signatures_when_parameters_are_described_then_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_apply_float8_parameter_given_cast_signatures_when_parameters_are_described_then_executed",
+      "name": "should_apply_float8_parameter_given_cast_signatures_when_parameters_are_described_then_executed",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 835,
+      "end_line": 851,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_apply_float8_parameter_given_cast_signatures_when_parameters_are_described_then_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_resolve_unary_unknown_context_predicate_given_enclosing_expressions_when_native_types_are_selected",
+      "name": "should_resolve_unary_unknown_context_predicate_given_enclosing_expressions_when_native_types_are_selected",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 854,
+      "end_line": 862,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_resolve_unary_unknown_context_predicate_given_enclosing_expressions_when_native_types_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_resolve_unary_unknown_context_coalesce_given_enclosing_expressions_when_native_types_are_selected",
+      "name": "should_resolve_unary_unknown_context_coalesce_given_enclosing_expressions_when_native_types_are_selected",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 865,
+      "end_line": 880,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_resolve_unary_unknown_context_coalesce_given_enclosing_expressions_when_native_types_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_resolve_unary_unknown_context_case_result_given_enclosing_expressions_when_native_types_are_selected",
+      "name": "should_resolve_unary_unknown_context_case_result_given_enclosing_expressions_when_native_types_are_selected",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 883,
+      "end_line": 895,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_resolve_unary_unknown_context_case_result_given_enclosing_expressions_when_native_types_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/unary_numeric.rs::should_resolve_unary_unknown_context_case_operand_given_enclosing_expressions_when_native_types_are_selected",
+      "name": "should_resolve_unary_unknown_context_case_operand_given_enclosing_expressions_when_native_types_are_selected",
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "line": 898,
+      "end_line": 911,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unary_numeric::should_resolve_unary_unknown_context_case_operand_given_enclosing_expressions_when_native_types_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/grammar/unsupported_type_lookup.rs::should_report_undefined_type_names_with_42704_for_cast_forms",
       "name": "should_report_undefined_type_names_with_42704_for_cast_forms",
       "current_file": "tests/pgwire_extended/grammar/unsupported_type_lookup.rs",
@@ -140651,6 +142542,254 @@
       }
     },
     {
+      "id": "tests/sql_queries/expressions/unary_numeric.rs::should_negate_stored_int4_given_projection_when_rows_are_read",
+      "name": "should_negate_stored_int4_given_projection_when_rows_are_read",
+      "current_file": "tests/sql_queries/expressions/unary_numeric.rs",
+      "line": 7,
+      "end_line": 25,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unary_numeric::should_negate_stored_int4_given_projection_when_rows_are_read"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/unary_numeric.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/unary_numeric.rs::should_reject_stored_int2_overflow_given_projection_when_the_minimum_is_negated",
+      "name": "should_reject_stored_int2_overflow_given_projection_when_the_minimum_is_negated",
+      "current_file": "tests/sql_queries/expressions/unary_numeric.rs",
+      "line": 27,
+      "end_line": 42,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unary_numeric::should_reject_stored_int2_overflow_given_projection_when_the_minimum_is_negated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/unary_numeric.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/unary_numeric.rs::should_reject_stored_int4_overflow_given_projection_when_the_minimum_is_negated",
+      "name": "should_reject_stored_int4_overflow_given_projection_when_the_minimum_is_negated",
+      "current_file": "tests/sql_queries/expressions/unary_numeric.rs",
+      "line": 44,
+      "end_line": 59,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unary_numeric::should_reject_stored_int4_overflow_given_projection_when_the_minimum_is_negated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/unary_numeric.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/unary_numeric.rs::should_reject_stored_int8_overflow_given_projection_when_the_minimum_is_negated",
+      "name": "should_reject_stored_int8_overflow_given_projection_when_the_minimum_is_negated",
+      "current_file": "tests/sql_queries/expressions/unary_numeric.rs",
+      "line": 61,
+      "end_line": 76,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unary_numeric::should_reject_stored_int8_overflow_given_projection_when_the_minimum_is_negated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/unary_numeric.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/unary_numeric.rs::should_filter_stored_rows_given_unary_predicates_when_numeric_signs_are_applied",
+      "name": "should_filter_stored_rows_given_unary_predicates_when_numeric_signs_are_applied",
+      "current_file": "tests/sql_queries/expressions/unary_numeric.rs",
+      "line": 78,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unary_numeric::should_filter_stored_rows_given_unary_predicates_when_numeric_signs_are_applied"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/unary_numeric.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/unary_numeric.rs::should_aggregate_stored_rows_given_unary_arguments_when_sums_are_computed",
+      "name": "should_aggregate_stored_rows_given_unary_arguments_when_sums_are_computed",
+      "current_file": "tests/sql_queries/expressions/unary_numeric.rs",
+      "line": 98,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unary_numeric::should_aggregate_stored_rows_given_unary_arguments_when_sums_are_computed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/numeric",
+        "directory": "tests/sql_queries/aggregates/numeric",
+        "file": "tests/sql_queries/aggregates/numeric/unary_numeric.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/unary_numeric.rs::should_preserve_stored_nulls_given_unary_projection_when_integer_columns_are_nullable",
+      "name": "should_preserve_stored_nulls_given_unary_projection_when_integer_columns_are_nullable",
+      "current_file": "tests/sql_queries/expressions/unary_numeric.rs",
+      "line": 115,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unary_numeric::should_preserve_stored_nulls_given_unary_projection_when_integer_columns_are_nullable"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/unary_numeric.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/unary_numeric.rs::should_preserve_cached_unary_results_given_repeated_queries_when_signs_differ",
+      "name": "should_preserve_cached_unary_results_given_repeated_queries_when_signs_differ",
+      "current_file": "tests/sql_queries/expressions/unary_numeric.rs",
+      "line": 132,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unary_numeric::should_preserve_cached_unary_results_given_repeated_queries_when_signs_differ"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/unary_numeric.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/functions/math/math_functions.rs::should_retain_float8_type_when_rounding",
       "name": "should_retain_float8_type_when_rounding",
       "current_file": "tests/sql_queries/functions/math/math_functions.rs",
@@ -189790,6 +191929,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/grammar/unary_numeric.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 911,
+      "sha256": "44003f008a652217196d69d7f6611c2601f479f0c7c8439191774ba5db2329a7",
+      "test_declarations": 61,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/unary_numeric.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/grammar/unsupported_type_lookup.rs",
       "role": "test_module",
       "action": "keep",
@@ -189928,8 +192082,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 201,
-      "sha256": "88bff59de00cce4ced74cd0333af5fbf537fb019b1a687be30311b2810b22a6b",
+      "lines": 204,
+      "sha256": "7cb52d1b9e6becf7c35b8f00a5bfd555528186b75bc1900c10ebed7d7c270550",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -194143,8 +196297,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 192,
-      "sha256": "f77df34e8c149b4b2d05c0f5871635ee6cb1287bc61809b5e96bd5a2a9772214",
+      "lines": 195,
+      "sha256": "0c890d207ae720f64a11c15050f3b5d9a9cdaa1d7ee08a44e54abb315b64248e",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -198161,6 +200315,22 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/expressions/unary_numeric.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 155,
+      "sha256": "a40049983e19150f8dc8cbd3baac2660013abc16cd09161a86e095f73779b220",
+      "test_declarations": 8,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/numeric/unary_numeric.rs",
+        "tests/sql_queries/types/numeric/unary_numeric.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/functions/math/math_functions.rs",
       "role": "test_module",
       "action": "keep",
@@ -198449,8 +200619,8 @@
       "current_file": "tests/sql_queries/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 96,
-      "sha256": "7820ea0330f2a8c26e532fbc8500fe9bc6afa839ddaa7fd7a1e9ce0bd3116adf",
+      "lines": 99,
+      "sha256": "360819b48ef83e936b5396b3db45b8034f87bf4b2f652152fd6ea58292261171",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -201213,6 +203383,21 @@
       ],
       "destinations": [
         "tests/support/typed_portal.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/unary_numeric.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 92,
+      "sha256": "276d781126d1f5722ba6194a28bfcb85f14659989cbe63b31faddab4cf2be2fa",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/unary_numeric.rs"
       ],
       "line_limit": 1000
     },

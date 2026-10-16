@@ -46,7 +46,18 @@ impl Fold<'_, '_> {
     // Borrow operand type identities without cloning an owned DataType.
     // Column and simple CASE must share the same namespace boundary.
     pub(super) fn known_operand_oid(&self, expr: &ast::Expr, context: usize) -> Option<i32> {
-        match expr {
+        let mut operand = expr;
+        for _ in 0..=128 {
+            if let ast::Expr::UnaryNumeric { expr, op } = operand {
+                if binder::unary_numeric::is_unknown_operand(expr) {
+                    return (*op == ast::UnaryNumericOp::Plus).then_some(701);
+                }
+                operand = expr;
+            } else {
+                break;
+            }
+        }
+        match operand {
             ast::Expr::Column(name) => self.column_oid(context, name),
             ast::Expr::IntegerNegate { width, .. } => Some(oid(&width.data_type())),
             ast::Expr::Cast { data_type, .. } => Some(oid(data_type)),
@@ -55,7 +66,8 @@ impl Fold<'_, '_> {
             ast::Expr::IntegerLiteral(value) => Some(oid(&binder::integer_literal_type(*value))),
             ast::Expr::RowCompare(_) | ast::Expr::BoolLiteral(_) => Some(16),
             ast::Expr::Null => Some(oid(&crate::types::DataType::Null)),
-            ast::Expr::NumericLiteral(_)
+            ast::Expr::UnaryNumeric { .. }
+            | ast::Expr::NumericLiteral(_)
             | ast::Expr::Param(_)
             | ast::Expr::Binary { .. }
             | ast::Expr::Between { .. }

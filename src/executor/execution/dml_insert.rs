@@ -921,6 +921,7 @@ fn insert_expr_to_value(expr: &Expr, params: &[Value]) -> Result<Value, String> 
         | Expr::Between { .. }
         | Expr::Not { .. }
         | Expr::RowCompare(_)
+        | Expr::UnaryNumeric { .. }
         | Expr::IntegerNegate { .. }
         | Expr::Cast { .. }
         | Expr::Exists(_)

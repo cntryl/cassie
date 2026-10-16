@@ -193,3 +193,6 @@ mod support_bind_planning;
 
 #[path = "support/unary_numeric.rs"]
 mod support_unary_numeric;
+
+#[path = "support/pagination_unary.rs"]
+mod support_pagination_unary;

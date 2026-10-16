@@ -417,3 +417,18 @@ Value types/layouts remain unchanged. Explicitly cast parameter operands are
 covered; bare-parameter overload defaults, parameter-dependent Bind planning,
 full NUMERIC and interval/geometric/extension unary families remain pending
 under #793/#794/#796/#821. This finite primitive increment does not close them.
+
+Pagination parses expression syntax before semantic integer-domain admission.
+Its borrowed prefix-signature check shares the binder's operator-selection law,
+so unknown minus and nonnumeric literal/cast operands retain native Parse SQLSTATEs
+42725 and 42883. Typed NULL and integer-width evaluation retain the existing
+integer-only bound contract. General FLOAT8/NUMERIC bound coercions and unknown
+parameter overload defaults remain pending under #793/#796/#821.
+
+Planning checks reached integer-bound constant subtrees for overflow without
+applying negative LIMIT/OFFSET values, which remain execution-time 2201W/2201X
+errors. Execution resolves bounds only in reached CTE definitions using the
+same scope-aware mask as planning/materialization; all definitions still receive
+semantic validation. Rebuildable compiled-plan epoch 7 isolates the earlier
+pagination planning law, including derived L2 plans, without changing stored
+Value layouts.

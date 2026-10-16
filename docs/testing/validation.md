@@ -1180,3 +1180,78 @@ run was cancelled. Full repository green and PostgreSQL qualification remain
 incomplete. The oracle server reports PostgreSQL 18.6; the native executable
 SHA256 is `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`,
 recorded in `target/green-unary-native-version.log` with the version readback.
+
+## 2026-10-16 — Unary pagination signatures, planning and CTE reachability
+
+This batch extends the existing primitive foundations for #796/#821 with 96
+wire functions. PostgreSQL 18.6 supplies 48 Parse-error cases, 32 success cases
+with text/binary results, eight Bind-overflow cases and eight adversarial
+phase/reachability controls. The first 64-function red run reproduced 32/32.
+The expanded run reproduced 50/38 before fixing parser admission order and
+planning-time bound overflow. Final adversarial controls reproduced two unused
+CTE execution failures; both are fixed. The focused wire pagination run is
+98/0, including the 96 new functions and two existing controls.
+
+Pagination now parses expression syntax before semantic integer admission.
+Prefix signature checks borrow the operand and share the binder's operator
+selection law: unknown minus reports 42725; typed nonnumeric prefix operands
+report 42883. Typed integer/NULL controls preserve result OIDs and native
+text/binary row bytes. General FLOAT8/NUMERIC pagination coercions and unknown
+parameter overload defaults remain pending owner obligations, not exclusions.
+
+Reached integer-bound constants are checked during planning, including constant
+subtrees in parameter-dependent expressions. This reports arithmetic overflow
+at Bind without applying negative LIMIT/OFFSET values, which still fail at
+Execute with 2201W/2201X. Execution-time bound normalization uses the same
+scope-aware CTE mask as constant planning/materialization; unused definitions
+are not evaluated. Semantic validation continues to inspect all definitions.
+The private rebuildable compiled-plan epoch is 7; stored Value layouts do not
+change. No CI/release/version configuration is changed.
+
+Jev selected shared validation at 1.0 and nested-query risk at 0.99; 16 nested
+CTE/derived/EXISTS controls were added. Adversarial gap 0.55 prompted constant
+subtrees with parameters, late negative bounds, used/unused CTE chains and
+EXISTS probes. The unused-CTE failures above were corrected using the shared
+reachability mask. Final advisory gap is 0.27. The native oracle version was
+read back as PostgreSQL 18.6 (Homebrew, arm64 Darwin 25.6); ignored
+`target/green-page-*` files retain exact SQL, native frames, red/green logs,
+Jev requests/results and validation receipts. Jev is advisory, not proof.
+
+Validation:
+
+- `cargo build --locked --bin cassie`: passed.
+- Two complete `cargo test --locked` runs finished through the existing
+  catalog/security blocker: library 1,010/0, analytics 179/0, backend CI 2/0,
+  benchmark operations 16/0, catalog/security 139/209. All 209 failure identities
+  match the previous batch. Later targets compiled but were not executed by
+  those full commands; neither full run was cancelled.
+- Final `cargo test --locked --test pgwire_extended pagination`: 98/0, including
+  all 96 new functions after the fixture assertion cleanup.
+- Related compiled Rust selection: 517/20 across 537 functions (library 64/0,
+  parser selection 2/0, SQL 129/7, wire 322/13). No previously passing selected
+  case becomes red. The expanded SQL selection additionally includes an existing
+  FETCH grammar failure; its unchanged expression-token rejection occurs before
+  the modified pagination admission path. Other retained failure identities
+  are unchanged.
+- Complete parser 299/74 and wire core 73/11 retain their previous failure
+  identities. These sibling runs preceded the final style-only cleanup.
+- Full `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+  and `cargo fmt --all -- --check`: passed without suppression. The first full
+  gate exposed two runtime style defects. After fixing them, the complete gate
+  was rerun and exposed two empty-result fixture assertions. Those assertions
+  now print unexpected row payloads. The fixture-only cleanup was verified by
+  build, the affected locked test run, full strict Clippy and formatting; no
+  third full repository test run is claimed.
+- `cntryl-tools validate-tests -f tests/pgwire_extended/protocol/pagination_unary.rs`:
+  88/88 compliant. The corresponding `pagination_planning.rs` command is 8/8;
+  `tests/support/pagination_unary.rs` also validates. Global test validation:
+  6,882/6,882 compliant source tests, not runtime passing totals.
+- Inventory refresh/check, touched Rust file limits and whitespace: passed.
+  Inventory records 6,009 integration registration instances plus 1,010 library
+  tests (7,019 total), distinct from executed/passing totals. No benchmark timing
+  is claimed.
+
+Full repository green and PostgreSQL qualification remain incomplete. The native
+executable SHA256 remains
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`, recorded
+with the version readback in `target/green-page-native-version.log`.

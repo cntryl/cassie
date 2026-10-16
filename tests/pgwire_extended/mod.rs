@@ -202,3 +202,9 @@ mod cte_reachability;
 
 #[path = "grammar/unary_numeric.rs"]
 mod unary_numeric;
+
+#[path = "protocol/pagination_unary.rs"]
+mod pagination_unary;
+
+#[path = "protocol/pagination_planning.rs"]
+mod pagination_planning;

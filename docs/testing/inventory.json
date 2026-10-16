@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1561,
-    "rust_files": 1530,
-    "rust_test_declarations": 5785,
+    "files": 1564,
+    "rust_files": 1533,
+    "rust_test_declarations": 5881,
     "python_test_declarations": 16,
-    "registered_rust_instances": 5913,
+    "registered_rust_instances": 6009,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -81097,6 +81097,2982 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_planning.rs::should_preserve_negative_limit_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "name": "should_preserve_negative_limit_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "current_file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+      "line": 7,
+      "end_line": 15,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_planning::should_preserve_negative_limit_given_bound_constants_when_planning_respects_phase_and_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_planning.rs::should_preserve_negative_offset_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "name": "should_preserve_negative_offset_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "current_file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+      "line": 18,
+      "end_line": 26,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_planning::should_preserve_negative_offset_given_bound_constants_when_planning_respects_phase_and_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_planning.rs::should_preserve_parameter_limit_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "name": "should_preserve_parameter_limit_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "current_file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+      "line": 29,
+      "end_line": 40,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_planning::should_preserve_parameter_limit_given_bound_constants_when_planning_respects_phase_and_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_planning.rs::should_preserve_parameter_offset_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "name": "should_preserve_parameter_offset_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "current_file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+      "line": 43,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_planning::should_preserve_parameter_offset_given_bound_constants_when_planning_respects_phase_and_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_planning.rs::should_preserve_used_cte_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "name": "should_preserve_used_cte_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "current_file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+      "line": 57,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_planning::should_preserve_used_cte_given_bound_constants_when_planning_respects_phase_and_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_planning.rs::should_preserve_used_exists_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "name": "should_preserve_used_exists_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "current_file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+      "line": 70,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_planning::should_preserve_used_exists_given_bound_constants_when_planning_respects_phase_and_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_planning.rs::should_preserve_unused_cte_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "name": "should_preserve_unused_cte_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "current_file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+      "line": 84,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_planning::should_preserve_unused_cte_given_bound_constants_when_planning_respects_phase_and_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_planning.rs::should_preserve_unused_chain_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "name": "should_preserve_unused_chain_given_bound_constants_when_planning_respects_phase_and_reachability",
+      "current_file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+      "line": 99,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_planning::should_preserve_unused_chain_given_bound_constants_when_planning_respects_phase_and_reachability"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_unknown_null_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_unknown_null_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 7,
+      "end_line": 14,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_unknown_null_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_unknown_null_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_unknown_null_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 17,
+      "end_line": 24,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_unknown_null_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_unknown_text_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_unknown_text_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 27,
+      "end_line": 34,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_unknown_text_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_unknown_text_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_unknown_text_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 37,
+      "end_line": 44,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_unknown_text_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_unknown_bad_text_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_unknown_bad_text_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 47,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_unknown_bad_text_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_unknown_bad_text_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_unknown_bad_text_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 57,
+      "end_line": 64,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_unknown_bad_text_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_outer_int_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_outer_int_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 67,
+      "end_line": 74,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_outer_int_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_outer_int_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_outer_int_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 77,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_outer_int_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_outer_bigint_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_outer_bigint_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 87,
+      "end_line": 94,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_outer_bigint_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_outer_bigint_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_outer_bigint_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 97,
+      "end_line": 104,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_outer_bigint_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_sum_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_sum_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 107,
+      "end_line": 114,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_sum_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/core",
+        "directory": "tests/pgwire_extended/aggregates/core",
+        "file": "tests/pgwire_extended/aggregates/core/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_sum_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_sum_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 117,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_sum_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/core",
+        "directory": "tests/pgwire_extended/aggregates/core",
+        "file": "tests/pgwire_extended/aggregates/core/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_nested_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_nested_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 127,
+      "end_line": 134,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_nested_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_nested_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_nested_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 137,
+      "end_line": 144,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_nested_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_plus_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_plus_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 147,
+      "end_line": 154,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_plus_unknown_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_plus_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_plus_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 157,
+      "end_line": 164,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_plus_unknown_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_bool_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_bool_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 167,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_bool_plus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_bool_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_bool_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 177,
+      "end_line": 184,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_bool_plus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_bool_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_bool_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 187,
+      "end_line": 194,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_bool_minus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_bool_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_bool_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 197,
+      "end_line": 204,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_bool_minus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_typed_bool_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_typed_bool_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 207,
+      "end_line": 214,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_typed_bool_plus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_typed_bool_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_typed_bool_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 217,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_typed_bool_plus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_typed_bool_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_typed_bool_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 227,
+      "end_line": 234,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_typed_bool_minus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_typed_bool_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_typed_bool_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 237,
+      "end_line": 244,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_typed_bool_minus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_typed_text_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_typed_text_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 247,
+      "end_line": 254,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_typed_text_plus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_typed_text_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_typed_text_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 257,
+      "end_line": 264,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_typed_text_plus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_typed_text_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_typed_text_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 267,
+      "end_line": 274,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_typed_text_minus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_typed_text_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_typed_text_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 277,
+      "end_line": 284,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_typed_text_minus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_typed_varchar_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_typed_varchar_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 287,
+      "end_line": 294,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_typed_varchar_minus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_typed_varchar_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_typed_varchar_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 297,
+      "end_line": 304,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_typed_varchar_minus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_nested_bool_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_nested_bool_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 307,
+      "end_line": 314,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_nested_bool_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_nested_bool_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_nested_bool_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 317,
+      "end_line": 324,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_nested_bool_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_null_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_null_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 327,
+      "end_line": 334,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_null_plus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_null_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_null_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 337,
+      "end_line": 344,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_null_plus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int2_null_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int2_null_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 347,
+      "end_line": 354,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int2_null_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int2_null_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int2_null_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 357,
+      "end_line": 364,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int2_null_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int4_null_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int4_null_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 367,
+      "end_line": 374,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int4_null_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int4_null_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int4_null_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 377,
+      "end_line": 384,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int4_null_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int8_null_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int8_null_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 387,
+      "end_line": 394,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int8_null_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int8_null_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int8_null_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 397,
+      "end_line": 404,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int8_null_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int2_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int2_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 407,
+      "end_line": 414,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int2_plus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int2_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int2_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 417,
+      "end_line": 424,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int2_plus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int4_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int4_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 427,
+      "end_line": 434,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int4_plus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int4_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int4_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 437,
+      "end_line": 444,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int4_plus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int8_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int8_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 447,
+      "end_line": 454,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int8_plus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int8_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int8_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 457,
+      "end_line": 464,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int8_plus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int2_twice_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int2_twice_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 467,
+      "end_line": 474,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int2_twice_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int2_twice_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int2_twice_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 477,
+      "end_line": 484,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int2_twice_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int4_twice_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int4_twice_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 487,
+      "end_line": 494,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int4_twice_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int4_twice_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int4_twice_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 497,
+      "end_line": 504,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int4_twice_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int8_twice_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int8_twice_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 507,
+      "end_line": 514,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int8_twice_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_int8_twice_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_int8_twice_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 517,
+      "end_line": 524,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_int8_twice_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_zero_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_zero_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 527,
+      "end_line": 534,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_zero_minus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_zero_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_zero_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 537,
+      "end_line": 544,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_zero_minus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_zero_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_zero_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 547,
+      "end_line": 554,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_zero_plus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_zero_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_zero_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 557,
+      "end_line": 564,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_zero_plus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_sum_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_sum_minus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 567,
+      "end_line": 574,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_sum_minus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/core",
+        "directory": "tests/pgwire_extended/aggregates/core",
+        "file": "tests/pgwire_extended/aggregates/core/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_sum_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_sum_minus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 577,
+      "end_line": 584,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_sum_minus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/core",
+        "directory": "tests/pgwire_extended/aggregates/core",
+        "file": "tests/pgwire_extended/aggregates/core/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_cast_widen_before_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_cast_widen_before_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 587,
+      "end_line": 594,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_cast_widen_before_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_cast_widen_before_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_cast_widen_before_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 597,
+      "end_line": 604,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_cast_widen_before_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_sum_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_sum_plus_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 607,
+      "end_line": 614,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_sum_plus_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/core",
+        "directory": "tests/pgwire_extended/aggregates/core",
+        "file": "tests/pgwire_extended/aggregates/core/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_sum_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_sum_plus_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 617,
+      "end_line": 624,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_sum_plus_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/core",
+        "directory": "tests/pgwire_extended/aggregates/core",
+        "file": "tests/pgwire_extended/aggregates/core/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_mixed_prefix_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_mixed_prefix_limit_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 627,
+      "end_line": 634,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_mixed_prefix_limit_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_preserve_mixed_prefix_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "name": "should_preserve_mixed_prefix_offset_given_prefix_syntax_when_pagination_is_analyzed",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 637,
+      "end_line": 644,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_preserve_mixed_prefix_offset_given_prefix_syntax_when_pagination_is_analyzed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_cte_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_cte_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 647,
+      "end_line": 654,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_cte_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_cte_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_cte_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 657,
+      "end_line": 665,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_cte_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_cte_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_cte_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 668,
+      "end_line": 675,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_cte_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_cte_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_cte_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 678,
+      "end_line": 686,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_cte_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_unused_cte_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_unused_cte_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 689,
+      "end_line": 697,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_unused_cte_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_unused_cte_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_unused_cte_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 700,
+      "end_line": 708,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_unused_cte_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_unused_cte_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_unused_cte_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 711,
+      "end_line": 719,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_unused_cte_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_unused_cte_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_unused_cte_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 722,
+      "end_line": 730,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_unused_cte_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_derived_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_derived_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 733,
+      "end_line": 741,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_derived_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_derived_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_derived_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 744,
+      "end_line": 752,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_derived_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_derived_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_derived_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 755,
+      "end_line": 763,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_derived_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_derived_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_derived_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 766,
+      "end_line": 774,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_derived_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_exists_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_exists_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 777,
+      "end_line": 785,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_exists_unknown_limit_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_exists_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_exists_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 788,
+      "end_line": 796,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_exists_unknown_offset_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_exists_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_exists_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 799,
+      "end_line": 807,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_exists_boolean_limit_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_exists_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "name": "should_reject_exists_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 810,
+      "end_line": 818,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_exists_boolean_offset_given_nested_pagination_when_parse_checks_operator_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_int2_overflow_limit_given_checked_unary_width_when_bind_plans_pagination",
+      "name": "should_reject_int2_overflow_limit_given_checked_unary_width_when_bind_plans_pagination",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 821,
+      "end_line": 828,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_int2_overflow_limit_given_checked_unary_width_when_bind_plans_pagination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_int2_overflow_offset_given_checked_unary_width_when_bind_plans_pagination",
+      "name": "should_reject_int2_overflow_offset_given_checked_unary_width_when_bind_plans_pagination",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 831,
+      "end_line": 838,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_int2_overflow_offset_given_checked_unary_width_when_bind_plans_pagination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_int4_overflow_limit_given_checked_unary_width_when_bind_plans_pagination",
+      "name": "should_reject_int4_overflow_limit_given_checked_unary_width_when_bind_plans_pagination",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 841,
+      "end_line": 848,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_int4_overflow_limit_given_checked_unary_width_when_bind_plans_pagination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_int4_overflow_offset_given_checked_unary_width_when_bind_plans_pagination",
+      "name": "should_reject_int4_overflow_offset_given_checked_unary_width_when_bind_plans_pagination",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 851,
+      "end_line": 858,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_int4_overflow_offset_given_checked_unary_width_when_bind_plans_pagination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_int8_overflow_limit_given_checked_unary_width_when_bind_plans_pagination",
+      "name": "should_reject_int8_overflow_limit_given_checked_unary_width_when_bind_plans_pagination",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 861,
+      "end_line": 871,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_int8_overflow_limit_given_checked_unary_width_when_bind_plans_pagination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_int8_overflow_offset_given_checked_unary_width_when_bind_plans_pagination",
+      "name": "should_reject_int8_overflow_offset_given_checked_unary_width_when_bind_plans_pagination",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 874,
+      "end_line": 884,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_int8_overflow_offset_given_checked_unary_width_when_bind_plans_pagination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_widen_after_limit_given_checked_unary_width_when_bind_plans_pagination",
+      "name": "should_reject_widen_after_limit_given_checked_unary_width_when_bind_plans_pagination",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 887,
+      "end_line": 897,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_widen_after_limit_given_checked_unary_width_when_bind_plans_pagination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/protocol/pagination_unary.rs::should_reject_widen_after_offset_given_checked_unary_width_when_bind_plans_pagination",
+      "name": "should_reject_widen_after_offset_given_checked_unary_width_when_bind_plans_pagination",
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "line": 900,
+      "end_line": 910,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::pagination_unary::should_reject_widen_after_offset_given_checked_unary_width_when_bind_plans_pagination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "protocol",
+        "directory": "tests/pgwire_extended/protocol",
+        "file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -192082,8 +195058,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 204,
-      "sha256": "7cb52d1b9e6becf7c35b8f00a5bfd555528186b75bc1900c10ebed7d7c270550",
+      "lines": 210,
+      "sha256": "cdbc081f97943178f97db4cd58d440def3233a168d06ff439f8fefd072c57b9e",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -192810,6 +195786,37 @@
       ],
       "destinations": [
         "tests/pgwire_extended/protocol/pagination.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/pagination_planning.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 111,
+      "sha256": "a05fd3742201cb1db1b34fc7d2d7810e1a8edc9e807aa51f723cfb611e8be2b4",
+      "test_declarations": 8,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/protocol/pagination_planning.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/protocol/pagination_unary.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 910,
+      "sha256": "52f853c32f3a4f654d3b137030b82ef88a18c92dba76d6a5158fad04dc5e7083",
+      "test_declarations": 88,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/aggregates/core/pagination_unary.rs",
+        "tests/pgwire_extended/protocol/pagination_unary.rs"
       ],
       "line_limit": 1000
     },
@@ -196297,8 +199304,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 195,
-      "sha256": "0c890d207ae720f64a11c15050f3b5d9a9cdaa1d7ee08a44e54abb315b64248e",
+      "lines": 198,
+      "sha256": "bc92b1d4aba0e59682d869904bd5afb6853aa536a799e43b88e52ac3be833f19",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -202676,6 +205683,21 @@
       "registered_suites": [],
       "destinations": [
         "tests/support/operational_evidence.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/pagination_unary.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 48,
+      "sha256": "591d0ed8b8f8640aed9b9b32ae0da2f675987db93cc7e3ec2c6b77b86b363a61",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/pagination_unary.rs"
       ],
       "line_limit": 1000
     },

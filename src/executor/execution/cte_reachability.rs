@@ -57,12 +57,12 @@ impl<'a> SelectParts<'a> {
 
 const MAX_DEPTH: usize = 128;
 
-pub(super) struct LiveCtes {
+pub(crate) struct LiveCtes {
     states: Vec<u8>,
     _memory: QueryMemoryReservation,
 }
 impl LiveCtes {
-    pub(super) fn contains(&self, index: usize) -> bool {
+    pub(crate) fn contains(&self, index: usize) -> bool {
         self.states[index] != 0
     }
 }
@@ -260,4 +260,12 @@ impl<'a> Walk<'a> {
             ControlFlow::Break(error) => Err(error),
         }
     }
+}
+
+/// Share the same reached-definition mask with pre-execution bound resolution.
+pub(crate) fn for_select(
+    select: &SelectStatement,
+    controls: &QueryExecutionControls,
+) -> Result<LiveCtes, CassieError> {
+    used(&SelectParts::of(select), controls)
 }

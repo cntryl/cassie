@@ -18,10 +18,8 @@ pub(super) fn parse_bound(sql: &str, offset: bool) -> Result<Option<Expr>, SqlEr
         ));
     }
     let expr = crate::sql::parser::expr::parse_expression(sql)?;
-    if !crate::sql::pagination::is_admitted(&expr) {
-        return Err(SqlError::unsupported(
-            "unsupported pagination expression; expected integer literals, NULL, parameters, integer casts or +, - and *".into(),
-        ));
-    }
+    // Operator selection belongs to semantic admission, before the selected
+    // integer pagination gate. Rejecting operand types here hides native
+    // ambiguous/undefined operator errors behind an unsupported syntax error.
     Ok(Some(expr))
 }

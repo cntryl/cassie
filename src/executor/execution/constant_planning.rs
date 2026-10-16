@@ -113,6 +113,9 @@ impl Folder<'_> {
         self.check_all(select.having)?;
         self.check_all(select.order.iter().map(|order| &order.expr))?;
         self.check_all(select.distinct_on)?;
+        for bound in select.limit.into_iter().chain(select.offset) {
+            crate::sql::pagination::check_constants(bound, self.controls)?;
+        }
         if let Some(set) = select.set {
             self.check_statement_select(&set.right)?;
         }

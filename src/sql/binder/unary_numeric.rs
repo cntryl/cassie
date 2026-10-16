@@ -10,17 +10,8 @@ pub(super) fn resolve(
     let Expr::UnaryNumeric { op, expr } = expression else {
         return Ok(());
     };
+    validate_signature(*op, expr, data_type)?;
     if is_unknown_operand(expr) {
-        if *op == UnaryNumericOp::Minus {
-            return Err(CassieError::Execution(
-                "operator is not unique: - unknown".into(),
-            ));
-        }
-        crate::sql::literal_inputs::validate(
-            expr,
-            &DataType::Float,
-            crate::sql::ast::CastIdentity::Scalar,
-        )?;
         let Expr::UnaryNumeric { expr, .. } = std::mem::replace(expression, Expr::Null) else {
             unreachable!("numeric unary matched above")
         };
@@ -36,11 +27,6 @@ pub(super) fn resolve(
         return Ok(());
     };
     let width = IntegerWidth::from_data_type(data_type);
-    if width.is_none() && !matches!(data_type, DataType::Float | DataType::Null) {
-        return Err(CassieError::Execution(format!(
-            "operator does not exist: {op:?} {data_type:?}"
-        )));
-    }
     if *op == UnaryNumericOp::Minus && width.is_none() {
         return Ok(());
     }
@@ -72,4 +58,34 @@ pub(super) fn result_type(
     } else {
         inferred
     }
+}
+
+/// Check operator selection without rewriting or evaluating the operand.
+pub(crate) fn validate_signature(
+    op: UnaryNumericOp,
+    operand: &Expr,
+    data_type: Option<&DataType>,
+) -> Result<(), CassieError> {
+    if is_unknown_operand(operand) {
+        if op == UnaryNumericOp::Minus {
+            return Err(CassieError::Execution(
+                "operator is not unique: - unknown".into(),
+            ));
+        }
+        return crate::sql::literal_inputs::validate(
+            operand,
+            &DataType::Float,
+            crate::sql::ast::CastIdentity::Scalar,
+        );
+    }
+    if let Some(data_type) = data_type {
+        if IntegerWidth::from_data_type(data_type).is_none()
+            && !matches!(data_type, DataType::Float | DataType::Null)
+        {
+            return Err(CassieError::Execution(format!(
+                "operator does not exist: {op:?} {data_type:?}"
+            )));
+        }
+    }
+    Ok(())
 }

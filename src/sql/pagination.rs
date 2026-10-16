@@ -6,7 +6,10 @@ use crate::sql::ast::{BinaryOp, Expr, ParsedStatement};
 use crate::types::{DataType, Value};
 
 mod admission;
+mod constants;
+pub(crate) use constants::check as check_constants;
 mod traversal;
+mod unary;
 
 fn bound_needs_resolution(bound: Option<&Expr>) -> bool {
     bound.is_some_and(|expr| !matches!(expr, Expr::IntegerLiteral(value) if *value >= 0))
@@ -32,6 +35,7 @@ pub(crate) fn resolve_plan(
 > {
     use crate::sql::ast::{QueryStatement, SelectStatement};
     for bound in plan.limit.iter().chain(&plan.offset) {
+        unary::validate(bound)?;
         if !is_admitted(bound) {
             return Err(type_error());
         }
@@ -151,6 +155,7 @@ pub(crate) fn validate_statement(
 ) -> Result<(), CassieError> {
     traversal::visit_statement(statement, &mut |bound, _| {
         if let Some(expr) = bound {
+            unary::validate(expr)?;
             if !is_admitted(expr) {
                 return Err(type_error());
             }
@@ -206,27 +211,31 @@ pub(crate) fn resolve_statement(
 ) -> Result<bool, CassieError> {
     validate_statement(statement, Some(declared_oids))?;
     let mut parameter_dependent = false;
-    traversal::visit_statement(statement, &mut |bound, offset| {
-        if controls.is_cancelled() {
-            return Err(CassieError::QueryCancelled);
-        }
-        if controls.is_timed_out() {
-            return Err(CassieError::DeadlineExceeded);
-        }
-        if let Some(expr) = bound.as_ref() {
-            parameter_dependent |= has_parameters(expr);
-            let value = evaluate(expr, params, declared_oids, controls)?.0;
-            if value.is_some_and(|value| value < 0) {
-                return Err(CassieError::Execution(if offset {
-                    "OFFSET must not be negative".into()
-                } else {
-                    "LIMIT must not be negative".into()
-                }));
+    traversal::visit_reached_statement(
+        statement,
+        &mut |bound, offset| {
+            if controls.is_cancelled() {
+                return Err(CassieError::QueryCancelled);
             }
-            *bound = value.map(Expr::IntegerLiteral);
-        }
-        Ok(())
-    })?;
+            if controls.is_timed_out() {
+                return Err(CassieError::DeadlineExceeded);
+            }
+            if let Some(expr) = bound.as_ref() {
+                parameter_dependent |= has_parameters(expr);
+                let value = evaluate(expr, params, declared_oids, controls)?.0;
+                if value.is_some_and(|value| value < 0) {
+                    return Err(CassieError::Execution(if offset {
+                        "OFFSET must not be negative".into()
+                    } else {
+                        "LIMIT must not be negative".into()
+                    }));
+                }
+                *bound = value.map(Expr::IntegerLiteral);
+            }
+            Ok(())
+        },
+        controls,
+    )?;
     Ok(parameter_dependent)
 }
 

@@ -105,6 +105,8 @@ pub enum SetOperator {
     UnionAll,
     Intersect,
     Except,
+    IntersectAll,
+    ExceptAll,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

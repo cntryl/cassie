@@ -220,10 +220,29 @@ pub(crate) fn set_positions(
             .binary_search_by(|index| right_keys.values[*index].cmp(key))
             .is_ok()
     };
+    let multiset = matches!(operator, SetOperator::IntersectAll | SetOperator::ExceptAll);
+    let _counts_memory = controls.reserve_query_memory(if multiset {
+        owner_bytes::<Vec<usize>>(mul(right_len, size_of::<usize>())?)?
+    } else {
+        0
+    })?;
+    let mut consumed = vec![0_usize; if multiset { right_len } else { 0 }];
     let mut output = Vec::with_capacity(total);
     for lane in 0..left_len {
         check_controls(controls)?;
         let include = match operator {
+            SetOperator::IntersectAll | SetOperator::ExceptAll => {
+                let key = &left_keys.values[lane];
+                let start =
+                    right_positions.partition_point(|index| right_keys.values[*index] < *key);
+                let end =
+                    right_positions.partition_point(|index| right_keys.values[*index] <= *key);
+                let matched = start < end && consumed[start] < end - start;
+                if matched {
+                    consumed[start] += 1;
+                }
+                matched == (operator == SetOperator::IntersectAll)
+            }
             SetOperator::Intersect => contains(&left_keys.values[lane]),
             SetOperator::Except => !contains(&left_keys.values[lane]),
             SetOperator::Union | SetOperator::UnionAll => true,
@@ -244,7 +263,10 @@ pub(crate) fn set_positions(
     };
     output.sort_unstable_by(|left, right| key(left).cmp(key(right)).then_with(|| left.cmp(right)));
     check_controls(controls)?;
-    if !matches!(operator, SetOperator::UnionAll) {
+    if !matches!(
+        operator,
+        SetOperator::UnionAll | SetOperator::IntersectAll | SetOperator::ExceptAll
+    ) {
         output.dedup_by(|right, left| key(right) == key(left));
     }
     Ok(super::admitted(output, memory))

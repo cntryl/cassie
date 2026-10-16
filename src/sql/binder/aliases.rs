@@ -373,6 +373,7 @@ pub(super) fn lower_select(
     catalog: &Catalog,
     scope: &CteScope,
     lateral_fields: &std::collections::HashSet<String>,
+    set_result: bool,
 ) -> Result<(), CassieError> {
     if !has_alias(&select.source) {
         return Ok(());
@@ -383,7 +384,7 @@ pub(super) fn lower_select(
         return Ok(());
     }
     let correlated = select_contains_exists(select);
-    let output_aliases = super::collect_projection_aliases(select);
+    let mut output_aliases = super::collect_projection_aliases(select);
     // Reusing the collection's physical qualifier would hide an admitted
     // enclosing reference to that same collection. Retain only this carrier.
     let outer_source_collision = lateral_fields.iter().any(|name| {
@@ -441,6 +442,10 @@ pub(super) fn lower_select(
         projection.push(item);
     }
     select.projection = projection;
+    if set_result {
+        // Global set ordering addresses exported result names, after projection.
+        output_aliases.extend(super::collect_projection_aliases(select));
+    }
     rewrite_source_clauses(select, &spaces, single, lateral_fields)?;
     for order in &mut select.order {
         if let Expr::Column(name) = &order.expr {

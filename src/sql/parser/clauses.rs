@@ -149,6 +149,7 @@ pub(super) fn find_top_level_union(rest: &str) -> Option<(usize, usize, bool)> {
             return Some((position, all_end - position, true));
         }
     }
+    let end = super::lexical::pattern_end(rest, next, "distinct").unwrap_or(end);
     Some((position, end - position, false))
 }
 

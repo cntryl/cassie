@@ -110,13 +110,16 @@ pub(super) fn parse_set_select_statement(
     let (last_sql, global_order, global_limit, global_offset) =
         split_set_right_and_global_clauses(rest)?;
     let mut operands = Vec::with_capacity(operand_sql.len() + 1);
+    let mut first_projection = None;
     for sql in operand_sql
         .into_iter()
         .chain(std::iter::once(last_sql.as_str()))
     {
-        operands.push(parse_set_operand(sql)?);
+        let (operand, projection) = parse_set_operand(sql)?;
+        first_projection.get_or_insert(projection);
+        operands.push(operand);
     }
-    let first_projection = operands[0].projection.clone();
+    let first_projection = first_projection.expect("first set operand");
 
     let mut root = build_set_tree(operands, &operators);
     root.ctes = withs;
@@ -130,14 +133,18 @@ pub(super) fn parse_set_select_statement(
     })
 }
 
-fn parse_set_operand(sql: &str) -> Result<SelectStatement, SqlError> {
+fn parse_set_operand(sql: &str) -> Result<(SelectStatement, Vec<super::SelectItem>), SqlError> {
     let (sql, parenthesized) = strip_query_parentheses(sql)?;
     match parse_select_statement(sql, Vec::new(), false)?.statement {
-        QueryStatement::Select(select) => Ok(if parenthesized {
-            derived_set_operand(*select)
-        } else {
-            *select
-        }),
+        QueryStatement::Select(select) => {
+            let projection = select.projection.clone();
+            let operand = if parenthesized {
+                derived_set_operand(*select)
+            } else {
+                *select
+            };
+            Ok((operand, projection))
+        }
         _ => Err(SqlError::new(
             "set operation requires SELECT operands".into(),
         )),
@@ -166,7 +173,7 @@ fn build_set_tree(operands: Vec<SelectStatement>, operators: &[SetOperator]) -> 
     let mut term_operators = Vec::new();
     let mut term = operands.next().expect("set operation has a first operand");
     for (&operator, operand) in operators.iter().zip(operands) {
-        if operator == SetOperator::Intersect {
+        if matches!(operator, SetOperator::Intersect | SetOperator::IntersectAll) {
             term = combine_set_operands(term, operator, operand);
         } else {
             terms.push(term);
@@ -195,7 +202,10 @@ fn combine_set_operands(
 ) -> SelectStatement {
     let associative = matches!(
         operator,
-        SetOperator::Union | SetOperator::UnionAll | SetOperator::Intersect
+        SetOperator::Union
+            | SetOperator::UnionAll
+            | SetOperator::Intersect
+            | SetOperator::IntersectAll
     );
     match left.set.take() {
         None => {
@@ -262,7 +272,21 @@ pub(super) fn find_set_operation(sql: &str) -> Option<(usize, usize, SetOperator
     ]
     .into_iter()
     .filter_map(|(token, operator)| {
-        find_top_level_keyword(sql, 0, token).map(|pos| (pos, token.len(), operator))
+        find_top_level_keyword(sql, 0, token).map(|pos| {
+            let end = pos + token.len();
+            let next = crate::sql::parser::lexical::separator_end(sql, end);
+            if let Some(all_end) = crate::sql::parser::lexical::pattern_end(sql, next, "all") {
+                let all = if operator == SetOperator::Intersect {
+                    SetOperator::IntersectAll
+                } else {
+                    SetOperator::ExceptAll
+                };
+                return (pos, all_end - pos, all);
+            }
+            let end =
+                crate::sql::parser::lexical::pattern_end(sql, next, "distinct").unwrap_or(end);
+            (pos, end - pos, operator)
+        })
     })
     .chain(union)
     .min_by_key(|(position, _, _)| *position)
@@ -288,7 +312,12 @@ pub(super) fn split_set_right_and_global_clauses(
     }
     ensure_select_statement(trimmed)?;
 
-    let after_select = crate::sql::parser::lexical::trim_separators(&trimmed[6..]);
+    let prefix = if crate::sql::parser::lexical::pattern_end(trimmed, 0, "values").is_some() {
+        "VALUES"
+    } else {
+        "SELECT"
+    };
+    let after_select = crate::sql::parser::lexical::trim_separators(&trimmed[prefix.len()..]);
     let clauses = parse_clauses(after_select)?;
     let Some(global_start) = clauses
         .iter()
@@ -305,7 +334,7 @@ pub(super) fn split_set_right_and_global_clauses(
         return Ok((trimmed.to_string(), Vec::new(), None, None));
     };
 
-    let right_without_global = format!("SELECT {}", after_select[..global_start].trim());
+    let right_without_global = format!("{prefix} {}", after_select[..global_start].trim());
     let global_rest = after_select[global_start..].trim();
     let (order, limit, offset) = parse_global_result_clauses(global_rest)?;
     Ok((right_without_global, order, limit, offset))
@@ -435,6 +464,11 @@ fn split_select_projection_and_rest(
 }
 
 fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), SqlError> {
+    if let Some(end) = crate::sql::parser::lexical::pattern_end(select_part, 0, "all") {
+        *select_part =
+            crate::sql::parser::lexical::trim_separators(&select_part[end..]).to_string();
+        return Ok((false, Vec::new()));
+    }
     let mut distinct_on = Vec::new();
     let select_part_lower = select_part.to_ascii_lowercase();
     if let Some(end) = crate::sql::parser::lexical::pattern_end(select_part, 0, "distinct on") {

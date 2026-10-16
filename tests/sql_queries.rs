@@ -210,3 +210,24 @@ mod support_primitive_literal_inputs;
 
 #[path = "support/fetch_sql.rs"]
 mod support_fetch_sql;
+
+#[path = "sql_queries/set_operations/quantifiers_select.rs"]
+mod quantifiers_select;
+
+#[path = "sql_queries/set_operations/quantifiers_values.rs"]
+mod quantifiers_values;
+
+#[path = "sql_queries/set_operations/quantifiers_scoped.rs"]
+mod quantifiers_scoped;
+
+#[path = "sql_queries/set_operations/quantifiers_cte.rs"]
+mod quantifiers_cte;
+
+#[path = "sql_queries/set_operations/quantifiers_precedence.rs"]
+mod quantifiers_precedence;
+
+#[path = "sql_queries/set_operations/quantifiers_left_association.rs"]
+mod quantifiers_left_association;
+
+#[path = "sql_queries/set_operations/quantifiers_probes.rs"]
+mod quantifiers_probes;

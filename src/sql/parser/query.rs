@@ -507,6 +507,16 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
             }
             return relation_alias::parse(select.source, alias_raw);
         }
+        if alias.contains('(') {
+            return relation_alias::parse(
+                QuerySource::Subquery {
+                    alias: "__derived_query".to_string(),
+                    select,
+                    lateral,
+                },
+                alias_raw,
+            );
+        }
         if alias.is_empty() || alias.split_whitespace().count() != 1 {
             return Err(SqlError::new(
                 "FROM subquery requires a deterministic alias".into(),

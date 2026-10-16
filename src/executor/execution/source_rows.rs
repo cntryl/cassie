@@ -382,6 +382,9 @@ pub(super) fn apply_set_operation(
     }
     let right = rekey_set_rows(left_output_names, right);
     let output: Result<_, QueryError> = match set.operator {
+        SetOperator::IntersectAll | SetOperator::ExceptAll => {
+            typed::set(left, right, left_output_names, set.operator, controls)
+        }
         SetOperator::UnionAll => {
             let mut rows = left;
             rows.extend(right);

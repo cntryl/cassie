@@ -509,3 +509,24 @@ valid selected spellings reject 0A000. General floating/NUMERIC bound coercions,
 functions/subqueries and complete recursive-CTE qualification remain pending.
 The stored Value layout and query AST variants do not change; private compiled
 plan epoch 8 invalidates earlier derived parsing/binding plans.
+
+
+### Selected set quantifiers and VALUES branches (2026-10-16)
+
+`SELECT ALL` preserves duplicates. Set operators accept explicit `DISTINCT`
+(and their existing implicit DISTINCT default), while `INTERSECT ALL` consumes
+one right occurrence for each matching left occurrence and `EXCEPT ALL`
+subtracts right multiplicity from left multiplicity. NULL tuples compare equal
+for this purpose. INTERSECT, including ALL, binds tighter than UNION/EXCEPT;
+operators at the same precedence associate left to right.
+
+Selected integer/text/NULL cases include standalone VALUES branches, CTE
+materialization, empty inputs, text and multi-column keys, parenthesized
+branch-local ordering/pagination, result ordinals and derived column aliases.
+Global ordering uses exported result names after projection. New additive
+`SetOperator::IntersectAll`/`ExceptAll` AST variants retain existing serialized
+variant identities; compiled plans rebuild at epoch 9. No stored Value layout
+or storage migration changes. Older binaries do not understand newly stored
+query definitions using the new operators. Complete #800 acceptance, wider
+set-type coercions, recursive CTE qualification, WITH TIES and ORDER BY USING
+remain open.

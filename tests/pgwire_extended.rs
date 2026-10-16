@@ -199,3 +199,6 @@ mod support_pagination_unary;
 
 #[path = "support/fetch.rs"]
 mod support_fetch;
+
+#[path = "pgwire_extended/protocol/set_quantifiers.rs"]
+mod set_quantifiers;

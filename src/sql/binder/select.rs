@@ -97,7 +97,7 @@ pub(super) fn bind_select_with_lateral_fields(
     )?;
     select.source = source;
     select.ctes = bound_ctes;
-    super::aliases::lower_select(&mut select, catalog, &scope, lateral_fields)?;
+    super::aliases::lower_select(&mut select, catalog, &scope, lateral_fields, set.is_some())?;
     let mut known_fields = source_fields(catalog, &select.source, &scope)?;
     known_fields.extend(lateral_fields.iter().cloned());
     if lateral_fields.is_empty() {

@@ -40,7 +40,10 @@ impl Analyzer<'_> {
                 // These operators return existing left rows, not RHS values.
                 // Source: execution/source_rows.rs301/318. RHS is still
                 // analyzed for metadata shape, but its origins do not export.
-                SetOperator::Intersect | SetOperator::Except => {}
+                SetOperator::Intersect
+                | SetOperator::Except
+                | SetOperator::IntersectAll
+                | SetOperator::ExceptAll => {}
             }
         }
         Ok(output)

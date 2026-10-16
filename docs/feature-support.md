@@ -34,7 +34,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Subqueries | Implemented table, predicate (including EXISTS), lateral, and correlated forms; scalar expression subqueries are absent. | Experimental |
 | Scalar expression subqueries | Absent; selected syntax, type, correlation and cardinality semantics are tracked in [#762](https://github.com/cntryl/cassie/issues/762). | Planned |
 | Common table expressions | Non-recursive and recursive `WITH` | Experimental |
-| Set operations | `UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT` | Stable |
+| Set operations | `UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT`; selected integer/text/NULL `INTERSECT ALL`, `EXCEPT ALL`, explicit DISTINCT, SELECT ALL and VALUES branches now match native multiplicity and ordering. Wider coercion qualification remains pending under #800. | Experimental |
 | Window functions | Ranking, offset, value functions, and documented row frames | Experimental |
 | Views | Read-only views and nested views | Stable |
 | User functions | Scalar UDFs with declared volatility | Experimental |

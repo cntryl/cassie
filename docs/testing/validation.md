@@ -1350,3 +1350,69 @@ Validation:
   timing is claimed.
 
 Full repository green and PostgreSQL qualification remain incomplete.
+
+## 2026-10-16 — Set quantifiers and VALUES branches
+
+This #800 checkpoint follows the FETCH foundation at `6a648c42`. It adds
+201 functions: 180 SQL, 18 wire and three module controls. All 162 initial
+SQL cases failed against the prior implementation. Native PostgreSQL 18.6
+supplies 180 SQL expectations plus 36 text/binary wire result captures;
+`target/green-setspell-native-version.log` records the server and executable
+SHA256 `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`
+(Homebrew PostgreSQL 18.6, aarch64 Darwin 25.6). The selected keys are integer/text/NULL, including repeated tuples,
+empty inputs, INTERSECT precedence, left association, branch-local bounds,
+CTE materialization, comments between operator/quantifier and global ordinals.
+
+Explicit DISTINCT and SELECT ALL now parse; INTERSECT ALL and EXCEPT ALL use
+one admitted right-occurrence counter per sorted tuple group. The CTE scalar
+boundary reuses the same accounted selector with rich semantic keys. Tests
+check cancellation, output-owner release and counter admission at a budget
+where UNION ALL output itself still fits. Existing serialized enum variants
+are preserved; two additive AST operators and compiled-plan epoch 9 describe
+the new behavior. Stored Value formats and storage architecture are unchanged.
+
+Focused probes reproduced two further defects: synthetic branch wrapping lost
+the projection needed for global ORDER BY ordinals, and alias lowering used
+source carriers after set projection. Both were fixed. Derived set-query column
+lists now use the existing relation-alias wrapper; exact native wire cases
+exercise VALUES set branches through this path.
+
+Jev selected occurrence counting at 1.0. Gap 0.69 and text/tuple probe weight
+0.92 prompted 15 semantic probes plus three CTE tuple controls. A later gap
+0.69 and alias probe weight 0.86 prompted readback/re-execution of the 18 exact
+native wire cases and the complete scope/alias SQL matrix. Its suggestions are
+advisory. Requests, responses, native receipts and raw Rust logs are retained
+under ignored `target/green-setspell-*`.
+
+Complete #793/#800/#801 acceptance remains open. Wider common-type coercions,
+recursive CTE acceptance, WITH TIES, ORDER BY USING and other row grammar are
+pending obligations. This batch does not close a complete owner issue or claim
+the repository test suite is green. No benchmark timing is claimed.
+
+Final validation:
+
+- `cargo build --locked --bin cassie`: passed.
+- `cargo test --locked`: library 1,017/0, analytics 179/0, backend 2/0,
+  benchmark operations 16/0; stops at catalog/security 139/209. All 209
+  catalog failure identities match the preceding FETCH checkpoint. Later
+  targets compiled but were not executed by this full command.
+- Full strict `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  passed without suppression or narrowed scope.
+- `cargo fmt --all -- --check`: passed.
+- `cntryl-tools validate-tests -f <path>`: passed for all eight new integration
+  files and both touched module-test files. Global validation: 7,227/7,227
+  compliant source tests; this is not a runtime pass count.
+- Selected compiled Rust regression run: library 103/0, parser selection 2/0,
+  SQL 346/12 and wire 473/12. All 201 new functions pass. All seven retained
+  set-operation failures are fixed. The unrelated Boolean-aggregate
+  cancellation test passed this run; no stable remediation is claimed for it.
+- Complete parser target: 299/74 and complete core wire: 73/11, both with
+  unchanged failure identities. No prior passing selected case becomes red.
+- Inventory refresh/check, Rust file limits and whitespace: passed. Inventory
+  contains 6,347 integration registrations plus 1,017 library functions.
+
+A preliminary gate overlapped an unfinished signature edit and failed to
+compile; after correction, the complete ordered gate above was rerun. Initial
+focused green attempts also exposed the ordinal, exported-name and derived
+alias defects before their fixes. No failures were skipped or assertions
+weakened, and no full run was cancelled.

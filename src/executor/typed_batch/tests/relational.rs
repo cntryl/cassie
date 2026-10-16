@@ -228,3 +228,45 @@ fn set_selection_fixture(
     let right_keys = super::super::relational::TupleKeys::new(controls, right, &columns)?;
     super::super::relational::set_positions(controls, &left_keys, &right_keys, operator)
 }
+
+#[test]
+fn should_admit_multiset_counts_given_retained_keys_when_output_alone_fits() {
+    // Arrange
+    use super::super::relational::{set_positions, TupleKeys};
+    use crate::sql::ast::SetOperator;
+    let limits = CassieRuntimeLimits::default();
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let batch = TypedBatch::from_columns(
+        &controls,
+        &[("n".into(), DataType::Int)],
+        &[vec![Value::Int64(7), Value::Int64(7)]],
+        2,
+        None,
+    )
+    .expect("source");
+    let left = TupleKeys::new(&controls, &batch, &[0]).expect("left keys");
+    let right = TupleKeys::new(&controls, &batch, &[0]).expect("right keys");
+    let output_bytes =
+        super::super::owner_bytes::<Vec<(bool, usize)>>(4 * std::mem::size_of::<(bool, usize)>())
+            .expect("output owner");
+    let pressure = controls
+        .reserve_query_memory(
+            limits.query_memory_budget_bytes - controls.current_query_memory_bytes() - output_bytes,
+        )
+        .expect("pressure");
+    let before = controls.current_query_memory_bytes();
+    // Act
+    let result = set_positions(&controls, &left, &right, SetOperator::ExceptAll);
+    // Assert
+    assert!(matches!(
+        result.map_err(crate::app::CassieError::from),
+        Err(crate::app::CassieError::ResourceLimit(_))
+    ));
+    let union = set_positions(&controls, &left, &right, SetOperator::UnionAll)
+        .expect("output fits without counts");
+    assert_eq!(union.get().len(), 4);
+    drop(union);
+    assert_eq!(controls.current_query_memory_bytes(), before);
+    drop((pressure, left, right, batch));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

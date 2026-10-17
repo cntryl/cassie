@@ -2741,3 +2741,60 @@ subsequently completed. Raw native receipts and red/green logs are retained in
 ignored `target/autopilot-identifier-*` and `target/autopilot-batch-11-*`. The
 consolidated baseline remains red; no complete owner or repository acceptance
 is claimed by this slice.
+
+
+### Autopilot batch 12: Published uniqueness owners and index errors (2026-10-17)
+
+[#952](https://github.com/cntryl/cassie/issues/952) replaces repeated committed-row
+validation scans with the existing unique scalar-index reservation owner lookup.
+Primary constraints retain their declared error name. Staged owner deletion,
+re-keying and excluded updates are reconciled against the borrowed transaction
+snapshot. Matching physical kind/uniqueness/fields/expressions/predicate are
+required before a reservation miss is authoritative. Missing or divergent
+physical definitions use scan validation. Ordinary single-column UNIQUE also
+retains its original fallback until
+[#953](https://github.com/cntryl/cassie/issues/953) qualifies field backing. No new
+metadata keyspace, storage layout, format migration or Midge abstraction is added.
+
+The original four scan probes were red at 32, 64, 97 and 129 read entries. Fresh
+validation is now measured inside an explicit transaction and requires zero
+committed scans; the separate once-per-commit cardinality pass is bounded to
+33 entries for the 33-row fixture. All 17 mutation probes pass, including
+plain-UNIQUE committed/staged/NULL controls, canonical CHAR, partial predicates,
+excluded owners and missing/divergent physical definitions. The divergent
+definition probe was red before the physical guard.
+
+A prototype that trusted every field reservation miss was rejected: raw
+constraint metadata had one record while its canonical lookup had zero, a
+committed plain-UNIQUE duplicate was admitted, and a named PK reported the
+generated index name. Permanent controls now protect the retained fallback.
+That prototype was never committed or pushed. Its namespace/backing prerequisite
+is explicitly recorded in #953, rather than treated as a proven publication.
+
+NULL index keys preserve partial-predicate evaluation. Runtime expression and
+predicate errors propagate through the typed QueryError conversion instead of
+becoming Parse errors. Two wire probes were red (missing error or 42601) and
+now preserve the native 22012, failed transaction state, rollback and empty
+recovery result. Pinned PostgreSQL 18.6 receipts cover both paths.
+
+Ordered build and library tests pass (1,072/0). Full mutation tests are 293/35
+with the same 35 failure identities; expression-index tests remain 6/1 with the
+same failure. The affected wire filter is 2/8 and index-query filter 22/4, with
+no newly failing identity against the consolidated baseline. Full strict
+workspace/all-target/all-feature pedantic Clippy, formatting, touched/global
+test validators, inventory, documentation and whitespace checks pass. These
+known-red suites are not reported as green.
+
+The unchanged 50,000-row ordered-set budget case now completes in 14.50 seconds
+on final source and reaches a real control-query parser failure: 42601,
+`unexpected text after function call` for WITHIN GROUP. Its previous incomplete
+result is now qualified as a separate failing parser case under
+[#806](https://github.com/cntryl/cassie/issues/806); aggregate/resource support is
+not claimed complete. The original workload and assertions are unchanged.
+
+Jev's gap 0.46 prompted physical publication probes; the confirmed divergent
+definition finding was fixed. Prior overlay concern 0.98 drove the staged-owner
+controls. Final review selected validation 0.89, provenance 0.04, overlay 0.01,
+errors 0.00 and insufficient evidence 0.06. Actual probes and required analyzers
+support this scoped outcome. Raw logs remain in ignored
+`target/autopilot-batch-12-*`; no full repository or owner acceptance is claimed.

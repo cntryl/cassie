@@ -765,47 +765,6 @@ impl Cassie {
         }
     }
 
-    fn validate_uniques(
-        &self,
-        session: Option<&CassieSession>,
-        collection: &str,
-        payload: &serde_json::Map<String, serde_json::Value>,
-        constraints: &[FieldConstraint],
-        exclude_id: Option<&str>,
-    ) -> Result<(), CassieError> {
-        let schema = self.catalog.get_schema(collection);
-        for constraint in constraints {
-            if !crate::catalog::enforces_single_column_uniqueness(constraint, constraints) {
-                continue;
-            }
-
-            let Some(value) = payload.get(&constraint.field) else {
-                continue;
-            };
-            if super::field_value_is_sql_null(Some(value), schema.as_ref(), &constraint.field) {
-                continue;
-            }
-
-            if self
-                .find_document_id_by_fields(
-                    session,
-                    collection,
-                    &[(constraint.field.as_str(), value)],
-                    exclude_id,
-                )?
-                .is_some()
-            {
-                return Err(CassieError::UniqueViolation {
-                    table: collection.to_string(),
-                    column: constraint.field.clone(),
-                    constraint: constraint.unique_constraint_name(collection),
-                });
-            }
-        }
-
-        Ok(())
-    }
-
     fn validate_foreign_keys_for_session(
         &self,
         session: Option<&CassieSession>,
@@ -817,82 +776,6 @@ impl Cassie {
         let schema = self.catalog.get_schema(collection);
         references.collect(collection, constraints, payload, schema.as_ref())?;
         self.validate_foreign_key_references(session, collection, &references)
-    }
-
-    fn validate_unique_indexes_for_session(
-        &self,
-        session: Option<&CassieSession>,
-        collection: &str,
-        payload: &serde_json::Value,
-        exclude_id: Option<&str>,
-    ) -> Result<(), CassieError> {
-        let object = payload.as_object().ok_or_else(|| {
-            CassieError::InvalidVector("document payload must be a JSON object".to_string())
-        })?;
-        let schema = self.catalog.get_schema(collection);
-        let row_schema = self.midge.row_schema(collection)?;
-
-        for index in self.catalog.list_indexes(collection) {
-            if !index.unique || index.kind != crate::catalog::IndexKind::Scalar {
-                continue;
-            }
-
-            if !crate::midge::adapter::Midge::payload_matches_scalar_index_predicate(
-                &index,
-                payload,
-                &row_schema,
-            )? {
-                continue;
-            }
-
-            let fields = index.normalized_fields();
-            let mut values = Vec::with_capacity(fields.len());
-            for field in &fields {
-                let Some(value) = object.get(field) else {
-                    values.clear();
-                    break;
-                };
-                if super::field_value_is_sql_null(Some(value), schema.as_ref(), field) {
-                    values.clear();
-                    break;
-                }
-                values.push((field.as_str(), value));
-            }
-
-            if values.is_empty() {
-                continue;
-            }
-
-            let mut duplicate_exists = false;
-            for document in self
-                .scan_documents_batched_for_session(session, collection, 1024)?
-                .into_iter()
-                .flatten()
-            {
-                if exclude_id.is_some_and(|id| document.id == id)
-                    || !crate::midge::adapter::Midge::payload_matches_scalar_index_predicate(
-                        &index,
-                        &document.payload,
-                        &row_schema,
-                    )?
-                {
-                    continue;
-                }
-
-                if values
-                    .iter()
-                    .all(|(field, value)| document.payload.get(*field) == Some(*value))
-                {
-                    duplicate_exists = true;
-                    break;
-                }
-            }
-            if duplicate_exists {
-                return Err(index.unique_violation(collection));
-            }
-        }
-
-        Ok(())
     }
 
     pub(crate) fn find_document_id_by_fields(

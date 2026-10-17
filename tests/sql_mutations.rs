@@ -1,3 +1,6 @@
+#[path = "sql_mutations/constraints/unique/reservation_lookup.rs"]
+mod unique_reservation_lookup;
+
 #[path = "sql_mutations/types/numeric/mixed_numeric_comparisons.rs"]
 mod mixed_numeric_comparisons;
 #[path = "support/mixed_numeric_dml.rs"]

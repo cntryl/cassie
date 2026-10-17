@@ -104,6 +104,7 @@ mod defaults;
 mod diagnostics;
 mod document_scans;
 pub(crate) use document_scans::SessionRowCursor;
+mod document_uniqueness;
 mod documents;
 mod embeddings;
 mod existing_constraint_checks;

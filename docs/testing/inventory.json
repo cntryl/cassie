@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1734,
-    "rust_files": 1703,
-    "rust_test_declarations": 8511,
+    "files": 1736,
+    "rust_files": 1705,
+    "rust_test_declarations": 8530,
     "python_test_declarations": 16,
-    "registered_rust_instances": 8639,
+    "registered_rust_instances": 8658,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -86227,6 +86227,68 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/conflicts/unique_validation_errors.rs::should_preserve_predicate_error_given_null_index_key_when_transaction_is_active",
+      "name": "should_preserve_predicate_error_given_null_index_key_when_transaction_is_active",
+      "current_file": "tests/pgwire_extended/conflicts/unique_validation_errors.rs",
+      "line": 47,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "unique_validation_errors::should_preserve_predicate_error_given_null_index_key_when_transaction_is_active"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "conflicts",
+        "directory": "tests/pgwire_extended/conflicts",
+        "file": "tests/pgwire_extended/conflicts/unique_validation_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/conflicts/unique_validation_errors.rs::should_preserve_expression_error_given_valid_definition_when_transaction_is_active",
+      "name": "should_preserve_expression_error_given_valid_definition_when_transaction_is_active",
+      "current_file": "tests/pgwire_extended/conflicts/unique_validation_errors.rs",
+      "line": 57,
+      "end_line": 64,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "unique_validation_errors::should_preserve_expression_error_given_valid_definition_when_transaction_is_active"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "conflicts",
+        "directory": "tests/pgwire_extended/conflicts",
+        "file": "tests/pgwire_extended/conflicts/unique_validation_errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -190359,6 +190421,533 @@
       }
     },
     {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_probe_primary_reservation_given_new_key_when_committed_rows_exist",
+      "name": "should_probe_primary_reservation_given_new_key_when_committed_rows_exist",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 31,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_probe_primary_reservation_given_new_key_when_committed_rows_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_probe_primary_reservation_given_duplicate_key_when_committed_rows_exist",
+      "name": "should_probe_primary_reservation_given_duplicate_key_when_committed_rows_exist",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 63,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_probe_primary_reservation_given_duplicate_key_when_committed_rows_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_probe_unique_index_given_new_key_when_committed_rows_exist",
+      "name": "should_probe_unique_index_given_new_key_when_committed_rows_exist",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 81,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_probe_unique_index_given_new_key_when_committed_rows_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_probe_unique_index_given_duplicate_key_when_committed_rows_exist",
+      "name": "should_probe_unique_index_given_duplicate_key_when_committed_rows_exist",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 106,
+      "end_line": 121,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_probe_unique_index_given_duplicate_key_when_committed_rows_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_reconcile_committed_owners_given_staged_delete_and_rekey_when_keys_are_reused",
+      "name": "should_reconcile_committed_owners_given_staged_delete_and_rekey_when_keys_are_reused",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 124,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_reconcile_committed_owners_given_staged_delete_and_rekey_when_keys_are_reused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_reject_staged_collision_given_uncommitted_owner_when_transaction_rolls_back",
+      "name": "should_reject_staged_collision_given_uncommitted_owner_when_transaction_rolls_back",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 154,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_reject_staged_collision_given_uncommitted_owner_when_transaction_rolls_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_exclude_updated_owner_given_unchanged_unique_key_when_row_is_updated",
+      "name": "should_exclude_updated_owner_given_unchanged_unique_key_when_row_is_updated",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 180,
+      "end_line": 195,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_exclude_updated_owner_given_unchanged_unique_key_when_row_is_updated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_preserve_partial_predicate_given_nonindexed_value_when_duplicate_is_inserted",
+      "name": "should_preserve_partial_predicate_given_nonindexed_value_when_duplicate_is_inserted",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 198,
+      "end_line": 216,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_preserve_partial_predicate_given_nonindexed_value_when_duplicate_is_inserted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_preserve_distinct_null_keys_given_unique_index_when_nulls_are_inserted",
+      "name": "should_preserve_distinct_null_keys_given_unique_index_when_nulls_are_inserted",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 219,
+      "end_line": 234,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_preserve_distinct_null_keys_given_unique_index_when_nulls_are_inserted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_preserve_canonical_char_key_given_trailing_blanks_when_index_owner_exists",
+      "name": "should_preserve_canonical_char_key_given_trailing_blanks_when_index_owner_exists",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 237,
+      "end_line": 253,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_preserve_canonical_char_key_given_trailing_blanks_when_index_owner_exists"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_preserve_plain_unique_given_committed_owner_when_duplicate_is_inserted",
+      "name": "should_preserve_plain_unique_given_committed_owner_when_duplicate_is_inserted",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 266,
+      "end_line": 282,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_preserve_plain_unique_given_committed_owner_when_duplicate_is_inserted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_preserve_plain_unique_given_staged_owner_when_duplicate_is_inserted",
+      "name": "should_preserve_plain_unique_given_staged_owner_when_duplicate_is_inserted",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 285,
+      "end_line": 306,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_preserve_plain_unique_given_staged_owner_when_duplicate_is_inserted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_preserve_plain_unique_nulls_given_unbacked_constraint_when_fresh_values_are_inserted",
+      "name": "should_preserve_plain_unique_nulls_given_unbacked_constraint_when_fresh_values_are_inserted",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 309,
+      "end_line": 324,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_preserve_plain_unique_nulls_given_unbacked_constraint_when_fresh_values_are_inserted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_evaluate_partial_predicate_given_null_key_when_insert_is_staged",
+      "name": "should_evaluate_partial_predicate_given_null_key_when_insert_is_staged",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 327,
+      "end_line": 349,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_evaluate_partial_predicate_given_null_key_when_insert_is_staged"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_preserve_primary_validation_given_missing_physical_index_when_owner_exists",
+      "name": "should_preserve_primary_validation_given_missing_physical_index_when_owner_exists",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 352,
+      "end_line": 366,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_preserve_primary_validation_given_missing_physical_index_when_owner_exists"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_preserve_index_validation_given_missing_physical_index_when_owner_exists",
+      "name": "should_preserve_index_validation_given_missing_physical_index_when_owner_exists",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 369,
+      "end_line": 383,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_preserve_index_validation_given_missing_physical_index_when_owner_exists"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/unique/reservation_lookup.rs::should_preserve_index_validation_given_divergent_storage_definition_when_owner_exists",
+      "name": "should_preserve_index_validation_given_divergent_storage_definition_when_owner_exists",
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "line": 386,
+      "end_line": 408,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "unique_reservation_lookup::should_preserve_index_validation_given_divergent_storage_definition_when_owner_exists"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/reservation_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/constraints/unique/staged_unique_write_order.rs::should_commit_delete_then_reinsert_of_a_unique_value_in_any_row_order",
       "name": "should_commit_delete_then_reinsert_of_a_unique_value_in_any_row_order",
       "current_file": "tests/sql_mutations/constraints/unique/staged_unique_write_order.rs",
@@ -276075,6 +276664,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/conflicts/unique_validation_errors.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 64,
+      "sha256": "3aa9b94afdc5013953128473ca9f86ddd8d1c86fcca4bd23a2964439c57feca5",
+      "test_declarations": 2,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/conflicts/unique_validation_errors.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/coordination/advisory_notify.rs",
       "role": "test_module",
       "action": "keep",
@@ -282800,8 +283404,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 575,
-      "sha256": "b12ea8c6dccb0b6494188e6ccf5e8dc94bae7002ec296a84804568d784fc2013",
+      "lines": 578,
+      "sha256": "8976679503ea98fc84f56617c3dfa46784083fb269f7c6966eeb6e3d2f4043cc",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -284672,6 +285276,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/constraints/unique/reservation_lookup.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 408,
+      "sha256": "fa4a1170cf0332d6feaad887f9b50051d856bb03db2b428563bf3dda68d45001",
+      "test_declarations": 17,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/constraints/reservation_lookup.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/constraints/unique/staged_unique_write_order.rs",
       "role": "test_module",
       "action": "keep",
@@ -285425,8 +286044,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 185,
-      "sha256": "bb0c8552a614e098fa5a2196e3730bdb1498cca045b097a5068434a1048d176d",
+      "lines": 188,
+      "sha256": "7f27d5eec10dc2041ea32de839210c21b228e64e28d9f74332926406cc04ae2b",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

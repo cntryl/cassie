@@ -1,3 +1,6 @@
+#[path = "pgwire_extended/conflicts/unique_validation_errors.rs"]
+mod unique_validation_errors;
+
 #[path = "pgwire_extended/types/numeric/mixed_numeric_comparisons.rs"]
 mod mixed_numeric_comparisons;
 #[path = "support/mixed_numeric.rs"]

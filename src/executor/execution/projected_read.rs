@@ -853,6 +853,11 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             collect_projected_scan_filter_columns(expr, fields)?;
             collect_projected_scan_filter_columns(low, fields)?;

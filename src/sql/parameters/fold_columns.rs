@@ -71,6 +71,7 @@ impl Fold<'_, '_> {
             | ast::Expr::Param(_)
             | ast::Expr::Binary { .. }
             | ast::Expr::Between { .. }
+            | ast::Expr::Like { .. }
             | ast::Expr::InList { .. }
             | ast::Expr::IsNull { .. }
             | ast::Expr::TruthTest { .. }

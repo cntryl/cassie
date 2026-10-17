@@ -540,3 +540,15 @@ mod scalar_batch_07_parameters;
 
 #[path = "pgwire_extended/grammar/scalar_batch_07_routines.rs"]
 mod scalar_batch_07_routines;
+
+#[path = "pgwire_extended/grammar/scalar_batch_08.rs"]
+mod scalar_batch_08;
+
+#[path = "pgwire_extended/grammar/scalar_batch_08_interactions.rs"]
+mod scalar_batch_08_interactions;
+
+#[path = "pgwire_extended/grammar/scalar_batch_08_errors.rs"]
+mod scalar_batch_08_errors;
+
+#[path = "pgwire_extended/grammar/scalar_batch_08_parameters.rs"]
+mod scalar_batch_08_parameters;

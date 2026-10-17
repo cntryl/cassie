@@ -918,6 +918,7 @@ fn insert_expr_to_value(expr: &Expr, params: &[Value]) -> Result<Value, String> 
         | Expr::TruthTest { .. }
         | Expr::InList { .. }
         | Expr::Between { .. }
+        | Expr::Like { .. }
         | Expr::Not { .. }
         | Expr::RowCompare(_)
         | Expr::UnaryNumeric { .. }

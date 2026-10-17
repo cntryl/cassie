@@ -2501,3 +2501,50 @@ All confirmed selected findings are fixed. Initial Jev sibling gap 0.82 prompted
 parameter/routine probes; resource gap 0.30 prompted the cancellation probe. Final
 review selected validation with probability 0.86 (probe 0.14). Full owner closure,
 complete repository green and hosted acceptance remain pending.
+
+
+### Ten-batch delivery 8/10: LIKE ESCAPE (2026-10-17)
+
+Baseline `6910381ef1ad5e21ead10050876aaddadeeeb640`. Selected existing scalar/syntax support under #796
+with no new persistent type or storage migration. Native PostgreSQL 18.6
+reference descriptors and both wire payload formats are retained in focused
+Rust tests. TDD red evidence and targeted Jev probes are preserved in the ignored
+`target/ten-batch-08-*` logs. Current focused wire result: test result: ok. 420 passed; 0 failed; 0 ignored; 0 measured; 2924 filtered out; finished in 70.94s.
+
+Build, focused locked tests, complete parser regression comparison, full strict
+workspace/all-target/all-feature pedantic Clippy, formatting, touched/global
+test validators, refreshed inventory and whitespace checks completed. Parser
+failures remaining: 57 (17 fixed cumulatively from
+the 74-failure starting baseline), with no new failure identity. The consolidated
+full repository gate follows batch 10 under the documented local delivery policy.
+Known unrelated failures and complete owner acceptance remain pending.
+
+Jev review and probe outcome: `{"next_action": {"type": "choice", "choice": "validate", "confidence": 0.85, "probabilities": {"validate": 0.9, "probe": 0.1, "none": 0.0}}}`.
+
+
+Batch 8 qualifies 76 new native-backed wire tests, bringing the cumulative
+selected scalar result to 420/0, plus seven matcher unit tests (two new).
+The compact LIKE ESCAPE AST carries value, pattern and escape separately; the
+matcher borrows their text, accepts an empty or single Unicode escape character,
+and checks interruption during backtracking and exhausted-input percent tails.
+Native strict `like_escape` ordering is retained before the outer strict LIKE:
+invalid constant escape still errors with a NULL left operand, while a NULL
+pattern suppresses helper validation. CHAR pattern and escape operands coerce
+to TEXT with trailing blanks trimmed; the CHAR value keeps its padding.
+Twenty-four parameter input/output format crosses retain TEXT/VARCHAR/CHAR
+identities and native unknown-input inference. Exact 22025/42883 errors and
+Describe(statement)-before-Bind-error frame ordering are qualified.
+
+Initial Jev gaps 0.80 and 0.74 prompted the NULL/row, coercion, precedence,
+malformed-suffix, parameter, protocol-phase and interruption witnesses. Five
+unparenthesized chained LIKE/NOT LIKE syntax regressions fail before the parser
+guard and pass afterward; two parenthesized forms remain valid. The shared
+default matcher now returns FALSE when exhausted input prevents reaching a
+trailing escape, matching the native witness; a reached escape still errors.
+Final review selected validation 0.90/probe 0.10, and every pending selected gate
+subsequently passed. Full parser result is 317/57, with the original ESCAPE
+failure fixed and no new failure identity. ILIKE, collation-aware matching,
+BYTEA/array/JSON/vector operator contracts and broader mixed IN/BETWEEN predicate
+precedence remain unqualified obligations under #796/#793. Native mixed-level
+observations are retained in `target/ten-batch-08-native-level-probe.json` for
+that owner follow-up; this finite increment does not close those owners.

@@ -127,6 +127,11 @@ fn qualify_expression(expression: &mut Expr, types: &ResultTypes) {
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             qualify_expression(expr, types);
             qualify_expression(low, types);

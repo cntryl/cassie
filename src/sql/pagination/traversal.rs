@@ -220,6 +220,11 @@ fn visit_expr(
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             visit_expr(expr, visitor, controls)?;
             visit_expr(low, visitor, controls)?;

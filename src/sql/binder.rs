@@ -3,6 +3,7 @@ mod function_casts;
 mod function_validation;
 #[path = "binder/integer_operators.rs"]
 mod integer_operators;
+mod like_predicates;
 mod pagination_references;
 #[path = "binder/string_operators.rs"]
 mod string_operators;

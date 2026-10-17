@@ -57,6 +57,11 @@ impl Expr {
             }
             Self::Between {
                 expr, low, high, ..
+            }
+            | Self::Like {
+                expr,
+                pattern: low,
+                escape: high,
             } => {
                 visit(expr)?;
                 visit(low)?;
@@ -122,19 +127,7 @@ impl Expr {
                 values: values.iter().map(&mut map).collect(),
                 negated: *negated,
             },
-            Self::Between {
-                expr,
-                low,
-                high,
-                negated,
-                symmetric,
-            } => Self::Between {
-                expr: Box::new(map(expr)),
-                low: Box::new(map(low)),
-                high: Box::new(map(high)),
-                negated: *negated,
-                symmetric: *symmetric,
-            },
+            Self::Like { .. } | Self::Between { .. } => map_predicate(self, &mut map),
             Self::Not { expr } => Self::Not {
                 expr: Box::new(map(expr)),
             },
@@ -239,6 +232,11 @@ impl Expr {
             }
             Self::Between {
                 expr, low, high, ..
+            }
+            | Self::Like {
+                expr,
+                pattern: low,
+                escape: high,
             } => {
                 visit(expr)?;
                 visit(low)?;
@@ -362,6 +360,9 @@ impl Expr {
 /// Compares the expression forms that carry sub-expressions: their shape,
 /// operator, and flags must match before their children are compared.
 fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
+    if let Some(equal) = like_structurally_eq(left, right) {
+        return equal;
+    }
     if let Some(equal) = truth_test_eq(left, right) {
         return equal;
     }
@@ -517,6 +518,54 @@ fn all_structurally_eq(left: &[Expr], right: &[Expr]) -> bool {
             .iter()
             .zip(right)
             .all(|(left, right)| left.structurally_eq(right))
+}
+
+fn map_predicate(expr: &Expr, mut map: impl FnMut(&Expr) -> Expr) -> Expr {
+    match expr {
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => Expr::Like {
+            expr: Box::new(map(expr)),
+            pattern: Box::new(map(pattern)),
+            escape: Box::new(map(escape)),
+        },
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated,
+            symmetric,
+        } => Expr::Between {
+            expr: Box::new(map(expr)),
+            low: Box::new(map(low)),
+            high: Box::new(map(high)),
+            negated: *negated,
+            symmetric: *symmetric,
+        },
+        _ => unreachable!("ternary predicate mapping"),
+    }
+}
+
+fn like_structurally_eq(left: &Expr, right: &Expr) -> Option<bool> {
+    match (left, right) {
+        (
+            Expr::Like {
+                expr: left,
+                pattern: lp,
+                escape: le,
+            },
+            Expr::Like {
+                expr: right,
+                pattern: rp,
+                escape: re,
+            },
+        ) => Some(left.structurally_eq(right) && lp.structurally_eq(rp) && le.structurally_eq(re)),
+
+        (Expr::Like { .. }, _) | (_, Expr::Like { .. }) => Some(false),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

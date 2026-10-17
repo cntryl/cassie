@@ -313,6 +313,11 @@ pub enum Expr {
         values: Vec<Expr>,
         negated: bool,
     },
+    Like {
+        expr: Box<Expr>,
+        pattern: Box<Expr>,
+        escape: Box<Expr>,
+    },
     Between {
         expr: Box<Expr>,
         low: Box<Expr>,

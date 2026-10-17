@@ -304,6 +304,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
 mod casts;
 #[path = "filter/constants.rs"]
 mod constants;
+mod like_predicate;
 pub(crate) mod symmetric_between;
 #[cfg(test)]
 mod symmetric_between_tests;
@@ -373,6 +374,7 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
         expression @ Expr::Between {
             symmetric: true, ..
         } => symmetric_between::runtime(row, expression, context),
+        expression @ Expr::Like { .. } => like_predicate::runtime(row, expression, context),
         Expr::Between {
             expr,
             low,

@@ -229,6 +229,11 @@ impl Reader<'_> {
             }
             Expr::Between {
                 expr, low, high, ..
+            }
+            | Expr::Like {
+                expr,
+                pattern: low,
+                escape: high,
             } => {
                 self.expr(expr, depth + 1)?;
                 self.expr(low, depth + 1)?;

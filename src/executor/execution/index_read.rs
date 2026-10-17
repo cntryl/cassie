@@ -608,6 +608,11 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             filter_binds_non_finite_param(Some(expr), params)
                 || filter_binds_non_finite_param(Some(low), params)

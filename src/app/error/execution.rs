@@ -27,16 +27,8 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message.eq_ignore_ascii_case("query timeout exceeded") {
         return timeout_descriptor();
     }
-    if matches!(
-        message,
-        "cannot take square root of a negative number"
-            | "zero raised to a negative power is undefined"
-            | "a negative number raised to a non-integer power yields a complex result"
-    ) {
-        return bad_request_descriptor("2201F", message.to_string());
-    }
-    if message.eq_ignore_ascii_case("division by zero") {
-        return bad_request_descriptor("22012", message.to_string());
+    if let Some(state) = expression_sql_state(message) {
+        return bad_request_descriptor(state, message.to_owned());
     }
     if scalar_input_syntax(message) {
         return bad_request_descriptor("22P02", message.to_string());
@@ -150,4 +142,19 @@ fn boolean_argument_error(message: &str) -> bool {
             .and_then(|tail| tail.strip_prefix(name))
             .is_some_and(|tail| tail.starts_with(" must be type boolean, not type "))
     })
+}
+
+fn expression_sql_state(message: &str) -> Option<&'static str> {
+    match message {
+        "cannot take square root of a negative number"
+        | "zero raised to a negative power is undefined"
+        | "a negative number raised to a non-integer power yields a complex result" => {
+            Some("2201F")
+        }
+        "invalid escape string" | "LIKE pattern must not end with escape character" => {
+            Some("22025")
+        }
+        _ if message.eq_ignore_ascii_case("division by zero") => Some("22012"),
+        _ => None,
+    }
 }

@@ -115,6 +115,7 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
         | Expr::TruthTest { .. }
         | Expr::InList { .. }
         | Expr::Between { .. }
+        | Expr::Like { .. }
         | Expr::Not { .. }
         | Expr::Exists(_) => SelectItem::Expr { expr, alias },
         Expr::Column(name) => SelectItem::Column { name, alias },

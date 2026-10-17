@@ -921,6 +921,11 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             vector_prefilter_supported(expr, schema)
                 && vector_prefilter_supported(low, schema)

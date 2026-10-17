@@ -168,6 +168,16 @@ fn expression_operand_family(
             }
             Ok(Some(OperandFamily::Boolean))
         }
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => {
+            for operand in [expr, pattern, escape] {
+                expression_operand_family(operand, field_types)?;
+            }
+            Ok(Some(OperandFamily::Boolean))
+        }
         Expr::Between {
             expr, low, high, ..
         } => {
@@ -921,6 +931,11 @@ pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
     }
     if let Expr::Between {
         expr, low, high, ..
+    }
+    | Expr::Like {
+        expr,
+        pattern: low,
+        escape: high,
     } = expr
     {
         collect_expr(expr, out);

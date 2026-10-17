@@ -938,3 +938,17 @@ All confirmed selected findings are fixed. Initial Jev sibling gap 0.82 prompted
 parameter/routine probes; resource gap 0.30 prompted the cancellation probe. Final
 review selected validation with probability 0.86 (probe 0.14). Full owner closure,
 complete repository green and hosted acceptance remain pending.
+
+
+Experimental ten-batch increment 8: LIKE ESCAPE over existing scalar types.
+Native wire witnesses and precise local acceptance are recorded in
+[validation](testing/validation.md). Complete type and owner contracts remain pending.
+
+
+The selected textual LIKE ESCAPE increment accepts empty or one-character Unicode
+escapes, preserves native NULL/helper error ordering, CHAR operand coercions,
+reached trailing-escape errors, comparison/CASE precedence and parenthesized
+predicate boundaries. Both wire formats and selected parameter identities have
+native-backed witnesses. Matching remains case-sensitive. ILIKE, native
+collation matching, non-text LIKE overloads and complete mixed predicate grammar
+remain pending under #796/#793.

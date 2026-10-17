@@ -537,6 +537,11 @@ fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
         }
         crate::sql::ast::Expr::Between {
             expr, low, high, ..
+        }
+        | crate::sql::ast::Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             expr_uses_vector_operator(expr)
                 || expr_uses_vector_operator(low)
@@ -719,6 +724,11 @@ fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut 
         }
         crate::sql::ast::Expr::Between {
             expr, low, high, ..
+        }
+        | crate::sql::ast::Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             collect_fulltext_fields_from_expr(expr, fields);
             collect_fulltext_fields_from_expr(low, fields);

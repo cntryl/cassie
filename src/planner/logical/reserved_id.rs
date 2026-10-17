@@ -248,6 +248,11 @@ fn rewrite_expr(expr: &mut Expr) {
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             rewrite_expr(expr);
             rewrite_expr(low);

@@ -138,6 +138,7 @@ fn resolve<R: RowAccess + ?Sized>(
             .transpose(),
         Expr::IsNull { expr, negated } => Ok(resolve(expr, row, context)?
             .map(|value| ScalarValue::Bool(matches!(value, ScalarValue::Null) != *negated))),
+        expression @ Expr::Like { .. } => like_value(expression, row, context),
         expression @ Expr::Between { .. } => between_predicate(expression, row, context),
         Expr::RowCompare(comparison) => {
             if comparison.left.len() > 1
@@ -294,6 +295,48 @@ fn literal(value: ScalarValue) -> Expr {
             source_type: None,
             identity: crate::sql::ast::CastIdentity::Scalar,
         },
+    }
+}
+
+fn like_value<R: RowAccess + ?Sized>(
+    expression: &Expr,
+    row: &R,
+    context: ConstantContext<'_>,
+) -> Result<Option<ScalarValue>, QueryError> {
+    let Expr::Like {
+        expr,
+        pattern,
+        escape,
+    } = expression
+    else {
+        unreachable!("LIKE constant dispatch")
+    };
+    let value = resolve(expr, row, context)?;
+    let pattern = resolve(pattern, row, context)?;
+    let escape = resolve(escape, row, context)?;
+    if let (Some(pattern), Some(escape)) = (&pattern, &escape) {
+        super::like_predicate::validate_rhs(pattern, escape)?;
+    }
+    if [&value, &pattern, &escape]
+        .iter()
+        .any(|value| matches!(value, Some(ScalarValue::Null)))
+    {
+        return Ok(Some(ScalarValue::Null));
+    }
+    match (value, pattern, escape) {
+        (Some(value), Some(pattern), Some(escape)) => {
+            super::like_predicate::scalar(&value, &pattern, &escape, || {
+                if let Some(controls) = context.controls {
+                    controls.check_interruption()?;
+                }
+                if let Some(session) = context.evaluation.session {
+                    session.check_statement_interruption()?;
+                }
+                Ok(())
+            })
+            .map(Some)
+        }
+        _ => Ok(None),
     }
 }
 

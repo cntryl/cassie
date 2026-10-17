@@ -2,6 +2,8 @@
 mod exists_binding;
 #[path = "dispatch/exists_predicate.rs"]
 mod exists_predicate;
+#[path = "dispatch/predicates.rs"]
+mod predicates;
 pub(super) use exists_binding::build_exists_logical_plan_with_fields;
 
 #[cfg(test)]
@@ -622,7 +624,12 @@ pub(super) fn resolve_exists_expr<'a>(
             high,
             negated,
             symmetric,
-        } => resolve_between_exists_expr(context, expr, low, high, *negated, *symmetric),
+        } => predicates::between(context, expr, low, high, *negated, *symmetric),
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => predicates::like(context, expr, pattern, escape),
         Expr::Not { expr } => resolve_not_exists_expr(context, expr),
         Expr::UnaryNumeric { expr, op } => Ok(Expr::UnaryNumeric {
             expr: Box::new(resolve_exists_expr(context, expr)?),
@@ -715,23 +722,6 @@ fn resolve_in_list_exists_expr<'a>(
         expr: Box::new(expr),
         values: resolved_values,
         negated,
-    })
-}
-
-fn resolve_between_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-    low: &'a Expr,
-    high: &'a Expr,
-    negated: bool,
-    symmetric: bool,
-) -> ExprResolution<'a> {
-    Ok(Expr::Between {
-        expr: Box::new(resolve_exists_expr(context, expr)?),
-        low: Box::new(resolve_exists_expr(context, low)?),
-        high: Box::new(resolve_exists_expr(context, high)?),
-        negated,
-        symmetric,
     })
 }
 
@@ -960,6 +950,11 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
             }),
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => expression_expansion_weight(expr)
             .saturating_add(expression_expansion_weight(low))
             .saturating_add(expression_expansion_weight(high)),

@@ -273,6 +273,11 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
             }),
         ast::Expr::Between {
             expr, low, high, ..
+        }
+        | ast::Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => parameter_count_expr(expr)
             .max(parameter_count_expr(low))
             .max(parameter_count_expr(high)),

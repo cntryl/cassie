@@ -639,6 +639,16 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
             if *negated { " not" } else { "" },
             values.iter().map(expr_key).collect::<Vec<_>>().join(",")
         ),
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => format!(
+            "({} LIKE {} ESCAPE {})",
+            expr_key(expr),
+            expr_key(pattern),
+            expr_key(escape)
+        ),
         Expr::Between {
             expr,
             low,

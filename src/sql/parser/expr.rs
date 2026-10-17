@@ -17,6 +17,8 @@ mod case;
 pub(super) mod depth;
 #[path = "generic_prefix.rs"]
 mod generic_prefix;
+#[path = "like_predicates.rs"]
+mod like_predicates;
 #[path = "numeric_literals.rs"]
 mod numeric_literals;
 #[path = "row_predicates.rs"]
@@ -159,13 +161,6 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
     if let Some((left, right)) = split_top_level(raw, " between ") {
         return parse_between_expression(left, right, false);
     }
-    if split_top_level(raw, " like ")
-        .is_some_and(|(_, pattern)| split_top_level(pattern, " escape ").is_some())
-    {
-        return Err(SqlError::unsupported(
-            "LIKE ... ESCAPE is not supported".into(),
-        ));
-    }
     for (op, parsed) in [
         (" <=> ", BinaryOp::PgvectorCosine),
         (" <-> ", BinaryOp::PgvectorL2),
@@ -174,7 +169,6 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         (">=", BinaryOp::Gte),
         ("<>", BinaryOp::NotEq),
         ("!=", BinaryOp::NotEq),
-        (" like ", BinaryOp::Like),
         ("=", BinaryOp::Eq),
         ("<", BinaryOp::Lt),
         (">", BinaryOp::Gt),
@@ -187,6 +181,9 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         if let Some((left, right)) = split {
             return row_predicates::comparison(left, parsed, right);
         }
+    }
+    if let Some(predicate) = like_predicates::parse(raw)? {
+        return Ok(predicate);
     }
 
     parse_prefix_expression(raw)

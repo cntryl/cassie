@@ -78,6 +78,7 @@ impl Fold<'_, '_> {
                 }
                 self.binary(op, frame)
             }
+            ast::Expr::Like { .. } => self.like_inputs(frame),
             ast::Expr::Between {
                 expr, low, high, ..
             } => {
@@ -364,4 +365,21 @@ pub(super) fn common(left: Summary, right: Summary) -> Option<i32> {
         }
     };
     binder::common_case_type(data_type(left)?, data_type(right)?).map(|data_type| oid(&data_type))
+}
+
+impl Fold<'_, '_> {
+    fn like_inputs(&mut self, frame: &Frame<'_>) -> Result<Summary, ParameterAdmissionError> {
+        let operands = &mut self.summaries.values[frame.start..];
+        if operands[1..]
+            .iter()
+            .all(|summary| matches!(summary.oid, 0 | 705 | 25 | 1042 | 1043))
+        {
+            for summary in operands {
+                if matches!(summary.oid, 0 | 705) {
+                    self.occurrences.coerce(summary, 25, true)?;
+                }
+            }
+        }
+        Ok(Summary::known(16))
+    }
 }

@@ -667,7 +667,7 @@ fn expr_children(expr: &ast::Expr) -> usize {
         | ast::Expr::NumericLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => 0,
-        ast::Expr::Case { .. } | ast::Expr::Between { .. } => 3,
+        ast::Expr::Case { .. } | ast::Expr::Between { .. } | ast::Expr::Like { .. } => 3,
         ast::Expr::RowCompare(comparison) => comparison.left.len() + comparison.right.len(),
         ast::Expr::Binary { .. } | ast::Expr::InList { .. } => 2,
         ast::Expr::IsNull { .. }
@@ -717,6 +717,11 @@ fn expr_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
         }),
         ast::Expr::Between {
             expr, low, high, ..
+        }
+        | ast::Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => Some(Node::Expr(match index {
             0 => expr,
             1 => low,

@@ -374,6 +374,9 @@ pub(super) fn infer_parameter_type_oids_expr(
         ast::Expr::InList { expr, values, .. } => {
             infer_in_list_parameter_type_oids(expr, values, field_types, catalog, oids);
         }
+        expression @ ast::Expr::Like { .. } => {
+            infer_like_parameter_type_oids(expression, field_types, catalog, oids);
+        }
         ast::Expr::Between {
             expr, low, high, ..
         } => {
@@ -609,5 +612,25 @@ fn infer_cast_parameters(expr: &Expr, oids: &mut ParameterInference) {
             infer_cast_parameters(right, oids);
         }
         _ => {}
+    }
+}
+
+fn infer_like_parameter_type_oids(
+    expression: &ast::Expr,
+    field_types: &FieldTypeMap,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut ParameterInference,
+) {
+    let ast::Expr::Like {
+        expr,
+        pattern,
+        escape,
+    } = expression
+    else {
+        unreachable!("LIKE inference dispatch")
+    };
+    for operand in [expr, pattern, escape] {
+        infer_parameter_type_from_expected_expr(operand, &DataType::Text, oids);
+        infer_parameter_type_oids_expr(operand, field_types, catalog, oids);
     }
 }

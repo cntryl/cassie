@@ -478,6 +478,11 @@ enum NormalizedExprShape {
         values: Vec<NormalizedExprShape>,
         negated: bool,
     },
+    Like {
+        expr: Box<NormalizedExprShape>,
+        pattern: Box<NormalizedExprShape>,
+        escape: Box<NormalizedExprShape>,
+    },
     Between {
         expr: Box<NormalizedExprShape>,
         low: Box<NormalizedExprShape>,
@@ -572,19 +577,7 @@ impl From<&Expr> for NormalizedExprShape {
                 values: values.iter().map(Self::from).collect(),
                 negated: *negated,
             },
-            Expr::Between {
-                expr,
-                low,
-                high,
-                negated,
-                symmetric,
-            } => Self::Between {
-                expr: Box::new(Self::from(expr.as_ref())),
-                low: Box::new(Self::from(low.as_ref())),
-                high: Box::new(Self::from(high.as_ref())),
-                negated: *negated,
-                symmetric: *symmetric,
-            },
+            Expr::Like { .. } | Expr::Between { .. } => normalized_predicate(expr),
             Expr::TruthTest {
                 expr,
                 truth,
@@ -662,6 +655,35 @@ impl From<&SelectItem> for NormalizedProjectionShape {
                 arity: function.args.len(),
             },
         }
+    }
+}
+
+fn normalized_predicate(expr: &Expr) -> NormalizedExprShape {
+    use NormalizedExprShape as Shape;
+    match expr {
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => Shape::Like {
+            expr: Box::new(Shape::from(expr.as_ref())),
+            pattern: Box::new(Shape::from(pattern.as_ref())),
+            escape: Box::new(Shape::from(escape.as_ref())),
+        },
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated,
+            symmetric,
+        } => Shape::Between {
+            expr: Box::new(Shape::from(expr.as_ref())),
+            low: Box::new(Shape::from(low.as_ref())),
+            high: Box::new(Shape::from(high.as_ref())),
+            negated: *negated,
+            symmetric: *symmetric,
+        },
+        _ => unreachable!("ternary predicate normalization"),
     }
 }
 

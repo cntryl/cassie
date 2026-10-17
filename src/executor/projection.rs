@@ -463,6 +463,11 @@ fn projection_expr_key(expr: &Expr) -> String {
                 .collect::<Vec<_>>()
                 .join(",")
         ),
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => like_expr_key(expr, pattern, escape),
         Expr::Between {
             expr,
             low,
@@ -505,6 +510,15 @@ impl ProjectionOp {
                 | ProjectionOp::WindowFunction { .. }
         )
     }
+}
+
+fn like_expr_key(expr: &Expr, pattern: &Expr, escape: &Expr) -> String {
+    format!(
+        "({} LIKE {} ESCAPE {})",
+        projection_expr_key(expr),
+        projection_expr_key(pattern),
+        projection_expr_key(escape)
+    )
 }
 
 #[cfg(test)]

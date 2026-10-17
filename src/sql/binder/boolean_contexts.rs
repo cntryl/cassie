@@ -367,6 +367,9 @@ fn validate_expression(
                 validate_expression(value, types, catalog, context)?;
             }
         }
+        expression @ Expr::Like { .. } => {
+            validate_like_expression(expression, types, catalog, context)?;
+        }
         expression @ Expr::Between { .. } => {
             validate_between_expression(expression, types, catalog, context)?;
         }
@@ -753,4 +756,24 @@ fn validate_truth_operand(
         }
     }
     Ok(())
+}
+
+fn validate_like_expression(
+    expression: &mut Expr,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let Expr::Like {
+        expr,
+        pattern,
+        escape,
+    } = expression
+    else {
+        unreachable!("LIKE validation dispatch")
+    };
+    for operand in [&mut **expr, &mut **pattern, &mut **escape] {
+        validate_expression(operand, types, catalog, context)?;
+    }
+    super::like_predicates::validate(expr, pattern, escape, types)
 }

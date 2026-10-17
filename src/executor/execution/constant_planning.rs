@@ -374,6 +374,18 @@ impl Folder<'_> {
             Expr::InList { expr, values, .. } => {
                 self.fold_operands(std::iter::once(&**expr).chain(values), true, true)
             }
+            predicate @ Expr::Like {
+                expr,
+                pattern,
+                escape,
+            } => {
+                self.fold_operands([&**expr, &**pattern, &**escape], true, true)?;
+                Ok(match self.evaluate(predicate)? {
+                    Some(ScalarValue::Null) => Fold::Decided(None),
+                    Some(ScalarValue::Bool(value)) => Fold::Decided(Some(value)),
+                    _ => Fold::Variable,
+                })
+            }
             Expr::Between {
                 expr,
                 low,
@@ -738,7 +750,7 @@ fn is_folding_error(error: &QueryError) -> bool {
     ) || matches!(
         error,
         QueryError::General(message)
-            if matches!(message.as_str(), "division by zero" | "cannot take square root of a negative number" | "zero raised to a negative power is undefined" | "a negative number raised to a non-integer power yields a complex result")
+            if matches!(message.as_str(), "division by zero" | "invalid escape string" | "LIKE pattern must not end with escape character" | "cannot take square root of a negative number" | "zero raised to a negative power is undefined" | "a negative number raised to a non-integer power yields a complex result")
                 || matches!(message.as_str(), "smallint out of range" | "integer out of range" | "invalid input syntax for type smallint" | "invalid input syntax for type integer" | "invalid input syntax for type bigint")
                 || message == filter::BIGINT_OUT_OF_RANGE
                 || message == crate::types::numeric::FLOAT_OVERFLOW

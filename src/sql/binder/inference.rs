@@ -743,6 +743,7 @@ pub(crate) fn infer_expr_type(
         | Expr::TruthTest { .. }
         | Expr::InList { .. }
         | Expr::Between { .. }
+        | Expr::Like { .. }
         | Expr::Not { .. } => Some(DataType::Boolean),
         Expr::Null => Some(DataType::Null),
         Expr::Param(index) => parameter_types

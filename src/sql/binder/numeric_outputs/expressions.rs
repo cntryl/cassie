@@ -90,6 +90,7 @@ impl Analyzer<'_> {
             | Expr::TruthTest { .. }
             | Expr::InList { .. }
             | Expr::Between { .. }
+            | Expr::Like { .. }
             | Expr::Not { .. } => OutputType::fixed(DataType::Boolean),
             Expr::Null => OutputType::fixed(DataType::Null),
             Expr::Binary { left, op, right } => self.binary_output(left, op, right, lookup)?,

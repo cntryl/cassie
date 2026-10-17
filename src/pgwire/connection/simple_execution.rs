@@ -15,9 +15,11 @@ pub(super) async fn run_batch(
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
     session: &CassieSession,
-    statements: Vec<String>,
+    query: (Vec<String>, String),
     parsed: Vec<ParsedStatement>,
 ) -> Result<(), ()> {
+    let (statements, frontend_sql) = query;
+    let frontend_sql: Arc<str> = frontend_sql.into();
     if statements.is_empty() {
         write_empty_query_response(write_half)
             .await
@@ -39,7 +41,7 @@ pub(super) async fn run_batch(
             write_half,
             state,
             session,
-            statement,
+            (statement, Arc::clone(&frontend_sql)),
         )
         .await?
         {

@@ -1,4 +1,5 @@
 mod statement_read;
+mod statement_text;
 pub(crate) use statement_read::{SessionReadScope, StatementOverlay};
 
 mod owned_setting;
@@ -16,6 +17,8 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieSession {
+    #[serde(skip)]
+    statement_text: Option<Arc<statement_text::StatementText>>,
     pub user: String,
     pub database: Option<String>,
     #[serde(skip)]
@@ -179,6 +182,7 @@ impl CassieSession {
 
     fn with_access(user: String, database: Option<String>, access: SessionAccess) -> Self {
         Self {
+            statement_text: None,
             user: normalize_role_name(user),
             database,
             access,
@@ -236,6 +240,7 @@ impl CassieSession {
 
         let base_conflict_intent_count = conflict_intents.len();
         let session = Self {
+            statement_text: self.statement_text.clone(),
             user: self.user.clone(),
             database: self.database.clone(),
             access: self.access,

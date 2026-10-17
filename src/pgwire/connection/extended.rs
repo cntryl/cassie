@@ -580,6 +580,7 @@ async fn handle_execute(
         .await;
     }
     let execution_session = session.clone();
+    let sql = prepared.query.clone();
     let params = portal.params.clone();
     let parameter_type_oids = prepared.parameter_types.clone();
     let sql_fingerprint = prepared.sql_fingerprint;
@@ -594,7 +595,7 @@ async fn handle_execute(
     let result = run_pgwire_blocking(cassie, "pgwire_extended_query", move |cassie| {
         cassie.execute_parsed_sql_with_cancellation(
             &execution_session,
-            parsed,
+            (parsed, &sql),
             sql_fingerprint,
             (params, &parameter_type_oids),
             ExecutionMode::ExtendedQuery,

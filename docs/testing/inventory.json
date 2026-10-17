@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1680,
-    "rust_files": 1649,
-    "rust_test_declarations": 7751,
+    "files": 1685,
+    "rust_files": 1654,
+    "rust_test_declarations": 7796,
     "python_test_declarations": 16,
-    "registered_rust_instances": 7879,
+    "registered_rust_instances": 7924,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -12459,8 +12459,8 @@
       "id": "tests/catalog_security/catalogs/session_identity.rs::should_report_the_active_query_given_a_running_statement_when_current_query_is_called",
       "name": "should_report_the_active_query_given_a_running_statement_when_current_query_is_called",
       "current_file": "tests/catalog_security/catalogs/session_identity.rs",
-      "line": 58,
-      "end_line": 74,
+      "line": 67,
+      "end_line": 87,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -12490,8 +12490,8 @@
       "id": "tests/catalog_security/catalogs/session_identity.rs::should_report_trust_session_identity_given_session_authorization_when_user_functions_are_read",
       "name": "should_report_trust_session_identity_given_session_authorization_when_user_functions_are_read",
       "current_file": "tests/catalog_security/catalogs/session_identity.rs",
-      "line": 77,
-      "end_line": 125,
+      "line": 90,
+      "end_line": 138,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -67342,6 +67342,1401 @@
         "file": "tests/pgwire_extended/aggregates/windows/window_function_wire.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_direct_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_direct_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 6,
+      "end_line": 26,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_direct_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_spaces_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_spaces_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 29,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_spaces_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_comments_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_comments_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 54,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_comments_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_cte_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_cte_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 81,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_cte_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_derived_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_derived_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 108,
+      "end_line": 132,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_derived_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_lower_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_lower_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 135,
+      "end_line": 157,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_lower_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_length_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_length_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 160,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_length_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_coalesce_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_coalesce_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 177,
+      "end_line": 201,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_coalesce_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_empty_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_empty_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 204,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_empty_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_predicate_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_predicate_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 214,
+      "end_line": 238,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_predicate_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_union_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_union_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 241,
+      "end_line": 285,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_union_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_bare_cast_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_bare_cast_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 288,
+      "end_line": 310,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_bare_cast_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_direct_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_direct_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 313,
+      "end_line": 335,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_direct_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_spaces_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_spaces_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 338,
+      "end_line": 360,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_spaces_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_comments_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_comments_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 363,
+      "end_line": 387,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_comments_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_cte_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_cte_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 390,
+      "end_line": 416,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_cte_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_derived_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_derived_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 419,
+      "end_line": 443,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_derived_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_lower_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_lower_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 446,
+      "end_line": 470,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_lower_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_length_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_length_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 473,
+      "end_line": 487,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_length_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_coalesce_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_coalesce_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 490,
+      "end_line": 514,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_coalesce_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_empty_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_empty_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 517,
+      "end_line": 524,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_empty_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_predicate_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_predicate_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 527,
+      "end_line": 556,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_predicate_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_union_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_union_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 559,
+      "end_line": 607,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_union_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query.rs::should_report_qualified_cast_given_prepared_sql_when_current_query_is_executed",
+      "name": "should_report_qualified_cast_given_prepared_sql_when_current_query_is_executed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "line": 610,
+      "end_line": 632,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query::should_report_qualified_cast_given_prepared_sql_when_current_query_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_arity.rs::should_reject_extra_argument_0_given_invalid_signature_when_current_query_is_parsed",
+      "name": "should_reject_extra_argument_0_given_invalid_signature_when_current_query_is_parsed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_arity.rs",
+      "line": 7,
+      "end_line": 35,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_arity::should_reject_extra_argument_0_given_invalid_signature_when_current_query_is_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_arity.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_arity.rs::should_reject_extra_argument_1_given_invalid_signature_when_current_query_is_parsed",
+      "name": "should_reject_extra_argument_1_given_invalid_signature_when_current_query_is_parsed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_arity.rs",
+      "line": 38,
+      "end_line": 66,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_arity::should_reject_extra_argument_1_given_invalid_signature_when_current_query_is_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_arity.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_arity.rs::should_reject_extra_argument_2_given_invalid_signature_when_current_query_is_parsed",
+      "name": "should_reject_extra_argument_2_given_invalid_signature_when_current_query_is_parsed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_arity.rs",
+      "line": 69,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_arity::should_reject_extra_argument_2_given_invalid_signature_when_current_query_is_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_arity.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_arity.rs::should_reject_extra_argument_3_given_invalid_signature_when_current_query_is_parsed",
+      "name": "should_reject_extra_argument_3_given_invalid_signature_when_current_query_is_parsed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_arity.rs",
+      "line": 100,
+      "end_line": 128,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_arity::should_reject_extra_argument_3_given_invalid_signature_when_current_query_is_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_arity.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs::should_preserve_parse_text_given_rebinding_when_other_statements_execute_between_portals",
+      "name": "should_preserve_parse_text_given_rebinding_when_other_statements_execute_between_portals",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+      "line": 11,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_lifecycle::should_preserve_parse_text_given_rebinding_when_other_statements_execute_between_portals"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs::should_preserve_parse_text_given_suspended_portal_when_a_different_query_executes_between_pages",
+      "name": "should_preserve_parse_text_given_suspended_portal_when_a_different_query_executes_between_pages",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+      "line": 53,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_lifecycle::should_preserve_parse_text_given_suspended_portal_when_a_different_query_executes_between_pages"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs::should_refresh_statement_text_given_same_ast_with_different_comments_when_execution_cache_is_enabled",
+      "name": "should_refresh_statement_text_given_same_ast_with_different_comments_when_execution_cache_is_enabled",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+      "line": 93,
+      "end_line": 114,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_lifecycle::should_refresh_statement_text_given_same_ast_with_different_comments_when_execution_cache_is_enabled"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs::should_return_outer_statement_given_a_stored_view_when_current_query_is_evaluated",
+      "name": "should_return_outer_statement_given_a_stored_view_when_current_query_is_evaluated",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+      "line": 117,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_lifecycle::should_return_outer_statement_given_a_stored_view_when_current_query_is_evaluated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs::should_recover_statement_text_given_an_execution_error_when_the_next_query_runs",
+      "name": "should_recover_statement_text_given_an_execution_error_when_the_next_query_runs",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+      "line": 142,
+      "end_line": 157,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_lifecycle::should_recover_statement_text_given_an_execution_error_when_the_next_query_runs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_parameters.rs::should_preserve_text_0_given_integer_parameters_when_input_and_output_formats_are_crossed",
+      "name": "should_preserve_text_0_given_integer_parameters_when_input_and_output_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_parameters.rs",
+      "line": 5,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_parameters::should_preserve_text_0_given_integer_parameters_when_input_and_output_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_parameters.rs::should_preserve_text_1_given_integer_parameters_when_input_and_output_formats_are_crossed",
+      "name": "should_preserve_text_1_given_integer_parameters_when_input_and_output_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_parameters.rs",
+      "line": 32,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_parameters::should_preserve_text_1_given_integer_parameters_when_input_and_output_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_parameters.rs::should_preserve_text_2_given_integer_parameters_when_input_and_output_formats_are_crossed",
+      "name": "should_preserve_text_2_given_integer_parameters_when_input_and_output_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_parameters.rs",
+      "line": 63,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_parameters::should_preserve_text_2_given_integer_parameters_when_input_and_output_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_parameters.rs::should_preserve_text_3_given_integer_parameters_when_input_and_output_formats_are_crossed",
+      "name": "should_preserve_text_3_given_integer_parameters_when_input_and_output_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_parameters.rs",
+      "line": 94,
+      "end_line": 120,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_parameters::should_preserve_text_3_given_integer_parameters_when_input_and_output_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_simple.rs::should_preserve_message_0_given_simple_query_when_current_query_is_called",
+      "name": "should_preserve_message_0_given_simple_query_when_current_query_is_called",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+      "line": 6,
+      "end_line": 25,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_simple::should_preserve_message_0_given_simple_query_when_current_query_is_called"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_simple.rs::should_preserve_message_1_given_simple_query_when_current_query_is_called",
+      "name": "should_preserve_message_1_given_simple_query_when_current_query_is_called",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+      "line": 28,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_simple::should_preserve_message_1_given_simple_query_when_current_query_is_called"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_simple.rs::should_preserve_message_2_given_simple_query_when_current_query_is_called",
+      "name": "should_preserve_message_2_given_simple_query_when_current_query_is_called",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+      "line": 51,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_simple::should_preserve_message_2_given_simple_query_when_current_query_is_called"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_simple.rs::should_preserve_message_3_given_simple_query_when_current_query_is_called",
+      "name": "should_preserve_message_3_given_simple_query_when_current_query_is_called",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+      "line": 75,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_simple::should_preserve_message_3_given_simple_query_when_current_query_is_called"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_simple.rs::should_preserve_message_4_given_simple_query_when_current_query_is_called",
+      "name": "should_preserve_message_4_given_simple_query_when_current_query_is_called",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+      "line": 108,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_simple::should_preserve_message_4_given_simple_query_when_current_query_is_called"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_simple.rs::should_preserve_message_5_given_simple_query_when_current_query_is_called",
+      "name": "should_preserve_message_5_given_simple_query_when_current_query_is_called",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+      "line": 146,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_simple::should_preserve_message_5_given_simple_query_when_current_query_is_called"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_simple.rs::should_preserve_message_6_given_simple_query_when_current_query_is_called",
+      "name": "should_preserve_message_6_given_simple_query_when_current_query_is_called",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+      "line": 170,
+      "end_line": 185,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_simple::should_preserve_message_6_given_simple_query_when_current_query_is_called"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/current_query_simple.rs::should_preserve_message_7_given_simple_query_when_current_query_is_called",
+      "name": "should_preserve_message_7_given_simple_query_when_current_query_is_called",
+      "current_file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+      "line": 188,
+      "end_line": 208,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_current_query_simple::should_preserve_message_7_given_simple_query_when_current_query_is_called"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -243061,8 +244456,8 @@
       "current_file": "tests/catalog_security/catalogs/session_identity.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 125,
-      "sha256": "8401963fa5ee8c7aa13c07f1248e0bfef0c32c9dd7b9bdb5b684f287729d6b1c",
+      "lines": 138,
+      "sha256": "e2fe0d27cd1b7945dd1b1b6885ec3fb6adea346f961266fb45be2b6ae8564de6",
       "test_declarations": 2,
       "registered_suites": [
         "catalog_security"
@@ -251955,6 +253350,81 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/catalogs/current_query.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 632,
+      "sha256": "33e557b146a22180f815550013d08cbb15f4af1edb041577fbc8e6cc5f7ccfa7",
+      "test_declarations": 24,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/current_query.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/current_query_arity.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 128,
+      "sha256": "b3e2a5bb6621d55376d1aa605e341d84b6bbed349473eed11cbf78cbfe38a570",
+      "test_declarations": 4,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/current_query_arity.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/current_query_lifecycle.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 157,
+      "sha256": "33dc5f24300edd896c78d279d013df9f36333e24a930d0efa8debd9ad5408385",
+      "test_declarations": 5,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/current_query_lifecycle.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/current_query_parameters.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 120,
+      "sha256": "96296772d4fecd8fac9d3e5e36958c95b9ebdbbbd042f95edc1de33926028b36",
+      "test_declarations": 4,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/current_query_parameters.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/current_query_simple.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 208,
+      "sha256": "132be395c36a7fe19033262df23951d7142e4ae69062130f09c41aa37d1fb6cf",
+      "test_declarations": 8,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/current_query_simple.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
       "role": "test_module",
       "action": "keep",
@@ -258440,8 +259910,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 414,
-      "sha256": "098ea9151c0777a809edcfdeb1cafda07e2609e3c5a481223d12851b5c9a18f9",
+      "lines": 429,
+      "sha256": "7a0a1a11387eeb24a7bd3e0474136d9e2f32f55a0e1d0fb97d739cf270439794",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

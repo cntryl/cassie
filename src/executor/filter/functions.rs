@@ -59,7 +59,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     search_context: Option<&SearchContext>,
     session: Option<&CassieSession>,
 ) -> Option<Result<Value, QueryError>> {
-    runtime_information::evaluate(name, args)
+    runtime_information::evaluate(name, args, session)
         .or_else(|| evaluate_system_function(name, row, args, session))
         .or_else(|| super::conditional::evaluate(name, args))
         .or_else(|| {

@@ -558,7 +558,7 @@ async fn handle_simple_query(
         write_half,
         state,
         &session,
-        statements,
+        (statements, sql),
         parsed,
     )
     .await
@@ -619,7 +619,7 @@ async fn execute_simple_statement(
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
     session: &CassieSession,
-    statement: String,
+    query: (String, Arc<str>),
 ) -> Result<bool, ()> {
     let was_in_transaction = session.is_transaction_active() || session.is_transaction_failed();
     let transaction_generation = session.transaction_generation();
@@ -630,7 +630,7 @@ async fn execute_simple_statement(
     let query_result = run_pgwire_blocking(cassie, "pgwire_simple_query", move |cassie| {
         cassie.execute_pgwire_sql_with_cancellation(
             &execution_session,
-            &statement,
+            (&query.0, &query.1),
             &cancellation_handle,
         )
     })

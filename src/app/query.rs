@@ -12,7 +12,7 @@ use super::{
 // Alias namespaces, expression bounds, concrete integer signatures and numeric
 // unary binding, FETCH pagination, set quantifiers, typed VALUES and explicit
 // Catalog read-model schemas and scalar helper signatures share this rebuildable compiled-plan cache epoch.
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 17;
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 18;
 
 pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,
@@ -295,6 +295,8 @@ impl Cassie {
             return Err(CassieError::DeadlineExceeded);
         }
 
+        let execution_session = session.with_statement_text(sql, controls)?;
+        let session = &execution_session;
         self.runtime.record_sql_parse();
         let parsed = parser::parse_statement(sql)?;
         let explain = if matches!(parsed.statement, QueryStatement::Explain(_)) {
@@ -347,6 +349,8 @@ impl Cassie {
             return Err(CassieError::DeadlineExceeded);
         }
 
+        let execution_session = session.with_statement_text(sql, controls)?;
+        let session = &execution_session;
         self.runtime.record_sql_parse();
         let parsed = parser::parse_statement(sql)?;
         let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
@@ -463,6 +467,18 @@ impl Cassie {
             )
         }) {
             return Some("session_mutating_function");
+        }
+        if ["current_query", "pg_catalog.current_query"]
+            .iter()
+            .any(|name| {
+                crate::executor::plan_uses_function_including_views(
+                    &physical.logical,
+                    name,
+                    &self.catalog,
+                )
+            })
+        {
+            return Some("statement_text_function");
         }
         if crate::executor::plan_uses_function_including_views(
             &physical.logical,
@@ -806,3 +822,7 @@ fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> b
 #[cfg(test)]
 #[path = "query_cache_semantics_tests.rs"]
 mod cache_semantics_tests;
+
+#[cfg(test)]
+#[path = "query_text_tests.rs"]
+mod text_tests;

@@ -198,3 +198,22 @@ Execution checks controls, admits argument scratch/output ownership and releases
 owners on errors. Compiled plans rebuild at epoch 17; stored formats do not
 change. Full resource/restart and owner qualification remain open. See
 [validation](testing/validation.md).
+
+## Experimental statement text (2026-10-17)
+
+`current_query()` and `pg_catalog.current_query()` return the original executing
+SQL as TEXT (OID 25, length/typmod -1) in text and binary formats. Simple Query
+returns the entire frontend message, including all statements, comments and
+whitespace. Extended Query returns the original Parse text across parameter
+rebinding and suspended portal fetches. Embedded SQL and the public analyzed
+EXPLAIN entry point retain their submitted text. Calls through views observe the
+outer executing statement.
+
+Statement text belongs to an immutable execution-local session clone. Concurrent
+callers do not mutate shared session state. Text ownership and evaluator scratch
+use query-memory admission; cancellation/error paths release that ownership.
+Execution-result caching bypasses this helper, including calls through views;
+compiled plans remain reusable and rebuild at epoch 18. Extra arguments reject
+with native 42883. No persistent representation or native type identity changes.
+This selected primitive helper leaves complete session introspection, native
+NAME/OID/RECORD types and full resource qualification open under #793/#817/#821/#849.

@@ -2133,3 +2133,74 @@ Final executed evidence:
 
 Full repository and hosted green are not established. Native array/RECORD,
 collation and complete owner/resource qualification remain open; no owner closes.
+
+## Statement text batch (2026-10-17)
+
+Selected scope: `current_query()` over the existing TEXT identity, with exact
+Simple Query message, prepared Parse text, embedded SQL, public analyzed EXPLAIN
+and view execution. The native PostgreSQL 18.6 oracle and executable checksum
+remain unchanged. New fixtures retain exact descriptors and DataRow bytes for
+24 prepared shapes, eight simple messages and four typed parameter shapes;
+four signature probes pin native 42883 at Parse. Five wire lifecycle tests cover
+cache/comment identity, views, good/error/good recovery, rebinding and paging.
+Seven near-code tests cover concurrent cloned sessions, text/scratch admission,
+error/cancellation cleanup, final-result-owner release and public analyzed EXPLAIN.
+
+All 24 initial wire witnesses failed before runtime edits with an unknown-function
+error. The original current-query fixture also used an empty password, rejected
+by the existing listener policy before SQL execution. Its setup now uses the
+valid default password; its original descriptor/value assertions remain intact.
+The separate trust-identity test remains pending without changing its assertions.
+
+Jev triage rated an introspection gap at 0.83; its implementation review rated
+cache/entry scope at 0.68 and memory scope at 0.46, while selecting staged support
+at 1.0. Focused probes cover those paths. Public analyzed EXPLAIN reproduced an
+actual gap: `WHERE current_query() IS NULL` incorrectly emitted one row because
+the separate entry point lacked text. The same execution-local context corrects
+it to zero rows; that regression assertion is retained. The large-comment scalar
+length probe verifies scratch admission independently of large output retention.
+Jev judgments guide probes and do not establish acceptance by themselves.
+
+The context owns admitted SQL and evaluator scratch without mutating shared
+session state. Calls through views bypass result caching, while compiled plans
+remain reusable at epoch 18. No persistent format/dependency/CI/release/versioning
+change is part of this batch. Native NAME/OID/RECORD and full catalog, session and
+resource qualification remain open under #793/#817/#821/#849. Ordered final
+validation results are recorded below when complete.
+
+Final executed evidence:
+
+- `cargo build --locked --bin cassie` passed. The complete
+  `cargo test --locked` run passed library **1,032/0**, analytics **179/0**,
+  backend **2/0** and benchmark operations **16/0**, then stopped at
+  catalog/security **240/171** after 537.31 seconds. Exactly the original
+  current-query failure is fixed; no new failing identity appears.
+- Strict Clippy first required extracting the helper from the existing system
+  dispatcher. The complete run above includes that extraction. Final consolidation
+  of identical zero-arity match arms changes no behavior; after it,
+  `cargo build --locked --bin cassie`,
+  `cargo test --locked --lib app::query::text_tests` (**7/0**),
+  `cargo test --locked --test pgwire_extended catalog_current_query` (**45/0**),
+  and `cargo test --locked --test pgwire_extended catalog_runtime_` (**61/0**)
+  passed on final source. No lint suppressions or reduced invocation were used.
+- Full `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+  and `cargo fmt --all -- --check` passed on final source. All 8
+  touched-test validators (`cntryl-tools validate-tests -f <path>`) passed;
+  global `cntryl-tools validate-tests` reports **8,819/8,819** compliant tests.
+- Fresh `cargo test --locked --no-run --message-format=json` artifacts and
+  `cargo test --locked --test pgwire_extended catalog_options_` (**86/0**) pass.
+  Complete fresh parser **299/74**, core wire **74/10**, and storage
+  **161 passed/six failed/one ignored** preserve exact failure sets. Seven
+  graph-function and four graph SQL tests pass; the original current-query
+  catalog test also passes in its final fresh binary.
+- Refreshed `tools/test_inventory.py` and `--check` pass: **45 integration
+  identities added**, none removed; two existing records change only source
+  line positions. The seven new unit tests are outside that integration
+  inventory. Original assertions remain intact. Whitespace and all 21
+  touched Rust file limits pass.
+
+Jev's final entry review selects the EXPLAIN correction as fixed at probability
+0.97 and staged support at 1.0. Extraction review selects equivalent behavior at
+0.95. Actual source/native/Rust checks establish the evidence above; these
+judgments do not prove broader correctness. All Cargo uses `CARGO_INCREMENTAL=0`.
+Full repository and hosted green remain unestablished; no owner issue closes.

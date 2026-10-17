@@ -38,6 +38,7 @@ pub enum FunctionId {
     PgSizePretty,
     HasDatabasePrivilege,
     PgBackendPid,
+    CurrentQuery,
     CurrentSchema,
     CurrentDatabase,
     CurrentUser,

@@ -680,3 +680,12 @@ parameters converted to arrays are selected; direct native array parameters,
 native array/RECORD ABI, bounds, dimensions, dynamic constructors and SQL array
 assignment remain pending. Existing native descriptor and error probes do not
 promote these absent cells. See [catalog support](catalog-support.md).
+
+### Statement text increment (2026-10-17)
+
+Experimental `current_query()` returns the original SQL using the existing TEXT
+identity. Simple Query retains the entire message; prepared execution retains
+Parse text across rebinding and portal pages. Embedded SQL, analyzed EXPLAIN and
+view calls use an execution-local context. Result caching bypasses the helper.
+This does not qualify the wider session/catalog surface or new NAME/OID types.
+See [catalog support](catalog-support.md) and [validation](testing/validation.md).

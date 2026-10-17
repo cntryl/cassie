@@ -412,3 +412,18 @@ mod catalog_options_errors;
 
 #[path = "pgwire_extended/catalogs/options_escaping.rs"]
 mod catalog_options_escaping;
+
+#[path = "pgwire_extended/catalogs/current_query.rs"]
+mod catalog_current_query;
+
+#[path = "pgwire_extended/catalogs/current_query_simple.rs"]
+mod catalog_current_query_simple;
+
+#[path = "pgwire_extended/catalogs/current_query_lifecycle.rs"]
+mod catalog_current_query_lifecycle;
+
+#[path = "pgwire_extended/catalogs/current_query_parameters.rs"]
+mod catalog_current_query_parameters;
+
+#[path = "pgwire_extended/catalogs/current_query_arity.rs"]
+mod catalog_current_query_arity;

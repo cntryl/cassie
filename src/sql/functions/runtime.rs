@@ -3,6 +3,14 @@ use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 use crate::types::DataType;
 pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ScalarFunction {
+        id: FunctionId::CurrentQuery,
+        name: "current_query",
+        arity: FunctionArity::Exact(0),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
         id: FunctionId::PgIsInRecovery,
         name: "pg_is_in_recovery",
         arity: FunctionArity::Exact(0),
@@ -46,7 +54,8 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
 pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
     matches!(
         id,
-        FunctionId::PgIsInRecovery
+        FunctionId::CurrentQuery
+            | FunctionId::PgIsInRecovery
             | FunctionId::PgJitAvailable
             | FunctionId::PgNumaAvailable
             | FunctionId::UnicodeVersion

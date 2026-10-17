@@ -238,6 +238,10 @@ pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
     expr: &Expr,
     context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
+    let _statement_scratch = context
+        .session
+        .map(|session| session.statement_text_scratch(expr))
+        .transpose()?;
     match expr {
         Expr::Param(index) => Ok(context.params.get(*index).cloned().unwrap_or(Value::Null)),
         Expr::Column(name) => Ok(column_value_ref(row, name, context.local_args)
@@ -310,6 +314,10 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
     expr: &Expr,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    let _statement_scratch = context
+        .session
+        .map(|session| session.statement_text_scratch(expr))
+        .transpose()?;
     match expr {
         Expr::RowCompare(comparison) => row_predicates::evaluate(row, comparison, context),
         Expr::Column(name) => Ok(eval_column_value(row, name, context.local_args)),

@@ -17,6 +17,21 @@ impl Drop for FixtureDirectory {
 }
 
 fn run_queries(label: &str, queries: Vec<String>) -> Vec<Frames> {
+    run_queries_with_config(
+        label,
+        queries,
+        CassieRuntimeConfig {
+            password: String::new(),
+            ..CassieRuntimeConfig::default()
+        },
+    )
+}
+
+fn run_queries_with_config(
+    label: &str,
+    queries: Vec<String>,
+    config: CassieRuntimeConfig,
+) -> Vec<Frames> {
     crate::support_sql::use_local_storage();
     let path = crate::support_sql::data_dir(label);
     let _directory = FixtureDirectory(path.clone());
@@ -26,12 +41,6 @@ fn run_queries(label: &str, queries: Vec<String>) -> Vec<Frames> {
         .expect("runtime");
 
     runtime.block_on(async {
-        // Arrange a passwordless loopback fixture so PostgreSQL's `trust`
-        // authentication profile is the relevant oracle for `system_user`.
-        let config = CassieRuntimeConfig {
-            password: String::new(),
-            ..CassieRuntimeConfig::default()
-        };
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
         cassie.startup().expect("startup catalog identity fixture");
         let server = wire::spawn_server(cassie).await;
@@ -60,7 +69,11 @@ fn should_report_the_active_query_given_a_running_statement_when_current_query_i
     let sql = "SELECT current_query() AS active_query";
 
     // Act
-    let batches = run_queries("issue-817-current-query", vec![sql.to_owned()]);
+    let batches = run_queries_with_config(
+        "issue-817-current-query",
+        vec![sql.to_owned()],
+        CassieRuntimeConfig::default(),
+    );
 
     // Assert
     let result = &batches[0];

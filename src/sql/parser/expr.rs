@@ -21,6 +21,8 @@ mod generic_prefix;
 mod like_predicates;
 #[path = "numeric_literals.rs"]
 mod numeric_literals;
+#[path = "qualified_operators.rs"]
+mod qualified_operators;
 #[path = "row_predicates.rs"]
 mod row_predicates;
 #[path = "string_literals.rs"]
@@ -232,6 +234,22 @@ fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
                 .map(|(left, right)| (left, right, op))
         })
         .max_by_key(|(left, _, _)| left.len());
+    if let Some(span) = qualified_operators::last_binary(raw)? {
+        if selected
+            .as_ref()
+            .is_none_or(|(left, _, _)| span.start > left.len())
+        {
+            let left = parse_prefix_expression(&raw[..span.start])?;
+            let right = parse_prefix_expression(&raw[span.end..])?;
+            depth::validate(&left, 1)?;
+            depth::validate(&right, 1)?;
+            return Ok(Expr::Binary {
+                left: Box::new(left),
+                right: Box::new(right),
+                op: qualified_operators::binary(span)?,
+            });
+        }
+    }
     if let Some((left, right, op)) = selected {
         let left = parse_prefix_expression(left)?;
         let right = parse_prefix_expression(right)?;

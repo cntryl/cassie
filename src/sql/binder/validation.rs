@@ -204,6 +204,7 @@ fn binary_operand_family(
     let left_family = expression_operand_family(left, field_types)?;
     let right_family = expression_operand_family(right, field_types)?;
     match op {
+        BinaryOp::ByteaConcat => Ok(Some(OperandFamily::Other)),
         BinaryOp::Concat => {
             let family = |expr: &Expr, inferred| {
                 if matches!(expr, Expr::StringLiteral(_)) {

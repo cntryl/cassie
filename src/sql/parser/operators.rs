@@ -85,9 +85,15 @@ pub(super) fn split_operator<'a>(
 
 pub(super) fn split_arithmetic<'a>(input: &'a str, token: &str) -> Option<(&'a str, &'a str)> {
     let mut before = input.len();
-    for prefix in ["||/", "|/", "@", "~"] {
+    for prefix in ["||/", "|/", "@", "~", "operator"] {
         let mut cursor = 0;
         while let Some((start, end)) = operator_span(input, cursor, prefix) {
+            if prefix == "operator"
+                && !super::lexical::trim_separators(&input[end..]).starts_with('(')
+            {
+                cursor = end;
+                continue;
+            }
             let left = super::lexical::trim_separators(&input[..start]);
             if left.is_empty() || left.ends_with(operator_character) {
                 before = before.min(start);

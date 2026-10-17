@@ -972,3 +972,43 @@ pending under #793/#796.
 Experimental ten-batch increment 10: CTE materialization and integer dependency scope over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
+
+### Staged qualified builtin operator syntax (autopilot batch 15)
+
+The next #796 increment selects `OPERATOR(pg_catalog.op)` over existing
+primitive builtin operator identities implemented by the earlier scalar slices.
+#794's lexical foundation is merged at `3b03dd4db34ac88f533501d0484ecdc3cf223a2e`;
+this increment introduces no new type family, OID or row layout. BYTEA
+operator resolution extends the public AST as described below.
+The still-open expanded #793 contract is unnecessary for these existing types.
+
+Resolve admitted pg_catalog symbols to existing checked binary/unary nodes,
+while parsing every qualified form at PostgreSQL's generic operator precedence.
+Mixed qualified/bare operators, left associativity, unary signs, casts, schema
+quoting/comments, NULLs, parameter/derived scopes, canonical rendering and
+bounded parser depth require native witnesses. Pinned PostgreSQL 18.6 already
+confirms 37 value/descriptor/payload witnesses; Cassie red/green and final
+validation remain pending. Unknown namespaces, user-defined operator registries
+and unimplemented overloads remain deterministic staged unsupported obligations
+under #796/#793; this finite increment does not complete or exclude them from
+full acceptance. Do not silently apply an unqualified builtin for an unknown
+explicit namespace.
+
+The first native group also exposed absent BYTEA `||` selection. Include that
+existing-type overload in this operator bundle: retain its established OID 17
+and canonical hex storage carrier, with a resolved `BinaryOp::ByteaConcat`
+identity before shared string-carrier evaluation. The user permits idiomatic
+public API additions. Known BYTEA plus unknown literal/parameter inputs must
+resolve to BYTEA; explicit TEXT inputs must retain their text-overload rules.
+Column, parameter, NULL, scoped result, output growth and wire witnesses must
+qualify the same operator. No new type or physical storage representation is
+selected. Jev selected this typed operator approach (1.00); its parameter concern
+(0.80) requires native unknown-input probes before implementation.
+
+The selected qualified binary symbols are `+ - * / % ^ || = <> != < <= > >=
+& | # << >>`; selected prefixes are `+ - @ ~ |/ ||/`. Other spellings remain
+pending. Qualified builtin lowering retains the existing checked operator
+semantics and rebuildable plan-cache epoch 30. Legacy Concat JSON metadata
+remains readable; the new BYTEA mode round-trips independently. Function and
+column identifiers named operator, including quoted schemas and parentheses
+inside delimited names, must retain their normal parser roles.

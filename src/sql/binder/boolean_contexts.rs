@@ -438,17 +438,26 @@ fn validate_between_expression(
 }
 
 fn resolve_integer_operator(
-    left: &Expr,
+    left: &mut Expr,
     op: &mut BinaryOp,
-    right: &Expr,
+    right: &mut Expr,
     types: &ResultTypes,
 ) -> Result<(), CassieError> {
+    super::string_operators::qualify(
+        left,
+        op,
+        right,
+        types.expression_type(left).as_ref(),
+        types.expression_type(right).as_ref(),
+    );
     // Existing arithmetic parameters retain their later owner. New
     // bitwise signatures bind from declared OIDs before carrier erasure.
     let parameter_bitwise = !types.parameter_types().is_empty()
         && matches!(
             op,
-            BinaryOp::Bitwise { .. }
+            BinaryOp::Concat
+                | BinaryOp::ByteaConcat
+                | BinaryOp::Bitwise { .. }
                 | BinaryOp::Integer {
                     operation: crate::types::IntegerOperation::And
                         | crate::types::IntegerOperation::Or

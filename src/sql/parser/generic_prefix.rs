@@ -9,14 +9,16 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
     let mut operand = raw;
     loop {
         operand = super::super::lexical::trim_separators(operand);
-        let Some((token, op)) = prefix(operand) else {
+        let Some((token, op)) = prefix(operand)? else {
             break;
         };
         if count == operators.len() {
             return Err(depth::limit_error());
         }
         let tail = &operand[token.len()..];
-        check_tail(tail, op)?;
+        if !token.ends_with(')') {
+            check_tail(tail, op)?;
+        }
         operators[count] = op;
         count += 1;
         operand = tail;
@@ -35,28 +37,31 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
     Ok(Some(expression))
 }
 
-fn generic(raw: &str) -> Option<(&'static str, UnaryNumericOp)> {
-    [
+fn generic(raw: &str) -> Result<Option<(&str, UnaryNumericOp)>, SqlError> {
+    if let Some(prefix) = super::qualified_operators::prefix(raw)? {
+        return Ok(Some(prefix));
+    }
+    Ok([
         ("||/", UnaryNumericOp::CubeRoot),
         ("|/", UnaryNumericOp::SquareRoot),
         ("@", UnaryNumericOp::Absolute),
         ("~", UnaryNumericOp::Complement),
     ]
     .into_iter()
-    .find(|(token, _)| raw.starts_with(token))
+    .find(|(token, _)| raw.starts_with(token)))
 }
 
 // A high-precedence sign preceding a generic prefix wraps that prefix's
 // complete arithmetic operand: - @ -7+10 = -(abs(-7+10)). Ordinary signs
 // before a literal remain owned by the existing arithmetic parser.
-fn prefix(raw: &str) -> Option<(&'static str, UnaryNumericOp)> {
-    if let Some(operator) = generic(raw) {
-        return Some(operator);
+fn prefix(raw: &str) -> Result<Option<(&str, UnaryNumericOp)>, SqlError> {
+    if let Some(operator) = generic(raw)? {
+        return Ok(Some(operator));
     }
     let sign = match raw.as_bytes().first() {
         Some(b'+') => ("+", UnaryNumericOp::Plus),
         Some(b'-') => ("-", UnaryNumericOp::Minus),
-        _ => return None,
+        _ => return Ok(None),
     };
     let mut rest = raw;
     loop {
@@ -64,7 +69,7 @@ fn prefix(raw: &str) -> Option<(&'static str, UnaryNumericOp)> {
         if rest.starts_with(['+', '-']) {
             rest = &rest[1..];
         } else {
-            return generic(rest).map(|_| sign);
+            return Ok(generic(rest)?.map(|_| sign));
         }
     }
 }

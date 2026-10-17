@@ -113,8 +113,27 @@ impl Fold<'_, '_> {
         if matches!(op, ast::BinaryOp::And | ast::BinaryOp::Or) {
             return Ok(Summary::known(16));
         }
-        if *op == ast::BinaryOp::Concat {
+        if matches!(op, ast::BinaryOp::Concat | ast::BinaryOp::ByteaConcat) {
             let args = &mut self.summaries.values[frame.start..];
+            let bytea = *op == ast::BinaryOp::ByteaConcat
+                || args.iter().any(|argument| argument.oid == 17)
+                    && args
+                        .iter()
+                        .all(|argument| matches!(argument.oid, 0 | 705 | 17));
+            if bytea {
+                if args
+                    .iter()
+                    .any(|argument| !matches!(argument.oid, 0 | 705 | 17))
+                {
+                    self.occurrences.undefined_function("||", 2, None)?;
+                }
+                for argument in args {
+                    if matches!(argument.oid, 0 | 705) {
+                        self.occurrences.coerce(argument, 17, true)?;
+                    }
+                }
+                return Ok(Summary::known(17));
+            }
             if args
                 .iter()
                 .all(|argument| !matches!(argument.oid, 0 | 705 | 25 | 1043))
@@ -147,6 +166,7 @@ impl Fold<'_, '_> {
         self.comparison_inputs(frame)?;
         Ok(match op {
             ast::BinaryOp::Concat => Summary::known(25),
+            ast::BinaryOp::ByteaConcat => Summary::known(17),
             ast::BinaryOp::Integer { width, .. } => {
                 Summary::known(super::expressions::oid(&width.data_type()))
             }

@@ -579,3 +579,21 @@ mod scalar_batch_10_arithmetic_scopes;
 
 #[path = "pgwire_extended/expressions/conditional/type_diagnostics.rs"]
 mod conditional_type_diagnostics;
+
+#[path = "pgwire_extended/grammar/qualified_operators_0.rs"]
+mod qualified_operators_0;
+
+#[path = "pgwire_extended/grammar/qualified_operators_1.rs"]
+mod qualified_operators_1;
+
+#[path = "pgwire_extended/grammar/qualified_operators_mixed.rs"]
+mod qualified_operators_mixed;
+
+#[path = "pgwire_extended/grammar/qualified_operators_bytea.rs"]
+mod qualified_operators_bytea;
+
+#[path = "pgwire_extended/grammar/qualified_operators_parameters.rs"]
+mod qualified_operators_parameters;
+
+#[path = "pgwire_extended/grammar/qualified_operators_errors.rs"]
+mod qualified_operators_errors;

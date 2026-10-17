@@ -10,6 +10,7 @@ pub(super) fn binary_scalar(
     right: &ScalarValue,
 ) -> Result<ScalarValue, QueryError> {
     let result = match op {
+        BinaryOp::ByteaConcat => super::bytea_casts::concatenate(left, right)?,
         BinaryOp::Concat => match (cast_to_text(left), cast_to_text(right)) {
             (Some(mut left), Some(right)) => {
                 left.push_str(&right);

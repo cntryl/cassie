@@ -288,3 +288,6 @@ mod bytea_input_cte;
 
 #[path = "sql_queries/casts/bytea_input_controls.rs"]
 mod bytea_input_controls;
+
+#[path = "sql_queries/expressions/operators/bytea_concat.rs"]
+mod bytea_concat;

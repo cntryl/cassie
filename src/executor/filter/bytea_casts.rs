@@ -2,6 +2,40 @@
 use super::{QueryError, ScalarValue};
 use crate::types::{DataType, IntegerByteaError, IntegerWidth};
 
+/// Concatenate canonical hex carriers after binding selected the BYTEA overload.
+pub(super) fn concatenate(
+    left: &ScalarValue,
+    right: &ScalarValue,
+) -> Result<ScalarValue, QueryError> {
+    if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+        return Ok(ScalarValue::Null);
+    }
+    let (ScalarValue::Str(left), ScalarValue::Str(right)) = (left, right) else {
+        return Err(invalid_bytea());
+    };
+    let left = canonical_digits(left)?;
+    let right = canonical_digits(right)?;
+    let capacity = left
+        .len()
+        .checked_add(right.len())
+        .and_then(|length| length.checked_add(2))
+        .ok_or_else(|| {
+            QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                "BYTEA concatenation exceeds addressable memory".into(),
+            ))
+        })?;
+    let mut output = String::with_capacity(capacity);
+    output.push_str("\\x");
+    output.push_str(left);
+    output.push_str(right);
+    Ok(ScalarValue::Str(output))
+}
+
+fn canonical_digits(value: &str) -> Result<&str, QueryError> {
+    crate::types::bytea_input::validate(value).map_err(|error| QueryError::Cassie(error.into()))?;
+    value.strip_prefix("\\x").ok_or_else(invalid_bytea)
+}
+
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
 const fn byte_width(width: IntegerWidth) -> usize {

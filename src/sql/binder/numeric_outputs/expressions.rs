@@ -121,6 +121,7 @@ impl Analyzer<'_> {
             }
             BinaryOp::Power => OutputType::fixed(DataType::Float),
             BinaryOp::Concat => OutputType::fixed(DataType::Text),
+            BinaryOp::ByteaConcat => OutputType::fixed(DataType::Bytea),
             BinaryOp::Bitwise { operation } if operation.is_shift() => {
                 self.expression(left, lookup)?
             }

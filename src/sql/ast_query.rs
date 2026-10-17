@@ -380,6 +380,8 @@ pub enum BinaryOp {
     Or,
     /// Strict selected text concatenation.
     Concat,
+    /// Strict BYTEA concatenation selected before its shared string carrier is evaluated.
+    ByteaConcat,
     Add,
     Sub,
     Mul,

@@ -168,7 +168,7 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
         BinaryOp::And => "AND",
         BinaryOp::Or => "OR",
         BinaryOp::Integer { operation, .. } | BinaryOp::Bitwise { operation } => operation.symbol(),
-        BinaryOp::Concat => "||",
+        BinaryOp::Concat | BinaryOp::ByteaConcat => "||",
         BinaryOp::Add => "+",
         BinaryOp::Sub => "-",
         BinaryOp::Mul => "*",
@@ -339,5 +339,29 @@ mod tests {
         assert!(results
             .iter()
             .all(|(original, reparsed)| original.structurally_eq(reparsed)));
+    }
+    #[test]
+    fn should_round_trip_qualified_operators_given_aggregate_when_builtin_precedence_is_rendered() {
+        // Arrange
+        let sources = [
+            "MAX(amount OPERATOR(pg_catalog.*) 3 + 4)",
+            "MAX(OPERATOR(pg_catalog.-) amount + 3)",
+            "MAX(OPERATOR(pg_catalog.~) (amount | 2))",
+            "MAX(payload OPERATOR(pg_catalog.||) '\\x01'::BYTEA)",
+        ];
+        // Act
+        let results = sources.map(|source| {
+            let original = crate::sql::parser::parse_expression(source).expect("qualified source");
+            let Expr::Function(function) = &original else {
+                panic!("aggregate")
+            };
+            let canonical = canonical_aggregate_expression(function).expect("canonical SQL");
+            let reparsed = crate::sql::parser::parse_expression(&canonical).expect("reparse");
+            (original, canonical, reparsed)
+        });
+        // Assert
+        for (original, canonical, reparsed) in results {
+            assert!(original.structurally_eq(&reparsed), "{canonical}");
+        }
     }
 }

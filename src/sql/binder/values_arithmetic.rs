@@ -33,9 +33,18 @@ pub(super) fn bind(
         return Ok(());
     };
     let schema = Schema { fields: Vec::new() };
-    let left = super::super::inference::infer_expr_type(left, &schema, functions, params);
-    let right = super::super::inference::infer_expr_type(right, &schema, functions, params);
-    if !super::super::integer_operators::resolve(op, left.as_ref(), right.as_ref())? {
+    let left_type = super::super::inference::infer_expr_type(left, &schema, functions, params);
+    let right_type = super::super::inference::infer_expr_type(right, &schema, functions, params);
+    super::super::string_operators::qualify(
+        left,
+        op,
+        right,
+        left_type.as_ref(),
+        right_type.as_ref(),
+    );
+    let left_type = super::super::inference::infer_expr_type(left, &schema, functions, params);
+    let right_type = super::super::inference::infer_expr_type(right, &schema, functions, params);
+    if !super::super::integer_operators::resolve(op, left_type.as_ref(), right_type.as_ref())? {
         return Err(CassieError::Unsupported(
             "VALUES arithmetic requires resolved integer operands".into(),
         ));

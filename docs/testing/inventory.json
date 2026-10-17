@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1737,
-    "rust_files": 1706,
-    "rust_test_declarations": 8539,
+    "files": 1744,
+    "rust_files": 1713,
+    "rust_test_declarations": 8632,
     "python_test_declarations": 16,
-    "registered_rust_instances": 8667,
+    "registered_rust_instances": 8760,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -58597,6 +58597,161 @@
       }
     },
     {
+      "id": "tests/parser_types/grammar/operators/binary.rs::should_preserve_function_named_operator_given_qualified_identifier_when_expression_is_parsed",
+      "name": "should_preserve_function_named_operator_given_qualified_identifier_when_expression_is_parsed",
+      "current_file": "tests/parser_types/grammar/operators/binary.rs",
+      "line": 18,
+      "end_line": 33,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_grammar::should_preserve_function_named_operator_given_qualified_identifier_when_expression_is_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/operators",
+        "directory": "tests/parser_types/grammar/operators",
+        "file": "tests/parser_types/grammar/operators/binary.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/operators/binary.rs::should_preserve_qualified_operator_function_names_given_lexical_variants_when_calls_are_parsed",
+      "name": "should_preserve_qualified_operator_function_names_given_lexical_variants_when_calls_are_parsed",
+      "current_file": "tests/parser_types/grammar/operators/binary.rs",
+      "line": 36,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_grammar::should_preserve_qualified_operator_function_names_given_lexical_variants_when_calls_are_parsed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/operators",
+        "directory": "tests/parser_types/grammar/operators",
+        "file": "tests/parser_types/grammar/operators/binary.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/operators/binary.rs::should_preserve_operator_named_columns_given_arithmetic_when_keyword_lookahead_is_used",
+      "name": "should_preserve_operator_named_columns_given_arithmetic_when_keyword_lookahead_is_used",
+      "current_file": "tests/parser_types/grammar/operators/binary.rs",
+      "line": 56,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_grammar::should_preserve_operator_named_columns_given_arithmetic_when_keyword_lookahead_is_used"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/operators",
+        "directory": "tests/parser_types/grammar/operators",
+        "file": "tests/parser_types/grammar/operators/binary.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/operators/binary.rs::should_preserve_quoted_parentheses_given_column_identifiers_when_function_calls_are_distinguished",
+      "name": "should_preserve_quoted_parentheses_given_column_identifiers_when_function_calls_are_distinguished",
+      "current_file": "tests/parser_types/grammar/operators/binary.rs",
+      "line": 74,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_grammar::should_preserve_quoted_parentheses_given_column_identifiers_when_function_calls_are_distinguished"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/operators",
+        "directory": "tests/parser_types/grammar/operators",
+        "file": "tests/parser_types/grammar/operators/binary.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/operators/binary.rs::should_preserve_operator_named_schema_components_given_function_calls_when_names_are_qualified",
+      "name": "should_preserve_operator_named_schema_components_given_function_calls_when_names_are_qualified",
+      "current_file": "tests/parser_types/grammar/operators/binary.rs",
+      "line": 93,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_types::postgresql18_grammar::should_preserve_operator_named_schema_components_given_function_calls_when_names_are_qualified"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/operators",
+        "directory": "tests/parser_types/grammar/operators",
+        "file": "tests/parser_types/grammar/operators/binary.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/parser_types/grammar/operators/integer_bitwise_operator_precedence.rs::should_evaluate_postgres_integer_bitwise_operators_with_native_precedence",
       "name": "should_evaluate_postgres_integer_bitwise_operators_with_native_precedence",
       "current_file": "tests/parser_types/grammar/operators/integer_bitwise_operator_precedence.rs",
@@ -92302,6 +92457,2548 @@
         "file": "tests/pgwire_extended/grammar/parameters.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_0_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_0_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 6,
+      "end_line": 20,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_0_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_1_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_1_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 23,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_1_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_2_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_2_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 40,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_2_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_3_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_3_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 57,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_3_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_4_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_4_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 74,
+      "end_line": 88,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_4_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_5_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_5_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 91,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_5_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_6_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_6_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 108,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_6_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_7_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_7_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 125,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_7_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_8_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_8_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 139,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_8_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_9_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_9_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 153,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_9_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_10_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_10_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 170,
+      "end_line": 184,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_10_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_11_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_11_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 187,
+      "end_line": 201,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_11_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_12_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_12_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 204,
+      "end_line": 218,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_12_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_13_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_13_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 221,
+      "end_line": 235,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_13_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_14_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_14_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 238,
+      "end_line": 252,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_14_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_15_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_15_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 255,
+      "end_line": 269,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_15_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_16_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_16_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 272,
+      "end_line": 286,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_16_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_17_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_17_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 289,
+      "end_line": 303,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_17_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_18_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_18_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 306,
+      "end_line": 317,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_18_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_0.rs::should_match_case_19_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_19_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "line": 320,
+      "end_line": 331,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_0::should_match_case_19_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_20_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_20_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 6,
+      "end_line": 20,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_20_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_21_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_21_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 23,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_21_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_22_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_22_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 40,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_22_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_23_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_23_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 57,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_23_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_24_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_24_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 74,
+      "end_line": 88,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_24_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_25_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_25_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 91,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_25_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_26_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_26_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 108,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_26_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_27_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_27_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 125,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_27_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_28_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_28_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 142,
+      "end_line": 156,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_28_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_29_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_29_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 159,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_29_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_30_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_30_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 173,
+      "end_line": 184,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_30_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_31_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_31_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 187,
+      "end_line": 201,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_31_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_32_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_32_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 204,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_32_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_33_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_33_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 227,
+      "end_line": 241,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_33_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_34_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_34_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 244,
+      "end_line": 258,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_34_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_35_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_35_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 261,
+      "end_line": 275,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_35_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_1.rs::should_match_case_36_given_qualified_builtin_when_native_operator_is_executed",
+      "name": "should_match_case_36_given_qualified_builtin_when_native_operator_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "line": 278,
+      "end_line": 292,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_1::should_match_case_36_given_qualified_builtin_when_native_operator_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_0_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_0_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 6,
+      "end_line": 20,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_0_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_1_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_1_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 23,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_1_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_2_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_2_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 40,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_2_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_3_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_3_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 57,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_3_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_4_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_4_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 74,
+      "end_line": 88,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_4_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_5_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_5_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 91,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_5_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_6_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_6_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 108,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_6_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_7_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_7_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 125,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_7_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_8_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_8_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 142,
+      "end_line": 156,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_8_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_9_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_9_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 159,
+      "end_line": 173,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_9_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_match_bytea_case_10_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_bytea_case_10_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 176,
+      "end_line": 190,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_match_bytea_case_10_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_preserve_text_control_0_given_poisoned_bytea_spelling_when_operand_is_explicit_text",
+      "name": "should_preserve_text_control_0_given_poisoned_bytea_spelling_when_operand_is_explicit_text",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 193,
+      "end_line": 207,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_preserve_text_control_0_given_poisoned_bytea_spelling_when_operand_is_explicit_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_preserve_text_control_1_given_poisoned_bytea_spelling_when_operand_is_explicit_text",
+      "name": "should_preserve_text_control_1_given_poisoned_bytea_spelling_when_operand_is_explicit_text",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 210,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_preserve_text_control_1_given_poisoned_bytea_spelling_when_operand_is_explicit_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_preserve_text_origin_0_given_computed_operand_when_bytea_concat_selects_overload",
+      "name": "should_preserve_text_origin_0_given_computed_operand_when_bytea_concat_selects_overload",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 227,
+      "end_line": 241,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_preserve_text_origin_0_given_computed_operand_when_bytea_concat_selects_overload"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_preserve_text_origin_1_given_computed_operand_when_bytea_concat_selects_overload",
+      "name": "should_preserve_text_origin_1_given_computed_operand_when_bytea_concat_selects_overload",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 244,
+      "end_line": 258,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_preserve_text_origin_1_given_computed_operand_when_bytea_concat_selects_overload"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_preserve_text_origin_2_given_computed_operand_when_bytea_concat_selects_overload",
+      "name": "should_preserve_text_origin_2_given_computed_operand_when_bytea_concat_selects_overload",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 261,
+      "end_line": 275,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_preserve_text_origin_2_given_computed_operand_when_bytea_concat_selects_overload"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_preserve_text_origin_3_given_computed_operand_when_bytea_concat_selects_overload",
+      "name": "should_preserve_text_origin_3_given_computed_operand_when_bytea_concat_selects_overload",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 278,
+      "end_line": 292,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_preserve_text_origin_3_given_computed_operand_when_bytea_concat_selects_overload"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_preserve_text_origin_4_given_computed_operand_when_bytea_concat_selects_overload",
+      "name": "should_preserve_text_origin_4_given_computed_operand_when_bytea_concat_selects_overload",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 295,
+      "end_line": 309,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_preserve_text_origin_4_given_computed_operand_when_bytea_concat_selects_overload"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_preserve_text_origin_5_given_computed_operand_when_bytea_concat_selects_overload",
+      "name": "should_preserve_text_origin_5_given_computed_operand_when_bytea_concat_selects_overload",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 312,
+      "end_line": 326,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_preserve_text_origin_5_given_computed_operand_when_bytea_concat_selects_overload"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_preserve_text_origin_6_given_computed_operand_when_bytea_concat_selects_overload",
+      "name": "should_preserve_text_origin_6_given_computed_operand_when_bytea_concat_selects_overload",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 329,
+      "end_line": 343,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_preserve_text_origin_6_given_computed_operand_when_bytea_concat_selects_overload"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs::should_preserve_text_origin_7_given_computed_operand_when_bytea_concat_selects_overload",
+      "name": "should_preserve_text_origin_7_given_computed_operand_when_bytea_concat_selects_overload",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "line": 346,
+      "end_line": 360,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_bytea::should_preserve_text_origin_7_given_computed_operand_when_bytea_concat_selects_overload"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_errors.rs::should_preserve_bytea_input_errors_given_unknown_concat_literals_when_parse_coerces_operands",
+      "name": "should_preserve_bytea_input_errors_given_unknown_concat_literals_when_parse_coerces_operands",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_errors.rs",
+      "line": 6,
+      "end_line": 59,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_errors::should_preserve_bytea_input_errors_given_unknown_concat_literals_when_parse_coerces_operands"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_errors.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_0_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_0_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 6,
+      "end_line": 20,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_0_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_1_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_1_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 23,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_1_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_2_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_2_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 40,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_2_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_3_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_3_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 57,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_3_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_4_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_4_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 74,
+      "end_line": 88,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_4_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_5_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_5_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 91,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_5_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_6_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_6_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 108,
+      "end_line": 119,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_6_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_7_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_7_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 122,
+      "end_line": 133,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_7_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_8_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_8_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 136,
+      "end_line": 147,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_8_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_9_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_9_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 150,
+      "end_line": 164,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_9_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_10_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_10_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 167,
+      "end_line": 181,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_10_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_11_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_11_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 184,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_11_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_12_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_12_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 201,
+      "end_line": 215,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_12_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_13_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_13_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 218,
+      "end_line": 232,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_13_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_14_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_14_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 235,
+      "end_line": 249,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_14_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_15_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_15_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 252,
+      "end_line": 266,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_15_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_16_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_16_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 269,
+      "end_line": 283,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_16_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs::should_match_mixed_case_17_given_builtin_operator_when_native_value_is_executed",
+      "name": "should_match_mixed_case_17_given_builtin_operator_when_native_value_is_executed",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "line": 286,
+      "end_line": 300,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_mixed::should_match_mixed_case_17_given_builtin_operator_when_native_value_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs::should_preserve_signature_0_given_bytea_concatenation_when_parameter_formats_cross",
+      "name": "should_preserve_signature_0_given_bytea_concatenation_when_parameter_formats_cross",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+      "line": 7,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_parameters::should_preserve_signature_0_given_bytea_concatenation_when_parameter_formats_cross"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs::should_preserve_signature_1_given_bytea_concatenation_when_parameter_formats_cross",
+      "name": "should_preserve_signature_1_given_bytea_concatenation_when_parameter_formats_cross",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+      "line": 64,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_parameters::should_preserve_signature_1_given_bytea_concatenation_when_parameter_formats_cross"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs::should_preserve_signature_2_given_bytea_concatenation_when_parameter_formats_cross",
+      "name": "should_preserve_signature_2_given_bytea_concatenation_when_parameter_formats_cross",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+      "line": 121,
+      "end_line": 175,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_parameters::should_preserve_signature_2_given_bytea_concatenation_when_parameter_formats_cross"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs::should_preserve_signature_3_given_bytea_concatenation_when_parameter_formats_cross",
+      "name": "should_preserve_signature_3_given_bytea_concatenation_when_parameter_formats_cross",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+      "line": 178,
+      "end_line": 229,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_parameters::should_preserve_signature_3_given_bytea_concatenation_when_parameter_formats_cross"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs::should_preserve_signature_4_given_bytea_concatenation_when_parameter_formats_cross",
+      "name": "should_preserve_signature_4_given_bytea_concatenation_when_parameter_formats_cross",
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+      "line": 232,
+      "end_line": 283,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "qualified_operators_parameters::should_preserve_signature_4_given_bytea_concatenation_when_parameter_formats_cross"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -219468,6 +222165,192 @@
       }
     },
     {
+      "id": "tests/sql_queries/expressions/operators/bytea_concat.rs::should_resolve_bytea_unknown_inputs_given_direct_queries_when_concat_overloads_are_selected",
+      "name": "should_resolve_bytea_unknown_inputs_given_direct_queries_when_concat_overloads_are_selected",
+      "current_file": "tests/sql_queries/expressions/operators/bytea_concat.rs",
+      "line": 8,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "bytea_concat::should_resolve_bytea_unknown_inputs_given_direct_queries_when_concat_overloads_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/bit_bytea",
+        "directory": "tests/sql_queries/types/bit_bytea",
+        "file": "tests/sql_queries/types/bit_bytea/bytea_concat.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/operators/bytea_concat.rs::should_preserve_bytea_results_given_scopes_and_mutations_when_concat_values_are_reused",
+      "name": "should_preserve_bytea_results_given_scopes_and_mutations_when_concat_values_are_reused",
+      "current_file": "tests/sql_queries/expressions/operators/bytea_concat.rs",
+      "line": 40,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "bytea_concat::should_preserve_bytea_results_given_scopes_and_mutations_when_concat_values_are_reused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/bit_bytea",
+        "directory": "tests/sql_queries/types/bit_bytea",
+        "file": "tests/sql_queries/types/bit_bytea/bytea_concat.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/operators/bytea_concat.rs::should_release_bytea_result_given_disabled_result_cache_when_final_owner_is_dropped",
+      "name": "should_release_bytea_result_given_disabled_result_cache_when_final_owner_is_dropped",
+      "current_file": "tests/sql_queries/expressions/operators/bytea_concat.rs",
+      "line": 78,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "bytea_concat::should_release_bytea_result_given_disabled_result_cache_when_final_owner_is_dropped"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/bit_bytea",
+        "directory": "tests/sql_queries/types/bit_bytea",
+        "file": "tests/sql_queries/types/bit_bytea/bytea_concat.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/operators/bytea_concat.rs::should_reject_atomic_bytea_results_given_row_budget_when_concat_outputs_exceed_admission",
+      "name": "should_reject_atomic_bytea_results_given_row_budget_when_concat_outputs_exceed_admission",
+      "current_file": "tests/sql_queries/expressions/operators/bytea_concat.rs",
+      "line": 103,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "bytea_concat::should_reject_atomic_bytea_results_given_row_budget_when_concat_outputs_exceed_admission"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/bit_bytea",
+        "directory": "tests/sql_queries/types/bit_bytea",
+        "file": "tests/sql_queries/types/bit_bytea/bytea_concat.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/operators/bytea_concat.rs::should_observe_cancellation_given_bytea_concat_when_execution_is_cancelled_before_evaluation",
+      "name": "should_observe_cancellation_given_bytea_concat_when_execution_is_cancelled_before_evaluation",
+      "current_file": "tests/sql_queries/expressions/operators/bytea_concat.rs",
+      "line": 126,
+      "end_line": 144,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "bytea_concat::should_observe_cancellation_given_bytea_concat_when_execution_is_cancelled_before_evaluation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/bit_bytea",
+        "directory": "tests/sql_queries/types/bit_bytea",
+        "file": "tests/sql_queries/types/bit_bytea/bytea_concat.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/operators/bytea_concat.rs::should_preserve_known_text_origin_given_computed_operands_when_bytea_concat_is_bound_directly",
+      "name": "should_preserve_known_text_origin_given_computed_operands_when_bytea_concat_is_bound_directly",
+      "current_file": "tests/sql_queries/expressions/operators/bytea_concat.rs",
+      "line": 147,
+      "end_line": 173,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "bytea_concat::should_preserve_known_text_origin_given_computed_operands_when_bytea_concat_is_bound_directly"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/bit_bytea",
+        "directory": "tests/sql_queries/types/bit_bytea",
+        "file": "tests/sql_queries/types/bit_bytea/bytea_concat.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/expressions/pagination.rs::should_bind_pagination_parameters_before_planning_each_execution",
       "name": "should_bind_pagination_parameters_before_planning_each_execution",
       "current_file": "tests/sql_queries/expressions/pagination.rs",
@@ -275036,9 +277919,9 @@
       "current_file": "tests/parser_types/grammar/operators/binary.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 15,
-      "sha256": "095b999a3425670ed72deb967769f6dcb2552fba5323ddee290ca4abb2d210a0",
-      "test_declarations": 1,
+      "lines": 106,
+      "sha256": "e39f87799f9de5869d9ae563e76fbbc5fe0e7ba2793602d8e68b5567425be624",
+      "test_declarations": 6,
       "registered_suites": [
         "parser_types"
       ],
@@ -277839,6 +280722,96 @@
       ],
       "destinations": [
         "tests/pgwire_extended/grammar/parameters.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_0.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 331,
+      "sha256": "1f3685f122a257ff928eecf2128f6a134615a428e95f076e11c6b2ed1fc4ddc8",
+      "test_declarations": 20,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/qualified_operators_0.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_1.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 292,
+      "sha256": "7642aba415ab0c380d6e297c372861295f9d8beb3ccb7df59b31d62f4897b07a",
+      "test_declarations": 17,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/qualified_operators_1.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_bytea.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 360,
+      "sha256": "6d06dcf1cbb31499362f74b65c38201f2f45e6352fab70d06136af022472f0e3",
+      "test_declarations": 21,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/qualified_operators_bytea.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_errors.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 59,
+      "sha256": "a6b835732a2dd2f06b7840cdeeb4ce50b0674ea1ae2c434def63853d40facc9c",
+      "test_declarations": 1,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/qualified_operators_errors.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_mixed.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 300,
+      "sha256": "8c595256901cf6c096aef473862258cc099d30552117bf3f5124b1872d104f21",
+      "test_declarations": 18,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/qualified_operators_mixed.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/qualified_operators_parameters.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 283,
+      "sha256": "b730f22b87de8c5c21f6f1382579aeb2dbc53b37d0f5bc5f74d1e106bf5465c8",
+      "test_declarations": 5,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/qualified_operators_parameters.rs"
       ],
       "line_limit": 1000
     },
@@ -283698,8 +286671,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 581,
-      "sha256": "90a88b0b93f96245a5e78b74a5361b4e6ab502ef33f4fdb2fa415d372ec198a7",
+      "lines": 599,
+      "sha256": "d3006f69fe26e7726f26111caf34a64c746c4f560e0bfab848e0ec5fb71498be",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -287956,6 +290929,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/expressions/operators/bytea_concat.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 173,
+      "sha256": "48e86b83255b589e7fad524756dd8de5ac3bbde6dfd607d8e19e164726c8b256",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/types/bit_bytea/bytea_concat.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/expressions/pagination.rs",
       "role": "test_module",
       "action": "keep",
@@ -289416,8 +292404,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 290,
-      "sha256": "7855d36bb617d294c5cbcbefffea1090889d45747b617d1804dc212f6b2b2004",
+      "lines": 293,
+      "sha256": "58495c5e7abb40b464f57f19609f83854f85562516eac51e02d86ebf54795cba",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"

@@ -47,6 +47,11 @@ pub(super) fn parse_quoted_identifier_chain(
     if !raw.contains('"') || raw.starts_with('\'') {
         return Ok(None);
     }
+    // A quoted schema followed by an undelimited function name is not a
+    // column chain. Parentheses inside quoted identifiers remain inert.
+    if super::clauses::find_top_level_keyword_span(raw, 0, "(").is_some() {
+        return Ok(None);
+    }
     match ColumnIdentifierPath::parse_sql(raw) {
         Ok(path) => Ok(Some(path)),
         Err(error) if raw == "\"\"" => Err(SqlError::new(error)),

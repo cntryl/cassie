@@ -2861,3 +2861,64 @@ full-library run. Benchmark policy validation is blocked by the pre-existing
 No CI, release, versioning or validator configuration was changed. The blocked
 benchmark check and red suites are not passes; full acceptance remains pending.
 Raw evidence remains in ignored `target/autopilot-batch-14-*`.
+
+
+### Autopilot batch 15: Qualified operators and BYTEA concatenation (2026-10-17)
+
+Qualified pg_catalog operators now parse at PostgreSQL's generic precedence,
+including mixed bare/qualified arithmetic, comparisons, left associativity and
+unary chains. Existing checked scalar nodes execute them. The selected symbols
+and staged unsupported namespaces/overloads are recorded in the dialect profile;
+full #796 acceptance is pending. The initial native group was 2 passing/35
+failing before implementation; mixed-precedence and BYTEA expansion was 48/23.
+
+BYTEA `||` selects the new public `BinaryOp::ByteaConcat` before shared string
+carriers erase its type. Existing OID 17 and canonical hex row representation
+remain unchanged. Unknown literals/parameters anchored by BYTEA coerce to BYTEA;
+known TEXT/VARCHAR operands retain their text overload. Native malformed BYTEA
+input errors occur during Parse, while identical poisoned explicit TEXT values
+succeed as TEXT. The checked kernel joins hex payloads under one prefix.
+Expression/output inference, parameter analysis, VALUES binding and canonical
+rendering retain the selected mode. Legacy Concat JSON remains unchanged; the
+new mode round-trips independently. Downstream exhaustive Rust BinaryOp matches
+must handle the new variant. Rebuildable plan-cache epoch is 30.
+
+One hundred new tests cover 82 wire declarations, six direct SQL tests, five
+parser integration controls and seven units. Native receipts qualify 76 value
+witnesses in both result formats, 20 parameter-format crosses and six invalid
+literals through Parse and simple query. Direct queries cover unknown/text
+origin, CTE/derived/mutation/RETURNING propagation, cancellation, atomic row
+admission and cache-disabled final-owner release. All new tests pass.
+
+Jev's precedence concern 0.79 prompted 18 mixed native witnesses. Its BYTEA
+parameter concern 0.80 prompted inferred/declared signatures and text/binary
+crosses. Qualified-name concern 0.96 prompted extra lexical probes: the first
+member-name guard fixed public.operator(2), then a quoted-schema matrix exposed
+"public".operator(2) being classified as a column. Both were red before their
+fixes and have permanent regressions. The SQL quoted-chain parser now excludes
+actual function calls while preserving parentheses inside delimited column
+names. Final concerns 0.38 (literal origin) and 0.33 (qualified names) prompted
+eight computed-TEXT poison controls across wire/direct queries and five more
+schema/function-name parser controls. All pass; no remaining confirmed finding
+is concealed by the judgments. Full UDF/language acceptance is not claimed by
+function-call parser classification probes.
+
+The combined wire gate passes 614/0 and full library 1,079/0 before the final
+five-line quoted-function boundary refinement. On final production source, an
+ordered build/test gate passes 128 affected identifier/operator wire cases and
+38 parser/string-operator/renderer units. After test-only probe expansion, all
+82 operator wire tests pass. Parser/types is 328/51 with exactly the prior
+failure identities minus the two qualified-operator failures and BYTEA cast/
+concatenation case. The BYTEA SQL filter is 269/32, with the prior failure
+identities minus its concatenation comparison case. These known-red suites are
+not passes. The full-library and 614-case results are not misrepresented as
+newly repeated after the final parser refinement.
+
+Final full strict workspace/all-target/all-feature pedantic Clippy, formatting,
+touched/global test validators, inventory, documentation, module sizes and
+whitespace checks pass. The existing missing bench.yml benchmark-policy blocker
+recorded in batch 14 remains; no CI/release/versioning or validator configuration
+changed. Full repository acceptance remains pending against the immutable
+consolidated baseline. Raw native receipts, red/green logs, exact failure-ID
+differences and review requests/results remain in ignored
+`target/autopilot-batch-15-*` and `target/autopilot-qualified-operator-*`.

@@ -773,6 +773,7 @@ pub(crate) fn infer_expr_type(
             | BinaryOp::Like => Some(DataType::Boolean),
             BinaryOp::Power => Some(DataType::Float),
             BinaryOp::Concat => Some(DataType::Text),
+            BinaryOp::ByteaConcat => Some(DataType::Bytea),
             BinaryOp::Bitwise { operation } if operation.is_shift() => {
                 infer_expr_type(left, source_schema, user_functions, parameter_types)
             }

@@ -178,3 +178,6 @@ mod catalog_read_models;
 
 #[path = "support/catalog_directory.rs"]
 mod support_catalog_directory;
+
+#[path = "catalog_security/catalogs/sizes/scalar_execution.rs"]
+mod catalog_scalar_execution;

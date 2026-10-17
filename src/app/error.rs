@@ -160,6 +160,9 @@ pub enum CassieError {
     #[error("invalid embedding: {0}")]
     InvalidEmbedding(String),
 
+    #[error(transparent)]
+    SizeInput(#[from] crate::types::SizeInputError),
+
     #[error("invalid parameter value: {0}")]
     InvalidParameterValue(String),
 
@@ -257,6 +260,7 @@ impl CassieError {
             Self::InvalidVector(_) | Self::InvalidEmbedding(_) => {
                 bad_request_descriptor("22000", self.to_string())
             }
+            Self::SizeInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::InvalidParameterValue(message) => {
                 bad_request_descriptor("22023", message.clone())
             }
@@ -601,6 +605,9 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     }
     if message.starts_with("function ") && message.ends_with(") does not exist") {
         return bad_request_descriptor("42883", message.to_string());
+    }
+    if message.starts_with("function ") && message.ends_with("(unknown) is not unique") {
+        return bad_request_descriptor("42725", message.to_owned());
     }
     if message.starts_with("operator is not unique: ") {
         return bad_request_descriptor("42725", message.to_string());

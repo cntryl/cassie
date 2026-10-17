@@ -649,3 +649,14 @@ Native hasindexes history after DROP INDEX is also pending under #817: PostgreSQ
 retains the flag until maintenance, while the current read model reports current
 index presence. Selected flag probes cover pre/post-create states. Do not treat
 this staged read model as historical flag or complete relation-catalog parity.
+
+### Catalog scalar helper increment (2026-10-17)
+
+The Experimental #817 size helpers select `pg_size_bytes(text)` and
+`pg_size_pretty(bigint)` using the existing primitive carriers, exact decimal
+rounding and native error precedence. NUMERIC formatting and physical storage
+size functions remain open. Encoding-name lookup selects native aliases and
+NAME truncation for literals/stored TEXT/explicit TEXT parameters, without
+implementing NAME's catalog/wire ABI or encoding conversion. Bare unknown NAME
+parameters reject deterministically pending #793; #821 retains wider locale
+qualification. See [catalog support](catalog-support.md) for exact boundaries.

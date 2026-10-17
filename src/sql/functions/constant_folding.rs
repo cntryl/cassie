@@ -4,7 +4,9 @@ use super::FunctionId;
 pub(crate) fn is_immutable_scalar(id: FunctionId) -> bool {
     matches!(
         id,
-        FunctionId::Coalesce
+        FunctionId::PgSizeBytes
+            | FunctionId::PgSizePretty
+            | FunctionId::Coalesce
             | FunctionId::Length
             | FunctionId::Lower
             | FunctionId::Upper

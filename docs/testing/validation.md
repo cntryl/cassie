@@ -1834,3 +1834,85 @@ legacy CREATE SEQUENCE integer-default difference also remains #841 work; this
 read-model checkpoint reports the stored type rather than inventing bigint
 metadata. Native receipts, advisory questions/actions and logs are under ignored
 `target/catalog209-*`.
+
+### Catalog size and encoding scalar checkpoint (2026-10-17)
+
+The user's fresh `c06e9a5b` run reproduced 211 passing / 179 failing
+catalog/security functions. This coherent #817 increment selects primitive
+size parsing, bigint formatting and encoding-name lookup. #793's merged common
+records permit the existing primitive paths; NAME ABI, NUMERIC runtime,
+physical storage sizes and wider session/encoding work remain staged obligations.
+No persistent type, metadata, storage layout, dependency or CI configuration
+changes. Compiled plans rebuild at epoch 15.
+
+Adds 204 Rust functions: 198 wire and six catalog/security controls. The first
+147 oracle-backed wire witnesses all failed on the unchanged runtime. The first
+implementation returned 162/35 across the expanded 197-function wire matrix.
+That exposed NAME coercion, planning-error timing and numeric/unit precedence;
+the selected helpers now match those native observations. Error syntax/range
+categories use the additive SizeInputError/CassieError::SizeInput API and are
+recognized by constant planning without string-based size-error classification.
+A fixture's private descriptor access was replaced with its public typed error;
+the cancellation witness normalizes the executor's existing general error through
+the public CassieError conversion, retaining the canonical cancellation check.
+No original test source or expectation changes.
+
+Independent PostgreSQL 18.6 observations cover all 81 encoding aliases,
+normalization/truncation, decimal/exponent/unit syntax, exact near-half rounding,
+bigint limits, selected error SQLSTATE/message and Parse/Bind phases, and
+parameter/result formats. Its executable SHA256 remains
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+The function's actual input is NAME, not TEXT: native untyped parameter metadata
+is OID 19 (`000100000013`). Current literal/stored TEXT/explicit TEXT parameter
+paths apply NAME's 63-byte UTF-8 truncation before lookup. Bare unknown NAME
+parameter inference rejects with 0A000 pending its real ABI, rather than
+advertising a substitute TEXT identity. Lookup is stable, not immutable; broader
+locale/encoding behavior remains #821. Size tests do not approximate the pending
+NUMERIC formatting overload through floating point.
+
+Jev triage selected the scalar bundle at 1.0 with gap 0.82. Source review returned
+gap 0.90 and selected numeric/unit precedence at 0.91. Fourteen focused native
+and Rust witnesses establish that NUMERIC input bounds precede unit validation,
+valid huge NUMERIC plus an invalid unit reports 22023, final int8 overflow reports
+22003, zero may carry exponent 1073741823 but not 1073741824, and decimal inputs
+around halfway boundaries retain exact rounding. Those findings drove the
+specific bounds/precedence corrections. A subsequent NAME-boundary disposition
+selects staged rejection at 0.97; final selected-precision and staged-claim
+probabilities are 0.99 and 0.96. These are advisory judgments, not verification.
+
+The final ordered gate ran with CARGO_INCREMENTAL=0:
+
+- `cargo build --locked --bin cassie`: passed (20.44 seconds).
+- `cargo test --locked`: library 1,024/0, analytics 179/0, backend 2/0 and
+  benchmark operations 16/0. Stops at catalog/security **220/176** after 524.92
+  seconds. Exactly three original failures are fixed: encoding-name mapping,
+  size-string parsing and integer size formatting. None of the original passing
+  tests becomes failing. All six new catalog/security functions pass. Later
+  targets compile but do not execute in this command.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  passed (36.63 seconds) without narrowing or suppression. Preflight midpoint,
+  clamp and function-size findings were fixed with the idioms and focused
+  signature helpers; no lint level changes.
+- `cargo fmt --all -- --check`: passed.
+- `cntryl-tools validate-tests -f <path>`: all 13 touched test/root files pass.
+  Global validation: 8,597/8,597 compliant source tests.
+- `cargo test --locked --no-run --message-format=json` identifies fresh final
+  binaries. The wire binary's `catalog_scalar_` filter passes all 198 functions
+  (21.61 seconds). Complete parser remains 299/74 and core wire 74/10; both
+  preserve their exact failure identities from `c06e9a5b`.
+- Inventory refresh/check adds 204 IDs, removes none and changes no existing
+  record. There are 7,710 integration registrations plus 1,024 library functions;
+  these are instance counts, not passing totals. Whitespace and all touched Rust
+  file limits pass. Untouched exceptions remain src/config.rs (1,034) and
+  src/midge/adapter/verification.rs (1,002). No benchmark timing is claimed.
+
+Stored-row projection/filtering, good/error/NULL/good cached-plan inputs,
+last-result-owner release and already-cancelled execution accompany the wire
+matrix. The cancellation witness does not qualify interruption inside a long
+parser loop; full resource/restart acceptance remains #849. Native NAME parameter
+ABI, NUMERIC formatting, physical size APIs, wider locale/encoding, historical
+hasindexes behavior and the remaining catalog/identity/ownership/administration
+obligations remain open under #793/#817/#821/#849 and their linked owners.
+Full repository and hosted green are not established. Native observations,
+source receipts, advisory requests/responses and logs are under ignored
+`target/catalog-next-*`.

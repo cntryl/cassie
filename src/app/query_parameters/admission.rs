@@ -120,6 +120,9 @@ fn project_error(error: ParameterAdmissionError) -> CassieError {
             error
         }
         // The existing public error shape has no ownership/detail/SQLSTATE carrier.
+        ParameterAdmissionError::Semantic(diagnostic) if diagnostic.code() == "0A000" => {
+            CassieError::Unsupported(diagnostic.message())
+        }
         ParameterAdmissionError::Semantic(diagnostic) if diagnostic.uses_execution_error() => {
             CassieError::Execution(diagnostic.message())
         }

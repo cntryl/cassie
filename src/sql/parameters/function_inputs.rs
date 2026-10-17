@@ -102,6 +102,14 @@ fn infer_inputs(
     else {
         return Ok(());
     };
+    // Both native pg_size_pretty overloads are candidates for an unknown
+    // parameter. Only an explicit cast/declaration selects the bigint path.
+    if matches!(
+        metadata.id,
+        functions::FunctionId::PgSizePretty | functions::FunctionId::PgCharToEncoding
+    ) {
+        return Ok(());
+    }
     let data_type = match functions::input_signature(metadata.id) {
         Some(FunctionInputSignature::Positional(oids)) => {
             let mut integer_substring = false;
@@ -125,10 +133,10 @@ fn infer_inputs(
                 oids
             };
             for (argument, oid) in function.args.iter().zip(oids) {
-                let data_type = if *oid == 23 {
-                    DataType::Int
-                } else {
-                    DataType::Text
+                let data_type = match *oid {
+                    20 => DataType::BigInt,
+                    23 => DataType::Int,
+                    _ => DataType::Text,
                 };
                 infer_parameter_type_from_expected_expr(argument, &data_type, inference);
             }
@@ -257,6 +265,7 @@ fn function_result_type(
         Some(FunctionInputSignature::Positional(_)) => {
             Ok(ArgumentType::Known(match metadata.return_type {
                 FunctionReturnType::Int => DataType::Int,
+                FunctionReturnType::BigInt => DataType::BigInt,
                 FunctionReturnType::Boolean => DataType::Boolean,
                 _ => DataType::Text,
             }))

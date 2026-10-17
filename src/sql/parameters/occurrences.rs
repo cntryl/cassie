@@ -137,6 +137,17 @@ impl<'a> Occurrences<'a> {
         Ok(())
     }
 
+    pub(super) fn pending_name_input(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::PendingNameInput)
+    }
+
+    pub(super) fn ambiguous_function(
+        &mut self,
+        function: &'static str,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::AmbiguousFunction { function })
+    }
+
     pub(super) fn undefined_function(
         &mut self,
         function: &'static str,

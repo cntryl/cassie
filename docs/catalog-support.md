@@ -115,3 +115,36 @@ index presence and clears it immediately; this historical-flag compatibility
 cell remains open under #817 and requires its persistent-state/lifecycle design.
 The selected native index flag probes cover pre/post-create states, not this
 unimplemented post-drop law.
+
+## Experimental scalar catalog helpers (2026-10-17)
+
+`pg_size_bytes(text)` parses signed decimal/exponent inputs and the native
+bytes/B/kB/MB/GB/TB/PB units, using exact decimal multiplication and halfway
+rounding away from zero. Numeric input bounds precede unit validation; the
+final result must fit bigint. NULL remains NULL. `pg_size_pretty(bigint)` uses
+PostgreSQL's unit thresholds and symmetric rounding, including both bigint
+limits. The NUMERIC overload remains pending under #793/#817; this checkpoint
+does not approximate it through floating point or implement physical size APIs.
+
+`pg_char_to_encoding` resolves the pinned PostgreSQL 18.6 alias table for
+literal, stored TEXT and explicitly typed TEXT parameters. It applies native
+NAME's 63-byte UTF-8 truncation before lookup. Lookup does not enable another
+client/database encoding. Native NAME parameter identity (OID 19) remains
+pending under #793: an untyped direct parameter rejects with 0A000, rather than
+advertising TEXT as its native inferred identity. An explicit `$1::TEXT` uses
+OID 25 and the selected name coercion. Non-ASCII lookup observations are pinned
+to the recorded Darwin oracle; broader locale/encoding qualification remains
+under #821. This helper retains stable rather than immutable classification.
+
+The additive `SizeInputError`/`CassieError::SizeInput` API carries typed invalid
+size, numeric syntax, numeric range and bigint range failures. Size constants
+report failures during Bind planning, preserving statements across Sync for
+reuse. Parse rejects ambiguous untyped `pg_size_pretty` and invalid selected
+signatures. Compiled plans rebuild at epoch 15. No persistent format, layout or
+stored type changes. Full resource/cancellation qualification remains #849;
+the selected cancellation witness checks already-cancelled execution and does
+not establish interruption inside a long parser loop.
+
+Current executed checks and remaining failures are recorded in
+[validation](testing/validation.md). These helpers remain Experimental and do
+not close a compatibility owner.

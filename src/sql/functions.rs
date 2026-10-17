@@ -1,5 +1,6 @@
 mod constant_folding;
 pub(crate) use constant_folding::is_immutable_scalar;
+mod catalog;
 mod inputs;
 mod text;
 pub(crate) use inputs::{
@@ -28,6 +29,9 @@ pub enum FunctionId {
     CurrentSetting,
     SetConfig,
     PgEncodingToChar,
+    PgCharToEncoding,
+    PgSizeBytes,
+    PgSizePretty,
     HasDatabasePrivilege,
     PgBackendPid,
     CurrentSchema,
@@ -148,6 +152,7 @@ pub fn registry() -> Vec<ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
         .chain(text::FUNCTIONS)
+        .chain(catalog::FUNCTIONS)
         .cloned()
         .collect()
 }
@@ -157,6 +162,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
         .chain(text::FUNCTIONS)
+        .chain(catalog::FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
         .or_else(|| {
             name.get(..11)
@@ -166,6 +172,9 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                     ["pg_show_all_settings", "substring", "trim"]
                         .iter()
                         .any(|candidate| candidate.eq_ignore_ascii_case(local))
+                        || catalog::FUNCTIONS
+                            .iter()
+                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || text::FUNCTIONS
                             .iter()
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
@@ -174,6 +183,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                     SCALAR_FUNCTIONS
                         .iter()
                         .chain(text::FUNCTIONS)
+                        .chain(catalog::FUNCTIONS)
                         .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
                 })
         })

@@ -681,7 +681,8 @@ fn is_folding_error(error: &QueryError) -> bool {
     matches!(
         error,
         QueryError::Cassie(
-            crate::app::CassieError::FloatInput(_)
+            crate::app::CassieError::SizeInput(_)
+                | crate::app::CassieError::FloatInput(_)
                 | crate::app::CassieError::BooleanInput(_)
                 | crate::app::CassieError::IntegerBytea(_)
                 | crate::app::CassieError::ByteaInput(_)

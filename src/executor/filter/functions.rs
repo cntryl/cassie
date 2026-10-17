@@ -8,6 +8,8 @@ use crate::executor::batch::RowAccess;
 use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, UtcOffset};
 
+#[path = "catalog_sizes.rs"]
+mod catalog_sizes;
 #[path = "encoding.rs"]
 mod encoding;
 #[path = "text_scalar.rs"]
@@ -59,7 +61,8 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
         .or_else(|| super::conditional::evaluate(name, args))
         .or_else(|| {
             let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
-            text_selection::evaluate(local, args)
+            catalog_sizes::evaluate(local, args)
+                .or_else(|| text_selection::evaluate(local, args))
                 .or_else(|| text_scalar::evaluate(local, args))
                 .or_else(|| evaluate_text_function(local, args))
         })
@@ -99,6 +102,18 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
                 _ => Value::String(String::new()),
             }),
         ),
+        "pg_char_to_encoding" | "pg_catalog.pg_char_to_encoding" => {
+            Some(require_arg_count(name, args, 1).and_then(|()| {
+                match &args[0] {
+                    Value::Null => Ok(Value::Null),
+                    Value::String(input) => Ok(Value::Int64(encoding::char_to_encoding(input))),
+                    _ => Err(crate::app::CassieError::Execution(
+                        "function pg_char_to_encoding(bigint) does not exist".into(),
+                    )
+                    .into()),
+                }
+            }))
+        }
         "has_database_privilege" | "pg_catalog.has_database_privilege" => {
             Some(require_arg_count_range(name, args, 2..=3).map(|()| Value::Bool(true)))
         }

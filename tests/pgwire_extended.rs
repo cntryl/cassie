@@ -343,3 +343,33 @@ mod catalog_empty_registries_b;
 
 #[path = "support/catalog_read_model_wire.rs"]
 mod support_catalog_read_model_wire;
+
+#[path = "pgwire_extended/catalogs/scalar_0.rs"]
+mod catalog_scalar_0;
+
+#[path = "pgwire_extended/catalogs/scalar_1.rs"]
+mod catalog_scalar_1;
+
+#[path = "pgwire_extended/catalogs/scalar_2.rs"]
+mod catalog_scalar_2;
+
+#[path = "pgwire_extended/catalogs/scalar_3.rs"]
+mod catalog_scalar_3;
+
+#[path = "pgwire_extended/catalogs/scalar_4.rs"]
+mod catalog_scalar_4;
+
+#[path = "pgwire_extended/catalogs/scalar_errors.rs"]
+mod catalog_scalar_errors;
+
+#[path = "pgwire_extended/catalogs/scalar_parameters.rs"]
+mod catalog_scalar_parameters;
+
+#[path = "pgwire_extended/catalogs/scalar_signatures.rs"]
+mod catalog_scalar_signatures;
+
+#[path = "pgwire_extended/catalogs/scalar_precedence.rs"]
+mod catalog_scalar_precedence;
+
+#[path = "pgwire_extended/catalogs/scalar_pending.rs"]
+mod catalog_scalar_pending;

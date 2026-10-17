@@ -427,7 +427,15 @@ pub(super) fn function_needs_user_functions(function: &FunctionCall) -> bool {
             | "abs"
             | "time_bucket"
             | "cast"
-    ) || crate::sql::functions::is_aggregate_function(&function.name);
+    ) || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        metadata.is_aggregate
+            || matches!(
+                metadata.id,
+                crate::sql::functions::FunctionId::PgSizeBytes
+                    | crate::sql::functions::FunctionId::PgSizePretty
+                    | crate::sql::functions::FunctionId::PgCharToEncoding
+            )
+    });
 
     !is_builtin || function.expressions().any(expr_needs_user_functions)
 }

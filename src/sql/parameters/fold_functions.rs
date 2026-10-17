@@ -22,6 +22,9 @@ impl Fold<'_, '_> {
                 Some(FunctionInputSignature::Boolean)
             )
         });
+        if let Some(summary) = self.catalog_arity(function)? {
+            return Ok(summary);
+        }
         if function.args.is_empty()
             && !common_parent
             && boolean_metadata.is_none()
@@ -68,6 +71,18 @@ impl Fold<'_, '_> {
         if let Some(metadata) = metadata.filter(|metadata| metadata.is_aggregate) {
             self.validate_aggregate_inputs(function, metadata, frame)?;
         }
+        if let Some(summary) = self.catalog_input(function, metadata, frame)? {
+            return Ok(summary);
+        }
+        self.apply_input_signature(function, metadata, frame)
+    }
+
+    fn apply_input_signature(
+        &mut self,
+        function: &ast::FunctionCall,
+        metadata: Option<&functions::ScalarFunction>,
+        frame: &Frame<'_>,
+    ) -> Result<Summary, ParameterAdmissionError> {
         let signature = self.qualified_input_signature(function, metadata, frame);
         match signature {
             Some(FunctionInputSignature::Positional(oids)) => self.positional_function(
@@ -113,6 +128,61 @@ impl Fold<'_, '_> {
         }
     }
 
+    fn catalog_arity(
+        &mut self,
+        function: &ast::FunctionCall,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if let Some(metadata) = functions::function(&function.name).filter(|metadata| {
+            matches!(
+                metadata.id,
+                functions::FunctionId::PgSizeBytes
+                    | functions::FunctionId::PgSizePretty
+                    | functions::FunctionId::PgCharToEncoding
+            )
+        }) {
+            if !metadata.arity.matches(function.args.len()) {
+                self.occurrences
+                    .undefined_function(metadata.name, function.args.len(), None)?;
+                return Ok(Some(Summary::unqualified()));
+            }
+        }
+        Ok(None)
+    }
+
+    fn catalog_input(
+        &mut self,
+        function: &ast::FunctionCall,
+        metadata: Option<&functions::ScalarFunction>,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if metadata.is_some_and(|value| value.id == functions::FunctionId::PgCharToEncoding)
+            && matches!(function.args.first(), Some(ast::Expr::Param(_)))
+            && matches!(self.summaries.values[frame.start].oid, 0 | 705)
+        {
+            // Native inference chooses NAME (OID19), whose carrier is pending.
+            // Do not advertise TEXT as a substitute parameter identity.
+            self.occurrences.pending_name_input()?;
+            return Ok(Some(Summary::unqualified()));
+        }
+        if let Some(metadata) =
+            metadata.filter(|value| value.id == functions::FunctionId::PgSizePretty)
+        {
+            let argument = self.summaries.values[frame.start];
+            if argument.oid == 705 || argument.oid == 0 {
+                self.occurrences.ambiguous_function(metadata.name)?;
+                return Ok(Some(Summary::unqualified()));
+            }
+            // The NUMERIC overload awaits its actual runtime carrier. Do not
+            // coerce that accepted native signature into an integer overload.
+            if argument.oid == 1700 {
+                self.occurrences
+                    .unqualify_since(frame.occurrence_start, self.controls)?;
+                return Ok(Some(Summary::unqualified()));
+            }
+        }
+        Ok(None)
+    }
+
     fn qualified_input_signature(
         &self,
         function: &ast::FunctionCall,
@@ -150,6 +220,7 @@ impl Fold<'_, '_> {
             check_controls(self.controls)?;
             let accepted = match *oid {
                 25 => matches!(summary.oid, 0 | 25 | 1042 | 1043 | 705),
+                20 => matches!(summary.oid, 0 | 20 | 21 | 23 | 705),
                 _ => {
                     matches!(summary.oid, 0 | 21 | 23 | 705)
                         || summary.oid == 20 && self.occurrences.embedded_int4_carrier(*summary)
@@ -166,6 +237,7 @@ impl Fold<'_, '_> {
         }
         Ok(Summary::known(match metadata.return_type {
             functions::FunctionReturnType::Int => 23,
+            functions::FunctionReturnType::BigInt => 20,
             functions::FunctionReturnType::Boolean => 16,
             _ => 25,
         }))

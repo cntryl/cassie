@@ -10,24 +10,15 @@ pub enum Step {
     ThroughReady(Cycle),
 }
 
-struct FixtureDirectory(String);
-
-impl Drop for FixtureDirectory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 pub fn run_script(label: &str, steps: Vec<Step>) -> Vec<Frames> {
-    wire::use_local_storage();
-    let path = wire::data_dir(label);
-    let _directory = FixtureDirectory(path.clone());
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     let batches = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+        let cassie = Cassie::new_in_memory_with_config(config)
+            .unwrap_or_else(|error| panic!("create ephemeral fixture {label}: {error}"));
         cassie.startup().expect("startup occurrence fixture");
         let server = wire::spawn_server(cassie).await;
         let socket = tokio::net::TcpStream::connect(server.addr)

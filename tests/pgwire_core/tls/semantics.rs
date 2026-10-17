@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
@@ -76,7 +75,6 @@ fn should_execute_pgwire_query_over_negotiated_tls() {
             .await
             .expect("bind listener");
         let address = listener.local_addr().expect("listener address");
-        drop(listener);
         let config = CassieRuntimeConfig {
             password: "postgres".to_string(),
             pgwire_tls_cert_file: Some(certificate_path.to_string_lossy().to_string()),
@@ -84,13 +82,12 @@ fn should_execute_pgwire_query_over_negotiated_tls() {
             ..CassieRuntimeConfig::default()
         };
         let shutdown = Arc::new(tokio::sync::Notify::new());
-        let server = tokio::spawn(cassie::pgwire::server::run_with_shutdown(
-            address.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener_and_shutdown(
+            listener,
             Arc::new(cassie),
             config,
             shutdown.clone(),
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
 
         let tls = connect_tls(address, identity.cert.der().clone()).await;
         let (mut reader, mut writer) = tokio::io::split(tls);
@@ -139,19 +136,17 @@ fn should_preserve_pgwire_cancel_protocol_over_tls() {
             .await
             .expect("bind listener");
         let address = listener.local_addr().expect("listener address");
-        drop(listener);
         let config = CassieRuntimeConfig {
             password: "postgres".to_string(),
             pgwire_tls_cert_file: Some(certificate_path.to_string_lossy().to_string()),
             pgwire_tls_key_file: Some(key_path.to_string_lossy().to_string()),
             ..CassieRuntimeConfig::default()
         };
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            address.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             Arc::new(cassie),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let query_tls = connect_tls(address, identity.cert.der().clone()).await;
         let (mut query_reader, mut query_writer) = tokio::io::split(query_tls);
         let (process_id, secret_key) =

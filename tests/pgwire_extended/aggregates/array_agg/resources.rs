@@ -5,7 +5,8 @@ use crate::support_collection_aggregate_resources as support;
 #[test]
 fn should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive() {
     // Arrange
-    let setup_sql = support::integer_table_fixture_setup("issue_811_array_agg_rows", 50_000);
+    // 64 values of 512 bytes exceed the 4 KiB budget without a scale fixture.
+    let setup_sql = support::integer_table_fixture_setup("issue_811_array_agg_rows", 64);
     let control_sql = "SELECT cardinality(array_agg(repeat('x', 2))) \
                        FROM issue_811_array_agg_rows WHERE n <= 3";
     let candidate_sql = "SELECT cardinality(array_agg(repeat('x', 512))) \
@@ -23,7 +24,7 @@ fn should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive(
 
     // Assert
     support::assert_control_and_recovery(&case.control, "3", &case.recovery, "46");
-    support::assert_control_result(&case.wide_control, "50000");
+    support::assert_control_result(&case.wide_control, "64");
     support::assert_rejected_without_partial_rows(&case.candidate, "54000");
 }
 

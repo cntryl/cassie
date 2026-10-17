@@ -238,6 +238,43 @@ Deadline and cancellation checks occur at batch boundaries and within scoring, j
 
 REST and pgwire apply write-idle deadlines beneath their protocol implementations. `CASSIE_REST_WRITE_TIMEOUT_MS` and `CASSIE_PGWIRE_WRITE_TIMEOUT_MS` both default to 10,000 milliseconds; a peer that stops accepting output cannot retain a writer indefinitely.
 
+## Correctness Test Workloads
+
+Correctness tests prove semantics, error boundaries, resource admission, cleanup,
+and recovery using the smallest input that reaches the intended boundary. They do
+not measure throughput or enforce latency thresholds. Scaling, saturation,
+repeated measurement, and endurance belong to the benchmark tiers below.
+
+Lower configured limits before increasing fixture size. Keep a successful control
+below a resource limit and a failing case above it, with the same no-partial-output
+and recovery assertions. For example, 64 retained 512-byte values exceed a 4 KiB
+budget; 50,000 source rows are unnecessary for that boundary. A 1,024-element
+FLOAT8 ordered-set input has 8 KiB of payload before any container overhead.
+These are fixture-size arguments, not claims that the pending aggregate families
+currently implement their resource contracts.
+
+Use execution-boundary synchronization for cancellation and concurrency. A large
+dataset plus a timed sleep is not evidence that cancellation happened in the
+intended operator. Existing cases using that pattern need a synchronized
+replacement before their input is reduced; preserve their correctness assertions.
+Timeouts bound hangs and protocol failures, not performance. A test that covers a
+fixed production input limit may need an input at that boundary; document why.
+
+Network fixtures retain their bound listener through server startup. Ordinary
+wire cycles may coalesce frontend frames into one write; tests of fragmentation
+must write their fragments explicitly. Authentication, TLS, actual listener
+policy, admission, and protocol recovery remain production behavior under test.
+Use `Cassie::new_in_memory_with_config` for ephemeral SQL/protocol fixtures. It
+selects Midge's existing in-memory mode explicitly, independently of process-wide
+storage environment variables; it uses the same SQL, catalog, and wire paths.
+Persistence and restart cases continue to use local storage. Do not disable
+security, skip tests, or relax assertions to reduce runtime.
+
+Record test execution time separately from Cargo compilation time when reviewing
+slow suites. Use those observations to reduce setup and fixture work; benchmark
+owners supply performance evidence. The suite is not qualified as fast until
+representative execution timings support that claim.
+
 ## Benchmark Tier Contract
 
 Cassie follows the `cntryl-stress` Tier 1-6 taxonomy. Tiers 1-4 are the normal developer suite and the sum of their owner wall times must remain at or below 900 seconds. Tier 5 is the manual scaling and saturation suite. Tier 6 is the endurance suite.

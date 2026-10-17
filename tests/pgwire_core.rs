@@ -57,6 +57,8 @@ mod pgwire_metrics;
 mod pgwire_simple_query;
 
 // Formerly tests/pgwire_startup.rs.
+#[path = "pgwire_core/startup/bound_listener.rs"]
+mod bound_listener;
 #[path = "pgwire_core/startup/semantics.rs"]
 mod pgwire_startup;
 // Formerly tests/pgwire_tls.rs.

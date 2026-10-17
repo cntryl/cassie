@@ -63,13 +63,9 @@ async fn start_server(instance: Arc<Cassie>, config: CassieRuntimeConfig) -> Tes
         .await
         .expect("bind pgwire listener");
     let address = listener.local_addr().expect("pgwire listener address");
-    drop(listener);
-    let handle = tokio::spawn(cassie::pgwire::server::run(
-        address.to_string(),
-        instance,
-        config,
+    let handle = tokio::spawn(cassie::pgwire::server::run_with_listener(
+        listener, instance, config,
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
     TestServer { address, handle }
 }
 

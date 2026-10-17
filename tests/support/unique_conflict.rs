@@ -62,11 +62,10 @@ pub async fn start(path: &str) -> Fixture {
         .await
         .expect("bind pgwire listener");
     let addr = listener.local_addr().expect("listener address");
-    drop(listener);
     let server = tokio::spawn(async move {
-        let _ = cassie::pgwire::server::run(addr.to_string(), server_app, server_config).await;
+        let _ =
+            cassie::pgwire::server::run_with_listener(listener, server_app, server_config).await;
     });
-    tokio::time::sleep(Duration::from_millis(50)).await;
 
     let mut connection_config = tokio_postgres::Config::new();
     connection_config

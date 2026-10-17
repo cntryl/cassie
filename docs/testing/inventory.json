@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1757,
-    "rust_files": 1726,
-    "rust_test_declarations": 8806,
+    "files": 1759,
+    "rust_files": 1728,
+    "rust_test_declarations": 8810,
     "python_test_declarations": 16,
-    "registered_rust_instances": 8934,
+    "registered_rust_instances": 8938,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -65279,6 +65279,99 @@
       }
     },
     {
+      "id": "tests/pgwire_core/startup/bound_listener.rs::should_serve_authenticated_queries_given_an_owned_listener_when_clients_connect_immediately",
+      "name": "should_serve_authenticated_queries_given_an_owned_listener_when_clients_connect_immediately",
+      "current_file": "tests/pgwire_core/startup/bound_listener.rs",
+      "line": 19,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_core",
+          "name": "bound_listener::should_serve_authenticated_queries_given_an_owned_listener_when_clients_connect_immediately"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_core",
+        "category": "coordination",
+        "directory": "tests/pgwire_core/coordination",
+        "file": "tests/pgwire_core/coordination/bound_listener.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_core/startup/bound_listener.rs::should_reject_insecure_transport_given_a_wildcard_listener_when_serving_is_requested",
+      "name": "should_reject_insecure_transport_given_a_wildcard_listener_when_serving_is_requested",
+      "current_file": "tests/pgwire_core/startup/bound_listener.rs",
+      "line": 68,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_core",
+          "name": "bound_listener::should_reject_insecure_transport_given_a_wildcard_listener_when_serving_is_requested"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_core",
+        "category": "coordination",
+        "directory": "tests/pgwire_core/coordination",
+        "file": "tests/pgwire_core/coordination/bound_listener.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_core/startup/bound_listener.rs::should_reject_invalid_tls_identity_given_an_owned_listener_when_serving_is_requested",
+      "name": "should_reject_invalid_tls_identity_given_an_owned_listener_when_serving_is_requested",
+      "current_file": "tests/pgwire_core/startup/bound_listener.rs",
+      "line": 95,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_core",
+          "name": "bound_listener::should_reject_invalid_tls_identity_given_an_owned_listener_when_serving_is_requested"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_core",
+        "category": "coordination",
+        "directory": "tests/pgwire_core/coordination",
+        "file": "tests/pgwire_core/coordination/bound_listener.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/pgwire_core/startup/semantics.rs::should_validate_every_startup_parameter_regardless_of_user_value",
       "name": "should_validate_every_startup_parameter_regardless_of_user_value",
       "current_file": "tests/pgwire_core/startup/semantics.rs",
@@ -65499,8 +65592,8 @@
       "id": "tests/pgwire_core/tls/semantics.rs::should_execute_pgwire_query_over_negotiated_tls",
       "name": "should_execute_pgwire_query_over_negotiated_tls",
       "current_file": "tests/pgwire_core/tls/semantics.rs",
-      "line": 59,
-      "end_line": 119,
+      "line": 58,
+      "end_line": 116,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65530,8 +65623,8 @@
       "id": "tests/pgwire_core/tls/semantics.rs::should_preserve_pgwire_cancel_protocol_over_tls",
       "name": "should_preserve_pgwire_cancel_protocol_over_tls",
       "current_file": "tests/pgwire_core/tls/semantics.rs",
-      "line": 122,
-      "end_line": 183,
+      "line": 119,
+      "end_line": 178,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65561,8 +65654,8 @@
       "id": "tests/pgwire_core/tls/semantics.rs::should_reject_invalid_pgwire_tls_identity_before_listening",
       "name": "should_reject_invalid_pgwire_tls_identity_before_listening",
       "current_file": "tests/pgwire_core/tls/semantics.rs",
-      "line": 186,
-      "end_line": 212,
+      "line": 181,
+      "end_line": 207,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65655,7 +65748,7 @@
       "name": "should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "current_file": "tests/pgwire_extended/aggregates/array_agg/resources.rs",
       "line": 6,
-      "end_line": 28,
+      "end_line": 29,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65685,8 +65778,8 @@
       "id": "tests/pgwire_extended/aggregates/array_agg/resources.rs::should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "name": "should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/array_agg/resources.rs",
-      "line": 31,
-      "end_line": 51,
+      "line": 32,
+      "end_line": 52,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -66337,7 +66430,7 @@
       "name": "should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "current_file": "tests/pgwire_extended/aggregates/json_agg/resources.rs",
       "line": 6,
-      "end_line": 28,
+      "end_line": 29,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -66367,8 +66460,8 @@
       "id": "tests/pgwire_extended/aggregates/json_agg/resources.rs::should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "name": "should_cancel_json_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/json_agg/resources.rs",
-      "line": 31,
-      "end_line": 51,
+      "line": 32,
+      "end_line": 52,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -66399,7 +66492,7 @@
       "name": "should_reject_json_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
       "current_file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
       "line": 6,
-      "end_line": 28,
+      "end_line": 29,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -66429,8 +66522,8 @@
       "id": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs::should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "name": "should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
-      "line": 31,
-      "end_line": 51,
+      "line": 32,
+      "end_line": 52,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -66461,7 +66554,7 @@
       "name": "should_reject_jsonb_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "current_file": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs",
       "line": 6,
-      "end_line": 28,
+      "end_line": 29,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -66491,8 +66584,8 @@
       "id": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs::should_cancel_jsonb_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "name": "should_cancel_jsonb_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs",
-      "line": 31,
-      "end_line": 51,
+      "line": 32,
+      "end_line": 52,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -66523,7 +66616,7 @@
       "name": "should_reject_jsonb_object_agg_growth_given_a_memory_budget_when_more_entries_arrive",
       "current_file": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs",
       "line": 6,
-      "end_line": 28,
+      "end_line": 29,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -66553,8 +66646,8 @@
       "id": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs::should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "name": "should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs",
-      "line": 31,
-      "end_line": 51,
+      "line": 32,
+      "end_line": 52,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -67142,8 +67235,8 @@
       "id": "tests/pgwire_extended/aggregates/ordered_set/resources.rs::should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_memory_budget_is_exceeded",
       "name": "should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_memory_budget_is_exceeded",
       "current_file": "tests/pgwire_extended/aggregates/ordered_set/resources.rs",
-      "line": 154,
-      "end_line": 250,
+      "line": 152,
+      "end_line": 249,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -67173,8 +67266,8 @@
       "id": "tests/pgwire_extended/aggregates/ordered_set/resources.rs::should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives",
       "name": "should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/ordered_set/resources.rs",
-      "line": 253,
-      "end_line": 352,
+      "line": 252,
+      "end_line": 351,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -67267,7 +67360,7 @@
       "name": "should_reject_string_agg_growth_given_a_memory_budget_when_more_values_arrive",
       "current_file": "tests/pgwire_extended/aggregates/string_agg/resources.rs",
       "line": 6,
-      "end_line": 28,
+      "end_line": 29,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -67297,8 +67390,8 @@
       "id": "tests/pgwire_extended/aggregates/string_agg/resources.rs::should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "name": "should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/string_agg/resources.rs",
-      "line": 31,
-      "end_line": 51,
+      "line": 32,
+      "end_line": 52,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230357,8 +230450,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_parse_common_scalar_function_calls",
       "name": "should_parse_common_scalar_function_calls",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 82,
-      "end_line": 102,
+      "line": 83,
+      "end_line": 103,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230388,8 +230481,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_execute_string_scalar_functions_in_query_path",
       "name": "should_execute_string_scalar_functions_in_query_path",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 105,
-      "end_line": 182,
+      "line": 106,
+      "end_line": 183,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230419,8 +230512,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_execute_null_numeric_scalar_functions",
       "name": "should_execute_null_numeric_scalar_functions",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 185,
-      "end_line": 281,
+      "line": 186,
+      "end_line": 282,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230450,8 +230543,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_short_circuit_coalesce_before_evaluating_later_arguments",
       "name": "should_short_circuit_coalesce_before_evaluating_later_arguments",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 284,
-      "end_line": 351,
+      "line": 285,
+      "end_line": 307,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230481,8 +230574,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_reject_scalar_function_with_invalid_arity",
       "name": "should_reject_scalar_function_with_invalid_arity",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 354,
-      "end_line": 411,
+      "line": 310,
+      "end_line": 328,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230512,8 +230605,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_reject_scalar_function_with_unsupported_type",
       "name": "should_reject_scalar_function_with_unsupported_type",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 414,
-      "end_line": 470,
+      "line": 331,
+      "end_line": 349,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230543,8 +230636,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_execute_scalar_functions_through_pgwire",
       "name": "should_execute_scalar_functions_through_pgwire",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 473,
-      "end_line": 518,
+      "line": 352,
+      "end_line": 397,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230574,8 +230667,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_execute_user_defined_functions_after_builtin_expansion",
       "name": "should_execute_user_defined_functions_after_builtin_expansion",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 521,
-      "end_line": 589,
+      "line": 400,
+      "end_line": 468,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230605,8 +230698,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_bucket_timestamps_into_fixed_windows",
       "name": "should_bucket_timestamps_into_fixed_windows",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 592,
-      "end_line": 655,
+      "line": 471,
+      "end_line": 534,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230636,8 +230729,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_bucket_timestamps_with_custom_origin",
       "name": "should_bucket_timestamps_with_custom_origin",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 658,
-      "end_line": 707,
+      "line": 537,
+      "end_line": 586,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230667,8 +230760,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_validate_time_bucket_nulls_errors",
       "name": "should_validate_time_bucket_nulls_errors",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 710,
-      "end_line": 769,
+      "line": 589,
+      "end_line": 648,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230698,8 +230791,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_apply_time_bucket_grouping_having_ordering",
       "name": "should_apply_time_bucket_grouping_having_ordering",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 772,
-      "end_line": 827,
+      "line": 651,
+      "end_line": 706,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -230729,8 +230822,8 @@
       "id": "tests/sql_queries/functions/scalar_functions/runtime.rs::should_execute_time_bucket_through_pgwire",
       "name": "should_execute_time_bucket_through_pgwire",
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
-      "line": 830,
-      "end_line": 872,
+      "line": 709,
+      "end_line": 751,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -266659,6 +266752,37 @@
       }
     },
     {
+      "id": "tests/storage_indexes/storage/in_memory.rs::should_isolate_rows_given_explicit_memory_instances_when_the_same_table_is_created",
+      "name": "should_isolate_rows_given_explicit_memory_instances_when_the_same_table_is_created",
+      "current_file": "tests/storage_indexes/storage/in_memory.rs",
+      "line": 8,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "in_memory::should_isolate_rows_given_explicit_memory_instances_when_the_same_table_is_created"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "resources",
+        "directory": "tests/storage_indexes/resources",
+        "file": "tests/storage_indexes/resources/in_memory.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/storage_indexes/storage/layout_admission.rs::should_reject_initialized_storage_missing_its_marker_without_changing_any_family",
       "name": "should_reject_initialized_storage_missing_its_marker_without_changing_any_family",
       "current_file": "tests/storage_indexes/storage/layout_admission.rs",
@@ -268216,12 +268340,12 @@
       "id": "tests/support/sql_fixture.rs::teardown_tests::should_drop_sql_fixture_owners_before_removing_directory",
       "name": "should_drop_sql_fixture_owners_before_removing_directory",
       "current_file": "tests/support/sql_fixture.rs",
-      "line": 136,
-      "end_line": 167,
+      "line": 158,
+      "end_line": 198,
       "inline_modules": [
         "teardown_tests"
       ],
-      "inline_module_lines": 128,
+      "inline_module_lines": 137,
       "language": "rust",
       "registration": "registered",
       "instances": [
@@ -268293,12 +268417,12 @@
       "id": "tests/support/sql_fixture.rs::teardown_tests::should_report_directory_cleanup_failure_on_normal_drop",
       "name": "should_report_directory_cleanup_failure_on_normal_drop",
       "current_file": "tests/support/sql_fixture.rs",
-      "line": 170,
-      "end_line": 187,
+      "line": 201,
+      "end_line": 218,
       "inline_modules": [
         "teardown_tests"
       ],
-      "inline_module_lines": 128,
+      "inline_module_lines": 137,
       "language": "rust",
       "registration": "registered",
       "instances": [
@@ -268370,12 +268494,12 @@
       "id": "tests/support/sql_fixture.rs::teardown_tests::should_report_cleanup_error_without_replacing_an_existing_panic",
       "name": "should_report_cleanup_error_without_replacing_an_existing_panic",
       "current_file": "tests/support/sql_fixture.rs",
-      "line": 190,
-      "end_line": 215,
+      "line": 221,
+      "end_line": 246,
       "inline_modules": [
         "teardown_tests"
       ],
-      "inline_module_lines": 128,
+      "inline_module_lines": 137,
       "language": "rust",
       "registration": "registered",
       "instances": [
@@ -268447,12 +268571,12 @@
       "id": "tests/support/sql_fixture.rs::teardown_tests::should_report_cleanup_error_during_unwind_without_a_subscriber",
       "name": "should_report_cleanup_error_during_unwind_without_a_subscriber",
       "current_file": "tests/support/sql_fixture.rs",
-      "line": 218,
-      "end_line": 258,
+      "line": 249,
+      "end_line": 289,
       "inline_modules": [
         "teardown_tests"
       ],
-      "inline_module_lines": 128,
+      "inline_module_lines": 137,
       "language": "rust",
       "registration": "registered",
       "instances": [
@@ -284145,6 +284269,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_core/startup/bound_listener.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 123,
+      "sha256": "a430f0f56b63e36f1ba7a30565cb287dcbfdb8c05a29e865e40ae0ee901a5694",
+      "test_declarations": 3,
+      "registered_suites": [
+        "pgwire_core"
+      ],
+      "destinations": [
+        "tests/pgwire_core/coordination/bound_listener.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_core/startup/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -284163,8 +284302,8 @@
       "current_file": "tests/pgwire_core/tls/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 212,
-      "sha256": "b221b6c5832a7f7a5e7986b299e2318ac4957a092d568a213692349604407da3",
+      "lines": 207,
+      "sha256": "66404dcbae79acbee74d8275789e8764e87c06f5f76fe1bc5820fd5990103d95",
       "test_declarations": 3,
       "registered_suites": [
         "pgwire_core"
@@ -284208,8 +284347,8 @@
       "current_file": "tests/pgwire_core.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 72,
-      "sha256": "6235a6924c0ed2808b980f5ac9ed2d757b8d200e2d9115606ed1657512dc9298",
+      "lines": 74,
+      "sha256": "7e1ba3292d67849dcd87cd51c3fb424e4c734489982c50f97b40b988f43366fa",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_core"
@@ -284238,8 +284377,8 @@
       "current_file": "tests/pgwire_extended/aggregates/array_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 51,
-      "sha256": "17c1078e2f94009a80376c069dd26195b4e53595ac710a177be41337e4bbe9a6",
+      "lines": 52,
+      "sha256": "baf376d17679d4d427217363ca98baef3b61398d0ac6a1f9de2b62ae35d0ea26",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -284388,8 +284527,8 @@
       "current_file": "tests/pgwire_extended/aggregates/json_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 51,
-      "sha256": "7b72a53eb87cec3f20edd1a988ea7c3191ba83d5fd3a95fdf48b3796cbebec53",
+      "lines": 52,
+      "sha256": "d5f3cd497882b7fbf146d2ea1423f388a752e003d923f583e87f239d4e5a6a78",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -284403,8 +284542,8 @@
       "current_file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 51,
-      "sha256": "e828fb7f0530672f0933db0e754eb1c946aa29928bdd248c8e3325e8f3f4da4b",
+      "lines": 52,
+      "sha256": "ee8bbd47dc107ee441464020d80be2f809139b2738be2f1ac5004429896145c7",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -284418,8 +284557,8 @@
       "current_file": "tests/pgwire_extended/aggregates/jsonb_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 51,
-      "sha256": "a890c5e579b495e1ba0aa991a84df095cea3be5bfb9ac08fed897f49b9236d60",
+      "lines": 52,
+      "sha256": "d2ac5f985911d453945d892e05d7537e67319939572b8c01eb776c8cf3813ffc",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -284433,8 +284572,8 @@
       "current_file": "tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 51,
-      "sha256": "7ff6e8c3d7cba0ab91e1c28749b48314b79d68104c4c7c62b4d759c77308bf17",
+      "lines": 52,
+      "sha256": "b511e9e7e2968fded285d97b85b2d287ae8165e9a516005880c37aeb166fff7e",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -284598,8 +284737,8 @@
       "current_file": "tests/pgwire_extended/aggregates/ordered_set/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 352,
-      "sha256": "562cb856060bc24238e6b418492acc739132e37437542234c059bedf4e179a8b",
+      "lines": 351,
+      "sha256": "b97f0b579708ad7e21fca8a4df0357d637071a168e5fb993fd9512512ad71aac",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -284628,8 +284767,8 @@
       "current_file": "tests/pgwire_extended/aggregates/string_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 51,
-      "sha256": "e15b7d9ad7212f7bd734250e7e0c9224cefd07e75f598fb513c99f4fd0c2f513",
+      "lines": 52,
+      "sha256": "5e039c706cb8bb04d0de0e8cdfcf8fdc13c4a7b743c5f934dbcb1c1c1e2f02ce",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -296621,8 +296760,8 @@
       "current_file": "tests/sql_queries/functions/scalar_functions/runtime.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 872,
-      "sha256": "1b862aa347c3aabb7f884ca2b0dbbb1d0cf8aa990cf838188ff49aec7c73c0ba",
+      "lines": 751,
+      "sha256": "bf80ac9d7caf4d7fad9407af85106cf6710d566def75400a433c522ff4a44285",
       "test_declarations": 13,
       "registered_suites": [
         "sql_queries"
@@ -298479,6 +298618,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/storage_indexes/storage/in_memory.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 62,
+      "sha256": "61178ab5574257871cbe2bb49ae22acfb24b09fa0ab2d6d4fc64c6adfd8b132f",
+      "test_declarations": 1,
+      "registered_suites": [
+        "storage_indexes"
+      ],
+      "destinations": [
+        "tests/storage_indexes/resources/in_memory.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/storage_indexes/storage/layout_admission.rs",
       "role": "test_module",
       "action": "keep",
@@ -298647,8 +298801,8 @@
       "current_file": "tests/storage_indexes.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 128,
-      "sha256": "60917712f0fe3e767067cd52d58a0fad4b0d61f6eda8dbb0752a7e50a431314c",
+      "lines": 130,
+      "sha256": "7b9e9e0d479a8379a8a7f641cca095cbc2d223f27d5f458d2a85e8578d19f580",
       "test_declarations": 0,
       "registered_suites": [
         "storage_indexes"
@@ -298888,8 +299042,8 @@
       "current_file": "tests/support/collection_aggregate_resources.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 396,
-      "sha256": "33f0d3aded805555caacd98de30036f75767863c7dd1f181d7f1943b93ec11fc",
+      "lines": 392,
+      "sha256": "ff2ee7a55551cada9387630d5bc5abdbd2d6f3468184b99aac5f3bb1b6f4e269",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -299255,8 +299409,8 @@
       "current_file": "tests/support/parameter_occurrence_wire.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 68,
-      "sha256": "503dac39e284437bdaae10f344f5cd1c48950c6066926bc3a2346caaa9c011cb",
+      "lines": 59,
+      "sha256": "339d78004e2024c9dae892ab8ac6d256c6b334d625242ecee0db8a921871e6ee",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -299285,8 +299439,8 @@
       "current_file": "tests/support/pgwire.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 560,
-      "sha256": "522f12e6adf7ef639ea883ea893c9b9fe9ea85bc68136c792c969b852add2a75",
+      "lines": 559,
+      "sha256": "638ca59c60c4177b5740bc0f30ffdf6184018407159357389a74a27362f7c4d5",
       "test_declarations": 0,
       "registered_suites": [
         "catalog_security",
@@ -299343,8 +299497,8 @@
       "current_file": "tests/support/portal_memory_calibration.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 185,
-      "sha256": "03561ffd0959628f03df9cbc1ef0890183d654dcc46aa9812841ddb72edbd1f2",
+      "lines": 182,
+      "sha256": "ec21d9d2acbfb4bb31cb0587c99113b520d435a9f71ba0a8ca7fc44386826fe4",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -299745,8 +299899,8 @@
       "current_file": "tests/support/sql_fixture.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 259,
-      "sha256": "80e81cbf54ae903d86a86823be16ab3ed69c3786405d5f81f628b2863014566d",
+      "lines": 290,
+      "sha256": "c3035c788828983e6dbafe490b03a8fb1aa8694e2c68bd90bac20cf6c745a053",
       "test_declarations": 4,
       "registered_suites": [
         "catalog_security",
@@ -300007,8 +300161,8 @@
       "current_file": "tests/support/unique_conflict.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 104,
-      "sha256": "f75e806a47e25f5fb7406221da7654f8eb71ea5f35cd538894311693a1701bfb",
+      "lines": 103,
+      "sha256": "65e9207e794ae1e610ab864cd926db200c1a8660a2fe4af8fe33c1de275367b0",
       "test_declarations": 0,
       "registered_suites": [
         "compatibility"
@@ -300083,8 +300237,8 @@
       "current_file": "tests/support/wire_queries.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 68,
-      "sha256": "467d1b3ded61d164c785b192efe600a2a20a6220530f89c6e2ad378095b9ff2d",
+      "lines": 67,
+      "sha256": "b4ab73fff5cb388168b8dcea3f19e419c4b25b08c60e7d6315f6c82c48a26c32",
       "test_declarations": 0,
       "registered_suites": [
         "catalog_security",

@@ -48,14 +48,12 @@ pub async fn spawn_server(cassie: Cassie) -> PgwireServer {
         .await
         .expect("bind listener");
     let addr = listener.local_addr().expect("listener address");
-    drop(listener);
 
-    let handle = tokio::spawn(cassie::pgwire::server::run(
-        addr.to_string(),
+    let handle = tokio::spawn(cassie::pgwire::server::run_with_listener(
+        listener,
         std::sync::Arc::new(cassie),
         config,
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
 
     PgwireServer { addr, handle }
 }
@@ -326,9 +324,10 @@ pub async fn complete_startup_as(
 }
 
 pub async fn write_frames(writer: &mut (impl AsyncWrite + Unpin), frames: Vec<Vec<u8>>) {
-    for frame in frames {
-        writer.write_all(&frame).await.expect("write frame");
-    }
+    // A cycle is one client write. Tests of fragmented transport write their
+    // fragments explicitly; ordinary protocol tests need only frame ordering.
+    let bytes = frames.concat();
+    writer.write_all(&bytes).await.expect("write frames");
     writer.flush().await.expect("flush frames");
 }
 

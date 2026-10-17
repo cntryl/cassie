@@ -9,14 +9,14 @@ pub type Frames = Vec<(u8, Vec<u8>)>;
 pub type Cycle = Vec<Vec<u8>>;
 
 pub fn run_cycles(label: &str, setup: &[(&str, Vec<Value>)], cycles: Vec<Cycle>) -> Vec<Frames> {
-    wire::use_local_storage();
-    let path = wire::data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     let batches = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+        let cassie = Cassie::new_in_memory_with_config(config)
+            .unwrap_or_else(|error| panic!("create ephemeral fixture {label}: {error}"));
         cassie.startup().expect("startup before table creation");
         let session = cassie.create_session("tester", None);
         for (sql, params) in setup {
@@ -46,7 +46,6 @@ pub fn run_cycles(label: &str, setup: &[(&str, Vec<Value>)], cycles: Vec<Cycle>)
         server.stop().await;
         batches
     });
-    let _ = std::fs::remove_dir_all(path);
     batches
 }
 

@@ -50,13 +50,11 @@ async fn start_server(instance: Cassie, config: CassieRuntimeConfig) -> Aggregat
         .await
         .expect("bind ordered-set listener");
     let address = listener.local_addr().expect("listener address");
-    drop(listener);
-    let handle = tokio::spawn(cassie::pgwire::server::run(
-        address.to_string(),
+    let handle = tokio::spawn(cassie::pgwire::server::run_with_listener(
+        listener,
         Arc::new(instance),
         config,
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
     AggregateTestServer { address, handle }
 }
 
@@ -161,7 +159,8 @@ fn should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_m
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 4_096;
-    seed_ordered_set_input(&path, 50_000);
+    // 1,024 FLOAT8 payloads alone exceed 4 KiB; throughput belongs in benches.
+    seed_ordered_set_input(&path, 1_024);
 
     // Act
     let (control, overflow, recovery) = runtime.block_on(async {

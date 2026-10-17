@@ -2973,3 +2973,110 @@ benchmark-policy check still fails because .github/workflows/bench.yml is
 absent; no CI/release/versioning or validator configuration changed. #816 and
 all full-owner obligations remain open. Raw receipts and exact failure-ID
 comparisons are retained in ignored target/autopilot-batch-16-* artifacts.
+
+### Autopilot batch 17: Fast correctness fixtures (2026-10-17)
+
+The user requested that correctness tests stay small and that performance/stress
+work remain in benchmarks. This slice adds explicit ephemeral Cassie construction
+using the existing direct Midge in-memory mode, and a server entrypoint that owns
+an already-bound listener. Both retain production SQL, authentication, TLS,
+listener validation, connection admission, and execution behavior. No storage
+format, CI, release, versioning, or benchmark ownership changes are introduced.
+
+The shared `parameter_occurrence_wire::run_script`, `wire_queries::run_cycles`,
+and generic `sql_fixture`/`sql_fixture_with_config` fixtures now select memory
+explicitly, without changing global storage variables. The generic SQL fixture
+previously forced local mode at nearly 1,900 source call sites; its directory is
+private and never exposed to callers. `local_sql_fixture_with_config` preserves
+local mode explicitly for persisted-portal calibration and teardown tests.
+The ephemeral helpers previously created and deleted a fresh local directory for
+every invocation; their ordinary query callers never reopened that private store. Local restart, recovery,
+storage-layout, and persisted-portal fixtures remain local. The memory regression
+creates independent same-named tables with different rows and verifies that a fresh
+instance cannot read a dropped instance's table, even with local storage selected
+in the environment.
+
+Shared pgwire, collection-resource, portal-memory, unique-conflict, ordered-set,
+and TLS fixtures retain their original bound listener instead of dropping and
+rebinding it, eliminating a port handoff race and fixed 50 ms startup sleeps.
+New listener regressions cover immediate authenticated use and graceful shutdown,
+actual wildcard-address transport rejection, and invalid TLS identity rejection.
+They initially failed compilation because the listener APIs were absent; all three
+subsequently passed. Existing negotiated-TLS and TLS cancellation checks exercise
+the new owned-listener entrypoint too.
+
+Ordinary `write_frames` cycles coalesce frontend frames into one write, preserving
+frame bytes/order and explicit cycle boundaries. Fragmentation tests still send
+fragments themselves. All original Parse/Bind Flush, Sync, descriptor, exact
+text/binary payload, and recovery assertions remain. A trial pipelining refactor
+was removed after measurement failed to improve total suite time; no intermediate
+ReadyForQuery frames are manufactured.
+
+Seven resource-budget inputs are smaller: ordered-set FLOAT8 rows fall from
+50,000 to 1,024 (8 KiB payload before overhead against a 4 KiB budget), and six
+collection aggregates use 64 512-byte values (32 KiB payload). Small positive
+controls, same-input nonretaining controls, SQLSTATE 54000, no partial rows, and
+same-session recovery remain. Pending aggregate features remain known failures.
+Large cancellation fixtures are not blindly shrunk: their timing races require
+execution-boundary synchronization before replacement; [#954](https://github.com/cntryl/cassie/issues/954) tracks those exact fixtures. The standing test workload
+contract is in `AGENTS.md` and `docs/performance-contracts.md`.
+
+Jev's initial listener gap probability 0.45 prompted actual-address/TLS/shutdown
+probes; concrete-patch review returned 0.20. Memory migration review returned a
+0.34 gap, prompting the unchanged 793-case wire lane, independent-instance memory
+regression, and local bootstrap/reopen/cleanup probes. The initial full storage
+run had six pre-existing failures plus a new fixture assertion that expected the
+legacy CollectionNotFound variant; the binder actually returns the typed
+CatalogObjectNotFound(Relation), and that expectation was corrected. The
+independent-instance and 14 local probes then passed. Shared SQL fixture review
+returned a 0.35 gap; the full SQL suite and persisted-portal probe address it.
+Model judgments are not correctness
+proof. Raw requests/responses and measured process sampling are retained under
+ignored `target/fast-tests-*`.
+
+Measured execution, excluding compilation: the exact same 793 passing wire
+identities fell from 115.69 seconds with the local fixtures to 11.29 seconds with
+explicit memory fixtures (10.25x in these runs). All original SQL, descriptors,
+payloads and Flush cycles remain. This is developer-feedback evidence on this
+host, not a statistical performance benchmark or production latency claim.
+
+The full SQL run returned 1171 passed / 676 failed in 149.44 seconds, versus the
+historical after-batch-10 run's 1151 / 687 in 338.51 seconds. These full SQL runs
+have different case counts and prior compatibility fixes; do not call that a
+matched performance experiment. Three failures newly observed relative to that
+older baseline used unchanged, explicitly local constructors and expected legacy
+Lower diagnostics or allowed an invalid lower(integer) in a dead COALESCE branch.
+PostgreSQL 18.6 rejects those signatures with 42883 before execution. Their
+fixtures now assert exact native diagnostic messages and use a valid row-dependent
+TEXT division-by-zero fallback to prove lazy COALESCE, with a NULL-first negative
+control. All three pass in 0.02 seconds after that test-only correction. No runtime
+implementation was changed to make them pass. The full SQL suite was not repeated
+after those three fixture-only edits. Native frames and Jev review (gap 0.14) are
+retained in target/fast-tests-scalar-*.
+
+Final ordered checks:
+
+| Command / lane | Result |
+| --- | --- |
+| `CARGO_INCREMENTAL=0 cargo build --locked` | Passed |
+| `cargo test --locked --test storage_indexes -- in_memory:: support_sql_fixture::teardown_tests midge_layout_bootstrap` | 15 passed; includes real local reopen/cleanup |
+| `cargo test --locked --test pgwire_extended -- bytea_functions scalar_batch_ qualified_operators conditional_` | 793 passed in 11.29 seconds; exact passing identities match the local-fixture run |
+| `cargo test --locked --test pgwire_core` | 77 passed / 10 pre-existing failures; TLS and all three owned-listener regressions pass |
+| Seven narrowed aggregate memory-budget cases | Seven known feature failures in 1.81 seconds; original ordered-set incomplete case now completes with its pending grammar failure; no new failing identity |
+| Persisted named-portal memory lifecycle case | Passed on explicit local storage |
+| Four unique-conflict / row-lock cancellation cases | Four pre-existing failures; no new failing identity |
+| Three corrected scalar contracts plus four local fixture teardown checks | Seven passed in 0.38 seconds after the final fixture-only field-order cleanup |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed; the initial constructor-field-order finding was fixed without changing owner drop order |
+| `cargo fmt --all -- --check` | Passed |
+| Touched and global `cntryl-tools validate-tests` | Passed |
+| Test inventory, documentation, module-size and whitespace validation | Passed |
+| `cntryl-tools validate-benchmarks --config .cntryl/repository.toml` | Still blocked by the pre-existing absent `.github/workflows/bench.yml`; no CI configuration changed |
+
+All Cargo lanes use `CARGO_INCREMENTAL=0`. Exact commands, exit codes and wall
+times are recorded in `target/fast-tests-final-validation.json`; the original
+full-SQL failure set remains retained, with the three resolved identities linked
+to the separate passing native-corrected probe. Static inventory is 8,810 Rust
+declarations / 8,938 registered instances / 32 targets, with no unregistered,
+unresolved, duplicate or oversized files. These counts are not executed outcomes.
+The complete repository remains red and the full default suite was not repeated
+for this fixture slice. No owner issue is closed.

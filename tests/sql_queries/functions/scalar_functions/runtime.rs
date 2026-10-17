@@ -3,7 +3,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use cassie::app::Cassie;
+use crate::support_sql_fixture::sql_fixture;
+use cassie::app::{Cassie, CassieError};
 use cassie::config::CassieRuntimeConfig;
 use cassie::sql::ast::{Expr, QueryStatement, SelectItem};
 use cassie::sql::parser::parse_statement;
@@ -283,190 +284,68 @@ fn should_execute_null_numeric_scalar_functions() {
 #[test]
 fn should_short_circuit_coalesce_before_evaluating_later_arguments() {
     // Arrange
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
+    let fixture = sql_fixture(
+        "coalesce-short-circuit",
+        &[
+            "CREATE TABLE scalar_coalesce_short_circuit (title TEXT, score INT4)",
+            "INSERT INTO scalar_coalesce_short_circuit VALUES ('alpha', 7)",
+        ],
+    );
 
-    runtime.block_on(async {
-        use_local_storage();
-        let path = data_dir("coalesce_short_circuit");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie.create_session("tester", None);
-        let table = "scalar_coalesce_short_circuit";
+    // Act
+    let selected = fixture.rows(
+        "SELECT COALESCE(title, CAST(1 / (score - 7) AS TEXT)) FROM scalar_coalesce_short_circuit",
+    );
+    let evaluated = fixture.error("SELECT COALESCE(CAST(NULL AS TEXT), CAST(1 / (score - 7) AS TEXT)) FROM scalar_coalesce_short_circuit");
 
-        let schema = Schema {
-            fields: vec![
-                FieldSchema {
-                    name: "title".to_string(),
-                    data_type: DataType::Text,
-                    nullable: true,
-                },
-                FieldSchema {
-                    name: "score".to_string(),
-                    data_type: DataType::Int,
-                    nullable: true,
-                },
-            ],
-        };
-
-        cassie
-            .midge
-            .create_collection(table, schema.clone())
-            .unwrap();
-        cassie.register_collection(
-            table,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
-        cassie
-            .midge
-            .put_document(
-                table,
-                Some("d1".to_string()),
-                serde_json::json!({"title": "alpha", "score": 7}),
-            )
-            .unwrap();
-
-        // Act
-        let result = cassie
-            .execute_sql(
-                &session,
-                "SELECT coalesce(title, lower(score)) FROM scalar_coalesce_short_circuit",
-                vec![],
-            )
-            .unwrap();
-
-        // Assert
-        assert_eq!(
-            result.rows(),
-            vec![vec![Value::String("alpha".to_string())]]
-        );
-
-        let _ = std::fs::remove_dir_all(path);
-    });
+    // Assert
+    assert_eq!(selected, vec![vec![Value::String("alpha".to_owned())]]);
+    assert!(
+        evaluated.to_string().contains("division by zero"),
+        "{evaluated}"
+    );
 }
 
 #[test]
 fn should_reject_scalar_function_with_invalid_arity() {
     // Arrange
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
+    let fixture = sql_fixture(
+        "scalar-arity-error",
+        &[
+            "CREATE TABLE scalar_arity_error (title TEXT)",
+            "INSERT INTO scalar_arity_error VALUES ('alpha')",
+        ],
+    );
 
-    runtime.block_on(async {
-        use_local_storage();
-        let path = data_dir("arity_error");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie.create_session("tester", None);
-        let table = "scalar_arity_error";
+    // Act
+    let error = fixture.error("SELECT lower(title, title) FROM scalar_arity_error");
 
-        let schema = Schema {
-            fields: vec![FieldSchema {
-                name: "title".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            }],
-        };
-
-        cassie
-            .midge
-            .create_collection(table, schema.clone())
-            .unwrap();
-        cassie.register_collection(
-            table,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
-        cassie
-            .midge
-            .put_document(
-                table,
-                Some("d1".to_string()),
-                serde_json::json!({"title": "alpha"}),
-            )
-            .unwrap();
-
-        // Act
-        let result = cassie.execute_sql(
-            &session,
-            "SELECT lower(title, title) FROM scalar_arity_error",
-            vec![],
-        );
-
-        // Assert
-        let error = result.expect_err("query should fail");
-        assert!(error.to_string().contains("lower"));
-        assert!(error.to_string().contains("expects"));
-
-        let _ = std::fs::remove_dir_all(path);
-    });
+    // Assert
+    assert!(
+        matches!(&error, CassieError::Execution(message) if message == "function lower(text, text) does not exist"),
+        "{error}"
+    );
 }
 
 #[test]
 fn should_reject_scalar_function_with_unsupported_type() {
     // Arrange
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
+    let fixture = sql_fixture(
+        "scalar-type-error",
+        &[
+            "CREATE TABLE scalar_type_error (score INT4)",
+            "INSERT INTO scalar_type_error VALUES (7)",
+        ],
+    );
 
-    runtime.block_on(async {
-        use_local_storage();
-        let path = data_dir("type_error");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie.create_session("tester", None);
-        let table = "scalar_type_error";
+    // Act
+    let error = fixture.error("SELECT lower(score) FROM scalar_type_error");
 
-        let schema = Schema {
-            fields: vec![FieldSchema {
-                name: "score".to_string(),
-                data_type: DataType::Int,
-                nullable: true,
-            }],
-        };
-
-        cassie
-            .midge
-            .create_collection(table, schema.clone())
-            .unwrap();
-        cassie.register_collection(
-            table,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
-        cassie
-            .midge
-            .put_document(
-                table,
-                Some("d1".to_string()),
-                serde_json::json!({"score": 7}),
-            )
-            .unwrap();
-
-        // Act
-        let result = cassie.execute_sql(
-            &session,
-            "SELECT lower(score) FROM scalar_type_error",
-            vec![],
-        );
-
-        // Assert
-        let error = result.expect_err("query should fail");
-        assert!(error.to_string().to_lowercase().contains("text"));
-
-        let _ = std::fs::remove_dir_all(path);
-    });
+    // Assert
+    assert!(
+        matches!(&error, CassieError::Execution(message) if message == "function lower(integer) does not exist"),
+        "{error}"
+    );
 }
 
 #[test]

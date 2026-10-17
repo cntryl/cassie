@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1757 |
-| Rust files | 1726 |
-| Rust test declarations | 8806 |
+| Files under `tests/` | 1759 |
+| Rust files | 1728 |
+| Rust test declarations | 8810 |
 | Python test declarations | 16 |
-| Static Rust registration instances | 8934 |
+| Static Rust registration instances | 8938 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 138 |
 | Unregistered Rust declarations | 0 |
@@ -43,7 +43,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [null_safe_predicates](inventory/null_safe_predicates.md) | 42 | 0 |
 | [parser_types](inventory/parser_types.md) | 372 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
-| [pgwire_core](inventory/pgwire_core.md) | 81 | 0 |
+| [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
 | [pgwire_extended](inventory/pgwire_extended.md) | 3708 | 8 |
 | [planner_controls](inventory/planner_controls.md) | 123 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
@@ -57,7 +57,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_queries](inventory/sql_queries.md) | 1840 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
-| [storage_indexes](inventory/storage_indexes.md) | 161 | 0 |
+| [storage_indexes](inventory/storage_indexes.md) | 162 | 0 |
 | [support](inventory/support.md) | 9 | 0 |
 | [temporal_predicate_literals](inventory/temporal_predicate_literals.md) | 1 | 0 |
 | [time_series_float_partitions](inventory/time_series_float_partitions.md) | 1 | 0 |

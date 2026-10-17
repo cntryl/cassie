@@ -669,13 +669,14 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/pgwire_core/simple_query/semantics/nulls.rs` | test_module | 254 | 4 | pgwire_core | keep | `tests/pgwire_core/simple_query/semantics/nulls.rs` |
 | `tests/pgwire_core/simple_query/semantics/resources.rs` | test_module | 90 | 2 | pgwire_core | keep | `tests/pgwire_core/simple_query/semantics/resources.rs` |
 | `tests/pgwire_core/simple_query/semantics/semantics.rs` | test_module | 296 | 4 | pgwire_core | keep | `tests/pgwire_core/simple_query/semantics/semantics.rs` |
+| `tests/pgwire_core/startup/bound_listener.rs` | test_module | 123 | 3 | pgwire_core | move_with_module_alias | `tests/pgwire_core/coordination/bound_listener.rs` |
 | `tests/pgwire_core/startup/semantics.rs` | test_module | 560 | 7 | pgwire_core | keep | `tests/pgwire_core/startup/semantics.rs` |
-| `tests/pgwire_core/tls/semantics.rs` | test_module | 212 | 3 | pgwire_core | keep | `tests/pgwire_core/tls/semantics.rs` |
+| `tests/pgwire_core/tls/semantics.rs` | test_module | 207 | 3 | pgwire_core | keep | `tests/pgwire_core/tls/semantics.rs` |
 | `tests/pgwire_core/transactions/transaction_semantics.rs` | test_module | 100 | 1 | pgwire_core | keep | `tests/pgwire_core/transactions/transaction_semantics.rs` |
 | `tests/pgwire_core/transactions/transaction_staging.rs` | test_module | 97 | 1 | pgwire_core | keep | `tests/pgwire_core/transactions/transaction_staging.rs` |
-| `tests/pgwire_core.rs` | cargo_target | 72 | 0 | pgwire_core | keep | `tests/pgwire_core.rs` |
+| `tests/pgwire_core.rs` | cargo_target | 74 | 0 | pgwire_core | keep | `tests/pgwire_core.rs` |
 | `tests/pgwire_extended/aggregates/aggregate_errors.rs` | module_registration | 20 | 0 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/aggregate_errors.rs` |
-| `tests/pgwire_extended/aggregates/array_agg/resources.rs` | test_module | 51 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/array_agg/resources.rs` |
+| `tests/pgwire_extended/aggregates/array_agg/resources.rs` | test_module | 52 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/array_agg/resources.rs` |
 | `tests/pgwire_extended/aggregates/arrays/array_aggregate.rs` | test_module | 157 | 5 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/arrays/array_aggregate.rs` |
 | `tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs` | test_module | 185 | 4 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/boolean/aggregate_errors.rs` |
 | `tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs` | test_module | 182 | 1 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs` |
@@ -685,10 +686,10 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/pgwire_extended/aggregates/core/resource_cancellation.rs` | test_module | 413 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/core/resource_cancellation.rs` |
 | `tests/pgwire_extended/aggregates/grouping/alternative_input_forms.rs` | test_module | 48 | 1 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/grouping/alternative_input_forms.rs` |
 | `tests/pgwire_extended/aggregates/grouping/semantics.rs` | test_module | 89 | 1 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/grouping/semantics.rs` |
-| `tests/pgwire_extended/aggregates/json_agg/resources.rs` | test_module | 51 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/json_agg/resources.rs` |
-| `tests/pgwire_extended/aggregates/json_object_agg/resources.rs` | test_module | 51 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/json_object_agg/resources.rs` |
-| `tests/pgwire_extended/aggregates/jsonb_agg/resources.rs` | test_module | 51 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/jsonb_agg/resources.rs` |
-| `tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs` | test_module | 51 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs` |
+| `tests/pgwire_extended/aggregates/json_agg/resources.rs` | test_module | 52 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/json_agg/resources.rs` |
+| `tests/pgwire_extended/aggregates/json_object_agg/resources.rs` | test_module | 52 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/json_object_agg/resources.rs` |
+| `tests/pgwire_extended/aggregates/jsonb_agg/resources.rs` | test_module | 52 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/jsonb_agg/resources.rs` |
+| `tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs` | test_module | 52 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/jsonb_object_agg/resources.rs` |
 | `tests/pgwire_extended/aggregates/modifiers/distinct_order_by_argument.rs` | test_module | 198 | 3 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/modifiers/distinct_order_by_argument.rs` |
 | `tests/pgwire_extended/aggregates/money/errors.rs` | test_module | 25 | 1 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/money/errors.rs` |
 | `tests/pgwire_extended/aggregates/money/money.rs` | test_module | 42 | 1 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/money/money.rs` |
@@ -699,9 +700,9 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/pgwire_extended/aggregates/numeric/numeric_aggregate_fraction.rs` | test_module | 128 | 1 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/numeric/numeric_aggregate_fraction.rs` |
 | `tests/pgwire_extended/aggregates/numeric/numeric_metadata.rs` | test_module | 89 | 3 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/numeric/numeric_metadata.rs` |
 | `tests/pgwire_extended/aggregates/numeric/semantics.rs` | test_module | 141 | 3 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/numeric/semantics.rs` |
-| `tests/pgwire_extended/aggregates/ordered_set/resources.rs` | test_module | 352 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/ordered_set/resources.rs` |
+| `tests/pgwire_extended/aggregates/ordered_set/resources.rs` | test_module | 351 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/ordered_set/resources.rs` |
 | `tests/pgwire_extended/aggregates/ranges/range.rs` | test_module | 259 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/ranges/range.rs` |
-| `tests/pgwire_extended/aggregates/string_agg/resources.rs` | test_module | 51 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/string_agg/resources.rs` |
+| `tests/pgwire_extended/aggregates/string_agg/resources.rs` | test_module | 52 | 2 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/string_agg/resources.rs` |
 | `tests/pgwire_extended/aggregates/temporal/interval_aggregate_metadata.rs` | test_module | 84 | 1 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/temporal/interval_aggregate_metadata.rs` |
 | `tests/pgwire_extended/aggregates/windows/window_function_wire.rs` | test_module | 183 | 6 | pgwire_extended | keep | `tests/pgwire_extended/aggregates/windows/window_function_wire.rs` |
 | `tests/pgwire_extended/catalogs/current_query.rs` | test_module | 632 | 24 | pgwire_extended | keep | `tests/pgwire_extended/catalogs/current_query.rs` |
@@ -1500,7 +1501,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_queries/expressions/sql_semantic_regressions.rs` | test_module | 625 | 20 | sql_queries | keep | `tests/sql_queries/expressions/sql_semantic_regressions.rs` |
 | `tests/sql_queries/expressions/unary_numeric.rs` | test_module | 155 | 8 | sql_queries | split_by_contract | `tests/sql_queries/aggregates/numeric/unary_numeric.rs`; `tests/sql_queries/types/numeric/unary_numeric.rs` |
 | `tests/sql_queries/functions/math/math_functions.rs` | test_module | 526 | 38 | sql_queries | keep | `tests/sql_queries/functions/math/math_functions.rs` |
-| `tests/sql_queries/functions/scalar_functions/runtime.rs` | test_module | 872 | 13 | sql_queries | keep | `tests/sql_queries/functions/scalar_functions/runtime.rs` |
+| `tests/sql_queries/functions/scalar_functions/runtime.rs` | test_module | 751 | 13 | sql_queries | keep | `tests/sql_queries/functions/scalar_functions/runtime.rs` |
 | `tests/sql_queries/functions/scalar_functions.rs` | test_module | 476 | 10 | sql_queries | keep | `tests/sql_queries/functions/scalar_functions.rs` |
 | `tests/sql_queries/functions/string/nulls.rs` | test_module | 53 | 3 | sql_queries | keep | `tests/sql_queries/functions/string/nulls.rs` |
 | `tests/sql_queries/functions/string/query/semantics.rs` | test_module | 85 | 3 | sql_queries | keep | `tests/sql_queries/functions/string/query/semantics.rs` |
@@ -1624,6 +1625,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/storage_indexes/row_codec/midge_row_blob_layout.rs` | test_module | 500 | 7 | storage_indexes | keep | `tests/storage_indexes/row_codec/midge_row_blob_layout.rs` |
 | `tests/storage_indexes/snapshots/snapshot_restore.rs` | test_module | 433 | 10 | storage_indexes | keep | `tests/storage_indexes/snapshots/snapshot_restore.rs` |
 | `tests/storage_indexes/storage/column_name_reuse_resolution.rs` | test_module | 159 | 3 | storage_indexes | keep | `tests/storage_indexes/storage/column_name_reuse_resolution.rs` |
+| `tests/storage_indexes/storage/in_memory.rs` | test_module | 62 | 1 | storage_indexes | move_with_module_alias | `tests/storage_indexes/resources/in_memory.rs` |
 | `tests/storage_indexes/storage/layout_admission.rs` | test_module | 157 | 4 | storage_indexes | keep | `tests/storage_indexes/storage/layout_admission.rs` |
 | `tests/storage_indexes/storage/midge_baseline_database_families.rs` | test_module | 141 | 1 | storage_indexes | keep | `tests/storage_indexes/storage/midge_baseline_database_families.rs` |
 | `tests/storage_indexes/storage/midge_error_paths.rs` | test_module | 85 | 7 | storage_indexes | keep | `tests/storage_indexes/storage/midge_error_paths.rs` |
@@ -1635,7 +1637,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/storage_indexes/text_search/configuration_changes.rs` | test_module | 130 | 2 | storage_indexes | keep | `tests/storage_indexes/text_search/configuration_changes.rs` |
 | `tests/storage_indexes/types/ranges/operators.rs` | test_module | 107 | 2 | storage_indexes | keep | `tests/storage_indexes/types/ranges/operators.rs` |
 | `tests/storage_indexes/types/temporal/instant_equality.rs` | test_module | 63 | 1 | storage_indexes | keep | `tests/storage_indexes/types/temporal/instant_equality.rs` |
-| `tests/storage_indexes.rs` | cargo_target | 128 | 0 | storage_indexes | keep | `tests/storage_indexes.rs` |
+| `tests/storage_indexes.rs` | cargo_target | 130 | 0 | storage_indexes | keep | `tests/storage_indexes.rs` |
 | `tests/support/adaptive_evidence.rs` | shared_support | 563 | 0 | metrics | keep | `tests/support/adaptive_evidence.rs` |
 | `tests/support/alias_fixture.rs` | shared_support | 18 | 0 | sql_queries | keep | `tests/support/alias_fixture.rs` |
 | `tests/support/array_order.rs` | shared_support | 29 | 0 | analytics, executor | keep | `tests/support/array_order.rs` |
@@ -1651,7 +1653,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/catalog_policy.rs` | shared_support | 46 | 0 | catalog_security | keep | `tests/support/catalog_policy.rs` |
 | `tests/support/catalog_read_model_wire.rs` | shared_support | 30 | 0 | pgwire_extended | keep | `tests/support/catalog_read_model_wire.rs` |
 | `tests/support/catalog_sessions.rs` | shared_support | 57 | 0 | catalog_security | keep | `tests/support/catalog_sessions.rs` |
-| `tests/support/collection_aggregate_resources.rs` | shared_support | 396 | 0 | pgwire_extended | keep | `tests/support/collection_aggregate_resources.rs` |
+| `tests/support/collection_aggregate_resources.rs` | shared_support | 392 | 0 | pgwire_extended | keep | `tests/support/collection_aggregate_resources.rs` |
 | `tests/support/column_projection_fixture.rs` | shared_support | 39 | 0 | query_scan_controls | keep | `tests/support/column_projection_fixture.rs` |
 | `tests/support/column_store_controls.rs` | shared_support | 143 | 0 | query_scan_controls | keep | `tests/support/column_store_controls.rs` |
 | `tests/support/constraint_ingress.rs` | shared_support | 68 | 0 | constraint_ingress | keep | `tests/support/constraint_ingress.rs` |
@@ -1675,12 +1677,12 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/options_execution.rs` | shared_support | 11 | 0 | catalog_security | keep | `tests/support/options_execution.rs` |
 | `tests/support/options_wire.rs` | shared_support | 44 | 0 | pgwire_extended | keep | `tests/support/options_wire.rs` |
 | `tests/support/pagination_unary.rs` | shared_support | 48 | 0 | pgwire_extended | keep | `tests/support/pagination_unary.rs` |
-| `tests/support/parameter_occurrence_wire.rs` | shared_support | 68 | 0 | pgwire_extended | keep | `tests/support/parameter_occurrence_wire.rs` |
+| `tests/support/parameter_occurrence_wire.rs` | shared_support | 59 | 0 | pgwire_extended | keep | `tests/support/parameter_occurrence_wire.rs` |
 | `tests/support/parameter_signature_wire.rs` | shared_support | 52 | 0 | pgwire_extended | keep | `tests/support/parameter_signature_wire.rs` |
-| `tests/support/pgwire.rs` | shared_support | 560 | 0 | catalog_security, compatibility, configuration_isolated, executor, metrics, parser_types, pgwire_core, pgwire_extended, planner_controls, query_scan_controls, relational_qualification, rest, search, sql_queries | keep | `tests/support/pgwire.rs` |
+| `tests/support/pgwire.rs` | shared_support | 559 | 0 | catalog_security, compatibility, configuration_isolated, executor, metrics, parser_types, pgwire_core, pgwire_extended, planner_controls, query_scan_controls, relational_qualification, rest, search, sql_queries | keep | `tests/support/pgwire.rs` |
 | `tests/support/pgwire_transaction_boundary.rs` | shared_support | 234 | 0 | pgwire_extended | keep | `tests/support/pgwire_transaction_boundary.rs` |
 | `tests/support/portal_authorization.rs` | shared_support | 295 | 0 | pgwire_extended | keep | `tests/support/portal_authorization.rs` |
-| `tests/support/portal_memory_calibration.rs` | shared_support | 185 | 0 | pgwire_extended | keep | `tests/support/portal_memory_calibration.rs` |
+| `tests/support/portal_memory_calibration.rs` | shared_support | 182 | 0 | pgwire_extended | keep | `tests/support/portal_memory_calibration.rs` |
 | `tests/support/primitive_literal_inputs.rs` | shared_support | 162 | 0 | pgwire_extended, sql_queries | keep | `tests/support/primitive_literal_inputs.rs` |
 | `tests/support/query_evidence.rs` | shared_support | 219 | 0 | planner_controls | keep | `tests/support/query_evidence.rs` |
 | `tests/support/read_equivalence.rs` | shared_support | 43 | 0 | analytics, domain_models, executor, search, storage_indexes, vector_embeddings | keep | `tests/support/read_equivalence.rs` |
@@ -1705,7 +1707,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/scalar_receive.rs` | shared_support | 164 | 0 | pgwire_extended | keep | `tests/support/scalar_receive.rs` |
 | `tests/support/skipped_conflict_returning_wire.rs` | shared_support | 221 | 0 | pgwire_extended | keep | `tests/support/skipped_conflict_returning_wire.rs` |
 | `tests/support/sql.rs` | shared_support | 156 | 0 | analytics, catalog_security, compatibility, configuration_isolated, domain_models, executor, expression_index_upsert, json_writes, metrics, null_safe_predicates, parser_types, pgwire_core, pgwire_extended, planner_controls, query_scan_controls, rest, search, sql_contextual_literals, sql_derived_sources, sql_exists_subqueries, sql_mutations, sql_queries, sql_relation_identifiers, sql_set_operations, storage_indexes, temporal_predicate_literals, time_series_float_partitions, vector_embeddings | keep | `tests/support/sql.rs` |
-| `tests/support/sql_fixture.rs` | shared_support | 259 | 4 | catalog_security, domain_models, null_safe_predicates, parser_types, pgwire_extended, sql_derived_sources, sql_exists_subqueries, sql_mutations, sql_queries, sql_relation_identifiers, sql_set_operations, storage_indexes | keep | `tests/support/sql_fixture.rs` |
+| `tests/support/sql_fixture.rs` | shared_support | 290 | 4 | catalog_security, domain_models, null_safe_predicates, parser_types, pgwire_extended, sql_derived_sources, sql_exists_subqueries, sql_mutations, sql_queries, sql_relation_identifiers, sql_set_operations, storage_indexes | keep | `tests/support/sql_fixture.rs` |
 | `tests/support/storage_family_snapshot.rs` | shared_support | 90 | 0 | storage_indexes | keep | `tests/support/storage_family_snapshot.rs` |
 | `tests/support/teardown_evidence.rs` | shared_support | 46 | 0 | catalog_security, domain_models, metrics, null_safe_predicates, parser_types, pgwire_extended, query_scan_controls, sql_derived_sources, sql_exists_subqueries, sql_mutations, sql_queries, sql_relation_identifiers, sql_set_operations, storage_indexes | keep | `tests/support/teardown_evidence.rs` |
 | `tests/support/temp_dirs.rs` | shared_support | 123 | 3 | analytics, catalog_security, compatibility, configuration_isolated, domain_models, executor, expression_index_upsert, json_writes, metrics, null_safe_predicates, parser_types, pgwire_core, pgwire_extended, planner_controls, query_scan_controls, relational_qualification, rest, search, sql_contextual_literals, sql_derived_sources, sql_exists_subqueries, sql_mutations, sql_queries, sql_relation_identifiers, sql_set_operations, storage_indexes, temporal_predicate_literals, time_series_float_partitions, vector_embeddings | keep | `tests/support/temp_dirs.rs` |
@@ -1719,12 +1721,12 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/typed_portal.rs` | shared_support | 73 | 0 | pgwire_extended | keep | `tests/support/typed_portal.rs` |
 | `tests/support/unary_math_parameter_recovery.rs` | shared_support | 116 | 0 | pgwire_extended | keep | `tests/support/unary_math_parameter_recovery.rs` |
 | `tests/support/unary_numeric.rs` | shared_support | 92 | 0 | pgwire_extended | keep | `tests/support/unary_numeric.rs` |
-| `tests/support/unique_conflict.rs` | shared_support | 104 | 0 | compatibility | keep | `tests/support/unique_conflict.rs` |
+| `tests/support/unique_conflict.rs` | shared_support | 103 | 0 | compatibility | keep | `tests/support/unique_conflict.rs` |
 | `tests/support/values_casts.rs` | shared_support | 97 | 0 | pgwire_extended | keep | `tests/support/values_casts.rs` |
 | `tests/support/vector_publication.rs` | shared_support | 383 | 0 | vector_embeddings | keep | `tests/support/vector_publication.rs` |
 | `tests/support/vector_qualification.rs` | shared_support | 191 | 0 | vector_embeddings | keep | `tests/support/vector_qualification.rs` |
 | `tests/support/wire_bind.rs` | shared_support | 46 | 0 | pgwire_core, pgwire_extended | keep | `tests/support/wire_bind.rs` |
-| `tests/support/wire_queries.rs` | shared_support | 68 | 0 | catalog_security, pgwire_core, pgwire_extended, sql_queries | keep | `tests/support/wire_queries.rs` |
+| `tests/support/wire_queries.rs` | shared_support | 67 | 0 | catalog_security, pgwire_core, pgwire_extended, sql_queries | keep | `tests/support/wire_queries.rs` |
 | `tests/temporal_predicate_literals/types/temporal/semantics.rs` | test_module | 122 | 1 | temporal_predicate_literals | keep | `tests/temporal_predicate_literals/types/temporal/semantics.rs` |
 | `tests/temporal_predicate_literals.rs` | cargo_target | 7 | 0 | temporal_predicate_literals | keep | `tests/temporal_predicate_literals.rs` |
 | `tests/time_series_float_partitions/partitions/semantics.rs` | test_module | 133 | 1 | time_series_float_partitions | keep | `tests/time_series_float_partitions/partitions/semantics.rs` |

@@ -169,3 +169,12 @@ mod catalogs_snapshots;
 
 #[path = "catalog_security/catalogs/transactions.rs"]
 mod catalogs_transactions;
+
+#[path = "catalog_security/catalogs/catalog_empty_registries.rs"]
+mod catalog_empty_registries;
+
+#[path = "catalog_security/catalogs/catalog_read_models.rs"]
+mod catalog_read_models;
+
+#[path = "support/catalog_directory.rs"]
+mod support_catalog_directory;

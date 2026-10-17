@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1646,
-    "rust_files": 1615,
-    "rust_test_declarations": 7310,
+    "files": 1652,
+    "rust_files": 1621,
+    "rust_test_declarations": 7378,
     "python_test_declarations": 16,
-    "registered_rust_instances": 7438,
+    "registered_rust_instances": 7506,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -6845,6 +6845,998 @@
       }
     },
     {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_auth_members_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_auth_members_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 6,
+      "end_line": 16,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_auth_members_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_db_role_setting_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_db_role_setting_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 19,
+      "end_line": 30,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_db_role_setting_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_default_acl_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_default_acl_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 33,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_default_acl_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_foreign_data_wrapper_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_foreign_data_wrapper_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 46,
+      "end_line": 57,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_foreign_data_wrapper_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_foreign_server_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_foreign_server_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 60,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_foreign_server_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_foreign_table_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_foreign_table_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 73,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_foreign_table_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_init_privs_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_init_privs_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 86,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_init_privs_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_largeobject_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_largeobject_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 99,
+      "end_line": 109,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_largeobject_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_largeobject_metadata_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_largeobject_metadata_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 112,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_largeobject_metadata_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_publication_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_publication_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 126,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_publication_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_publication_namespace_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_publication_namespace_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 139,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_publication_namespace_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_publication_rel_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_publication_rel_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 153,
+      "end_line": 164,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_publication_rel_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_replication_origin_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_replication_origin_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 167,
+      "end_line": 178,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_replication_origin_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_seclabel_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_seclabel_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 181,
+      "end_line": 191,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_seclabel_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_shdescription_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_shdescription_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 194,
+      "end_line": 204,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_shdescription_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_shseclabel_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_shseclabel_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 207,
+      "end_line": 217,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_shseclabel_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_subscription_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_subscription_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 220,
+      "end_line": 230,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_subscription_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_subscription_rel_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_subscription_rel_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 233,
+      "end_line": 244,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_subscription_rel_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_transform_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_transform_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 247,
+      "end_line": 257,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_transform_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_user_mapping_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_user_mapping_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 260,
+      "end_line": 270,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_user_mapping_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_enum_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_enum_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 273,
+      "end_line": 283,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_enum_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_describe_pg_enum_given_a_fresh_catalog_when_no_objects_exist",
+      "name": "should_describe_pg_enum_given_a_fresh_catalog_when_no_objects_exist",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 286,
+      "end_line": 302,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_describe_pg_enum_given_a_fresh_catalog_when_no_objects_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_partitioned_table_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_partitioned_table_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 305,
+      "end_line": 316,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_partitioned_table_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_describe_pg_partitioned_table_given_a_fresh_catalog_when_no_objects_exist",
+      "name": "should_describe_pg_partitioned_table_given_a_fresh_catalog_when_no_objects_exist",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 319,
+      "end_line": 344,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_describe_pg_partitioned_table_given_a_fresh_catalog_when_no_objects_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_trigger_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_trigger_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 347,
+      "end_line": 357,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_trigger_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_describe_pg_trigger_given_a_fresh_catalog_when_no_objects_exist",
+      "name": "should_describe_pg_trigger_given_a_fresh_catalog_when_no_objects_exist",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 360,
+      "end_line": 396,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_describe_pg_trigger_given_a_fresh_catalog_when_no_objects_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_policy_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_policy_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 399,
+      "end_line": 409,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_policy_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_describe_pg_policy_given_a_fresh_catalog_when_no_objects_exist",
+      "name": "should_describe_pg_policy_given_a_fresh_catalog_when_no_objects_exist",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 412,
+      "end_line": 437,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_describe_pg_policy_given_a_fresh_catalog_when_no_objects_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_event_trigger_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_event_trigger_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 440,
+      "end_line": 450,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_event_trigger_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_describe_pg_event_trigger_given_a_fresh_catalog_when_no_objects_exist",
+      "name": "should_describe_pg_event_trigger_given_a_fresh_catalog_when_no_objects_exist",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 453,
+      "end_line": 477,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_describe_pg_event_trigger_given_a_fresh_catalog_when_no_objects_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_report_no_pg_parameter_acl_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "name": "should_report_no_pg_parameter_acl_objects_given_a_fresh_catalog_when_the_registry_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 480,
+      "end_line": 490,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_report_no_pg_parameter_acl_objects_given_a_fresh_catalog_when_the_registry_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_describe_pg_parameter_acl_given_a_fresh_catalog_when_no_objects_exist",
+      "name": "should_describe_pg_parameter_acl_given_a_fresh_catalog_when_no_objects_exist",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 493,
+      "end_line": 509,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_describe_pg_parameter_acl_given_a_fresh_catalog_when_no_objects_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/catalog_security/catalogs/catalog_introspection.rs::should_list_user_tables_through_information_schema",
       "name": "should_list_user_tables_through_information_schema",
       "current_file": "tests/catalog_security/catalogs/catalog_introspection.rs",
@@ -7430,6 +8422,316 @@
         "file": "tests/catalog_security/catalogs/catalog_orm_metadata.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_read_models.rs::should_report_index_presence_given_index_creation_when_pg_tables_is_queried",
+      "name": "should_report_index_presence_given_index_creation_when_pg_tables_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "line": 7,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_read_models::should_report_index_presence_given_index_creation_when_pg_tables_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_read_models.rs::should_reflect_relation_lifecycle_given_live_metadata_when_pg_tables_is_queried",
+      "name": "should_reflect_relation_lifecycle_given_live_metadata_when_pg_tables_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "line": 32,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_read_models::should_reflect_relation_lifecycle_given_live_metadata_when_pg_tables_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_read_models.rs::should_remove_dropped_views_given_live_metadata_when_pg_views_is_queried",
+      "name": "should_remove_dropped_views_given_live_metadata_when_pg_views_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "line": 54,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_read_models::should_remove_dropped_views_given_live_metadata_when_pg_views_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_read_models.rs::should_remove_dropped_sequences_given_live_metadata_when_pg_sequences_is_queried",
+      "name": "should_remove_dropped_sequences_given_live_metadata_when_pg_sequences_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "line": 75,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_read_models::should_remove_dropped_sequences_given_live_metadata_when_pg_sequences_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_read_models.rs::should_scope_relation_discovery_given_same_names_in_two_databases_when_catalogs_are_queried",
+      "name": "should_scope_relation_discovery_given_same_names_in_two_databases_when_catalogs_are_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "line": 103,
+      "end_line": 153,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_read_models::should_scope_relation_discovery_given_same_names_in_two_databases_when_catalogs_are_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_read_models.rs::should_restore_relation_discovery_given_persisted_objects_when_the_catalog_restarts",
+      "name": "should_restore_relation_discovery_given_persisted_objects_when_the_catalog_restarts",
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "line": 156,
+      "end_line": 193,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_read_models::should_restore_relation_discovery_given_persisted_objects_when_the_catalog_restarts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_read_models.rs::should_identify_serial_as_non_identity_given_ordinary_and_serial_columns_when_column_metadata_is_read",
+      "name": "should_identify_serial_as_non_identity_given_ordinary_and_serial_columns_when_column_metadata_is_read",
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "line": 196,
+      "end_line": 223,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_read_models::should_identify_serial_as_non_identity_given_ordinary_and_serial_columns_when_column_metadata_is_read"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_read_models.rs::should_report_sequence_state_given_successive_allocations_when_pg_sequences_is_queried",
+      "name": "should_report_sequence_state_given_successive_allocations_when_pg_sequences_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "line": 226,
+      "end_line": 257,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_read_models::should_report_sequence_state_given_successive_allocations_when_pg_sequences_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_read_models.rs::should_report_sequence_bounds_given_supported_serial_widths_when_pg_sequences_is_queried",
+      "name": "should_report_sequence_bounds_given_supported_serial_widths_when_pg_sequences_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "line": 260,
+      "end_line": 297,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_read_models::should_report_sequence_bounds_given_supported_serial_widths_when_pg_sequences_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_read_models.rs::should_scope_index_presence_given_same_table_names_in_two_databases_when_pg_tables_is_queried",
+      "name": "should_scope_index_presence_given_same_table_names_in_two_databases_when_pg_tables_is_queried",
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "line": 300,
+      "end_line": 334,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_read_models::should_scope_index_presence_given_same_table_names_in_two_databases_when_pg_tables_is_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -65389,6 +66691,812 @@
         "file": "tests/pgwire_extended/aggregates/windows/window_function_wire.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_auth_members_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_auth_members_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 6,
+      "end_line": 24,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_auth_members_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_db_role_setting_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_db_role_setting_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 27,
+      "end_line": 34,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_db_role_setting_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_default_acl_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_default_acl_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 37,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_default_acl_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_foreign_data_wrapper_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_foreign_data_wrapper_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 56,
+      "end_line": 74,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_foreign_data_wrapper_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_foreign_server_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_foreign_server_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 77,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_foreign_server_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_foreign_table_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_foreign_table_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 99,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_foreign_table_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_init_privs_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_init_privs_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 109,
+      "end_line": 119,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_init_privs_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_largeobject_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_largeobject_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 122,
+      "end_line": 129,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_largeobject_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_largeobject_metadata_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_largeobject_metadata_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 132,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_largeobject_metadata_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_publication_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_publication_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 142,
+      "end_line": 163,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_publication_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_publication_namespace_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_publication_namespace_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 166,
+      "end_line": 173,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_publication_namespace_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_publication_rel_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_publication_rel_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 176,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_publication_rel_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_a.rs::should_describe_pg_replication_origin_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_replication_origin_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "line": 189,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_a::should_describe_pg_replication_origin_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_seclabel_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_seclabel_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 6,
+      "end_line": 16,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_seclabel_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_shdescription_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_shdescription_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 19,
+      "end_line": 26,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_shdescription_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_shseclabel_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_shseclabel_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 29,
+      "end_line": 36,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_shseclabel_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_subscription_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_subscription_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 39,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_subscription_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_subscription_rel_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_subscription_rel_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 71,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_subscription_rel_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_transform_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_transform_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 81,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_transform_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_user_mapping_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_user_mapping_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 94,
+      "end_line": 101,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_user_mapping_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_enum_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_enum_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 104,
+      "end_line": 114,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_enum_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_partitioned_table_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_partitioned_table_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 117,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_partitioned_table_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_trigger_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_trigger_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 139,
+      "end_line": 169,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_trigger_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_policy_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_policy_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 172,
+      "end_line": 191,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_policy_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_event_trigger_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_event_trigger_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 194,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_event_trigger_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/empty_registries_b.rs::should_describe_pg_parameter_acl_given_no_objects_when_wire_formats_are_crossed",
+      "name": "should_describe_pg_parameter_acl_given_no_objects_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "line": 215,
+      "end_line": 222,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_empty_registries_b::should_describe_pg_parameter_acl_given_no_objects_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -228592,6 +230700,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 509,
+      "sha256": "727d8882df37d30342f6fb924fa604ad5f491cf311869dc458221e207f4a394e",
+      "test_declarations": 32,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/catalog_empty_registries.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/catalog_security/catalogs/catalog_introspection.rs",
       "role": "test_module",
       "action": "keep",
@@ -228663,6 +230786,21 @@
       ],
       "destinations": [
         "tests/catalog_security/catalogs/catalog_orm_metadata.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/catalog_security/catalogs/catalog_read_models.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 334,
+      "sha256": "2ee3c53d7f6dbf2252af9da8a9c54a7858ea3793e415062e02577ff41b2ee9e2",
+      "test_declarations": 10,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/catalog_read_models.rs"
       ],
       "line_limit": 1000
     },
@@ -230095,8 +232233,8 @@
       "current_file": "tests/catalog_security.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 171,
-      "sha256": "ec77af2308266b552f18513fa94eb9665da8a6f7c8f406396b2c30efbe393e22",
+      "lines": 180,
+      "sha256": "329bf0bc5b7b21086b6860b50f8d6b8605d94bf117c5ec8d4a016b48073e98ae",
       "test_declarations": 0,
       "registered_suites": [
         "catalog_security"
@@ -238209,6 +240347,36 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_a.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 196,
+      "sha256": "5cdc184e4dc4acea625a80dc8e8ee6dc343fdf3fa3113fc67d098a77aaf895c9",
+      "test_declarations": 13,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/empty_registries_a.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 222,
+      "sha256": "510ba0d42bbd8ed00e823dd281108733a2bcbbe3d89e76f4218d2bfec0b2ac44",
+      "test_declarations": 13,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/empty_registries_b.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/comparisons/null_safe/null_safe_predicates.rs",
       "role": "test_module",
       "action": "keep",
@@ -244349,8 +246517,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 336,
-      "sha256": "0a3763e787f7637bbec079016bda4cc44d9fb7cc8bf03f3881f66d307ea5c50a",
+      "lines": 345,
+      "sha256": "f290a26aa0697f152d4857782d01a1d74a85e69d87a74f7057141a2339cd9ba7",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -250860,6 +253028,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/support/catalog_directory.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 24,
+      "sha256": "c8504970169fafd4d96a68edc8b12890f0bc69f7f8d35b7ceaa5ee61689a9744",
+      "test_declarations": 0,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/support/catalog_directory.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/support/catalog_policy.rs",
       "role": "shared_support",
       "action": "keep",
@@ -250871,6 +253054,21 @@
       ],
       "destinations": [
         "tests/support/catalog_policy.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/catalog_read_model_wire.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 30,
+      "sha256": "f853f2823e79e836daeb498971114b7b3a14a99566b26bfe28bdb58a9f7a82f1",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/catalog_read_model_wire.rs"
       ],
       "line_limit": 1000
     },

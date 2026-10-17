@@ -68,3 +68,50 @@ OID compatibility, or hosted PostgreSQL behavior.
   catalogs.
 - Broader native pgAdmin-shaped queries remain deterministic repository tests, but pgAdmin and
   DBeaver certification remains separately tracked and is not promoted by this contract.
+
+## Selected catalog read-model checkpoint (2026-10-16)
+
+The b0d2b65e existing catalog/codec foundation supplies the prerequisite for a
+read-model-only #817 batch. PostgreSQL 18.6 column-name shapes are available for absent
+foreign/replication/security-label/transform, membership/default-ACL, large-object,
+enum/partition/trigger/policy/event-trigger and parameter-ACL registries. Empty
+rows describe the absence of these objects in Cassie's current catalog; they do
+not implement their DDL or advertise the corresponding capability. Keep native
+catalog/domain result OIDs and opaque type codecs as unfinished #793/#817 work;
+existing logical carriers remain explicit experimental descriptors. Do not
+weaken retained tests that require native type identities.
+
+Table/view/sequence discovery reads real current-database catalog objects.
+Create/drop/restart, database isolation, index presence and supported serial
+allocation probes qualify the selected rows. Ordinary column identity and
+generation fields report NO/NULL/NEVER. Empty
+stand-ins for dependency, rewrite, statistics, operator-family or built-in
+text-search catalogs are omitted: implemented objects require their actual
+semantic rows.
+Compiled plans rebuild at epoch 14. No persistent metadata or layout changes
+are selected by this batch.
+
+Sequence probes use the implemented SERIAL/BIGSERIAL column defaults and
+omitted-field INSERT path. Standalone nextval() and CREATE SEQUENCE AS are not
+implemented; exploratory native probes confirm their required state/bounds law,
+but those grammar/function prerequisites remain with #841. Keep the existing
+advanced sequence qualification tests red until that owner implements them.
+The read model reports the existing stored declared type; it does not change
+legacy CREATE SEQUENCE's integer default or claim PostgreSQL's bigint default.
+Unknown owners remain NULL, and view definitions expose stored SQL rather than
+claiming PostgreSQL's pretty-print rendering.
+
+This checkpoint does not promote a catalog to Stable or complete #817. Native
+catalog-domain OIDs/codecs, ownership, pretty-printed definitions, system-object
+rows, OID/reg* lifecycle and wider DDL remain open under #793/#817/#831/#841.
+Native column names and selected values are independent pinned observations;
+logical-carrier descriptors do not establish PostgreSQL descriptor ABI parity.
+Executed counts and remaining failures are recorded in
+[validation](testing/validation.md).
+
+A focused native probe shows PostgreSQL's hasindexes flag remains true after
+DROP INDEX until maintenance clears it. The current read model reports current
+index presence and clears it immediately; this historical-flag compatibility
+cell remains open under #817 and requires its persistent-state/lifecycle design.
+The selected native index flag probes cover pre/post-create states, not this
+unimplemented post-drop law.

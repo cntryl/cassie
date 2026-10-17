@@ -334,3 +334,12 @@ mod bytea_input_precedence;
 
 #[path = "pgwire_extended/types/bit_bytea/input_allbytes.rs"]
 mod bytea_input_allbytes;
+
+#[path = "pgwire_extended/catalogs/empty_registries_a.rs"]
+mod catalog_empty_registries_a;
+
+#[path = "pgwire_extended/catalogs/empty_registries_b.rs"]
+mod catalog_empty_registries_b;
+
+#[path = "support/catalog_read_model_wire.rs"]
+mod support_catalog_read_model_wire;

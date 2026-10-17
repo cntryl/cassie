@@ -1743,3 +1743,94 @@ fidelity, wider casts/types, complex CTE planning and full resource/restart
 qualification are pending obligations. Full repository and hosted green are
 not established. Native receipts, advisory requests/responses and complete logs
 are under ignored `target/green-byteainput-*`.
+
+### Catalog/security read-model checkpoint (2026-10-16)
+
+The fresh `b0d2b65e` catalog/security run reproduced 139 passing and 209 failing
+functions. Of those failures, 179 were grouped under catalog/type information;
+30 covered wider session, transaction and administration behavior. Current
+#817/#793/#831/#841 requirements and the existing Midge catalog source defined
+this read-model increment; no persistent metadata, type or layout changed.
+
+The new experimental registry exposes PostgreSQL 18.6 column-name shapes for
+26 object families absent from current metadata. Empty rows reflect the absence
+of those objects, without implementing their DDL. Dependency, rewrite,
+statistics, operator-family and built-in text-search catalogs are omitted
+because they require actual semantic rows. Table/view/sequence discovery reads
+real database-scoped Catalog metadata. Ordinary and SERIAL/BIGSERIAL columns
+report NO/NULL/NEVER identity/generation flags. Compiled plans rebuild at epoch
+14. Ownership is not recorded, so new owner fields are NULL; definitions expose
+stored SQL rather than native pretty printing. Native catalog-domain/OID/opaque
+codec ABI remains explicitly unqualified under #793/#817.
+
+Adds 68 Rust functions: 42 catalog/security and 26 wire checks. The first 32
+registry witnesses and seven object-lifecycle witnesses all failed before
+implementation. The initial implementation fixed 30 original failures. Final
+oracle review caught an incorrect new-test assumption: native hasindexes stays
+true after DROP INDEX until maintenance, while the current read model clears
+it immediately. No false-after-drop native assertion is retained. Selected flag
+probes instead pin false-before-create and true-after-create, which match native
+observations. The historical flag cell remains an explicit #817 follow-up that
+needs its persistent-state/lifecycle design; no ad hoc metadata field is added.
+A separate native autocommit/temp-table probe records false → true → true
+through table/index/drop, then false after explicit VACUUM. The precise gap and
+reproduction remain tracked under #817. All original expectations are unchanged.
+
+Jev triage selected read models at 0.97, with gap 0.79 and an object-scope
+constraint at 1.0. Excluding catalogs requiring actual implemented-object rows
+and adding database/lifecycle/restart controls addresses that constraint.
+Adversarial gap 0.52 selected sequence state: standalone nextval() and CREATE
+SEQUENCE AS/options are absent and remain #841 obligations with their retained
+advanced tests still red. Supported SERIAL/BIGSERIAL omitted-field INSERT
+probes match native unused NULL → 1 → 2 state and declared integer/bigint bounds.
+An additional same-name/different-database index probe passes. Final advisory
+dispositions are selected probes complete 1.0 and staged support 1.0; neither
+closes a full owner or proves correctness independently. A subsequent advisory
+review includes the independently decoded historical-index mismatch and chooses
+the explicitly staged checkpoint at 1.0; #817 remains open.
+
+PostgreSQL 18.6 supplies native pg_attribute column names/types and selected
+row/lifecycle observations; its executable SHA256 remains
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+Native DDL probes use rollback-only oracle transactions, closing named
+portals between format binds; the separate VACUUM probe uses an autocommit
+temporary table. Current Cassie wire probes check statement/portal
+names, formats and zero DataRows across text/binary output. They do not equate
+existing logical carriers with native catalog-domain descriptors.
+
+The ordered gate ran after all production fixes with CARGO_INCREMENTAL=0:
+
+- `cargo build --locked --bin cassie`: passed (35.70 seconds).
+- `cargo test --locked`: library 1,024/0, analytics 179/0, backend 2/0 and
+  benchmark operations 16/0. Catalog/security is 211/179: exactly 30 original
+  failures fixed, none added. The command stops there after 436.59 seconds;
+  later targets compile but do not execute in this command.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  passed without narrowing or suppression. Preflight empty-collection assertions
+  were strengthened to show values on failure.
+- `cargo fmt --all -- --check`: passed.
+- The validator flagged `_and_` in one new lifecycle test name. The name alone
+  was corrected; assertions and production code are unchanged. Fresh target
+  compilation, full strict Clippy, formatting and all eight touched-file
+  validators then pass. Global validator: 8,393/8,393 compliant source tests.
+- All 68 new functions pass against fresh binaries: 42 catalog/security
+  functions rechecked after both test corrections, plus all 26 wire exports.
+  The final full catalog binary rerun is again 211/179 (95.85 seconds), fixing
+  the same 30 original failures without adding failures.
+  Complete parser remains 299/74 and core wire 74/10, with unchanged failure
+  identities. No new catalog/security failure identity occurs.
+- Inventory refresh/check and whitespace pass: exactly 68 integration IDs
+  added, none removed and no existing record changed. There are 7,506 integration
+  registrations plus 1,024 library functions; these are instance counts, not
+  passing-test totals. All touched Rust files meet their limits. Untouched
+  exceptions remain src/config.rs (1,034) and src/midge/adapter/verification.rs
+  (1,002). No benchmark timing is claimed.
+
+The remaining 179 failures require native catalog/type identities and OID/reg*
+lifecycle, actual dependency/system catalog rows, definition/privilege functions,
+ownership, transaction/DDL/sequence foundations and wider administration work.
+Complete #793/#817/#831/#841/#849 and repository/hosted green remain open. The
+legacy CREATE SEQUENCE integer-default difference also remains #841 work; this
+read-model checkpoint reports the stored type rather than inventing bigint
+metadata. Native receipts, advisory questions/actions and logs are under ignored
+`target/catalog209-*`.

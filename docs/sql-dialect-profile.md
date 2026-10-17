@@ -620,3 +620,32 @@ this slice. Private compiled plans rebuild at epoch 13; canonical stored values
 remain unchanged. Per-portal parameter retention, complete #849 qualification,
 non-ASCII diagnostic-byte fidelity, session BYTEA output and encode/decode or
 other binary functions remain pending. See [validation](testing/validation.md).
+
+### Selected catalog read models (2026-10-16)
+
+The b0d2b65e existing catalog and primitive codec foundations support this
+#817 read-model increment. Table/view/sequence discovery reads real catalog
+objects in the session database, including index presence and supported serial
+allocation state. Ordinary/SERIAL/BIGSERIAL columns expose NO/NULL/NEVER identity
+and generation flags. Twenty-six object families absent from current metadata
+have native column-name shapes and empty rows. Dependency, rewrite, statistics,
+operator-family and built-in text-search rows remain unavailable because they
+require their actual semantic objects.
+
+These experimental descriptors retain existing logical carriers; native domain
+OIDs, NAME/reg* and opaque catalog codecs remain #793/#817 obligations. Ownership
+is not recorded in current metadata, so new owner fields are NULL. Definitions
+expose stored SQL, with native pretty-printing unqualified. Sequence allocation
+probes use the supported SERIAL/BIGSERIAL omitted-field INSERT path. Standalone
+nextval(), CREATE SEQUENCE AS/options and the legacy integer-default difference
+remain #841 work; their existing native qualification tests stay red.
+
+No persistent metadata, row format or type layout changes occur. Compiled plans
+rebuild at epoch 14. Native shapes, selected values, lifecycle/database scope,
+restart and empty text/binary exports are separately qualified in
+[validation](testing/validation.md); no full catalog/security support is claimed.
+
+Native hasindexes history after DROP INDEX is also pending under #817: PostgreSQL
+retains the flag until maintenance, while the current read model reports current
+index presence. Selected flag probes cover pre/post-create states. Do not treat
+this staged read model as historical flag or complete relation-catalog parity.

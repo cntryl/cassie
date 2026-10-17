@@ -11,10 +11,14 @@ pub type VirtualRow = Vec<(String, Value)>;
 mod virtual_views_consistency;
 #[path = "virtual_views_constraints.rs"]
 mod virtual_views_constraints;
+#[path = "virtual_views_empty.rs"]
+mod virtual_views_empty;
 #[path = "virtual_views_pg.rs"]
 mod virtual_views_pg;
 #[path = "virtual_views_projections.rs"]
 mod virtual_views_projections;
+#[path = "virtual_views_relations.rs"]
+mod virtual_views_relations;
 #[path = "virtual_views_repair.rs"]
 mod virtual_views_repair;
 #[path = "virtual_views_sequences.rs"]
@@ -65,6 +69,9 @@ fn information_schema_schema(name: &str) -> Option<Vec<(String, DataType)>> {
             int("numeric_precision"),
             int("numeric_scale"),
             int("datetime_precision"),
+            text("is_identity"),
+            text("identity_generation"),
+            text("is_generated"),
         ]),
         "information_schema.views" => Some(vec![
             text("table_schema"),
@@ -90,6 +97,8 @@ fn information_schema_schema(name: &str) -> Option<Vec<(String, DataType)>> {
 
 fn pg_catalog_schema(name: &str) -> Option<Vec<(String, DataType)>> {
     pg_catalog_core_schema(name)
+        .or_else(|| virtual_views_empty::schema(name))
+        .or_else(|| virtual_views_relations::schema(name))
         .or_else(|| virtual_views_projections::schema(name))
         .or_else(|| pg_catalog_runtime_schema(name))
 }
@@ -396,7 +405,8 @@ fn pg_catalog_core_rows(
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
         "pg_catalog.pg_maintenance_debt" => Some(pg_maintenance_debt_rows(catalog)),
         "pg_catalog.pg_type" => Some(virtual_views_pg::pg_type(catalog, current_database)),
-        _ => None,
+        _ => virtual_views_empty::rows(name)
+            .or_else(|| virtual_views_relations::rows(catalog, name, current_database)),
     }
 }
 
@@ -662,6 +672,9 @@ fn information_schema_column_row(
         optional_i64("numeric_precision", numeric_precision(data_type)),
         optional_i64("numeric_scale", numeric_scale(data_type)),
         optional_i64("datetime_precision", datetime_precision(data_type)),
+        string("is_identity", "NO"),
+        ("identity_generation".to_owned(), Value::Null),
+        string("is_generated", "NEVER"),
     ]
 }
 

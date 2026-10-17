@@ -136,6 +136,7 @@ fn infer_inputs(
                 let data_type = match *oid {
                     20 => DataType::BigInt,
                     23 => DataType::Int,
+                    701 => DataType::Float,
                     _ => DataType::Text,
                 };
                 infer_parameter_type_from_expected_expr(argument, &data_type, inference);

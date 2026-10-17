@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1694 |
-| Rust files | 1663 |
-| Rust test declarations | 8002 |
+| Files under `tests/` | 1698 |
+| Rust files | 1667 |
+| Rust test declarations | 8042 |
 | Python test declarations | 16 |
-| Static Rust registration instances | 8130 |
+| Static Rust registration instances | 8170 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 138 |
 | Unregistered Rust declarations | 0 |
@@ -41,10 +41,10 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [json_writes](inventory/json_writes.md) | 20 | 0 |
 | [metrics](inventory/metrics.md) | 58 | 0 |
 | [null_safe_predicates](inventory/null_safe_predicates.md) | 42 | 0 |
-| [parser_types](inventory/parser_types.md) | 366 | 0 |
+| [parser_types](inventory/parser_types.md) | 367 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 81 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 2936 | 0 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 2975 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 123 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 75 | 0 |

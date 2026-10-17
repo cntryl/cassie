@@ -28,5 +28,6 @@ pub(crate) fn is_immutable_scalar(id: FunctionId) -> bool {
             | FunctionId::Greatest
             | FunctionId::Least
             | FunctionId::Abs
+            | FunctionId::Power
     )
 }

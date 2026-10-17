@@ -41,6 +41,17 @@ pub(super) fn validate_function_calls(
                     function.args.len()
                 )));
             }
+            if metadata.id == crate::sql::functions::FunctionId::Power
+                && function
+                    .args
+                    .iter()
+                    .any(crate::sql::functions::has_unselected_numeric)
+            {
+                return Err(CassieError::Unsupported(
+                    "NUMERIC power remains pending under #793/#812; select FLOAT8 explicitly"
+                        .into(),
+                ));
+            }
             if metadata.id == crate::sql::functions::FunctionId::PgColumnSize {
                 crate::sql::functions::datum_size_kind(&function.args[0])?;
             }

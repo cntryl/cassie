@@ -52,6 +52,15 @@ pub(super) fn binary_scalar(
         BinaryOp::Add => checked_math_result(left, right, i64::checked_add, |a, b| a + b)?,
         BinaryOp::Sub => checked_math_result(left, right, i64::checked_sub, |a, b| a - b)?,
         BinaryOp::Mul => checked_math_result(left, right, i64::checked_mul, |a, b| a * b)?,
+        BinaryOp::Power => {
+            if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) { ScalarValue::Null }
+            else {
+                let left = left.to_f64().ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
+                let right = right.to_f64().ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
+                ScalarValue::Float(super::functions::math::power(left, right)?)
+            }
+        }
+        BinaryOp::Modulo => return Err(crate::app::CassieError::Unsupported("remainder requires selected existing integer operands; NUMERIC remains pending under #793/#812".into()).into()),
         BinaryOp::Div => {
             if right.to_f64().is_some_and(|value| value == 0.0) && left.to_f64().is_some() {
                 return Err(QueryError::General("division by zero".to_string()));

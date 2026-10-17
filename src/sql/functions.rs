@@ -2,6 +2,8 @@ mod constant_folding;
 pub(crate) use constant_folding::is_immutable_scalar;
 mod catalog;
 mod datum_size;
+mod numeric_identity;
+pub(crate) use numeric_identity::has_unselected_numeric;
 mod runtime;
 pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};
 mod table;
@@ -78,6 +80,7 @@ pub enum FunctionId {
     Greatest,
     Least,
     Abs,
+    Power,
     TimeBucket,
     GraphNeighbors,
     GraphExpand,
@@ -184,7 +187,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                 .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
                 .and_then(|_| name.get(11..))
                 .filter(|local| {
-                    ["pg_show_all_settings", "substring", "trim"]
+                    ["pg_show_all_settings", "substring", "trim", "power"]
                         .iter()
                         .any(|candidate| candidate.eq_ignore_ascii_case(local))
                         || runtime::FUNCTIONS
@@ -209,6 +212,14 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
 }
 
 const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
+    ScalarFunction {
+        id: FunctionId::Power,
+        name: "power",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::Float,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
     ScalarFunction {
         id: FunctionId::Count,
         name: "count",

@@ -18,6 +18,7 @@ pub enum IntegerOperation {
     Sub,
     Mul,
     Div,
+    Rem,
 }
 
 impl IntegerOperation {
@@ -27,6 +28,7 @@ impl IntegerOperation {
             Self::Sub => "-",
             Self::Mul => "*",
             Self::Div => "/",
+            Self::Rem => "%",
         }
     }
 }
@@ -180,8 +182,12 @@ pub(crate) fn arithmetic(
         IntegerOperation::Add => left.checked_add(right),
         IntegerOperation::Sub => left.checked_sub(right),
         IntegerOperation::Mul => left.checked_mul(right),
-        IntegerOperation::Div if right == 0 => return Err(IntegerArithmeticError::DivisionByZero),
+        IntegerOperation::Div | IntegerOperation::Rem if right == 0 => {
+            return Err(IntegerArithmeticError::DivisionByZero)
+        }
         IntegerOperation::Div => left.checked_div(right),
+        IntegerOperation::Rem if right == -1 => Some(0),
+        IntegerOperation::Rem => left.checked_rem(right),
     }
     .ok_or(IntegerArithmeticError::Range)?;
     width

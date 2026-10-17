@@ -256,11 +256,13 @@ fn binary_operand_family(
             require_family(right_family, OperandFamily::Text, "LIKE")?;
             Ok(Some(OperandFamily::Boolean))
         }
-        BinaryOp::Integer { .. }
+        BinaryOp::Power
+        | BinaryOp::Integer { .. }
         | BinaryOp::Add
         | BinaryOp::Sub
         | BinaryOp::Mul
-        | BinaryOp::Div => {
+        | BinaryOp::Div
+        | BinaryOp::Modulo => {
             require_family(left_family, OperandFamily::Numeric, "arithmetic")?;
             require_family(right_family, OperandFamily::Numeric, "arithmetic")?;
             Ok(Some(OperandFamily::Numeric))

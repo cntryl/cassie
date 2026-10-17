@@ -234,7 +234,7 @@ fn should_preserve_combining_mark_identifier_operator_boundaries() {
 fn should_preserve_rejection_of_excluded_operator_families() {
     // Arrange
     let expressions = [
-        "n->'x'", "n~'x'", "n@>2", "n%2", "n?=2", "n~+2", "n|+2", "n#>2", "n<=>2",
+        "n->'x'", "n~'x'", "n@>2", "n?=2", "n~+2", "n|+2", "n#>2", "n<=>2",
     ];
 
     // Act
@@ -286,4 +286,14 @@ fn should_execute_compact_bound_operators_with_null_propagation() {
     }
     assert_eq!(compact.rows().len(), 4);
     assert_eq!(compact.rows()[3], vec![Value::Null; 8]);
+}
+
+#[test]
+fn should_preserve_compound_operator_names_given_adjacent_signs_when_scalar_tokens_are_scanned() {
+    // Arrange
+    let expressions = ["10%-3", "2^-3", "'x'||-2"];
+    // Act
+    let parsed = expressions.map(|expression| parse_statement(&format!("SELECT {expression}")));
+    // Assert
+    assert!(parsed.into_iter().all(|result| result.is_err()));
 }

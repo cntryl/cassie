@@ -239,6 +239,7 @@ impl Fold<'_, '_> {
             let accepted = match *oid {
                 25 => matches!(summary.oid, 0 | 25 | 1042 | 1043 | 705),
                 20 => matches!(summary.oid, 0 | 20 | 21 | 23 | 705),
+                701 => matches!(summary.oid, 0 | 20 | 21 | 23 | 701 | 705),
                 _ => {
                     matches!(summary.oid, 0 | 21 | 23 | 705)
                         || summary.oid == 20 && self.occurrences.embedded_int4_carrier(*summary)
@@ -254,6 +255,7 @@ impl Fold<'_, '_> {
             self.occurrences.coerce(summary, *oid, true)?;
         }
         Ok(Summary::known(match metadata.return_type {
+            functions::FunctionReturnType::Float => 701,
             functions::FunctionReturnType::Int => 23,
             functions::FunctionReturnType::BigInt => 20,
             functions::FunctionReturnType::Boolean => 16,

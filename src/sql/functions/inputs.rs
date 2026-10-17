@@ -56,6 +56,7 @@ pub(crate) enum FunctionInputSignature {
 
 pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSignature> {
     match id {
+        FunctionId::Power => Some(FunctionInputSignature::Positional(&[701, 701])),
         FunctionId::PgCharToEncoding | FunctionId::PgSizeBytes => {
             Some(FunctionInputSignature::Positional(&[25]))
         }

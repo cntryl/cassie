@@ -719,3 +719,21 @@ and other overloads remain pending; this increment does not infer their layouts.
 The old parser-only rejection list now retains only still-pending operators.
 Plan-cache epoch: 20. Jev's 0.75 overload concern prompted 16 native/Rust
 parameter-format probes; final review selected verification at 0.94.
+
+
+Experimental ten-batch increment 2: Power and integer remainder over existing scalar types.
+Native wire witnesses and precise local acceptance are recorded in
+[validation](testing/validation.md). Complete type and owner contracts remain pending.
+
+Selected power accepts existing integer and explicitly selected FLOAT8 inputs,
+uses left associativity and PostgreSQL unary-sign precedence, and returns FLOAT8
+(OID 701). Raw decimal literals and NUMERIC casts remain pending rather than
+borrowing FLOAT8 identity. Integer remainder preserves selected int2/int4/int8
+widths, signed remainder, NULL and division-by-zero semantics; minimum integer
+remainder by -1 returns zero. Compound operator names with adjacent signs are
+not split into these selected operators. Eleven native FLOAT8 special witnesses
+cover NaN/infinity and domain errors. The negative-infinity fractional-power
+gap and three raw-decimal provenance gaps were red before correction. All 58
+cumulative wire tests pass; 39 are new in this batch, plus one parser boundary
+test. Parser failures are 67 with no new identity. Final checks follow only an
+equivalent match-arm consolidation after the parser comparison. Cache epoch 21.

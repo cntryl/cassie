@@ -16,6 +16,7 @@ pub(super) fn resolve(
         BinaryOp::Sub => (IntegerOperation::Sub, None),
         BinaryOp::Mul => (IntegerOperation::Mul, None),
         BinaryOp::Div => (IntegerOperation::Div, None),
+        BinaryOp::Modulo => (IntegerOperation::Rem, None),
         BinaryOp::Integer { operation, width } => (*operation, Some(*width)),
         _ => return Ok(true),
     };

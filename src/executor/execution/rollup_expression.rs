@@ -148,6 +148,8 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
         BinaryOp::Sub => "-",
         BinaryOp::Mul => "*",
         BinaryOp::Div => "/",
+        BinaryOp::Modulo => "%",
+        BinaryOp::Power => "^",
         BinaryOp::Like => "LIKE",
         BinaryOp::PgvectorCosine => "<=>",
         BinaryOp::PgvectorL2 => "<->",

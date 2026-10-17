@@ -454,3 +454,15 @@ mod scalar_batch_01;
 
 #[path = "pgwire_extended/grammar/scalar_batch_01_parameters.rs"]
 mod scalar_batch_01_parameters;
+
+#[path = "pgwire_extended/grammar/scalar_batch_02.rs"]
+mod scalar_batch_02;
+
+#[path = "pgwire_extended/grammar/scalar_batch_02_errors.rs"]
+mod scalar_batch_02_errors;
+
+#[path = "pgwire_extended/grammar/scalar_batch_02_special.rs"]
+mod scalar_batch_02_special;
+
+#[path = "pgwire_extended/grammar/scalar_batch_02_pending.rs"]
+mod scalar_batch_02_pending;

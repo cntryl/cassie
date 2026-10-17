@@ -568,6 +568,13 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message.eq_ignore_ascii_case("query timeout exceeded") {
         return timeout_descriptor();
     }
+    if matches!(
+        message,
+        "zero raised to a negative power is undefined"
+            | "a negative number raised to a non-integer power yields a complex result"
+    ) {
+        return bad_request_descriptor("2201F", message.to_string());
+    }
     if message.eq_ignore_ascii_case("division by zero") {
         return bad_request_descriptor("22012", message.to_string());
     }

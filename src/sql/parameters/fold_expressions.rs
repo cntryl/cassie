@@ -127,7 +127,11 @@ impl Fold<'_, '_> {
             ast::BinaryOp::Integer { width, .. } => {
                 Summary::known(super::expressions::oid(&width.data_type()))
             }
-            ast::BinaryOp::Add | ast::BinaryOp::Sub | ast::BinaryOp::Mul | ast::BinaryOp::Div => {
+            ast::BinaryOp::Add
+            | ast::BinaryOp::Sub
+            | ast::BinaryOp::Mul
+            | ast::BinaryOp::Div
+            | ast::BinaryOp::Modulo => {
                 let left = self.summaries.values[frame.start];
                 let right = self.summaries.values[frame.start + 1];
                 common(left, right).map_or_else(Summary::unqualified, |oid| {
@@ -136,7 +140,8 @@ impl Fold<'_, '_> {
                     result
                 })
             }
-            ast::BinaryOp::PgvectorCosine
+            ast::BinaryOp::Power
+            | ast::BinaryOp::PgvectorCosine
             | ast::BinaryOp::PgvectorL2
             | ast::BinaryOp::PgvectorDot => Summary::known(701),
             ast::BinaryOp::Eq

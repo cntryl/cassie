@@ -745,9 +745,10 @@ pub(crate) fn infer_expr_type(
             | BinaryOp::Gt
             | BinaryOp::Gte
             | BinaryOp::Like => Some(DataType::Boolean),
+            BinaryOp::Power => Some(DataType::Float),
             BinaryOp::Concat => Some(DataType::Text),
             BinaryOp::Integer { width, .. } => Some(width.data_type()),
-            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Modulo => {
                 let left_type =
                     infer_expr_type(left, source_schema, user_functions, parameter_types);
                 let right_type =

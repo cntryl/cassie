@@ -360,6 +360,8 @@ pub enum BinaryOp {
     Sub,
     Mul,
     Div,
+    Modulo,
+    Power,
     /// A selected builtin integer operator, retaining its operand/result domain.
     Integer {
         operation: crate::types::IntegerOperation,

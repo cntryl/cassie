@@ -14,6 +14,8 @@ mod catalog_sizes;
 mod datum_size;
 #[path = "encoding.rs"]
 mod encoding;
+#[path = "math.rs"]
+pub(super) mod math;
 #[path = "runtime_information.rs"]
 mod runtime_information;
 #[path = "text_scalar.rs"]
@@ -69,7 +71,8 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
         .or_else(|| super::conditional::evaluate(name, args))
         .or_else(|| {
             let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
-            catalog_sizes::evaluate(local, args)
+            math::evaluate(local, args)
+                .or_else(|| catalog_sizes::evaluate(local, args))
                 .or_else(|| text_selection::evaluate(local, args))
                 .or_else(|| text_scalar::evaluate(local, args))
                 .or_else(|| evaluate_text_function(local, args))

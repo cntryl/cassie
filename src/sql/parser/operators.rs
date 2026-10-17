@@ -49,6 +49,11 @@ pub(super) fn numeric_exponent_prefix(input: &str) -> bool {
 }
 
 fn binary_span(input: &str, start: usize, end: usize, token: &str) -> bool {
+    // These characters keep an adjacent trailing sign in the operator name
+    // (for example PostgreSQL's undefined %-), rather than a unary operand.
+    if matches!(token, "%" | "^" | "||" | "|" | "&" | "#") && input[end..].starts_with(['+', '-']) {
+        return false;
+    }
     let left = super::lexical::trim_separators(&input[..start]);
     if left.is_empty() || left.ends_with(operator_character) {
         return false;

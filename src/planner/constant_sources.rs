@@ -229,6 +229,9 @@ fn constant_cte<'a>(
     let cte = ctes
         .iter()
         .find(|cte| cte.name.eq_ignore_ascii_case(name))?;
+    if cte.materialization == crate::sql::ast::CteMaterialization::Materialized {
+        return None;
+    }
     let CteQuery::Simple(statement) = &cte.query else {
         return None;
     };

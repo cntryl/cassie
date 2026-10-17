@@ -431,3 +431,10 @@ fn starts_statement(lower: &str, keyword: &str) -> bool {
             .strip_prefix(keyword)
             .is_some_and(|remainder| lexical::separator_end(remainder, 0) > 0)
 }
+
+#[cfg(test)]
+#[path = "parser/cte_materialization_tests.rs"]
+mod cte_materialization_tests;
+
+#[path = "parser/cte_materialization.rs"]
+mod cte_materialization;

@@ -2600,3 +2600,51 @@ validation 0.56 (metadata probe 0.05, scope probe 0.16, delimiter probe 0.08,
 none 0.15). These judgments guide probes; actual source and passing tests are
 acceptance evidence. Full NAME identity, NOTICE and utility phase qualification
 remain under #793/#796; no owner closes or persistent layout changes here.
+
+
+### Ten-batch delivery 10/10: CTE materialization and integer dependency scope (2026-10-17)
+
+Baseline `4a171c57ce119f74792bf92bb9998da0128bbeb0`. Selected existing scalar/syntax support under #801 and #796
+with no new persistent type or storage migration. Native PostgreSQL 18.6
+reference descriptors and both wire payload formats are retained in focused
+Rust tests. TDD red evidence and targeted Jev probes are preserved in the ignored
+`target/ten-batch-10-*` logs. Current focused wire result: test result: ok. 527 passed; 0 failed; 0 ignored; 0 measured; 2924 filtered out; finished in 86.40s.
+
+Build, focused locked tests, complete parser regression comparison, full strict
+workspace/all-target/all-feature pedantic Clippy, formatting, touched/global
+test validators, refreshed inventory and whitespace checks completed. Parser
+failures remaining: 54 (20 fixed cumulatively from
+the 74-failure starting baseline), with no new failure identity. The consolidated
+full repository gate follows batch 10 under the documented local delivery policy.
+Known unrelated failures and complete owner acceptance remain pending.
+
+Jev review and probe outcome: `{"next_action": {"type": "choice", "choice": "resource", "confidence": 0.83, "probabilities": {"validate": 0.06, "probe": 0.07, "resource": 0.87, "none": 0.0}}, "gap": {"type": "noul", "noul": 0.56}}`.
+
+Batch 10 retains the explicit CTE materialization mode in the public AST, with
+legacy-compatible serde defaults. MATERIALIZED remains a planning barrier;
+finite nonvolatile NOT MATERIALIZED definitions expand under cancellation,
+deadline, memory and expression-depth controls. Volatile and recursive inputs
+retain sharing. Nested CTE/EXISTS scope expansion, mixed wildcard alias cases,
+recursive SEARCH/CYCLE and data-modifying CTE owner acceptance remain pending.
+
+The 53 new native PostgreSQL 18.6 wire regressions cover mode semantics,
+repeated references, supported volatile setting effects, error phases, aliases,
+duplicate output rejection, arithmetic dependency types, recursive anchor
+widths and enclosing seed scopes in both result formats. Initial binding now
+uses enclosing CTE row schemas. Recursive binding derives its row types from
+the bound anchor. WITH RECURSIVE accepts ordinary seed definitions without a
+UNION. The latter two refinements were driven by red native wire reproductions.
+
+Jev's resource/gap judgments (0.87/0.56) prompted duplicate-name probes and a
+wide dependent-scope budget/atomicity test. Six optimizer control tests cover
+initial and post-clone budget denial, wide dependent copies, depth, cancellation
+and deadlines. The cache ownership concern (0.32) prompted explicit isolation
+of the final-owner lifetime test from optional result caching, plus the six
+existing cache ownership regressions. The refinement anchor concern (0.58)
+prompted the two ordinary-seed and quoted-column reproductions. All judgments
+and raw probes remain in ignored target/ten-batch-10-* artifacts; their
+probabilities do not prove correctness or close the full #801 contract.
+
+Eight broken documentation links now use current test paths or immutable
+historical workflow references. Historical workflow interfaces are labeled
+archived. No CI, release or versioning configuration changed.

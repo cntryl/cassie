@@ -469,7 +469,7 @@ cargo bench --locked --bench '*'
 
 Run the artifact-manifest integration test against the artifacts produced by the final wildcard run. That final run is intentionally long because it includes both default one-hour Tier 6 scenarios.
 
-The scheduled [Bench workflow](../.github/workflows/bench.yml) exercises Tiers 1-4 and retains its
+The archived [Bench workflow at the frozen baseline](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/.github/workflows/bench.yml) records the CI topology below. Its scheduled lane exercises Tiers 1-4 and retains its
 stress artifacts using the shared Fitz workflow topology. A complete manual dispatch executes the
 ten unfiltered Tier 1-6 shards natively on each of `linux/amd64` and `linux/arm64` (20 shard jobs).
 Each architecture uses its registered disk-backed profile and distinct shard artifact names.
@@ -480,7 +480,7 @@ downstream validator job per architecture downloads only that profile's shard ar
 `target/stress` tree, checks the native machine architecture and every artifact's profile and
 source commit, applies the unchanged complete-suite validator, and retains profile-specific
 canonical `latest.json` owner artifacts only when its full manifest passes. The workflow fails if
-either native profile is incomplete. Dispatch `deployment_profile=both-native-linux-disk` only on
+either native profile is incomplete. For that archived dispatch interface, use `deployment_profile=both-native-linux-disk` only on
 the commit being evidenced, with a unique run ID; a smoke duration remains diagnostic and cannot
 pass the complete-suite validator.
 

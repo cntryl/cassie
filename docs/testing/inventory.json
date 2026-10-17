@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1731,
-    "rust_files": 1700,
-    "rust_test_declarations": 8458,
+    "files": 1734,
+    "rust_files": 1703,
+    "rust_test_declarations": 8511,
     "python_test_declarations": 16,
-    "registered_rust_instances": 8586,
+    "registered_rust_instances": 8639,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -107217,6 +107217,1649 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_0_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_0_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 6,
+      "end_line": 20,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_0_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_1_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_1_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 23,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_1_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_2_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_2_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 41,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_2_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_3_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_3_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 58,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_3_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_4_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_4_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 75,
+      "end_line": 86,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_4_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_5_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_5_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 89,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_5_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_6_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_6_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 114,
+      "end_line": 129,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_6_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_7_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_7_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 132,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_7_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_8_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_8_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 149,
+      "end_line": 163,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_8_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_9_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_9_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 166,
+      "end_line": 180,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_9_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_10_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_10_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 183,
+      "end_line": 194,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_10_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_11_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_11_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 197,
+      "end_line": 219,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_11_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_12_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_12_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 222,
+      "end_line": 236,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_12_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_13_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_13_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 239,
+      "end_line": 253,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_13_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_14_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_14_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 256,
+      "end_line": 270,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_14_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_15_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_15_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 273,
+      "end_line": 287,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_15_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_16_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_16_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 290,
+      "end_line": 304,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_16_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_17_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_17_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 307,
+      "end_line": 321,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_17_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_18_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_18_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 324,
+      "end_line": 338,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_18_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_mode_19_given_native_materialization_when_rows_are_executed",
+      "name": "should_preserve_cte_mode_19_given_native_materialization_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 341,
+      "end_line": 355,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_mode_19_given_native_materialization_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_boundary_0_given_native_alias_and_scope_when_rows_are_executed",
+      "name": "should_preserve_cte_boundary_0_given_native_alias_and_scope_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 358,
+      "end_line": 372,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_boundary_0_given_native_alias_and_scope_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_boundary_1_given_native_alias_and_scope_when_rows_are_executed",
+      "name": "should_preserve_cte_boundary_1_given_native_alias_and_scope_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 375,
+      "end_line": 389,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_boundary_1_given_native_alias_and_scope_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_boundary_2_given_native_alias_and_scope_when_rows_are_executed",
+      "name": "should_preserve_cte_boundary_2_given_native_alias_and_scope_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 392,
+      "end_line": 406,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_boundary_2_given_native_alias_and_scope_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_boundary_3_given_native_alias_and_scope_when_rows_are_executed",
+      "name": "should_preserve_cte_boundary_3_given_native_alias_and_scope_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 409,
+      "end_line": 423,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_boundary_3_given_native_alias_and_scope_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_boundary_4_given_native_alias_and_scope_when_rows_are_executed",
+      "name": "should_preserve_cte_boundary_4_given_native_alias_and_scope_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 426,
+      "end_line": 440,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_boundary_4_given_native_alias_and_scope_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_boundary_5_given_native_alias_and_scope_when_rows_are_executed",
+      "name": "should_preserve_cte_boundary_5_given_native_alias_and_scope_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 443,
+      "end_line": 457,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_boundary_5_given_native_alias_and_scope_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_boundary_6_given_native_alias_and_scope_when_rows_are_executed",
+      "name": "should_preserve_cte_boundary_6_given_native_alias_and_scope_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 460,
+      "end_line": 474,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_boundary_6_given_native_alias_and_scope_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10.rs::should_preserve_cte_boundary_7_given_native_alias_and_scope_when_rows_are_executed",
+      "name": "should_preserve_cte_boundary_7_given_native_alias_and_scope_when_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "line": 477,
+      "end_line": 491,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10::should_preserve_cte_boundary_7_given_native_alias_and_scope_when_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_arithmetic_cte_scope_given_three_dependencies_when_integer_types_are_bound",
+      "name": "should_preserve_arithmetic_cte_scope_given_three_dependencies_when_integer_types_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 6,
+      "end_line": 20,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_arithmetic_cte_scope_given_three_dependencies_when_integer_types_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_cte_arithmetic_given_default_smallint_when_dependencies_are_bound",
+      "name": "should_preserve_cte_arithmetic_given_default_smallint_when_dependencies_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 23,
+      "end_line": 34,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_cte_arithmetic_given_default_smallint_when_dependencies_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_cte_arithmetic_given_default_integer_when_dependencies_are_bound",
+      "name": "should_preserve_cte_arithmetic_given_default_integer_when_dependencies_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 37,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_cte_arithmetic_given_default_integer_when_dependencies_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_cte_arithmetic_given_default_bigint_when_dependencies_are_bound",
+      "name": "should_preserve_cte_arithmetic_given_default_bigint_when_dependencies_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 54,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_cte_arithmetic_given_default_bigint_when_dependencies_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_cte_arithmetic_given_materialized_smallint_when_dependencies_are_bound",
+      "name": "should_preserve_cte_arithmetic_given_materialized_smallint_when_dependencies_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 71,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_cte_arithmetic_given_materialized_smallint_when_dependencies_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_cte_arithmetic_given_materialized_integer_when_dependencies_are_bound",
+      "name": "should_preserve_cte_arithmetic_given_materialized_integer_when_dependencies_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 85,
+      "end_line": 99,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_cte_arithmetic_given_materialized_integer_when_dependencies_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_cte_arithmetic_given_materialized_bigint_when_dependencies_are_bound",
+      "name": "should_preserve_cte_arithmetic_given_materialized_bigint_when_dependencies_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 102,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_cte_arithmetic_given_materialized_bigint_when_dependencies_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_cte_arithmetic_given_not_materialized_smallint_when_dependencies_are_bound",
+      "name": "should_preserve_cte_arithmetic_given_not_materialized_smallint_when_dependencies_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 119,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_cte_arithmetic_given_not_materialized_smallint_when_dependencies_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_cte_arithmetic_given_not_materialized_integer_when_dependencies_are_bound",
+      "name": "should_preserve_cte_arithmetic_given_not_materialized_integer_when_dependencies_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 133,
+      "end_line": 147,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_cte_arithmetic_given_not_materialized_integer_when_dependencies_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_cte_arithmetic_given_not_materialized_bigint_when_dependencies_are_bound",
+      "name": "should_preserve_cte_arithmetic_given_not_materialized_bigint_when_dependencies_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 150,
+      "end_line": 164,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_cte_arithmetic_given_not_materialized_bigint_when_dependencies_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_anchor_given_default_smallint_when_integer_signatures_are_bound",
+      "name": "should_preserve_recursive_anchor_given_default_smallint_when_integer_signatures_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 167,
+      "end_line": 189,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_anchor_given_default_smallint_when_integer_signatures_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_anchor_given_default_integer_when_integer_signatures_are_bound",
+      "name": "should_preserve_recursive_anchor_given_default_integer_when_integer_signatures_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 192,
+      "end_line": 214,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_anchor_given_default_integer_when_integer_signatures_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_anchor_given_default_bigint_when_integer_signatures_are_bound",
+      "name": "should_preserve_recursive_anchor_given_default_bigint_when_integer_signatures_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 217,
+      "end_line": 239,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_anchor_given_default_bigint_when_integer_signatures_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_anchor_given_materialized_smallint_when_integer_signatures_are_bound",
+      "name": "should_preserve_recursive_anchor_given_materialized_smallint_when_integer_signatures_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 242,
+      "end_line": 265,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_anchor_given_materialized_smallint_when_integer_signatures_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_anchor_given_materialized_integer_when_integer_signatures_are_bound",
+      "name": "should_preserve_recursive_anchor_given_materialized_integer_when_integer_signatures_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 268,
+      "end_line": 290,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_anchor_given_materialized_integer_when_integer_signatures_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_anchor_given_materialized_bigint_when_integer_signatures_are_bound",
+      "name": "should_preserve_recursive_anchor_given_materialized_bigint_when_integer_signatures_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 293,
+      "end_line": 315,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_anchor_given_materialized_bigint_when_integer_signatures_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_anchor_given_not_materialized_smallint_when_integer_signatures_are_bound",
+      "name": "should_preserve_recursive_anchor_given_not_materialized_smallint_when_integer_signatures_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 318,
+      "end_line": 341,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_anchor_given_not_materialized_smallint_when_integer_signatures_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_anchor_given_not_materialized_integer_when_integer_signatures_are_bound",
+      "name": "should_preserve_recursive_anchor_given_not_materialized_integer_when_integer_signatures_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 344,
+      "end_line": 367,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_anchor_given_not_materialized_integer_when_integer_signatures_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_anchor_given_not_materialized_bigint_when_integer_signatures_are_bound",
+      "name": "should_preserve_recursive_anchor_given_not_materialized_bigint_when_integer_signatures_are_bound",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 370,
+      "end_line": 393,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_anchor_given_not_materialized_bigint_when_integer_signatures_are_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_outer_scope_given_mode_0_when_anchor_columns_have_quoted_aliases",
+      "name": "should_preserve_recursive_outer_scope_given_mode_0_when_anchor_columns_have_quoted_aliases",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 396,
+      "end_line": 418,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_outer_scope_given_mode_0_when_anchor_columns_have_quoted_aliases"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs::should_preserve_recursive_outer_scope_given_mode_1_when_anchor_columns_have_quoted_aliases",
+      "name": "should_preserve_recursive_outer_scope_given_mode_1_when_anchor_columns_have_quoted_aliases",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "line": 421,
+      "end_line": 443,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_arithmetic_scopes::should_preserve_recursive_outer_scope_given_mode_1_when_anchor_columns_have_quoted_aliases"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs::should_report_materialized_constant_error_given_unused_target_when_binding",
+      "name": "should_report_materialized_constant_error_given_unused_target_when_binding",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs",
+      "line": 6,
+      "end_line": 16,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_errors::should_report_materialized_constant_error_given_unused_target_when_binding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs::should_report_materialized_row_error_given_consumer_filter_when_executing",
+      "name": "should_report_materialized_row_error_given_consumer_filter_when_executing",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs",
+      "line": 19,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_errors::should_report_materialized_row_error_given_consumer_filter_when_executing"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs::should_reject_ambiguous_cte_output_given_mode_0_when_binding",
+      "name": "should_reject_ambiguous_cte_output_given_mode_0_when_binding",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs",
+      "line": 48,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_errors::should_reject_ambiguous_cte_output_given_mode_0_when_binding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs::should_reject_ambiguous_cte_output_given_mode_1_when_binding",
+      "name": "should_reject_ambiguous_cte_output_given_mode_1_when_binding",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs",
+      "line": 68,
+      "end_line": 86,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_10_errors::should_reject_ambiguous_cte_output_given_mode_1_when_binding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/grammar/semantics.rs::should_parse_digit_separators_as_integer_literal_syntax",
       "name": "should_parse_digit_separators_as_integer_literal_syntax",
       "current_file": "tests/pgwire_extended/grammar/semantics.rs",
@@ -212249,7 +213892,7 @@
       "name": "should_release_materialized_cte_memory_when_the_result_is_dropped",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
       "line": 447,
-      "end_line": 470,
+      "end_line": 480,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -212279,8 +213922,8 @@
       "id": "tests/sql_queries/ctes/ctes.rs::should_release_materialized_cte_memory_after_a_consumer_error",
       "name": "should_release_materialized_cte_memory_after_a_consumer_error",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
-      "line": 473,
-      "end_line": 500,
+      "line": 483,
+      "end_line": 510,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -212310,8 +213953,8 @@
       "id": "tests/sql_queries/ctes/ctes.rs::should_feed_deleted_returning_rows_into_a_following_cte_statement",
       "name": "should_feed_deleted_returning_rows_into_a_following_cte_statement",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
-      "line": 503,
-      "end_line": 541,
+      "line": 513,
+      "end_line": 551,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -212341,8 +213984,8 @@
       "id": "tests/sql_queries/ctes/ctes.rs::should_keep_sibling_reads_on_the_data_modifying_cte_statement_snapshot",
       "name": "should_keep_sibling_reads_on_the_data_modifying_cte_statement_snapshot",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
-      "line": 544,
-      "end_line": 603,
+      "line": 554,
+      "end_line": 613,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -212372,8 +214015,8 @@
       "id": "tests/sql_queries/ctes/ctes.rs::should_attach_a_non_modifying_cte_to_insert",
       "name": "should_attach_a_non_modifying_cte_to_insert",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
-      "line": 606,
-      "end_line": 629,
+      "line": 616,
+      "end_line": 639,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -212403,8 +214046,8 @@
       "id": "tests/sql_queries/ctes/ctes.rs::should_attach_a_non_modifying_cte_to_update",
       "name": "should_attach_a_non_modifying_cte_to_update",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
-      "line": 632,
-      "end_line": 662,
+      "line": 642,
+      "end_line": 672,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -212434,8 +214077,8 @@
       "id": "tests/sql_queries/ctes/ctes.rs::should_attach_a_non_modifying_cte_to_delete",
       "name": "should_attach_a_non_modifying_cte_to_delete",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
-      "line": 665,
-      "end_line": 692,
+      "line": 675,
+      "end_line": 702,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -212465,8 +214108,8 @@
       "id": "tests/sql_queries/ctes/ctes.rs::should_roll_back_data_modifying_ctes_when_the_outer_insert_fails",
       "name": "should_roll_back_data_modifying_ctes_when_the_outer_insert_fails",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
-      "line": 695,
-      "end_line": 728,
+      "line": 705,
+      "end_line": 738,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -212496,8 +214139,8 @@
       "id": "tests/sql_queries/ctes/ctes.rs::should_attach_a_non_modifying_cte_to_merge",
       "name": "should_attach_a_non_modifying_cte_to_merge",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
-      "line": 731,
-      "end_line": 762,
+      "line": 741,
+      "end_line": 772,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -212527,8 +214170,8 @@
       "id": "tests/sql_queries/ctes/ctes.rs::should_select_rows_from_a_merge_returning_cte",
       "name": "should_select_rows_from_a_merge_returning_cte",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
-      "line": 765,
-      "end_line": 803,
+      "line": 775,
+      "end_line": 813,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -275962,6 +277605,51 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 491,
+      "sha256": "ff966c12e9b4b9f09ca8ff9ce25fb7a07b6c0ec7b8bd751e9493a447ffa23738",
+      "test_declarations": 28,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/scalar_batch_10.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 443,
+      "sha256": "e3a3e111ebfc207241f0ff28b221823525e6ee4fab94c82ad3c220929bc8e771",
+      "test_declarations": 21,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 86,
+      "sha256": "52b56f4490cbf26c6ad10ae9aee4cb46aceb6de5c9325092ab1d7338eec588a0",
+      "test_declarations": 4,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/scalar_batch_10_errors.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/grammar/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -281112,8 +282800,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 566,
-      "sha256": "36949fc53cea893e12b86752c52836b35a95a57a59a5f126858b29eaf1404daa",
+      "lines": 575,
+      "sha256": "b12ea8c6dccb0b6494188e6ccf5e8dc94bae7002ec296a84804568d784fc2013",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -285103,8 +286791,8 @@
       "current_file": "tests/sql_queries/ctes/ctes.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 803,
-      "sha256": "88bc1e40eb016e8a6ef02f48472bfc439f5c97fc6c0f47cd55bf81ea296fa63c",
+      "lines": 813,
+      "sha256": "d2181293b34209b84ae45dbe7a2a43cf10fd2d4aa428a301d0073ee712398a96",
       "test_declarations": 24,
       "registered_suites": [
         "sql_queries"

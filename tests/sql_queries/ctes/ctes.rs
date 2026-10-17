@@ -1,7 +1,7 @@
 //! PostgreSQL 18 CTE materialization and recursive traversal contracts for #801.
 
 use cassie::app::CassieError;
-use cassie::config::CassieRuntimeConfig;
+use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use cassie::types::Value;
 
 use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
@@ -446,7 +446,17 @@ fn should_detect_cycles_only_after_all_declared_keys_repeat() {
 #[test]
 fn should_release_materialized_cte_memory_when_the_result_is_dropped() {
     // Arrange
-    let fixture = repeated_reference_fixture("issue-801-materialized-memory-release");
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    // The result cache is another result owner; this test measures the final owner's drop.
+    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+    let fixture = sql_fixture_with_config(
+        "issue-801-materialized-memory-release",
+        &[
+            "CREATE TABLE issue_801_values (value BIGINT)",
+            "INSERT INTO issue_801_values VALUES (1), (2), (3)",
+        ],
+        config,
+    );
     let current_before = current_accounted_memory_bytes(&fixture);
 
     // Act

@@ -207,67 +207,76 @@ impl<'a> Footprint<'a> {
         Ok(bytes)
     }
 
+    fn cte(
+        &self,
+        cte: &crate::sql::ast::CommonTableExpression,
+        depth: usize,
+    ) -> Result<usize, CassieError> {
+        self.check(depth)?;
+        let mut bytes = add(
+            size_of::<crate::sql::ast::CommonTableExpression>(),
+            cte.name.len(),
+        )?;
+        bytes = add(bytes, Self::strings(&cte.aliases)?)?;
+        match &cte.query {
+            CteQuery::Simple(statement) => {
+                bytes = add(bytes, self.statement(statement, depth + 1)?)?;
+            }
+            CteQuery::Recursive {
+                base, recursive, ..
+            } => {
+                bytes = add(bytes, self.statement(base, depth + 1)?)?;
+                bytes = add(bytes, self.statement(recursive, depth + 1)?)?;
+            }
+        }
+        Ok(bytes)
+    }
+
+    fn item(&self, item: &SelectItem, depth: usize) -> Result<usize, CassieError> {
+        self.check(depth)?;
+        let mut bytes = size_of::<SelectItem>();
+        let alias = match item {
+            SelectItem::Wildcard => None,
+            SelectItem::Column { name, alias } => {
+                bytes = add(bytes, name.len())?;
+                alias.as_ref()
+            }
+            SelectItem::Expr { expr, alias } => {
+                bytes = add(bytes, self.expression(expr, depth + 1)?)?;
+                alias.as_ref()
+            }
+            SelectItem::Function { function, alias } => {
+                bytes = add(bytes, self.function(function, depth + 1)?)?;
+                alias.as_ref()
+            }
+            SelectItem::WindowFunction { function, alias } => {
+                bytes = add(bytes, function.name.len())?;
+                bytes = add(bytes, self.expressions(&function.args, depth + 1)?)?;
+                bytes = add(bytes, self.expressions(&function.partition_by, depth + 1)?)?;
+                for order in &function.order_by {
+                    bytes = add(bytes, size_of::<crate::sql::ast::OrderExpr>())?;
+                    bytes = add(bytes, self.expression(&order.expr, depth + 1)?)?;
+                }
+                alias.as_ref()
+            }
+        };
+        if let Some(alias) = alias {
+            bytes = add(bytes, alias.len())?;
+        }
+        Ok(bytes)
+    }
+
     fn select(&self, select: &SelectStatement, depth: usize) -> Result<usize, CassieError> {
         self.check(depth)?;
         let mut bytes = add(
             size_of::<SelectStatement>(),
             self.source(&select.source, depth + 1)?,
         )?;
-        bytes = add(
-            bytes,
-            mul(
-                select.ctes.len(),
-                size_of::<crate::sql::ast::CommonTableExpression>(),
-            )?,
-        )?;
         for cte in &select.ctes {
-            bytes = add(bytes, cte.name.len())?;
-            bytes = add(bytes, Self::strings(&cte.aliases)?)?;
-            match &cte.query {
-                CteQuery::Simple(statement) => {
-                    bytes = add(bytes, self.statement(statement, depth + 1)?)?;
-                }
-                CteQuery::Recursive {
-                    base, recursive, ..
-                } => {
-                    bytes = add(bytes, self.statement(base, depth + 1)?)?;
-                    bytes = add(bytes, self.statement(recursive, depth + 1)?)?;
-                }
-            }
+            bytes = add(bytes, self.cte(cte, depth)?)?;
         }
-        bytes = add(
-            bytes,
-            mul(select.projection.len(), size_of::<SelectItem>())?,
-        )?;
         for item in &select.projection {
-            let alias = match item {
-                SelectItem::Wildcard => None,
-                SelectItem::Column { name, alias } => {
-                    bytes = add(bytes, name.len())?;
-                    alias.as_ref()
-                }
-                SelectItem::Expr { expr, alias } => {
-                    bytes = add(bytes, self.expression(expr, depth + 1)?)?;
-                    alias.as_ref()
-                }
-                SelectItem::Function { function, alias } => {
-                    bytes = add(bytes, self.function(function, depth + 1)?)?;
-                    alias.as_ref()
-                }
-                SelectItem::WindowFunction { function, alias } => {
-                    bytes = add(bytes, function.name.len())?;
-                    bytes = add(bytes, self.expressions(&function.args, depth + 1)?)?;
-                    bytes = add(bytes, self.expressions(&function.partition_by, depth + 1)?)?;
-                    for order in &function.order_by {
-                        bytes = add(bytes, size_of::<crate::sql::ast::OrderExpr>())?;
-                        bytes = add(bytes, self.expression(&order.expr, depth + 1)?)?;
-                    }
-                    alias.as_ref()
-                }
-            };
-            if let Some(alias) = alias {
-                bytes = add(bytes, alias.len())?;
-            }
+            bytes = add(bytes, self.item(item, depth)?)?;
         }
         bytes = add(bytes, self.expressions(&select.distinct_on, depth + 1)?)?;
         bytes = add(bytes, self.expressions(&select.group_by, depth + 1)?)?;
@@ -292,4 +301,38 @@ impl<'a> Footprint<'a> {
         }
         Ok(bytes)
     }
+}
+
+// Shared controlled AST clone accounting for the CTE planner's temporary copy.
+pub(crate) fn source_clone_bytes(
+    source: &QuerySource,
+    controls: &QueryExecutionControls,
+) -> Result<usize, CassieError> {
+    Footprint::new(controls).source(source, 0)
+}
+pub(crate) fn cte_clone_bytes(
+    cte: &crate::sql::ast::CommonTableExpression,
+    controls: &QueryExecutionControls,
+) -> Result<usize, CassieError> {
+    Footprint::new(controls).cte(cte, 0)
+}
+pub(crate) fn item_clone_bytes(
+    item: &SelectItem,
+    depth: usize,
+    controls: &QueryExecutionControls,
+) -> Result<usize, CassieError> {
+    Footprint::new(controls).item(item, depth)
+}
+pub(crate) fn expression_clone_bytes(
+    expr: &Expr,
+    depth: usize,
+    controls: &QueryExecutionControls,
+) -> Result<usize, CassieError> {
+    Footprint::new(controls).expression(expr, depth)
+}
+pub(crate) fn select_clone_bytes(
+    select: &SelectStatement,
+    controls: &QueryExecutionControls,
+) -> Result<usize, CassieError> {
+    Footprint::new(controls).select(select, 0)
 }

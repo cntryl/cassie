@@ -82,6 +82,7 @@ pub(super) fn bind_select_with_lateral_fields(
             name: cte.name,
             aliases: stored_aliases,
             query,
+            materialization: cte.materialization,
         };
         let binding = cte_columns::binding(&bound_cte, &bound_ctes, &scope, catalog, context)?;
         scope.insert(cte_name_lc, binding);
@@ -117,7 +118,7 @@ pub(super) fn bind_select_with_lateral_fields(
 
     let projection_aliases = collect_projection_aliases(&select);
     validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
-    super::boolean_contexts::validate_select(&mut select, catalog, context)?;
+    super::boolean_contexts::validate_select(&mut select, catalog, context, outer_scope)?;
     validate_select_operand_families(&select, catalog)?;
     super::coalesce_results::validate_select(&select, catalog, context)?;
 

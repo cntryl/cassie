@@ -263,6 +263,13 @@ impl<'a> Walk<'a> {
 }
 
 /// Share the same reached-definition mask with pre-execution bound resolution.
+pub(crate) fn for_plan(
+    plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
+) -> Result<LiveCtes, CassieError> {
+    used(&SelectParts::plan(plan), controls)
+}
+
 pub(crate) fn for_select(
     select: &SelectStatement,
     controls: &QueryExecutionControls,

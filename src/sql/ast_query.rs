@@ -9,6 +9,18 @@ pub struct CommonTableExpression {
     pub name: String,
     pub aliases: Vec<String>,
     pub query: CteQuery,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub materialization: CteMaterialization,
+}
+
+/// Explicit CTE planning policy; recursive and volatile inputs retain sharing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CteMaterialization {
+    #[default]
+    Default,
+    Materialized,
+    NotMaterialized,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

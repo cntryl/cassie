@@ -97,6 +97,7 @@ fn wildcard_cte_columns(
         name: cte_name.to_string(),
         aliases: Vec::new(),
         query: query.clone(),
+        materialization: crate::sql::ast::CteMaterialization::Default,
     });
     let schema = super::super::source_schema::derived_source_schema(
         &QuerySource::Cte(cte_name.to_string()),

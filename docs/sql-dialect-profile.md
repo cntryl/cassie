@@ -967,3 +967,8 @@ namespace binder and retain enclosing CTE and parameter type information.
 Native witnesses cover descriptors and both wire formats, including CHAR(3)
 typmods. Complete NAME OID 19, truncation NOTICE and utility phase behavior remain
 pending under #793/#796.
+
+
+Experimental ten-batch increment 10: CTE materialization and integer dependency scope over existing scalar types.
+Native wire witnesses and precise local acceptance are recorded in
+[validation](testing/validation.md). Complete type and owner contracts remain pending.

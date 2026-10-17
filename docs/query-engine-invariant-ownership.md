@@ -204,14 +204,14 @@ see the exact committed seed/final state; the skipped payload never replaces `ol
 
 Selected named probes:
 
-- [Embedded literals](../tests/sql_mutations/skipped_conflict_returning.rs):
+- [Embedded literals](../tests/sql_mutations/conflicts/skipped_conflict_returning.rs):
   `should_preserve_skipped_conflict_insert_returning_contract` is the current name
   of the embedded probe, whose unchanged body passed before the test-only rename
   with `cargo test --locked --test sql_mutations skipped_conflict_returning:: -- --nocapture`
   on main55, including exact rows/counts/metadata and independent state/counters.
-- [Simple Query](../tests/pgwire_extended/skipped_conflict_returning.rs):
+- [Simple Query](../tests/pgwire_extended/conflicts/skipped_conflict_returning.rs):
   `should_match_skipped_conflict_returning_over_simple_query` passed.
-- [Declared text/binary input Bind](../tests/pgwire_extended/skipped_conflict_returning.rs):
+- [Declared text/binary input Bind](../tests/pgwire_extended/conflicts/skipped_conflict_returning.rs):
   `should_match_skipped_conflict_returning_over_declared_text_bind` and
   `should_match_skipped_conflict_returning_over_declared_binary_bind` passed.
 
@@ -485,7 +485,7 @@ otherwise identical unrestricted projection must preserve the complete base answ
 and advance the same counter by exactly one. Public accounted query memory,
 running-query and operator-worker counts must be zero after the selected queries.
 
-The selected [focused test](../tests/analytics/analytical_offset_substitution.rs),
+The selected [focused test](../tests/analytics/read_models/offset_substitution.rs),
 `should_decline_offset_projection_substitution_while_using_unrestricted_twin`,
 was executed on unchanged main and exposed a separate direct-projection metadata
 mismatch: `n BIGINT` is described as `TEXT` when reading the materialized

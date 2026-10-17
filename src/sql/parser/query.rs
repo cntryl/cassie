@@ -596,6 +596,7 @@ pub(super) fn parse_cte_definitions(
         let body = super::lexical::trim_separators(&definition[as_pos + 2..]);
 
         let (name, aliases) = parse_cte_header(head)?;
+        let (materialization, body) = super::cte_materialization::parse(body);
         let body_sql = parse_enclosed_parenthesized(body)
             .ok_or_else(|| SqlError::new(format!("invalid CTE body for '{name}'")))?;
         // UNION is also valid in an ordinary CTE; the WITH keyword controls
@@ -614,16 +615,11 @@ pub(super) fn parse_cte_definitions(
 
             CteQuery::Simple(Box::new(parsed_body))
         };
-        if recursive && !matches!(query, CteQuery::Recursive { .. }) {
-            return Err(SqlError::new(format!(
-                "recursive CTE '{name}' must include UNION ALL between anchor and recursive queries"
-            )));
-        }
-
         out.push(CommonTableExpression {
             name: name.clone(),
             aliases,
             query,
+            materialization,
         });
     }
 

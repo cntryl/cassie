@@ -322,6 +322,8 @@ impl Cassie {
             fallback_controls = self.runtime.query_controls(std::time::Instant::now());
             &fallback_controls
         };
+        let _cte_memory =
+            crate::planner::cte_inlining::inline(&mut logical, &self.catalog, source_controls)?;
         let _constant_memory =
             crate::planner::constant_sources::inline(&mut logical, source_controls)?;
         let optimized = crate::planner::optimizer::optimize_with_stats(logical, &cardinality_stats);
@@ -384,6 +386,8 @@ impl Cassie {
         let mut logical_plan = crate::planner::logical::plan(&bound)?;
         crate::planner::logical::rewrite_reserved_id_references(&mut logical_plan, &self.catalog);
         let controls = self.runtime.query_controls(std::time::Instant::now());
+        let _cte_memory =
+            crate::planner::cte_inlining::inline(&mut logical_plan, &self.catalog, &controls)?;
         let _constant_memory =
             crate::planner::constant_sources::inline(&mut logical_plan, &controls)?;
         let logical =

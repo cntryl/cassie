@@ -24,10 +24,10 @@ pub use ast_row::{RowComparison, RowComparisonOp};
 #[path = "ast_visit.rs"]
 mod ast_visit;
 pub use ast_query::{
-    AggregateQuantifier, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression, CteQuery, Expr,
-    FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet,
-    SelectStatement, SetOperator, SortDirection, UnaryNumericOp, WindowFrame, WindowFrameBound,
-    WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
+    AggregateQuantifier, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression,
+    CteMaterialization, CteQuery, Expr, FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource,
+    SelectItem, SelectSet, SelectStatement, SetOperator, SortDirection, UnaryNumericOp,
+    WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -3,7 +3,9 @@ mod array_order;
 pub mod batch;
 mod execution;
 pub(crate) use execution::plan_needs_statement_data;
-pub(crate) use execution::{check_bound_plan_constants, check_plan_constants, reached_ctes};
+pub(crate) use execution::{
+    check_bound_plan_constants, check_plan_constants, reached_ctes, reached_plan_ctes,
+};
 pub use execution::{OwnedQueryRows, QueryResultBuilder};
 
 pub(crate) fn delete_document_with_referential_actions(

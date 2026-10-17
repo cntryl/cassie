@@ -107,8 +107,20 @@ pub(super) fn validate_select(
     select: &mut SelectStatement,
     catalog: &Catalog,
     context: &BindingContext,
+    outer: &super::CteScope,
 ) -> Result<(), CassieError> {
-    let types = ResultTypes::for_source(&select.source, &select.ctes, catalog, context)?;
+    let schemas = outer
+        .iter()
+        .map(|(name, binding)| {
+            (
+                name.clone(),
+                crate::types::Schema {
+                    fields: binding.row_fields.clone(),
+                },
+            )
+        })
+        .collect();
+    let types = ResultTypes::for_scope(&select.source, &select.ctes, catalog, context, &schemas)?;
     validate_select_with_types(select, &types, catalog, context)
 }
 

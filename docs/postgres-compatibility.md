@@ -258,7 +258,7 @@ The Stable procedure subset is defined separately in [Limited Procedures and CAL
 The repository currently keeps automated coverage for the native pgwire harness and `tokio-postgres`; external Prisma, psql, and SQLAlchemy probes are opt-in when separately provisioned. Version-pinned pgAdmin 9.16 and DBeaver 26.1.3 normalized trace-replay lanes are available and retain explicitly non-certifying manifests. The psycopg 3 and JDBC client lanes remain Planned/unverified, and pgAdmin/DBeaver remain uncertified until separately provisioned live desktop workflows retain exact-revision evidence. Client-version upgrades require refreshed traces and live smoke suites before a future certification claim changes.
 
 The shared dispatch contract for these lanes is documented in [Compatibility Probe Contract](compatibility-probe-contract.md)
-and implemented by the opt-in [Compatibility Probes workflow](../.github/workflows/compatibility-probes.yml).
+with the archived dispatch interface in the [Compatibility Probes workflow at the frozen baseline](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/.github/workflows/compatibility-probes.yml). Current local coverage runs through `cargo test --locked --test compatibility`; external dispatch requires a separately provisioned runner.
 
 ## Intentional Differences
 

@@ -564,3 +564,12 @@ mod scalar_batch_09_scopes;
 
 #[path = "pgwire_extended/grammar/scalar_batch_09_parameters.rs"]
 mod scalar_batch_09_parameters;
+
+#[path = "pgwire_extended/grammar/scalar_batch_10.rs"]
+mod scalar_batch_10;
+
+#[path = "pgwire_extended/grammar/scalar_batch_10_errors.rs"]
+mod scalar_batch_10_errors;
+
+#[path = "pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs"]
+mod scalar_batch_10_arithmetic_scopes;

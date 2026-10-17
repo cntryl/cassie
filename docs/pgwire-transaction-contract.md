@@ -153,8 +153,8 @@ resumes must not rerun mutations. Preserve bounded explicit recovery state.
 ## Finite acceptance and remaining qualification
 
 The focused runtime owners are
-[transaction boundaries](../tests/pgwire_extended/transaction_boundaries.rs) and
-[portal handoffs](../tests/pgwire_extended/transaction_portal_handoffs.rs), using
+[transaction boundaries](../tests/pgwire_extended/transactions/transaction_boundaries.rs) and
+[portal handoffs](../tests/pgwire_extended/transactions/transaction_portal_handoffs.rs), using
 [independent raw-wire sessions](../tests/support/pgwire_transaction_boundary.rs).
 Prefix CommandComplete is the observer barrier; five-second reads bound every
 ready boundary. Each case asserts I/T/E, concrete frame sequences or payloads,

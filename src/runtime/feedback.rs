@@ -484,6 +484,11 @@ enum NormalizedExprShape {
         high: Box<NormalizedExprShape>,
         negated: bool,
     },
+    TruthTest {
+        expr: Box<NormalizedExprShape>,
+        truth: crate::sql::ast::TruthValue,
+        negated: bool,
+    },
     IsNull {
         expr: Box<NormalizedExprShape>,
         negated: bool,
@@ -574,6 +579,15 @@ impl From<&Expr> for NormalizedExprShape {
                 expr: Box::new(Self::from(expr.as_ref())),
                 low: Box::new(Self::from(low.as_ref())),
                 high: Box::new(Self::from(high.as_ref())),
+                negated: *negated,
+            },
+            Expr::TruthTest {
+                expr,
+                truth,
+                negated,
+            } => Self::TruthTest {
+                expr: Box::new(Self::from(expr.as_ref())),
+                truth: *truth,
                 negated: *negated,
             },
             Expr::IsNull { expr, negated } => Self::IsNull {

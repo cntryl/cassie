@@ -73,6 +73,7 @@ impl Fold<'_, '_> {
             | ast::Expr::Between { .. }
             | ast::Expr::InList { .. }
             | ast::Expr::IsNull { .. }
+            | ast::Expr::TruthTest { .. }
             | ast::Expr::Not { .. }
             | ast::Expr::Function(_)
             | ast::Expr::Exists(_)

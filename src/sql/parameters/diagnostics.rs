@@ -18,6 +18,7 @@ pub(crate) enum BooleanConstruct {
     Or,
     CaseWhen,
     Filter,
+    Truth(crate::sql::ast::TruthValue, bool),
 }
 
 impl BooleanConstruct {
@@ -31,6 +32,7 @@ impl BooleanConstruct {
             Self::Or => "OR",
             Self::CaseWhen => "CASE/WHEN",
             Self::Filter => "FILTER",
+            Self::Truth(truth, negated) => truth.label(negated),
         }
     }
 }
@@ -83,7 +85,7 @@ impl ParameterSemanticDiagnostic {
                 | Self::AmbiguousFunction { .. }
                 | Self::UndefinedFunction { .. }
                 | Self::BooleanOperand {
-                    construct: BooleanConstruct::Filter,
+                    construct: BooleanConstruct::Filter | BooleanConstruct::Truth(..),
                     ..
                 }
         )

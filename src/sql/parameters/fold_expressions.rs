@@ -23,7 +23,6 @@ impl Fold<'_, '_> {
                     .parameter(*slot, self.controls, frame.qualified)
             }
             ast::Expr::StringLiteral(_) | ast::Expr::Null => Ok(Summary::literal()),
-            ast::Expr::BoolLiteral(_) => Ok(Summary::known(16)),
             ast::Expr::IntegerLiteral(value) => {
                 Ok(Summary::known(oid(&binder::integer_literal_type(*value))))
             }
@@ -48,9 +47,11 @@ impl Fold<'_, '_> {
             ),
             ast::Expr::IntegerNegate { width, .. } => Ok(Summary::known(oid(&width.data_type()))),
             ast::Expr::Cast { data_type, .. } => Ok(Summary::known(oid(data_type))),
-            ast::Expr::IsNull { .. } | ast::Expr::Not { .. } | ast::Expr::Exists(_) => {
-                Ok(Summary::known(16))
-            }
+            ast::Expr::BoolLiteral(_)
+            | ast::Expr::IsNull { .. }
+            | ast::Expr::TruthTest { .. }
+            | ast::Expr::Not { .. }
+            | ast::Expr::Exists(_) => Ok(Summary::known(16)),
             ast::Expr::RowCompare(comparison) => {
                 self.row_inputs(comparison, frame)?;
                 Ok(Summary::known(16))

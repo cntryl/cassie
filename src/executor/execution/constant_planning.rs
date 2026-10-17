@@ -350,6 +350,14 @@ impl Folder<'_> {
                 }
                 _ => self.fold_operands([&**left, &**right], true, false),
             },
+            Expr::TruthTest {
+                expr,
+                truth,
+                negated,
+            } => Ok(match self.fold(expr)? {
+                Fold::Decided(value) => Fold::Decided(Some(truth.evaluate(value, *negated))),
+                fold => fold,
+            }),
             Expr::IsNull { expr, negated } => Ok(match self.fold(expr)? {
                 Fold::Decided(value) => Fold::Decided(Some(value.is_none() != *negated)),
                 fold => fold,

@@ -806,3 +806,6 @@ fn should_match_scalar_bag_across_selected_batch_boundaries() {
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
+
+#[path = "tests/truth_predicates.rs"]
+mod truth_predicates;

@@ -804,3 +804,38 @@ failed independently on `max((||/-8.0))` before the renderer fix. Its final focu
 round-trip probe is part of the mandatory review follow-up. Native reference remains
 PostgreSQL 18.6, executable SHA256
 `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+
+
+Experimental ten-batch increment 5: Boolean truth predicates over existing scalar types.
+Native wire witnesses and precise local acceptance are recorded in
+[validation](testing/validation.md). Complete type and owner contracts remain pending.
+
+Increment 5 selects `IS [NOT] TRUE`, `FALSE` and `UNKNOWN` over existing BOOLEAN
+inputs. A dedicated `Expr::TruthTest` preserves the target, negation, Boolean
+operand requirement and native non-NULL result. Unknown strings use checked
+Boolean input; typed non-Boolean values, including NULL-bound TEXT parameters,
+reject with 42804. Invalid Boolean input rejects with 22P02. Six focused error
+witnesses match native messages and reject before result metadata. Native
+left-associated truth chains and comparison/NOT/AND/OR precedence are retained.
+AST visitors, mapping/equality, parameter occurrence admission, typed/scalar
+execution, constant folding, EXISTS resolution, normalized keys and canonical SQL
+all retain the new node. No persistent scalar or row layout is introduced.
+
+Jev's sibling-path gap probability 0.75 prompted native/real-wire constant-fold,
+NULL/CASE, typed-row/filter/count and parameter probes. Six successful parameter
+fixtures cross 24 formats; the declared Boolean NULL truth table crosses another
+24. A selected typed-batch truth table matches native expectations and the scalar
+kernel, and canonical aggregate SQL round-trips. The depth review gap probability
+0.62 prompted 129 truth tests and 128 casts followed by a truth test. The new
+regression failed 0/1 before a bounded iterative suffix parser restored the
+existing combined 128-level limit; it passes afterward. CASE formatting, child
+mapping and scalar evaluation were extracted unchanged to satisfy strict function
+size limits. Semantic plan-cache epoch is 24.
+
+Final focused wire result is 208 passing/zero failing, including 52 new tests.
+The truth unit group passes 3/0 and the canonical rollup group 4/0 (one shared
+truth round-trip test appears in both groups). Complete parser comparison is
+313 passing/61 failing, with no new failure identities and thirteen starting
+failures fixed cumulatively. Final Jev review selected validation with probability
+0.89 (probe 0.10). Full repository and whole-owner qualification remain pending;
+this finite increment does not close #793/#796 or the PostgreSQL program.

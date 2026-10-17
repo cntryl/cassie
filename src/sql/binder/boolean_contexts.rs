@@ -347,6 +347,14 @@ fn validate_expression(
             validate_case(operand, branches, else_expr, types, catalog, context)?;
         }
         expression @ Expr::Cast { .. } => validate_cast(expression, types, catalog, context)?,
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => {
+            validate_truth_operand(expr, *truth, *negated, types)?;
+            validate_expression(expr, types, catalog, context)?;
+        }
         Expr::IntegerNegate { expr, .. } | Expr::IsNull { expr, .. } => {
             validate_expression(expr, types, catalog, context)?;
         }
@@ -693,6 +701,30 @@ fn resolve_nested_source(
         | QuerySource::Values { .. }
         | QuerySource::SingleRow
         | QuerySource::TableFunction { .. } => {}
+    }
+    Ok(())
+}
+
+fn validate_truth_operand(
+    expr: &mut Expr,
+    truth: crate::sql::ast::TruthValue,
+    negated: bool,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    if let Expr::StringLiteral(text) = expr {
+        let value = crate::types::boolean::parse_text(text).ok_or_else(|| {
+            CassieError::Execution(format!("invalid input syntax for type boolean: {text:?}"))
+        })?;
+        *expr = Expr::BoolLiteral(value);
+    }
+    if let Some(kind) = types.expression_type(expr) {
+        if !matches!(kind, DataType::Boolean | DataType::Null) {
+            return Err(CassieError::Execution(format!(
+                "argument of {} must be type boolean, not type {}",
+                truth.label(negated),
+                boolean_aggregates::type_name(&kind)
+            )));
+        }
     }
     Ok(())
 }

@@ -437,6 +437,11 @@ fn projection_expr_key(expr: &Expr) -> String {
                 projection_expr_key(right)
             )
         }
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => format!("{} {}", projection_expr_key(expr), truth.label(*negated)),
         Expr::IsNull { expr, negated } => {
             format!(
                 "{} is{} null",

@@ -261,6 +261,7 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
             parameter_count_expr(left).max(parameter_count_expr(right))
         }
         ast::Expr::IsNull { expr, .. }
+        | ast::Expr::TruthTest { expr, .. }
         | ast::Expr::Not { expr }
         | ast::Expr::Cast { expr, .. }
         | ast::Expr::UnaryNumeric { expr, .. }

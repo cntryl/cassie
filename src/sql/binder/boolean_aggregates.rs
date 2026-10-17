@@ -115,7 +115,8 @@ fn qualify_expression(expression: &mut Expr, types: &ResultTypes) {
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. }
         | Expr::Not { expr }
-        | Expr::IsNull { expr, .. } => {
+        | Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. } => {
             qualify_expression(expr, types);
         }
         Expr::InList { expr, values, .. } => {

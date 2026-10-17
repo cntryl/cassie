@@ -259,6 +259,7 @@ fn collect_expr_columns(
             collect_expr_columns(right, fields, allocation)?;
         }
         Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
         | Expr::UnaryNumeric { expr, .. }

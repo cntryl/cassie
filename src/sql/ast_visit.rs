@@ -42,6 +42,7 @@ impl Expr {
                 visit(right)?;
             }
             Self::IsNull { expr, .. }
+            | Self::TruthTest { expr, .. }
             | Self::Not { expr }
             | Self::Cast { expr, .. }
             | Self::UnaryNumeric { expr, .. }
@@ -88,14 +89,7 @@ impl Expr {
                 operand,
                 branches,
                 else_expr,
-            } => Self::Case {
-                operand: operand.as_deref().map(|expr| Box::new(map(expr))),
-                branches: branches
-                    .iter()
-                    .map(|(when, then)| (map(when), map(then)))
-                    .collect(),
-                else_expr: else_expr.as_deref().map(|expr| Box::new(map(expr))),
-            },
+            } => map_case_children(operand.as_deref(), branches, else_expr.as_deref(), &mut map),
             Self::RowCompare(comparison) => Self::RowCompare(Box::new(super::RowComparison {
                 left: comparison.left.iter().map(&mut map).collect(),
                 op: comparison.op,
@@ -105,6 +99,15 @@ impl Expr {
                 left: Box::new(map(left)),
                 op: op.clone(),
                 right: Box::new(map(right)),
+            },
+            Self::TruthTest {
+                expr,
+                truth,
+                negated,
+            } => Self::TruthTest {
+                expr: Box::new(map(expr)),
+                truth: *truth,
+                negated: *negated,
             },
             Self::IsNull { expr, negated } => Self::IsNull {
                 expr: Box::new(map(expr)),
@@ -228,7 +231,8 @@ impl Expr {
             | Self::UnaryNumeric { expr, .. }
             | Self::IntegerNegate { expr, .. }
             | Self::Not { expr }
-            | Self::IsNull { expr, .. } => {
+            | Self::IsNull { expr, .. }
+            | Self::TruthTest { expr, .. } => {
                 visit(expr)?;
             }
             Self::Between {
@@ -356,6 +360,10 @@ impl Expr {
 /// Compares the expression forms that carry sub-expressions: their shape,
 /// operator, and flags must match before their children are compared.
 fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
+    if let Some(equal) = truth_test_eq(left, right) {
+        return equal;
+    }
+
     match (left, right) {
         (
             Expr::Case {
@@ -509,3 +517,38 @@ fn all_structurally_eq(left: &[Expr], right: &[Expr]) -> bool {
 #[cfg(test)]
 #[path = "ast_visit_tests.rs"]
 mod tests;
+
+fn map_case_children(
+    operand: Option<&Expr>,
+    branches: &[(Expr, Expr)],
+    else_expr: Option<&Expr>,
+    map: &mut impl FnMut(&Expr) -> Expr,
+) -> Expr {
+    Expr::Case {
+        operand: operand.map(|expr| Box::new(map(expr))),
+        branches: branches
+            .iter()
+            .map(|(when, then)| (map(when), map(then)))
+            .collect(),
+        else_expr: else_expr.map(|expr| Box::new(map(expr))),
+    }
+}
+
+fn truth_test_eq(left: &Expr, right: &Expr) -> Option<bool> {
+    let (
+        Expr::TruthTest {
+            expr: left,
+            truth: left_truth,
+            negated: left_negated,
+        },
+        Expr::TruthTest {
+            expr: right,
+            truth: right_truth,
+            negated: right_negated,
+        },
+    ) = (left, right)
+    else {
+        return None;
+    };
+    Some(left_truth == right_truth && left_negated == right_negated && left.structurally_eq(right))
+}

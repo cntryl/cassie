@@ -87,6 +87,7 @@ impl Analyzer<'_> {
             | Expr::BoolLiteral(_)
             | Expr::Exists(_)
             | Expr::IsNull { .. }
+            | Expr::TruthTest { .. }
             | Expr::InList { .. }
             | Expr::Between { .. }
             | Expr::Not { .. } => OutputType::fixed(DataType::Boolean),

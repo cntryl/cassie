@@ -595,6 +595,7 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
                 || filter_binds_non_finite_param(Some(right), params)
         }
         Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
         | Expr::UnaryNumeric { expr, .. }

@@ -20,30 +20,21 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
             operand,
             branches,
             else_expr,
-        } => {
-            let mut sql = String::from("CASE");
-            if let Some(operand) = operand {
-                sql.push(' ');
-                sql.push_str(&format_expression(operand)?);
-            }
-            for (when, then) in branches {
-                sql.push_str(" WHEN ");
-                sql.push_str(&format_expression(when)?);
-                sql.push_str(" THEN ");
-                sql.push_str(&format_expression(then)?);
-            }
-            if let Some(else_expr) = else_expr {
-                sql.push_str(" ELSE ");
-                sql.push_str(&format_expression(else_expr)?);
-            }
-            sql.push_str(" END");
-            Ok(sql)
-        }
+        } => format_case(operand.as_deref(), branches, else_expr.as_deref()),
         Expr::Binary { left, op, right } => Ok(format!(
             "({} {} {})",
             format_expression(left)?,
             format_binary_operator(op),
             format_expression(right)?
+        )),
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => Ok(format!(
+            "({} {})",
+            format_expression(expr)?,
+            truth.label(*negated)
         )),
         Expr::IsNull { expr, negated } => Ok(format!(
             "({} IS{} NULL)",
@@ -131,6 +122,30 @@ fn format_float(value: f64) -> Result<String, String> {
     } else {
         Ok(format!("{formatted}.0"))
     }
+}
+
+fn format_case(
+    operand: Option<&Expr>,
+    branches: &[(Expr, Expr)],
+    else_expr: Option<&Expr>,
+) -> Result<String, String> {
+    let mut sql = String::from("CASE");
+    if let Some(operand) = operand {
+        sql.push(' ');
+        sql.push_str(&format_expression(operand)?);
+    }
+    for (when, then) in branches {
+        sql.push_str(" WHEN ");
+        sql.push_str(&format_expression(when)?);
+        sql.push_str(" THEN ");
+        sql.push_str(&format_expression(then)?);
+    }
+    if let Some(else_expr) = else_expr {
+        sql.push_str(" ELSE ");
+        sql.push_str(&format_expression(else_expr)?);
+    }
+    sql.push_str(" END");
+    Ok(sql)
 }
 
 fn format_binary_operator(operator: &BinaryOp) -> &'static str {
@@ -281,5 +296,30 @@ mod tests {
             assert!(original
                 .structurally_eq(&reparsed.unwrap_or_else(|error| panic!("{canonical}: {error}"))));
         }
+    }
+    #[test]
+    fn should_round_trip_truth_predicates_given_aggregate_when_canonical_sql_is_parsed() {
+        // Arrange
+        let sources = [
+            "BOOL_OR(flag IS TRUE)",
+            "BOOL_AND(flag IS NOT FALSE)",
+            "COUNT(flag IS UNKNOWN)",
+            "COUNT(flag IS NOT UNKNOWN)",
+        ];
+        // Act
+        let results = sources.map(|source| {
+            let original = crate::sql::parser::parse_expression(source).expect("source");
+            let Expr::Function(function) = &original else {
+                panic!("aggregate");
+            };
+            let canonical = canonical_aggregate_expression(function).expect("canonical SQL");
+            let reparsed =
+                crate::sql::parser::parse_expression(&canonical).expect("parse canonical SQL");
+            (original, reparsed)
+        });
+        // Assert
+        assert!(results
+            .iter()
+            .all(|(original, reparsed)| original.structurally_eq(reparsed)));
     }
 }

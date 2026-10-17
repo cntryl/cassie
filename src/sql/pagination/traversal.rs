@@ -208,6 +208,7 @@ fn visit_expr(
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. }
         | Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
         | Expr::Not { expr } => {
             visit_expr(expr, visitor, controls)?;
         }

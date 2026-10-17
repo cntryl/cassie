@@ -498,3 +498,18 @@ mod scalar_batch_04_interactions;
 
 #[path = "pgwire_extended/grammar/scalar_batch_04_prefix.rs"]
 mod scalar_batch_04_prefix;
+
+#[path = "pgwire_extended/grammar/scalar_batch_05.rs"]
+mod scalar_batch_05;
+
+#[path = "pgwire_extended/grammar/scalar_batch_05_parameters.rs"]
+mod scalar_batch_05_parameters;
+
+#[path = "pgwire_extended/grammar/scalar_batch_05_interactions.rs"]
+mod scalar_batch_05_interactions;
+
+#[path = "pgwire_extended/grammar/scalar_batch_05_errors.rs"]
+mod scalar_batch_05_errors;
+
+#[path = "pgwire_extended/grammar/scalar_batch_05_null_parameters.rs"]
+mod scalar_batch_05_null_parameters;

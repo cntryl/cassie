@@ -364,6 +364,7 @@ impl<'a> Occurrences<'a> {
                 | BooleanConstruct::And
                 | BooleanConstruct::Or
                 | BooleanConstruct::CaseWhen
+                | BooleanConstruct::Truth(..)
         );
         let selected_for_diagnostics = selected_for_inference
             || matches!(

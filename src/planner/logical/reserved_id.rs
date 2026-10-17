@@ -233,6 +233,7 @@ fn rewrite_expr(expr: &mut Expr) {
             rewrite_expr(right);
         }
         Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
         | Expr::UnaryNumeric { expr, .. }

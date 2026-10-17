@@ -838,6 +838,7 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
             collect_projected_scan_filter_columns(right, fields)
         }
         Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
         | Expr::UnaryNumeric { expr, .. }

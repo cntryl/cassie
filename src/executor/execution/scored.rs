@@ -908,6 +908,7 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
                 && vector_prefilter_supported(right, schema)
         }
         Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
         | Expr::UnaryNumeric { expr, .. }

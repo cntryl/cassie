@@ -112,6 +112,7 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::IsNull { .. }
+        | Expr::TruthTest { .. }
         | Expr::InList { .. }
         | Expr::Between { .. }
         | Expr::Not { .. }

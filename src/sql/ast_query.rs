@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::IdentifierPath;
-use super::ParsedStatement;
+use super::{ParsedStatement, TruthValue};
 use crate::types::DataType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -298,6 +298,11 @@ pub enum Expr {
         left: Box<Expr>,
         op: BinaryOp,
         right: Box<Expr>,
+    },
+    TruthTest {
+        expr: Box<Expr>,
+        truth: TruthValue,
+        negated: bool,
     },
     IsNull {
         expr: Box<Expr>,

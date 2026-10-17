@@ -145,7 +145,7 @@ fn expression_operand_family(
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(data_type_family(data_type)))
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } => {
+        Expr::IsNull { expr, .. } | Expr::TruthTest { expr, .. } | Expr::Not { expr } => {
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(OperandFamily::Boolean))
         }
@@ -910,7 +910,7 @@ pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
         collect_expr(left, out);
         collect_expr(right, out);
     }
-    if let Expr::IsNull { expr, .. } = expr {
+    if let Expr::IsNull { expr, .. } | Expr::TruthTest { expr, .. } = expr {
         collect_expr(expr, out);
     }
     if let Expr::InList { expr, values, .. } = expr {

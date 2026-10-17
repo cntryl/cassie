@@ -528,6 +528,7 @@ fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
         }
         crate::sql::ast::Expr::Function(function) => function_uses_vector_operator(function),
         crate::sql::ast::Expr::IsNull { expr, .. }
+        | crate::sql::ast::Expr::TruthTest { expr, .. }
         | crate::sql::ast::Expr::Cast { expr, .. }
         | crate::sql::ast::Expr::UnaryNumeric { expr, .. }
         | crate::sql::ast::Expr::IntegerNegate { expr, .. } => expr_uses_vector_operator(expr),
@@ -704,6 +705,7 @@ fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut 
             collect_fulltext_fields_from_function(function, fields);
         }
         crate::sql::ast::Expr::IsNull { expr, .. }
+        | crate::sql::ast::Expr::TruthTest { expr, .. }
         | crate::sql::ast::Expr::Cast { expr, .. }
         | crate::sql::ast::Expr::UnaryNumeric { expr, .. }
         | crate::sql::ast::Expr::IntegerNegate { expr, .. } => {

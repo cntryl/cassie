@@ -23,6 +23,8 @@ mod numeric_literals;
 mod row_predicates;
 #[path = "string_literals.rs"]
 mod string_literals;
+#[path = "truth_predicates.rs"]
+mod truth_predicates;
 #[path = "unary_numeric.rs"]
 mod unary_numeric;
 
@@ -97,6 +99,9 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         }
     }
 
+    if let Some(truth) = truth_predicates::parse(raw)? {
+        return Ok(truth);
+    }
     for (suffix, negated) in [(" isnull", false), (" notnull", true)] {
         if let Some(operand) = super::lexical::strip_keyword_suffix(raw, suffix) {
             return Ok(Expr::IsNull {

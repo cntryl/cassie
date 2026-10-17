@@ -724,6 +724,7 @@ pub(crate) fn infer_expr_type(
         | Expr::BoolLiteral(_)
         | Expr::Exists(_)
         | Expr::IsNull { .. }
+        | Expr::TruthTest { .. }
         | Expr::InList { .. }
         | Expr::Between { .. }
         | Expr::Not { .. } => Some(DataType::Boolean),

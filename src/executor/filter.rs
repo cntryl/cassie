@@ -308,8 +308,12 @@ mod constants;
 #[path = "filter/text_arrays.rs"]
 mod text_arrays;
 pub(crate) use constants::constant_scalar_with_parameters;
+#[path = "filter/case.rs"]
+mod case;
 #[path = "filter/row_predicates.rs"]
 mod row_predicates;
+#[path = "filter/truth_tests.rs"]
+mod truth_tests;
 pub(crate) use row_predicates::field_result as row_field_result;
 
 fn eval_scalar_with_context<R: RowAccess + ?Sized>(
@@ -336,39 +340,28 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
             operand,
             branches,
             else_expr,
-        } => {
-            let operand_value = operand
-                .as_ref()
-                .map(|operand| eval_scalar_with_context(row, operand, context))
-                .transpose()?;
-            for (when, then) in branches {
-                let when_value = eval_scalar_with_context(row, when, context)?;
-                if operand_value.is_none()
-                    && !matches!(when_value, ScalarValue::Bool(_) | ScalarValue::Null)
-                {
-                    return Err(QueryError::General(
-                        "CASE WHEN condition must be BOOLEAN".to_string(),
-                    ));
-                }
-                let selected = if let Some(operand_value) = &operand_value {
-                    eq_value(operand_value, &when_value) == Some(true)
-                } else {
-                    matches!(when_value, ScalarValue::Bool(true))
-                };
-                if selected {
-                    return eval_scalar_with_context(row, then, context);
-                }
-            }
-            else_expr.as_ref().map_or(Ok(ScalarValue::Null), |expr| {
-                eval_scalar_with_context(row, expr, context)
-            })
-        }
+        } => case::evaluate(
+            row,
+            operand.as_deref(),
+            branches,
+            else_expr.as_deref(),
+            context,
+        ),
         Expr::Param(index) => Ok(context
             .params
             .get(*index)
             .map_or(ScalarValue::Null, scalar_from_value)),
         Expr::Function(function) => evaluate_function_scalar(row, function, context),
         Expr::Binary { left, op, right } => eval_binary_expr(row, left, op, right, context),
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => truth_tests::evaluate(
+            &eval_scalar_with_context(row, expr, context)?,
+            *truth,
+            *negated,
+        ),
         Expr::IsNull { expr, negated } => eval_is_null_expr(row, expr, *negated, context),
         Expr::InList {
             expr,

@@ -617,6 +617,11 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
         Expr::Binary { left, op, right } => {
             format!("{}{:?}{}", expr_key(left), op, expr_key(right))
         }
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => format!("{} {}", expr_key(expr), truth.label(*negated)),
         Expr::IsNull { expr, negated } => {
             format!(
                 "{} is{} null",

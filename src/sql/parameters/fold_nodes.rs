@@ -246,6 +246,7 @@ fn expression_children(expr: &ast::Expr) -> usize {
         ast::Expr::Case { branches, .. } => 2 + branches.len() * 2,
         ast::Expr::InList { values, .. } => 1 + values.len(),
         ast::Expr::IsNull { .. }
+        | ast::Expr::TruthTest { .. }
         | ast::Expr::Not { .. }
         | ast::Expr::UnaryNumeric { .. }
         | ast::Expr::IntegerNegate { .. }
@@ -270,6 +271,7 @@ fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
             Some(Node::Expr(if index == 0 { left } else { right }))
         }
         ast::Expr::IsNull { expr, .. }
+        | ast::Expr::TruthTest { expr, .. }
         | ast::Expr::Not { expr }
         | ast::Expr::Cast { expr, .. }
         | ast::Expr::UnaryNumeric { expr, .. }
@@ -351,6 +353,9 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
             ..
         }) => {
             child.expected = Expected::Type(701, true);
+        }
+        Node::Expr(ast::Expr::TruthTest { truth, negated, .. }) => {
+            child.expected = Expected::Boolean(BooleanConstruct::Truth(*truth, *negated));
         }
         Node::Expr(ast::Expr::Not { .. }) => {
             child.expected = Expected::Boolean(BooleanConstruct::Not);

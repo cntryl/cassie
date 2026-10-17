@@ -120,6 +120,13 @@ fn resolve<R: RowAccess + ?Sized>(
                     .map(|value| value.not().into_scalar())
             })
             .transpose(),
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => resolve(expr, row, context)?
+            .map(|value| super::truth_tests::evaluate(&value, *truth, *negated))
+            .transpose(),
         Expr::IsNull { expr, negated } => Ok(resolve(expr, row, context)?
             .map(|value| ScalarValue::Bool(matches!(value, ScalarValue::Null) != *negated))),
         Expr::Between {

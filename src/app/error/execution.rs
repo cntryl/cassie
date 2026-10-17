@@ -50,7 +50,7 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     {
         return bad_request_descriptor("22P02", message.to_string());
     }
-    if message.starts_with("argument of FILTER must be type boolean, not type ") {
+    if boolean_argument_error(message) {
         return bad_request_descriptor("42804", message.to_string());
     }
     if [
@@ -103,4 +103,23 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
         return resource_limit_descriptor(message.to_string());
     }
     bad_request_descriptor("22000", message.to_string())
+}
+
+fn boolean_argument_error(message: &str) -> bool {
+    [
+        "FILTER",
+        "IS TRUE",
+        "IS NOT TRUE",
+        "IS FALSE",
+        "IS NOT FALSE",
+        "IS UNKNOWN",
+        "IS NOT UNKNOWN",
+    ]
+    .iter()
+    .any(|name| {
+        message
+            .strip_prefix("argument of ")
+            .and_then(|tail| tail.strip_prefix(name))
+            .is_some_and(|tail| tail.starts_with(" must be type boolean, not type "))
+    })
 }

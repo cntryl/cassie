@@ -943,6 +943,7 @@ fn insert_expr_to_value(expr: &Expr, params: &[Value]) -> Result<Value, String> 
         | Expr::Case { .. }
         | Expr::Function(_)
         | Expr::IsNull { .. }
+        | Expr::TruthTest { .. }
         | Expr::InList { .. }
         | Expr::Between { .. }
         | Expr::Not { .. }

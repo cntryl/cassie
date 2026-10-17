@@ -666,6 +666,7 @@ fn expr_children(expr: &ast::Expr) -> usize {
         ast::Expr::RowCompare(comparison) => comparison.left.len() + comparison.right.len(),
         ast::Expr::Binary { .. } | ast::Expr::InList { .. } => 2,
         ast::Expr::IsNull { .. }
+        | ast::Expr::TruthTest { .. }
         | ast::Expr::Not { .. }
         | ast::Expr::UnaryNumeric { .. }
         | ast::Expr::IntegerNegate { .. }
@@ -699,6 +700,7 @@ fn expr_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
             Some(Node::Expr(if index == 0 { left } else { right }))
         }
         ast::Expr::IsNull { expr, .. }
+        | ast::Expr::TruthTest { expr, .. }
         | ast::Expr::Not { expr }
         | ast::Expr::Cast { expr, .. }
         | ast::Expr::UnaryNumeric { expr, .. }

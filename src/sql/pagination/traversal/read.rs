@@ -217,6 +217,7 @@ impl Reader<'_> {
             | Expr::UnaryNumeric { expr, .. }
             | Expr::IntegerNegate { expr, .. }
             | Expr::IsNull { expr, .. }
+            | Expr::TruthTest { expr, .. }
             | Expr::Not { expr } => {
                 self.expr(expr, depth + 1)?;
             }

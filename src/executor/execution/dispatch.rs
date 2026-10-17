@@ -601,6 +601,15 @@ pub(super) fn resolve_exists_expr<'a>(
         }
         Expr::RowCompare(comparison) => resolve_row_exists_expr(context, comparison),
         Expr::Binary { left, op, right } => resolve_binary_exists_expr(context, left, op, right),
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => Ok(Expr::TruthTest {
+            expr: Box::new(resolve_exists_expr(context, expr)?),
+            truth: *truth,
+            negated: *negated,
+        }),
         Expr::IsNull { expr, negated } => resolve_is_null_exists_expr(context, expr, *negated),
         Expr::InList {
             expr,
@@ -936,6 +945,7 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
         } => expression_expansion_weight(expr)
             .saturating_add(usize::try_from(*width).unwrap_or(usize::MAX)),
         Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
         | Expr::UnaryNumeric { expr, .. }

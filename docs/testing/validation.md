@@ -2353,3 +2353,33 @@ Final parser comparison is 312 passing/62 failing; three additional original
 failures are fixed in this slice, twelve cumulatively. No original test assertion
 was weakened. Sixty-one new focused wire tests and three new unit tests are added.
 Full repository acceptance and the consolidated full-suite gate remain pending.
+
+
+### Ten-batch delivery 5/10: Boolean truth predicates (2026-10-17)
+
+Baseline `f0e6c98dbd3bd0ed3d67f3cce2610d2a28c5cb37`. Selected existing scalar/syntax support under #796
+with no new persistent type or storage migration. Native PostgreSQL 18.6
+reference descriptors and both wire payload formats are retained in focused
+Rust tests. TDD red evidence and targeted Jev probes are preserved in the ignored
+`target/ten-batch-05-*` logs. Current focused wire result: test result: ok. 208 passed; 0 failed; 0 ignored; 0 measured; 2924 filtered out; finished in 31.01s.
+
+Build, focused locked tests, complete parser regression comparison, full strict
+workspace/all-target/all-feature pedantic Clippy, formatting, touched/global
+test validators, refreshed inventory and whitespace checks completed. Parser
+failures remaining: 61 (13 fixed cumulatively from
+the 74-failure starting baseline), with no new failure identity. The consolidated
+full repository gate follows batch 10 under the documented local delivery policy.
+Known unrelated failures and complete owner acceptance remain pending.
+
+Jev review and probe outcome: `{"final_review": {"type": "choice", "choice": "validate", "confidence": 0.83, "probabilities": {"validate": 0.89, "probe": 0.1, "none": 0.01}}}`.
+
+Batch 5 also passes `cargo test --locked --lib truth_predicates` (3/0) and
+`cargo test --locked --lib rollup_expression::tests` (4/0), before the final parser
+comparison and strict analyzers. The depth regression failed independently before
+its fix. The final full parser comparison was rerun after the CASE extractions;
+313/61, with no new failure identity. Three new unit tests and 52 wire tests are
+added without changing original assertions. Mandatory Jev probes at 0.75 and 0.62
+and the final 0.89 validation judgment are recorded in the dialect profile.
+The user has now authorized continuing coherent batches until the full test suite
+and required analyzers pass, including further batches beyond the initial ten if
+needed. Required gates and native semantic boundaries remain in force.

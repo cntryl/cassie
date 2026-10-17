@@ -77,7 +77,9 @@ fn collect(
         Expr::IntegerLiteral(_) | Expr::NumberLiteral(_) | Expr::BoolLiteral(_) | Expr::Null => {
             Ok(true)
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } => collect(expr, schema, prepared),
+        Expr::IsNull { expr, .. } | Expr::TruthTest { expr, .. } | Expr::Not { expr } => {
+            collect(expr, schema, prepared)
+        }
         Expr::Binary {
             left,
             op:

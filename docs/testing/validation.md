@@ -1989,3 +1989,64 @@ sets. All seven `domain_models` graph-function correctness checks pass, covering
 shared table-function inference callers. Final Jev review selects finite staged
 support at 1.0 and addressed probe action at probability 0.79. No owner is closed
 and no full repository or hosted green is claimed.
+
+### Midge 0.4.1 fresh-store checkpoint (2026-10-17)
+
+The user upgraded Cargo dependencies and explicitly selected fresh stores.
+Published `cntryl-midge` 0.4.1 requires FORMAT 8; pre-0.4 stores require logical
+export/import into a new store. This change does not migrate, remove or open an
+existing deployment's store. It retains the user-generated lockfile refresh
+and documents the fresh-store boundary in README and storage qualification.
+Cassie's own logical layout and CI/release/version configuration are unchanged.
+
+The red `outcome_tests::` unit returned `Some(0ns)` for
+`OutcomeUnknown("write conflict while confirming publication")`; the required
+result is no automatic retry. Mapping now uses typed `WriteConflict` and keeps
+unknown outcomes terminal with reconciliation guidance. A corruption message
+containing conflict text also remains terminal. Native storage backpressure,
+fencing and bounded conflict retries retain their existing behavior.
+
+Jev triage selected compatibility assessment at 1.0 and identified an unknown
+outcome regression gap of 0.87. The permanent retry regression confirmed it.
+Implementation review selected fresh-only scope and a post-recovery write
+probe at 1.0, with 0.77 probability that the typed correction eliminates the
+selected retry path. The added witness commits after recovery, reopens again
+and verifies both commits. These judgments do not qualify a deployment or prove
+all recovery behavior. Cloud-provider and old-store migration acceptance remain
+separate and open.
+
+Eight new tests cover retry refusal, terminal error detail/guidance, terminal
+corruption despite conflict text, fresh FORMAT 8 creation, old-marker rejection,
+typed row/view/index metadata recovery and writes after restart. The preserved
+47fce044 storage executable establishes 154 passed/six failed/one ignored before
+this change. Its existing failures cover cross-type operator families, range
+indexes, TIMESTAMPTZ and text-search mapping changes. Ordered validation and
+fresh executable results follow below. All Cargo uses `CARGO_INCREMENTAL=0`.
+
+Final executed evidence:
+
+- `cargo build --locked --bin cassie`: passed (24.91 seconds).
+- `cargo test --locked`: library **1,025/0**, analytics **179/0**, backend
+  **2/0**, benchmark operations **16/0**. Stops at catalog/security **229/173**
+  after 584.42 seconds; its exact failure identities match 47fce044.
+- Fresh artifact discovery with
+  `cargo test --locked --no-run --message-format=json`: passed. The final
+  storage executable reports **161 passed/six failed/one ignored**; its six
+  failure identities exactly match the preserved pre-upgrade binary. All seven
+  new integration tests pass; the eighth new test is the library retry unit.
+- Complete parser **299/74** and core wire **74/10** preserve their exact failure
+  sets. The selected runtime wire matrix remains **61/0**.
+- Full `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+  and `cargo fmt --all -- --check`: passed, including the final renamed test.
+- The validator initially flagged `_and_` in one new test name. The test was
+  renamed without changing assertions. All three touched integration validators
+  plus `cntryl-tools validate-tests -f src/midge/adapter/documents/commit.rs`
+  now pass. Global validator: **8,672/8,672** compliant source tests.
+- Inventory refresh/check adds seven integration identities, removes none and
+  changes no existing identity. The added unit brings the new-test total to
+  eight. Whitespace and touched Rust line limits pass.
+
+Final Jev review selects fresh-store scope at 1.0 and the selected retry
+regression as verified at probability 0.99. No deployment migration or provider
+qualification is claimed. Existing 173 catalog failures and six storage-suite
+failures remain; full repository and hosted green are not established.

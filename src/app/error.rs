@@ -816,6 +816,9 @@ impl From<cntryl_midge::MidgeError> for CassieError {
     fn from(value: cntryl_midge::MidgeError) -> Self {
         let message = value.to_string();
         match value {
+            cntryl_midge::MidgeError::OutcomeUnknown(detail) => CassieError::Storage(format!(
+                "midge write outcome unknown: {detail}; reconcile the transaction after recovery before retrying"
+            )),
             cntryl_midge::MidgeError::WriteStall(message) => CassieError::storage_retryable(
                 StorageRetryKind::WriteStall,
                 STORAGE_WRITE_STALL_PREFIX,
@@ -838,7 +841,7 @@ impl From<cntryl_midge::MidgeError> for CassieError {
                     CassieError::Storage(message)
                 }
             }
-            _ if message.to_ascii_lowercase().contains("write conflict") => {
+            cntryl_midge::MidgeError::WriteConflict(_) => {
                 CassieError::storage_retryable(
                     StorageRetryKind::WriteConflict,
                     STORAGE_WRITE_CONFLICT_PREFIX,

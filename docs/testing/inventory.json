@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1670,
-    "rust_files": 1639,
-    "rust_test_declarations": 7649,
+    "files": 1671,
+    "rust_files": 1640,
+    "rust_test_declarations": 7656,
     "python_test_declarations": 16,
-    "registered_rust_instances": 7777,
+    "registered_rust_instances": 7784,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -231278,6 +231278,99 @@
       }
     },
     {
+      "id": "tests/storage_indexes/storage/midge_error_paths.rs::should_keep_unknown_commit_terminal_given_conflict_text_when_storage_errors_are_mapped",
+      "name": "should_keep_unknown_commit_terminal_given_conflict_text_when_storage_errors_are_mapped",
+      "current_file": "tests/storage_indexes/storage/midge_error_paths.rs",
+      "line": 53,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "midge_error_paths::should_keep_unknown_commit_terminal_given_conflict_text_when_storage_errors_are_mapped"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/midge_error_paths.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/midge_error_paths.rs::should_preserve_unknown_commit_detail_given_lost_acknowledgment_when_storage_errors_are_mapped",
+      "name": "should_preserve_unknown_commit_detail_given_lost_acknowledgment_when_storage_errors_are_mapped",
+      "current_file": "tests/storage_indexes/storage/midge_error_paths.rs",
+      "line": 65,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "midge_error_paths::should_preserve_unknown_commit_detail_given_lost_acknowledgment_when_storage_errors_are_mapped"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/midge_error_paths.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/midge_error_paths.rs::should_keep_corruption_terminal_given_conflict_text_when_storage_errors_are_mapped",
+      "name": "should_keep_corruption_terminal_given_conflict_text_when_storage_errors_are_mapped",
+      "current_file": "tests/storage_indexes/storage/midge_error_paths.rs",
+      "line": 78,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "midge_error_paths::should_keep_corruption_terminal_given_conflict_text_when_storage_errors_are_mapped"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/midge_error_paths.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/storage_indexes/storage/midge_layout_bootstrap.rs::should_bootstrap_required_families_idempotently",
       "name": "should_bootstrap_required_families_idempotently",
       "current_file": "tests/storage_indexes/storage/midge_layout_bootstrap.rs",
@@ -232112,6 +232205,130 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/midge_release_041.rs::should_create_format_eight_given_a_fresh_store_when_cassie_starts",
+      "name": "should_create_format_eight_given_a_fresh_store_when_cassie_starts",
+      "current_file": "tests/storage_indexes/storage/midge_release_041.rs",
+      "line": 24,
+      "end_line": 33,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "midge_release_041::should_create_format_eight_given_a_fresh_store_when_cassie_starts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/midge_release_041.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/midge_release_041.rs::should_reject_old_format_given_a_preserved_marker_when_cassie_opens",
+      "name": "should_reject_old_format_given_a_preserved_marker_when_cassie_opens",
+      "current_file": "tests/storage_indexes/storage/midge_release_041.rs",
+      "line": 36,
+      "end_line": 57,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "midge_release_041::should_reject_old_format_given_a_preserved_marker_when_cassie_opens"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/midge_release_041.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/midge_release_041.rs::should_recover_sql_state_given_a_fresh_store_when_cassie_restarts",
+      "name": "should_recover_sql_state_given_a_fresh_store_when_cassie_restarts",
+      "current_file": "tests/storage_indexes/storage/midge_release_041.rs",
+      "line": 60,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "midge_release_041::should_recover_sql_state_given_a_fresh_store_when_cassie_restarts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/midge_release_041.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/midge_release_041.rs::should_persist_post_recovery_writes_given_a_fresh_store_when_cassie_restarts_again",
+      "name": "should_persist_post_recovery_writes_given_a_fresh_store_when_cassie_restarts_again",
+      "current_file": "tests/storage_indexes/storage/midge_release_041.rs",
+      "line": 128,
+      "end_line": 183,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "midge_release_041::should_persist_post_recovery_writes_given_a_fresh_store_when_cassie_restarts_again"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/midge_release_041.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -261386,9 +261603,9 @@
       "current_file": "tests/storage_indexes/storage/midge_error_paths.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 50,
-      "sha256": "2d9fb2bb7e63588ca38eab9c7b6c81cbe8adb5a1e8591c59ee57fdc61ced7188",
-      "test_declarations": 4,
+      "lines": 85,
+      "sha256": "de5e6d22c0c1bccf67a905167b7f832cc6af9eb7a88a491e0f6e0a539512d88c",
+      "test_declarations": 7,
       "registered_suites": [
         "storage_indexes"
       ],
@@ -261458,6 +261675,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/storage_indexes/storage/midge_release_041.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 183,
+      "sha256": "b20b23b57f6d0e48441a7e11fddaa45abf5ef5e101d5a0f20ae5566bac8e2368",
+      "test_declarations": 4,
+      "registered_suites": [
+        "storage_indexes"
+      ],
+      "destinations": [
+        "tests/storage_indexes/storage/midge_release_041.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/storage_indexes/text_search/configuration_changes.rs",
       "role": "test_module",
       "action": "keep",
@@ -261506,8 +261738,8 @@
       "current_file": "tests/storage_indexes.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 125,
-      "sha256": "f5e2507162db976c9c4f7082760a9eac354c3190d05e6ae33ca503d5a1ddc7b5",
+      "lines": 128,
+      "sha256": "60917712f0fe3e767067cd52d58a0fad4b0d61f6eda8dbb0752a7e50a431314c",
       "test_declarations": 0,
       "registered_suites": [
         "storage_indexes"

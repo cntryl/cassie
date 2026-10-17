@@ -123,3 +123,6 @@ mod text_search_configuration_changes;
 
 #[path = "storage_indexes/types/ranges/operators.rs"]
 mod types_ranges_operators;
+
+#[path = "storage_indexes/storage/midge_release_041.rs"]
+mod midge_release_041;

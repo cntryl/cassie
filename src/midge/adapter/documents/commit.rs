@@ -119,7 +119,8 @@ const WRITE_STALL_BACKOFF_STEP: Duration = Duration::from_millis(2);
 /// storage backpressure, so retries back off linearly to let flushes and
 /// compaction catch up. A fenced writer is not retried: fencing means another
 /// writer now owns the lease epoch, and retrying in-process cannot regain it and
-/// risks acting as a stale leader.
+/// risks acting as a stale leader. Unknown commit outcomes are terminal and
+/// require reconciliation after recovery before the caller considers a retry.
 pub(super) fn document_write_retry_delay(error: &CassieError, attempts: u8) -> Option<Duration> {
     if attempts >= DOCUMENT_WRITE_BATCH_ATTEMPTS {
         return None;
@@ -184,6 +185,24 @@ mod tests {
         // Act
         let delay = document_write_retry_delay(&error, DOCUMENT_WRITE_BATCH_ATTEMPTS);
 
+        // Assert
+        assert_eq!(delay, None);
+    }
+}
+
+#[cfg(test)]
+mod outcome_tests {
+    use super::document_write_retry_delay;
+    use crate::app::CassieError;
+
+    #[test]
+    fn should_not_retry_an_unknown_commit_given_conflict_text_when_write_retry_is_considered() {
+        // Arrange
+        let error = CassieError::from(cntryl_midge::MidgeError::OutcomeUnknown(
+            "write conflict while confirming publication".to_owned(),
+        ));
+        // Act
+        let delay = document_write_retry_delay(&error, 1);
         // Assert
         assert_eq!(delay, None);
     }

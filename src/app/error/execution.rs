@@ -5,7 +5,11 @@ use super::{
     CassieErrorDescriptor,
 };
 pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
-    if message.starts_with("VALUES types ") && message.ends_with(" cannot be matched") {
+    if ["VALUES types ", "GREATEST types ", "LEAST types "]
+        .iter()
+        .any(|prefix| message.starts_with(prefix))
+        && message.ends_with(" cannot be matched")
+    {
         return bad_request_descriptor("42804", message.to_string());
     }
     if message.starts_with("table \"")

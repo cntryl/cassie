@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1736,
-    "rust_files": 1705,
-    "rust_test_declarations": 8531,
+    "files": 1737,
+    "rust_files": 1706,
+    "rust_test_declarations": 8539,
     "python_test_declarations": 16,
-    "registered_rust_instances": 8659,
+    "registered_rust_instances": 8667,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -87653,6 +87653,254 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs::should_reject_incompatible_greatest_given_empty_and_populated_input_when_types_are_resolved",
+      "name": "should_reject_incompatible_greatest_given_empty_and_populated_input_when_types_are_resolved",
+      "current_file": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs",
+      "line": 148,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "conditional_type_diagnostics::should_reject_incompatible_greatest_given_empty_and_populated_input_when_types_are_resolved"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "expressions/conditional",
+        "directory": "tests/pgwire_extended/expressions/conditional",
+        "file": "tests/pgwire_extended/expressions/conditional/diagnostics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs::should_reject_incompatible_greatest_given_parameter_parse_when_types_are_resolved",
+      "name": "should_reject_incompatible_greatest_given_parameter_parse_when_types_are_resolved",
+      "current_file": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs",
+      "line": 158,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "conditional_type_diagnostics::should_reject_incompatible_greatest_given_parameter_parse_when_types_are_resolved"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "expressions/conditional",
+        "directory": "tests/pgwire_extended/expressions/conditional",
+        "file": "tests/pgwire_extended/expressions/conditional/diagnostics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs::should_reject_incompatible_least_given_empty_and_populated_input_when_types_are_resolved",
+      "name": "should_reject_incompatible_least_given_empty_and_populated_input_when_types_are_resolved",
+      "current_file": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs",
+      "line": 168,
+      "end_line": 175,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "conditional_type_diagnostics::should_reject_incompatible_least_given_empty_and_populated_input_when_types_are_resolved"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "expressions/conditional",
+        "directory": "tests/pgwire_extended/expressions/conditional",
+        "file": "tests/pgwire_extended/expressions/conditional/diagnostics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs::should_reject_incompatible_least_given_parameter_parse_when_types_are_resolved",
+      "name": "should_reject_incompatible_least_given_parameter_parse_when_types_are_resolved",
+      "current_file": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs",
+      "line": 178,
+      "end_line": 185,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "conditional_type_diagnostics::should_reject_incompatible_least_given_parameter_parse_when_types_are_resolved"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "expressions/conditional",
+        "directory": "tests/pgwire_extended/expressions/conditional",
+        "file": "tests/pgwire_extended/expressions/conditional/diagnostics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs::should_reject_incompatible_nullif_given_empty_and_populated_input_when_types_are_resolved",
+      "name": "should_reject_incompatible_nullif_given_empty_and_populated_input_when_types_are_resolved",
+      "current_file": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs",
+      "line": 188,
+      "end_line": 195,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "conditional_type_diagnostics::should_reject_incompatible_nullif_given_empty_and_populated_input_when_types_are_resolved"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "expressions/conditional",
+        "directory": "tests/pgwire_extended/expressions/conditional",
+        "file": "tests/pgwire_extended/expressions/conditional/diagnostics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs::should_reject_incompatible_nullif_given_parameter_parse_when_types_are_resolved",
+      "name": "should_reject_incompatible_nullif_given_parameter_parse_when_types_are_resolved",
+      "current_file": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs",
+      "line": 198,
+      "end_line": 205,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "conditional_type_diagnostics::should_reject_incompatible_nullif_given_parameter_parse_when_types_are_resolved"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "expressions/conditional",
+        "directory": "tests/pgwire_extended/expressions/conditional",
+        "file": "tests/pgwire_extended/expressions/conditional/diagnostics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs::should_preserve_conditional_type_errors_given_nested_and_mutation_callers_when_input_is_empty",
+      "name": "should_preserve_conditional_type_errors_given_nested_and_mutation_callers_when_input_is_empty",
+      "current_file": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs",
+      "line": 208,
+      "end_line": 268,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "conditional_type_diagnostics::should_preserve_conditional_type_errors_given_nested_and_mutation_callers_when_input_is_empty"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "expressions/conditional",
+        "directory": "tests/pgwire_extended/expressions/conditional",
+        "file": "tests/pgwire_extended/expressions/conditional/diagnostics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs::should_preserve_conditional_type_errors_given_declared_parameters_when_parse_resolves_signatures",
+      "name": "should_preserve_conditional_type_errors_given_declared_parameters_when_parse_resolves_signatures",
+      "current_file": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs",
+      "line": 271,
+      "end_line": 329,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "conditional_type_diagnostics::should_preserve_conditional_type_errors_given_declared_parameters_when_parse_resolves_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "expressions/conditional",
+        "directory": "tests/pgwire_extended/expressions/conditional",
+        "file": "tests/pgwire_extended/expressions/conditional/diagnostics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -276965,6 +277213,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/expressions/conditional/type_diagnostics.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 329,
+      "sha256": "5ac29ecc8374358e48baf6d307c58ab561fab8db2dfb2848aac90053021714bd",
+      "test_declarations": 8,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/expressions/conditional/diagnostics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/functions/math/math.rs",
       "role": "test_module",
       "action": "keep",
@@ -283435,8 +283698,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 578,
-      "sha256": "8976679503ea98fc84f56617c3dfa46784083fb269f7c6966eeb6e3d2f4043cc",
+      "lines": 581,
+      "sha256": "90a88b0b93f96245a5e78b74a5361b4e6ab502ef33f4fdb2fa415d372ec198a7",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

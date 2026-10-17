@@ -576,3 +576,6 @@ mod scalar_batch_10_errors;
 
 #[path = "pgwire_extended/grammar/scalar_batch_10_arithmetic_scopes.rs"]
 mod scalar_batch_10_arithmetic_scopes;
+
+#[path = "pgwire_extended/expressions/conditional/type_diagnostics.rs"]
+mod conditional_type_diagnostics;

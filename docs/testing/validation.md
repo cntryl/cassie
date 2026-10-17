@@ -2822,3 +2822,42 @@ native receipts. Final review selected checkpoint 0.93, arithmetic 0.05,
 nonfinite 0.01 and insufficient evidence 0.01. Raw receipts and ordered logs
 remain in ignored `target/autopilot-conditional-*` and
 `target/autopilot-batch-13-*`.
+
+
+### Autopilot batch 14: Conditional binding diagnostics (2026-10-17)
+
+GREATEST/LEAST incompatible admitted families now report native 42804 and
+common-type names. NULLIF reports the missing equality operator signature
+and 42883. The existing common-type algorithm and admitted families are
+unchanged; only the generated diagnostic and its SQLSTATE routing change.
+The six original new tests were red with 42601 before implementation.
+
+Eight new tests cover 171 error witnesses: every existing non-Boolean family
+against Boolean in both orders, mixed integer/FLOAT before the incompatible
+argument, empty/populated input, transaction abort/rollback, explicit casts,
+declared parameter signatures, Parse-before-Bind errors, and 15 nested or
+mutation caller contexts. Native PostgreSQL 18.6 receipts retain exact states
+and messages. All 13 related wire tests pass. Full library passes 1,072/0;
+parser/types remains 320/54 with no new failure identity. Related SQL
+conditionals are 30/1 with the same pre-existing explicit FLOAT overflow
+failure. Native `GREATEST(CAST(1e308 * 10 AS FLOAT),0)` returns 22003, while
+Cassie returns Infinity; this assertion is preserved for the numeric owner.
+
+Initial Jev gap 0.58 prompted reverse-order and merged-type probes. Review
+orientation 0.32 and propagation 0.36 prompted width and nested/DML probes.
+Residual propagation 0.34 prompted EXPLAIN, RETURNING, UNION, correlated
+EXISTS, ORDER BY and HAVING probes. The final residual propagation judgment
+0.42 prompted 30 declared-parameter Parse probes. All probes pass; no runtime
+change was needed beyond the diagnostic correction. The judgments are retained
+as uncertainty, rather than represented as independent correctness proof.
+
+Full strict workspace/all-target/all-feature pedantic Clippy passes after
+correcting a test helper to use array chunks. Formatting, touched/global test
+validators, inventory, documentation, module sizes and whitespace checks pass.
+After test-only probe expansion these checks were repeated in an ordered
+build/test/strict-analyzer gate; production source did not change after the
+full-library run. Benchmark policy validation is blocked by the pre-existing
+`.cntryl/repository.toml` reference to missing `.github/workflows/bench.yml`.
+No CI, release, versioning or validator configuration was changed. The blocked
+benchmark check and red suites are not passes; full acceptance remains pending.
+Raw evidence remains in ignored `target/autopilot-batch-14-*`.

@@ -58,7 +58,7 @@ pub(crate) fn schema(
     Ok(Schema { fields })
 }
 
-fn pg_name(data_type: &DataType) -> String {
+pub(super) fn pg_name(data_type: &DataType) -> String {
     match data_type {
         DataType::Int => "integer".into(),
         DataType::BigInt => "bigint".into(),

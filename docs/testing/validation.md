@@ -2648,3 +2648,96 @@ probabilities do not prove correctness or close the full #801 contract.
 Eight broken documentation links now use current test paths or immutable
 historical workflow references. Historical workflow interfaces are labeled
 archived. No CI, release or versioning configuration changed.
+
+
+### Autopilot consolidated inventory after the first ten batches (2026-10-17)
+
+Immutable source baseline `c550d1fcc4e971043d741e63ad099a2851d85f90`, with a clean
+worktree throughout the run. Ordered build passed, then
+`CARGO_INCREMENTAL=0 cargo test --locked --no-fail-fast` returned failure.
+Observed case totals: **7,211 passed, 2,480 failed, 9 ignored and 1 incomplete**.
+These are actual default-invocation counts; no result is inferred for other
+feature configurations or the separate Python tests.
+
+| Target | Passed | Failed | Ignored | Incomplete |
+| --- | ---: | ---: | ---: | ---: |
+| lib | 1068 | 3 | 0 | 0 |
+| analytics | 179 | 0 | 0 | 0 |
+| backend_ci | 2 | 0 | 0 | 0 |
+| bench_operations | 16 | 0 | 0 | 0 |
+| catalog_security | 241 | 170 | 0 | 0 |
+| compatibility | 56 | 644 | 8 | 0 |
+| configuration_isolated | 20 | 0 | 0 | 0 |
+| constraint_ingress | 3 | 0 | 0 | 0 |
+| domain_models | 94 | 0 | 0 | 0 |
+| executor | 108 | 3 | 0 | 0 |
+| expression_index_upsert | 6 | 1 | 0 | 0 |
+| json_writes | 23 | 0 | 0 | 0 |
+| metrics | 59 | 2 | 0 | 0 |
+| null_safe_predicates | 49 | 0 | 0 | 0 |
+| parser_types | 320 | 54 | 0 | 0 |
+| pgwire_core | 74 | 10 | 0 | 0 |
+| pgwire_extended | 2623 | 827 | 0 | 1 |
+| planner_controls | 126 | 0 | 0 | 0 |
+| query_scan_controls | 61 | 1 | 0 | 0 |
+| relational_qualification | 77 | 1 | 0 | 0 |
+| rest | 101 | 0 | 0 | 0 |
+| search | 64 | 1 | 0 | 0 |
+| sql_contextual_literals | 7 | 0 | 0 | 0 |
+| sql_derived_sources | 14 | 0 | 0 | 0 |
+| sql_exists_subqueries | 23 | 35 | 0 | 0 |
+| sql_mutations | 276 | 35 | 0 | 0 |
+| sql_queries | 1151 | 687 | 0 | 0 |
+| sql_relation_identifiers | 15 | 0 | 0 | 0 |
+| sql_set_operations | 15 | 0 | 0 | 0 |
+| storage_indexes | 161 | 6 | 1 | 0 |
+| temporal_predicate_literals | 4 | 0 | 0 | 0 |
+| time_series_float_partitions | 4 | 0 | 0 | 0 |
+| vector_embeddings | 171 | 0 | 0 | 0 |
+
+The extended pgwire target completed 3,450 cases; its final ordered-set budget
+case remained in fixture seeding. A native process sample identified repeated
+committed-row scans through `find_document_id_by_fields` while inserting the
+50,000 primary-key rows. The isolated worker was terminated to allow remaining
+no-fail-fast targets to finish. Its result is **incomplete**, not passed and not
+an asserted timeout failure. The scan path and unchanged workload are tracked
+in [#952](https://github.com/cntryl/cassie/issues/952).
+
+Raw output and case/source grouping are retained in ignored
+`target/autopilot-full-after-10-*` and `target/autopilot-failure-groups.json`.
+The three library failures expect pre-normalization long SQL identifiers;
+native PostgreSQL 18.6 confirms the 63-byte public name. Resource fixtures must
+retain their original long owned names through programmatic AST construction,
+while SQL-facing assertions follow that native boundary. Separate reference
+probes confirm scientific FLOAT8 output and successful nonfinite float casts;
+those do not justify changing unrelated runtime-error expectations. Full
+repository acceptance remains pending.
+
+
+### Autopilot batch 11: Preserve identifier resource coverage (2026-10-17)
+
+The three library failures above are resolved without changing production
+behavior. SQL-facing positional aliases assert the native 63-byte name. Long
+resource fixtures now inject the original 4,096-byte and 131,072-byte names
+through the programmatic AST before binding. Existing typed NULL, output
+metadata, retained-memory, budget-denial and drop-release assertions remain.
+A new counterprobe separately asserts the normalized SQL alias fits its
+16-KiB budget and releases its analysis memory. No native array OID promotion
+is claimed by this identifier-only correction.
+
+Ordered build and full library test pass (1,072/0), as do the 54 batch-9
+identifier wire cases. A test-only missing semicolon was corrected after
+Clippy; the affected eight Parse-analysis tests then pass in a supplementary
+ordered build/test/strict-Clippy/format gate. Full strict workspace/all-target/
+all-feature pedantic Clippy, formatting, touched/global test validators,
+inventory, documentation and whitespace checks pass. Production source is
+unchanged, so the earlier 527-case cumulative wire checkpoint remains the
+production reference; it is not reported as a newly repeated run here.
+
+Jev's fixture concern (0.44) prompted the normalized SQL versus large owned
+AST counterprobe. Final review selected validation (0.91), admission probe
+(0.01), lifetime probe (0.01), insufficient evidence (0.07); all final gates
+subsequently completed. Raw native receipts and red/green logs are retained in
+ignored `target/autopilot-identifier-*` and `target/autopilot-batch-11-*`. The
+consolidated baseline remains red; no complete owner or repository acceptance
+is claimed by this slice.

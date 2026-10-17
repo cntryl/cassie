@@ -160,16 +160,44 @@ fn should_reject_nested_clone_payloads_given_short_raw_sql_when_preflight_measur
         format!("SELECT lower('{payload}')"),
         format!("SELECT ROW('{payload}', 1) = ROW('x', 1)"),
         format!("SELECT CASE WHEN TRUE THEN '{payload}' ELSE '' END"),
-        format!("SELECT 1 AS \"{payload}\""),
-        format!("SELECT 1 FROM \"{payload}\""),
+        "SELECT 1 AS output".to_owned(),
+        "SELECT 1 FROM relation".to_owned(),
         format!("SELECT row_number() OVER (ORDER BY '{payload}')"),
-        format!("SELECT 1 FROM (VALUES (1)) v(\"{payload}\")"),
+        "SELECT 1 FROM (VALUES (1)) v(output)".to_owned(),
     ];
     // Act
     let outcomes = queries
         .iter()
-        .map(|sql| {
+        .enumerate()
+        .map(|(index, sql)| {
             let mut parsed = parse_statement(sql).expect("parse payload fixture");
+            // Retain large programmatic names instead of SQL's normalized 63-byte names.
+            let crate::sql::ast::QueryStatement::Select(select) = &mut parsed.statement else {
+                panic!("SELECT fixture");
+            };
+            match index {
+                3 => {
+                    let crate::sql::ast::SelectItem::Expr { alias, .. } = &mut select.projection[0]
+                    else {
+                        panic!("expression fixture");
+                    };
+                    *alias = Some(payload.clone());
+                }
+                4 => {
+                    select.source = crate::sql::ast::QuerySource::Collection(
+                        crate::sql::ast::IdentifierPath::from_field_name(payload.clone()),
+                    );
+                }
+                6 => {
+                    let crate::sql::ast::QuerySource::Aliased { column_aliases, .. } =
+                        &mut select.source
+                    else {
+                        panic!("aliased VALUES fixture");
+                    };
+                    column_aliases[0].clone_from(&payload);
+                }
+                _ => {}
+            }
             parsed.raw_sql.clear();
             let controls = controls(16_384);
             let result = validate(
@@ -195,4 +223,36 @@ fn should_reject_nested_clone_payloads_given_short_raw_sql_when_preflight_measur
         assert_eq!(peak, 0);
         assert_eq!(current, 0);
     }
+}
+
+#[test]
+fn should_admit_normalized_sql_alias_given_short_raw_sql_when_owned_tree_fits_budget() {
+    // Arrange
+    let mut parsed = parse_statement(&format!("SELECT 1 AS \"{}\"", "x".repeat(131_072)))
+        .expect("long SQL alias");
+    parsed.raw_sql.clear();
+    let controls = controls(16_384);
+    // Act
+    let result = validate(
+        &parsed,
+        &[],
+        &Catalog::new(),
+        &BindingContext::default(),
+        &controls,
+    );
+    // Assert
+    assert!(result.is_ok(), "{result:?}");
+    let crate::sql::ast::QueryStatement::Select(select) = &parsed.statement else {
+        panic!("SELECT fixture");
+    };
+    let crate::sql::ast::SelectItem::Expr {
+        alias: Some(alias), ..
+    } = &select.projection[0]
+    else {
+        panic!("aliased expression fixture");
+    };
+    assert_eq!(alias, &"x".repeat(63));
+    assert!(controls.peak_query_memory_bytes() > 0);
+    assert!(controls.peak_query_memory_bytes() <= 16_384);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }

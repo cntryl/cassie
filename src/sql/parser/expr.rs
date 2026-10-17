@@ -15,6 +15,8 @@ use super::{
 mod case;
 #[path = "expression_depth.rs"]
 pub(super) mod depth;
+#[path = "generic_prefix.rs"]
+mod generic_prefix;
 #[path = "numeric_literals.rs"]
 mod numeric_literals;
 #[path = "row_predicates.rs"]
@@ -230,7 +232,7 @@ fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
         .max_by_key(|(left, _, _)| left.len());
     if let Some((left, right, op)) = selected {
         let left = parse_prefix_expression(left)?;
-        let right = parse_arithmetic_expression(right)?;
+        let right = parse_prefix_expression(right)?;
         return Ok(if let Some(op) = op {
             Expr::Binary {
                 left: Box::new(left),
@@ -247,6 +249,9 @@ fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
             }))
         });
     }
+    if let Some(expression) = generic_prefix::parse(raw)? {
+        return Ok(expression);
+    }
     parse_arithmetic_expression(raw)
 }
 
@@ -255,8 +260,8 @@ fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
         split_arithmetic_operator(raw, &[("+", BinaryOp::Add), ("-", BinaryOp::Sub)])
     {
         return Ok(Expr::Binary {
-            left: Box::new(parse_arithmetic_expression(left)?),
-            right: Box::new(parse_arithmetic_expression(right)?),
+            left: Box::new(parse_prefix_expression(left)?),
+            right: Box::new(parse_prefix_expression(right)?),
             op,
         });
     }
@@ -269,12 +274,12 @@ fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
         ],
     ) {
         return Ok(Expr::Binary {
-            left: Box::new(parse_arithmetic_expression(left)?),
-            right: Box::new(parse_arithmetic_expression(right)?),
+            left: Box::new(parse_prefix_expression(left)?),
+            right: Box::new(parse_prefix_expression(right)?),
             op,
         });
     }
-    if let Some((left, right)) = super::operators::split_operator(raw, "^", true) {
+    if let Some((left, right)) = super::operators::split_arithmetic(raw, "^") {
         let operand = |expr: Expr| -> Result<Expr, SqlError> {
             if crate::sql::functions::has_unselected_numeric(&expr) {
                 return Err(SqlError::unsupported(
@@ -294,8 +299,8 @@ fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
             })
         };
         return Ok(Expr::Binary {
-            left: Box::new(operand(parse_arithmetic_expression(left)?)?),
-            right: Box::new(operand(unary_numeric::parse(right)?)?),
+            left: Box::new(operand(parse_prefix_expression(left)?)?),
+            right: Box::new(operand(parse_prefix_expression(right)?)?),
             op: BinaryOp::Power,
         });
     }
@@ -358,7 +363,7 @@ fn split_arithmetic_operator<'a>(
     operators
         .iter()
         .filter_map(|(operator, parsed)| {
-            super::operators::split_operator(raw, operator, true)
+            super::operators::split_arithmetic(raw, operator)
                 .map(|(left, right)| (left, right, parsed.clone()))
         })
         .max_by_key(|(left, _, _)| left.len())

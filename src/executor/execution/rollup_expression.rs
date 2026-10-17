@@ -82,11 +82,14 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
         Expr::Not { expr } => Ok(format!("(NOT {})", format_expression(expr)?)),
         Expr::RowCompare(comparison) => format_row_comparison(comparison),
         Expr::UnaryNumeric { expr, op } => Ok(format!(
-            "({}{})",
+            "({} {})",
             match op {
                 crate::sql::ast::UnaryNumericOp::Minus => "-",
                 crate::sql::ast::UnaryNumericOp::Plus => "+",
                 crate::sql::ast::UnaryNumericOp::Complement => "~",
+                crate::sql::ast::UnaryNumericOp::Absolute => "@",
+                crate::sql::ast::UnaryNumericOp::SquareRoot => "|/",
+                crate::sql::ast::UnaryNumericOp::CubeRoot => "||/",
             },
             format_expression(expr)?
         )),
@@ -257,6 +260,26 @@ mod tests {
                 original.structurally_eq(&reparsed),
                 "canonical expression {canonical:?} did not preserve source {source:?}: {original:?} != {reparsed:?}"
             );
+        }
+    }
+    #[test]
+    fn should_round_trip_negative_unary_math_given_aggregate_when_canonical_sql_is_parsed() {
+        // Arrange
+        let sources = ["MAX(||/ -8.0)", "MAX(|/ -0.0)", "MAX(@ -7)", "MAX(~ -1)"];
+        // Act
+        let results = sources.map(|source| {
+            let original = crate::sql::parser::parse_expression(source).expect("source");
+            let Expr::Function(function) = &original else {
+                panic!("aggregate");
+            };
+            let canonical = canonical_aggregate_expression(function).expect("canonical SQL");
+            let reparsed = crate::sql::parser::parse_expression(&canonical);
+            (original, canonical, reparsed)
+        });
+        // Assert
+        for (original, canonical, reparsed) in results {
+            assert!(original
+                .structurally_eq(&reparsed.unwrap_or_else(|error| panic!("{canonical}: {error}"))));
         }
     }
 }

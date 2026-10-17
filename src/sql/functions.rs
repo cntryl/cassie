@@ -187,7 +187,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                 .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
                 .and_then(|_| name.get(11..))
                 .filter(|local| {
-                    ["pg_show_all_settings", "substring", "trim", "power"]
+                    ["pg_show_all_settings", "substring", "trim", "power", "abs"]
                         .iter()
                         .any(|candidate| candidate.eq_ignore_ascii_case(local))
                         || runtime::FUNCTIONS

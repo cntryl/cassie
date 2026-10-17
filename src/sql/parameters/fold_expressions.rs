@@ -33,8 +33,13 @@ impl Fold<'_, '_> {
                 .column_oid(frame.context, name)
                 .map_or_else(Summary::unqualified, Summary::known)),
             ast::Expr::UnaryNumeric { expr, op } => Ok(
-                if *op == ast::UnaryNumericOp::Plus
-                    && binder::unary_numeric::is_unknown_operand(expr)
+                if matches!(
+                    op,
+                    ast::UnaryNumericOp::SquareRoot | ast::UnaryNumericOp::CubeRoot
+                ) || matches!(
+                    op,
+                    ast::UnaryNumericOp::Absolute | ast::UnaryNumericOp::Plus
+                ) && binder::unary_numeric::is_unknown_operand(expr)
                 {
                     Summary::known(701)
                 } else {

@@ -346,6 +346,12 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
         ) => {
             child.expected = Expected::Type(super::expressions::oid(&width.data_type()), true);
         }
+        Node::Expr(ast::Expr::UnaryNumeric {
+            op: ast::UnaryNumericOp::SquareRoot | ast::UnaryNumericOp::CubeRoot,
+            ..
+        }) => {
+            child.expected = Expected::Type(701, true);
+        }
         Node::Expr(ast::Expr::Not { .. }) => {
             child.expected = Expected::Boolean(BooleanConstruct::Not);
         }

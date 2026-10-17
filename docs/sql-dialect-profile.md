@@ -759,3 +759,48 @@ merges identical rendering arms, so the preceding full parser comparison is reus
 build, focused tests, strict Clippy and remaining checks ran on the final source.
 Plan-cache semantic epoch is 22. Unsupported native numeric/other type overloads
 and complete operator-error diagnostics remain pending under their existing owners.
+
+
+Experimental ten-batch increment 4: Unary math operators over existing scalar types.
+Native wire witnesses and precise local acceptance are recorded in
+[validation](testing/validation.md). Complete type and owner contracts remain pending.
+
+Increment 4 selects prefix square root `|/`, cube root `||/` and absolute value
+`@` over existing primitive integer/FLOAT8 inputs. Roots return FLOAT8; integer
+absolute value preserves SMALLINT/INT/BIGINT width and checked overflow. Native
+ordinary decimal literals at the unique root signatures and unknown string/NULL
+constants use the existing checked FLOAT8 conversion. Ordinary NUMERIC absolute
+value and explicit NUMERIC-cast math remain staged rather than exporting a fake
+native NUMERIC descriptor. Full NUMERIC/FLOAT4 identities, untyped absolute-value
+parameters, general overloads, adjacent-comment lexical interactions and exact
+compound-operator error diagnostics remain pending under #793/#796/#812. These
+finite witnesses do not qualify all type/grammar combinations or close an owner.
+
+Generic prefixes bind below arithmetic, including nested signs, bitwise complement
+and right operands of infix operators. A focused bounded parser retains the
+existing 128-level expression limit. Distinct compound operator tokens reject
+instead of being reinterpreted as supported unary sequences; complete native
+undefined-operator diagnostics remain pending. Plan-cache semantic epoch is 23.
+The execution error classifier was extracted from the nearly full error module
+before adding native negative-square-root SQLSTATE 2201F handling. Canonical
+rollup aggregate SQL now separates prefix punctuation from its operand, preserving
+negative literals as parseable SQL without changing the metadata representation.
+
+Three original parser/math tests were red at baseline
+`41b5d59923814c99bb2d3672205fcffd7011c5e9`. Initial wire testing found two signed-zero
+mismatches (129 passed/2 failed); native dsqrt/dcbrt return positive zero for either
+zero sign. The correction preserves ordinary unary sign behavior. Jev's integer
+boundary gap probability of 0.59 prompted native minimum-value errors in every
+integer width and 12 parameter-format crosses, followed by Rust Bind-error,
+statement-description and successful-rebind recovery checks. Seven successful
+parameter fixtures cross 28 input/output combinations, including inferred FLOAT8
+root input and declared integer absolute-value widths.
+
+Jev's prefix-interaction gap probability of 0.67 prompted 18 native nested-prefix,
+cast, CASE and arithmetic witnesses. Rust red runs exposed four precedence errors
+and five right-operand parser rejections; the shared binding boundary and separated
+prefix-token handling fix them. The canonical aggregate caller regression also
+failed independently on `max((||/-8.0))` before the renderer fix. Its final focused
+round-trip probe is part of the mandatory review follow-up. Native reference remains
+PostgreSQL 18.6, executable SHA256
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.

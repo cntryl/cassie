@@ -12,7 +12,7 @@ use super::{
 // Alias namespaces, expression bounds, concrete integer signatures and numeric
 // unary binding, FETCH pagination, set quantifiers, typed VALUES and explicit
 // Catalog read-model schemas and scalar helper signatures share this rebuildable compiled-plan cache epoch.
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 22;
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 23;
 
 pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,

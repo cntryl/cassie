@@ -2,11 +2,16 @@
 use crate::app::CassieError;
 use crate::sql::ast::{Expr, UnaryNumericOp};
 use crate::types::{DataType, IntegerWidth};
+#[path = "unary_math.rs"]
+mod math;
 
 pub(super) fn resolve(
     expression: &mut Expr,
     data_type: Option<&DataType>,
 ) -> Result<(), CassieError> {
+    if math::resolve(expression, data_type)? {
+        return Ok(());
+    }
     let Expr::UnaryNumeric { op, expr } = expression else {
         return Ok(());
     };
@@ -56,6 +61,11 @@ pub(super) fn result_type(
     operand: &Expr,
     inferred: Option<DataType>,
 ) -> Option<DataType> {
+    if matches!(op, UnaryNumericOp::SquareRoot | UnaryNumericOp::CubeRoot)
+        || op == UnaryNumericOp::Absolute && is_unknown_operand(operand)
+    {
+        return Some(DataType::Float);
+    }
     if is_unknown_operand(operand) {
         (op == UnaryNumericOp::Plus).then_some(DataType::Float)
     } else {

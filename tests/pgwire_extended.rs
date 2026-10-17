@@ -478,3 +478,23 @@ mod scalar_batch_03_gap;
 
 #[path = "pgwire_extended/grammar/scalar_batch_03_unicode.rs"]
 mod scalar_batch_03_unicode;
+
+#[path = "pgwire_extended/grammar/scalar_batch_04.rs"]
+mod scalar_batch_04;
+
+#[path = "pgwire_extended/grammar/scalar_batch_04_parameters.rs"]
+mod scalar_batch_04_parameters;
+
+#[path = "pgwire_extended/grammar/scalar_batch_04_errors.rs"]
+mod scalar_batch_04_errors;
+
+#[path = "pgwire_extended/grammar/scalar_batch_04_parameter_errors.rs"]
+mod scalar_batch_04_parameter_errors;
+#[path = "support/unary_math_parameter_recovery.rs"]
+mod support_unary_math_parameter_recovery;
+
+#[path = "pgwire_extended/grammar/scalar_batch_04_interactions.rs"]
+mod scalar_batch_04_interactions;
+
+#[path = "pgwire_extended/grammar/scalar_batch_04_prefix.rs"]
+mod scalar_batch_04_prefix;

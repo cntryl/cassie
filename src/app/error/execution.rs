@@ -1,0 +1,106 @@
+//! PostgreSQL states for execution and expression diagnostics.
+use super::{
+    bad_request_descriptor, cancellation_descriptor, pagination_sql_state,
+    resource_limit_descriptor, service_unavailable_descriptor, timeout_descriptor,
+    CassieErrorDescriptor,
+};
+pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
+    if message.starts_with("VALUES types ") && message.ends_with(" cannot be matched") {
+        return bad_request_descriptor("42804", message.to_string());
+    }
+    if message.starts_with("table \"")
+        && message.contains(" columns available but ")
+        && message.ends_with(" columns specified")
+    {
+        return bad_request_descriptor("42P10", message.to_string());
+    }
+    if message == "negative substring length not allowed" {
+        return bad_request_descriptor("22011", message.to_owned());
+    }
+    let pagination_state = pagination_sql_state(message);
+    if let Some(sql_state) = pagination_state {
+        return bad_request_descriptor(sql_state, message.to_string());
+    }
+    if message.eq_ignore_ascii_case("query canceled") {
+        return cancellation_descriptor();
+    }
+    if message.eq_ignore_ascii_case("query timeout exceeded") {
+        return timeout_descriptor();
+    }
+    if matches!(
+        message,
+        "cannot take square root of a negative number"
+            | "zero raised to a negative power is undefined"
+            | "a negative number raised to a non-integer power yields a complex result"
+    ) {
+        return bad_request_descriptor("2201F", message.to_string());
+    }
+    if message.eq_ignore_ascii_case("division by zero") {
+        return bad_request_descriptor("22012", message.to_string());
+    }
+    if message.starts_with("invalid input syntax for type boolean:") {
+        return bad_request_descriptor("22P02", message.to_string());
+    }
+    if matches!(
+        message,
+        "invalid input syntax for type smallint"
+            | "invalid input syntax for type integer"
+            | "invalid input syntax for type bigint"
+    ) || message.starts_with("invalid input syntax for type integer:")
+    {
+        return bad_request_descriptor("22P02", message.to_string());
+    }
+    if message.starts_with("argument of FILTER must be type boolean, not type ") {
+        return bad_request_descriptor("42804", message.to_string());
+    }
+    if [
+        "DISTINCT specified, but ",
+        "ORDER BY specified, but ",
+        "FILTER specified, but ",
+    ]
+    .iter()
+    .any(|prefix| message.starts_with(prefix))
+        && message.ends_with(" is not an aggregate function")
+    {
+        return bad_request_descriptor("42809", message.to_string());
+    }
+    if message == "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
+    {
+        return bad_request_descriptor("42P10", message.to_string());
+    }
+    if message.eq_ignore_ascii_case("aggregate integer overflow")
+        || matches!(
+            message,
+            "smallint out of range" | "integer out of range" | "value overflows numeric format"
+        )
+        || message.eq_ignore_ascii_case(crate::types::numeric::FLOAT_OVERFLOW)
+        || message.eq_ignore_ascii_case(crate::executor::filter::BIGINT_OUT_OF_RANGE)
+    {
+        return bad_request_descriptor("22003", message.to_string());
+    }
+    if message.starts_with("function ") && message.ends_with(") does not exist") {
+        return bad_request_descriptor("42883", message.to_string());
+    }
+    if message.starts_with("function ") && message.ends_with("(unknown) is not unique") {
+        return bad_request_descriptor("42725", message.to_owned());
+    }
+    if message.starts_with("operator is not unique: ") {
+        return bad_request_descriptor("42725", message.to_string());
+    }
+    if message.starts_with("operator does not exist: ") {
+        return bad_request_descriptor("42883", message.to_string());
+    }
+    if message.starts_with("could not identify an equality operator for type ") {
+        return bad_request_descriptor("42883", message.to_string());
+    }
+    if message.eq_ignore_ascii_case("query admission exhausted") {
+        return service_unavailable_descriptor("53300", message.to_string());
+    }
+    if message.starts_with("query memory budget exceeded:") {
+        return resource_limit_descriptor(message.to_string());
+    }
+    if message.starts_with("query result row limit exceeded:") {
+        return resource_limit_descriptor(message.to_string());
+    }
+    bad_request_descriptor("22000", message.to_string())
+}

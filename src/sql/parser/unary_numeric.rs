@@ -9,18 +9,29 @@ pub(super) fn parse(raw: &str) -> Result<Expr, SqlError> {
     let mut operand = raw;
     loop {
         operand = super::super::lexical::trim_separators(operand);
-        let op = match operand.as_bytes().first() {
-            Some(b'~') => UnaryNumericOp::Complement,
-            Some(b'+') => UnaryNumericOp::Plus,
-            Some(b'-') => UnaryNumericOp::Minus,
-            _ => break,
+        let (op, length) = if operand.starts_with("||/") {
+            (UnaryNumericOp::CubeRoot, 3)
+        } else if operand.starts_with("|/") {
+            (UnaryNumericOp::SquareRoot, 2)
+        } else {
+            (
+                match operand.as_bytes().first() {
+                    Some(b'@') => UnaryNumericOp::Absolute,
+                    Some(b'~') => UnaryNumericOp::Complement,
+                    Some(b'+') => UnaryNumericOp::Plus,
+                    Some(b'-') => UnaryNumericOp::Minus,
+                    _ => break,
+                },
+                1,
+            )
         };
+        super::generic_prefix::check_tail(&operand[length..], op)?;
         if count == signs.len() {
             return Err(depth::limit_error());
         }
         signs[count] = op;
         count += 1;
-        operand = &operand[1..];
+        operand = &operand[length..];
     }
     let mut expression = parse_postfix_expression(operand)?;
     if count == 0 {

@@ -379,6 +379,13 @@ pub(super) fn infer_parameter_type_oids_expr(
         } => {
             infer_between_parameter_type_oids([expr, low, high], field_types, catalog, oids);
         }
+        ast::Expr::UnaryNumeric {
+            op: ast::UnaryNumericOp::SquareRoot | ast::UnaryNumericOp::CubeRoot,
+            expr,
+        } => {
+            infer_parameter_type_from_expected_expr(expr, &DataType::Float, oids);
+            infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
+        }
         ast::Expr::IsNull { expr, .. }
         | ast::Expr::UnaryNumeric { expr, .. }
         | ast::Expr::IntegerNegate { expr, .. } => {

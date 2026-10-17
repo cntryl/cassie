@@ -64,8 +64,15 @@ impl Analyzer<'_> {
                 output
             }
             Expr::UnaryNumeric { expr, op } => {
-                if *op == crate::sql::ast::UnaryNumericOp::Plus
-                    && super::super::unary_numeric::is_unknown_operand(expr)
+                if matches!(
+                    op,
+                    crate::sql::ast::UnaryNumericOp::SquareRoot
+                        | crate::sql::ast::UnaryNumericOp::CubeRoot
+                ) || matches!(
+                    op,
+                    crate::sql::ast::UnaryNumericOp::Plus
+                        | crate::sql::ast::UnaryNumericOp::Absolute
+                ) && super::super::unary_numeric::is_unknown_operand(expr)
                 {
                     OutputType::fixed(DataType::Float)
                 } else {

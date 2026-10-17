@@ -2320,3 +2320,36 @@ full repository gate follows batch 10 under the documented local delivery policy
 Known unrelated failures and complete owner acceptance remain pending.
 
 Jev review and probe outcome: `{"verify": {"type": "choice", "choice": "validate", "confidence": 0.71, "probabilities": {"validate": 0.8099999999999999, "probe": 0.17, "none": 0.02}}}`.
+
+
+### Ten-batch delivery 4/10: Unary math operators (2026-10-17)
+
+Baseline `41b5d59923814c99bb2d3672205fcffd7011c5e9`. Selected existing scalar/syntax support under #796
+with no new persistent type or storage migration. Native PostgreSQL 18.6
+reference descriptors and both wire payload formats are retained in focused
+Rust tests. TDD red evidence and targeted Jev probes are preserved in the ignored
+`target/ten-batch-04-*` logs. Current focused wire result: test result: ok. 156 passed; 0 failed; 0 ignored; 0 measured; 2924 filtered out; finished in 18.96s.
+
+Build, focused locked tests, complete parser regression comparison, full strict
+workspace/all-target/all-feature pedantic Clippy, formatting, touched/global
+test validators, refreshed inventory and whitespace checks completed. Parser
+failures remaining: 62 (12 fixed cumulatively from
+the 74-failure starting baseline), with no new failure identity. The consolidated
+full repository gate follows batch 10 under the documented local delivery policy.
+Known unrelated failures and complete owner acceptance remain pending.
+
+Jev review and probe outcome: `{"final_review": {"type": "choice", "choice": "validate", "confidence": 0.8, "probabilities": {"validate": 0.87, "probe": 0.12, "none": 0.01}}}`.
+
+Additional final-source unit commands passed in test order before Clippy:
+`cargo test --locked --lib generic_prefix` (2/0),
+`cargo test --locked --lib rollup_expression::tests` (3/0), and
+`cargo test --locked --lib unary_numeric` (8/0). The canonical renderer regression
+failed 0/1 before its fix, then all three round-trip tests passed, including four
+negative prefix witnesses. This actual caller probe followed Jev's 0.40 probe
+probability; the final review selected validation with probability 0.87
+(probe 0.12). Earlier mandatory 0.59 integer-boundary and 0.67 prefix-interaction
+probes, confirmed findings and fixes are recorded in the dialect profile.
+Final parser comparison is 312 passing/62 failing; three additional original
+failures are fixed in this slice, twelve cumulatively. No original test assertion
+was weakened. Sixty-one new focused wire tests and three new unit tests are added.
+Full repository acceptance and the consolidated full-suite gate remain pending.

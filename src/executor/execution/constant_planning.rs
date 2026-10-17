@@ -693,7 +693,7 @@ fn is_folding_error(error: &QueryError) -> bool {
     ) || matches!(
         error,
         QueryError::General(message)
-            if matches!(message.as_str(), "division by zero" | "zero raised to a negative power is undefined" | "a negative number raised to a non-integer power yields a complex result")
+            if matches!(message.as_str(), "division by zero" | "cannot take square root of a negative number" | "zero raised to a negative power is undefined" | "a negative number raised to a non-integer power yields a complex result")
                 || matches!(message.as_str(), "smallint out of range" | "integer out of range" | "invalid input syntax for type smallint" | "invalid input syntax for type integer" | "invalid input syntax for type bigint")
                 || message == filter::BIGINT_OUT_OF_RANGE
                 || message == crate::types::numeric::FLOAT_OVERFLOW

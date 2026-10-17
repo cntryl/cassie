@@ -385,6 +385,9 @@ pub struct Bm25Params {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnaryNumericOp {
     Complement,
+    Absolute,
+    SquareRoot,
+    CubeRoot,
     Plus,
     Minus,
 }

@@ -572,6 +572,12 @@ pub(super) fn validate_function_calls(
     );
 
     for function in functions {
+        if crate::sql::functions::is_loaded_modules(&function.name) {
+            return Err(CassieError::Unsupported(
+                "record-valued loaded-module projection remains pending under #793/#817; use FROM"
+                    .into(),
+            ));
+        }
         if function.name.eq_ignore_ascii_case("cast") {
             if function.args.len() != 2 {
                 return Err(CassieError::Planner(format!(
@@ -872,7 +878,9 @@ fn collect_source_functions(source: &QuerySource, out: &mut Vec<FunctionCall>) {
 
         QuerySource::Aliased { source, .. } => collect_source_functions(source, out),
         QuerySource::TableFunction { function, .. } => {
-            out.push(function.clone());
+            if !crate::sql::functions::is_loaded_modules(&function.name) {
+                out.push(function.clone());
+            }
             for arg in function.expressions() {
                 collect_expr(arg, out);
             }

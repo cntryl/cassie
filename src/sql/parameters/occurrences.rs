@@ -137,6 +137,13 @@ impl<'a> Occurrences<'a> {
         Ok(())
     }
 
+    pub(super) fn unresolved_parameter(
+        &mut self,
+        slot: usize,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::Unresolved { slot })
+    }
+
     pub(super) fn pending_name_input(&mut self) -> Result<(), ParameterAdmissionError> {
         self.report(ParameterSemanticDiagnostic::PendingNameInput)
     }

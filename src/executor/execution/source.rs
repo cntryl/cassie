@@ -203,6 +203,11 @@ fn execute_table_function_source(
     outer_row: Option<&BatchRow>,
     qualify: bool,
 ) -> SourceExecution {
+    if crate::sql::functions::is_loaded_modules(&function.name) {
+        env.controls.check_interruption()?;
+        // Native plugin loading is absent from the current Cassie profile.
+        return finalize_source_batches(env, Vec::new(), Vec::new(), qualify, name);
+    }
     if matches!(
         function.name.to_ascii_lowercase().as_str(),
         "pg_show_all_settings" | "pg_catalog.pg_show_all_settings"

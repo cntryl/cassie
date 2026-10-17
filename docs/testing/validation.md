@@ -1916,3 +1916,76 @@ obligations remain open under #793/#817/#821/#849 and their linked owners.
 Full repository and hosted green are not established. Native observations,
 source receipts, advisory requests/responses and logs are under ignored
 `target/catalog-next-*`.
+
+### Runtime capability and information checkpoint (2026-10-17)
+
+This #817 increment follows d3ac95b2 (catalog/security 220/176). The selected
+bundle uses existing BOOL/TEXT carriers: recovery/JIT/NUMA capabilities,
+actual Rust Unicode version, compression of materialized SQL values, and the
+empty three-TEXT-column loaded-module FROM relation. Native scalar RECORD
+projection remains explicitly unsupported under #793/#817. No stored format,
+layout, dependency or CI/release/versioning configuration changes occur.
+Compiled plans rebuild at epoch 16.
+
+The pinned PostgreSQL 18.6 executable retains SHA256
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+Native probes establish selected descriptors, empty module rows, compression
+NULL, explicit primitive parameters and native 42883/42P18 signature failures.
+Capability values are Cassie's actual profile, independent of the oracle's JIT
+build or Unicode tables. `unicode_version()` is checked against Rust's actual
+`std::char::UNICODE_VERSION`; only this helper is immutable. Compression says
+nothing about Midge's block codecs and still evaluates its argument.
+
+All 45 initial wire witnesses failed before implementation. The first expanded
+pass was 43/16: fifteen generated profile expectations used the wrong BOOL text
+encoding (`false` instead of native `f`); those fixtures were corrected. The
+remaining failure exposed duplicate qualified lookup fields in wildcard CTE
+schema inference. Table-function schema inference now respects qualification
+without treating lookup aliases as additional outputs. Further native alias
+probes exposed rejected loaded-module aliases, repaired through the existing
+relation-alias parser. The fixture also now distinguishes ParseFlush from a
+Sync-completed cycle; it does not require ReadyForQuery before Sync.
+
+Jev selected the capability bundle at 1.0, with initial probe gap 0.83. Source
+review returned scalar-RECORD overclaim probability 0.21, argument-evaluation
+gap 0.70 and qualified-shape gap 0.66. The latter two triggered permanent
+invalid stored-argument-cast and qualified/aliased CTE/FROM probes. Native
+invalid-cast evidence reports 22P02; Cassie must propagate the argument failure.
+These model judgments guide probes and do not prove correctness. Complete
+system/catalog ABI, owner acceptance and #849 resource qualification stay open.
+
+Validation results are recorded below after execution. All Cargo commands use
+`CARGO_INCREMENTAL=0`; original test expectations and lint levels are retained.
+
+Ordered final validation:
+
+- `cargo build --locked --bin cassie`: passed (18.47 seconds).
+- `cargo test --locked`: library 1,024/0, analytics 179/0, backend 2/0 and
+  benchmark operations 16/0 passed. The command stops at catalog/security
+  **229/173** after 408.92 seconds. Exactly three original failures are fixed:
+  runtime capabilities, single-node recovery and uncompressed text property.
+  No newly failing original test; the full repository remains red.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  passed. Preflight redundant-binding and fixture Arc type findings were fixed.
+- `cargo fmt --all -- --check`: passed.
+- `cntryl-tools validate-tests -f <path>`: all nine touched Rust test files
+  passed; global `cntryl-tools validate-tests`: 8,664/8,664 compliant source tests.
+- `target/test-inventory-tools312/bin/python tools/test_inventory.py --check`
+  and `git diff --check`: passed. Inventory adds exactly 67 identities, removes
+  none and changes no existing record. All 23 touched Rust files fit their
+  source/support or integration-root line limits.
+
+The coherent new batch passes 61 wire and six catalog tests. It includes native
+text/binary descriptors and payloads, typed primitive parameter format crosses,
+arity/unresolved signatures, Sync recovery, actual Unicode profile, stored
+compression, propagated cast errors, empty-set COUNT, left-row preservation and
+pre-cancelled discovery with zero retained query memory. Pre-cancellation does
+not qualify interruption during long-running work; #849 remains open.
+
+Fresh `cargo test --locked --no-run --message-format=json` artifact discovery
+passed. Final executable reruns pass all 61 wire checks. Complete parser remains
+299/74 and core wire remains 74/10, with exactly the preceding failure identity
+sets. All seven `domain_models` graph-function correctness checks pass, covering
+shared table-function inference callers. Final Jev review selects finite staged
+support at 1.0 and addressed probe action at probability 0.79. No owner is closed
+and no full repository or hosted green is claimed.

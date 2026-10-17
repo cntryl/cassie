@@ -181,3 +181,6 @@ mod support_catalog_directory;
 
 #[path = "catalog_security/catalogs/sizes/scalar_execution.rs"]
 mod catalog_scalar_execution;
+
+#[path = "catalog_security/catalogs/runtime_profile.rs"]
+mod catalog_runtime_profile;

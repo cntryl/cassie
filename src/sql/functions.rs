@@ -1,6 +1,8 @@
 mod constant_folding;
 pub(crate) use constant_folding::is_immutable_scalar;
 mod catalog;
+mod runtime;
+pub(crate) use runtime::{is_loaded_modules, is_runtime_helper, loaded_modules_columns};
 mod inputs;
 mod text;
 pub(crate) use inputs::{
@@ -76,6 +78,11 @@ pub enum FunctionId {
     GraphExpand,
     GraphShortestPath,
     PgShowAllSettings,
+    PgIsInRecovery,
+    PgJitAvailable,
+    PgNumaAvailable,
+    UnicodeVersion,
+    PgColumnCompression,
 }
 
 #[derive(Debug, Clone)]
@@ -153,6 +160,7 @@ pub fn registry() -> Vec<ScalarFunction> {
         .iter()
         .chain(text::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
+        .chain(runtime::FUNCTIONS)
         .cloned()
         .collect()
 }
@@ -163,6 +171,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .iter()
         .chain(text::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
+        .chain(runtime::FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
         .or_else(|| {
             name.get(..11)
@@ -172,6 +181,9 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                     ["pg_show_all_settings", "substring", "trim"]
                         .iter()
                         .any(|candidate| candidate.eq_ignore_ascii_case(local))
+                        || runtime::FUNCTIONS
+                            .iter()
+                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || catalog::FUNCTIONS
                             .iter()
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
@@ -184,6 +196,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         .iter()
                         .chain(text::FUNCTIONS)
                         .chain(catalog::FUNCTIONS)
+                        .chain(runtime::FUNCTIONS)
                         .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
                 })
         })

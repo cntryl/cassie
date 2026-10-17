@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1663,
-    "rust_files": 1632,
-    "rust_test_declarations": 7582,
+    "files": 1670,
+    "rust_files": 1639,
+    "rust_test_declarations": 7649,
     "python_test_declarations": 16,
-    "registered_rust_instances": 7710,
+    "registered_rust_instances": 7777,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -11708,6 +11708,192 @@
         "file": "tests/catalog_security/catalogs/runtime_capabilities.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/runtime_profile.rs::should_report_actual_unicode_tables_given_the_rust_runtime_when_unicode_version_is_selected",
+      "name": "should_report_actual_unicode_tables_given_the_rust_runtime_when_unicode_version_is_selected",
+      "current_file": "tests/catalog_security/catalogs/runtime_profile.rs",
+      "line": 8,
+      "end_line": 22,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_runtime_profile::should_report_actual_unicode_tables_given_the_rust_runtime_when_unicode_version_is_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/runtime_profile.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/runtime_profile.rs::should_report_uncompressed_values_given_stored_text_when_compression_is_selected",
+      "name": "should_report_uncompressed_values_given_stored_text_when_compression_is_selected",
+      "current_file": "tests/catalog_security/catalogs/runtime_profile.rs",
+      "line": 25,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_runtime_profile::should_report_uncompressed_values_given_stored_text_when_compression_is_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/runtime_profile.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/runtime_profile.rs::should_count_zero_modules_given_no_native_plugin_loader_when_loaded_modules_is_aggregated",
+      "name": "should_count_zero_modules_given_no_native_plugin_loader_when_loaded_modules_is_aggregated",
+      "current_file": "tests/catalog_security/catalogs/runtime_profile.rs",
+      "line": 44,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_runtime_profile::should_count_zero_modules_given_no_native_plugin_loader_when_loaded_modules_is_aggregated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/runtime_profile.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/runtime_profile.rs::should_preserve_left_rows_given_an_empty_module_set_when_a_left_join_is_executed",
+      "name": "should_preserve_left_rows_given_an_empty_module_set_when_a_left_join_is_executed",
+      "current_file": "tests/catalog_security/catalogs/runtime_profile.rs",
+      "line": 56,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_runtime_profile::should_preserve_left_rows_given_an_empty_module_set_when_a_left_join_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/runtime_profile.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/runtime_profile.rs::should_cancel_module_discovery_given_cancelled_controls_when_the_table_function_is_executed",
+      "name": "should_cancel_module_discovery_given_cancelled_controls_when_the_table_function_is_executed",
+      "current_file": "tests/catalog_security/catalogs/runtime_profile.rs",
+      "line": 78,
+      "end_line": 101,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_runtime_profile::should_cancel_module_discovery_given_cancelled_controls_when_the_table_function_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/runtime_profile.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/runtime_profile.rs::should_evaluate_compression_input_given_an_invalid_cast_when_a_stored_value_is_selected",
+      "name": "should_evaluate_compression_input_given_an_invalid_cast_when_a_stored_value_is_selected",
+      "current_file": "tests/catalog_security/catalogs/runtime_profile.rs",
+      "line": 104,
+      "end_line": 119,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_runtime_profile::should_evaluate_compression_input_given_an_invalid_cast_when_a_stored_value_is_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/runtime_profile.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -67681,6 +67867,1897 @@
         "category": "catalogs",
         "directory": "tests/pgwire_extended/catalogs",
         "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_modules.rs::should_report_module_shape_0_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "name": "should_report_module_shape_0_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+      "line": 6,
+      "end_line": 13,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_modules::should_report_module_shape_0_given_no_native_plugin_loader_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_modules.rs::should_report_module_shape_1_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "name": "should_report_module_shape_1_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+      "line": 16,
+      "end_line": 23,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_modules::should_report_module_shape_1_given_no_native_plugin_loader_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_modules.rs::should_report_module_shape_2_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "name": "should_report_module_shape_2_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+      "line": 26,
+      "end_line": 33,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_modules::should_report_module_shape_2_given_no_native_plugin_loader_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_modules.rs::should_report_module_shape_3_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "name": "should_report_module_shape_3_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+      "line": 36,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_modules::should_report_module_shape_3_given_no_native_plugin_loader_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_modules.rs::should_report_module_shape_4_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "name": "should_report_module_shape_4_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+      "line": 46,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_modules::should_report_module_shape_4_given_no_native_plugin_loader_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_modules.rs::should_report_module_shape_5_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "name": "should_report_module_shape_5_given_no_native_plugin_loader_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+      "line": 56,
+      "end_line": 63,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_modules::should_report_module_shape_5_given_no_native_plugin_loader_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_modules.rs::should_preserve_alias_given_loaded_module_columns_when_qualified_names_are_selected",
+      "name": "should_preserve_alias_given_loaded_module_columns_when_qualified_names_are_selected",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+      "line": 66,
+      "end_line": 73,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_modules::should_preserve_alias_given_loaded_module_columns_when_qualified_names_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_modules.rs::should_preserve_columns_given_loaded_module_columns_when_qualified_names_are_selected",
+      "name": "should_preserve_columns_given_loaded_module_columns_when_qualified_names_are_selected",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+      "line": 76,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_modules::should_preserve_columns_given_loaded_module_columns_when_qualified_names_are_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_parameters.rs::should_report_compression_text_given_typed_parameters_when_input_formats_are_crossed",
+      "name": "should_report_compression_text_given_typed_parameters_when_input_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+      "line": 5,
+      "end_line": 26,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_parameters::should_report_compression_text_given_typed_parameters_when_input_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_parameters.rs::should_report_compression_int4_given_typed_parameters_when_input_formats_are_crossed",
+      "name": "should_report_compression_int4_given_typed_parameters_when_input_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+      "line": 29,
+      "end_line": 45,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_parameters::should_report_compression_int4_given_typed_parameters_when_input_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_parameters.rs::should_report_compression_int8_given_typed_parameters_when_input_formats_are_crossed",
+      "name": "should_report_compression_int8_given_typed_parameters_when_input_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+      "line": 48,
+      "end_line": 69,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_parameters::should_report_compression_int8_given_typed_parameters_when_input_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_parameters.rs::should_report_compression_boolean_given_typed_parameters_when_input_formats_are_crossed",
+      "name": "should_report_compression_boolean_given_typed_parameters_when_input_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+      "line": 72,
+      "end_line": 88,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_parameters::should_report_compression_boolean_given_typed_parameters_when_input_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_parameters.rs::should_report_compression_bytea_given_typed_parameters_when_input_formats_are_crossed",
+      "name": "should_report_compression_bytea_given_typed_parameters_when_input_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+      "line": 91,
+      "end_line": 112,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_parameters::should_report_compression_bytea_given_typed_parameters_when_input_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_is_in_recovery_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_is_in_recovery_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 6,
+      "end_line": 18,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_is_in_recovery_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_is_in_recovery_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_is_in_recovery_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 21,
+      "end_line": 33,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_is_in_recovery_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_is_in_recovery_where_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_is_in_recovery_where_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 36,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_is_in_recovery_where_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_is_in_recovery_cte_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_is_in_recovery_cte_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 51,
+      "end_line": 63,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_is_in_recovery_cte_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_is_in_recovery_case_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_is_in_recovery_case_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 66,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_is_in_recovery_case_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_jit_available_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_jit_available_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 81,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_jit_available_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_jit_available_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_jit_available_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 96,
+      "end_line": 108,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_jit_available_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_jit_available_where_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_jit_available_where_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 111,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_jit_available_where_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_jit_available_cte_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_jit_available_cte_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 126,
+      "end_line": 138,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_jit_available_cte_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_jit_available_case_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_jit_available_case_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 141,
+      "end_line": 153,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_jit_available_case_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_numa_available_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_numa_available_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 156,
+      "end_line": 168,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_numa_available_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_numa_available_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_numa_available_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 171,
+      "end_line": 183,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_numa_available_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_numa_available_where_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_numa_available_where_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 186,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_numa_available_where_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_numa_available_cte_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_numa_available_cte_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 201,
+      "end_line": 213,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_numa_available_cte_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_pg_numa_available_case_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_pg_numa_available_case_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 216,
+      "end_line": 228,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_pg_numa_available_case_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_compression_0_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_0_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 231,
+      "end_line": 246,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_compression_0_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_compression_0_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_0_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 249,
+      "end_line": 264,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_compression_0_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_compression_1_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_1_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 267,
+      "end_line": 282,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_compression_1_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_compression_1_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_1_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 285,
+      "end_line": 300,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_compression_1_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_compression_2_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_2_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 303,
+      "end_line": 318,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_compression_2_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_compression_2_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_2_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 321,
+      "end_line": 336,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_compression_2_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_compression_3_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_3_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 339,
+      "end_line": 354,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_compression_3_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_compression_3_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_3_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 357,
+      "end_line": 372,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_compression_3_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_compression_4_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_4_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 375,
+      "end_line": 390,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_compression_4_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs::should_report_compression_4_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_4_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "line": 393,
+      "end_line": 408,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_0::should_report_compression_4_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_5_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_5_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 6,
+      "end_line": 21,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_5_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_5_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_5_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 24,
+      "end_line": 39,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_5_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_6_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_6_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 42,
+      "end_line": 57,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_6_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_6_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_6_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 60,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_6_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_7_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_7_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 78,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_7_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_7_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_7_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 96,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_7_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_8_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_8_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 114,
+      "end_line": 129,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_8_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_8_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_8_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 132,
+      "end_line": 147,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_8_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_9_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_9_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 150,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_9_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_9_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_9_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 168,
+      "end_line": 183,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_9_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_10_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_10_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 186,
+      "end_line": 201,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_10_bare_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_compression_10_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_compression_10_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 204,
+      "end_line": 219,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_compression_10_qualified_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_unicode_0_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_unicode_0_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 222,
+      "end_line": 233,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_unicode_0_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs::should_report_unicode_1_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "name": "should_report_unicode_1_given_current_runtime_capabilities_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "line": 236,
+      "end_line": 247,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_scalars_1::should_report_unicode_1_given_current_runtime_capabilities_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_signatures.rs::should_reject_recovery_arg_given_invalid_runtime_signature_when_parse_is_attempted",
+      "name": "should_reject_recovery_arg_given_invalid_runtime_signature_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+      "line": 7,
+      "end_line": 21,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_signatures::should_reject_recovery_arg_given_invalid_runtime_signature_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_signatures.rs::should_reject_jit_arg_given_invalid_runtime_signature_when_parse_is_attempted",
+      "name": "should_reject_jit_arg_given_invalid_runtime_signature_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+      "line": 24,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_signatures::should_reject_jit_arg_given_invalid_runtime_signature_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_signatures.rs::should_reject_numa_arg_given_invalid_runtime_signature_when_parse_is_attempted",
+      "name": "should_reject_numa_arg_given_invalid_runtime_signature_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+      "line": 41,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_signatures::should_reject_numa_arg_given_invalid_runtime_signature_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_signatures.rs::should_reject_unicode_arg_given_invalid_runtime_signature_when_parse_is_attempted",
+      "name": "should_reject_unicode_arg_given_invalid_runtime_signature_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+      "line": 58,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_signatures::should_reject_unicode_arg_given_invalid_runtime_signature_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_signatures.rs::should_reject_compression_empty_given_invalid_runtime_signature_when_parse_is_attempted",
+      "name": "should_reject_compression_empty_given_invalid_runtime_signature_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+      "line": 75,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_signatures::should_reject_compression_empty_given_invalid_runtime_signature_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_signatures.rs::should_reject_compression_extra_given_invalid_runtime_signature_when_parse_is_attempted",
+      "name": "should_reject_compression_extra_given_invalid_runtime_signature_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+      "line": 92,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_signatures::should_reject_compression_extra_given_invalid_runtime_signature_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_signatures.rs::should_reject_compression_unknown_given_invalid_runtime_signature_when_parse_is_attempted",
+      "name": "should_reject_compression_unknown_given_invalid_runtime_signature_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+      "line": 109,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_signatures::should_reject_compression_unknown_given_invalid_runtime_signature_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_signatures.rs::should_reject_modules_arg_given_invalid_runtime_signature_when_parse_is_attempted",
+      "name": "should_reject_modules_arg_given_invalid_runtime_signature_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+      "line": 126,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_signatures::should_reject_modules_arg_given_invalid_runtime_signature_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/runtime_signatures.rs::should_reject_record_projection_given_pending_record_abi_when_loaded_modules_is_selected_as_a_scalar",
+      "name": "should_reject_record_projection_given_pending_record_abi_when_loaded_modules_is_selected_as_a_scalar",
+      "current_file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+      "line": 143,
+      "end_line": 157,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_runtime_signatures::should_reject_record_projection_given_pending_record_abi_when_loaded_modules_is_selected_as_a_scalar"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
         "basis": "canonical_domain_path",
         "review": "recommended",
         "migration": "keep"
@@ -237684,6 +239761,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/catalog_security/catalogs/runtime_profile.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 119,
+      "sha256": "109a60a6998b3db8a9afdd1bb748c6c31251f401c3a64e1dbd381e04ca586e57",
+      "test_declarations": 6,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/runtime_profile.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/catalog_security/catalogs/sequences/catalog/metadata.rs",
       "role": "test_module",
       "action": "keep",
@@ -238572,8 +240664,8 @@
       "current_file": "tests/catalog_security.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 183,
-      "sha256": "996ccc029f404e3a4db890f65b1eb2c99465e3cea6ef4b2cab05e89c3113c16c",
+      "lines": 186,
+      "sha256": "2755e39eac967f9b7073df6a9e95e21c735f6b8a9d118171a57dd5cb245a451f",
       "test_declarations": 0,
       "registered_suites": [
         "catalog_security"
@@ -246716,6 +248808,81 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 83,
+      "sha256": "f2e0de8f6448e2c81b3fe80c81db52850c1a5b2fbc5632c1d55a1ef2bcfb6b46",
+      "test_declarations": 8,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/runtime_modules.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/runtime_parameters.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 112,
+      "sha256": "5b705b1bec3926811375cb1e008a25e31564338693f4802f3779272f3f3b930c",
+      "test_declarations": 5,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/runtime_parameters.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_0.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 408,
+      "sha256": "b92982f7064a33514f68ad57df136120de3d28646cc6e5ae6c78b7426a8bf72f",
+      "test_declarations": 25,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/runtime_scalars_0.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/runtime_scalars_1.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 247,
+      "sha256": "34c020f39edf1b3d5c7676ca59a7846b2e25b2cd93140383808e875ef2282d3e",
+      "test_declarations": 14,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/runtime_scalars_1.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/runtime_signatures.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 157,
+      "sha256": "92a01853698df7efdd3a766b0942cf99f86b398caddbcfa722a9bd2676890617",
+      "test_declarations": 9,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/runtime_signatures.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/catalogs/scalar_0.rs",
       "role": "test_module",
       "action": "keep",
@@ -253006,8 +255173,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 375,
-      "sha256": "ea0ec52bdeacc3560f9840cd2520e1e1ea4850313ea7138e72cab5b0e79799ba",
+      "lines": 393,
+      "sha256": "d808c3fdcf3089f89bb917f300edaabb26b4839166077569e246b5544bcde19c",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -260282,6 +262449,21 @@
       ],
       "destinations": [
         "tests/support/retrieval_provider.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/runtime_information_wire.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 36,
+      "sha256": "38b5dba3e48111be910c93aeb3ce41ba2c8d6537d862ac377aa322bcbf3fa321",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/runtime_information_wire.rs"
       ],
       "line_limit": 1000
     },

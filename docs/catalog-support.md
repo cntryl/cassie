@@ -148,3 +148,27 @@ not establish interruption inside a long parser loop.
 Current executed checks and remaining failures are recorded in
 [validation](testing/validation.md). These helpers remain Experimental and do
 not close a compatibility owner.
+
+## Experimental runtime information (2026-10-17)
+
+`pg_is_in_recovery()`, `pg_jit_available()` and `pg_numa_available()` report
+false for Cassie's current ready single-node profile: archive/standby recovery,
+JIT execution and a NUMA runtime are absent. `unicode_version()` reports the
+actual Rust standard-library Unicode table version. These values describe
+Cassie's build and runtime; a PostgreSQL oracle build may report other values.
+Only the Unicode version helper is eligible for immutable constant folding.
+
+`pg_column_compression(any)` returns NULL for materialized ordinary SQL values,
+including NULL. Arguments are still evaluated. This describes SQL value
+representation, not Midge's physical block compression. An untyped direct
+parameter rejects with native 42P18; selected explicit primitive parameters
+retain their declared identities. Unknown literals and NULL are accepted.
+
+`FROM pg_get_loaded_modules()` exposes module_name, version and file_name as
+three TEXT columns, with no rows because Cassie has no PostgreSQL native-module
+loader. Aliases, derived tables, CTEs, aggregation and outer joins use the normal
+table-function path. Scalar target-list RECORD projection remains explicitly
+unsupported (0A000) under #793/#817; the FROM shape does not establish RECORD
+ABI support. Compiled plans rebuild at epoch 16. No stored format changes.
+These checks leave complete system-information, native catalog ABI and resource
+qualification open. See [validation](testing/validation.md).

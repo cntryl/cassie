@@ -373,3 +373,21 @@ mod catalog_scalar_precedence;
 
 #[path = "pgwire_extended/catalogs/scalar_pending.rs"]
 mod catalog_scalar_pending;
+
+#[path = "pgwire_extended/catalogs/runtime_scalars_0.rs"]
+mod catalog_runtime_scalars_0;
+
+#[path = "pgwire_extended/catalogs/runtime_scalars_1.rs"]
+mod catalog_runtime_scalars_1;
+
+#[path = "pgwire_extended/catalogs/runtime_modules.rs"]
+mod catalog_runtime_modules;
+
+#[path = "support/runtime_information_wire.rs"]
+mod support_runtime_information_wire;
+
+#[path = "pgwire_extended/catalogs/runtime_parameters.rs"]
+mod catalog_runtime_parameters;
+
+#[path = "pgwire_extended/catalogs/runtime_signatures.rs"]
+mod catalog_runtime_signatures;

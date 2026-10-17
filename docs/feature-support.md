@@ -155,6 +155,7 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 
 | Capability | Behavior | Status |
 | --- | --- | --- |
+| Runtime information | Actual recovery/JIT/NUMA capabilities and Rust Unicode version; NULL compression for materialized SQL values; empty loaded-module FROM relation with three TEXT columns. Scalar RECORD projection and complete system/catalog ABI remain pending. | Experimental |
 | Catalog read models | Selected database-scoped table/view/sequence discovery, ordinary column identity/generation flags, and column-name/empty-row shapes for 26 absent object registries. Native catalog-domain OIDs/codecs, ownership, definitions, OID/reg* lifecycle and wider DDL remain pending. | Experimental |
 | Plan cache | Session-safe reusable parsed and physical plans | Experimental |
 | Execution-result cache | Context-isolated, epoch-invalidated, byte-bounded query results | Experimental |

@@ -12,6 +12,8 @@ use time::{OffsetDateTime, UtcOffset};
 mod catalog_sizes;
 #[path = "encoding.rs"]
 mod encoding;
+#[path = "runtime_information.rs"]
+mod runtime_information;
 #[path = "text_scalar.rs"]
 mod text_scalar;
 #[path = "text_selection.rs"]
@@ -57,7 +59,8 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     search_context: Option<&SearchContext>,
     session: Option<&CassieSession>,
 ) -> Option<Result<Value, QueryError>> {
-    evaluate_system_function(name, row, args, session)
+    runtime_information::evaluate(name, args)
+        .or_else(|| evaluate_system_function(name, row, args, session))
         .or_else(|| super::conditional::evaluate(name, args))
         .or_else(|| {
             let local = name.strip_prefix("pg_catalog.").unwrap_or(name);

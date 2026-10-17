@@ -660,3 +660,14 @@ NAME truncation for literals/stored TEXT/explicit TEXT parameters, without
 implementing NAME's catalog/wire ABI or encoding conversion. Bare unknown NAME
 parameters reject deterministically pending #793; #821 retains wider locale
 qualification. See [catalog support](catalog-support.md) for exact boundaries.
+
+### Runtime information increment (2026-10-17)
+
+Experimental #817 runtime helpers report Cassie's actual recovery/JIT/NUMA
+capabilities and Rust Unicode version over BOOL/TEXT. Compression reports NULL
+for materialized ordinary SQL carriers, independently of Midge block codecs.
+Loaded-module discovery supports a three-TEXT-column FROM relation with zero
+rows; scalar RECORD projection remains pending under #793/#817. Typed primitive
+parameters, native arity errors and untyped compression-parameter rejection are
+selected; complete native catalog ABI and #849 resource qualification remain
+open. See [catalog support](catalog-support.md) for exact boundaries.

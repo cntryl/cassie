@@ -133,12 +133,13 @@ impl Fold<'_, '_> {
         function: &ast::FunctionCall,
     ) -> Result<Option<Summary>, ParameterAdmissionError> {
         if let Some(metadata) = functions::function(&function.name).filter(|metadata| {
-            matches!(
-                metadata.id,
-                functions::FunctionId::PgSizeBytes
-                    | functions::FunctionId::PgSizePretty
-                    | functions::FunctionId::PgCharToEncoding
-            )
+            functions::is_runtime_helper(metadata.id)
+                || matches!(
+                    metadata.id,
+                    functions::FunctionId::PgSizeBytes
+                        | functions::FunctionId::PgSizePretty
+                        | functions::FunctionId::PgCharToEncoding
+                )
         }) {
             if !metadata.arity.matches(function.args.len()) {
                 self.occurrences
@@ -155,6 +156,14 @@ impl Fold<'_, '_> {
         metadata: Option<&functions::ScalarFunction>,
         frame: &Frame<'_>,
     ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if metadata.is_some_and(|value| value.id == functions::FunctionId::PgColumnCompression) {
+            if let Some(ast::Expr::Param(slot)) = function.args.first() {
+                if matches!(self.summaries.values[frame.start].oid, 0 | 705) {
+                    self.occurrences.unresolved_parameter(*slot)?;
+                    return Ok(Some(Summary::unqualified()));
+                }
+            }
+        }
         if metadata.is_some_and(|value| value.id == functions::FunctionId::PgCharToEncoding)
             && matches!(function.args.first(), Some(ast::Expr::Param(_)))
             && matches!(self.summaries.values[frame.start].oid, 0 | 705)

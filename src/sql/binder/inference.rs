@@ -316,19 +316,16 @@ pub(super) fn infer_source_schema_with_outer(
             .cloned()
             .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?,
         QuerySource::SingleRow => Schema { fields: Vec::new() },
-        QuerySource::TableFunction { name, .. } => {
-            let schema = Schema {
-                fields: super::select::table_function_columns(name)
-                    .into_iter()
-                    .map(|(name, data_type)| FieldSchema {
-                        name,
-                        data_type,
-                        nullable: true,
-                    })
-                    .collect(),
-            };
-            qualify_schema(&schema, name)
-        }
+        QuerySource::TableFunction { name, .. } => Schema {
+            fields: super::select::table_function_columns(name)
+                .into_iter()
+                .map(|(name, data_type)| FieldSchema {
+                    name,
+                    data_type,
+                    nullable: true,
+                })
+                .collect(),
+        },
         QuerySource::Subquery {
             alias,
             select,
@@ -378,11 +375,12 @@ pub(super) fn infer_source_schema_with_outer(
     if qualify {
         Ok(match source {
             QuerySource::Collection(name) => qualify_schema(&schema, name),
-            QuerySource::Cte(name) => qualify_schema(&schema, name),
+            QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
+                qualify_schema(&schema, name)
+            }
             QuerySource::SingleRow
             | QuerySource::Values { .. }
             | QuerySource::Aliased { .. }
-            | QuerySource::TableFunction { .. }
             | QuerySource::Subquery { .. }
             | QuerySource::Join { .. } => schema,
         })

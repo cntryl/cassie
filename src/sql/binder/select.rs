@@ -801,15 +801,25 @@ fn validate_graph_table_function(
     function: &FunctionCall,
     lateral_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
-    let expected = match function.name.to_ascii_lowercase().as_str() {
-        "pg_show_all_settings" | "pg_catalog.pg_show_all_settings" => 0,
-        "graph_neighbors" => 6,
-        "graph_expand" => 7,
-        "graph_shortest_path" => 9,
-        other => {
-            return Err(CassieError::Planner(format!(
-                "unsupported table function '{other}'"
-            )))
+    let modules = crate::sql::functions::is_loaded_modules(&function.name);
+    if modules && !function.args.is_empty() {
+        return Err(CassieError::Execution(
+            "function pg_get_loaded_modules(...) does not exist".into(),
+        ));
+    }
+    let expected = if modules {
+        0
+    } else {
+        match function.name.to_ascii_lowercase().as_str() {
+            "pg_show_all_settings" | "pg_catalog.pg_show_all_settings" => 0,
+            "graph_neighbors" => 6,
+            "graph_expand" => 7,
+            "graph_shortest_path" => 9,
+            other => {
+                return Err(CassieError::Planner(format!(
+                    "unsupported table function '{other}'"
+                )))
+            }
         }
     };
     if function.args.len() != expected {
@@ -850,6 +860,9 @@ pub(super) fn graph_table_function_columns() -> Vec<(String, DataType)> {
 }
 
 pub(super) fn table_function_columns(name: &str) -> Vec<(String, DataType)> {
+    if crate::sql::functions::is_loaded_modules(name) {
+        return crate::sql::functions::loaded_modules_columns();
+    }
     if matches!(
         name.to_ascii_lowercase().as_str(),
         "pg_show_all_settings" | "pg_catalog.pg_show_all_settings"

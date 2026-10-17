@@ -4,6 +4,8 @@ use std::fmt::{self, Write};
 
 const PENDING_NAME_INPUT: &str = "pg_char_to_encoding NAME parameter identity remains pending under #793/#817; use an explicit TEXT argument";
 
+const PENDING_DATUM_INPUT: &str = "direct pg_column_size parameter identity remains pending under #793/#817; use an explicit primitive cast";
+
 const MAX_DECIMAL_DIGITS: usize = (usize::BITS as usize * 30_103) / 100_000 + 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,6 +62,7 @@ pub(crate) enum ParameterSemanticDiagnostic {
         actual: i32,
     },
     PendingNameInput,
+    PendingDatumInput,
     AmbiguousFunction {
         function: &'static str,
     },
@@ -88,7 +91,7 @@ impl ParameterSemanticDiagnostic {
     pub(crate) const fn code(self) -> &'static str {
         match self {
             Self::ValuesWidth => "42601",
-            Self::PendingNameInput => "0A000",
+            Self::PendingNameInput | Self::PendingDatumInput => "0A000",
             Self::AmbiguousFunction { .. } => "42725",
             Self::DistinctAggregateOrder => "42P10",
             Self::MissingEquality { .. } | Self::UndefinedFunction { .. } => "42883",
@@ -109,6 +112,7 @@ impl ParameterSemanticDiagnostic {
         match self {
             Self::ValuesWidth => "VALUES lists must all be the same length".len(),
             Self::PendingNameInput => PENDING_NAME_INPUT.len(),
+            Self::PendingDatumInput => PENDING_DATUM_INPUT.len(),
             Self::AmbiguousFunction { function } => {
                 "function (unknown) is not unique".len() + function.len()
             }
@@ -154,6 +158,7 @@ impl ParameterSemanticDiagnostic {
     pub(crate) fn write_message(self, output: &mut impl Write) -> fmt::Result {
         match self {
             Self::PendingNameInput => output.write_str(PENDING_NAME_INPUT),
+            Self::PendingDatumInput => output.write_str(PENDING_DATUM_INPUT),
             Self::ValuesWidth => output.write_str("VALUES lists must all be the same length"),
             Self::ValuesTypes { left, right } => write!(
                 output,
@@ -229,6 +234,7 @@ impl ParameterSemanticDiagnostic {
             | Self::UndefinedFunction { .. }
             | Self::AmbiguousFunction { .. }
             | Self::PendingNameInput
+            | Self::PendingDatumInput
             | Self::DistinctAggregateOrder
             | Self::ValuesTypes { .. }
             | Self::ValuesWidth

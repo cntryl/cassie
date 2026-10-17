@@ -156,10 +156,19 @@ impl Fold<'_, '_> {
         metadata: Option<&functions::ScalarFunction>,
         frame: &Frame<'_>,
     ) -> Result<Option<Summary>, ParameterAdmissionError> {
-        if metadata.is_some_and(|value| value.id == functions::FunctionId::PgColumnCompression) {
+        if metadata.is_some_and(|value| {
+            matches!(
+                value.id,
+                functions::FunctionId::PgColumnCompression | functions::FunctionId::PgColumnSize
+            )
+        }) {
             if let Some(ast::Expr::Param(slot)) = function.args.first() {
                 if matches!(self.summaries.values[frame.start].oid, 0 | 705) {
                     self.occurrences.unresolved_parameter(*slot)?;
+                    return Ok(Some(Summary::unqualified()));
+                }
+                if metadata.is_some_and(|value| value.id == functions::FunctionId::PgColumnSize) {
+                    self.occurrences.pending_datum_input()?;
                     return Ok(Some(Summary::unqualified()));
                 }
             }

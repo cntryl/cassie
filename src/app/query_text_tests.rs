@@ -1,46 +1,9 @@
 //! Execution-local SQL text, admission and result ownership through the public query path.
-use super::{Cassie, CassieError, CassieSession, ExecutionMode, QueryExecutionControls};
+use super::query_test_fixture::{controls, Fixture};
+use super::{CassieError, ExecutionMode, QueryExecutionControls};
 use crate::config::CassieRuntimeLimits;
 use crate::types::Value;
-use std::path::PathBuf;
 use std::time::Instant;
-
-struct Fixture {
-    cassie: Option<Cassie>,
-    session: CassieSession,
-    path: PathBuf,
-}
-impl Fixture {
-    fn new() -> Self {
-        let path = std::env::temp_dir().join(format!("cassie-query-text-{}", uuid::Uuid::new_v4()));
-        let cassie = Cassie::new_with_data_dir(path.to_str().expect("path")).expect("Cassie");
-        cassie.startup().expect("startup");
-        let session = cassie.create_session("tester", None);
-        Self {
-            cassie: Some(cassie),
-            session,
-            path,
-        }
-    }
-    fn cassie(&self) -> &Cassie {
-        self.cassie.as_ref().expect("live fixture")
-    }
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        drop(self.cassie.take());
-        std::fs::remove_dir_all(&self.path).expect("remove retired store");
-    }
-}
-fn controls(budget: usize) -> QueryExecutionControls {
-    QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: budget,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    )
-}
 
 #[test]
 fn should_isolate_statement_text_given_concurrent_cloned_sessions_when_queries_execute() {

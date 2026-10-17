@@ -10,6 +10,8 @@ use time::{OffsetDateTime, UtcOffset};
 
 #[path = "catalog_sizes.rs"]
 mod catalog_sizes;
+#[path = "datum_size.rs"]
+mod datum_size;
 #[path = "encoding.rs"]
 mod encoding;
 #[path = "runtime_information.rs"]
@@ -25,6 +27,9 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
+    if crate::sql::functions::is_column_size(&name) {
+        return datum_size::evaluate(function, row, context);
+    }
     if name == "coalesce" {
         return evaluate_coalesce(function, row, context);
     }

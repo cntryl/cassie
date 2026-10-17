@@ -1,3 +1,5 @@
+#[path = "binder/function_validation.rs"]
+mod function_validation;
 #[path = "binder/integer_operators.rs"]
 mod integer_operators;
 mod pagination_references;

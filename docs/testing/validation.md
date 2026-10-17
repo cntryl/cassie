@@ -2204,3 +2204,62 @@ Jev's final entry review selects the EXPLAIN correction as fixed at probability
 0.95. Actual source/native/Rust checks establish the evidence above; these
 judgments do not prove broader correctness. All Cargo uses `CARGO_INCREMENTAL=0`.
 Full repository and hosted green remain unestablished; no owner issue closes.
+
+
+### Selected primitive datum sizes (2026-10-17)
+
+Baseline `61929e4542c8d509556c621d65e6000aa9d7148a`; draft #951 continues
+tracking #793/#817. `pg_column_size(any)` now returns the existing INT identity
+(OID 23, length 4, typmod -1) for selected existing primitive inputs. Explicit
+fixed-width casts use the central type-width registry, rather than guessing from
+shared carriers. Unknown strings include a one-byte C-string terminator;
+materialized TEXT/VARCHAR and BYTEA casts include a four-byte uncompressed header.
+UTF-8 bytes, NULLs, fixed stored-column casts and supported nested cast chains
+are qualified. This is not a physical Midge storage-size implementation.
+
+Direct parameters require explicit casts; untyped direct parameters produce
+42P18. Unsupported CHAR/NUMERIC descendants, stored varlena provenance, JSON,
+arrays, vectors and unqualified expressions remain pending and reject with
+0A000 before evaluation. Native NAME/OID/RECORD/array ABI, persistent layouts
+and full catalog owners remain unresolved. The plan-cache epoch advances to 19.
+Function validation is extracted from its nearly full module; the private query
+fixture is shared without changing existing test assertions or configuration.
+
+Red evidence: all 128 initial native literal/NULL wire witnesses failed before
+implementation. Green: 155 wire tests plus 32 adversarial nested-cast cases and
+eight near-code ownership/resource tests pass (195 new tests). Native PostgreSQL
+18.6 covers both output formats and 48 parameter input/output crosses. The
+executable SHA256 remains
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+Budget denial, cancellation, final-owner release, argument failure and early
+rejection of an expanding CHAR cast use the public embedded execution path.
+
+Jev triage selected implementation at 1.0 and flagged provenance at 0.46;
+implementation review flagged it at 0.53. Focused native/Rust probes checked
+integer carrier collisions, stored fixed casts, parameter formats, Unicode
+VARCHAR truncation, BYTEA/TEXT conversions and nested casts. All pass. Final
+review selected resolved at 0.60 (confidence 0.40); passing probes, rather than
+the judgment, establish the selected behavior. No complete owner closes.
+
+Ordered final validation uses CARGO_INCREMENTAL=0:
+
+- `cargo build --locked --bin cassie` passes.
+- `cargo test --locked --test pgwire_extended catalog_datum_nested`: 32/0;
+  the earlier `catalog_datum_` run passed 155/0 before these test-only additions.
+- `cargo test --locked`: library 1040/0, analytics 179/0, backend 2/0,
+  benchmark operations 16/0; catalog/security 241/170 after 461.56 seconds.
+  The original exact-value-size failure is fixed; no new failure identities.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+  and `cargo fmt --all -- --check` pass.
+- `cntryl-tools validate-tests -f <path>` passes for every touched test/fixture;
+  global `cntryl-tools validate-tests`, inventory `--check`, and whitespace pass.
+- Fresh `cargo test --locked --no-run --message-format=json` artifacts preserve
+  parser 299/74, core wire 74/10 and storage 161/six failures/one ignored.
+  Current-query wire 45/0, runtime-helper wire 61/0, original query-text unit 7/0,
+  seven graph-function cases, four graph SQL cases and the original datum-size
+  test pass. Failure sets are compared, not only totals.
+- Inventory adds 187 integration identities, removes none and changes no existing
+  records. Eight unit tests are tracked separately. Touched files meet size limits.
+
+Full repository green and hosted green are not established. Existing Midge
+0.4.1 fresh-store support boundaries remain in force; no migration is performed.

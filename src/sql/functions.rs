@@ -1,7 +1,9 @@
 mod constant_folding;
 pub(crate) use constant_folding::is_immutable_scalar;
 mod catalog;
+mod datum_size;
 mod runtime;
+pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};
 mod table;
 pub(crate) use runtime::{is_loaded_modules, is_runtime_helper, loaded_modules_columns};
 pub(crate) use table::{catalog_table_columns, is_catalog_table, is_options_table};
@@ -86,6 +88,7 @@ pub enum FunctionId {
     PgNumaAvailable,
     UnicodeVersion,
     PgColumnCompression,
+    PgColumnSize,
 }
 
 #[derive(Debug, Clone)]

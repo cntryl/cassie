@@ -3,6 +3,14 @@ use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 use crate::types::DataType;
 pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ScalarFunction {
+        id: FunctionId::PgColumnSize,
+        name: "pg_column_size",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Int,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
         id: FunctionId::CurrentQuery,
         name: "current_query",
         arity: FunctionArity::Exact(0),
@@ -60,6 +68,7 @@ pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
             | FunctionId::PgNumaAvailable
             | FunctionId::UnicodeVersion
             | FunctionId::PgColumnCompression
+            | FunctionId::PgColumnSize
     )
 }
 pub(crate) fn is_loaded_modules(name: &str) -> bool {

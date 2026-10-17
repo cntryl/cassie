@@ -217,3 +217,18 @@ compiled plans remain reusable and rebuild at epoch 18. Extra arguments reject
 with native 42883. No persistent representation or native type identity changes.
 This selected primitive helper leaves complete session introspection, native
 NAME/OID/RECORD types and full resource qualification open under #793/#817/#821/#849.
+
+
+Selected `pg_column_size(any)` support returns INT (OID 23). Explicit existing
+fixed primitive casts use their declared widths, including SMALLINT/INTEGER/BIGINT
+sharing the same Rust integer carrier. Unknown string literals include their
+one-byte C-string terminator; explicit materialized TEXT/VARCHAR and BYTEA
+literal or parameter casts include a four-byte uncompressed datum header.
+UTF-8 byte lengths, NULLs, nested supported casts and text/binary wire formats
+are covered against PostgreSQL 18.6. This describes selected SQL datums, not
+Midge storage sizes. Direct typed parameters require explicit casts to preserve
+identity. Unsupported stored varlena provenance, CHAR, NUMERIC, JSON, arrays,
+vectors and unqualified expressions reject with `0A000` before evaluation;
+these remain pending obligations under #793/#817. Untyped direct parameters
+retain `42P18`. Query budget, cancellation and result ownership use existing
+execution controls. Plan-cache cost model epoch is 19.

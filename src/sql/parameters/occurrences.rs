@@ -144,6 +144,10 @@ impl<'a> Occurrences<'a> {
         self.report(ParameterSemanticDiagnostic::Unresolved { slot })
     }
 
+    pub(super) fn pending_datum_input(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::PendingDatumInput)
+    }
+
     pub(super) fn pending_name_input(&mut self) -> Result<(), ParameterAdmissionError> {
         self.report(ParameterSemanticDiagnostic::PendingNameInput)
     }

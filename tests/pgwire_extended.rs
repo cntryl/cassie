@@ -427,3 +427,24 @@ mod catalog_current_query_parameters;
 
 #[path = "pgwire_extended/catalogs/current_query_arity.rs"]
 mod catalog_current_query_arity;
+
+#[path = "pgwire_extended/catalogs/datum_sizes_0.rs"]
+mod catalog_datum_sizes_0;
+
+#[path = "pgwire_extended/catalogs/datum_sizes_1.rs"]
+mod catalog_datum_sizes_1;
+
+#[path = "pgwire_extended/catalogs/datum_sizes_2.rs"]
+mod catalog_datum_sizes_2;
+
+#[path = "pgwire_extended/catalogs/datum_sizes_3.rs"]
+mod catalog_datum_sizes_3;
+
+#[path = "pgwire_extended/catalogs/datum_parameters.rs"]
+mod catalog_datum_parameters;
+
+#[path = "pgwire_extended/catalogs/datum_errors.rs"]
+mod catalog_datum_errors;
+
+#[path = "pgwire_extended/catalogs/datum_nested.rs"]
+mod catalog_datum_nested;

@@ -51,7 +51,13 @@ pub(super) fn inferred_type(
     match expression {
         Expr::Binary {
             left,
-            op: BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Modulo,
+            op:
+                BinaryOp::Add
+                | BinaryOp::Sub
+                | BinaryOp::Mul
+                | BinaryOp::Div
+                | BinaryOp::Modulo
+                | BinaryOp::Bitwise { .. },
             right,
         } => {
             let left = inferred_type(left, functions, params)?;

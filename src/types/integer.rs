@@ -19,9 +19,18 @@ pub enum IntegerOperation {
     Mul,
     Div,
     Rem,
+    And,
+    Or,
+    Xor,
+    Shl,
+    Shr,
 }
 
 impl IntegerOperation {
+    pub(crate) const fn is_shift(self) -> bool {
+        matches!(self, Self::Shl | Self::Shr)
+    }
+
     pub(crate) const fn symbol(self) -> &'static str {
         match self {
             Self::Add => "+",
@@ -29,6 +38,11 @@ impl IntegerOperation {
             Self::Mul => "*",
             Self::Div => "/",
             Self::Rem => "%",
+            Self::And => "&",
+            Self::Or => "|",
+            Self::Xor => "#",
+            Self::Shl => "<<",
+            Self::Shr => ">>",
         }
     }
 }
@@ -175,7 +189,8 @@ pub(crate) fn arithmetic(
     left: i64,
     right: i64,
 ) -> Result<i64, IntegerArithmeticError> {
-    if !width.contains(left) || !width.contains(right) {
+    let shift = matches!(operation, IntegerOperation::Shl | IntegerOperation::Shr);
+    if !width.contains(left) || !(if shift { IntegerWidth::I32 } else { width }).contains(right) {
         return Err(IntegerArithmeticError::Range);
     }
     let value = match operation {
@@ -188,6 +203,12 @@ pub(crate) fn arithmetic(
         IntegerOperation::Div => left.checked_div(right),
         IntegerOperation::Rem if right == -1 => Some(0),
         IntegerOperation::Rem => left.checked_rem(right),
+        IntegerOperation::And => Some(left & right),
+        IntegerOperation::Or => Some(left | right),
+        IntegerOperation::Xor => Some(left ^ right),
+        IntegerOperation::Shl | IntegerOperation::Shr => {
+            Some(bit_shift(width, operation, left, right)?)
+        }
     }
     .ok_or(IntegerArithmeticError::Range)?;
     width
@@ -209,4 +230,34 @@ pub(crate) fn negate(width: IntegerWidth, value: i64) -> Result<i64, IntegerArit
         .contains(value)
         .then_some(value)
         .ok_or(IntegerArithmeticError::Range)
+}
+
+// PostgreSQL int2 shifts use the promoted int32 operation before narrowing.
+fn bit_shift(
+    width: IntegerWidth,
+    operation: IntegerOperation,
+    left: i64,
+    right: i64,
+) -> Result<i64, IntegerArithmeticError> {
+    let count = i32::try_from(right).map_err(|_| IntegerArithmeticError::Range)?;
+    let count = u32::from_ne_bytes(count.to_ne_bytes());
+    if width == IntegerWidth::I64 {
+        return Ok(if operation == IntegerOperation::Shl {
+            left.wrapping_shl(count)
+        } else {
+            left.wrapping_shr(count)
+        });
+    }
+    let left = i32::try_from(left).map_err(|_| IntegerArithmeticError::Range)?;
+    let value = if operation == IntegerOperation::Shl {
+        left.wrapping_shl(count)
+    } else {
+        left.wrapping_shr(count)
+    };
+    Ok(if width == IntegerWidth::I16 {
+        let bytes = value.to_le_bytes();
+        i64::from(i16::from_le_bytes([bytes[0], bytes[1]]))
+    } else {
+        i64::from(value)
+    })
 }

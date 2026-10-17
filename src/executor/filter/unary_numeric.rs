@@ -3,6 +3,15 @@ use super::{QueryError, ScalarValue};
 use crate::sql::ast::UnaryNumericOp;
 
 pub(super) fn evaluate(value: &ScalarValue, op: UnaryNumericOp) -> Result<ScalarValue, QueryError> {
+    if op == UnaryNumericOp::Complement {
+        return match value {
+            ScalarValue::Int(value) => Ok(ScalarValue::Int(!value)),
+            ScalarValue::Null => Ok(ScalarValue::Null),
+            _ => Err(QueryError::General(
+                "operator does not exist: ~ non-integer".into(),
+            )),
+        };
+    }
     match value {
         ScalarValue::Null => Ok(ScalarValue::Null),
         ScalarValue::Float(value) => Ok(ScalarValue::Float(if op == UnaryNumericOp::Minus {

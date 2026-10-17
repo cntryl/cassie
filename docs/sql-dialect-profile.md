@@ -737,3 +737,25 @@ gap and three raw-decimal provenance gaps were red before correction. All 58
 cumulative wire tests pass; 39 are new in this batch, plus one parser boundary
 test. Parser failures are 67 with no new identity. Final checks follow only an
 equivalent match-arm consolidation after the parser comparison. Cache epoch 21.
+
+
+Experimental ten-batch increment 3: Integer bitwise operators over existing scalar types.
+Native wire witnesses and precise local acceptance are recorded in
+[validation](testing/validation.md). Complete type and owner contracts remain pending.
+
+Increment 3 selects integer `&`, `|`, `#`, `<<`, `>>` and prefix `~` over
+existing SMALLINT/INT/BIGINT identities. Generic infix operators share native
+left-associative precedence below arithmetic. Shift counts use INT independently
+from the left/result width; SMALLINT shifts promote before narrowing. Six
+parameter fixtures cross text/binary input and output. A Jev shift-gap probability
+of 0.35 prompted four additional signed-count/width boundary witnesses, all passing
+against PostgreSQL 18.6. Parameter signature selection initially failed six tests;
+resolving declared bitwise signatures before carrier erasure fixes all 24 crosses.
+Three Unicode-string interaction witnesses cover the U& lexical regression.
+The final 95 focused wire tests pass. Parser comparison is 309 passing/65 failing,
+with no new failure identities; nine original failures are fixed cumulatively.
+The final Clippy refactor only extracts equivalent resolution/output helpers and
+merges identical rendering arms, so the preceding full parser comparison is reused;
+build, focused tests, strict Clippy and remaining checks ran on the final source.
+Plan-cache semantic epoch is 22. Unsupported native numeric/other type overloads
+and complete operator-error diagnostics remain pending under their existing owners.

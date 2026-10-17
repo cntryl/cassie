@@ -83,10 +83,10 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
         Expr::RowCompare(comparison) => format_row_comparison(comparison),
         Expr::UnaryNumeric { expr, op } => Ok(format!(
             "({}{})",
-            if *op == crate::sql::ast::UnaryNumericOp::Minus {
-                "-"
-            } else {
-                "+"
+            match op {
+                crate::sql::ast::UnaryNumericOp::Minus => "-",
+                crate::sql::ast::UnaryNumericOp::Plus => "+",
+                crate::sql::ast::UnaryNumericOp::Complement => "~",
             },
             format_expression(expr)?
         )),
@@ -142,7 +142,7 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
         BinaryOp::Gte => ">=",
         BinaryOp::And => "AND",
         BinaryOp::Or => "OR",
-        BinaryOp::Integer { operation, .. } => operation.symbol(),
+        BinaryOp::Integer { operation, .. } | BinaryOp::Bitwise { operation } => operation.symbol(),
         BinaryOp::Concat => "||",
         BinaryOp::Add => "+",
         BinaryOp::Sub => "-",

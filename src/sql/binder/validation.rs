@@ -262,7 +262,8 @@ fn binary_operand_family(
         | BinaryOp::Sub
         | BinaryOp::Mul
         | BinaryOp::Div
-        | BinaryOp::Modulo => {
+        | BinaryOp::Modulo
+        | BinaryOp::Bitwise { .. } => {
             require_family(left_family, OperandFamily::Numeric, "arithmetic")?;
             require_family(right_family, OperandFamily::Numeric, "arithmetic")?;
             Ok(Some(OperandFamily::Numeric))

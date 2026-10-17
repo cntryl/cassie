@@ -121,6 +121,22 @@ impl Fold<'_, '_> {
             }
             return Ok(Summary::known(25));
         }
+        if let ast::BinaryOp::Bitwise { operation } = op {
+            if operation.is_shift() {
+                let left = &mut self.summaries.values[frame.start];
+                if matches!(left.oid, 0 | 705) {
+                    self.occurrences.coerce(left, 23, true)?;
+                }
+                let result = left.oid;
+                let right = &mut self.summaries.values[frame.start + 1];
+                if !matches!(right.oid, 0 | 705 | 21 | 23) {
+                    self.occurrences
+                        .undefined_function(operation.symbol(), 2, Some(right.oid))?;
+                }
+                self.occurrences.coerce(right, 23, true)?;
+                return Ok(Summary::known(result));
+            }
+        }
         self.comparison_inputs(frame)?;
         Ok(match op {
             ast::BinaryOp::Concat => Summary::known(25),
@@ -131,7 +147,8 @@ impl Fold<'_, '_> {
             | ast::BinaryOp::Sub
             | ast::BinaryOp::Mul
             | ast::BinaryOp::Div
-            | ast::BinaryOp::Modulo => {
+            | ast::BinaryOp::Modulo
+            | ast::BinaryOp::Bitwise { .. } => {
                 let left = self.summaries.values[frame.start];
                 let right = self.summaries.values[frame.start + 1];
                 common(left, right).map_or_else(Summary::unqualified, |oid| {

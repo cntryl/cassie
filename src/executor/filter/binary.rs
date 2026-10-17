@@ -60,6 +60,7 @@ pub(super) fn binary_scalar(
                 ScalarValue::Float(super::functions::math::power(left, right)?)
             }
         }
+        BinaryOp::Bitwise { .. } => return Err(crate::app::CassieError::Unsupported("bitwise operator requires resolved existing integer operands".into()).into()),
         BinaryOp::Modulo => return Err(crate::app::CassieError::Unsupported("remainder requires selected existing integer operands; NUMERIC remains pending under #793/#812".into()).into()),
         BinaryOp::Div => {
             if right.to_f64().is_some_and(|value| value == 0.0) && left.to_f64().is_some() {

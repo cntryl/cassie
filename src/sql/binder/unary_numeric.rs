@@ -11,6 +11,9 @@ pub(super) fn resolve(
         return Ok(());
     };
     validate_signature(*op, expr, data_type)?;
+    if *op == UnaryNumericOp::Complement {
+        return Ok(());
+    }
     if is_unknown_operand(expr) {
         let Expr::UnaryNumeric { expr, .. } = std::mem::replace(expression, Expr::Null) else {
             unreachable!("numeric unary matched above")
@@ -67,10 +70,15 @@ pub(crate) fn validate_signature(
     data_type: Option<&DataType>,
 ) -> Result<(), CassieError> {
     if is_unknown_operand(operand) {
-        if op == UnaryNumericOp::Minus {
-            return Err(CassieError::Execution(
-                "operator is not unique: - unknown".into(),
-            ));
+        if matches!(op, UnaryNumericOp::Minus | UnaryNumericOp::Complement) {
+            return Err(CassieError::Execution(format!(
+                "operator is not unique: {} unknown",
+                if op == UnaryNumericOp::Minus {
+                    "-"
+                } else {
+                    "~"
+                }
+            )));
         }
         return crate::sql::literal_inputs::validate(
             operand,
@@ -79,6 +87,14 @@ pub(crate) fn validate_signature(
         );
     }
     if let Some(data_type) = data_type {
+        if op == UnaryNumericOp::Complement
+            && IntegerWidth::from_data_type(data_type).is_none()
+            && *data_type != DataType::Null
+        {
+            return Err(CassieError::Execution(
+                "operator does not exist: ~ non-integer".into(),
+            ));
+        }
         if IntegerWidth::from_data_type(data_type).is_none()
             && !matches!(data_type, DataType::Float | DataType::Null)
         {

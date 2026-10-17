@@ -360,6 +360,9 @@ pub enum BinaryOp {
     Sub,
     Mul,
     Div,
+    Bitwise {
+        operation: crate::types::IntegerOperation,
+    },
     Modulo,
     Power,
     /// A selected builtin integer operator, retaining its operand/result domain.
@@ -381,6 +384,7 @@ pub struct Bm25Params {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnaryNumericOp {
+    Complement,
     Plus,
     Minus,
 }

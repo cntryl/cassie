@@ -90,7 +90,17 @@ fn operator_span(input: &str, mut cursor: usize, token: &str) -> Option<(usize, 
     while let Some((start, end)) = find_top_level_keyword_span(input, cursor, token) {
         // Keyword patterns may intentionally start at comment separators;
         // punctuation tokens must never consume their opening delimiters.
-        if !input[start..].starts_with("--") && !input[start..].starts_with("/*") {
+        let unicode_prefix = token == "&"
+            && start.checked_sub(1).is_some_and(|prefix| {
+                matches!(input.as_bytes()[prefix], b'U' | b'u')
+                    && input[end..].starts_with(['\'', '"'])
+                    && input[..prefix]
+                        .chars()
+                        .next_back()
+                        .is_none_or(|character| !super::lexical::identifier_character(character))
+            });
+        if !unicode_prefix && !input[start..].starts_with("--") && !input[start..].starts_with("/*")
+        {
             return Some((start, end));
         }
         cursor = end;

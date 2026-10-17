@@ -10,6 +10,7 @@ pub(super) fn parse(raw: &str) -> Result<Expr, SqlError> {
     loop {
         operand = super::super::lexical::trim_separators(operand);
         let op = match operand.as_bytes().first() {
+            Some(b'~') => UnaryNumericOp::Complement,
             Some(b'+') => UnaryNumericOp::Plus,
             Some(b'-') => UnaryNumericOp::Minus,
             _ => break,

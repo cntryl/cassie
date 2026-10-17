@@ -17,16 +17,32 @@ pub(super) fn resolve(
         BinaryOp::Mul => (IntegerOperation::Mul, None),
         BinaryOp::Div => (IntegerOperation::Div, None),
         BinaryOp::Modulo => (IntegerOperation::Rem, None),
+        BinaryOp::Bitwise { operation } => (*operation, None),
         BinaryOp::Integer { operation, width } => (*operation, Some(*width)),
         _ => return Ok(true),
     };
-    let width = match (left, right) {
-        (Some(DataType::Null), Some(right)) => IntegerWidth::from_data_type(right),
-        (Some(left), Some(DataType::Null)) => IntegerWidth::from_data_type(left),
-        (Some(left), Some(right)) => IntegerWidth::from_data_type(left)
-            .zip(IntegerWidth::from_data_type(right))
-            .map(|(left, right)| left.max(right)),
-        _ => None,
+    let shift = matches!(operation, IntegerOperation::Shl | IntegerOperation::Shr);
+    if shift
+        && right.is_some_and(|kind| {
+            !matches!(kind, DataType::SmallInt | DataType::Int | DataType::Null)
+        })
+    {
+        return Err(CassieError::Execution(
+            "operator does not exist: integer shift with non-integer count".into(),
+        ));
+    }
+    let width = if shift {
+        left.and_then(IntegerWidth::from_data_type)
+            .or_else(|| (left == Some(&DataType::Null)).then_some(IntegerWidth::I32))
+    } else {
+        match (left, right) {
+            (Some(DataType::Null), Some(right)) => IntegerWidth::from_data_type(right),
+            (Some(left), Some(DataType::Null)) => IntegerWidth::from_data_type(left),
+            (Some(left), Some(right)) => IntegerWidth::from_data_type(left)
+                .zip(IntegerWidth::from_data_type(right))
+                .map(|(left, right)| left.max(right)),
+            _ => None,
+        }
     };
     let Some(width) = width else {
         // A previously selected signature survives an unresolved analysis

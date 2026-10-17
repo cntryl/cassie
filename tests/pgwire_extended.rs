@@ -466,3 +466,15 @@ mod scalar_batch_02_special;
 
 #[path = "pgwire_extended/grammar/scalar_batch_02_pending.rs"]
 mod scalar_batch_02_pending;
+
+#[path = "pgwire_extended/grammar/scalar_batch_03.rs"]
+mod scalar_batch_03;
+
+#[path = "pgwire_extended/grammar/scalar_batch_03_parameters.rs"]
+mod scalar_batch_03_parameters;
+
+#[path = "pgwire_extended/grammar/scalar_batch_03_gap.rs"]
+mod scalar_batch_03_gap;
+
+#[path = "pgwire_extended/grammar/scalar_batch_03_unicode.rs"]
+mod scalar_batch_03_unicode;

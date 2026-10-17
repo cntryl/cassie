@@ -470,6 +470,22 @@ fn infer_binary_parameter_type_oids(
     if !oids.check() {
         return;
     }
+    if matches!(op, ast::BinaryOp::Bitwise { operation } | ast::BinaryOp::Integer { operation, .. } if operation.is_shift())
+    {
+        if let ast::Expr::Param(slot) = left {
+            if oids
+                .oids
+                .get(*slot)
+                .is_some_and(|oid| matches!(*oid, 0 | 705))
+            {
+                infer_parameter_type_from_expected_expr(left, &DataType::Int, oids);
+            }
+        }
+        infer_parameter_type_from_expected_expr(right, &DataType::Int, oids);
+        infer_parameter_type_oids_expr(left, field_types, catalog, oids);
+        infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+        return;
+    }
     if matches!(op, ast::BinaryOp::And | ast::BinaryOp::Or) {
         infer_parameter_type_from_expected_expr(left, &DataType::Boolean, oids);
         infer_parameter_type_from_expected_expr(right, &DataType::Boolean, oids);

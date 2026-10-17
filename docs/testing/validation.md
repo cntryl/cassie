@@ -2301,3 +2301,22 @@ full repository gate follows batch 10 under the documented local delivery policy
 Known unrelated failures and complete owner acceptance remain pending.
 
 Jev review and probe outcome: `{"verify": {"type": "choice", "choice": "validate", "confidence": 0.72, "probabilities": {"validate": 0.81, "probe": 0.17, "none": 0.01}}}`.
+
+
+### Ten-batch delivery 3/10: Integer bitwise operators (2026-10-17)
+
+Baseline `17f176f74ab190d0b871ef8d1aba08b386efba2f`. Selected existing scalar/syntax support under #796
+with no new persistent type or storage migration. Native PostgreSQL 18.6
+reference descriptors and both wire payload formats are retained in focused
+Rust tests. TDD red evidence and targeted Jev probes are preserved in the ignored
+`target/ten-batch-03-*` logs. Current focused wire result: test result: ok. 95 passed; 0 failed; 0 ignored; 0 measured; 2924 filtered out; finished in 12.15s.
+
+Build, focused locked tests, complete parser regression comparison, full strict
+workspace/all-target/all-feature pedantic Clippy, formatting, touched/global
+test validators, refreshed inventory and whitespace checks completed. Parser
+failures remaining: 65 (9 fixed cumulatively from
+the 74-failure starting baseline), with no new failure identity. The consolidated
+full repository gate follows batch 10 under the documented local delivery policy.
+Known unrelated failures and complete owner acceptance remain pending.
+
+Jev review and probe outcome: `{"verify": {"type": "choice", "choice": "validate", "confidence": 0.71, "probabilities": {"validate": 0.8099999999999999, "probe": 0.17, "none": 0.02}}}`.

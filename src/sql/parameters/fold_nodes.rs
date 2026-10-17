@@ -331,6 +331,12 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
         Node::Source(ast::QuerySource::Join { .. }) if index == 2 => {
             child.expected = Expected::Boolean(BooleanConstruct::Join);
         }
+        Node::Expr(ast::Expr::Binary {
+            op: ast::BinaryOp::Integer { operation, .. },
+            ..
+        }) if operation.is_shift() && index == 1 => {
+            child.expected = Expected::Type(23, true);
+        }
         Node::Expr(
             ast::Expr::Binary {
                 op: ast::BinaryOp::Integer { width, .. },

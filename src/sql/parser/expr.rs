@@ -186,23 +186,65 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
-    if let Some((left, right)) = super::operators::split_operator(raw, "^@", true) {
-        return Ok(Expr::Function(Box::new(FunctionCall {
-            name: "pg_catalog.starts_with".into(),
-            args: vec![
-                parse_comparison_expression(left)?,
-                parse_arithmetic_expression(right)?,
-            ],
-            quantifier: crate::sql::ast::AggregateQuantifier::Default,
-            filter: None,
-            order_by: Vec::new(),
-        })));
-    }
-    if let Some((left, right)) = super::operators::split_operator(raw, "||", true) {
-        return Ok(Expr::Binary {
-            left: Box::new(parse_prefix_expression(left)?),
-            right: Box::new(parse_arithmetic_expression(right)?),
-            op: BinaryOp::Concat,
+    use crate::types::IntegerOperation;
+    let operators = [
+        ("||", Some(BinaryOp::Concat)),
+        (
+            "|",
+            Some(BinaryOp::Bitwise {
+                operation: IntegerOperation::Or,
+            }),
+        ),
+        (
+            "&",
+            Some(BinaryOp::Bitwise {
+                operation: IntegerOperation::And,
+            }),
+        ),
+        (
+            "#",
+            Some(BinaryOp::Bitwise {
+                operation: IntegerOperation::Xor,
+            }),
+        ),
+        (
+            "<<",
+            Some(BinaryOp::Bitwise {
+                operation: IntegerOperation::Shl,
+            }),
+        ),
+        (
+            ">>",
+            Some(BinaryOp::Bitwise {
+                operation: IntegerOperation::Shr,
+            }),
+        ),
+        ("^@", None),
+    ];
+    let selected = operators
+        .into_iter()
+        .filter_map(|(token, op)| {
+            super::operators::split_operator(raw, token, true)
+                .map(|(left, right)| (left, right, op))
+        })
+        .max_by_key(|(left, _, _)| left.len());
+    if let Some((left, right, op)) = selected {
+        let left = parse_prefix_expression(left)?;
+        let right = parse_arithmetic_expression(right)?;
+        return Ok(if let Some(op) = op {
+            Expr::Binary {
+                left: Box::new(left),
+                right: Box::new(right),
+                op,
+            }
+        } else {
+            Expr::Function(Box::new(FunctionCall {
+                name: "pg_catalog.starts_with".into(),
+                args: vec![left, right],
+                quantifier: crate::sql::ast::AggregateQuantifier::Default,
+                filter: None,
+                order_by: Vec::new(),
+            }))
         });
     }
     parse_arithmetic_expression(raw)

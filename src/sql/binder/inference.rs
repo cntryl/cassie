@@ -747,8 +747,16 @@ pub(crate) fn infer_expr_type(
             | BinaryOp::Like => Some(DataType::Boolean),
             BinaryOp::Power => Some(DataType::Float),
             BinaryOp::Concat => Some(DataType::Text),
+            BinaryOp::Bitwise { operation } if operation.is_shift() => {
+                infer_expr_type(left, source_schema, user_functions, parameter_types)
+            }
             BinaryOp::Integer { width, .. } => Some(width.data_type()),
-            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Modulo => {
+            BinaryOp::Add
+            | BinaryOp::Sub
+            | BinaryOp::Mul
+            | BinaryOp::Div
+            | BinaryOp::Modulo
+            | BinaryOp::Bitwise { .. } => {
                 let left_type =
                     infer_expr_type(left, source_schema, user_functions, parameter_types);
                 let right_type =

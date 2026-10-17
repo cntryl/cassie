@@ -333,17 +333,7 @@ fn validate_expression(
             }
             validate_expression(left, types, catalog, context)?;
             validate_expression(right, types, catalog, context)?;
-            // Referenced parameters retain their later parameter-aware owner.
-            // Select concrete integer signatures before constants are planned.
-            if !super::validation::expr_contains_parameters(left)
-                && !super::validation::expr_contains_parameters(right)
-            {
-                super::integer_operators::resolve(
-                    op,
-                    types.expression_type(left).as_ref(),
-                    types.expression_type(right).as_ref(),
-                )?;
-            }
+            resolve_integer_operator(left, op, right, types)?;
             super::character_comparison::qualify(op, left, right, types);
         }
         prefix @ (Expr::Not { .. } | Expr::UnaryNumeric { .. }) => {
@@ -399,6 +389,40 @@ fn validate_expression(
         | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
+    }
+    Ok(())
+}
+
+fn resolve_integer_operator(
+    left: &Expr,
+    op: &mut BinaryOp,
+    right: &Expr,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    // Existing arithmetic parameters retain their later owner. New
+    // bitwise signatures bind from declared OIDs before carrier erasure.
+    let parameter_bitwise = !types.parameter_types().is_empty()
+        && matches!(
+            op,
+            BinaryOp::Bitwise { .. }
+                | BinaryOp::Integer {
+                    operation: crate::types::IntegerOperation::And
+                        | crate::types::IntegerOperation::Or
+                        | crate::types::IntegerOperation::Xor
+                        | crate::types::IntegerOperation::Shl
+                        | crate::types::IntegerOperation::Shr,
+                    ..
+                }
+        );
+    if parameter_bitwise
+        || (!super::validation::expr_contains_parameters(left)
+            && !super::validation::expr_contains_parameters(right))
+    {
+        super::integer_operators::resolve(
+            op,
+            types.expression_type(left).as_ref(),
+            types.expression_type(right).as_ref(),
+        )?;
     }
     Ok(())
 }

@@ -84,33 +84,47 @@ impl Analyzer<'_> {
             | Expr::Between { .. }
             | Expr::Not { .. } => OutputType::fixed(DataType::Boolean),
             Expr::Null => OutputType::fixed(DataType::Null),
-            Expr::Binary { left, op, right } => match op {
-                BinaryOp::And
-                | BinaryOp::Or
-                | BinaryOp::Eq
-                | BinaryOp::NotEq
-                | BinaryOp::IsDistinctFrom
-                | BinaryOp::IsNotDistinctFrom
-                | BinaryOp::Lt
-                | BinaryOp::Lte
-                | BinaryOp::Gt
-                | BinaryOp::Gte
-                | BinaryOp::Like => OutputType::fixed(DataType::Boolean),
-                BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
-                    OutputType::fixed(DataType::Float)
-                }
-                BinaryOp::Power => OutputType::fixed(DataType::Float),
-                BinaryOp::Concat => OutputType::fixed(DataType::Text),
-                BinaryOp::Integer { width, .. } => OutputType::fixed(width.data_type()),
-                BinaryOp::Add
-                | BinaryOp::Sub
-                | BinaryOp::Mul
-                | BinaryOp::Div
-                | BinaryOp::Modulo => arithmetic(
-                    &self.expression(left, lookup)?,
-                    &self.expression(right, lookup)?,
-                ),
-            },
+            Expr::Binary { left, op, right } => self.binary_output(left, op, right, lookup)?,
+        })
+    }
+
+    fn binary_output(
+        &self,
+        left: &Expr,
+        op: &BinaryOp,
+        right: &Expr,
+        lookup: &[OutputField],
+    ) -> Result<OutputType, CassieError> {
+        Ok(match op {
+            BinaryOp::And
+            | BinaryOp::Or
+            | BinaryOp::Eq
+            | BinaryOp::NotEq
+            | BinaryOp::IsDistinctFrom
+            | BinaryOp::IsNotDistinctFrom
+            | BinaryOp::Lt
+            | BinaryOp::Lte
+            | BinaryOp::Gt
+            | BinaryOp::Gte
+            | BinaryOp::Like => OutputType::fixed(DataType::Boolean),
+            BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
+                OutputType::fixed(DataType::Float)
+            }
+            BinaryOp::Power => OutputType::fixed(DataType::Float),
+            BinaryOp::Concat => OutputType::fixed(DataType::Text),
+            BinaryOp::Bitwise { operation } if operation.is_shift() => {
+                self.expression(left, lookup)?
+            }
+            BinaryOp::Integer { width, .. } => OutputType::fixed(width.data_type()),
+            BinaryOp::Add
+            | BinaryOp::Sub
+            | BinaryOp::Mul
+            | BinaryOp::Div
+            | BinaryOp::Modulo
+            | BinaryOp::Bitwise { .. } => arithmetic(
+                &self.expression(left, lookup)?,
+                &self.expression(right, lookup)?,
+            ),
         })
     }
 

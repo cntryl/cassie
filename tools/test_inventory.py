@@ -84,9 +84,33 @@ def rust_declarations(path: Path):
     return {"tests": tests, "modules": modules, "includes": includes, "data": data}
 
 
+def strip_wave_suffix(name: str) -> str:
+    """Strip the earliest valid wave suffix in one reverse pass over its tokens.
+
+    Preserve the old Unicode decimal-digit and final-newline behavior without
+    repartitioning a digit run through nested regex repetitions.
+    """
+    end = len(name) - int(name.endswith("\n"))
+    parts = name[:end].split("_")
+    offset = end
+    suffix_valid = True
+    cut = None
+    for index in range(len(parts) - 1, -1, -1):
+        part = parts[index]
+        offset -= len(part)
+        if index and suffix_valid and part.startswith("wave") and all(c.isdecimal() for c in part[4:]):
+            cut = offset - 1
+        ascii_end = 0
+        while ascii_end < len(part) and ("a" <= part[ascii_end] <= "z" or "0" <= part[ascii_end] <= "9"):
+            ascii_end += 1
+        suffix_valid = suffix_valid and ascii_end > 0 and all(c.isdecimal() for c in part[ascii_end:])
+        offset -= 1
+    return name if cut is None else name[:cut] + name[end:]
+
+
 def clean_name(name: str) -> str:
     name = re.sub(r"^(?:(?:postgresql18|pg18|integration_sql|integration|sprint\d+|issue_\d+|wave\d+|residual)_)+", "", name)
-    name = re.sub(r"_wave(?:_[a-z0-9]+|\d+)*$", "", name)
+    name = strip_wave_suffix(name)
     name = re.sub(r"^issue_\d+_", "", name)
     name = re.sub(r"^type_", "", name)
     name = re.sub(r"(?:_(?:inventory|compat|gaps|residuals?|contracts?))+$", "", name)
@@ -476,7 +500,9 @@ def gather():
                 raise ValueError(f"Reviewed layout has an unregistered owner: {rel}")
             placement = choose_placement(rel, test, suites, lines, decision)
             if path.suffix == ".py":
-                placement = {"suite": "pg18_parity", "category": "parity_harness", "directory": "tests/pg18_parity", "file": rel, "basis": "distinct_python_runtime", "review": "recommended", "migration": "keep"}
+                suite = "test_inventory" if rel.startswith("tests/test_inventory/") else "pg18_parity"
+                category = "tooling_harness" if suite == "test_inventory" else "parity_harness"
+                placement = {"suite": suite, "category": category, "directory": f"tests/{suite}", "file": rel, "basis": "distinct_python_runtime", "review": "recommended", "migration": "keep"}
             destinations.add(placement["file"])
             inventory.append({
                 "id": f"{rel}::{local}", "name": test["name"], "current_file": rel,

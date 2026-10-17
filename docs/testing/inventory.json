@@ -228,10 +228,10 @@
         ]
       }
     ],
-    "files": 1759,
+    "files": 1761,
     "rust_files": 1728,
     "rust_test_declarations": 8810,
-    "python_test_declarations": 16,
+    "python_test_declarations": 19,
     "registered_rust_instances": 8938,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
@@ -269111,6 +269111,78 @@
       }
     },
     {
+      "id": "tests/test_inventory/test_names.py::should_select_the_earliest_valid_wave_suffix",
+      "name": "should_select_the_earliest_valid_wave_suffix",
+      "current_file": "tests/test_inventory/test_names.py",
+      "line": 15,
+      "end_line": 31,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "python",
+      "registration": "python_harness",
+      "instances": [],
+      "attributes": [],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "test_inventory",
+        "category": "tooling_harness",
+        "directory": "tests/test_inventory",
+        "file": "tests/test_inventory/test_names.py",
+        "basis": "distinct_python_runtime",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/test_inventory/test_names.py::should_preserve_wave_suffix_grammar",
+      "name": "should_preserve_wave_suffix_grammar",
+      "current_file": "tests/test_inventory/test_names.py",
+      "line": 33,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "python",
+      "registration": "python_harness",
+      "instances": [],
+      "attributes": [],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "test_inventory",
+        "category": "tooling_harness",
+        "directory": "tests/test_inventory",
+        "file": "tests/test_inventory/test_names.py",
+        "basis": "distinct_python_runtime",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/test_inventory/test_names.py::should_terminate_given_malformed_wave_suffixes",
+      "name": "should_terminate_given_malformed_wave_suffixes",
+      "current_file": "tests/test_inventory/test_names.py",
+      "line": 58,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "python",
+      "registration": "python_harness",
+      "instances": [],
+      "attributes": [],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "test_inventory",
+        "category": "tooling_harness",
+        "directory": "tests/test_inventory",
+        "file": "tests/test_inventory/test_names.py",
+        "basis": "distinct_python_runtime",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/time_series_float_partitions/partitions/semantics.rs::should_match_full_scan_for_whole_number_float_partition_values",
       "name": "should_match_full_scan_for_whole_number_float_partition_values",
       "current_file": "tests/time_series_float_partitions/partitions/semantics.rs",
@@ -300280,6 +300352,32 @@
         "tests/temporal_predicate_literals.rs"
       ],
       "line_limit": 12000
+    },
+    {
+      "current_file": "tests/test_inventory/__pycache__/test_names.cpython-312.pyc",
+      "role": "fixture_data",
+      "action": "keep",
+      "lines": 33,
+      "sha256": "8cabf9d477daa054f17cf6f7e34bf6d6ea2de6c2b9503f7f313efd6247431490",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/test_inventory/__pycache__/test_names.cpython-312.pyc"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/test_inventory/test_names.py",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 88,
+      "sha256": "9e18b64a93ebe468e0cb725cd9eb401e50779c3de87ab0a8c67655325480403f",
+      "test_declarations": 3,
+      "registered_suites": [],
+      "destinations": [
+        "tests/test_inventory/test_names.py"
+      ],
+      "line_limit": null
     },
     {
       "current_file": "tests/time_series_float_partitions/partitions/semantics.rs",

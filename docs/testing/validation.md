@@ -3080,3 +3080,36 @@ declarations / 8,938 registered instances / 32 targets, with no unregistered,
 unresolved, duplicate or oversized files. These counts are not executed outcomes.
 The complete repository remains red and the full default suite was not repeated
 for this fixture slice. No owner issue is closed.
+
+### Autopilot batch 18: Linear inventory suffix normalization (2026-10-17)
+
+Hosted review of batch17 reported two CodeQL alerts at
+`tools/test_inventory.py:89`. The pre-existing `_wave` suffix regex could
+repartition digit runs through nested repetitions and hang on small malformed
+names. A standard Python unittest regression reproduced a stuck child with two
+inputs under 400 characters and a two-second hang guard. It initially failed;
+this is a bounded termination check, not a performance timing assertion.
+
+The normalizer now scans underscore-delimited tokens once in reverse. It retains
+the earliest valid suffix, ASCII alphanumeric segment rules, Unicode decimal
+runs, and the original single-final-newline anchor behavior. No CI configuration,
+Rust runtime or existing test-assertion changes. Existing inventory destinations
+remain unchanged; the new Python tooling tests have their own `test_inventory`
+owner rather than being counted as native PostgreSQL parity coverage.
+
+Finite equivalence checks match the prior implementation for 9,331 short suffix
+cases and 17,380 existing inventory names. Standard Python tests cover valid and
+invalid grammar, Unicode/newline cases, earliest markers separated by invalid or
+empty tokens, and both former hanging inputs. Jev's gap0.33 selected a focused
+nested-marker probe; nine explicit nested/invalid-token cases address it.
+
+Ordered validation passes: `cargo build --locked`, seven selected Rust fixture
+checks, the three Python unittests (also discoverable with
+`python -m unittest discover -s tests/test_inventory -v`, 0.038 seconds), full
+workspace/all-target/all-feature strict Clippy, formatting, global Rust test
+policy, regenerated inventory, docs, module sizes and whitespace. The benchmark
+validator remains blocked by the existing missing workflow; it is not passed.
+Commands/results are retained in `target/fast-tests-inventory-validation.json`;
+the final Python discovery result is in `target/fast-tests-inventory-discovery.log`. The repository's known
+feature failures and the absent benchmark-policy workflow remain separate open
+boundaries. Clearing source alerts does not itself establish hosted green.

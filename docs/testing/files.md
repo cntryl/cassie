@@ -1729,6 +1729,8 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/wire_queries.rs` | shared_support | 67 | 0 | catalog_security, pgwire_core, pgwire_extended, sql_queries | keep | `tests/support/wire_queries.rs` |
 | `tests/temporal_predicate_literals/types/temporal/semantics.rs` | test_module | 122 | 1 | temporal_predicate_literals | keep | `tests/temporal_predicate_literals/types/temporal/semantics.rs` |
 | `tests/temporal_predicate_literals.rs` | cargo_target | 7 | 0 | temporal_predicate_literals | keep | `tests/temporal_predicate_literals.rs` |
+| `tests/test_inventory/__pycache__/test_names.cpython-312.pyc` | fixture_data | 33 | 0 | — | keep | `tests/test_inventory/__pycache__/test_names.cpython-312.pyc` |
+| `tests/test_inventory/test_names.py` | test_module | 88 | 3 | — | keep | `tests/test_inventory/test_names.py` |
 | `tests/time_series_float_partitions/partitions/semantics.rs` | test_module | 133 | 1 | time_series_float_partitions | keep | `tests/time_series_float_partitions/partitions/semantics.rs` |
 | `tests/time_series_float_partitions.rs` | cargo_target | 7 | 0 | time_series_float_partitions | keep | `tests/time_series_float_partitions.rs` |
 | `tests/vector_embeddings/embeddings/embedding_local.rs` | test_module | 111 | 5 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_local.rs` |

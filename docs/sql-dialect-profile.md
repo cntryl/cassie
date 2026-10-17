@@ -704,3 +704,18 @@ vectors and unqualified expressions reject with `0A000` before evaluation;
 these remain pending obligations under #793/#817. Untyped direct parameters
 retain `42P18`. Query budget, cancellation and result ownership use existing
 execution controls. Plan-cache cost model epoch is 19.
+
+
+Experimental ten-batch increment 1: Selected text concatenation over existing scalar types.
+Native wire witnesses and precise local acceptance are recorded in
+[validation](testing/validation.md). Complete type and owner contracts remain pending.
+
+Selected concatenation returns TEXT OID 25 and propagates NULL. TEXT/VARCHAR
+and unknown string inputs may concatenate with selected integer, FLOAT8 and
+Boolean scalars; arithmetic binds first. Parameters retain declared identities.
+Closed INSERT concatenation uses the existing scalar evaluator, and the original
+mutation witness passes unchanged. CHAR padding, BYTEA, array, JSON, temporal
+and other overloads remain pending; this increment does not infer their layouts.
+The old parser-only rejection list now retains only still-pending operators.
+Plan-cache epoch: 20. Jev's 0.75 overload concern prompted 16 native/Rust
+parameter-format probes; final review selected verification at 0.94.

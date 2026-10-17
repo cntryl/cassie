@@ -106,8 +106,24 @@ impl Fold<'_, '_> {
         if matches!(op, ast::BinaryOp::And | ast::BinaryOp::Or) {
             return Ok(Summary::known(16));
         }
+        if *op == ast::BinaryOp::Concat {
+            let args = &mut self.summaries.values[frame.start..];
+            if args
+                .iter()
+                .all(|argument| !matches!(argument.oid, 0 | 705 | 25 | 1043))
+            {
+                self.occurrences.undefined_function("||", 2, None)?;
+            }
+            for argument in args {
+                if matches!(argument.oid, 0 | 705) {
+                    self.occurrences.coerce(argument, 25, true)?;
+                }
+            }
+            return Ok(Summary::known(25));
+        }
         self.comparison_inputs(frame)?;
         Ok(match op {
+            ast::BinaryOp::Concat => Summary::known(25),
             ast::BinaryOp::Integer { width, .. } => {
                 Summary::known(super::expressions::oid(&width.data_type()))
             }

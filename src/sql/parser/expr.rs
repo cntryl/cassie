@@ -198,6 +198,13 @@ fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
             order_by: Vec::new(),
         })));
     }
+    if let Some((left, right)) = super::operators::split_operator(raw, "||", true) {
+        return Ok(Expr::Binary {
+            left: Box::new(parse_prefix_expression(left)?),
+            right: Box::new(parse_arithmetic_expression(right)?),
+            op: BinaryOp::Concat,
+        });
+    }
     parse_arithmetic_expression(raw)
 }
 
@@ -397,11 +404,6 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     }
     if let Some(inner) = strip_parentheses(raw) {
         return parse_expression(inner);
-    }
-    if split_top_level(raw, "||").is_some() {
-        return Err(SqlError::unsupported(
-            "operator || is not supported; use concat()".into(),
-        ));
     }
 
     if let Some(value) = super::lexical::dollar_quoted_content(raw) {

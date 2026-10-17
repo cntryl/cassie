@@ -22,12 +22,15 @@ mod exists_value;
 pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
 pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<bool, QueryError> + 'a;
 
+#[path = "filter/binary.rs"]
+mod binary;
 #[path = "filter/bytea_casts.rs"]
 mod bytea_casts;
 #[path = "filter/coalesce.rs"]
 mod coalesce;
 #[path = "filter/conditional.rs"]
 mod conditional;
+use binary::binary_scalar;
 #[path = "filter/numeric_comparison.rs"]
 mod numeric_comparison;
 pub(crate) use casts::cast_scratch_bytes;
@@ -544,66 +547,6 @@ fn cast_json_text(value: &ScalarValue) -> String {
         ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
         ScalarValue::Null => "null".to_string(),
     }
-}
-
-fn binary_scalar(
-    left: &ScalarValue,
-    op: &BinaryOp,
-    right: &ScalarValue,
-) -> Result<ScalarValue, QueryError> {
-    let result = match op {
-        BinaryOp::And => left
-            .predicate_result()?
-            .and(right.predicate_result()?)
-            .into_scalar(),
-        BinaryOp::Or => left
-            .predicate_result()?
-            .or(right.predicate_result()?)
-            .into_scalar(),
-        BinaryOp::Eq => comparison_result(eq_value(left, right)),
-        BinaryOp::IsDistinctFrom | BinaryOp::IsNotDistinctFrom => {
-            let equal = match (left, right) {
-                (ScalarValue::Null, ScalarValue::Null) => true,
-                (ScalarValue::Null, _) | (_, ScalarValue::Null) => false,
-                _ => eq_value(left, right).ok_or_else(|| {
-                    QueryError::General("incompatible null-safe comparison operands".to_string())
-                })?,
-            };
-            ScalarValue::Bool(if matches!(op, BinaryOp::IsNotDistinctFrom) {
-                equal
-            } else {
-                !equal
-            })
-        }
-        BinaryOp::NotEq => comparison_result(eq_value(left, right).map(|value| !value)),
-        BinaryOp::Lt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_lt)),
-        BinaryOp::Lte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_gt())),
-        BinaryOp::Gt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_gt)),
-        BinaryOp::Gte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_lt())),
-        BinaryOp::Like => comparison_result(like_match(left.as_str(), right.as_str())?),
-        BinaryOp::Integer { operation, width } => {
-            integers::arithmetic(left, *operation, *width, right)?
-        }
-        BinaryOp::Add => checked_math_result(left, right, i64::checked_add, |a, b| a + b)?,
-        BinaryOp::Sub => checked_math_result(left, right, i64::checked_sub, |a, b| a - b)?,
-        BinaryOp::Mul => checked_math_result(left, right, i64::checked_mul, |a, b| a * b)?,
-        BinaryOp::Div => {
-            if right.to_f64().is_some_and(|value| value == 0.0) && left.to_f64().is_some() {
-                return Err(QueryError::General("division by zero".to_string()));
-            }
-            // Integer operands divide with truncation toward zero, as in
-            // PostgreSQL; `i64::MIN / -1` is the one overflowing quotient.
-            checked_math_result(left, right, i64::checked_div, |a, b| a / b)?
-        }
-        BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
-            if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
-                ScalarValue::Null
-            } else {
-                ScalarValue::Float(vector_distance(op, left, right)?)
-            }
-        }
-    };
-    Ok(result)
 }
 
 fn comparison_result(result: Option<bool>) -> ScalarValue {

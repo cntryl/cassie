@@ -3,6 +3,8 @@ mod function_validation;
 #[path = "binder/integer_operators.rs"]
 mod integer_operators;
 mod pagination_references;
+#[path = "binder/string_operators.rs"]
+mod string_operators;
 #[path = "binder/table_functions.rs"]
 mod table_functions;
 #[path = "binder/unary_numeric.rs"]

@@ -354,6 +354,8 @@ pub enum BinaryOp {
     Gte,
     And,
     Or,
+    /// Strict selected text concatenation.
+    Concat,
     Add,
     Sub,
     Mul,

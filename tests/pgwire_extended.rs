@@ -448,3 +448,9 @@ mod catalog_datum_errors;
 
 #[path = "pgwire_extended/catalogs/datum_nested.rs"]
 mod catalog_datum_nested;
+
+#[path = "pgwire_extended/grammar/scalar_batch_01.rs"]
+mod scalar_batch_01;
+
+#[path = "pgwire_extended/grammar/scalar_batch_01_parameters.rs"]
+mod scalar_batch_01_parameters;

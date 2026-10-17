@@ -234,7 +234,7 @@ fn should_preserve_combining_mark_identifier_operator_boundaries() {
 fn should_preserve_rejection_of_excluded_operator_families() {
     // Arrange
     let expressions = [
-        "n||'x'", "n->'x'", "n~'x'", "n@>2", "n%2", "n?=2", "n~+2", "n|+2", "n#>2", "n<=>2",
+        "n->'x'", "n~'x'", "n@>2", "n%2", "n?=2", "n~+2", "n|+2", "n#>2", "n<=>2",
     ];
 
     // Act

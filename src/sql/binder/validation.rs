@@ -194,6 +194,35 @@ fn binary_operand_family(
     let left_family = expression_operand_family(left, field_types)?;
     let right_family = expression_operand_family(right, field_types)?;
     match op {
+        BinaryOp::Concat => {
+            let family = |expr: &Expr, inferred| {
+                if matches!(expr, Expr::StringLiteral(_)) {
+                    Some(OperandFamily::Text)
+                } else {
+                    inferred
+                }
+            };
+            let left = family(left, left_family);
+            let right = family(right, right_family);
+            if [left, right].into_iter().flatten().any(|family| {
+                !matches!(
+                    family,
+                    OperandFamily::Numeric | OperandFamily::Boolean | OperandFamily::Text
+                )
+            }) {
+                return Err(CassieError::Unsupported(
+                    "concatenation for this input layout remains pending under #793/#796".into(),
+                ));
+            }
+            if left.is_some_and(|family| family != OperandFamily::Text)
+                && right.is_some_and(|family| family != OperandFamily::Text)
+            {
+                return Err(CassieError::Execution(
+                    "operator does not exist: non-text || non-text".into(),
+                ));
+            }
+            Ok(Some(OperandFamily::Text))
+        }
         BinaryOp::And | BinaryOp::Or => Ok(Some(OperandFamily::Boolean)),
         BinaryOp::Eq
         | BinaryOp::NotEq

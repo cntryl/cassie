@@ -143,6 +143,7 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
         BinaryOp::And => "AND",
         BinaryOp::Or => "OR",
         BinaryOp::Integer { operation, .. } => operation.symbol(),
+        BinaryOp::Concat => "||",
         BinaryOp::Add => "+",
         BinaryOp::Sub => "-",
         BinaryOp::Mul => "*",

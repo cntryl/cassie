@@ -8,6 +8,9 @@ pub(super) fn resolve(
     left: Option<&DataType>,
     right: Option<&DataType>,
 ) -> Result<bool, CassieError> {
+    if *op == BinaryOp::Concat {
+        return super::string_operators::resolve(left, right).map(|()| true);
+    }
     let (operation, selected) = match op {
         BinaryOp::Add => (IntegerOperation::Add, None),
         BinaryOp::Sub => (IntegerOperation::Sub, None),

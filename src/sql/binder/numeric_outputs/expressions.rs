@@ -99,6 +99,7 @@ impl Analyzer<'_> {
                 BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                     OutputType::fixed(DataType::Float)
                 }
+                BinaryOp::Concat => OutputType::fixed(DataType::Text),
                 BinaryOp::Integer { width, .. } => OutputType::fixed(width.data_type()),
                 BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => arithmetic(
                     &self.expression(left, lookup)?,

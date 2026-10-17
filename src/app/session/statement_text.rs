@@ -40,6 +40,10 @@ impl CassieSession {
         Ok(session)
     }
 
+    pub(crate) fn statement_execution_controls(&self) -> Option<&QueryExecutionControls> {
+        self.statement_text.as_ref().map(|text| &text.controls)
+    }
+
     pub(crate) fn check_statement_interruption(&self) -> Result<(), CassieError> {
         self.statement_text
             .as_ref()

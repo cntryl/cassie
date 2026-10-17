@@ -9,6 +9,8 @@ use super::diagnostics::BooleanConstruct;
 use super::occurrences::{Occurrences, PrivateParameterTypeInput, Summary};
 use super::ParameterAdmissionError;
 
+#[path = "fold_bytea_functions.rs"]
+mod bytea_functions;
 #[path = "fold_columns.rs"]
 mod columns;
 #[path = "fold_expressions.rs"]

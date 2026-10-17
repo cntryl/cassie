@@ -90,6 +90,9 @@ pub(super) struct Occurrences<'a> {
 }
 
 impl<'a> Occurrences<'a> {
+    pub(super) fn stops_on_error(&self) -> bool {
+        self.stop_on_error
+    }
     pub(super) fn into_slots(self) -> ReservedVector<i32> {
         self.slots
     }

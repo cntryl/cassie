@@ -597,3 +597,39 @@ mod qualified_operators_parameters;
 
 #[path = "pgwire_extended/grammar/qualified_operators_errors.rs"]
 mod qualified_operators_errors;
+
+#[path = "pgwire_extended/grammar/bytea_functions_values_0.rs"]
+mod bytea_functions_values_0;
+
+#[path = "pgwire_extended/grammar/bytea_functions_values_1.rs"]
+mod bytea_functions_values_1;
+
+#[path = "pgwire_extended/grammar/bytea_functions_values_2.rs"]
+mod bytea_functions_values_2;
+
+#[path = "pgwire_extended/grammar/bytea_functions_values_3.rs"]
+mod bytea_functions_values_3;
+
+#[path = "pgwire_extended/grammar/bytea_functions_values_4.rs"]
+mod bytea_functions_values_4;
+
+#[path = "pgwire_extended/grammar/bytea_functions_errors_0.rs"]
+mod bytea_functions_errors_0;
+
+#[path = "pgwire_extended/grammar/bytea_functions_errors_1.rs"]
+mod bytea_functions_errors_1;
+
+#[path = "pgwire_extended/grammar/bytea_functions_errors_2.rs"]
+mod bytea_functions_errors_2;
+
+#[path = "pgwire_extended/grammar/bytea_functions_parameters.rs"]
+mod bytea_functions_parameters;
+
+#[path = "pgwire_extended/grammar/bytea_functions_empty.rs"]
+mod bytea_functions_empty;
+
+#[path = "pgwire_extended/grammar/bytea_functions_gaps.rs"]
+mod bytea_functions_gaps;
+
+#[path = "pgwire_extended/grammar/bytea_functions_overloads.rs"]
+mod bytea_functions_overloads;

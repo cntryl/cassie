@@ -31,6 +31,12 @@ pub(crate) enum ParameterAdmissionError {
         diagnostic: super::diagnostics::ScalarLiteralDiagnostic,
         _reservation: QueryMemoryReservation,
     },
+    ByteaInput(crate::types::ByteaInputError),
+    FunctionDiagnostic {
+        sqlstate: &'static str,
+        message: String,
+        _reservation: QueryMemoryReservation,
+    },
     NonAggregateModifier {
         message: String,
         _reservation: QueryMemoryReservation,

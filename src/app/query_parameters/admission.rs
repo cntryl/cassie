@@ -125,6 +125,21 @@ fn project_error(error: ParameterAdmissionError) -> CassieError {
             drop(reservation);
             error
         }
+        ParameterAdmissionError::ByteaInput(error) => error.into(),
+        ParameterAdmissionError::FunctionDiagnostic {
+            sqlstate,
+            message,
+            _reservation: reservation,
+            ..
+        } => {
+            let error = match sqlstate {
+                "0A000" => CassieError::Unsupported(message),
+                "42725" => CassieError::AmbiguousFunction(message),
+                _ => CassieError::Execution(message),
+            };
+            drop(reservation);
+            error
+        }
         ParameterAdmissionError::NonAggregateModifier {
             message,
             _reservation: reservation,

@@ -8,6 +8,8 @@ use crate::executor::batch::RowAccess;
 use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, UtcOffset};
 
+#[path = "bytea_functions.rs"]
+mod bytea_functions;
 #[path = "catalog_sizes.rs"]
 mod catalog_sizes;
 #[path = "datum_size.rs"]
@@ -54,6 +56,11 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         &args,
         context.search_context,
         context.session,
+        context.controls.or_else(|| {
+            context
+                .session
+                .and_then(CassieSession::statement_execution_controls)
+        }),
     )
     .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args))
 }
@@ -65,13 +72,15 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     args: &[Value],
     search_context: Option<&SearchContext>,
     session: Option<&CassieSession>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Option<Result<Value, QueryError>> {
     runtime_information::evaluate(name, args, session)
         .or_else(|| evaluate_system_function(name, row, args, session))
         .or_else(|| super::conditional::evaluate(name, args))
         .or_else(|| {
             let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
-            math::evaluate(local, args)
+            bytea_functions::evaluate(local, args, controls)
+                .or_else(|| math::evaluate(local, args))
                 .or_else(|| catalog_sizes::evaluate(local, args))
                 .or_else(|| text_selection::evaluate(local, args))
                 .or_else(|| text_scalar::evaluate(local, args))

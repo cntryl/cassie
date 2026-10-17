@@ -89,6 +89,19 @@ impl PgWireError {
         admitted_error_frame(error, controls, memory)
     }
 
+    pub(in crate::pgwire::connection) fn function_diagnostic(
+        sqlstate: &'static str,
+        message: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Self, CassieError> {
+        controls.check_interruption()?;
+        let mut memory = controls.reserve_query_memory(size_of::<Self>())?;
+        let mut admitted = admitted_string(message.len(), controls, &mut memory)?;
+        admitted.push_str(message);
+        let error = Self::new(PgWireSeverity::Error, sqlstate, admitted);
+        admitted_error_frame(error, controls, memory)
+    }
+
     pub(in crate::pgwire::connection) fn encoded_semantic_frame(&self) -> Option<&[u8]> {
         self.semantic_frame
             .as_ref()

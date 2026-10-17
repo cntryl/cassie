@@ -279,7 +279,15 @@ fn rebuilt<R: RowAccess + ?Sized>(
     }
     let mut children = children.into_iter();
     let expr = expr.map_children(|_| children.next().expect("one value per constant child"));
-    eval_scalar_with_context(row, &expr, context.evaluation).map(Some)
+    eval_scalar_with_context(
+        row,
+        &expr,
+        EvalContext {
+            controls: context.controls.or(context.evaluation.controls),
+            ..context.evaluation
+        },
+    )
+    .map(Some)
 }
 
 fn literal(value: ScalarValue) -> Expr {
@@ -478,6 +486,7 @@ fn evaluate_constant(
                 local_args: None,
                 session: None,
                 exists: None,
+                controls,
             },
             parameter,
             admit_cast,

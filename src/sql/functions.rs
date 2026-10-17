@@ -10,7 +10,11 @@ pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};
 mod table;
 pub(crate) use runtime::{is_loaded_modules, is_runtime_helper, loaded_modules_columns};
 pub(crate) use table::{catalog_table_columns, is_catalog_table, is_options_table};
+mod bytea;
 mod inputs;
+pub(crate) use bytea::{
+    bit_input_selection, has_distinct_builtin_arity, is_bytea_function, BitInputSelection,
+};
 mod text;
 pub(crate) use inputs::{
     aggregate_accepts_input, has_distinct_equality, input_signature, FunctionInputSignature,
@@ -18,6 +22,17 @@ pub(crate) use inputs::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FunctionId {
+    Encode,
+    Decode,
+    GetByte,
+    SetByte,
+    GetBit,
+    SetBit,
+    BitCount,
+    Sha224,
+    Sha256,
+    Sha384,
+    Sha512,
     Count,
     Sum,
     Avg,
@@ -107,6 +122,7 @@ pub struct ScalarFunction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionReturnType {
+    Bytea,
     Float,
     Text,
     Int,
@@ -169,6 +185,7 @@ pub fn registry() -> Vec<ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
         .chain(text::FUNCTIONS)
+        .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
         .cloned()
@@ -180,6 +197,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
         .chain(text::FUNCTIONS)
+        .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
@@ -205,6 +223,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                     SCALAR_FUNCTIONS
                         .iter()
                         .chain(text::FUNCTIONS)
+                        .chain(bytea::FUNCTIONS)
                         .chain(catalog::FUNCTIONS)
                         .chain(runtime::FUNCTIONS)
                         .find(|metadata| metadata.name.eq_ignore_ascii_case(local))

@@ -56,6 +56,16 @@ pub(crate) enum FunctionInputSignature {
 
 pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSignature> {
     match id {
+        FunctionId::Encode => Some(FunctionInputSignature::Positional(&[17, 25])),
+        FunctionId::GetByte => Some(FunctionInputSignature::Positional(&[17, 23])),
+        FunctionId::SetByte => Some(FunctionInputSignature::Positional(&[17, 23, 23])),
+        FunctionId::GetBit => Some(FunctionInputSignature::Positional(&[17, 20])),
+        FunctionId::SetBit => Some(FunctionInputSignature::Positional(&[17, 20, 23])),
+        FunctionId::BitCount
+        | FunctionId::Sha224
+        | FunctionId::Sha256
+        | FunctionId::Sha384
+        | FunctionId::Sha512 => Some(FunctionInputSignature::Positional(&[17])),
         FunctionId::Power => Some(FunctionInputSignature::Positional(&[701, 701])),
         FunctionId::PgCharToEncoding | FunctionId::PgSizeBytes => {
             Some(FunctionInputSignature::Positional(&[25]))
@@ -65,9 +75,12 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::BoolAnd | FunctionId::BoolOr => Some(FunctionInputSignature::Boolean),
         FunctionId::Coalesce => Some(FunctionInputSignature::CommonArguments),
         FunctionId::Substring => Some(FunctionInputSignature::Positional(&[25, 23, 23])),
-        FunctionId::Trim | FunctionId::Ltrim | FunctionId::Rtrim | FunctionId::Strpos => {
-            Some(FunctionInputSignature::Positional(&[25, 25]))
-        }
+        FunctionId::Decode
+        | FunctionId::StartsWith
+        | FunctionId::Trim
+        | FunctionId::Ltrim
+        | FunctionId::Rtrim
+        | FunctionId::Strpos => Some(FunctionInputSignature::Positional(&[25, 25])),
         FunctionId::SplitPart => Some(FunctionInputSignature::Positional(&[25, 25, 23])),
         FunctionId::Left | FunctionId::Right => Some(FunctionInputSignature::Positional(&[25, 23])),
         FunctionId::Length
@@ -75,7 +88,6 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::BitLength
         | FunctionId::Ascii => Some(FunctionInputSignature::Positional(&[25])),
         FunctionId::Chr => Some(FunctionInputSignature::Positional(&[23])),
-        FunctionId::StartsWith => Some(FunctionInputSignature::Positional(&[25, 25])),
         _ => None,
     }
 }

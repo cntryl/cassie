@@ -6,6 +6,8 @@ use super::{
 
 #[path = "boolean_aggregates.rs"]
 mod boolean_aggregates;
+#[path = "declared_functions.rs"]
+mod declared_functions;
 #[path = "row_predicates.rs"]
 mod row_predicates;
 
@@ -13,6 +15,7 @@ pub(super) fn validate_boolean_aggregate(
     function: &mut crate::sql::ast::FunctionCall,
     types: &ResultTypes,
 ) -> Result<(), CassieError> {
+    super::bytea_functions::qualify(function, types)?;
     if let Some(metadata) =
         crate::sql::functions::function(&function.name).filter(|metadata| metadata.is_aggregate)
     {
@@ -95,11 +98,11 @@ pub(super) fn qualify_declared_boolean_functions(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<(), CassieError> {
-    if !boolean_aggregates::needs_qualification(select) {
+    if !declared_functions::needs_qualification(select) {
         return Ok(());
     }
     let types = ResultTypes::for_source(&select.source, &select.ctes, catalog, context)?;
-    boolean_aggregates::qualify_declared(select, &types);
+    declared_functions::qualify_declared(select, &types);
     Ok(())
 }
 
@@ -130,7 +133,7 @@ pub(super) fn validate_select_with_types(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<(), CassieError> {
-    boolean_aggregates::qualify_declared(select, types);
+    declared_functions::qualify_declared(select, types);
     if let Some(filter) = &mut select.filter {
         require_boolean(filter, types, "WHERE")?;
     }

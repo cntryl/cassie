@@ -46,7 +46,9 @@ impl Fold<'_, '_> {
                 },
             ),
             ast::Expr::IntegerNegate { width, .. } => Ok(Summary::known(oid(&width.data_type()))),
-            ast::Expr::Cast { data_type, .. } => Ok(Summary::known(oid(data_type))),
+            ast::Expr::Cast {
+                expr, data_type, ..
+            } => self.cast_summary(expr, data_type),
             ast::Expr::BoolLiteral(_)
             | ast::Expr::IsNull { .. }
             | ast::Expr::TruthTest { .. }

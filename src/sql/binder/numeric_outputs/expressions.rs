@@ -145,7 +145,13 @@ impl Analyzer<'_> {
     ) -> Result<OutputType, CassieError> {
         self.check_controls()?;
         let name = function.name.to_ascii_lowercase();
-        if let Some(metadata) = self.functions.get(&name) {
+        if let Some(metadata) = self.functions.get(&name).filter(|metadata| {
+            !crate::sql::functions::has_distinct_builtin_arity(
+                &name,
+                function.args.len(),
+                metadata.args.len(),
+            )
+        }) {
             return Ok(OutputType::fixed(metadata.return_type.clone()));
         }
         let Some(metadata) = crate::sql::functions::function(&name) else {
@@ -231,6 +237,7 @@ fn fixed_function_type(policy: FunctionReturnType) -> Option<DataType> {
     match policy {
         FunctionReturnType::Float => Some(DataType::Float),
         FunctionReturnType::Text => Some(DataType::Text),
+        FunctionReturnType::Bytea => Some(DataType::Bytea),
         FunctionReturnType::Int => Some(DataType::Int),
         FunctionReturnType::BigInt => Some(DataType::BigInt),
         FunctionReturnType::Boolean => Some(DataType::Boolean),

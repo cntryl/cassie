@@ -174,6 +174,10 @@ pub enum CassieError {
 
     #[error("invalid parameter value: {0}")]
     InvalidParameterValue(String),
+    #[error("{0}")]
+    AmbiguousFunction(String),
+    #[error("index {index} out of valid range, 0..{maximum}")]
+    ByteaIndex { index: i64, maximum: i64 },
 
     #[error("embedding unavailable: {0}")]
     EmbeddingUnavailable(String),
@@ -229,6 +233,8 @@ impl CassieError {
             Self::BooleanInput(error) => bad_request_descriptor("22P02", error.to_string()),
             Self::FloatInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::IntegerBytea(error) => bad_request_descriptor("22003", error.to_string()),
+            Self::ByteaIndex { .. } => bad_request_descriptor("2202E", self.to_string()),
+            Self::AmbiguousFunction(message) => bad_request_descriptor("42725", message.clone()),
             Self::ByteaInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::CollectionNotFound(table) => missing_relation_descriptor(table),
             Self::CatalogObjectNotFound { kind, name } => {

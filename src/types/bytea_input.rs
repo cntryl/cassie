@@ -7,8 +7,8 @@ pub enum ByteaInputError {
     EscapeSyntax,
     /// A hexadecimal byte is missing its second digit.
     HexOdd,
-    /// The first invalid byte in a hexadecimal pair.
-    HexDigit(u8),
+    /// The first invalid character in a hexadecimal pair.
+    HexDigit(char),
 }
 
 impl ByteaInputError {
@@ -27,13 +27,7 @@ impl fmt::Display for ByteaInputError {
             Self::HexOdd => formatter.write_str("invalid hexadecimal data: odd number of digits"),
             Self::HexDigit(byte) => {
                 formatter.write_str("invalid hexadecimal digit: \"")?;
-                // PostgreSQL reports a single input byte. Replace an incomplete
-                // UTF-8 code point rather than inventing a different character.
-                formatter.write_char(if byte.is_ascii() {
-                    char::from(*byte)
-                } else {
-                    '\u{fffd}'
-                })?;
+                formatter.write_char(*byte)?;
                 formatter.write_char('"')
             }
         }
@@ -63,7 +57,7 @@ pub(crate) fn canonical(input: &str) -> Result<String, ByteaInputError> {
 
 fn scan(input: &str, mut emit: impl FnMut(u8)) -> Result<(), ByteaInputError> {
     if let Some(digits) = input.strip_prefix("\\x") {
-        return hex(digits.as_bytes(), emit);
+        return hex(digits, emit);
     }
     let mut bytes = input.as_bytes().iter().copied();
     while let Some(byte) = bytes.next() {
@@ -89,10 +83,10 @@ fn scan(input: &str, mut emit: impl FnMut(u8)) -> Result<(), ByteaInputError> {
     Ok(())
 }
 
-fn hex(input: &[u8], mut emit: impl FnMut(u8)) -> Result<(), ByteaInputError> {
-    let mut bytes = input.iter().copied();
+fn hex(input: &str, mut emit: impl FnMut(u8)) -> Result<(), ByteaInputError> {
+    let mut bytes = input.chars();
     while let Some(first) = bytes.next() {
-        if matches!(first, b' ' | b'\t' | b'\n' | b'\r') {
+        if matches!(first, ' ' | '\t' | '\n' | '\r') {
             continue;
         }
         let high = nibble(first)?;
@@ -102,11 +96,9 @@ fn hex(input: &[u8], mut emit: impl FnMut(u8)) -> Result<(), ByteaInputError> {
     Ok(())
 }
 
-fn nibble(byte: u8) -> Result<u8, ByteaInputError> {
-    match byte {
-        b'0'..=b'9' => Ok(byte - b'0'),
-        b'a'..=b'f' => Ok(byte - b'a' + 10),
-        b'A'..=b'F' => Ok(byte - b'A' + 10),
-        _ => Err(ByteaInputError::HexDigit(byte)),
-    }
+fn nibble(character: char) -> Result<u8, ByteaInputError> {
+    character
+        .to_digit(16)
+        .and_then(|digit| u8::try_from(digit).ok())
+        .ok_or(ByteaInputError::HexDigit(character))
 }

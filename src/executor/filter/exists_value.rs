@@ -28,6 +28,7 @@ pub(crate) fn evaluate_resolving_exists<R: RowAccess + ?Sized>(
             local_args: None,
             session: context.session,
             exists: Some(context.resolver),
+            controls: None,
         },
     )
 }

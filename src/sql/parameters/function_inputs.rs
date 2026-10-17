@@ -270,7 +270,17 @@ fn function_result_type(
             &function.name,
             inference.scope,
             inference.controls,
-            |signature| signature.map(|(_, result)| primitive_type(result)),
+            |signature| {
+                signature
+                    .filter(|(arguments, _)| {
+                        !functions::has_distinct_builtin_arity(
+                            &function.name,
+                            function.args.len(),
+                            arguments.len(),
+                        )
+                    })
+                    .map(|(_, result)| primitive_type(result))
+            },
         )
         .map_err(admission_error)?;
     if let Some(data_type) = declared {
@@ -297,6 +307,7 @@ fn function_result_type(
                 FunctionReturnType::Int => DataType::Int,
                 FunctionReturnType::BigInt => DataType::BigInt,
                 FunctionReturnType::Boolean => DataType::Boolean,
+                FunctionReturnType::Bytea => DataType::Bytea,
                 _ => DataType::Text,
             }))
         }

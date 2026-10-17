@@ -636,7 +636,13 @@ pub(crate) fn infer_function_return_type(
             return Some(target.data_type);
         }
     }
-    if let Some(metadata) = user_functions.get(&name) {
+    if let Some(metadata) = user_functions.get(&name).filter(|metadata| {
+        !crate::sql::functions::has_distinct_builtin_arity(
+            &name,
+            function.args.len(),
+            metadata.args.len(),
+        )
+    }) {
         return Some(metadata.return_type.clone());
     }
 
@@ -644,6 +650,7 @@ pub(crate) fn infer_function_return_type(
     match metadata.return_type {
         crate::sql::functions::FunctionReturnType::Float => Some(DataType::Float),
         crate::sql::functions::FunctionReturnType::Text => Some(DataType::Text),
+        crate::sql::functions::FunctionReturnType::Bytea => Some(DataType::Bytea),
         crate::sql::functions::FunctionReturnType::Int => Some(DataType::Int),
         crate::sql::functions::FunctionReturnType::BigInt => Some(DataType::BigInt),
         crate::sql::functions::FunctionReturnType::Boolean => Some(DataType::Boolean),

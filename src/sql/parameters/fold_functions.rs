@@ -15,6 +15,18 @@ impl Fold<'_, '_> {
         function: &ast::FunctionCall,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
+        if functions::function(&function.name).is_some_and(|metadata| {
+            functions::is_bytea_function(metadata.id) || metadata.id == functions::FunctionId::Lower
+        }) {
+            if let Some(summary) = self.declared_function_summary(function, frame)? {
+                Self::reject_nonaggregate_modifier(function, self.controls)?;
+                return Ok(summary);
+            }
+        }
+        if let Some(summary) = self.fixed_bytea_function(function, frame)? {
+            Self::reject_nonaggregate_modifier(function, self.controls)?;
+            return Ok(summary);
+        }
         let common_parent = self.common_function_parent()?;
         let boolean_metadata = functions::function(&function.name).filter(|metadata| {
             matches!(
@@ -175,6 +187,7 @@ impl Fold<'_, '_> {
     ) -> Result<Option<Summary>, ParameterAdmissionError> {
         if let Some(metadata) = functions::function(&function.name).filter(|metadata| {
             functions::is_runtime_helper(metadata.id)
+                || functions::is_bytea_function(metadata.id)
                 || matches!(
                     metadata.id,
                     functions::FunctionId::PgSizeBytes
@@ -278,6 +291,7 @@ impl Fold<'_, '_> {
         for (summary, oid) in self.summaries.values[frame.start..].iter_mut().zip(oids) {
             check_controls(self.controls)?;
             let accepted = match *oid {
+                17 => matches!(summary.oid, 0 | 17 | 705),
                 25 => matches!(summary.oid, 0 | 25 | 1042 | 1043 | 705),
                 20 => matches!(summary.oid, 0 | 20 | 21 | 23 | 705),
                 701 => matches!(summary.oid, 0 | 20 | 21 | 23 | 701 | 705),
@@ -300,6 +314,7 @@ impl Fold<'_, '_> {
             functions::FunctionReturnType::Int => 23,
             functions::FunctionReturnType::BigInt => 20,
             functions::FunctionReturnType::Boolean => 16,
+            functions::FunctionReturnType::Bytea => 17,
             _ => 25,
         }))
     }
@@ -372,6 +387,13 @@ impl Fold<'_, '_> {
                     let Some((arguments, result)) = signature else {
                         return Ok(None);
                     };
+                    if functions::has_distinct_builtin_arity(
+                        &function.name,
+                        function.args.len(),
+                        arguments.len(),
+                    ) {
+                        return Ok(None);
+                    }
                     if let Some(cast) = functions::primitive_casts::candidate(function) {
                         if arguments.len() == 1 && summaries.len() == 1 {
                             let source = summaries[0].oid;

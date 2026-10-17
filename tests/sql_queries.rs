@@ -291,3 +291,6 @@ mod bytea_input_controls;
 
 #[path = "sql_queries/expressions/operators/bytea_concat.rs"]
 mod bytea_concat;
+
+#[path = "sql_queries/expressions/operators/bytea_functions.rs"]
+mod bytea_functions;

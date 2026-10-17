@@ -59,6 +59,7 @@ pub(super) struct EvalContext<'a> {
     local_args: Option<&'a HashMap<String, Value>>,
     session: Option<&'a CassieSession>,
     exists: Option<&'a ExistsResolver<'a>>,
+    controls: Option<&'a crate::runtime::QueryExecutionControls>,
 }
 
 #[derive(Debug, Clone)]
@@ -231,6 +232,7 @@ pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
             local_args,
             session,
             exists: None,
+            controls: None,
         },
     )
 }
@@ -272,6 +274,7 @@ fn eval_filter<R: RowAccess + ?Sized>(
             local_args: None,
             session,
             exists: None,
+            controls: None,
         },
     )?;
     value.is_true()
@@ -296,6 +299,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
             local_args,
             session,
             exists: None,
+            controls: None,
         },
     )
 }
@@ -911,3 +915,7 @@ mod null_safe_tests;
 
 #[path = "filter/integers.rs"]
 mod integers;
+
+#[cfg(test)]
+#[path = "filter/bytea_function_tests.rs"]
+mod bytea_function_tests;

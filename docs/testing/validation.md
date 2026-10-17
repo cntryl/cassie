@@ -2922,3 +2922,54 @@ changed. Full repository acceptance remains pending against the immutable
 consolidated baseline. Raw native receipts, red/green logs, exact failure-ID
 differences and review requests/results remain in ignored
 `target/autopilot-batch-15-*` and `target/autopilot-qualified-operator-*`.
+
+## Autonomous continuation batch 16: fixed BYTEA routines
+
+The existing canonical-hex OID17 carrier now supports encode/decode (hex,
+base64, escape), get_byte/set_byte, get_bit/set_bit, bit_count(bytea), and
+sha224/sha256/sha384/sha512, including local and pg_catalog names. Byte indices
+use INT4; BYTEA bit indices use INT8. set_byte retains the low eight bits.
+Native Base64 padding-state/newline behavior and whole-character UTF8 hex
+errors are preserved. Typed bounds and ambiguity errors retain 2202E and 42725.
+Rebuildable plan-cache epoch is31; stored row layout is unchanged.
+
+The initial coherent wire chunk reproduced140failures/1pass. Follow-up native
+probes found an escape-octal overflow, missing scratch admission and declared
+function-name/arity collisions; each has permanent regressions and passing
+checks. Constant scalar modifiers retain the existing admitted42809 path.
+Complete function-signature messages are allocated only after query admission.
+Codecs, bit scans and streaming hash updates check interruption; result-owner
+release and scratch-budget/cancellation controls pass.
+
+There are179new test declarations:171wire,3direct SQL and5units. Native18.6
+receipts pin95codec/access/hash values in both formats,11parameter signatures
+through44input/result crosses,41Parse/Bind diagnostics,13empty-input cases,
+additional overload and scoped-routine controls. BIT-selected overloads remain
+explicitly pending; their rejection controls are not native acceptance cells.
+Unknown bit_count is ambiguous; an unknown first get_bit/set_bit argument with
+an INT8 index selects BYTEA, while INT4 selects the separate pending BIT family.
+
+Jev's resource0.36, binding0.39 and codec0.41 gaps prompted focused probes.
+Two scratch tests were red before controls reached evaluation and green after;
+cancellation after admission releases the owner. Declared-name and distinct-
+arity probes each reproduced a failure before their fixes. Extra UTF8/whitespace
+codec witnesses pass. The typed-index follow-up0.87 prompted two more inferred
+BYTEA signatures and eight format crosses, all passing. These judgments guide
+probes; they do not establish full owner acceptance.
+
+Final production validation passes1,084library tests and171new wire tests.
+The earlier combined scalar/conditional/operator/new-routine run passes793/0.
+The existing BYTEA wire group is9passed/33failed, fixing eight identities from
+its41-failure consolidated baseline. BYTEA SQL is280passed/24failed, fixing
+exactly eight prior failures with no newly failing identity. All three new
+SQL tests pass. Parser/types remains328/51 with the same failure identities.
+These known-red suites and the consolidated full baseline remain red.
+
+Full strict workspace/all-target/all-feature pedantic Clippy, formatting,
+touched/global test policies, refreshed inventory, docs, module sizes and
+whitespace checks pass. A test-only name-policy correction was executed under
+its final identity, followed by the analyzers and policies again. The existing
+benchmark-policy check still fails because .github/workflows/bench.yml is
+absent; no CI/release/versioning or validator configuration changed. #816 and
+all full-owner obligations remain open. Raw receipts and exact failure-ID
+comparisons are retained in ignored target/autopilot-batch-16-* artifacts.

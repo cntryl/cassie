@@ -314,13 +314,13 @@ impl ParameterSemanticDiagnostic {
 }
 
 #[derive(Clone, Copy)]
-enum TypeName {
+pub(super) enum TypeName {
     Scalar(&'static str),
     Vector(usize),
 }
 
 impl TypeName {
-    fn len(self) -> usize {
+    pub(super) fn len(self) -> usize {
         match self {
             Self::Scalar(name) => name.len(),
             Self::Vector(_) => "vector()".len() + MAX_DECIMAL_DIGITS,
@@ -337,7 +337,7 @@ impl fmt::Display for TypeName {
     }
 }
 
-fn type_name(oid: i32) -> TypeName {
+pub(super) fn type_name(oid: i32) -> TypeName {
     if let Some(dimensions) = crate::types::schema::vector_dimensions_for_oid(i64::from(oid)) {
         return TypeName::Vector(dimensions);
     }

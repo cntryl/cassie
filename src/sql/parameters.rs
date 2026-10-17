@@ -7,6 +7,7 @@ mod admission;
 mod count;
 mod diagnostics;
 mod fold;
+mod function_diagnostics;
 mod function_inputs;
 mod inference;
 mod literal_input;

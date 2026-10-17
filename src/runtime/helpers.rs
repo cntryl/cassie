@@ -100,6 +100,8 @@ pub fn error_class(error: &CassieError) -> &'static str {
         | CassieError::BooleanInput(_)
         | CassieError::IntegerBytea(_)
         | CassieError::SizeInput(_)
+        | CassieError::AmbiguousFunction(_)
+        | CassieError::ByteaIndex { .. }
         | CassieError::ByteaInput(_) => "execution",
         CassieError::Transaction { .. } => "transaction",
         CassieError::DeadlineExceeded => "deadline_exceeded",

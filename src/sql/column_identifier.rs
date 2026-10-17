@@ -80,6 +80,14 @@ impl ColumnIdentifierPath {
 
     /// Parses a column reference, including a three-part relation qualifier.
     pub(crate) fn parse(raw: &str) -> Result<Self, String> {
+        Self::parse_inner(raw, false)
+    }
+
+    pub(crate) fn parse_sql(raw: &str) -> Result<Self, String> {
+        Self::parse_inner(raw, true)
+    }
+
+    fn parse_inner(raw: &str, sql: bool) -> Result<Self, String> {
         let mut remaining = raw.trim();
         if remaining.is_empty() {
             return Err("empty column reference".to_string());
@@ -93,7 +101,7 @@ impl ColumnIdentifierPath {
             }
 
             let (component, after) = if let Some(body) = remaining.strip_prefix('"') {
-                let (value, consumed) = take_delimited_body(body)
+                let (value, consumed) = take_delimited_body(body, sql)
                     .ok_or_else(|| format!("unterminated quoted identifier '{raw}'"))?;
                 if value.is_empty() {
                     return Err("empty quoted identifier".to_string());
@@ -106,7 +114,14 @@ impl ColumnIdentifierPath {
                 if value.is_empty() || value.contains('"') {
                     return Err(format!("invalid column reference '{raw}'"));
                 }
-                (IdentifierComponent::undelimited(value), &remaining[end..])
+                (
+                    IdentifierComponent::undelimited(if sql {
+                        super::identifier_text::prefix(value)
+                    } else {
+                        value
+                    }),
+                    &remaining[end..],
+                )
             };
             components.push(component);
             if components.len() > 4 {
@@ -254,22 +269,15 @@ impl ColumnIdentifierPath {
     }
 }
 
-fn take_delimited_body(body: &str) -> Option<(String, usize)> {
-    let mut value = String::new();
-    let mut chars = body.char_indices().peekable();
-    while let Some((idx, ch)) = chars.next() {
-        if ch != '"' {
-            value.push(ch);
-            continue;
-        }
-        if matches!(chars.peek(), Some((_, '"'))) {
-            value.push('"');
-            chars.next();
-            continue;
-        }
-        return Some((value, idx + 1));
-    }
-    None
+fn take_delimited_body(body: &str, sql: bool) -> Option<(String, usize)> {
+    super::identifier_text::quoted(
+        body,
+        if sql {
+            super::identifier_text::IDENTIFIER_BYTES
+        } else {
+            usize::MAX
+        },
+    )
 }
 
 #[cfg(test)]

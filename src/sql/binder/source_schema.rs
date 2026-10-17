@@ -39,11 +39,15 @@ pub(crate) fn derived_source_schema_with_parameters(
             alias,
             source: inner,
             ..
-        } if matches!(inner.as_ref(), QuerySource::Values { .. }) => {
+        } if matches!(
+            inner.as_ref(),
+            QuerySource::Values { .. } | QuerySource::Subquery { .. }
+        ) =>
+        {
             let schema = infer_source_schema_with_parameters(
                 source,
                 catalog,
-                &HashMap::new(),
+                &cte_schemas_with_parameters(ctes, catalog, user_functions, parameter_types),
                 user_functions,
                 true,
                 parameter_types,

@@ -552,3 +552,15 @@ mod scalar_batch_08_errors;
 
 #[path = "pgwire_extended/grammar/scalar_batch_08_parameters.rs"]
 mod scalar_batch_08_parameters;
+
+#[path = "pgwire_extended/grammar/scalar_batch_09.rs"]
+mod scalar_batch_09;
+
+#[path = "pgwire_extended/grammar/scalar_batch_09_catalog.rs"]
+mod scalar_batch_09_catalog;
+
+#[path = "pgwire_extended/grammar/scalar_batch_09_scopes.rs"]
+mod scalar_batch_09_scopes;
+
+#[path = "pgwire_extended/grammar/scalar_batch_09_parameters.rs"]
+mod scalar_batch_09_parameters;

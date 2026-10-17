@@ -14,6 +14,9 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     {
         return bad_request_descriptor("42P10", message.to_string());
     }
+    if message.starts_with("column \"") && message.ends_with("\" specified more than once") {
+        return bad_request_descriptor("42701", message.to_owned());
+    }
     if message == "negative substring length not allowed" {
         return bad_request_descriptor("22011", message.to_owned());
     }

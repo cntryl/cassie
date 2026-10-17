@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1727,
-    "rust_files": 1696,
-    "rust_test_declarations": 8404,
+    "files": 1731,
+    "rust_files": 1700,
+    "rust_test_declarations": 8458,
     "python_test_declarations": 16,
-    "registered_rust_instances": 8532,
+    "registered_rust_instances": 8586,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -252,6 +252,11 @@
         "file": "tests/parser_types/grammar/indexes/semantics.rs",
         "test_body_lines": 878,
         "test_declarations": 27
+      },
+      {
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "test_body_lines": 821,
+        "test_declarations": 45
       },
       {
         "file": "tests/pgwire_extended/grammar/values_casts_uuid.rs",
@@ -105532,6 +105537,1680 @@
         "category": "grammar",
         "directory": "tests/pgwire_extended/grammar",
         "file": "tests/pgwire_extended/grammar/scalar_batch_08_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_0_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_0_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 8,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_0_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_1_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_1_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 30,
+      "end_line": 49,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_1_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_2_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_2_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 52,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_2_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_3_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_3_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 74,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_3_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_4_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_4_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 96,
+      "end_line": 115,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_4_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_5_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_5_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 118,
+      "end_line": 137,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_5_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_6_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_6_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 140,
+      "end_line": 159,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_6_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_7_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_7_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 162,
+      "end_line": 181,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_7_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_8_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_8_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 184,
+      "end_line": 203,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_8_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_9_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_9_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 206,
+      "end_line": 225,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_9_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_10_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_10_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 228,
+      "end_line": 247,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_10_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_11_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_11_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 250,
+      "end_line": 269,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_11_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_12_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_12_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 272,
+      "end_line": 291,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_12_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_13_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_13_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 294,
+      "end_line": 313,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_13_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_14_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_14_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 316,
+      "end_line": 335,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_14_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_15_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_15_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 338,
+      "end_line": 357,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_15_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_16_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_16_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 360,
+      "end_line": 380,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_16_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_17_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_17_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 383,
+      "end_line": 402,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_17_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_18_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_18_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 405,
+      "end_line": 419,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_18_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_19_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_19_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 422,
+      "end_line": 436,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_19_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_20_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_20_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 439,
+      "end_line": 453,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_20_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_21_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_21_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 456,
+      "end_line": 470,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_21_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_22_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_22_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 473,
+      "end_line": 487,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_22_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_23_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_23_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 490,
+      "end_line": 504,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_23_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_24_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_24_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 507,
+      "end_line": 526,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_24_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_25_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_25_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 529,
+      "end_line": 548,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_25_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_26_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_26_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 551,
+      "end_line": 570,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_26_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_27_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_27_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 573,
+      "end_line": 592,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_27_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_28_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_28_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 595,
+      "end_line": 614,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_28_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_29_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_29_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 617,
+      "end_line": 636,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_29_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_30_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_30_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 639,
+      "end_line": 654,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_30_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_31_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_31_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 657,
+      "end_line": 676,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_31_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_32_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_32_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 679,
+      "end_line": 698,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_32_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_identifier_33_given_native_byte_boundary_when_rows_are_described",
+      "name": "should_preserve_identifier_33_given_native_byte_boundary_when_rows_are_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 701,
+      "end_line": 720,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_identifier_33_given_native_byte_boundary_when_rows_are_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_reject_identifier_collision_0_given_truncated_names_when_execution_is_requested",
+      "name": "should_reject_identifier_collision_0_given_truncated_names_when_execution_is_requested",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 723,
+      "end_line": 736,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_reject_identifier_collision_0_given_truncated_names_when_execution_is_requested"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_reject_identifier_collision_1_given_truncated_names_when_execution_is_requested",
+      "name": "should_reject_identifier_collision_1_given_truncated_names_when_execution_is_requested",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 739,
+      "end_line": 752,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_reject_identifier_collision_1_given_truncated_names_when_execution_is_requested"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_truncate_decoded_unicode_identifier_0_given_escaped_sql_when_output_is_described",
+      "name": "should_truncate_decoded_unicode_identifier_0_given_escaped_sql_when_output_is_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 755,
+      "end_line": 775,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_truncate_decoded_unicode_identifier_0_given_escaped_sql_when_output_is_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_truncate_decoded_unicode_identifier_1_given_escaped_sql_when_output_is_described",
+      "name": "should_truncate_decoded_unicode_identifier_1_given_escaped_sql_when_output_is_described",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 778,
+      "end_line": 797,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_truncate_decoded_unicode_identifier_1_given_escaped_sql_when_output_is_described"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_generated_qualifier_0_given_long_sql_alias_when_native_rows_are_executed",
+      "name": "should_preserve_generated_qualifier_0_given_long_sql_alias_when_native_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 800,
+      "end_line": 814,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_generated_qualifier_0_given_long_sql_alias_when_native_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_generated_qualifier_1_given_long_sql_alias_when_native_rows_are_executed",
+      "name": "should_preserve_generated_qualifier_1_given_long_sql_alias_when_native_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 817,
+      "end_line": 831,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_generated_qualifier_1_given_long_sql_alias_when_native_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_generated_qualifier_2_given_long_sql_alias_when_native_rows_are_executed",
+      "name": "should_preserve_generated_qualifier_2_given_long_sql_alias_when_native_rows_are_executed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 834,
+      "end_line": 848,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_generated_qualifier_2_given_long_sql_alias_when_native_rows_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_alias_probe_0_given_delimited_identity_when_long_alias_is_referenced",
+      "name": "should_preserve_alias_probe_0_given_delimited_identity_when_long_alias_is_referenced",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 851,
+      "end_line": 865,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_alias_probe_0_given_delimited_identity_when_long_alias_is_referenced"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_alias_probe_1_given_delimited_identity_when_long_alias_is_referenced",
+      "name": "should_preserve_alias_probe_1_given_delimited_identity_when_long_alias_is_referenced",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 868,
+      "end_line": 882,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_alias_probe_1_given_delimited_identity_when_long_alias_is_referenced"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_alias_probe_2_given_delimited_identity_when_long_alias_is_referenced",
+      "name": "should_preserve_alias_probe_2_given_delimited_identity_when_long_alias_is_referenced",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 885,
+      "end_line": 899,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_alias_probe_2_given_delimited_identity_when_long_alias_is_referenced"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09.rs::should_preserve_alias_probe_3_given_delimited_identity_when_long_alias_is_referenced",
+      "name": "should_preserve_alias_probe_3_given_delimited_identity_when_long_alias_is_referenced",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "line": 902,
+      "end_line": 916,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09::should_preserve_alias_probe_3_given_delimited_identity_when_long_alias_is_referenced"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs::should_preserve_catalog_name_0_given_parsed_byte_boundary_when_observed_as_text",
+      "name": "should_preserve_catalog_name_0_given_parsed_byte_boundary_when_observed_as_text",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs",
+      "line": 6,
+      "end_line": 30,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09_catalog::should_preserve_catalog_name_0_given_parsed_byte_boundary_when_observed_as_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs::should_preserve_catalog_name_1_given_parsed_byte_boundary_when_observed_as_text",
+      "name": "should_preserve_catalog_name_1_given_parsed_byte_boundary_when_observed_as_text",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs",
+      "line": 33,
+      "end_line": 57,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09_catalog::should_preserve_catalog_name_1_given_parsed_byte_boundary_when_observed_as_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs::should_preserve_catalog_name_2_given_parsed_byte_boundary_when_observed_as_text",
+      "name": "should_preserve_catalog_name_2_given_parsed_byte_boundary_when_observed_as_text",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs",
+      "line": 60,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09_catalog::should_preserve_catalog_name_2_given_parsed_byte_boundary_when_observed_as_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs::should_bound_each_qualified_sequence_component_given_sql_name_when_observed_as_text",
+      "name": "should_bound_each_qualified_sequence_component_given_sql_name_when_observed_as_text",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs",
+      "line": 87,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09_catalog::should_bound_each_qualified_sequence_component_given_sql_name_when_observed_as_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs::should_evaluate_inferred_integer_alias_given_identifier_metadata_when_input_and_output_formats_are_crossed",
+      "name": "should_evaluate_inferred_integer_alias_given_identifier_metadata_when_input_and_output_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs",
+      "line": 5,
+      "end_line": 28,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09_parameters::should_evaluate_inferred_integer_alias_given_identifier_metadata_when_input_and_output_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs::should_evaluate_declared_char_alias_given_identifier_metadata_when_input_and_output_formats_are_crossed",
+      "name": "should_evaluate_declared_char_alias_given_identifier_metadata_when_input_and_output_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs",
+      "line": 31,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09_parameters::should_evaluate_declared_char_alias_given_identifier_metadata_when_input_and_output_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs::should_evaluate_inferred_cte_alias_given_identifier_metadata_when_input_and_output_formats_are_crossed",
+      "name": "should_evaluate_inferred_cte_alias_given_identifier_metadata_when_input_and_output_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs",
+      "line": 56,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09_parameters::should_evaluate_inferred_cte_alias_given_identifier_metadata_when_input_and_output_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09_scopes.rs::should_preserve_alias_cte_scope_0_given_bound_outer_cte_when_derived_alias_is_typed",
+      "name": "should_preserve_alias_cte_scope_0_given_bound_outer_cte_when_derived_alias_is_typed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_scopes.rs",
+      "line": 6,
+      "end_line": 20,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09_scopes::should_preserve_alias_cte_scope_0_given_bound_outer_cte_when_derived_alias_is_typed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09_scopes.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/scalar_batch_09_scopes.rs::should_preserve_alias_cte_scope_1_given_bound_outer_cte_when_derived_alias_is_typed",
+      "name": "should_preserve_alias_cte_scope_1_given_bound_outer_cte_when_derived_alias_is_typed",
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_scopes.rs",
+      "line": 23,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "scalar_batch_09_scopes::should_preserve_alias_cte_scope_1_given_bound_outer_cte_when_derived_alias_is_typed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar",
+        "directory": "tests/pgwire_extended/grammar",
+        "file": "tests/pgwire_extended/grammar/scalar_batch_09_scopes.rs",
         "basis": "canonical_domain_path",
         "review": "recommended",
         "migration": "keep"
@@ -274223,6 +275902,66 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 916,
+      "sha256": "34a8c2fbae6638ad1732e4975817636332cae0ac4b77dd954d90ff356b2c81ee",
+      "test_declarations": 45,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/scalar_batch_09.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 111,
+      "sha256": "bb72a0f668b3cbfbaa7bf0415bf1ab356e979539a31f03e4d9803cbf2939384b",
+      "test_declarations": 4,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/scalar_batch_09_catalog.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 78,
+      "sha256": "13413fa7e3b3dc275801a5db949f3792f6044e04acfd0a08a710489c4340e885",
+      "test_declarations": 3,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/scalar_batch_09_parameters.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/grammar/scalar_batch_09_scopes.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 37,
+      "sha256": "67236015afcc0f1c812c8036e302547edaafbcaa8bbbc220a5977f25cd410231",
+      "test_declarations": 2,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/grammar/scalar_batch_09_scopes.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/grammar/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -279373,8 +281112,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 554,
-      "sha256": "fe1344bc61b01e753d3c945b8a0ad80220de7d3519c6312dc647d264e64fd07b",
+      "lines": 566,
+      "sha256": "36949fc53cea893e12b86752c52836b35a95a57a59a5f126858b29eaf1404daa",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -285827,8 +287566,8 @@
       "current_file": "tests/support/bind_planning.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 149,
-      "sha256": "736a443b9c5a4d563745a57c8f0c5ad07ae8873f36fd404f8777fc565656d7d1",
+      "lines": 160,
+      "sha256": "08c796ab107a28e0894ecd8cba288985e89de8c45fd5ea142b81e89be2b54d08",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

@@ -11,6 +11,14 @@ pub fn infer_select_schema(
     select: &SelectStatement,
     catalog: &Catalog,
 ) -> Result<Schema, CassieError> {
+    infer_select_schema_with_ctes(select, catalog, &HashMap::new())
+}
+
+pub(super) fn infer_select_schema_with_ctes(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    ctes: &HashMap<String, Schema>,
+) -> Result<Schema, CassieError> {
     let user_functions = crate::catalog::function_resolution::functions_for_scope(
         &catalog.list_functions(),
         "postgres",
@@ -18,7 +26,7 @@ pub fn infer_select_schema(
         false,
     );
 
-    infer_select_schema_with_scope(select, catalog, &HashMap::new(), &user_functions)
+    infer_select_schema_with_scope(select, catalog, ctes, &user_functions)
 }
 
 /// # Errors

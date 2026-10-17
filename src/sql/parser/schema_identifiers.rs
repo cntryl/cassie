@@ -12,23 +12,32 @@ pub(super) fn parse_identifier(raw: &str) -> Result<String, SqlError> {
         return Ok(String::new());
     }
 
-    if raw.starts_with('"') {
-        let Some(unquoted) = raw.strip_suffix('"') else {
+    if let Some(body) = raw.strip_prefix('"') {
+        let Some((decoded, consumed)) = crate::sql::identifier_text::quoted(
+            body,
+            crate::sql::identifier_text::IDENTIFIER_BYTES,
+        ) else {
             return Err(SqlError::new(format!(
                 "unterminated quoted identifier '{raw}'"
             )));
         };
-        if unquoted.len() < 2 {
-            return Err(SqlError::new("empty quoted identifier".to_string()));
+        if decoded.is_empty() {
+            return Err(SqlError::new("empty quoted identifier".to_owned()));
         }
-        return Ok(unquoted[1..].replace("\"\"", "\""));
+        if consumed == body.len() {
+            return Ok(decoded);
+        }
+        return parse_relation_path(raw).map(IdentifierPath::into_string);
     }
 
     if raw.chars().any(char::is_whitespace) {
         return Err(SqlError::new(format!("invalid identifier '{raw}'")));
     }
 
-    Ok(raw.to_string())
+    if raw.contains('.') {
+        return parse_relation_path(raw).map(IdentifierPath::into_string);
+    }
+    Ok(crate::sql::identifier_text::prefix(raw).to_ascii_lowercase())
 }
 
 pub(super) fn parse_column_identifier(raw: &str) -> Result<String, SqlError> {
@@ -36,7 +45,7 @@ pub(super) fn parse_column_identifier(raw: &str) -> Result<String, SqlError> {
     if raw.is_empty() {
         return Ok(String::new());
     }
-    let path = ColumnIdentifierPath::parse(raw).map_err(SqlError::new)?;
+    let path = ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
     if path.is_qualified() {
         return Err(SqlError::new(format!("invalid column identifier '{raw}'")));
     }
@@ -48,7 +57,7 @@ pub(super) fn parse_column_reference(raw: &str) -> Result<String, SqlError> {
     if raw.is_empty() {
         return Ok(String::new());
     }
-    let path = ColumnIdentifierPath::parse(raw).map_err(SqlError::new)?;
+    let path = ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
     if path.is_qualified() {
         return Err(SqlError::new(format!("invalid column identifier '{raw}'")));
     }

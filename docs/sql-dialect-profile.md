@@ -952,3 +952,18 @@ predicate boundaries. Both wire formats and selected parameter identities have
 native-backed witnesses. Matching remains case-sensitive. ILIKE, native
 collation matching, non-text LIKE overloads and complete mixed predicate grammar
 remain pending under #796/#793.
+
+
+Experimental ten-batch increment 9: Identifier byte boundaries over existing scalar types.
+Native wire witnesses and precise local acceptance are recorded in
+[validation](testing/validation.md). Complete type and owner contracts remain pending.
+
+
+The selected SQL identifier boundary retains at most 63 UTF-8 bytes per decoded
+component without splitting a character. SQL aliases and references use this
+boundary while resolved metadata and generated internal qualifiers preserve
+their exact names. Selected delimited derived aliases reuse the existing alias
+namespace binder and retain enclosing CTE and parameter type information.
+Native witnesses cover descriptors and both wire formats, including CHAR(3)
+typmods. Complete NAME OID 19, truncation NOTICE and utility phase behavior remain
+pending under #793/#796.

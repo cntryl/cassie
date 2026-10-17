@@ -509,7 +509,7 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
             }
             return relation_alias::parse(select.source, alias_raw);
         }
-        if alias.contains('(') {
+        if alias.contains('(') || alias.starts_with('"') {
             return relation_alias::parse(
                 QuerySource::Subquery {
                     alias: "__derived_query".to_string(),
@@ -526,7 +526,7 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
         }
 
         return Ok(QuerySource::Subquery {
-            alias: alias.to_string(),
+            alias: super::identifiers::normalize_identifier(alias)?,
             select,
             lateral,
         });
@@ -690,7 +690,7 @@ pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlEr
             .filter(|alias| !alias.is_empty())
             .map(|alias| {
                 let column =
-                    crate::sql::ColumnIdentifierPath::parse(alias).map_err(SqlError::new)?;
+                    crate::sql::ColumnIdentifierPath::parse_sql(alias).map_err(SqlError::new)?;
                 if column.is_qualified() {
                     return Err(SqlError::new(format!(
                         "invalid column identifier '{alias}'"
@@ -703,13 +703,13 @@ pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlEr
             return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
-        Ok((name.to_string(), aliases))
+        Ok((super::identifiers::normalize_identifier(name)?, aliases))
     } else {
         if raw.contains('(') || raw.contains(')') {
             return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
-        Ok((raw.to_string(), Vec::new()))
+        Ok((super::identifiers::normalize_identifier(raw)?, Vec::new()))
     }
 }
 

@@ -95,7 +95,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
     for field in &fields {
         let name = field.name.clone();
         if !seen.insert(name.clone()) {
-            return Err(SqlError::new(format!("duplicate column name '{name}'")));
+            return Err(SqlError::duplicate_column(&name));
         }
     }
 

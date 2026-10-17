@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1727 |
-| Rust files | 1696 |
-| Rust test declarations | 8404 |
+| Files under `tests/` | 1731 |
+| Rust files | 1700 |
+| Rust test declarations | 8458 |
 | Python test declarations | 16 |
-| Static Rust registration instances | 8532 |
+| Static Rust registration instances | 8586 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 138 |
 | Unregistered Rust declarations | 0 |
@@ -44,7 +44,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [parser_types](inventory/parser_types.md) | 367 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 81 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 3337 | 0 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 3391 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 123 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 75 | 0 |
@@ -116,6 +116,7 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 | --- | ---: | ---: |
 | `tests/executor/commands/semantics.rs` | 810 | 13 |
 | `tests/parser_types/grammar/indexes/semantics.rs` | 878 | 27 |
+| `tests/pgwire_extended/grammar/scalar_batch_09.rs` | 821 | 45 |
 | `tests/pgwire_extended/grammar/values_casts_uuid.rs` | 849 | 24 |
 | `tests/pgwire_extended/type_resolution/output_source_seams.rs` | 847 | 14 |
 | `tests/pgwire_extended/types/bit_bytea/casts_int8.rs` | 812 | 45 |

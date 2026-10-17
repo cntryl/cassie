@@ -5,6 +5,7 @@ pub(super) enum SplitError {
     Syntax(String),
     Unsupported(String),
     NumericRange(String),
+    DuplicateColumn(String),
     ResourceLimit(String),
 }
 
@@ -21,6 +22,7 @@ pub(super) fn split_simple_query(sql: &str) -> Result<Vec<String>, SplitError> {
     crate::sql::parser::preflight_sql(sql).map_err(|error| match error.kind() {
         crate::sql::SqlErrorKind::ResourceLimit => SplitError::ResourceLimit(error.to_string()),
         crate::sql::SqlErrorKind::NumericRange => SplitError::NumericRange(error.to_string()),
+        crate::sql::SqlErrorKind::DuplicateColumn => SplitError::DuplicateColumn(error.to_string()),
         crate::sql::SqlErrorKind::Syntax => SplitError::Syntax(error.to_string()),
         crate::sql::SqlErrorKind::Unsupported => SplitError::Unsupported(error.to_string()),
     })?;

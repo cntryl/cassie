@@ -72,14 +72,7 @@ pub(super) fn columns(
                 .collect());
         }
         QuerySource::Aliased { source, .. } => return columns(source, aliases, catalog, scope),
-        QuerySource::Subquery { select, .. } => (
-            super::inference::infer_select_schema(select, catalog)?
-                .fields
-                .into_iter()
-                .map(|field| field.name)
-                .collect(),
-            false,
-        ),
+        QuerySource::Subquery { select, .. } => (subquery_names(select, catalog, scope)?, false),
         QuerySource::TableFunction { name, .. } => (
             super::select::table_function_columns(name)
                 .into_iter()
@@ -610,4 +603,29 @@ fn expand_wildcard(
             });
         }
     }
+}
+
+fn subquery_names(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    scope: &CteScope,
+) -> Result<Vec<String>, CassieError> {
+    let schemas = scope
+        .iter()
+        .map(|(name, binding)| {
+            (
+                name.clone(),
+                crate::types::Schema {
+                    fields: binding.row_fields.clone(),
+                },
+            )
+        })
+        .collect();
+    Ok(
+        super::inference::infer_select_schema_with_ctes(select, catalog, &schemas)?
+            .fields
+            .into_iter()
+            .map(|field| field.name)
+            .collect(),
+    )
 }

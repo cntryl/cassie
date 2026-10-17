@@ -28,6 +28,7 @@ pub enum SqlErrorKind {
     Syntax,
     Unsupported,
     NumericRange,
+    DuplicateColumn,
     ResourceLimit,
 }
 
@@ -65,6 +66,13 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::NumericRange,
             message,
+        }
+    }
+
+    pub(super) fn duplicate_column(name: &str) -> Self {
+        Self {
+            kind: SqlErrorKind::DuplicateColumn,
+            message: format!("column \"{name}\" specified more than once"),
         }
     }
 

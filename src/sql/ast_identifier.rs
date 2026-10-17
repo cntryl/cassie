@@ -101,7 +101,7 @@ impl IdentifierPath {
                 }
                 (
                     IdentifierComponent {
-                        value: value.to_string(),
+                        value: crate::sql::identifier_text::prefix(value).to_owned(),
                         delimited: false,
                     },
                     &remaining[end..],
@@ -308,19 +308,5 @@ impl<'de> Deserialize<'de> for IdentifierPath {
 }
 
 fn take_quoted_component(body: &str) -> Option<(String, usize)> {
-    let mut value = String::new();
-    let mut chars = body.char_indices().peekable();
-    while let Some((index, character)) = chars.next() {
-        if character != '"' {
-            value.push(character);
-            continue;
-        }
-        if matches!(chars.peek(), Some((_, '"'))) {
-            value.push('"');
-            chars.next();
-            continue;
-        }
-        return Some((value, index + 1));
-    }
-    None
+    crate::sql::identifier_text::quoted(body, crate::sql::identifier_text::IDENTIFIER_BYTES)
 }

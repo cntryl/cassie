@@ -80,7 +80,14 @@ pub fn assert_failures(batches: &[fixture::Frames], cases: &[(&str, &str)]) {
 }
 
 pub fn pruned(label: &str, sql: &str) -> Vec<fixture::Frames> {
-    let mut steps = Vec::new();
+    pruned_with_setup(label, sql, &[])
+}
+
+pub fn pruned_with_setup(label: &str, sql: &str, setup: &[&str]) -> Vec<fixture::Frames> {
+    let mut steps = setup
+        .iter()
+        .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+        .collect::<Vec<_>>();
     for format in [0, 1] {
         steps.push(Step::ParseFlush(wire::parse_frame("p", sql)));
         steps.push(Step::ThroughReady(vec![
@@ -104,7 +111,11 @@ pub fn pruned(label: &str, sql: &str) -> Vec<fixture::Frames> {
             wire::sync_frame(),
         ]));
     }
-    run_script(label, steps)
+    let mut batches = run_script(label, steps);
+    for batch in batches.drain(..setup.len()) {
+        fixture::assert_success(&batch);
+    }
+    batches
 }
 
 pub fn assert_pruned(batches: &[fixture::Frames], oid: i32, text: &str) {

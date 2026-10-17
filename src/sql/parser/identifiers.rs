@@ -47,7 +47,7 @@ pub(super) fn parse_quoted_identifier_chain(
     if !raw.contains('"') || raw.starts_with('\'') {
         return Ok(None);
     }
-    match ColumnIdentifierPath::parse(raw) {
+    match ColumnIdentifierPath::parse_sql(raw) {
         Ok(path) => Ok(Some(path)),
         Err(error) if raw == "\"\"" => Err(SqlError::new(error)),
         Err(_) => Ok(None),
@@ -59,7 +59,7 @@ pub(super) fn parse_quoted_identifier_chain(
 pub(super) fn normalize_identifier(raw: &str) -> Result<String, SqlError> {
     let raw = raw.trim();
     if !raw.starts_with('"') {
-        return Ok(raw.to_ascii_lowercase());
+        return Ok(crate::sql::identifier_text::prefix(raw).to_ascii_lowercase());
     }
     parse_quoted_identifier_chain(raw)?
         .map(|path| path.display_name())
@@ -68,7 +68,7 @@ pub(super) fn normalize_identifier(raw: &str) -> Result<String, SqlError> {
 
 pub(super) fn normalize_column_identifier(raw: &str) -> Result<String, SqlError> {
     let raw = raw.trim();
-    let path = ColumnIdentifierPath::parse(raw).map_err(SqlError::new)?;
+    let path = ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
     if path.is_qualified() {
         return Err(SqlError::new(format!("invalid column identifier '{raw}'")));
     }

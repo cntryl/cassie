@@ -574,7 +574,7 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
         return Err(SqlError::new(format!("invalid expression token '{raw}'")));
     }
 
-    let path = crate::sql::ColumnIdentifierPath::parse(raw).map_err(SqlError::new)?;
+    let path = crate::sql::ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
     Ok(Expr::Column(path.lookup_key()))
 }
 

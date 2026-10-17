@@ -2548,3 +2548,55 @@ BYTEA/array/JSON/vector operator contracts and broader mixed IN/BETWEEN predicat
 precedence remain unqualified obligations under #796/#793. Native mixed-level
 observations are retained in `target/ten-batch-08-native-level-probe.json` for
 that owner follow-up; this finite increment does not close those owners.
+
+
+### Ten-batch delivery 9/10: Identifier byte boundaries (2026-10-17)
+
+Baseline `a8bbff8430a25a9a881bd09f0ab7e376752c0b6a`. Selected existing scalar/syntax support under #796
+with no new persistent type or storage migration. Native PostgreSQL 18.6
+reference descriptors and both wire payload formats are retained in focused
+Rust tests. TDD red evidence and targeted Jev probes are preserved in the ignored
+`target/ten-batch-09-*` logs. Current focused wire result: test result: ok. 471 passed; 0 failed; 0 ignored; 0 measured; 2924 filtered out; finished in 76.57s.
+
+Build, focused locked tests, complete parser regression comparison, full strict
+workspace/all-target/all-feature pedantic Clippy, formatting, touched/global
+test validators, refreshed inventory and whitespace checks completed. Parser
+failures remaining: 56 (18 fixed cumulatively from
+the 74-failure starting baseline), with no new failure identity. The consolidated
+full repository gate follows batch 10 under the documented local delivery policy.
+Known unrelated failures and complete owner acceptance remain pending.
+
+Jev review and probe outcome: `{"next_action": {"type": "choice", "choice": "validate", "confidence": 0.45, "probabilities": {"validate": 0.56, "probe_metadata": 0.05, "probe_scope": 0.16, "probe_delimiters": 0.08, "none": 0.15}}}`.
+
+
+Batch 9 qualifies 51 new wire tests in the cumulative 471/0 main run, plus three
+supplementary parameter tests with 12 text/binary input/output combinations on
+unchanged production source. All supplementary build, test, full strict Clippy,
+formatting, validators and inventory checks pass. Three identifier boundary
+units pass. The complete parser result is 318/56 with no new failure identity;
+the original UTF-8 identifier truncation failure is fixed.
+
+SQL identifier components retain PostgreSQL's UTF-8-safe 63-byte prefix after
+quote decoding. The bounded decoder still scans the full token for its closing
+quote. Unquoted folding, U&/UESCAPE, doubled quotes, qualifiers, output names,
+CTE column lists, and table/column/index/sequence declarations have selected
+native witnesses. Qualified sequence components truncate independently. Existing
+stored-metadata constructors and generated internal column qualifiers retain
+exact spelling through a separate internal parse path. Column collisions report
+42701; derived ambiguous columns report 42702. This qualifies their SQLSTATEs,
+not complete utility error timing or truncation NOTICE output.
+
+Jev gaps 0.71 and 0.51 prompted native sibling probes and three focused boundary
+units. A further probe judgment of 0.51 exposed two failing delimited derived
+aliases. Reusing the existing alias namespace binder retained delimiter identity;
+subsequent descriptor probes exposed a TEXT fallback, fixed by extending the
+existing derived-source schema inference to that wrapper. Uppercase letters,
+doubled quotes, spaces and dots now retain native INT4 descriptors and both
+payload formats. Two additional enclosing-CTE probes failed before CTE schemas
+were passed into alias column inference and pass afterward, including wildcard
+projection. Three parameter probes preserve inferred INTEGER, declared CHAR(3)
+with native typmod, and CTE-backed INTEGER metadata. Final review selected
+validation 0.56 (metadata probe 0.05, scope probe 0.16, delimiter probe 0.08,
+none 0.15). These judgments guide probes; actual source and passing tests are
+acceptance evidence. Full NAME identity, NOTICE and utility phase qualification
+remain under #793/#796; no owner closes or persistent layout changes here.

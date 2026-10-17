@@ -559,9 +559,15 @@ pub(super) fn qualified_fields(
     let mut out = HashSet::new();
     for field in fields {
         let field = crate::sql::ColumnIdentifierPath::from_field_name(&field).lookup_key();
-        out.insert(field.clone());
+        let duplicate = !out.insert(field.clone());
+        if duplicate {
+            out.insert(format!("__cassie_ambiguous__.{field}"));
+        }
         for qualifier in &qualifiers {
             out.insert(format!("{qualifier}.{field}"));
+            if duplicate {
+                out.insert(format!("__cassie_ambiguous__.{qualifier}.{field}"));
+            }
         }
     }
     out
@@ -709,11 +715,7 @@ fn validate_column_reference(
     projection_aliases: &HashSet<String>,
     allow_projection_alias: bool,
 ) -> Result<(), CassieError> {
-    let column = crate::sql::ColumnIdentifierPath::parse(name).ok();
-    let is_qualified = column
-        .as_ref()
-        .is_some_and(crate::sql::ColumnIdentifierPath::is_qualified);
-    if !is_qualified && known_fields.contains(&format!("__cassie_ambiguous__.{name}")) {
+    if known_fields.contains(&format!("__cassie_ambiguous__.{name}")) {
         return Err(CassieError::AmbiguousColumn(name.to_string()));
     }
     if known_fields.contains("*") || known_fields.contains(name) {

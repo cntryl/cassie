@@ -638,7 +638,9 @@ impl From<crate::sql::SqlError> for CassieError {
     fn from(value: crate::sql::SqlError) -> Self {
         match value.kind() {
             crate::sql::SqlErrorKind::Syntax => CassieError::InvalidQuery(value.to_string()),
-            crate::sql::SqlErrorKind::NumericRange => CassieError::Execution(value.to_string()),
+            crate::sql::SqlErrorKind::NumericRange | crate::sql::SqlErrorKind::DuplicateColumn => {
+                CassieError::Execution(value.to_string())
+            }
             crate::sql::SqlErrorKind::Unsupported => CassieError::Unsupported(value.to_string()),
             crate::sql::SqlErrorKind::ResourceLimit => {
                 CassieError::ResourceLimit(value.to_string())

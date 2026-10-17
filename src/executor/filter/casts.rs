@@ -40,6 +40,15 @@ pub(super) fn scalar(
             value => value,
         });
     }
+    if *target == DataType::Date && source == Some(&DataType::Timestamp) {
+        if let ScalarValue::Str(text) = value {
+            return crate::types::temporal::parse_timestamp(text)
+                .map(|timestamp| {
+                    ScalarValue::Str(crate::types::temporal::format_date(timestamp.date()))
+                })
+                .map_err(QueryError::General);
+        }
+    }
     if matches!(target, DataType::Text | DataType::Varchar { .. })
         && matches!(source, Some(DataType::Char { .. }))
     {

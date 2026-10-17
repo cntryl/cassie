@@ -33,6 +33,10 @@ impl ResultTypes {
         )
     }
 
+    pub(super) fn declared_function(&self, name: &str) -> Option<&crate::catalog::FunctionMeta> {
+        self.functions.get(&name.to_ascii_lowercase())
+    }
+
     pub(super) fn declared_function_identity(&self, name: &str) -> Option<&str> {
         self.functions
             .get(&name.to_ascii_lowercase())

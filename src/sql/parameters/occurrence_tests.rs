@@ -580,3 +580,34 @@ fn should_preserve_source_local_column_types_during_parameter_admission() {
     assert_eq!(rejected_current, 0);
     assert!(controls.peak_query_memory_bytes() > 0);
 }
+
+#[test]
+fn should_copy_scalar_literal_error_given_budget_when_type_function_is_admitted() {
+    // Arrange
+    let catalog = Catalog::new();
+    let valid = parse_statement("SELECT int4('7')").expect("valid type function");
+    let baseline = controls(1_048_576);
+    let admitted =
+        checked_parse_parameter_types(&valid, &[], &catalog, &baseline).expect("valid input");
+    let baseline_peak = baseline.peak_query_memory_bytes();
+    drop(admitted);
+    let input = "x".repeat(8_192);
+    let invalid =
+        parse_statement(&format!("SELECT int4('{input}')")).expect("invalid input syntax tree");
+    let generous = controls(1_048_576);
+    let constrained = controls(baseline_peak + 512);
+    // Act
+    let result = checked_parse_parameter_types(&invalid, &[], &catalog, &generous);
+    let denied = checked_parse_parameter_types(&invalid, &[], &catalog, &constrained);
+    // Assert
+    assert!(
+        matches!(&result, Err(ParameterAdmissionError::InvalidScalarLiteral { input: actual, .. }) if actual == &input)
+    );
+    assert!(generous.current_query_memory_bytes() >= input.len());
+    assert!(matches!(denied, Err(ParameterAdmissionError::Memory(_))));
+    assert!(constrained.peak_query_memory_bytes() <= baseline_peak + 512);
+    assert_eq!(constrained.current_query_memory_bytes(), 0);
+    drop(result);
+    assert_eq!(generous.current_query_memory_bytes(), 0);
+    assert_eq!(baseline.current_query_memory_bytes(), 0);
+}

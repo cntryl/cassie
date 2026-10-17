@@ -323,3 +323,79 @@ fn should_release_semantic_error_admission_after_a_failed_send() {
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_admit_scalar_literal_frames_given_native_errors_when_exact_budgets_are_enforced() {
+    // Arrange
+    let cases = [
+        (
+            crate::sql::ScalarLiteralDiagnostic::Syntax("uuid"),
+            "bad",
+            "22P02",
+            "invalid input syntax for type uuid: \"bad\"",
+        ),
+        (
+            crate::sql::ScalarLiteralDiagnostic::Range("smallint"),
+            "32768",
+            "22003",
+            "value \"32768\" is out of range for type smallint",
+        ),
+        (
+            crate::sql::ScalarLiteralDiagnostic::FloatRange,
+            "1e400",
+            "22003",
+            "\"1e400\" is out of range for type double precision",
+        ),
+    ];
+    for (diagnostic, input, code, message) in cases {
+        let generous = controls(65_536);
+        let error =
+            PgWireError::invalid_scalar_input(input, diagnostic, &generous).expect("measure error");
+        let peak = generous.peak_query_memory_bytes();
+        assert_eq!(error.code, code);
+        assert_eq!(error.message, message);
+        assert!(error.encoded_semantic_frame().is_some());
+        drop(error);
+        let exact = controls(peak);
+        let denied = controls(peak - 1);
+        // Act
+        let success = PgWireError::invalid_scalar_input(input, diagnostic, &exact);
+        let failure = PgWireError::invalid_scalar_input(input, diagnostic, &denied);
+        // Assert
+        assert!(success.is_ok());
+        assert!(matches!(failure, Err(CassieError::ResourceLimit(_))));
+        assert_eq!(denied.current_query_memory_bytes(), 0);
+        assert_eq!(generous.current_query_memory_bytes(), 0);
+        drop(success);
+        assert_eq!(exact.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_prioritize_scalar_literal_cancellation_given_pending_coercion_when_allocations_are_requested(
+) {
+    // Arrange
+    let mut parsed = crate::sql::parse_statement("SELECT text($1)").expect("type function");
+    let before = serde_json::to_string(&parsed).expect("snapshot");
+    let cancellation = QueryCancellationHandle::new();
+    cancellation.cancel();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation,
+    );
+    // Act
+    let normalization =
+        crate::sql::parse_analysis::normalize_type_functions(&mut parsed, &[0], &controls);
+    let frame = PgWireError::invalid_scalar_input(
+        "bad",
+        crate::sql::ScalarLiteralDiagnostic::Syntax("uuid"),
+        &controls,
+    );
+    // Assert
+    assert!(matches!(normalization, Err(CassieError::QueryCancelled)));
+    assert!(matches!(frame, Err(CassieError::QueryCancelled)));
+    assert_eq!(serde_json::to_string(&parsed).expect("snapshot"), before);
+    assert_eq!(controls.peak_query_memory_bytes(), 0);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

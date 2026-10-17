@@ -11,6 +11,8 @@ pub(super) fn admit(
     parameter_type_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<AdmittedParameterTypes, ExtendedQueryError> {
+    crate::sql::parse_analysis::normalize_type_functions(parsed, parameter_type_oids, controls)
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let admitted = with_function_input_scope(cassie, session, |scope| {
         crate::sql::checked_wire_parse_parameter_types_in_scope(
             parsed,

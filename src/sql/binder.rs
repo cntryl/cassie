@@ -1,3 +1,4 @@
+mod function_casts;
 #[path = "binder/function_validation.rs"]
 mod function_validation;
 #[path = "binder/integer_operators.rs"]

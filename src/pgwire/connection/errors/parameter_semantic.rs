@@ -42,6 +42,22 @@ impl PgWireError {
         admitted_error_frame(error, controls, memory)
     }
 
+    pub(in crate::pgwire::connection) fn invalid_scalar_input(
+        input: &str,
+        diagnostic: crate::sql::ScalarLiteralDiagnostic,
+        controls: &QueryExecutionControls,
+    ) -> Result<Self, CassieError> {
+        controls.check_interruption()?;
+        let mut memory = controls.reserve_query_memory(size_of::<Self>())?;
+        let capacity = diagnostic.capacity(input).ok_or_else(capacity_error)?;
+        let mut message = admitted_string(capacity, controls, &mut memory)?;
+        diagnostic
+            .write(input, &mut BoundedOutput(&mut message))
+            .map_err(|_| formatting_error())?;
+        let error = Self::new(PgWireSeverity::Error, diagnostic.code(), message);
+        admitted_error_frame(error, controls, memory)
+    }
+
     pub(in crate::pgwire::connection) fn invalid_boolean_input(
         input: &str,
         controls: &QueryExecutionControls,

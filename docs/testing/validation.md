@@ -2430,3 +2430,74 @@ controls and expire during repeated comparisons, rather than checking only an
 already-expired entry point. The initial 0.79 sibling gap prompted NULL,
 short-circuit, parameter and indexed-versus-scan witnesses. All original assertions
 remain intact. Full repository green and owner closure are not established here.
+
+
+### Ten-batch delivery 7/10: Function-style primitive casts (2026-10-17)
+
+Baseline `69fb17cbdfdcd3665745ebf12eee0354dfbdf7e4`. Selected existing scalar/syntax support under #796
+with no new persistent type or storage migration. Native PostgreSQL 18.6
+reference descriptors and both wire payload formats are retained in focused
+Rust tests. TDD red evidence and targeted Jev probes are preserved in the ignored
+`target/ten-batch-07-*` logs. Current focused wire result: test result: ok. 344 passed; 0 failed; 0 ignored; 0 measured; 2924 filtered out; finished in 55.55s.
+
+Build, focused locked tests, complete parser regression comparison, full strict
+workspace/all-target/all-feature pedantic Clippy, formatting, touched/global
+test validators, refreshed inventory and whitespace checks completed. Parser
+failures remaining: 58 (16 fixed cumulatively from
+the 74-failure starting baseline), with no new failure identity. The consolidated
+full repository gate follows batch 10 under the documented local delivery policy.
+Known unrelated failures and complete owner acceptance remain pending.
+
+Jev review and probe outcome: `{"final_review": {"type": "choice", "choice": "validate", "confidence": 0.79, "probabilities": {"validate": 0.86, "probe": 0.14, "none": 0.0}}}`.
+
+Selected type-function scope: unmodified, one-argument `int2`, `int4`, `int8`,
+`float8`, `bool`, `text`, `date`, `uuid` and `bytea`, including their `pg_catalog`
+forms, plus qualified `pg_catalog.time`, `pg_catalog.timestamp` and
+`pg_catalog.varchar`. Native bare TIME/TIMESTAMP/VARCHAR function notation is not
+selected. Checked scalar casts retain exact integer widths, strict NULL behavior,
+IEEE special values, canonical UUID/bytea values and native default column labels.
+DATE from existing TIMESTAMP retains the source identity required for extraction.
+
+Unknown string/NULL constants invoke native type coercion before user routine
+lookup. Exact typed user signatures remain callable, including non-strict typed
+NULL input. Unknown parameters retain overload errors (42725/42883), supported
+TEXT/VARCHAR inference and native distinction from explicitly declared inputs.
+A bounded, controlled wire Parse normalization preserves irreversible unknown
+textual-parameter coercions before effective OIDs erase their origin. Native
+36-cross user-text-routine probes cover direct, nested, CTE, EXISTS and INSERT
+callers; the Rust regressions preserve those choices. Normalized coercions use
+existing Cast AST nodes; catalog-sensitive calls retain existing rebind behavior.
+Complete routine overload/body/prepared lifecycle qualification remains open.
+
+This increment adds 95 focused wire tests. The cumulative selected result is
+344/0. Five new resource units, plus one existing selected-lane literal unit in
+the `scalar_literal` filter, pass 6/0. They verify copied diagnostic ownership,
+exact/minus-one complete error-frame budgets, coercion scratch retirement,
+unchanged AST on allocation denial and cancellation before mutation/allocation.
+Native literal diagnostics distinguish integer input range messages from FLOAT8
+range messages; their UTF8 input copy and encoded frame are admitted before
+allocation. UUID input uses a fixed 16-byte buffer and accepts the captured native
+simple, braced, uppercase and four-digit hyphen forms, rejecting malformed forms.
+
+The DML sibling probe exposed the existing literal-only INSERT VALUES path.
+Computed scalar expressions now use the shared evaluator before insertion;
+literal conversion is preserved. Native-backed cases cover arithmetic, CASE,
+truth/symmetric predicates, typed routine resolution and errors before any row is
+written. Aggregate VALUES rejects 42803; column/subquery VALUES remains pending.
+No complete DML, volatility or all-function resource qualification is inferred.
+
+NUMERIC, array, JSON and vector conversion obligations remain explicitly pending;
+they are not silently relabeled as primitive results. Unknown DATE/TIMESTAMP
+function parameters select native TIMESTAMPTZ1184, whose input contract remains
+staged with 0A000; DATE1082 is not substituted. Native pending NUMERIC arithmetic
+and temporal-input receipts are retained separately from passing cells. Semantic
+cache epoch is 26; there is no new persistent scalar or storage migration.
+
+TDD/probe record: original two tests red at `69fb17cb`; an early 42-failure wire
+run exposed literal/parameter confusion, then six failures identified source-aware
+DATE and exact diagnostics. Native textual-parameter shadowing exposed an additional
+Parse choice, and the DML caller probe exposed computed VALUES materialization.
+All confirmed selected findings are fixed. Initial Jev sibling gap 0.82 prompted
+parameter/routine probes; resource gap 0.30 prompted the cancellation probe. Final
+review selected validation with probability 0.86 (probe 0.14). Full owner closure,
+complete repository green and hosted acceptance remain pending.

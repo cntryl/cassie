@@ -70,30 +70,20 @@ fn infer_inputs(
     catalog: &Catalog,
     inference: &mut ParameterInference,
 ) -> Result<(), ParameterAdmissionError> {
-    let declared = catalog
-        .with_function_signature(
-            &function.name,
-            inference.scope,
-            inference.controls,
-            |signature| {
-                let Some((arguments, _)) = signature else {
-                    return false;
-                };
-                if arguments.len() == function.args.len() {
-                    for (argument, input) in function.args.iter().zip(arguments) {
-                        if let Some(data_type) = primitive_type(&input.data_type) {
-                            // This visitor only sees Params/Casts; it cannot reenter
-                            // the catalog while the signature read guard is held.
-                            infer_parameter_type_from_expected_expr(
-                                argument, &data_type, inference,
-                            );
-                        }
-                    }
-                }
-                true
-            },
-        )
-        .map_err(admission_error)?;
+    let cast = functions::primitive_casts::candidate(function);
+    if let Some(cast) = &cast {
+        if matches!(cast.data_type, DataType::Text | DataType::Varchar { .. }) {
+            inference.without_context_demands(|inference| {
+                infer_parameter_type_from_expected_expr(
+                    &function.args[0],
+                    &cast.data_type,
+                    inference,
+                );
+            });
+            return Ok(());
+        }
+    }
+    let declared = infer_declared_inputs(function, catalog, inference)?;
     if declared || !inference.check() {
         return Ok(());
     }
@@ -162,6 +152,45 @@ enum ArgumentType {
     Known(DataType),
     Unknown,
     Unqualified,
+}
+
+fn infer_declared_inputs(
+    function: &FunctionCall,
+    catalog: &Catalog,
+    inference: &mut ParameterInference,
+) -> Result<bool, ParameterAdmissionError> {
+    let cast = functions::primitive_casts::candidate(function);
+    catalog
+        .with_function_signature(
+            &function.name,
+            inference.scope,
+            inference.controls,
+            |signature| {
+                let Some((arguments, _)) = signature else {
+                    return false;
+                };
+                if cast.as_ref().is_some_and(|cast| cast.data_type != DataType::Uuid)
+                    && arguments.len() == 1
+                    && !matches!(arguments[0].data_type, DataType::Text | DataType::Varchar { .. } | DataType::Char { .. })
+                    && matches!(function.args.as_slice(), [Expr::Param(index)] if matches!(inference.oids.get(*index).copied(), None | Some(0 | 705)))
+                {
+                    return false;
+                }
+                if arguments.len() == function.args.len() {
+                    for (argument, input) in function.args.iter().zip(arguments) {
+                        if let Some(data_type) = primitive_type(&input.data_type) {
+                            // This visitor only sees Params/Casts; it cannot reenter
+                            // the catalog while the signature read guard is held.
+                            infer_parameter_type_from_expected_expr(
+                                argument, &data_type, inference,
+                            );
+                        }
+                    }
+                }
+                true
+            },
+        )
+        .map_err(admission_error)
 }
 
 fn common_argument_type(

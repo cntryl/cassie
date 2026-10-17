@@ -3,6 +3,20 @@ use super::{ExtendedQueryError, PgWireError, PgWireSeverity};
 use std::fmt::Write;
 
 impl ExtendedQueryError {
+    pub(super) fn scalar_literal_error(
+        input: String,
+        diagnostic: crate::sql::ScalarLiteralDiagnostic,
+        reservation: crate::runtime::QueryMemoryReservation,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Self {
+        let result = Self::admitted_parameter_error(PgWireError::invalid_scalar_input(
+            &input, diagnostic, controls,
+        ));
+        drop(input);
+        drop(reservation);
+        result
+    }
+
     pub(super) fn invalid_input_syntax(type_name: &str, input: &str) -> Self {
         Self {
             pg_error: Box::new(PgWireError::new(

@@ -97,6 +97,18 @@ impl<'a> Occurrences<'a> {
         self.ledger.values.len()
     }
 
+    pub(super) fn invalid_scalar_literal(
+        &self,
+        input: &str,
+        diagnostic: super::diagnostics::ScalarLiteralDiagnostic,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), ParameterAdmissionError> {
+        if self.stop_on_error {
+            return Err(super::literal_input::admit(input, diagnostic, controls)?);
+        }
+        Ok(())
+    }
+
     pub(super) fn invalid_boolean_literal(
         &self,
         input: &str,
@@ -150,6 +162,10 @@ impl<'a> Occurrences<'a> {
 
     pub(super) fn pending_name_input(&mut self) -> Result<(), ParameterAdmissionError> {
         self.report(ParameterSemanticDiagnostic::PendingNameInput)
+    }
+
+    pub(super) fn pending_type_function_input(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::PendingTypeFunctionInput)
     }
 
     pub(super) fn ambiguous_function(

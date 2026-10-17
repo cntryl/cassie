@@ -902,6 +902,13 @@ impl ExtendedQueryError {
             ParameterAdmissionError::LegacyConflict(message) => {
                 return Self::cassie(&CassieError::Planner(message));
             }
+            ParameterAdmissionError::InvalidScalarLiteral {
+                input,
+                diagnostic,
+                _reservation: reservation,
+            } => {
+                return Self::scalar_literal_error(input, diagnostic, reservation, controls);
+            }
             ParameterAdmissionError::NonAggregateModifier {
                 message,
                 _reservation: reservation,

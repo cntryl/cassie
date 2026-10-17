@@ -15,6 +15,7 @@ pub mod schema;
 pub(crate) mod semantic;
 mod size_input;
 pub mod temporal;
+pub(crate) mod uuid_text;
 pub mod value;
 pub mod vector;
 

@@ -15,6 +15,8 @@ mod columns;
 mod expressions;
 #[path = "fold_functions.rs"]
 mod functions;
+#[path = "fold_literal_inputs.rs"]
+mod literal_inputs;
 #[path = "fold_nodes.rs"]
 mod nodes;
 

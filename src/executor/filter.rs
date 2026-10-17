@@ -12,7 +12,6 @@ use crate::search::analyzer::AnalyzerConfig;
 use crate::sql::ast::FunctionCall;
 use crate::sql::ast::{BinaryOp, Expr};
 use crate::types::{DataType, Value};
-use uuid::Uuid;
 
 /// PostgreSQL's message (SQLSTATE 22003) for an overflowing int8 result.
 pub(crate) const BIGINT_OUT_OF_RANGE: &str = "bigint out of range";
@@ -474,8 +473,8 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             let value = value
                 .as_str()
                 .ok_or_else(|| QueryError::General("cannot cast value to UUID".to_string()))?;
-            let canonical = Uuid::parse_str(value)
-                .map_err(|_| QueryError::General("cannot cast value to UUID".to_string()))?;
+            let canonical = crate::types::uuid_text::parse(value)
+                .ok_or_else(|| QueryError::General("cannot cast value to UUID".to_string()))?;
             Ok(ScalarValue::Str(canonical.to_string()))
         }
         DataType::Date => {

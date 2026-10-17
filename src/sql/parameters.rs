@@ -9,6 +9,7 @@ mod diagnostics;
 mod fold;
 mod function_inputs;
 mod inference;
+mod literal_input;
 #[cfg(test)]
 mod occurrence_tests;
 mod occurrences;
@@ -16,7 +17,7 @@ mod occurrences;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use admission::{check_controls, checked_parameter_count, reserve_vector};
 pub(crate) use admission::{AdmittedParameterTypes, ParameterAdmissionError};
-pub(crate) use diagnostics::ParameterSemanticDiagnostic;
+pub(crate) use diagnostics::{ParameterSemanticDiagnostic, ScalarLiteralDiagnostic};
 pub(crate) use occurrences::PrivateParameterTypeInput;
 
 pub use count::parameter_count;

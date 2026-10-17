@@ -111,6 +111,20 @@ fn project_error(error: ParameterAdmissionError) -> CassieError {
             drop(reservation);
             error
         }
+        ParameterAdmissionError::InvalidScalarLiteral {
+            input,
+            diagnostic,
+            _reservation: reservation,
+        } => {
+            let mut message = String::new();
+            diagnostic
+                .write(&input, &mut message)
+                .expect("String formatting cannot fail");
+            let error = CassieError::Execution(message);
+            drop(input);
+            drop(reservation);
+            error
+        }
         ParameterAdmissionError::NonAggregateModifier {
             message,
             _reservation: reservation,

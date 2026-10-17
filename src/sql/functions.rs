@@ -1,4 +1,5 @@
 mod constant_folding;
+pub(crate) mod primitive_casts;
 pub(crate) use constant_folding::is_immutable_scalar;
 mod catalog;
 mod datum_size;

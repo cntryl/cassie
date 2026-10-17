@@ -127,6 +127,7 @@ pub(super) fn validate_select_with_types(
     }
     validate_source_predicates(&mut select.source, types, catalog, context)?;
     for item in &mut select.projection {
+        super::function_casts::lower_item(item, types)?;
         match item {
             SelectItem::Expr { expr, .. } => validate_expression(expr, types, catalog, context)?,
             SelectItem::Function { function, .. } => {
@@ -299,6 +300,7 @@ fn validate_expression(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<(), CassieError> {
+    super::function_casts::lower_expression(expr, types)?;
     match expr {
         Expr::RowCompare(comparison) => {
             for field in comparison.left.iter_mut().chain(&mut comparison.right) {
@@ -554,6 +556,11 @@ fn cast_source_type(
     types: &ResultTypes,
     catalog: &Catalog,
 ) -> Option<DataType> {
+    if *target == DataType::Date {
+        return types
+            .expression_type(expr)
+            .filter(|source| *source == DataType::Timestamp);
+    }
     if *target == DataType::Bytea || crate::types::IntegerWidth::from_data_type(target).is_some() {
         return types.expression_type(expr).filter(|source| {
             (*target == DataType::Bytea

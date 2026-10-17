@@ -26,6 +26,11 @@ pub(crate) enum ParameterAdmissionError {
         input: String,
         _reservation: QueryMemoryReservation,
     },
+    InvalidScalarLiteral {
+        input: String,
+        diagnostic: super::diagnostics::ScalarLiteralDiagnostic,
+        _reservation: QueryMemoryReservation,
+    },
     NonAggregateModifier {
         message: String,
         _reservation: QueryMemoryReservation,

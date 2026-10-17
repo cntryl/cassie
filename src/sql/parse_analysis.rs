@@ -1,7 +1,8 @@
 //! Semantic analysis for wire Parse, without physical planning or constant folding.
 //!
-//! Keep the submitted tree intact: Describe and Execute must bind it against the
-//! then-current catalog. The temporary analysis copy has its own query lease.
+//! Keep catalog-sensitive calls intact for Describe and Execute. Irrevocable
+//! UNKNOWN parameter type coercions are normalized with the declared Parse OIDs.
+//! The temporary binding-analysis copy has its own query lease.
 use crate::app::CassieError;
 use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
 use crate::runtime::QueryExecutionControls;
@@ -9,6 +10,10 @@ use crate::sql::ast::{
     CteQuery, Expr, FunctionCall, ParsedStatement, QuerySource, QueryStatement, SelectItem,
     SelectStatement,
 };
+
+#[path = "parse_analysis/type_functions.rs"]
+mod type_functions;
+pub(crate) use type_functions::normalize as normalize_type_functions;
 
 pub(crate) fn validate(
     parsed: &ParsedStatement,

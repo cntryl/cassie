@@ -57,6 +57,9 @@ pub(super) fn validate_function_calls(
             }
             continue;
         }
+        if crate::sql::functions::primitive_casts::candidate(&function).is_some() {
+            continue;
+        }
         let lookup = function.name.to_ascii_lowercase();
         let Some(metadata) = user_functions.get(&lookup) else {
             return Err(CassieError::Planner(format!(

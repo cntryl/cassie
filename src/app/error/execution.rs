@@ -38,17 +38,11 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message.eq_ignore_ascii_case("division by zero") {
         return bad_request_descriptor("22012", message.to_string());
     }
-    if message.starts_with("invalid input syntax for type boolean:") {
+    if scalar_input_syntax(message) {
         return bad_request_descriptor("22P02", message.to_string());
     }
-    if matches!(
-        message,
-        "invalid input syntax for type smallint"
-            | "invalid input syntax for type integer"
-            | "invalid input syntax for type bigint"
-    ) || message.starts_with("invalid input syntax for type integer:")
-    {
-        return bad_request_descriptor("22P02", message.to_string());
+    if scalar_input_range(message) {
+        return bad_request_descriptor("22003", message.to_string());
     }
     if boolean_argument_error(message) {
         return bad_request_descriptor("42804", message.to_string());
@@ -63,6 +57,9 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
         && message.ends_with(" is not an aggregate function")
     {
         return bad_request_descriptor("42809", message.to_string());
+    }
+    if message == "aggregate functions are not allowed in VALUES" {
+        return bad_request_descriptor("42803", message.to_string());
     }
     if message == "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
     {
@@ -103,6 +100,37 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
         return resource_limit_descriptor(message.to_string());
     }
     bad_request_descriptor("22000", message.to_string())
+}
+
+fn scalar_input_range(message: &str) -> bool {
+    message.starts_with("value \"") && message.contains(" is out of range for type ")
+        || message.starts_with('"')
+            && message.ends_with(" is out of range for type double precision")
+}
+
+fn scalar_input_syntax(message: &str) -> bool {
+    if matches!(
+        message,
+        "invalid input syntax for type smallint"
+            | "invalid input syntax for type integer"
+            | "invalid input syntax for type bigint"
+    ) {
+        return true;
+    }
+    message
+        .strip_prefix("invalid input syntax for type ")
+        .is_some_and(|tail| {
+            [
+                "boolean:",
+                "smallint:",
+                "integer:",
+                "bigint:",
+                "double precision:",
+                "uuid:",
+            ]
+            .iter()
+            .any(|prefix| tail.starts_with(prefix))
+        })
 }
 
 fn boolean_argument_error(message: &str) -> bool {

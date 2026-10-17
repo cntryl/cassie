@@ -52,6 +52,9 @@ impl Fold<'_, '_> {
                 return Ok(Summary::known(16));
             }
         }
+        if let Some(summary) = self.type_function_summary(function, frame)? {
+            return Ok(summary);
+        }
         let metadata = functions::function(&function.name)
             .filter(|metadata| metadata.arity.matches(function.args.len()));
         if metadata.is_some_and(|metadata| !metadata.is_aggregate) {
@@ -75,6 +78,44 @@ impl Fold<'_, '_> {
             return Ok(summary);
         }
         self.apply_input_signature(function, metadata, frame)
+    }
+
+    fn type_function_summary(
+        &mut self,
+        function: &ast::FunctionCall,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        let Some(cast) = functions::primitive_casts::candidate(function) else {
+            return Ok(None);
+        };
+        if let ast::Expr::StringLiteral(input) = &function.args[0] {
+            self.validate_type_function_literal(input, &cast.data_type)?;
+        }
+        let source = self.summaries.values[frame.start].oid;
+        // Unknown constants invoke type coercion; unresolved parameters still
+        // participate in native overload selection.
+        if !matches!(function.args[0], ast::Expr::Param(_)) {
+            return Ok(Some(Summary::known(oid(&cast.data_type))));
+        }
+        if matches!(source, 0 | 705) {
+            match cast.data_type {
+                DataType::Uuid => self
+                    .occurrences
+                    .undefined_function(cast.name, 1, Some(705))?,
+                DataType::Date | DataType::Timestamp => {
+                    self.occurrences.pending_type_function_input()?;
+                }
+                DataType::Text | DataType::Varchar { .. } => {
+                    self.occurrences.coerce(
+                        &mut self.summaries.values[frame.start],
+                        oid(&cast.data_type),
+                        true,
+                    )?;
+                }
+                _ => self.occurrences.ambiguous_function(cast.name)?,
+            }
+        }
+        Ok(Some(Summary::known(oid(&cast.data_type))))
     }
 
     fn apply_input_signature(
@@ -331,6 +372,27 @@ impl Fold<'_, '_> {
                     let Some((arguments, result)) = signature else {
                         return Ok(None);
                     };
+                    if let Some(cast) = functions::primitive_casts::candidate(function) {
+                        if arguments.len() == 1 && summaries.len() == 1 {
+                            let source = summaries[0].oid;
+                            if !matches!(source, 0 | 705) && source != oid(&arguments[0].data_type)
+                            {
+                                return Ok(None);
+                            }
+                            if matches!(source, 0 | 705)
+                                && cast.data_type != DataType::Uuid
+                                && !matches!(
+                                    arguments[0].data_type,
+                                    DataType::Text
+                                        | DataType::Varchar { .. }
+                                        | DataType::Char { .. }
+                                )
+                            {
+                                occurrences.pending_type_function_input()?;
+                                return Ok(Some(Summary::unqualified()));
+                            }
+                        }
+                    }
                     let mut qualified = arguments.len() == summaries.len();
                     for argument in arguments {
                         check_controls(self.controls)?;

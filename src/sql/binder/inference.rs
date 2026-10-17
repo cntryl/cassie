@@ -612,6 +612,22 @@ pub(crate) fn infer_function_return_type(
     parameter_types: &[i32],
 ) -> Option<DataType> {
     let name = function.name.to_ascii_lowercase();
+    if let Some(target) = crate::sql::functions::primitive_casts::candidate(function) {
+        let source = infer_expr_type(
+            &function.args[0],
+            source_schema,
+            user_functions,
+            parameter_types,
+        );
+        let exact = user_functions.get(&name).is_some_and(|metadata| {
+            metadata.args.len() == 1 && source.as_ref() == Some(&metadata.args[0].data_type)
+        });
+        if crate::sql::functions::primitive_casts::unknown_literal(&function.args[0])
+            || !exact && (!user_functions.contains_key(&name) || source.is_some())
+        {
+            return Some(target.data_type);
+        }
+    }
     if let Some(metadata) = user_functions.get(&name) {
         return Some(metadata.return_type.clone());
     }

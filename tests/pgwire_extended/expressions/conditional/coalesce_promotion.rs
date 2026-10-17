@@ -7,18 +7,23 @@ fn should_promote_coalesce_before_arithmetic_across_wire_formats() {
     let cases = [
         (
             "SELECT COALESCE(n, f) AS v FROM records",
-            "9007199254740992",
+            "9.007199254740992e+15",
             9_007_199_254_740_992_f64,
         ),
         (
             "SELECT COALESCE(n, f) - 1 AS v FROM records",
-            "9007199254740991",
+            "9.007199254740991e+15",
             9_007_199_254_740_991_f64,
         ),
         (
             "WITH c AS (SELECT COALESCE(n, f) AS v FROM records) SELECT v - 1 AS v FROM c",
-            "9007199254740991",
+            "9.007199254740991e+15",
             9_007_199_254_740_991_f64,
+        ),
+        (
+            "SELECT COALESCE(n - 1, f) AS v FROM records",
+            "9.007199254740992e+15",
+            9_007_199_254_740_992_f64,
         ),
     ];
     let cycles = [0, 1]
@@ -154,7 +159,7 @@ fn should_promote_coalesce_integer_parameters_after_scoped_type_resolution() {
             if format == 0 {
                 assert_eq!(
                     wire::data_rows(frames),
-                    vec![vec![Some("9007199254740991".into())]]
+                    vec![vec![Some("9.007199254740991e+15".into())]]
                 );
             } else {
                 let mut expected = vec![0, 1];
@@ -227,7 +232,7 @@ fn should_promote_coalesce_after_inferred_integer_parameter_cast() {
         if format == 0 {
             assert_eq!(
                 wire::data_rows(frames),
-                vec![vec![Some("9007199254740991".into())]]
+                vec![vec![Some("9.007199254740991e+15".into())]]
             );
         } else {
             let mut expected = vec![0, 1];
@@ -275,7 +280,7 @@ fn should_retain_resolved_coalesce_float_domain_across_nullable_carriers() {
             if format == 0 {
                 assert_eq!(
                     wire::data_rows(frames),
-                    vec![vec![Some("9007199254740991".into())]]
+                    vec![vec![Some("9.007199254740991e+15".into())]]
                 );
             } else {
                 let mut expected = vec![0, 1];
@@ -288,31 +293,73 @@ fn should_retain_resolved_coalesce_float_domain_across_nullable_carriers() {
 }
 
 #[test]
-fn should_preserve_explicit_float_cast_errors_for_nonfinite_coalesce_values() {
+fn should_preserve_nonfinite_values_given_explicit_float_cast_when_coalesce_selects_parameter() {
     // Arrange
-    let value = f64::INFINITY.to_be_bytes();
+    let cases = [
+        (f64::INFINITY, "Infinity"),
+        (f64::NEG_INFINITY, "-Infinity"),
+        (f64::NAN, "NaN"),
+    ];
     let sql = "SELECT CAST(COALESCE(n, $1) AS FLOAT) AS v FROM records";
     let cycles = [0, 1]
         .into_iter()
-        .map(|format| fixture::execute_cycle(sql, Some((701, 1, Some(&value))), format, true))
+        .flat_map(|format| {
+            cases.iter().map(move |(value, _)| {
+                fixture::execute_cycle(
+                    sql,
+                    Some((701, 1, Some(&value.to_be_bytes()))),
+                    format,
+                    true,
+                )
+            })
+        })
         .collect();
-
     // Act
     let batches = fixture::run_cycles(
-        "coalesce-promotion-explicit-float-cast",
+        "coalesce-explicit-native-float",
         &[
             ("CREATE TABLE records (n BIGINT)", vec![]),
             ("INSERT INTO records VALUES (NULL)", vec![]),
         ],
         cycles,
     );
+    // Assert
+    for (format, group) in [0, 1].into_iter().zip(batches.chunks(cases.len())) {
+        for ((value, text), frames) in cases.iter().zip(group) {
+            fixture::assert_success(frames);
+            fixture::assert_single_column_descriptors(frames, (701, 8, -1), format, true);
+            if format == 0 {
+                assert_eq!(
+                    wire::data_rows(frames),
+                    vec![vec![Some((*text).to_owned())]]
+                );
+            } else {
+                let mut expected = vec![0, 1];
+                expected.extend_from_slice(&8_i32.to_be_bytes());
+                expected.extend_from_slice(&value.to_be_bytes());
+                assert_eq!(fixture::data_row_payloads(frames), vec![expected]);
+            }
+        }
+    }
+}
 
+#[test]
+fn should_reject_invalid_float_text_given_explicit_cast_when_coalesce_selects_text() {
+    // Arrange
+    let sql = "SELECT CAST(COALESCE(NULL::TEXT,'not a float') AS FLOAT8) AS v";
+    let cycles = [0, 1]
+        .map(|format| fixture::execute_cycle(sql, None, format, true))
+        .to_vec();
+    // Act
+    let batches = fixture::run_cycles("coalesce-explicit-invalid-float", &[], cycles);
     // Assert
     for frames in batches {
-        assert_eq!(wire::error_code(&frames).as_deref(), Some("22000"));
-        assert!(frames.iter().any(|(tag, body)| *tag == b'E'
-            && String::from_utf8_lossy(body).contains("cannot cast value to FLOAT")));
-        assert_eq!(wire::data_rows(&frames), Vec::<Vec<Option<String>>>::new());
+        assert_eq!(wire::error_code(&frames).as_deref(), Some("22P02"));
+        assert!(!frames.iter().any(|(tag, _)| matches!(tag, b'D' | b'C')));
+        assert_eq!(
+            frames.last().map(|frame| frame.1.as_slice()),
+            Some(&b"I"[..])
+        );
     }
 }
 

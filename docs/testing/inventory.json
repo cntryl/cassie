@@ -230,9 +230,9 @@
     ],
     "files": 1736,
     "rust_files": 1705,
-    "rust_test_declarations": 8530,
+    "rust_test_declarations": 8531,
     "python_test_declarations": 16,
-    "registered_rust_instances": 8658,
+    "registered_rust_instances": 8659,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -87195,7 +87195,7 @@
       "name": "should_promote_coalesce_before_arithmetic_across_wire_formats",
       "current_file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
       "line": 5,
-      "end_line": 64,
+      "end_line": 69,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -87225,8 +87225,8 @@
       "id": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs::should_preserve_nonfinite_float_parameters_without_implicit_explicit_casts",
       "name": "should_preserve_nonfinite_float_parameters_without_implicit_explicit_casts",
       "current_file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
-      "line": 67,
-      "end_line": 115,
+      "line": 72,
+      "end_line": 120,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -87256,8 +87256,8 @@
       "id": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs::should_promote_coalesce_integer_parameters_after_scoped_type_resolution",
       "name": "should_promote_coalesce_integer_parameters_after_scoped_type_resolution",
       "current_file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
-      "line": 118,
-      "end_line": 167,
+      "line": 123,
+      "end_line": 172,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -87287,8 +87287,8 @@
       "id": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs::should_reject_incompatible_later_coalesce_parameter_even_on_empty_input",
       "name": "should_reject_incompatible_later_coalesce_parameter_even_on_empty_input",
       "current_file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
-      "line": 170,
-      "end_line": 195,
+      "line": 175,
+      "end_line": 200,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -87318,8 +87318,8 @@
       "id": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs::should_promote_coalesce_after_inferred_integer_parameter_cast",
       "name": "should_promote_coalesce_after_inferred_integer_parameter_cast",
       "current_file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
-      "line": 198,
-      "end_line": 239,
+      "line": 203,
+      "end_line": 244,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -87349,8 +87349,8 @@
       "id": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs::should_retain_resolved_coalesce_float_domain_across_nullable_carriers",
       "name": "should_retain_resolved_coalesce_float_domain_across_nullable_carriers",
       "current_file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
-      "line": 242,
-      "end_line": 288,
+      "line": 247,
+      "end_line": 293,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -87377,11 +87377,11 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs::should_preserve_explicit_float_cast_errors_for_nonfinite_coalesce_values",
-      "name": "should_preserve_explicit_float_cast_errors_for_nonfinite_coalesce_values",
+      "id": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs::should_preserve_nonfinite_values_given_explicit_float_cast_when_coalesce_selects_parameter",
+      "name": "should_preserve_nonfinite_values_given_explicit_float_cast_when_coalesce_selects_parameter",
       "current_file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
-      "line": 291,
-      "end_line": 317,
+      "line": 296,
+      "end_line": 344,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -87389,7 +87389,38 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "coalesce_promotion::should_preserve_explicit_float_cast_errors_for_nonfinite_coalesce_values"
+          "name": "coalesce_promotion::should_preserve_nonfinite_values_given_explicit_float_cast_when_coalesce_selects_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "expressions/conditional",
+        "directory": "tests/pgwire_extended/expressions/conditional",
+        "file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs::should_reject_invalid_float_text_given_explicit_cast_when_coalesce_selects_text",
+      "name": "should_reject_invalid_float_text_given_explicit_cast_when_coalesce_selects_text",
+      "current_file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
+      "line": 347,
+      "end_line": 364,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "coalesce_promotion::should_reject_invalid_float_text_given_explicit_cast_when_coalesce_selects_text"
         }
       ],
       "attributes": [
@@ -87411,8 +87442,8 @@
       "id": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs::should_keep_prepared_integer_arithmetic_exact_before_coalesce",
       "name": "should_keep_prepared_integer_arithmetic_exact_before_coalesce",
       "current_file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
-      "line": 320,
-      "end_line": 374,
+      "line": 367,
+      "end_line": 421,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -276892,9 +276923,9 @@
       "current_file": "tests/pgwire_extended/expressions/conditional/coalesce_promotion.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 374,
-      "sha256": "5cbbaca7bcfa77c96af5de286eceaae03e037897b9a3f6d1e231d3003f46b3af",
-      "test_declarations": 8,
+      "lines": 421,
+      "sha256": "67948ea6fa5e5c5f4ce590fa5394df041af0d49265405fba1ec3c5ffa5485e2c",
+      "test_declarations": 9,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -276908,7 +276939,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 181,
-      "sha256": "2f885fd6474cfad1c25d6851d38dca024607bfc3de97fd3aa322a9453f65946a",
+      "sha256": "d405ed5454c6232f680ec7b5b5daedb520249eb165a5e36af215695196112712",
       "test_declarations": 4,
       "registered_suites": [
         "pgwire_extended"

@@ -73,13 +73,13 @@ fn should_preserve_conditional_descriptors_across_wire_formats() {
         (
             "SELECT NULLIF(COALESCE(CAST(9007199254740993 AS BIGINT), CAST(NULL AS FLOAT)), CAST(NULL AS FLOAT)) AS v",
             (701, 8, -1),
-            "9007199254740992",
+            "9.007199254740992e+15",
             Some(9_007_199_254_740_992_f64.to_be_bytes().to_vec()),
         ),
         (
             "WITH derived AS (SELECT COALESCE(CAST(9007199254740993 AS BIGINT), CAST(NULL AS FLOAT)) AS v) SELECT GREATEST(v, CAST(NULL AS FLOAT)) AS v FROM derived",
             (701, 8, -1),
-            "9007199254740992",
+            "9.007199254740992e+15",
             Some(9_007_199_254_740_992_f64.to_be_bytes().to_vec()),
         ),
     ];

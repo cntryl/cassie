@@ -2798,3 +2798,27 @@ controls. Final review selected validation 0.89, provenance 0.04, overlay 0.01,
 errors 0.00 and insufficient evidence 0.06. Actual probes and required analyzers
 support this scoped outcome. Raw logs remain in ignored
 `target/autopilot-batch-12-*`; no full repository or owner acceptance is claimed.
+
+
+### Autopilot batch 13: Native conditional FLOAT8 fixtures (2026-10-17)
+
+This test-only correction follows pinned PostgreSQL 18.6 scientific FLOAT8
+text and successful Infinity, -Infinity and NaN casts. Exact binary float
+payloads, OID 701, size 8 and integer-only expectations remain asserted.
+An arithmetic counterprobe distinguishes promotion before subtraction from
+integer subtraction before promotion. Invalid float text still requires
+22P02 with no rows or completion and idle recovery. The real empty-table
+GREATEST integer/boolean type-error failure is unchanged.
+
+The previous COALESCE filter was 3 passing/5 failing. Ordered build, all nine
+COALESCE tests, conditional descriptor test, full strict workspace/all-target/
+all-feature pedantic Clippy, formatting, touched/global test validators,
+inventory, documentation and whitespace checks pass. No production source
+changed; the earlier full-library and cumulative wire results are references,
+not repeated runs. Full repository acceptance remains pending.
+
+Jev's initial gap 0.35 prompted the arithmetic timing counterprobe against
+native receipts. Final review selected checkpoint 0.93, arithmetic 0.05,
+nonfinite 0.01 and insufficient evidence 0.01. Raw receipts and ordered logs
+remain in ignored `target/autopilot-conditional-*` and
+`target/autopilot-batch-13-*`.

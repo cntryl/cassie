@@ -602,3 +602,21 @@ BYTEA input/escape/session output, wider casts and functions, BIT/VARBIT,
 network/UUID/hash/LSN families, complex/parameterized CTE planning and complete
 resource/restart behavior. JSON/Vector parameters remain variable in this new
 bound constant check; their broader qualification is not claimed.
+
+### Selected BYTEA text input (2026-10-16)
+
+Ordinary UTF-8 input, octal escapes 000–377, doubled backslashes and hex input
+now canonicalize through one borrowed parser used by SQL casts and text Bind.
+Hex whitespace is permitted between pairs, with native invalid-digit/odd-length
+precedence. Malformed escapes report 22P02; malformed hex reports 22023, with
+selected native ASCII diagnostics. Quoted errors occur during Parse, including
+dead CASE arms; explicit TEXT constants and parameters reject at Bind and
+stored TEXT rejects during execution. Failed Bind preserves statement reuse.
+
+Both parameter input formats and output formats preserve BYTEA OID 17 and the
+full 256-byte octal domain. Stored-column, cache/error/NULL/recovery, result
+ownership, pre-cancellation and reached constant expansion probes accompany
+this slice. Private compiled plans rebuild at epoch 13; canonical stored values
+remain unchanged. Per-portal parameter retention, complete #849 qualification,
+non-ASCII diagnostic-byte fidelity, session BYTEA output and encode/decode or
+other binary functions remain pending. See [validation](testing/validation.md).

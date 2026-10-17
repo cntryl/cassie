@@ -161,3 +161,52 @@ fn should_deny_integer_bytea_constants_given_an_insufficient_budget_when_bind_ch
     assert_eq!(controls.peak_query_memory_bytes(), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_deny_expanding_bytea_input_given_a_small_budget_when_constant_output_is_allocated() {
+    // Arrange
+    let plan = logical(&format!(
+        "SELECT CAST('{}' AS TEXT)::BYTEA",
+        "a".repeat(100_000)
+    ));
+    let controls = controls(16384);
+    // Act
+    let result = check_plan(&plan, &controls).map_err(CassieError::from);
+    // Assert
+    assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
+    assert_eq!(controls.peak_query_memory_bytes(), 0);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_bytea_input_scratch_given_an_invalid_escape_when_planning_rejects_the_input() {
+    // Arrange
+    let plan = logical("SELECT CAST('\\400' AS TEXT)::BYTEA");
+    let controls = controls(16384);
+    // Act
+    let result = check_plan(&plan, &controls).map_err(CassieError::from);
+    // Assert
+    assert_eq!(
+        result
+            .expect_err("invalid octal escape")
+            .descriptor()
+            .sql_state,
+        "22P02"
+    );
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_skip_expanding_bytea_input_given_a_dead_branch_when_constant_memory_is_small() {
+    // Arrange
+    let plan = logical(&format!(
+        "SELECT CASE WHEN FALSE THEN CAST('{}' AS TEXT)::BYTEA ELSE NULL::BYTEA END",
+        "a".repeat(100_000)
+    ));
+    let controls = controls(16384);
+    // Act
+    let result = check_plan(&plan, &controls);
+    // Assert
+    result.expect("dead conversion allocates no output");
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

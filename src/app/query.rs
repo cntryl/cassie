@@ -11,8 +11,8 @@ use super::{
 // Discard compiled plans from earlier Boolean/conditional binding and literal-only pagination.
 // Alias namespaces, expression bounds, concrete integer signatures and numeric
 // unary binding, FETCH pagination, set quantifiers, typed VALUES and explicit
-// VARCHAR typmods and integer/BYTEA source widths share this rebuildable cache epoch.
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 12;
+// BYTEA text-input semantics share this rebuildable compiled-plan cache epoch.
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 13;
 
 pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,

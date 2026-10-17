@@ -5,12 +5,15 @@ use super::{
 use crate::sql::ast::{BinaryOp, FunctionCall};
 use crate::sql::functions::{function, is_immutable_scalar, FunctionId};
 
+type CastAdmission<'a> = dyn Fn(&Expr) -> Result<(), QueryError> + 'a;
+
 type ParameterResolver<'a> = dyn Fn(usize) -> Result<Option<ScalarValue>, QueryError> + 'a;
 
 #[derive(Clone, Copy)]
 struct ConstantContext<'a> {
     evaluation: EvalContext<'a>,
     parameter: Option<&'a ParameterResolver<'a>>,
+    admit_cast: Option<&'a CastAdmission<'a>>,
 }
 
 pub(super) fn value<R: RowAccess + ?Sized>(
@@ -24,6 +27,7 @@ pub(super) fn value<R: RowAccess + ?Sized>(
         ConstantContext {
             evaluation: context,
             parameter: None,
+            admit_cast: None,
         },
     )
 }
@@ -43,6 +47,7 @@ pub(super) fn logical<R: RowAccess + ?Sized>(
         ConstantContext {
             evaluation: context,
             parameter: None,
+            admit_cast: None,
         },
     )
 }
@@ -92,6 +97,9 @@ fn resolve<R: RowAccess + ?Sized>(
             source_type,
             identity,
         } => {
+            if let Some(admit) = context.admit_cast {
+                admit(expr)?;
+            }
             if let Expr::NumericLiteral(input) = child.as_ref() {
                 return super::casts::numeric_literal(input, data_type, *identity).map(Some);
             }
@@ -322,10 +330,6 @@ fn between<R: RowAccess + ?Sized>(
     }
 }
 
-pub(crate) fn constant_scalar(expression: &Expr) -> Result<Option<ScalarValue>, QueryError> {
-    evaluate_constant(expression, &[], None)
-}
-
 pub(crate) fn constant_scalar_with_parameters(
     expression: &Expr,
     parameters: &[super::Value],
@@ -348,7 +352,14 @@ pub(crate) fn constant_scalar_with_parameters(
             .try_grow(mul(value_clone_bytes(value)?, 4)?)?;
         Ok(Some(super::scalar_from_value(value)))
     };
-    let value = evaluate_constant(expression, parameters, Some(&parameter))?;
+    let admit_cast = |expr: &Expr| {
+        controls.check_interruption()?;
+        memory
+            .borrow_mut()
+            .try_grow(super::casts::bytea_literal_scratch(expr)?)?;
+        Ok(())
+    };
+    let value = evaluate_constant(expression, parameters, Some(&parameter), Some(&admit_cast))?;
     Ok((value, memory.into_inner()))
 }
 
@@ -356,6 +367,7 @@ fn evaluate_constant(
     expression: &Expr,
     parameters: &[super::Value],
     parameter: Option<&ParameterResolver<'_>>,
+    admit_cast: Option<&CastAdmission<'_>>,
 ) -> Result<Option<ScalarValue>, QueryError> {
     let functions = super::HashMap::new();
     let row: Vec<(String, super::Value)> = Vec::new();
@@ -372,6 +384,7 @@ fn evaluate_constant(
                 exists: None,
             },
             parameter,
+            admit_cast,
         },
     )
 }

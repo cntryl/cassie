@@ -1,6 +1,7 @@
 pub(crate) mod array;
 pub(crate) mod boolean;
 pub(crate) mod builtin;
+pub(crate) mod bytea_input;
 pub mod char_text;
 pub(crate) mod float_input;
 pub(crate) mod float_text;
@@ -17,6 +18,7 @@ pub mod value;
 pub mod vector;
 
 pub use boolean::BooleanInputError;
+pub use bytea_input::ByteaInputError;
 pub use float_input::FloatInputError;
 pub use integer::{IntegerOperation, IntegerWidth};
 pub use integer_bytea::IntegerByteaError;

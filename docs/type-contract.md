@@ -501,3 +501,27 @@ uses the same bound-value law. Fixed integer/BYTEA output scratch is admitted
 before constant allocation. JSON/Vector parameters remain variable; complete
 family, CTE and resource qualification is still pending. Executed evidence is
 recorded in [validation.md](testing/validation.md).
+
+Selected BYTEA input checkpoint: SQL casts and typed text Bind now share
+borrowed hex/escape validation. Ordinary UTF-8 bytes, doubled backslashes and
+three-digit octal escapes (000–377) canonicalize to the existing lower-case
+hex Value::String. Hex input accepts space/tab/CR/LF between complete pairs;
+whitespace within a pair, form feed and vertical tab reject. Native error
+precedence is retained: malformed escape input is 22P02; invalid hex digits
+and odd input lengths are 22023. ByteaInputError is an additive typed public
+error; selected ASCII diagnostic messages match the native oracle.
+
+Quoted invalid BYTEA inputs fail analysis even in dead CASE arms. Explicit
+TEXT conversions and typed parameters fail at Bind when constant, or at row
+execution for stored TEXT. A failed Bind preserves the prepared statement for
+valid reuse. Text and binary inputs produce the same OID 17 and canonical
+text/raw-byte binary results, including the full 256-byte octal domain.
+
+Reached direct literal/cast-chain constant expansion is admitted before
+allocation through the existing lazy evaluator. The focused dead CASE probe
+caught structural overcharging and now passes through reached-cast admission.
+Bound primitive copies retain their existing admission law. Per-portal decoded
+parameter retention and complete transport/resource qualification remain under
+#849; this checkpoint does not establish them. Compiled plans rebuild at epoch
+13. No persistent type or layout is changed. Fixed encode/decode signatures,
+session BYTEA output selection and wider #803/#816 functions remain open.

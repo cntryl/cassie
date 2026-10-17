@@ -5,7 +5,6 @@
 //! canonicalizes its text form here the way `binary_to_value` does, and
 //! accepts exactly the spellings the PostgreSQL input function accepts.
 
-use super::super::codecs::{decode_bytea, hex_bytea};
 use super::ExtendedQueryError;
 use crate::types::builtin::{builtin_for_oid, BuiltinKind};
 use crate::types::temporal::{canonical_date, canonical_time, canonical_timestamp};
@@ -49,9 +48,9 @@ pub(super) fn decode_text_parameter(
         Some(BuiltinKind::Uuid) => uuid::Uuid::parse_str(text.trim())
             .map(|uuid| Value::String(uuid.to_string()))
             .map_err(|_| ExtendedQueryError::protocol("invalid uuid bind parameter")),
-        Some(BuiltinKind::Bytea) => decode_bytea(text)
-            .map(|bytes| Value::String(hex_bytea(&bytes)))
-            .map_err(|_| ExtendedQueryError::protocol("invalid bytea bind parameter")),
+        Some(BuiltinKind::Bytea) => crate::types::bytea_input::canonical(text)
+            .map(Value::String)
+            .map_err(|error| ExtendedQueryError::cassie(&error.into())),
         _ => match crate::sql::binder::parameter_data_type_for_oid(oid) {
             Some(DataType::Array(element_type)) => {
                 crate::types::array::parse_text_array(text, &element_type)

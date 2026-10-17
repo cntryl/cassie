@@ -276,3 +276,15 @@ mod bytea_decode_int8;
 
 #[path = "sql_queries/casts/bytea_controls.rs"]
 mod bytea_cast_controls;
+
+#[path = "sql_queries/casts/bytea_input_literal.rs"]
+mod bytea_input_literal;
+
+#[path = "sql_queries/casts/bytea_input_text.rs"]
+mod bytea_input_text;
+
+#[path = "sql_queries/casts/bytea_input_cte.rs"]
+mod bytea_input_cte;
+
+#[path = "sql_queries/casts/bytea_input_controls.rs"]
+mod bytea_input_controls;

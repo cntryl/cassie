@@ -185,3 +185,27 @@ pub(crate) fn cast_scratch_bytes(expr: &crate::sql::ast::Expr) -> Result<usize, 
     })?;
     Ok(bytes)
 }
+
+/// Text input can expand twofold into the canonical hex carrier. Reserve
+/// both evaluator/result copies before conversion; bound parameters already
+/// reserve their reached copies through the lazy constant resolver.
+pub(super) fn bytea_literal_scratch(expr: &crate::sql::ast::Expr) -> Result<usize, QueryError> {
+    use crate::executor::retained_memory::{add, mul};
+    let crate::sql::ast::Expr::Cast {
+        expr,
+        data_type: DataType::Bytea,
+        ..
+    } = expr
+    else {
+        return Ok(0);
+    };
+    let mut input = expr.as_ref();
+    while let crate::sql::ast::Expr::Cast { expr, .. } = input {
+        input = expr;
+    }
+    if let crate::sql::ast::Expr::StringLiteral(text) = input {
+        Ok(mul(add(2, mul(text.len(), 2)?)?, 2)?)
+    } else {
+        Ok(0)
+    }
+}

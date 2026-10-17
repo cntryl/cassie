@@ -298,3 +298,39 @@ mod support_bytea_cast_planning;
 
 #[path = "support/bytea_parameter_recovery.rs"]
 mod support_bytea_parameter_recovery;
+
+#[path = "pgwire_extended/types/bit_bytea/input_literal.rs"]
+mod bytea_input_literal;
+
+#[path = "pgwire_extended/types/bit_bytea/input_text.rs"]
+mod bytea_input_text;
+
+#[path = "pgwire_extended/types/bit_bytea/input_cte.rs"]
+mod bytea_input_cte;
+
+#[path = "pgwire_extended/types/bit_bytea/input_errors_scalar.rs"]
+mod bytea_input_errors_scalar;
+
+#[path = "pgwire_extended/types/bit_bytea/input_errors_dead.rs"]
+mod bytea_input_errors_dead;
+
+#[path = "pgwire_extended/types/bit_bytea/input_errors_cte.rs"]
+mod bytea_input_errors_cte;
+
+#[path = "pgwire_extended/types/bit_bytea/input_errors_text.rs"]
+mod bytea_input_errors_text;
+
+#[path = "pgwire_extended/types/bit_bytea/input_parameter_errors.rs"]
+mod bytea_input_parameter_errors;
+
+#[path = "support/bytea_input_errors.rs"]
+mod support_bytea_input_errors;
+
+#[path = "pgwire_extended/types/bit_bytea/input_parameters.rs"]
+mod bytea_input_parameters;
+
+#[path = "pgwire_extended/types/bit_bytea/input_precedence.rs"]
+mod bytea_input_precedence;
+
+#[path = "pgwire_extended/types/bit_bytea/input_allbytes.rs"]
+mod bytea_input_allbytes;

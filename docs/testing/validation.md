@@ -1662,3 +1662,84 @@ parameterized CTE planning are not completed by this checkpoint. Known Boolean
 aggregate cancellation remains unqualified. Full repository/hosted green is
 not established. Native receipts, advisory requests/responses and logs are
 under ignored `target/green-byteacasts-*`.
+
+### BYTEA hex/escape input checkpoint (2026-10-16)
+
+Building on `f7ccbd89`, SQL BYTEA casts and scalar text Bind now share borrowed
+input validation. Ordinary UTF-8 bytes, octal escapes 000–377, doubled
+backslashes and hex input canonicalize to the existing lower-case hex carrier.
+Hex whitespace is accepted between complete pairs; malformed escapes report
+22P02 and malformed hex reports 22023 with native invalid-digit/odd precedence.
+The additive public ByteaInputError/CassieError variants retain bounded typed
+diagnostics; selected ASCII messages match PostgreSQL. Compiled plans rebuild
+at epoch 13 without a persistent format, AST, storage or CI/release change.
+
+This bundle adds 224 functions: 167 wire, 54 SQL and three library controls.
+The initial 200 integration functions produced 184 failures and 16 passes.
+Native PostgreSQL 18.6 uses the unchanged pinned executable SHA256
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+Quoted invalid BYTEA fails at Parse even in dead CASE arms; explicit TEXT
+constants and parameters fail at Bind, and stored TEXT fails at execution.
+Both parameter input formats and output formats retain OID 17, native names,
+sizes, typmods and exact payload bytes. Failed Bind preserves the statement
+for a valid rebind. Stored-column assignment/read, cached good/error/NULL/good
+values, result-clone ownership and pre-cancellation probes accompany the matrix.
+
+The first memory probe exposed structural charging of a dead 100 KB literal
+conversion. Reached-cast admission in the existing lazy semantic evaluator
+corrected it: live expansion rejects before allocation under a small budget,
+dead expansion fits that budget, and invalid-input scratch releases. Unbound
+constant checks now also use the controlled semantic path; the unused private
+uncontrolled wrapper was removed. Existing generic fallback behavior remains.
+Preflight strict Clippy also caught item placement, corrected without lint
+suppression.
+
+Jev's design-gap question returned 0.78 and selected precedence probes: 12
+native/Rust cases cover invalid digit versus odd input, whitespace within pairs,
+octal followed by digits and UTF-8 byte interpretation. Review gap 0.50 selected
+carrier coverage: all 256 octal byte values pass native and Rust literal/OID 17/
+TEXT parameter paths across output formats, including non-UTF8 binary bytes.
+Final advisory dispositions are carrier probed 1.0 and selected resource scope
+1.0. Per-portal decoded parameter retention and complete transport/resource
+qualification remain open under #849; no complete resource claim is made.
+
+The ordered gate ran after all production fixes with CARGO_INCREMENTAL=0:
+
+- `cargo build --locked --bin cassie`: passed (26.36 seconds).
+- `cargo test --locked`: library 1,024/0, analytics 179/0, backend 2/0 and
+  benchmark operations 16/0. Stops at catalog/security 139/209 after 436.45
+  seconds; all 209 failure identities match `f7ccbd89`. Later targets compile
+  but do not execute in this command.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  passed without suppression or narrowing.
+- `cargo fmt --all -- --check`: passed.
+- `cntryl-tools validate-tests -f <path>`: all 20 touched test/support/root
+  files pass the final validator run. Global validator: 8,325/8,325 compliant source tests.
+- Fresh Cargo artifact metadata identifies final binaries. All 224 new
+  functions pass. Expanded SQL is 746/29 and wire 1,179/55, with no newly
+  failing previously selected tests. Retained SQL BYTEA input-format and wire
+  malformed-text Bind SQLSTATE tests now pass; the other failures remain open.
+- Complete parser remains 299/74 with unchanged failure identities. The first
+  core-wire run exposed one stale assertion expecting 08P01 for odd BYTEA hex.
+  An identical native prepared query/frame sequence confirms Bind 22023 and
+  `invalid hexadecimal data: odd number of digits`. The assertion now pins
+  that state and exact message; unrelated legacy UUID expectations are retained.
+  The final ordered gate repeats after this correction: build passes in 0.13
+  seconds; full locked tests again reach the same 139/209 catalog outcome in
+  270.75 seconds after 1,024/0 library and the same clean earlier suites.
+  Full strict Clippy and formatting pass. Complete core wire returns 74/10
+  with the same remaining failure identities as `f7ccbd89`.
+- Inventory refresh/check and whitespace pass. Exactly 221 integration IDs
+  are added and none removed. Two existing inventory line ranges update for
+  the strengthened core BYTEA assertion and its following test. Inventory contains
+  7,438 integration registrations plus 1,024 library functions; these are
+  instance counts, not passing-test totals. All touched Rust files satisfy
+  their limits. Untouched exceptions remain src/config.rs (1,034) and
+  src/midge/adapter/verification.rs (1,002). No benchmark timing is claimed.
+
+Complete #793/#803/#816/#849 acceptance remains open. encode/decode and wider
+binary functions, session BYTEA output selection, non-ASCII diagnostic-byte
+fidelity, wider casts/types, complex CTE planning and full resource/restart
+qualification are pending obligations. Full repository and hosted green are
+not established. Native receipts, advisory requests/responses and complete logs
+are under ignored `target/green-byteainput-*`.

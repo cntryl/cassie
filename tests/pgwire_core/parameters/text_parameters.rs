@@ -242,7 +242,19 @@ fn should_canonicalize_text_uuid_bytea_parameters_like_binary_ones() {
     assert_eq!(first_column(&batches[1]), keys(&["1"]));
     assert_eq!(first_column(&batches[2]), keys(&["1"]));
     assert_eq!(support::error_code(&batches[3]).as_deref(), Some("08P01"));
-    assert_eq!(support::error_code(&batches[4]).as_deref(), Some("08P01"));
+    // PostgreSQL byteain reports odd hex data as a semantic input error.
+    assert_eq!(support::error_code(&batches[4]).as_deref(), Some("22023"));
+    let fields = support::parse_error_fields(
+        &batches[4]
+            .iter()
+            .find(|frame| frame.0 == b'E')
+            .expect("BYTEA input error")
+            .1,
+    );
+    assert!(fields
+        .iter()
+        .any(|(field, value)| *field == 'M'
+            && value == "invalid hexadecimal data: odd number of digits"));
 }
 
 #[test]

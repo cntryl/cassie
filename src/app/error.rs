@@ -78,6 +78,9 @@ pub enum CassieError {
     #[error(transparent)]
     IntegerBytea(#[from] crate::types::IntegerByteaError),
 
+    #[error(transparent)]
+    ByteaInput(#[from] crate::types::ByteaInputError),
+
     #[error("collection not found: {0}")]
     CollectionNotFound(String),
 
@@ -214,6 +217,7 @@ impl CassieError {
             Self::BooleanInput(error) => bad_request_descriptor("22P02", error.to_string()),
             Self::FloatInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::IntegerBytea(error) => bad_request_descriptor("22003", error.to_string()),
+            Self::ByteaInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::CollectionNotFound(table) => missing_relation_descriptor(table),
             Self::CatalogObjectNotFound { kind, name } => {
                 missing_catalog_object_descriptor(*kind, name, self.to_string())

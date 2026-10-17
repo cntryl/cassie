@@ -31,6 +31,7 @@ pub(crate) fn validate(
             });
     }
     match target {
+        DataType::Bytea => crate::types::bytea_input::validate(input).map_err(CassieError::from),
         DataType::Float => crate::types::float_input::parse(input)
             .map(|_| ())
             .map_err(CassieError::from),

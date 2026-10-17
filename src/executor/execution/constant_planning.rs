@@ -265,14 +265,13 @@ impl Folder<'_> {
         let _cast_memory = self
             .controls
             .reserve_query_memory(filter::cast_scratch_bytes(expr)?)?;
-        let (constant, _parameter_memory) = match self.parameters {
-            Some(parameters) => {
-                match filter::constant_scalar_with_parameters(expr, parameters, self.controls) {
-                    Ok((value, memory)) => (Ok(value), Some(memory)),
-                    Err(error) => (Err(error), None),
-                }
-            }
-            None => (filter::constant_scalar(expr), None),
+        let (constant, _constant_memory) = match filter::constant_scalar_with_parameters(
+            expr,
+            self.parameters.unwrap_or(&[]),
+            self.controls,
+        ) {
+            Ok((value, memory)) => (Ok(value), Some(memory)),
+            Err(error) => (Err(error), None),
         };
         match constant {
             Ok(Some(value)) => return Ok(Some(value)),
@@ -685,6 +684,7 @@ fn is_folding_error(error: &QueryError) -> bool {
             crate::app::CassieError::FloatInput(_)
                 | crate::app::CassieError::BooleanInput(_)
                 | crate::app::CassieError::IntegerBytea(_)
+                | crate::app::CassieError::ByteaInput(_)
                 | crate::app::CassieError::ResourceLimit(_)
                 | crate::app::CassieError::QueryCancelled
                 | crate::app::CassieError::DeadlineExceeded

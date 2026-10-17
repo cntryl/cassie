@@ -96,7 +96,8 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::Execution(_)
         | CassieError::FloatInput(_)
         | CassieError::BooleanInput(_)
-        | CassieError::IntegerBytea(_) => "execution",
+        | CassieError::IntegerBytea(_)
+        | CassieError::ByteaInput(_) => "execution",
         CassieError::Transaction { .. } => "transaction",
         CassieError::DeadlineExceeded => "deadline_exceeded",
         CassieError::QueryCancelled => "query_cancelled",

@@ -298,7 +298,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
 mod casts;
 #[path = "filter/constants.rs"]
 mod constants;
-pub(crate) use constants::{constant_scalar, constant_scalar_with_parameters};
+pub(crate) use constants::constant_scalar_with_parameters;
 #[path = "filter/row_predicates.rs"]
 mod row_predicates;
 pub(crate) use row_predicates::field_result as row_field_result;
@@ -453,11 +453,9 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             let value = value
                 .as_str()
                 .ok_or_else(|| QueryError::General("cannot cast value to BYTEA".to_string()))?;
-            decode_bytea(value)?;
-            Ok(ScalarValue::Str(format!(
-                "\\x{}",
-                value[2..].to_ascii_lowercase()
-            )))
+            crate::types::bytea_input::canonical(value)
+                .map(ScalarValue::Str)
+                .map_err(|error| QueryError::Cassie(error.into()))
         }
         DataType::Uuid => {
             let value = value
@@ -535,27 +533,6 @@ fn cast_json_text(value: &ScalarValue) -> String {
         ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
         ScalarValue::Null => "null".to_string(),
     }
-}
-
-fn decode_bytea(value: &str) -> Result<(), QueryError> {
-    if !value.starts_with("\\x") {
-        return Err(QueryError::General(
-            "cannot cast value to BYTEA".to_string(),
-        ));
-    }
-    if (value.len() - 2).rem_euclid(2) != 0 {
-        return Err(QueryError::General(
-            "cannot cast value to BYTEA".to_string(),
-        ));
-    }
-    for byte in &value.as_bytes()[2..] {
-        if !byte.is_ascii_hexdigit() {
-            return Err(QueryError::General(
-                "cannot cast value to BYTEA".to_string(),
-            ));
-        }
-    }
-    Ok(())
 }
 
 fn binary_scalar(

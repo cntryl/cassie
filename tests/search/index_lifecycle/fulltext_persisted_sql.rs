@@ -2,7 +2,7 @@ use super::support_sql as support;
 
 use cassie::app::{Cassie, CassieError};
 use cassie::config::CassieRuntimeConfig;
-use cassie::runtime::QueryCancellationHandle;
+use cassie::runtime::{QueryCancellationHandle, QueryScoringTestBoundary};
 use cassie::types::Value;
 use std::sync::Arc;
 use std::time::Duration;
@@ -600,7 +600,7 @@ fn should_cancel_persisted_fulltext_scoring_at_a_candidate_boundary() {
             vec![],
         )
         .expect("create cancellation table");
-    let rows = (0..50_000)
+    let rows = (0..3)
         .map(|index| {
             (
                 Some(format!("cancel-{index:05}")),
@@ -619,29 +619,49 @@ fn should_cancel_persisted_fulltext_scoring_at_a_candidate_boundary() {
             vec![],
         )
         .expect("create cancellation index");
-    let cancellation = QueryCancellationHandle::new();
+    let before = cassie.metrics();
+    let mut cancellation = QueryCancellationHandle::new();
+    let (selected, resume) =
+        cancellation.pause_after_scored_candidate(QueryScoringTestBoundary::PersistedFulltext);
     let query_cancellation = cancellation.clone();
     let query_cassie = Arc::clone(&cassie);
     let query = std::thread::spawn(move || {
         let session = query_cassie.create_session("tester", None);
-        query_cassie.execute_sql_with_cancellation(
+        let result = query_cassie.execute_sql_with_cancellation(
                 &session,
                 "SELECT id, search_score(body, $1) AS score FROM persisted_cancel_docs WHERE search(body, $1) ORDER BY score DESC LIMIT 20",
                 vec![Value::String("alpha beta".to_string())],
                 &query_cancellation,
-            )
+            );
+        let after = query_cassie.metrics();
+        let recovery = query_cassie.execute_sql(
+            &session,
+            "SELECT id, search_score(body, $1) AS score FROM persisted_cancel_docs WHERE search(body, $1) ORDER BY score DESC LIMIT 20",
+            vec![Value::String("alpha beta".to_string())],
+        );
+        (result, after, recovery)
     });
-    std::thread::sleep(Duration::from_millis(10));
 
     // Act
+    let reached = selected.recv_timeout(Duration::from_secs(10));
+    let cancelled_before_boundary = cancellation.is_cancelled();
     cancellation.cancel();
-    let error = query
-        .join()
-        .expect("query thread")
-        .expect_err("persisted scoring should observe cancellation");
+    let _ = resume.send(());
+    let (result, after, recovery) = query.join().expect("query thread");
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    reached.expect("persisted full-text candidate was scored and retained");
+    assert!(!cancelled_before_boundary);
+    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+    assert_eq!(after["runtime"]["running_queries"], 0);
+    assert_eq!(after["runtime"]["active_operator_workers"], 0);
+    assert_eq!(
+        after["query"]["rows_returned_total"],
+        before["query"]["rows_returned_total"]
+    );
+    assert_eq!(recovery.expect("same-session recovery").rows().len(), 3);
+    drop(session);
     drop(cassie);
     let _ = std::fs::remove_dir_all(path);
 }

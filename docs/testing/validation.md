@@ -3113,3 +3113,71 @@ Commands/results are retained in `target/fast-tests-inventory-validation.json`;
 the final Python discovery result is in `target/fast-tests-inventory-discovery.log`. The repository's known
 feature failures and the absent benchmark-policy workflow remain separate open
 boundaries. Clearing source alerts does not itself establish hosted green.
+
+
+### Autopilot batch 19: Deterministic scoring cancellation (2026-10-17)
+
+This partial #954 slice replaces the implemented exact-vector and persisted
+full-text cancellation races. Each now uses three documents instead of 100,000
+and 50,000 respectively. Vector correctness uses explicit in-memory storage;
+full-text retains its local persisted index. Neither test sleeps to guess when
+scoring has started.
+
+A hidden, request-owned diagnostic pauses once after a scored candidate has
+entered the retained top-K state. The test observes that boundary, verifies the
+handle was not already cancelled, cancels externally, and resumes execution.
+Handle/control clones share the pause; unrelated requests and the other scoring
+operator cannot consume it. Disconnection and a ten-second diagnostic hang guard
+fail the query rather than leaving a blocked worker. Exact-vector scoring now
+checks interruption inside each candidate batch, including its overlay fallback;
+persisted full-text checks immediately after retaining a candidate.
+
+The original typed cancellation assertions remain. Both tests additionally prove
+zero retained query memory, no running queries or operator workers, no successful
+row publication, and same-session recovery with all three results. Focused
+regressions cover request/operator isolation, one-shot behavior through cloned
+controls, and both disconnected channel endpoints with recovery using the same
+handle. The new API was tested red at compilation before implementation; the
+original oversized tests passed before replacement (0.93 seconds vector and 0.95
+seconds full-text, excluding compilation).
+
+Jev selected request-owned synchronization (0.94 confidence). Adversarial gap
+0.61 selected disconnected endpoints; the focused SQL regression exercises both
+send failure and receive disconnection, verifies cleanup, and proves the consumed
+pause cannot poison reuse. All six aggregate cancellation fixtures remain under
+#954 and their pending feature owners #806/#811. This slice does not claim those
+features, wire cancellation qualification, or repository-wide green.
+
+Final ordered validation and after timings are recorded in
+`target/scoring19-validation.json` and the associated logs. Full vector coverage
+passes 172/172 (76.55 seconds); full search remains 64 passing / one known failure
+(31.78 seconds). Every prior passing identity is retained. The unchanged search
+budget case fails during its setup INSERT at 512 bytes, before scoring; it is not
+made green by weakening the cancellation slice. Eight runtime checks pass.
+
+The naming policy requested a narrower name for the request/operator isolation
+check. Only that unit-test name changed after the full suite runs; final ordered
+build, focused runtime/scoring tests, strict Clippy, formatting and policy checks
+are repeated for the final source. The benchmark validator remains blocked by
+the existing absent workflow; no CI configuration is changed.
+
+
+Final gates pass: locked build, 11 focused checks across library/vector/search,
+full strict workspace/all-target/all-feature Clippy, formatting, touched/global
+test policy, inventory, docs, module sizes and whitespace. Benchmark policy is
+still blocked by the missing `.github/workflows/bench.yml`, not passed. The final
+Jev review selects the disconnected-endpoint gap as addressed (probability 0.75,
+confidence 0.62); executable regressions remain the correctness evidence.
+
+| Cancellation case | Before execution | After execution | Fixture rows |
+| --- | --- | --- | --- |
+| Exact vector scoring | 0.93s | 0.00s at harness reporting resolution | 100,000 → 3 |
+| Persisted full-text scoring | 0.95s | 0.33s | 50,000 → 3 |
+
+These are local developer observations including fixture setup, excluding
+compilation, not production performance claims or timing assertions. Final
+individual probes launch the already-built binaries; process wall times were
+0.011s vector and 0.337s full-text. The whole vector suite retains its other
+fixtures and is not claimed faster by this two-case slice. Static inventory is
+8,811 Rust integration declarations / 8,939 registered instances; no unregistered,
+unresolved, duplicate or oversized files. Static counts are not executed results.

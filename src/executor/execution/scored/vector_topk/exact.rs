@@ -4,7 +4,7 @@ use std::time::Instant;
 use crate::app::{Cassie, CassieSession};
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{self, BatchRow};
-use crate::runtime::QueryExecutionControls;
+use crate::runtime::{QueryExecutionControls, QueryScoringTestBoundary};
 use crate::sql::ast::Expr;
 use crate::types::Value;
 
@@ -101,6 +101,9 @@ pub(super) fn execute_exact_vector_top_k(
             },
             top_needed,
         )?;
+        request
+            .controls
+            .scored_candidate(QueryScoringTestBoundary::ExactVector)?;
     }
     let (top, top_memory) = top.into_parts();
     let rows = vector_rows_from_top(top, spec);
@@ -182,6 +185,9 @@ fn stream_exact_vector_candidates(
                 },
                 spec.top_needed(),
             )?;
+            request
+                .controls
+                .scored_candidate(QueryScoringTestBoundary::ExactVector)?;
         }
     }
     if request.filter_expr.is_some() {

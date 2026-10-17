@@ -230,9 +230,9 @@
     ],
     "files": 1761,
     "rust_files": 1728,
-    "rust_test_declarations": 8810,
+    "rust_test_declarations": 8811,
     "python_test_declarations": 19,
-    "registered_rust_instances": 8938,
+    "registered_rust_instances": 8939,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -192352,7 +192352,7 @@
       "name": "should_cancel_persisted_fulltext_scoring_at_a_candidate_boundary",
       "current_file": "tests/search/index_lifecycle/fulltext_persisted_sql.rs",
       "line": 589,
-      "end_line": 647,
+      "end_line": 667,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -273403,7 +273403,7 @@
       "name": "should_cancel_during_exact_vector_scoring",
       "current_file": "tests/vector_embeddings/vectors/vector_query_stability.rs",
       "line": 488,
-      "end_line": 521,
+      "end_line": 543,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -273430,11 +273430,42 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/vectors/vector_query_stability.rs::should_release_scoring_pause_when_a_diagnostic_endpoint_disconnects",
+      "name": "should_release_scoring_pause_when_a_diagnostic_endpoint_disconnects",
+      "current_file": "tests/vector_embeddings/vectors/vector_query_stability.rs",
+      "line": 546,
+      "end_line": 594,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_query_stability::should_release_scoring_pause_when_a_diagnostic_endpoint_disconnects"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/vector_query_stability.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/vectors/vector_query_stability.rs::should_preserve_finite_l2_distances_for_ivfflat_magnitudes_above_f32_max",
       "name": "should_preserve_finite_l2_distances_for_ivfflat_magnitudes_above_f32_max",
       "current_file": "tests/vector_embeddings/vectors/vector_query_stability.rs",
-      "line": 524,
-      "end_line": 564,
+      "line": 597,
+      "end_line": 637,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -273464,8 +273495,8 @@
       "id": "tests/vector_embeddings/vectors/vector_query_stability.rs::should_preserve_finite_l2_distances_for_hnsw_magnitudes_above_f32_max",
       "name": "should_preserve_finite_l2_distances_for_hnsw_magnitudes_above_f32_max",
       "current_file": "tests/vector_embeddings/vectors/vector_query_stability.rs",
-      "line": 567,
-      "end_line": 607,
+      "line": 640,
+      "end_line": 680,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -293620,8 +293651,8 @@
       "current_file": "tests/search/index_lifecycle/fulltext_persisted_sql.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 647,
-      "sha256": "e0438ded69b3c1068a437e25f69ba30841bfec410dca26de67a1a1dcd0af72cb",
+      "lines": 667,
+      "sha256": "4ed7cc86d9bda5e9d24b0c69fa9452930d31b962e9c85ad7457cff978de55b3a",
       "test_declarations": 10,
       "registered_suites": [
         "search"
@@ -300803,9 +300834,9 @@
       "current_file": "tests/vector_embeddings/vectors/vector_query_stability.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 607,
-      "sha256": "4f0709e650deebc2f817d18063f1269d49885053c2f2920e42e67703264a6b3e",
-      "test_declarations": 13,
+      "lines": 680,
+      "sha256": "3759f9163eb9bec76f3dc986a81340489b6b2df6aa753f93f1ddca69ff483708",
+      "test_declarations": 14,
       "registered_suites": [
         "vector_embeddings"
       ],

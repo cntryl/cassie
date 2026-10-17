@@ -5,7 +5,7 @@ use std::time::Duration;
 use cassie::app::{Cassie, CassieError};
 use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig};
 use cassie::embeddings::{DistanceMetric, HnswIndexOptions, NormalizedVectorRecord};
-use cassie::runtime::QueryCancellationHandle;
+use cassie::runtime::{QueryCancellationHandle, QueryScoringTestBoundary};
 use cassie::types::{Value, Vector};
 
 use super::support_sql as support;
@@ -487,37 +487,110 @@ fn should_enforce_query_memory_budget_during_exact_vector_top_k() {
 #[test]
 fn should_cancel_during_exact_vector_scoring() {
     // Arrange
-    use_local_storage();
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("vector_exact_active_cancellation");
-    let cassie = Arc::new(vector_cassie(&path));
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.limits.execution_result_cache_enabled =
+        cassie::config::ExecutionResultCacheEnabled::disabled();
+    config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
+        model: "deterministic-test".to_string(),
+        dimensions: 3,
+    });
+    let cassie = Arc::new(Cassie::new_in_memory_with_config(config).expect("create Cassie"));
     let collection = "vector_exact_active_cancellation";
-    seed_vector_collection(&cassie, collection, 100_000);
-    let cancellation = QueryCancellationHandle::new();
+    seed_vector_collection(&cassie, collection, 3);
+    let before = cassie.metrics();
+    let mut cancellation = QueryCancellationHandle::new();
+    let (selected, resume) =
+        cancellation.pause_after_scored_candidate(QueryScoringTestBoundary::ExactVector);
     let query_cancellation = cancellation.clone();
     let query_cassie = Arc::clone(&cassie);
     let query = std::thread::spawn(move || {
         let session = query_cassie.create_session("tester", None);
-        query_cassie.execute_sql_with_cancellation(
+        let result = query_cassie.execute_sql_with_cancellation(
             &session,
             &vector_query(collection, false),
             query_params(true, false),
             &query_cancellation,
-        )
+        );
+        let after = query_cassie.metrics();
+        let recovery = query_cassie.execute_sql(
+            &session,
+            &vector_query(collection, false),
+            query_params(true, false),
+        );
+        (result, after, recovery)
     });
-    std::thread::sleep(Duration::from_millis(5));
 
     // Act
+    let reached = selected.recv_timeout(Duration::from_secs(10));
+    let cancelled_before_boundary = cancellation.is_cancelled();
     cancellation.cancel();
-    let error = query
-        .join()
-        .expect("query thread")
-        .expect_err("active vector query should be cancelled");
+    let _ = resume.send(());
+    let (result, after, recovery) = query.join().expect("query thread");
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
-    drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
+    reached.expect("exact vector candidate was scored and retained");
+    assert!(!cancelled_before_boundary);
+    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+    assert_eq!(after["runtime"]["running_queries"], 0);
+    assert_eq!(after["runtime"]["active_operator_workers"], 0);
+    assert_eq!(after["vector"]["count"], before["vector"]["count"]);
+    assert_eq!(
+        after["query"]["rows_returned_total"],
+        before["query"]["rows_returned_total"]
+    );
+    assert_eq!(recovery.expect("same-session recovery").rows().len(), 3);
+}
+
+#[test]
+fn should_release_scoring_pause_when_a_diagnostic_endpoint_disconnects() {
+    for disconnect_observer in [true, false] {
+        // Arrange
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.execution_result_cache_enabled =
+            cassie::config::ExecutionResultCacheEnabled::disabled();
+        let cassie = Cassie::new_in_memory_with_config(config).expect("create Cassie");
+        let collection = "vector_disconnected_scoring_pause";
+        seed_vector_collection(&cassie, collection, 3);
+        let session = cassie.create_session("tester", None);
+        let mut cancellation = QueryCancellationHandle::new();
+        let (selected, resume) =
+            cancellation.pause_after_scored_candidate(QueryScoringTestBoundary::ExactVector);
+        if disconnect_observer {
+            drop(selected);
+        } else {
+            drop(resume);
+        }
+
+        // Act
+        let result = cassie.execute_sql_with_cancellation(
+            &session,
+            &vector_query(collection, false),
+            query_params(true, false),
+            &cancellation,
+        );
+        let after = cassie.metrics();
+        let recovery = cassie.execute_sql_with_cancellation(
+            &session,
+            &vector_query(collection, false),
+            query_params(true, false),
+            &cancellation,
+        );
+
+        // Assert
+        let error = result.expect_err("disconnected diagnostic must terminate the query");
+        assert!(error.to_string().contains("scoring test"), "{error}");
+        assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+        assert_eq!(after["runtime"]["running_queries"], 0);
+        assert!(!cancellation.is_cancelled());
+        assert_eq!(
+            recovery
+                .expect("consumed pause permits recovery")
+                .rows()
+                .len(),
+            3
+        );
+    }
 }
 
 #[test]

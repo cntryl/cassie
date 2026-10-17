@@ -32,6 +32,10 @@ mod cache_state;
 pub(crate) mod column_batch_metrics;
 #[path = "runtime/controls.rs"]
 mod controls;
+#[path = "runtime/scoring_test_pause.rs"]
+mod scoring_test_pause;
+#[doc(hidden)]
+pub use scoring_test_pause::QueryScoringTestBoundary;
 #[path = "runtime/execution_result_cache.rs"]
 mod execution_result_cache;
 #[path = "runtime/feedback.rs"]

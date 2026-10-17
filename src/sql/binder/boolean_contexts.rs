@@ -365,15 +365,8 @@ fn validate_expression(
                 validate_expression(value, types, catalog, context)?;
             }
         }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            canonicalize_boolean_pair(expr, low, types)?;
-            canonicalize_boolean_pair(expr, high, types)?;
-            canonicalize_boolean_pair(low, high, types)?;
-            validate_expression(expr, types, catalog, context)?;
-            validate_expression(low, types, catalog, context)?;
-            validate_expression(high, types, catalog, context)?;
+        expression @ Expr::Between { .. } => {
+            validate_between_expression(expression, types, catalog, context)?;
         }
         Expr::Function(function) => {
             for argument in function.expressions_mut() {
@@ -398,6 +391,32 @@ fn validate_expression(
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
     }
+    Ok(())
+}
+
+fn validate_between_expression(
+    expression: &mut Expr,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let Expr::Between {
+        expr,
+        low,
+        high,
+        symmetric,
+        ..
+    } = expression
+    else {
+        unreachable!("BETWEEN validation dispatch")
+    };
+    super::symmetric_between::validate([expr, low, high], *symmetric, types)?;
+    canonicalize_boolean_pair(expr, low, types)?;
+    canonicalize_boolean_pair(expr, high, types)?;
+    canonicalize_boolean_pair(low, high, types)?;
+    validate_expression(expr, types, catalog, context)?;
+    validate_expression(low, types, catalog, context)?;
+    validate_expression(high, types, catalog, context)?;
     Ok(())
 }
 

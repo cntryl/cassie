@@ -513,3 +513,15 @@ mod scalar_batch_05_errors;
 
 #[path = "pgwire_extended/grammar/scalar_batch_05_null_parameters.rs"]
 mod scalar_batch_05_null_parameters;
+
+#[path = "pgwire_extended/grammar/scalar_batch_06.rs"]
+mod scalar_batch_06;
+
+#[path = "pgwire_extended/grammar/scalar_batch_06_parameters.rs"]
+mod scalar_batch_06_parameters;
+
+#[path = "pgwire_extended/grammar/scalar_batch_06_interactions.rs"]
+mod scalar_batch_06_interactions;
+
+#[path = "pgwire_extended/grammar/scalar_batch_06_index.rs"]
+mod scalar_batch_06_index;

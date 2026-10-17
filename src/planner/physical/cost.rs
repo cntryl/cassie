@@ -128,7 +128,11 @@ fn estimate_filter_rows(expr: &Expr, stats: &CollectionCardinalityStats) -> Opti
         }
         Expr::Binary { left, op, right } => estimate_binary_filter_rows(left, op, right, stats),
         Expr::Between {
-            expr, low, high, ..
+            expr,
+            low,
+            high,
+            symmetric: false,
+            ..
         } => {
             let Expr::Column(field) = expr.as_ref() else {
                 return None;

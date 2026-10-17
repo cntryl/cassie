@@ -621,7 +621,8 @@ pub(super) fn resolve_exists_expr<'a>(
             low,
             high,
             negated,
-        } => resolve_between_exists_expr(context, expr, low, high, *negated),
+            symmetric,
+        } => resolve_between_exists_expr(context, expr, low, high, *negated, *symmetric),
         Expr::Not { expr } => resolve_not_exists_expr(context, expr),
         Expr::UnaryNumeric { expr, op } => Ok(Expr::UnaryNumeric {
             expr: Box::new(resolve_exists_expr(context, expr)?),
@@ -723,12 +724,14 @@ fn resolve_between_exists_expr<'a>(
     low: &'a Expr,
     high: &'a Expr,
     negated: bool,
+    symmetric: bool,
 ) -> ExprResolution<'a> {
     Ok(Expr::Between {
         expr: Box::new(resolve_exists_expr(context, expr)?),
         low: Box::new(resolve_exists_expr(context, low)?),
         high: Box::new(resolve_exists_expr(context, high)?),
         negated,
+        symmetric,
     })
 }
 

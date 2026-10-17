@@ -67,6 +67,7 @@ fn encoded_filter_fields(expr: &Expr) -> Option<BTreeSet<String>> {
             low,
             high,
             negated: false,
+            symmetric: false,
         } if encoded_literal(low) && encoded_literal(high) => {
             let Expr::Column(field) = expr.as_ref() else {
                 return None;

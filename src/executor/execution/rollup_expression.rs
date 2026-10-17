@@ -63,10 +63,12 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
             low,
             high,
             negated,
+            symmetric,
         } => Ok(format!(
-            "({}{} BETWEEN {} AND {})",
+            "({}{} BETWEEN{} {} AND {})",
             format_expression(expr)?,
             if *negated { " NOT" } else { "" },
+            if *symmetric { " SYMMETRIC" } else { "" },
             format_expression(low)?,
             format_expression(high)?
         )),
@@ -240,6 +242,8 @@ mod tests {
             "MAX(CASE WHEN tenant = 'O''Reilly' THEN amount ELSE 0 END)",
             "MAX(CAST(amount AS FLOAT))",
             "MAX(amount BETWEEN 1 AND 5)",
+            "MAX(amount BETWEEN SYMMETRIC 5 AND 1)",
+            "MAX(amount NOT BETWEEN SYMMETRIC 5 AND 1)",
             "MAX(amount IS NOT NULL)",
             "MAX(amount IN (1, 2))",
             "MAX(amount NOT IN (1, 2))",

@@ -318,6 +318,8 @@ pub enum Expr {
         low: Box<Expr>,
         high: Box<Expr>,
         negated: bool,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        symmetric: bool,
     },
     Not {
         expr: Box<Expr>,

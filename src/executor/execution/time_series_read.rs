@@ -661,6 +661,7 @@ fn timestamp_range_from_filter(
             low,
             high,
             negated: false,
+            symmetric: false,
         } if is_timestamp_column(expr, timestamp_field) => TimestampRange {
             lower: timestamp_literal(low, params),
             upper: timestamp_literal(high, params),

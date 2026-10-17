@@ -685,6 +685,7 @@ fn collect_column_batch_predicates(
             low,
             high,
             negated: false,
+            symmetric: false,
         } => {
             let Expr::Column(field) = expr.as_ref() else {
                 return None;

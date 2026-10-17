@@ -432,6 +432,7 @@ fn collect_single_expression_constraint_shape(
             low,
             high,
             negated: false,
+            symmetric: false,
         } if super::expr_has_column(expr) && !matches!(expr.as_ref(), Expr::Column(_)) => {
             if !bound_can_be_materialized(low) || !bound_can_be_materialized(high) {
                 return None;
@@ -752,6 +753,7 @@ fn collect_filter_constraint_shapes(
             low,
             high,
             negated: false,
+            symmetric: false,
         } => {
             let Expr::Column(field) = expr.as_ref() else {
                 return None;

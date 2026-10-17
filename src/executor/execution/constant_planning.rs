@@ -379,6 +379,14 @@ impl Folder<'_> {
                 low,
                 high,
                 negated,
+                symmetric: true,
+            } => self.fold_symmetric_between(expr, low, high, *negated),
+            Expr::Between {
+                expr,
+                low,
+                high,
+                negated,
+                symmetric: false,
             } => self.fold_between(expr, low, high, *negated),
             Expr::Case {
                 operand,
@@ -492,6 +500,35 @@ impl Folder<'_> {
             }
         }
         Ok(combined(variable, has_null, is_or))
+    }
+
+    fn fold_symmetric_between(
+        &self,
+        expr: &Expr,
+        low: &Expr,
+        high: &Expr,
+        negated: bool,
+    ) -> Result<Fold, QueryError> {
+        crate::executor::filter::symmetric_between::evaluate(
+            expr,
+            low,
+            high,
+            negated,
+            |left, op, right| {
+                let left_fold = self.fold(left)?;
+                let right_fold = self.fold(right)?;
+                Ok::<_, QueryError>(
+                    match self.compare(left_fold, left, op, right_fold, right)? {
+                        Truth::Known(value) => filter::symmetric_between::Comparison::Known(value),
+                        Truth::Unknown => filter::symmetric_between::Comparison::Variable,
+                    },
+                )
+            },
+        )
+        .map(|value| match value {
+            filter::symmetric_between::Comparison::Known(value) => Fold::Decided(value),
+            filter::symmetric_between::Comparison::Variable => Fold::Variable,
+        })
     }
 
     /// `a BETWEEN b AND c` folds as `a >= b AND a <= c`, and NOT BETWEEN as

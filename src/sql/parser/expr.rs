@@ -405,6 +405,15 @@ pub(super) fn parse_between_expression(
     right: &str,
     negated: bool,
 ) -> Result<Expr, SqlError> {
+    let right = super::lexical::trim_separators(right);
+    let symmetric = starts_with_keyword(right, "symmetric");
+    let right = if symmetric {
+        super::lexical::trim_separators(&right[9..])
+    } else if starts_with_keyword(right, "asymmetric") {
+        super::lexical::trim_separators(&right[10..])
+    } else {
+        right
+    };
     let (low, high) = split_top_level(right, " and ")
         .ok_or_else(|| SqlError::new("BETWEEN predicate requires AND upper bound".into()))?;
     if high.trim().is_empty() {
@@ -413,11 +422,18 @@ pub(super) fn parse_between_expression(
         ));
     }
 
+    let expr = parse_comparison_expression(left)?;
+    let low = parse_comparison_expression(low)?;
+    let high = parse_comparison_expression(high)?;
+    for child in [&expr, &low, &high] {
+        depth::validate(child, 1)?;
+    }
     Ok(Expr::Between {
-        expr: Box::new(parse_comparison_expression(left)?),
-        low: Box::new(parse_comparison_expression(low)?),
-        high: Box::new(parse_comparison_expression(high)?),
+        expr: Box::new(expr),
+        low: Box::new(low),
+        high: Box::new(high),
         negated,
+        symmetric,
     })
 }
 

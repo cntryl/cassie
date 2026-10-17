@@ -5,6 +5,7 @@ mod integer_operators;
 mod pagination_references;
 #[path = "binder/string_operators.rs"]
 mod string_operators;
+mod symmetric_between;
 #[path = "binder/table_functions.rs"]
 mod table_functions;
 #[path = "binder/unary_numeric.rs"]

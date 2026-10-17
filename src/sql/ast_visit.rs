@@ -127,11 +127,13 @@ impl Expr {
                 low,
                 high,
                 negated,
+                symmetric,
             } => Self::Between {
                 expr: Box::new(map(expr)),
                 low: Box::new(map(low)),
                 high: Box::new(map(high)),
                 negated: *negated,
+                symmetric: *symmetric,
             },
             Self::Not { expr } => Self::Not {
                 expr: Box::new(map(expr)),
@@ -435,15 +437,18 @@ fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 low: left_low,
                 high: left_high,
                 negated: left_negated,
+                symmetric: left_symmetric,
             },
             Expr::Between {
                 expr: right,
                 low: right_low,
                 high: right_high,
                 negated: right_negated,
+                symmetric: right_symmetric,
             },
         ) => {
             left_negated == right_negated
+                && left_symmetric == right_symmetric
                 && left.structurally_eq(right)
                 && left_low.structurally_eq(right_low)
                 && left_high.structurally_eq(right_high)

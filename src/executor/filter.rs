@@ -305,6 +305,9 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
 mod casts;
 #[path = "filter/constants.rs"]
 mod constants;
+pub(crate) mod symmetric_between;
+#[cfg(test)]
+mod symmetric_between_tests;
 #[path = "filter/text_arrays.rs"]
 mod text_arrays;
 pub(crate) use constants::constant_scalar_with_parameters;
@@ -368,11 +371,15 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
             values,
             negated,
         } => eval_in_list_expr(row, expr, values, *negated, context),
+        expression @ Expr::Between {
+            symmetric: true, ..
+        } => symmetric_between::runtime(row, expression, context),
         Expr::Between {
             expr,
             low,
             high,
             negated,
+            symmetric: false,
         } => eval_between_expr(row, expr, low, high, *negated, context),
         Expr::Not { expr } => eval_not_expr(row, expr, context),
         Expr::UnaryNumeric { expr, op } => {

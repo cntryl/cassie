@@ -468,10 +468,12 @@ fn projection_expr_key(expr: &Expr) -> String {
             low,
             high,
             negated,
+            symmetric,
         } => format!(
-            "{}{} between {} and {}",
+            "{}{} between{} {} and {}",
             projection_expr_key(expr),
             if *negated { " not" } else { "" },
+            if *symmetric { " symmetric" } else { "" },
             projection_expr_key(low),
             projection_expr_key(high)
         ),

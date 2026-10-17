@@ -40,6 +40,12 @@ impl CassieSession {
         Ok(session)
     }
 
+    pub(crate) fn check_statement_interruption(&self) -> Result<(), CassieError> {
+        self.statement_text
+            .as_ref()
+            .map_or(Ok(()), |text| text.controls.check_interruption())
+    }
+
     pub(crate) fn statement_text(&self) -> Option<&str> {
         self.statement_text.as_ref().map(|text| text.sql.as_str())
     }

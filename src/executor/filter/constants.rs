@@ -14,6 +14,7 @@ struct ConstantContext<'a> {
     evaluation: EvalContext<'a>,
     parameter: Option<&'a ParameterResolver<'a>>,
     admit_cast: Option<&'a CastAdmission<'a>>,
+    controls: Option<&'a crate::runtime::QueryExecutionControls>,
 }
 
 pub(super) fn value<R: RowAccess + ?Sized>(
@@ -28,6 +29,7 @@ pub(super) fn value<R: RowAccess + ?Sized>(
             evaluation: context,
             parameter: None,
             admit_cast: None,
+            controls: None,
         },
     )
 }
@@ -48,6 +50,7 @@ pub(super) fn logical<R: RowAccess + ?Sized>(
             evaluation: context,
             parameter: None,
             admit_cast: None,
+            controls: None,
         },
     )
 }
@@ -57,6 +60,12 @@ fn resolve<R: RowAccess + ?Sized>(
     row: &R,
     context: ConstantContext<'_>,
 ) -> Result<Option<ScalarValue>, QueryError> {
+    if let Some(session) = context.evaluation.session {
+        session.check_statement_interruption()?;
+    }
+    if let Some(controls) = context.controls {
+        controls.check_interruption()?;
+    }
     match expr {
         Expr::Column(_) | Expr::Exists(_) => Ok(None),
         Expr::Param(index) => context
@@ -129,12 +138,7 @@ fn resolve<R: RowAccess + ?Sized>(
             .transpose(),
         Expr::IsNull { expr, negated } => Ok(resolve(expr, row, context)?
             .map(|value| ScalarValue::Bool(matches!(value, ScalarValue::Null) != *negated))),
-        Expr::Between {
-            expr,
-            low,
-            high,
-            negated,
-        } => between(expr, low, high, *negated, row, context),
+        expression @ Expr::Between { .. } => between_predicate(expression, row, context),
         Expr::RowCompare(comparison) => {
             if comparison.left.len() > 1
                 && !comparison.op.null_safe()
@@ -293,6 +297,41 @@ fn literal(value: ScalarValue) -> Expr {
     }
 }
 
+fn between_predicate<R: RowAccess + ?Sized>(
+    expression: &Expr,
+    row: &R,
+    context: ConstantContext<'_>,
+) -> Result<Option<ScalarValue>, QueryError> {
+    use super::symmetric_between::{self, Comparison};
+    let Expr::Between {
+        expr,
+        low,
+        high,
+        negated,
+        symmetric,
+    } = expression
+    else {
+        unreachable!("BETWEEN dispatch")
+    };
+    if !symmetric {
+        return between(expr, low, high, *negated, row, context);
+    }
+    symmetric_between::evaluate(expr, low, high, *negated, |left, op, right| {
+        let left = resolve(left, row, context)?;
+        let right = resolve(right, row, context)?;
+        match (left, right) {
+            (Some(left), Some(right)) => {
+                symmetric_between::truth(binary_scalar(&left, &op, &right)?).map(Comparison::Known)
+            }
+            _ => Ok(Comparison::Variable),
+        }
+    })
+    .map(|value| match value {
+        Comparison::Known(value) => Some(symmetric_between::scalar(value)),
+        Comparison::Variable => None,
+    })
+}
+
 fn between<R: RowAccess + ?Sized>(
     expr: &Expr,
     low: &Expr,
@@ -366,7 +405,13 @@ pub(crate) fn constant_scalar_with_parameters(
             .try_grow(super::casts::bytea_literal_scratch(expr)?)?;
         Ok(())
     };
-    let value = evaluate_constant(expression, parameters, Some(&parameter), Some(&admit_cast))?;
+    let value = evaluate_constant(
+        expression,
+        parameters,
+        Some(&parameter),
+        Some(&admit_cast),
+        Some(controls),
+    )?;
     Ok((value, memory.into_inner()))
 }
 
@@ -375,6 +420,7 @@ fn evaluate_constant(
     parameters: &[super::Value],
     parameter: Option<&ParameterResolver<'_>>,
     admit_cast: Option<&CastAdmission<'_>>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<Option<ScalarValue>, QueryError> {
     let functions = super::HashMap::new();
     let row: Vec<(String, super::Value)> = Vec::new();
@@ -392,6 +438,7 @@ fn evaluate_constant(
             },
             parameter,
             admit_cast,
+            controls,
         },
     )
 }

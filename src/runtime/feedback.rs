@@ -483,6 +483,8 @@ enum NormalizedExprShape {
         low: Box<NormalizedExprShape>,
         high: Box<NormalizedExprShape>,
         negated: bool,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        symmetric: bool,
     },
     TruthTest {
         expr: Box<NormalizedExprShape>,
@@ -575,11 +577,13 @@ impl From<&Expr> for NormalizedExprShape {
                 low,
                 high,
                 negated,
+                symmetric,
             } => Self::Between {
                 expr: Box::new(Self::from(expr.as_ref())),
                 low: Box::new(Self::from(low.as_ref())),
                 high: Box::new(Self::from(high.as_ref())),
                 negated: *negated,
+                symmetric: *symmetric,
             },
             Expr::TruthTest {
                 expr,

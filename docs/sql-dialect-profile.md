@@ -839,3 +839,36 @@ truth round-trip test appears in both groups). Complete parser comparison is
 failures fixed cumulatively. Final Jev review selected validation with probability
 0.89 (probe 0.10). Full repository and whole-owner qualification remain pending;
 this finite increment does not close #793/#796 or the PostgreSQL program.
+
+
+Experimental ten-batch increment 6: Symmetric BETWEEN over existing scalar types.
+Native wire witnesses and precise local acceptance are recorded in
+[validation](testing/validation.md). Complete type and owner contracts remain pending.
+
+Selected symmetric range scope: `BETWEEN SYMMETRIC`, `NOT BETWEEN SYMMETRIC`,
+and explicit `ASYMMETRIC` over the existing selected scalar contracts. A compact
+AST flag preserves PostgreSQL's comparison order and lazy Boolean rewrite without
+copying operand trees. False flags are omitted and defaulted in serialized AST and
+normalized feedback shapes; existing serialized ordinary predicates retain their
+shape. Semantic plan epoch is 25. Normal index, aggregate, projected-read and
+timestamp bound extraction explicitly declines symmetric predicates; reversed
+bounds produce the same native rows before and after creating a scalar index.
+
+The focused batch adds 41 wire tests (23 scalar witnesses, five parameter fixtures
+covering 20 input/output format crosses, 12 folding/NULL/row/aggregate/EXISTS
+interactions and an eight-execution index/scan witness). Six focused unit checks
+cover compact 16-level nesting, legacy serialization and mapping, combined cast
+nesting, planner and runtime deadline interruption with released ownership, and
+staged array rejection. Existing canonical aggregate SQL roundtrips now include
+both symmetric forms. Array, JSON and vector comparisons reject deterministically
+with 0A000 and remain pending under #807/#809/#793; the captured native array
+result is an open qualification obligation, not a passing Cassie cell. Complete
+row, volatile-function and native type qualification remains open.
+
+The resource review probability 0.30 prompted a runtime session constant-pruning
+probe. It exposed a missing per-node interruption path; both planning and runtime
+constant walks now check their execution controls. Deadline tests start active
+controls and expire during repeated comparisons, rather than checking only an
+already-expired entry point. The initial 0.79 sibling gap prompted NULL,
+short-circuit, parameter and indexed-versus-scan witnesses. All original assertions
+remain intact. Full repository green and owner closure are not established here.

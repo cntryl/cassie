@@ -2383,3 +2383,50 @@ and the final 0.89 validation judgment are recorded in the dialect profile.
 The user has now authorized continuing coherent batches until the full test suite
 and required analyzers pass, including further batches beyond the initial ten if
 needed. Required gates and native semantic boundaries remain in force.
+
+
+### Ten-batch delivery 6/10: Symmetric BETWEEN (2026-10-17)
+
+Baseline `8a205b55462775e8a09cb0a8e8cd90217bbc57b5`. Selected existing scalar/syntax support under #796
+with no new persistent type or storage migration. Native PostgreSQL 18.6
+reference descriptors and both wire payload formats are retained in focused
+Rust tests. TDD red evidence and targeted Jev probes are preserved in the ignored
+`target/ten-batch-06-*` logs. Current focused wire result: test result: ok. 249 passed; 0 failed; 0 ignored; 0 measured; 2924 filtered out; finished in 31.27s.
+
+Build, focused locked tests, complete parser regression comparison, full strict
+workspace/all-target/all-feature pedantic Clippy, formatting, touched/global
+test validators, refreshed inventory and whitespace checks completed. Parser
+failures remaining: 60 (14 fixed cumulatively from
+the 74-failure starting baseline), with no new failure identity. The consolidated
+full repository gate follows batch 10 under the documented local delivery policy.
+Known unrelated failures and complete owner acceptance remain pending.
+
+Jev review and probe outcome: `{"final_review": {"type": "choice", "choice": "validate", "confidence": 0.74, "probabilities": {"validate": 0.83, "probe": 0.16, "none": 0.01}}}`.
+
+Selected symmetric range scope: `BETWEEN SYMMETRIC`, `NOT BETWEEN SYMMETRIC`,
+and explicit `ASYMMETRIC` over the existing selected scalar contracts. A compact
+AST flag preserves PostgreSQL's comparison order and lazy Boolean rewrite without
+copying operand trees. False flags are omitted and defaulted in serialized AST and
+normalized feedback shapes; existing serialized ordinary predicates retain their
+shape. Semantic plan epoch is 25. Normal index, aggregate, projected-read and
+timestamp bound extraction explicitly declines symmetric predicates; reversed
+bounds produce the same native rows before and after creating a scalar index.
+
+The focused batch adds 41 wire tests (23 scalar witnesses, five parameter fixtures
+covering 20 input/output format crosses, 12 folding/NULL/row/aggregate/EXISTS
+interactions and an eight-execution index/scan witness). Six focused unit checks
+cover compact 16-level nesting, legacy serialization and mapping, combined cast
+nesting, planner and runtime deadline interruption with released ownership, and
+staged array rejection. Existing canonical aggregate SQL roundtrips now include
+both symmetric forms. Array, JSON and vector comparisons reject deterministically
+with 0A000 and remain pending under #807/#809/#793; the captured native array
+result is an open qualification obligation, not a passing Cassie cell. Complete
+row, volatile-function and native type qualification remains open.
+
+The resource review probability 0.30 prompted a runtime session constant-pruning
+probe. It exposed a missing per-node interruption path; both planning and runtime
+constant walks now check their execution controls. Deadline tests start active
+controls and expire during repeated comparisons, rather than checking only an
+already-expired entry point. The initial 0.79 sibling gap prompted NULL,
+short-circuit, parameter and indexed-versus-scan witnesses. All original assertions
+remain intact. Full repository green and owner closure are not established here.

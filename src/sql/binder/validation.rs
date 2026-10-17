@@ -572,9 +572,9 @@ pub(super) fn validate_function_calls(
     );
 
     for function in functions {
-        if crate::sql::functions::is_loaded_modules(&function.name) {
+        if crate::sql::functions::is_catalog_table(&function.name) {
             return Err(CassieError::Unsupported(
-                "record-valued loaded-module projection remains pending under #793/#817; use FROM"
+                "record-valued table-function projection remains pending under #793/#817; use FROM"
                     .into(),
             ));
         }
@@ -878,7 +878,7 @@ fn collect_source_functions(source: &QuerySource, out: &mut Vec<FunctionCall>) {
 
         QuerySource::Aliased { source, .. } => collect_source_functions(source, out),
         QuerySource::TableFunction { function, .. } => {
-            if !crate::sql::functions::is_loaded_modules(&function.name) {
+            if !crate::sql::functions::is_catalog_table(&function.name) {
                 out.push(function.clone());
             }
             for arg in function.expressions() {

@@ -172,3 +172,29 @@ unsupported (0A000) under #793/#817; the FROM shape does not establish RECORD
 ABI support. Compiled plans rebuild at epoch 16. No stored format changes.
 These checks leave complete system-information, native catalog ABI and resource
 qualification open. See [validation](testing/validation.md).
+
+## Experimental option expansion (2026-10-17)
+
+`FROM pg_options_to_table(text[])` expands selected one-dimensional logical
+TEXT arrays into `option_name` and `option_value` TEXT columns. Splitting uses
+only the first `=`; absent `=` produces NULL, while empty names/values,
+whitespace, duplicates and quoted literal contents are retained. NULL/empty
+arrays produce no rows. A NULL element raises 22004 without partial result rows.
+Selected malformed array text raises 22P02.
+
+The selected input path supports explicit one-dimensional TEXT[] constructors
+with string/NULL literals, PostgreSQL array-literal casts and explicitly typed
+TEXT parameters cast into arrays. Native TEXT[] parameter identity OID 1009
+remains absent under #793: direct array parameters reject with 0A000 instead of
+advertising the private logical-array identity as native. Higher dimensions,
+explicit bounds, general dynamic constructors, native array ABI and SQL array
+assignment remain pending. Stored logical arrays are verified through the public
+ingest API followed by SQL reads; this does not qualify SQL array INSERT casts.
+
+Aliases, CTEs, selected explicit/implicit lateral reads and empty outer joins use normal
+relational execution. Scalar target-list RECORD projection remains explicitly
+unsupported under #793/#817. DISTINCT and in-call ORDER BY reject with native 42809.
+Execution checks controls, admits argument scratch/output ownership and releases
+owners on errors. Compiled plans rebuild at epoch 17; stored formats do not
+change. Full resource/restart and owner qualification remain open. See
+[validation](testing/validation.md).

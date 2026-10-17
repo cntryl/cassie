@@ -6,6 +6,11 @@ pub(super) fn scalar(
     target: &DataType,
     source: Option<&DataType>,
 ) -> Result<ScalarValue, QueryError> {
+    if matches!(target,DataType::Array(element) if **element == DataType::Text)
+        && source == Some(target)
+    {
+        return Ok(value.clone());
+    }
     if *target == DataType::Bytea {
         if let Some(width) = source.and_then(crate::types::IntegerWidth::from_data_type) {
             return super::bytea_casts::encode(value, width);

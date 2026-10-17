@@ -184,3 +184,8 @@ mod catalog_scalar_execution;
 
 #[path = "catalog_security/catalogs/runtime_profile.rs"]
 mod catalog_runtime_profile;
+
+#[path = "catalog_security/catalogs/options_execution.rs"]
+mod catalog_options_execution;
+#[path = "support/options_execution.rs"]
+mod support_options_execution;

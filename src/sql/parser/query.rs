@@ -531,12 +531,13 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
     }
 
     if let Some(open) = raw.find('(') {
-        if crate::sql::functions::is_loaded_modules(raw[..open].trim()) {
+        if crate::sql::functions::is_catalog_table(raw[..open].trim()) {
             let close = super::lexical::matching_paren(raw, open)
-                .ok_or_else(|| SqlError::new("invalid loaded-module function call".into()))?;
+                .ok_or_else(|| SqlError::new("invalid catalog table-function call".into()))?;
             let function = parse_function(&raw[..=close])?
-                .ok_or_else(|| SqlError::new("invalid loaded-module function call".into()))?;
+                .ok_or_else(|| SqlError::new("invalid catalog table-function call".into()))?;
             let name = function.name.to_ascii_lowercase();
+            let lateral = lateral || crate::sql::functions::is_options_table(&name);
             return relation_alias::parse(
                 QuerySource::TableFunction {
                     name,
@@ -557,7 +558,7 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
                 | "graph_shortest_path"
                 | "pg_show_all_settings"
                 | "pg_catalog.pg_show_all_settings"
-        ) || crate::sql::functions::is_loaded_modules(&lower_name)
+        ) || crate::sql::functions::is_catalog_table(&lower_name)
         {
             return Ok(QuerySource::TableFunction {
                 name: lower_name,

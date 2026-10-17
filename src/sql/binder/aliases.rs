@@ -549,6 +549,7 @@ pub(super) fn lower_lateral(
     let mut spaces = Vec::new();
     namespaces(left, catalog, scope, &mut spaces)?;
     match right {
+        QuerySource::Aliased { source, .. } => lower_lateral(left, source, catalog, scope)?,
         QuerySource::Subquery {
             select,
             lateral: true,

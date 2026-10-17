@@ -1,3 +1,5 @@
+#[path = "source_options.rs"]
+mod source_options;
 #[path = "source_values.rs"]
 mod source_values;
 use super::plan_inspection;
@@ -203,6 +205,10 @@ fn execute_table_function_source(
     outer_row: Option<&BatchRow>,
     qualify: bool,
 ) -> SourceExecution {
+    if crate::sql::functions::is_options_table(&function.name) {
+        let batches = source_options::execute(env, &function.args[0], outer_row)?;
+        return finalize_source_batches(env, batches, Vec::new(), qualify, name);
+    }
     if crate::sql::functions::is_loaded_modules(&function.name) {
         env.controls.check_interruption()?;
         // Native plugin loading is absent from the current Cassie profile.

@@ -671,3 +671,12 @@ rows; scalar RECORD projection remains pending under #793/#817. Typed primitive
 parameters, native arity errors and untyped compression-parameter rejection are
 selected; complete native catalog ABI and #849 resource qualification remain
 open. See [catalog support](catalog-support.md) for exact boundaries.
+
+### Option expansion increment (2026-10-17)
+
+Experimental `FROM pg_options_to_table` uses selected one-dimensional logical
+TEXT arrays and returns two actual TEXT columns. Literal constructors and TEXT
+parameters converted to arrays are selected; direct native array parameters,
+native array/RECORD ABI, bounds, dimensions, dynamic constructors and SQL array
+assignment remain pending. Existing native descriptor and error probes do not
+promote these absent cells. See [catalog support](catalog-support.md).

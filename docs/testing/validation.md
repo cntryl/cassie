@@ -2050,3 +2050,86 @@ Final Jev review selects fresh-store scope at 1.0 and the selected retry
 regression as verified at probability 0.99. No deployment migration or provider
 qualification is claimed. Existing 173 catalog failures and six storage-suite
 failures remain; full repository and hosted green are not established.
+
+### Option-table and TEXT[] input checkpoint (2026-10-17)
+
+This #817/#796 increment follows 0c53a092 (catalog/security 229/173). It
+selects `FROM pg_options_to_table` over one-dimensional logical TEXT arrays,
+with two native TEXT output columns. The first `=` splits each option; absent
+`=` yields NULL, and empty names/values, whitespace, duplicates and literal
+contents are retained. NULL/empty arrays produce no rows, while NULL elements
+raise typed 22004 without partial rows. Selected malformed array text reports
+22P02 at Execute. DISTINCT/in-call ORDER BY report native 42809 at Parse.
+
+The selected prerequisite adds explicit one-dimensional string/NULL TEXT[]
+constructors and TEXT-to-array casts over the existing logical carrier. Table
+execution consumes the typed scalar array representation; it does not alter
+global JSON materialization. Existing table-function binding/schema code moves
+from select.rs into a focused module. An aliased lateral wrapper now reaches
+normal outer-column lowering; implicit lateral option calls use the same path.
+Scalar RECORD projection remains explicitly unsupported. Native array OID 1009
+is absent: direct native array parameters reject with 0A000, while explicitly
+TEXT-typed parameters cast into arrays preserve OID 25. The private logical
+array identity is unchanged. No persistent format, dependency or CI changes;
+compiled plans rebuild at epoch 17.
+
+Native PostgreSQL 18.6 retains executable SHA256
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+All 48 initial wire witnesses failed before implementation. Expanded probes
+exposed the missing constructor/cast path and the scalar-JSON materialization
+boundary. Subsequent native inputs preserve quotes, backslashes, commas,
+Unicode and quoted NULL. The oracle database uses en_US.UTF-8 collation, whose
+mixed-case/Unicode ordering differs from Cassie's current ordering. The 64 new
+constant/escaping queries were recaptured without locale ORDER BY to qualify
+native array emission order; complete ordered row payloads remain asserted.
+Original repository tests and assertions were not changed. Collation remains
+open under #796/#793/#817. Six TEXT parameter probes retain selected lowercase
+ORDER BY checks. This checkpoint does not establish locale parity.
+
+Jev selected the option bundle at probability 0.94 with probe gap 0.70. Source
+inspection corrected the initial native-array-parameter assumption before any
+support claim. Review selected escaping probes at 0.93 and a cast-scratch gap
+at 0.30. The constant CHAR-budget probe already passed. The stored-column probe
+first exposed the alias binding omission, then failed its memory assertion
+(7/1 catalog iteration). Argument execution now admits the existing expanding
+cast scratch estimate before evaluation; that unchanged regression passes.
+All 95 new tests pass in the focused rerun: 86 wire and nine catalog. They
+include good/error/good prepared reuse, native errors and metadata, stored
+logical arrays, explicit/implicit lateral reads, empty outer joins,
+pre-cancellation, budget denial, last-result-owner release and error release.
+Stored arrays are seeded through the public ingest API; SQL array assignment
+remains pending. Final Jev review selects staged support at 1.0 and the selected
+memory correction as verified at probability 0.99. These judgments guide probes
+and do not prove correctness or complete a compatibility owner.
+
+Native array/RECORD ABI, bounds, dimensions, general dynamic constructors,
+array DML and full collation/resource/restart qualification remain open under
+#793/#796/#800/#817/#849. Ordered final results follow below; all Cargo commands
+use `CARGO_INCREMENTAL=0`.
+
+Final executed evidence:
+
+- `cargo build --locked --bin cassie`: passed. `cargo test --locked` passes
+  library **1,025/0**, analytics **179/0**, backend **2/0** and benchmark
+  operations **16/0**, then stops at catalog/security **239/172** after 494.56
+  seconds. Exactly one original failure is fixed (option-table populated/NULL
+  arrays); no newly failing original identity.
+- Fresh `cargo test --locked --no-run --message-format=json` artifacts pass.
+  Final new wire matrix: **86/0**; all nine new catalog functions pass in the
+  complete catalog suite. Complete parser **299/74**, core wire **74/10**, and
+  storage **161 passed/six failed/one ignored** preserve exact failure sets.
+  Seven graph-function correctness and four graph SQL checks pass, including
+  lateral expansion/explain metrics after restart.
+- Full `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+  and `cargo fmt --all -- --check`: passed on final source. Preflight
+  assert-is-empty diagnostics were corrected without weakening assertions.
+- The validator misread a literal opening brace in four new escaping fixtures.
+  An equivalent Rust hex escape preserves the actual SQL and every expected
+  byte. All 11 touched validators now pass; global validation reports
+  **8,767/8,767** compliant source tests. Inventory was refreshed after that
+  representation correction and checked again: 95 added identities, zero
+  removed or changed existing records. Whitespace and all 29 touched Rust file
+  limits pass.
+
+Full repository and hosted green are not established. Native array/RECORD,
+collation and complete owner/resource qualification remain open; no owner closes.

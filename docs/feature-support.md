@@ -155,6 +155,7 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 
 | Capability | Behavior | Status |
 | --- | --- | --- |
+| Option expansion | Selected one-dimensional logical TEXT[] inputs to pg_options_to_table FROM relations, with native TEXT outputs and selected errors. Native array/RECORD ABI, bounds, dimensions and SQL array assignment remain pending. | Experimental |
 | Runtime information | Actual recovery/JIT/NUMA capabilities and Rust Unicode version; NULL compression for materialized SQL values; empty loaded-module FROM relation with three TEXT columns. Scalar RECORD projection and complete system/catalog ABI remain pending. | Experimental |
 | Catalog read models | Selected database-scoped table/view/sequence discovery, ordinary column identity/generation flags, and column-name/empty-row shapes for 26 absent object registries. Native catalog-domain OIDs/codecs, ownership, definitions, OID/reg* lifecycle and wider DDL remain pending. | Experimental |
 | Plan cache | Session-safe reusable parsed and physical plans | Experimental |

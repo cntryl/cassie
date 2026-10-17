@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1671,
-    "rust_files": 1640,
-    "rust_test_declarations": 7656,
+    "files": 1680,
+    "rust_files": 1649,
+    "rust_test_declarations": 7751,
     "python_test_declarations": 16,
-    "registered_rust_instances": 7784,
+    "registered_rust_instances": 7879,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -10716,6 +10716,285 @@
         "file": "tests/catalog_security/catalogs/object_addresses.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/options_execution.rs::should_expand_stored_arrays_given_a_lateral_source_when_options_are_queried",
+      "name": "should_expand_stored_arrays_given_a_lateral_source_when_options_are_queried",
+      "current_file": "tests/catalog_security/catalogs/options_execution.rs",
+      "line": 10,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_options_execution::should_expand_stored_arrays_given_a_lateral_source_when_options_are_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/options_execution.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/options_execution.rs::should_preserve_left_rows_given_null_options_when_an_outer_join_is_executed",
+      "name": "should_preserve_left_rows_given_null_options_when_an_outer_join_is_executed",
+      "current_file": "tests/catalog_security/catalogs/options_execution.rs",
+      "line": 51,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_options_execution::should_preserve_left_rows_given_null_options_when_an_outer_join_is_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/options_execution.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/options_execution.rs::should_cancel_expansion_given_cancelled_controls_when_options_are_executed",
+      "name": "should_cancel_expansion_given_cancelled_controls_when_options_are_executed",
+      "current_file": "tests/catalog_security/catalogs/options_execution.rs",
+      "line": 73,
+      "end_line": 95,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_options_execution::should_cancel_expansion_given_cancelled_controls_when_options_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/options_execution.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/options_execution.rs::should_release_denied_expansion_given_a_tiny_budget_when_options_are_executed",
+      "name": "should_release_denied_expansion_given_a_tiny_budget_when_options_are_executed",
+      "current_file": "tests/catalog_security/catalogs/options_execution.rs",
+      "line": 98,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_options_execution::should_release_denied_expansion_given_a_tiny_budget_when_options_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/options_execution.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/options_execution.rs::should_retain_expansion_given_a_result_clone_when_the_original_owner_drops",
+      "name": "should_retain_expansion_given_a_result_clone_when_the_original_owner_drops",
+      "current_file": "tests/catalog_security/catalogs/options_execution.rs",
+      "line": 119,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_options_execution::should_retain_expansion_given_a_result_clone_when_the_original_owner_drops"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/options_execution.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/options_execution.rs::should_release_expansion_given_a_null_element_when_options_fail",
+      "name": "should_release_expansion_given_a_null_element_when_options_fail",
+      "current_file": "tests/catalog_security/catalogs/options_execution.rs",
+      "line": 146,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_options_execution::should_release_expansion_given_a_null_element_when_options_fail"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/options_execution.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/options_execution.rs::should_admit_expanding_cast_scratch_given_a_tiny_budget_when_options_are_executed",
+      "name": "should_admit_expanding_cast_scratch_given_a_tiny_budget_when_options_are_executed",
+      "current_file": "tests/catalog_security/catalogs/options_execution.rs",
+      "line": 168,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_options_execution::should_admit_expanding_cast_scratch_given_a_tiny_budget_when_options_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/options_execution.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/options_execution.rs::should_reject_expanding_stored_cast_given_a_tiny_budget_when_options_are_executed",
+      "name": "should_reject_expanding_stored_cast_given_a_tiny_budget_when_options_are_executed",
+      "current_file": "tests/catalog_security/catalogs/options_execution.rs",
+      "line": 189,
+      "end_line": 210,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_options_execution::should_reject_expanding_stored_cast_given_a_tiny_budget_when_options_are_executed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/options_execution.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/options_execution.rs::should_expand_stored_arrays_given_an_implicit_lateral_call_when_options_are_queried",
+      "name": "should_expand_stored_arrays_given_an_implicit_lateral_call_when_options_are_queried",
+      "current_file": "tests/catalog_security/catalogs/options_execution.rs",
+      "line": 213,
+      "end_line": 240,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_options_execution::should_expand_stored_arrays_given_an_implicit_lateral_call_when_options_are_queried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/options_execution.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -67867,6 +68146,2672 @@
         "category": "catalogs",
         "directory": "tests/pgwire_extended/catalogs",
         "file": "tests/pgwire_extended/catalogs/empty_registries_b.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_0_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_0_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 6,
+      "end_line": 13,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_0_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_0_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_0_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 16,
+      "end_line": 23,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_0_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_0_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_0_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 26,
+      "end_line": 33,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_0_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_0_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_0_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 36,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_0_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_1_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_1_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 46,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_1_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_1_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_1_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 56,
+      "end_line": 63,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_1_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_1_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_1_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 66,
+      "end_line": 73,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_1_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_1_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_1_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 76,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_1_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_2_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_2_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 86,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_2_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_2_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_2_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 96,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_2_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_2_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_2_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 106,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_2_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_2_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_2_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 116,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_2_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_3_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_3_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 126,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_3_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_3_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_3_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 142,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_3_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_3_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_3_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 158,
+      "end_line": 171,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_3_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_3_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_3_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 174,
+      "end_line": 188,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_3_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_4_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_4_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 191,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_4_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_4_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_4_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 215,
+      "end_line": 236,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_4_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_4_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_4_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 239,
+      "end_line": 260,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_4_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_4_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_4_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 263,
+      "end_line": 284,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_4_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_5_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_5_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 287,
+      "end_line": 310,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_5_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_5_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_5_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 313,
+      "end_line": 336,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_5_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_5_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_5_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 339,
+      "end_line": 362,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_5_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_0.rs::should_expand_options_5_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_5_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "line": 365,
+      "end_line": 388,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_0::should_expand_options_5_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_0.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_6_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_6_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 6,
+      "end_line": 25,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_6_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_6_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_6_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 28,
+      "end_line": 47,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_6_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_6_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_6_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 50,
+      "end_line": 69,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_6_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_6_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_6_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 72,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_6_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_7_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_7_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 94,
+      "end_line": 117,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_7_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_7_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_7_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 120,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_7_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_7_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_7_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 146,
+      "end_line": 169,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_7_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_7_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_7_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 172,
+      "end_line": 195,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_7_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_8_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_8_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 198,
+      "end_line": 219,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_8_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_8_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_8_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 222,
+      "end_line": 243,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_8_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_8_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_8_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 246,
+      "end_line": 267,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_8_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_8_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_8_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 270,
+      "end_line": 291,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_8_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_9_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_9_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 294,
+      "end_line": 321,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_9_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_9_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_9_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 324,
+      "end_line": 351,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_9_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_9_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_9_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 354,
+      "end_line": 381,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_9_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_9_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_9_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 384,
+      "end_line": 411,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_9_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_10_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_10_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 414,
+      "end_line": 433,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_10_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_10_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_10_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 436,
+      "end_line": 455,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_10_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_10_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_10_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 458,
+      "end_line": 477,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_10_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_10_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_10_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 480,
+      "end_line": 499,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_10_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_11_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_11_bare_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 502,
+      "end_line": 525,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_11_bare_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_11_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_11_qualified_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 528,
+      "end_line": 551,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_11_qualified_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_11_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_11_cte_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 554,
+      "end_line": 577,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_11_cte_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_1.rs::should_expand_options_11_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "name": "should_expand_options_11_alias_given_text_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "line": 580,
+      "end_line": 603,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_1::should_expand_options_11_alias_given_text_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_1.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_errors.rs::should_reject_null_at_position_0_given_option_arrays_when_execute_is_attempted",
+      "name": "should_reject_null_at_position_0_given_option_arrays_when_execute_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/options_errors.rs",
+      "line": 7,
+      "end_line": 21,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_errors::should_reject_null_at_position_0_given_option_arrays_when_execute_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_errors.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_errors.rs::should_reject_null_at_position_1_given_option_arrays_when_execute_is_attempted",
+      "name": "should_reject_null_at_position_1_given_option_arrays_when_execute_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/options_errors.rs",
+      "line": 24,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_errors::should_reject_null_at_position_1_given_option_arrays_when_execute_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_errors.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_errors.rs::should_reject_null_at_position_2_given_option_arrays_when_execute_is_attempted",
+      "name": "should_reject_null_at_position_2_given_option_arrays_when_execute_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/options_errors.rs",
+      "line": 41,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_errors::should_reject_null_at_position_2_given_option_arrays_when_execute_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_errors.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_0_bare_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_0_bare_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 6,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_0_bare_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_0_qualified_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_0_qualified_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 44,
+      "end_line": 79,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_0_qualified_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_0_cte_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_0_cte_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 82,
+      "end_line": 117,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_0_cte_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_0_alias_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_0_alias_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 120,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_0_alias_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_1_bare_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_1_bare_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 158,
+      "end_line": 181,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_1_bare_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_1_qualified_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_1_qualified_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 184,
+      "end_line": 207,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_1_qualified_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_1_cte_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_1_cte_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 210,
+      "end_line": 233,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_1_cte_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_1_alias_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_1_alias_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 236,
+      "end_line": 259,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_1_alias_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_2_bare_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_2_bare_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 262,
+      "end_line": 297,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_2_bare_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_2_qualified_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_2_qualified_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 300,
+      "end_line": 335,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_2_qualified_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_2_cte_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_2_cte_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 338,
+      "end_line": 373,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_2_cte_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_2_alias_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_2_alias_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 376,
+      "end_line": 411,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_2_alias_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_3_bare_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_3_bare_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 414,
+      "end_line": 435,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_3_bare_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_3_qualified_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_3_qualified_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 438,
+      "end_line": 460,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_3_qualified_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_3_cte_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_3_cte_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 463,
+      "end_line": 484,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_3_cte_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_escaping.rs::should_preserve_escaping_3_alias_given_literal_arrays_when_wire_formats_are_crossed",
+      "name": "should_preserve_escaping_3_alias_given_literal_arrays_when_wire_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "line": 487,
+      "end_line": 508,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_escaping::should_preserve_escaping_3_alias_given_literal_arrays_when_wire_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_parameters.rs::should_expand_text_input_0_given_explicit_text_parameters_when_formats_are_crossed",
+      "name": "should_expand_text_input_0_given_explicit_text_parameters_when_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "line": 6,
+      "end_line": 21,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_parameters::should_expand_text_input_0_given_explicit_text_parameters_when_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_parameters.rs::should_expand_text_input_1_given_explicit_text_parameters_when_formats_are_crossed",
+      "name": "should_expand_text_input_1_given_explicit_text_parameters_when_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "line": 24,
+      "end_line": 33,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_parameters::should_expand_text_input_1_given_explicit_text_parameters_when_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_parameters.rs::should_expand_text_input_2_given_explicit_text_parameters_when_formats_are_crossed",
+      "name": "should_expand_text_input_2_given_explicit_text_parameters_when_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "line": 36,
+      "end_line": 63,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_parameters::should_expand_text_input_2_given_explicit_text_parameters_when_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_parameters.rs::should_expand_text_input_3_given_explicit_text_parameters_when_formats_are_crossed",
+      "name": "should_expand_text_input_3_given_explicit_text_parameters_when_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "line": 66,
+      "end_line": 87,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_parameters::should_expand_text_input_3_given_explicit_text_parameters_when_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_parameters.rs::should_expand_text_input_4_given_explicit_text_parameters_when_formats_are_crossed",
+      "name": "should_expand_text_input_4_given_explicit_text_parameters_when_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "line": 90,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_parameters::should_expand_text_input_4_given_explicit_text_parameters_when_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_parameters.rs::should_expand_text_input_5_given_explicit_text_parameters_when_formats_are_crossed",
+      "name": "should_expand_text_input_5_given_explicit_text_parameters_when_formats_are_crossed",
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "line": 114,
+      "end_line": 133,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_parameters::should_expand_text_input_5_given_explicit_text_parameters_when_formats_are_crossed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_parameters.rs::should_reuse_option_parameters_given_a_null_element_error_when_a_prepared_query_is_reexecuted",
+      "name": "should_reuse_option_parameters_given_a_null_element_error_when_a_prepared_query_is_reexecuted",
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "line": 136,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_parameters::should_reuse_option_parameters_given_a_null_element_error_when_a_prepared_query_is_reexecuted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_parameters.rs::should_reject_malformed_text_input_0_given_text_parameters_when_options_execute",
+      "name": "should_reject_malformed_text_input_0_given_text_parameters_when_options_execute",
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "line": 201,
+      "end_line": 222,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_parameters::should_reject_malformed_text_input_0_given_text_parameters_when_options_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_parameters.rs::should_reject_malformed_text_input_1_given_text_parameters_when_options_execute",
+      "name": "should_reject_malformed_text_input_1_given_text_parameters_when_options_execute",
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "line": 225,
+      "end_line": 246,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_parameters::should_reject_malformed_text_input_1_given_text_parameters_when_options_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_parameters.rs::should_reject_malformed_text_input_2_given_text_parameters_when_options_execute",
+      "name": "should_reject_malformed_text_input_2_given_text_parameters_when_options_execute",
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "line": 249,
+      "end_line": 270,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_parameters::should_reject_malformed_text_input_2_given_text_parameters_when_options_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_signatures.rs::should_reject_zero_given_option_signatures_when_parse_is_attempted",
+      "name": "should_reject_zero_given_option_signatures_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+      "line": 7,
+      "end_line": 21,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_signatures::should_reject_zero_given_option_signatures_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_signatures.rs::should_reject_extra_given_option_signatures_when_parse_is_attempted",
+      "name": "should_reject_extra_given_option_signatures_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+      "line": 24,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_signatures::should_reject_extra_given_option_signatures_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_signatures.rs::should_reject_integer_given_option_signatures_when_parse_is_attempted",
+      "name": "should_reject_integer_given_option_signatures_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+      "line": 41,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_signatures::should_reject_integer_given_option_signatures_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_signatures.rs::should_reject_text_given_option_signatures_when_parse_is_attempted",
+      "name": "should_reject_text_given_option_signatures_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+      "line": 58,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_signatures::should_reject_text_given_option_signatures_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_signatures.rs::should_reject_record_given_option_signatures_when_parse_is_attempted",
+      "name": "should_reject_record_given_option_signatures_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+      "line": 75,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_signatures::should_reject_record_given_option_signatures_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_signatures.rs::should_reject_parameter_given_option_signatures_when_parse_is_attempted",
+      "name": "should_reject_parameter_given_option_signatures_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+      "line": 92,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_signatures::should_reject_parameter_given_option_signatures_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_signatures.rs::should_reject_cast_parameter_given_option_signatures_when_parse_is_attempted",
+      "name": "should_reject_cast_parameter_given_option_signatures_when_parse_is_attempted",
+      "current_file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+      "line": 109,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_signatures::should_reject_cast_parameter_given_option_signatures_when_parse_is_attempted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_signatures.rs::should_reject_distinct_given_option_table_calls_when_aggregate_modifiers_are_supplied",
+      "name": "should_reject_distinct_given_option_table_calls_when_aggregate_modifiers_are_supplied",
+      "current_file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+      "line": 126,
+      "end_line": 135,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_signatures::should_reject_distinct_given_option_table_calls_when_aggregate_modifiers_are_supplied"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/options_signatures.rs::should_reject_order_given_option_table_calls_when_aggregate_modifiers_are_supplied",
+      "name": "should_reject_order_given_option_table_calls_when_aggregate_modifiers_are_supplied",
+      "current_file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+      "line": 138,
+      "end_line": 147,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_options_signatures::should_reject_order_given_option_table_calls_when_aggregate_modifiers_are_supplied"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/options_signatures.rs",
         "basis": "canonical_domain_path",
         "review": "recommended",
         "migration": "keep"
@@ -239708,6 +242653,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/catalog_security/catalogs/options_execution.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 240,
+      "sha256": "6c69d3fc54fdc2b3ef3aa05ef5b31f3821dab71d979db7a2f916af90c933cc8a",
+      "test_declarations": 9,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/options_execution.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/catalog_security/catalogs/partitions/catalog/metadata.rs",
       "role": "test_module",
       "action": "keep",
@@ -240881,8 +243841,8 @@
       "current_file": "tests/catalog_security.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 186,
-      "sha256": "2755e39eac967f9b7073df6a9e95e21c735f6b8a9d118171a57dd5cb245a451f",
+      "lines": 191,
+      "sha256": "78a75e99dd13bf657f1f04523dd91b27ab818d5f1688286ddfec630579017d7a",
       "test_declarations": 0,
       "registered_suites": [
         "catalog_security"
@@ -249025,6 +251985,96 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/catalogs/options_0.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 388,
+      "sha256": "b3a42221e9c87169ce488dcd3bfcbb9d9c50c36eb3bfb0699ae14b4468464180",
+      "test_declarations": 24,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/options_0.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/options_1.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 603,
+      "sha256": "e5516404d6ae8749b2e6cb4443db86b2d1baa06d78e90f45b21784b7b4d9c3e1",
+      "test_declarations": 24,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/options_1.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/options_errors.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 55,
+      "sha256": "a8465d63f354ce12b080c9ede0244f8c8767d4c53ebef6a90e3b7c6358a67e26",
+      "test_declarations": 3,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/options_errors.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/options_escaping.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 508,
+      "sha256": "95439bb0c49a56aa49fe7ce228bebe426b82ddb8c54a09e80a3c55e67e17dd55",
+      "test_declarations": 16,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/options_escaping.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/options_parameters.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 270,
+      "sha256": "bc1ddd8e7687cc3b34b0ddb0d209bc2c16822c1c364eefa33e1c73d5cbe17c7f",
+      "test_declarations": 10,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/options_parameters.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/catalogs/options_signatures.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 147,
+      "sha256": "adf4bcb2c4ba7c78cb4531911461777f8404234961f0de2afee401f00194abd0",
+      "test_declarations": 9,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/options_signatures.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/catalogs/runtime_modules.rs",
       "role": "test_module",
       "action": "keep",
@@ -255390,8 +258440,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 393,
-      "sha256": "d808c3fdcf3089f89bb917f300edaabb26b4839166077569e246b5544bcde19c",
+      "lines": 414,
+      "sha256": "098ea9151c0777a809edcfdeb1cafda07e2609e3c5a481223d12851b5c9a18f9",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -262294,6 +265344,36 @@
       "registered_suites": [],
       "destinations": [
         "tests/support/operational_evidence.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/options_execution.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 11,
+      "sha256": "55af0bb196a12932ef367a9d8228a13b1070941f86e8d9c7ebbd48f725ca199e",
+      "test_declarations": 0,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/support/options_execution.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/options_wire.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 44,
+      "sha256": "b16ab68318eebdcb0985f927a8b7c139baaea508e8f5012bc2c06b329da0f52d",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/options_wire.rs"
       ],
       "line_limit": 1000
     },

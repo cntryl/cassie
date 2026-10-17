@@ -298,6 +298,8 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
 mod casts;
 #[path = "filter/constants.rs"]
 mod constants;
+#[path = "filter/text_arrays.rs"]
+mod text_arrays;
 pub(crate) use constants::constant_scalar_with_parameters;
 #[path = "filter/row_predicates.rs"]
 mod row_predicates;
@@ -477,6 +479,7 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             crate::types::temporal::canonical_timestamp,
         ),
         DataType::Json => Ok(ScalarValue::Json(cast_json_text(value))),
+        DataType::Array(element) if **element == DataType::Text => text_arrays::cast(value),
         DataType::Array(_) => Err(QueryError::General(
             "cannot cast scalar value to ARRAY".to_string(),
         )),

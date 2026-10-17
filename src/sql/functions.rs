@@ -2,7 +2,9 @@ mod constant_folding;
 pub(crate) use constant_folding::is_immutable_scalar;
 mod catalog;
 mod runtime;
+mod table;
 pub(crate) use runtime::{is_loaded_modules, is_runtime_helper, loaded_modules_columns};
+pub(crate) use table::{catalog_table_columns, is_catalog_table, is_options_table};
 mod inputs;
 mod text;
 pub(crate) use inputs::{

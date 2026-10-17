@@ -160,6 +160,12 @@ pub enum CassieError {
     #[error("invalid embedding: {0}")]
     InvalidEmbedding(String),
 
+    #[error("{0}")]
+    ArrayInput(String),
+
+    #[error("null array element not allowed in this context")]
+    NullArrayElement,
+
     #[error(transparent)]
     SizeInput(#[from] crate::types::SizeInputError),
 
@@ -260,6 +266,8 @@ impl CassieError {
             Self::InvalidVector(_) | Self::InvalidEmbedding(_) => {
                 bad_request_descriptor("22000", self.to_string())
             }
+            Self::ArrayInput(message) => bad_request_descriptor("22P02", message.clone()),
+            Self::NullArrayElement => bad_request_descriptor("22004", self.to_string()),
             Self::SizeInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::InvalidParameterValue(message) => {
                 bad_request_descriptor("22023", message.clone())

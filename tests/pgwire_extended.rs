@@ -391,3 +391,24 @@ mod catalog_runtime_parameters;
 
 #[path = "pgwire_extended/catalogs/runtime_signatures.rs"]
 mod catalog_runtime_signatures;
+
+#[path = "pgwire_extended/catalogs/options_0.rs"]
+mod catalog_options_0;
+
+#[path = "pgwire_extended/catalogs/options_1.rs"]
+mod catalog_options_1;
+
+#[path = "support/options_wire.rs"]
+mod support_options_wire;
+
+#[path = "pgwire_extended/catalogs/options_parameters.rs"]
+mod catalog_options_parameters;
+
+#[path = "pgwire_extended/catalogs/options_signatures.rs"]
+mod catalog_options_signatures;
+
+#[path = "pgwire_extended/catalogs/options_errors.rs"]
+mod catalog_options_errors;
+
+#[path = "pgwire_extended/catalogs/options_escaping.rs"]
+mod catalog_options_escaping;

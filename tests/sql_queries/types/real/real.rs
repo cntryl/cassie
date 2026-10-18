@@ -36,7 +36,7 @@ fn should_return_stored_real_values_as_postgresql_text_in_float4_order() {
 }
 
 #[test]
-fn should_cast_text_and_numbers_to_real() {
+fn should_cast_scalar_inputs_to_real() {
     // Arrange
     let fixture = sql_fixture("real-casts", &[]);
 
@@ -72,7 +72,7 @@ fn should_reject_real_input_outside_the_float4_range() {
 }
 
 #[test]
-fn should_filter_real_rows_against_integer_and_float_bounds() {
+fn should_filter_real_rows_by_mixed_numeric_bounds() {
     // Arrange
     let fixture = sql_fixture(
         "real-filters",

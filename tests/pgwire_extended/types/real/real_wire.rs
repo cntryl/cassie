@@ -3,7 +3,7 @@
 use super::support_type_metadata_contract as fixture;
 
 #[test]
-fn should_describe_and_return_a_real_parameter_in_text_and_binary_formats() {
+fn should_frame_real_parameters_in_each_wire_format() {
     // Arrange
     let sql = "SELECT CAST($1 AS real) AS v";
     let cycles = vec![

@@ -145,7 +145,11 @@ fn column_batch_field_summary(
                 numeric_count += 1;
             }
             Value::Null => {}
-            Value::Bool(_) | Value::String(_) | Value::Vector(_) | Value::Json(_) => {
+            Value::Bool(_)
+            | Value::String(_)
+            | Value::Vector(_)
+            | Value::Json(_)
+            | Value::Typed(_) => {
                 sum.promote_to_float();
             }
         }

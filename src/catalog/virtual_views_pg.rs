@@ -601,6 +601,7 @@ fn type_category(data_type: &DataType) -> String {
         DataType::Date | DataType::Time | DataType::Timestamp => "D".to_string(),
         DataType::Vector(_) => "V".to_string(),
         DataType::Array(_) => "A".to_string(),
+        DataType::Extended(kind) => kind.category().to_string(),
     }
 }
 
@@ -711,6 +712,7 @@ fn row_sort_key(row: &VirtualRow) -> String {
             Value::Float64(value) => value.to_string(),
             Value::Vector(value) => format!("{:?}", value.values),
             Value::Json(value) => value.to_string(),
+            Value::Typed(value) => value.text(),
         })
         .collect::<Vec<_>>()
         .join("\u{1f}")

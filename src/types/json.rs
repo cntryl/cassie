@@ -34,6 +34,7 @@ pub(crate) fn try_value_to_json(value: Value) -> Result<serde_json::Value, &'sta
             Ok(serde_json::Value::Array(values))
         }
         Value::Json(value) => Ok(value),
+        Value::Typed(value) => Ok(value.to_json()),
     }
 }
 

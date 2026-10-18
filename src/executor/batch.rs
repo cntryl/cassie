@@ -527,6 +527,7 @@ fn push_value_key(out: &mut String, value: &Value) {
             }
         }
         Value::Json(v) => out.push_str(&v.to_string()),
+        Value::Typed(v) => out.push_str(&v.text()),
     }
 }
 

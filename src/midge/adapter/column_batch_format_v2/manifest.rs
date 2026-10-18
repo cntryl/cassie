@@ -408,6 +408,11 @@ fn encode_value(out: &mut Vec<u8>, value: &Value) -> Result<(), CassieError> {
             }
             write_bytes(out, raw.as_slice())?;
         }
+        Value::Typed(value) => {
+            out.push(7);
+            write_u32(out, value.kind().type_oid());
+            write_bytes(out, &value.send_binary())?;
+        }
     }
     Ok(())
 }
@@ -437,6 +442,14 @@ fn decode_value(reader: &mut Reader<'_>) -> Result<Value, CassieError> {
             serde_json::from_slice(raw)
                 .map(Value::Json)
                 .map_err(|_| invalid("invalid column-batch JSON summary"))
+        }
+        7 => {
+            let kind = crate::types::extended::ExtendedType::for_oid(reader.read_u32()?)
+                .ok_or_else(|| invalid("unknown column-batch summary type"))?;
+            let raw = reader.read_bounded_bytes(MAX_JSON_BYTES)?;
+            kind.receive_binary(raw)
+                .map(Value::Typed)
+                .map_err(|_| invalid("invalid column-batch typed summary"))
         }
         _ => Err(invalid("unknown column-batch summary value tag")),
     }

@@ -738,6 +738,7 @@ fn value_text(value: &Value) -> Option<String> {
         Value::Float64(value) => Some(value.to_string()),
         Value::Bool(value) => Some(value.to_string()),
         Value::Null => Some("null".to_string()),
+        Value::Typed(value) => Some(value.text()),
         Value::Json(_) | Value::Vector(_) => None,
     }
 }

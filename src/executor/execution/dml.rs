@@ -30,6 +30,7 @@ const NON_FINITE_WRITE_VALUE_ERROR: &str = "stored float values must be finite";
 fn value_to_json(value: &Value) -> Result<serde_json::Value, QueryError> {
     Ok(match value {
         Value::Null => serde_json::Value::Null,
+        Value::Typed(value) => value.to_json(),
         Value::Bool(value) => serde_json::Value::Bool(*value),
         Value::Int64(value) => serde_json::Value::Number((*value).into()),
         Value::Float64(value) => serde_json::Number::from_f64(*value)

@@ -148,6 +148,10 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
             coerce_integer(value)
         }
         DataType::Float => coerce_float(value),
+        DataType::Extended(kind) => kind
+            .from_json(&value)
+            .map(|typed| typed.to_json())
+            .map_err(|error| error.to_string()),
         DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => Ok(match value {
             Value::Number(number) => Value::String(number.to_string()),
             Value::Bool(flag) => Value::String(flag.to_string()),

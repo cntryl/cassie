@@ -91,6 +91,7 @@ pub(crate) enum SemanticValue {
     Vector(Vec<u32>),
     Json(String),
     Array(Vec<Self>),
+    Typed(crate::types::typed::TypedKey),
 }
 
 impl SemanticValue {
@@ -114,6 +115,7 @@ impl SemanticValue {
             Value::Json(value) => {
                 Self::Json(serde_json::to_string(value).unwrap_or_else(|_| String::from("null")))
             }
+            Value::Typed(value) => Self::Typed(value.key()),
         }
     }
 
@@ -131,7 +133,7 @@ impl SemanticValue {
                 values.len().saturating_mul(std::mem::size_of::<Self>()),
                 |bytes, value| bytes.saturating_add(value.estimated_bytes()),
             ),
-            Self::Null | Self::Bool(_) | Self::Number(_) => 0,
+            Self::Null | Self::Bool(_) | Self::Number(_) | Self::Typed(_) => 0,
         }
     }
 
@@ -144,6 +146,7 @@ impl SemanticValue {
             Self::Vector(_) => 4,
             Self::Json(_) => 5,
             Self::Array(_) => 6,
+            Self::Typed(_) => 7,
         }
     }
 }
@@ -164,6 +167,7 @@ impl Ord for SemanticValue {
                 left.cmp(right)
             }
             (Self::Vector(left), Self::Vector(right)) => left.cmp(right),
+            (Self::Typed(left), Self::Typed(right)) => left.cmp(right),
             (Self::Array(left), Self::Array(right)) => {
                 compare_array_parts(left, right, |left, right| {
                     match (left.is_null(), right.is_null()) {
@@ -206,7 +210,10 @@ impl SemanticKey {
                     values.capacity() * std::mem::size_of::<SemanticValue>()
                         + values.iter().map(heap).sum::<usize>()
                 }
-                SemanticValue::Null | SemanticValue::Bool(_) | SemanticValue::Number(_) => 0,
+                SemanticValue::Null
+                | SemanticValue::Bool(_)
+                | SemanticValue::Number(_)
+                | SemanticValue::Typed(_) => 0,
             }
         }
         self.0.capacity() * std::mem::size_of::<SemanticValue>()

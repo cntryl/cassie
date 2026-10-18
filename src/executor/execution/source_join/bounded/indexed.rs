@@ -267,6 +267,7 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
             serde_json::Number::from_f64(*value).map(serde_json::Value::Number)
         }
         Value::String(value) => Some(serde_json::Value::String(value.clone())),
+        Value::Typed(value) => Some(value.to_json()),
         Value::Vector(_) | Value::Json(_) => None,
     }
 }

@@ -3,8 +3,9 @@ use crate::types::DataType;
 use uuid::Uuid;
 
 use super::{
-    decode_bytea, write_varint, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_DATE, TYPE_F64, TYPE_I64,
-    TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME, TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
+    decode_bytea, write_varint, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_DATE, TYPE_EXTENDED,
+    TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME, TYPE_TIMESTAMP, TYPE_UUID,
+    TYPE_VECTOR_F32,
 };
 
 pub(super) fn encode_value(
@@ -17,6 +18,14 @@ pub(super) fn encode_value(
 
     match data_type {
         DataType::Null => Ok((TYPE_NULL, Vec::new())),
+        DataType::Extended(kind) => {
+            let typed = kind
+                .from_json(value)
+                .map_err(|error| CassieError::InvalidVector(error.to_string()))?;
+            let mut bytes = kind.type_oid().to_be_bytes().to_vec();
+            bytes.extend_from_slice(&typed.send_binary());
+            Ok((TYPE_EXTENDED, bytes))
+        }
         DataType::SmallInt => {
             encode_signed_integer(value, "smallint field expects i16", i16::MIN, i16::MAX)
         }

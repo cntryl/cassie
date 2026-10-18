@@ -12,6 +12,7 @@ pub(crate) fn value_clone_bytes(value: &Value) -> Result<usize, CassieError> {
         Value::Vector(vector) => mul(vector.values.capacity(), size_of::<f32>()),
         Value::Json(value) => Ok(json::retained_bytes(value)? - size_of::<serde_json::Value>()),
         Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => Ok(0),
+        Value::Typed(typed) => Ok(typed.heap_bytes()),
     }
 }
 

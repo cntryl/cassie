@@ -208,6 +208,10 @@ fn parse_element(value: String, data_type: &DataType) -> Result<JsonValue, Strin
         DataType::ObjectId(_) => crate::types::object_id::parse_oid_text(&value)
             .map(JsonValue::from)
             .map_err(|error| error.to_string()),
+        DataType::Extended(kind) => kind
+            .parse_text(&value)
+            .map(|typed| typed.to_json())
+            .map_err(|error| error.to_string()),
         DataType::Float => {
             let parsed = value
                 .parse::<f64>()

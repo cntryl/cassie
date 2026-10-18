@@ -505,6 +505,7 @@ fn row_sort_key(row: &VirtualRow) -> String {
             Value::Float64(value) => value.to_string(),
             Value::Vector(value) => format!("{:?}", value.values),
             Value::Json(value) => value.to_string(),
+            Value::Typed(value) => value.text(),
         })
         .collect::<Vec<_>>()
         .join("|")

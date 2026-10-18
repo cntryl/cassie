@@ -22,6 +22,7 @@ pub(crate) enum BuiltinKind {
     Timestamp,
     Json,
     ObjectId(super::ObjectIdKind),
+    Extended(super::extended::ExtendedType),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -71,7 +72,17 @@ pub(crate) const BUILTIN_TYPES: &[BuiltinType] = &[
     object_id_type(ObjectIdKind::RegNamespace),
     object_id_type(ObjectIdKind::RegRole),
     object_id_type(ObjectIdKind::RegCollation),
+    extended_type(super::extended::ExtendedType::Real),
 ];
+
+const fn extended_type(kind: super::extended::ExtendedType) -> BuiltinType {
+    BuiltinType::new(
+        BuiltinKind::Extended(kind),
+        kind.type_oid(),
+        kind.typname(),
+        kind.typlen(),
+    )
+}
 
 const fn object_id_type(kind: ObjectIdKind) -> BuiltinType {
     BuiltinType::new(BuiltinKind::ObjectId(kind), kind.type_oid(), kind.name(), 4)
@@ -107,6 +118,7 @@ impl BuiltinKind {
             Self::Timestamp => DataType::Timestamp,
             Self::Json => DataType::Json,
             Self::ObjectId(kind) => DataType::ObjectId(kind),
+            Self::Extended(kind) => DataType::Extended(kind),
         }
     }
 }
@@ -136,6 +148,7 @@ pub(crate) fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
         DataType::Timestamp => BuiltinKind::Timestamp,
         DataType::Json => BuiltinKind::Json,
         DataType::ObjectId(kind) => BuiltinKind::ObjectId(*kind),
+        DataType::Extended(kind) => BuiltinKind::Extended(*kind),
         DataType::Vector(dimensions) => return TypeMetadata::Vector(*dimensions),
         DataType::Array(inner) => return TypeMetadata::Array(inner),
     };

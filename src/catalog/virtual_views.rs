@@ -818,6 +818,7 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::Json => "json".to_string(),
         DataType::Array(inner) => format!("{}[]", inner.type_name()),
         DataType::ObjectId(kind) => kind.name().to_string(),
+        DataType::Extended(kind) => kind.name().to_string(),
     }
 }
 
@@ -857,6 +858,7 @@ fn row_sort_key(row: &VirtualRow) -> String {
             Value::Float64(value) => value.to_string(),
             Value::Vector(value) => format!("{:?}", value.values),
             Value::Json(value) => value.to_string(),
+            Value::Typed(value) => value.text(),
         })
         .collect::<Vec<_>>()
         .join("|")

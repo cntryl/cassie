@@ -689,6 +689,7 @@ pub(super) fn to_text(value: &Value) -> String {
             .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(","),
+        Value::Typed(value) => value.text(),
         Value::Null => String::new(),
     }
 }

@@ -38,29 +38,42 @@ impl std::error::Error for ByteaInputError {}
 
 /// Validate without allocating a decoded buffer or copying the input.
 pub(crate) fn validate(input: &str) -> Result<(), ByteaInputError> {
-    scan(input, |_| {})
+    scan(input, || Ok(()), |_| {})
 }
 
 /// Validate before allocating the canonical lower-case hex carrier.
 pub(crate) fn canonical(input: &str) -> Result<String, ByteaInputError> {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut length = 0_usize;
-    scan(input, |_| length += 1)?;
+    scan(input, || Ok::<_, ByteaInputError>(()), |_| length += 1)?;
     let mut output = String::with_capacity(length.saturating_mul(2).saturating_add(2));
     output.push_str("\\x");
-    scan(input, |byte| {
-        output.push(char::from(HEX[usize::from(byte >> 4)]));
-        output.push(char::from(HEX[usize::from(byte & 15)]));
-    })?;
+    scan(
+        input,
+        || Ok::<_, ByteaInputError>(()),
+        |byte| push_hex_byte(&mut output, byte),
+    )?;
     Ok(output)
 }
 
-fn scan(input: &str, mut emit: impl FnMut(u8)) -> Result<(), ByteaInputError> {
+fn scan<E: From<ByteaInputError>>(
+    input: &str,
+    check: impl FnMut() -> Result<(), E>,
+    emit: impl FnMut(u8),
+) -> Result<(), E> {
     if let Some(digits) = input.strip_prefix("\\x") {
-        return hex(digits, emit);
+        return scan_hex(digits, check, emit);
     }
+    scan_escape(input, check, emit)
+}
+
+pub(crate) fn scan_escape<E: From<ByteaInputError>>(
+    input: &str,
+    mut check: impl FnMut() -> Result<(), E>,
+    mut emit: impl FnMut(u8),
+) -> Result<(), E> {
     let mut bytes = input.as_bytes().iter().copied();
     while let Some(byte) = bytes.next() {
+        check()?;
         if byte != b'\\' {
             emit(byte);
             continue;
@@ -76,16 +89,21 @@ fn scan(input: &str, mut emit: impl FnMut(u8)) -> Result<(), ByteaInputError> {
             || !matches!(second, b'0'..=b'7')
             || !matches!(third, b'0'..=b'7')
         {
-            return Err(ByteaInputError::EscapeSyntax);
+            return Err(ByteaInputError::EscapeSyntax.into());
         }
         emit(((first - b'0') << 6) | ((second - b'0') << 3) | (third - b'0'));
     }
     Ok(())
 }
 
-fn hex(input: &str, mut emit: impl FnMut(u8)) -> Result<(), ByteaInputError> {
+pub(crate) fn scan_hex<E: From<ByteaInputError>>(
+    input: &str,
+    mut check: impl FnMut() -> Result<(), E>,
+    mut emit: impl FnMut(u8),
+) -> Result<(), E> {
     let mut bytes = input.chars();
     while let Some(first) = bytes.next() {
+        check()?;
         if matches!(first, ' ' | '\t' | '\n' | '\r') {
             continue;
         }
@@ -96,9 +114,30 @@ fn hex(input: &str, mut emit: impl FnMut(u8)) -> Result<(), ByteaInputError> {
     Ok(())
 }
 
-fn nibble(character: char) -> Result<u8, ByteaInputError> {
+pub(crate) fn nibble(character: char) -> Result<u8, ByteaInputError> {
     character
         .to_digit(16)
         .and_then(|digit| u8::try_from(digit).ok())
         .ok_or(ByteaInputError::HexDigit(character))
+}
+
+fn push_hex_byte(output: &mut String, byte: u8) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    output.push(char::from(HEX[usize::from(byte >> 4)]));
+    output.push(char::from(HEX[usize::from(byte & 15)]));
+}
+
+/// Append canonical digits while allowing callers to enforce interruption.
+pub(crate) fn append_hex<E>(
+    output: &mut String,
+    bytes: &[u8],
+    mut check: impl FnMut() -> Result<(), E>,
+) -> Result<(), E> {
+    for (index, byte) in bytes.iter().enumerate() {
+        if index.is_multiple_of(4096) {
+            check()?;
+        }
+        push_hex_byte(output, *byte);
+    }
+    Ok(())
 }

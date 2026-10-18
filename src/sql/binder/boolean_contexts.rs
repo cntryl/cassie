@@ -347,6 +347,7 @@ fn validate_expression(
             ) {
                 canonicalize_boolean_pair(left, right, types)?;
                 coerce_numeric_pair(left, right, types, catalog);
+                validate_concatenation_comparison(left, right, types)?;
             }
             validate_expression(left, types, catalog, context)?;
             validate_expression(right, types, catalog, context)?;
@@ -440,6 +441,78 @@ fn validate_between_expression(
     Ok(())
 }
 
+fn validate_concatenation_comparison(
+    left: &mut Expr,
+    right: &mut Expr,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    if types.parameter_types().is_empty()
+        || (!contains_concatenation(left) && !contains_concatenation(right))
+    {
+        return Ok(());
+    }
+    // An uncast SQL string is unknown until its comparison signature is known.
+    let literal = if types.expression_type(left) == Some(DataType::Bytea)
+        && matches!(right, Expr::StringLiteral(_))
+    {
+        Some(&mut *right)
+    } else if types.expression_type(right) == Some(DataType::Bytea)
+        && matches!(left, Expr::StringLiteral(_))
+    {
+        Some(&mut *left)
+    } else {
+        None
+    };
+    if let Some(literal) = literal {
+        *literal = Expr::Cast {
+            expr: Box::new(std::mem::replace(literal, Expr::Null)),
+            data_type: DataType::Bytea,
+            source_type: None,
+            identity: crate::sql::ast::CastIdentity::Scalar,
+        };
+    }
+    let left = types.expression_type(left);
+    let right = types.expression_type(right);
+    if let (Some(left), Some(right)) = (&left, &right) {
+        if !matches!(left, DataType::Null)
+            && !matches!(right, DataType::Null)
+            && (left == &DataType::Bytea || right == &DataType::Bytea)
+            && left != right
+        {
+            return Err(CassieError::Planner(format!(
+                "incompatible comparison operands: {left:?} and {right:?}"
+            )));
+        }
+    }
+    let family = |kind: Option<&DataType>| {
+        kind.filter(|kind| **kind != DataType::Null)
+            .map(super::validation::data_type_family)
+    };
+    super::validation::require_compatible_families(
+        family(left.as_ref()),
+        family(right.as_ref()),
+        "comparison",
+    )
+}
+
+fn contains_concatenation(expr: &Expr) -> bool {
+    matches!(
+        expr,
+        Expr::Binary {
+            op: BinaryOp::Concat | BinaryOp::ByteaConcat,
+            ..
+        }
+    ) || expr
+        .try_visit_children(|child| {
+            if contains_concatenation(child) {
+                Err(())
+            } else {
+                Ok(())
+            }
+        })
+        .is_err()
+}
+
 fn resolve_integer_operator(
     left: &mut Expr,
     op: &mut BinaryOp,
@@ -453,24 +526,9 @@ fn resolve_integer_operator(
         types.expression_type(left).as_ref(),
         types.expression_type(right).as_ref(),
     );
-    // Existing arithmetic parameters retain their later owner. New
-    // bitwise signatures bind from declared OIDs before carrier erasure.
-    let parameter_bitwise = !types.parameter_types().is_empty()
-        && matches!(
-            op,
-            BinaryOp::Concat
-                | BinaryOp::ByteaConcat
-                | BinaryOp::Bitwise { .. }
-                | BinaryOp::Integer {
-                    operation: crate::types::IntegerOperation::And
-                        | crate::types::IntegerOperation::Or
-                        | crate::types::IntegerOperation::Xor
-                        | crate::types::IntegerOperation::Shl
-                        | crate::types::IntegerOperation::Shr,
-                    ..
-                }
-        );
-    if parameter_bitwise
+    // Initial binding has no parameter OIDs. Select every binary signature
+    // in the concrete pass, before the executor erases those input identities.
+    if !types.parameter_types().is_empty()
         || (!super::validation::expr_contains_parameters(left)
             && !super::validation::expr_contains_parameters(right))
     {

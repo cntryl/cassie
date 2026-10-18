@@ -3181,3 +3181,179 @@ individual probes launch the already-built binaries; process wall times were
 fixtures and is not claimed faster by this two-case slice. Static inventory is
 8,811 Rust integration declarations / 8,939 registered instances; no unregistered,
 unresolved, duplicate or oversized files. Static counts are not executed results.
+
+## Exact parameter OID cache identity (2026-10-17)
+
+Local runtime correction prepared against PR #951 head
+`1ca3ddc6ff2236eb5ba8963df91556a545226519`, within the cache isolation
+obligations of #778. Shared carrier shapes previously allowed SMALLINT plans
+to satisfy INTEGER/BIGINT inputs and BYTEA plans to satisfy TEXT inputs.
+Execution-result keys also omitted the effective parameter OID signature.
+
+One private fingerprint owner now includes the complete ordered effective OID
+list for Describe, Bind, Execute and result keys. Empty lists preserve the
+original fingerprint. Compiled-plan epoch 32 excludes epoch 31 entries without
+changing public key structures or serialized schemas. Diagnostics reconstruct
+embedded parameter admission; parameterless lookups retain their original
+identity. Parameterized `$user` diagnostic lookups conservatively report a miss
+because the existing helper signature has no session user.
+
+Behavioral RED on the original runtime produced five failing application tests:
+persisted narrow-plan reuse, legacy plan reuse, eligible integer and BYTEA/TEXT
+result collisions, and equal keys for reversed OID vectors. Wire probes also
+observed incorrect bytes and descriptors while cold-cache controls passed.
+Fixture corrections excluded the absent OCTET_LENGTH overload, retained the
+actual transaction result-cache bypass, and asserted repeated plan reuse by
+increasing hits with zero new misses. They did not change runtime eligibility.
+
+Focused GREEN commands, with `CARGO_INCREMENTAL=0` and
+`CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target`:
+
+- `cargo test --locked --lib parameter_cache_tests:: -- --nocapture`: 8 passed.
+- `cargo test --locked --test pgwire_extended parameter_cache_identity:: -- --nocapture`: 11 passed.
+
+PostgreSQL 18.6 supplied independent text/binary payload and descriptor witnesses
+for integer casts, BYTEA/TEXT concatenation and ordered parameter signatures.
+Jev's initial caller gap 0.35 prompted ordered-signature probes. Its later 0.64
+gap selected the parameterless `$user` UDF diagnostic probe, which passed after
+the empty-input correction; final diagnostic disposition was addressed (1.0).
+The final constructor gap 0.54 received the passing 11-test wire probe covering
+Describe, Bind and Execute. Independent source review found no additional
+confirmed cache defect. These judgments do not establish broader compatibility.
+
+Ordered validation used `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4` and the same
+target directory:
+
+| Command | Result |
+| --- | --- |
+| `cargo build --locked` | Passed |
+| `cargo test --locked` | Failed: library 1,094/0; analytics 179/0; backend coverage 2/0; benchmark operations 16/0; catalog/security 241/170. Cargo stopped at that target. |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed |
+| `cargo fmt --all -- --check` | Passed |
+| `cntryl-tools validate-tests -f <path>` for the five touched test files | Passed |
+| `tools/test_inventory.py --check`, documentation, module sizes and whitespace | Passed |
+
+The 170 catalog failure identities exactly match the retained
+`target/catalog-datum-final-full-test.log` checkpoint: zero added or resolved.
+Raw RED/GREEN records are under `target/cache-identity/`; ordered commands,
+exit codes, native frames, Jev receipts and failure comparison are under
+`target/finish-line/`. The cache slice does not establish full repository or
+hosted green, merge, issue closure or production readiness.
+
+## PR #951 staged merge review closeout (2026-10-17)
+
+This finite checkpoint follows `1ca3ddc6ff2236eb5ba8963df91556a545226519`.
+The owner requested merging #951 before a separate full gap analysis. The
+checkpoint retains the full #791/#848/#849 program and closes no whole parity
+owner. It includes failing acceptance for unfinished or unqualified behavior;
+matching failure identities does not classify every retained failure's cause.
+
+Runtime corrections retain the exact ordered effective parameter OIDs in plan
+and eligible result-cache identity, resolve parameter BYTEA concatenation and
+integer operators after typing, preserve BYTEA comparison/COALESCE identity,
+and reject incompatible concrete comparisons. The rebuildable compiled-plan
+epoch is 33. No persistent/public key fields or storage layout changed.
+
+BYTEA scratch uses decoded capacity plus operation-specific output, including
+unknown-format error buffers. Cast/function paths share hex/escape scanners and
+canonical builtin metadata. Runtime integer diagnostics admit exact copied
+message capacity before allocation and preserve input detail; native base64
+truncation adds its wire HINT. The scoring diagnostic services only its pause;
+operator/result publication boundaries own interruption checks.
+
+Behavioral RED preceded the corrections: cache collisions, 18 parameter
+operator failures, four BYTEA resource failures, an unknown-format allocation
+failure, three diagnostic/hook failures and a 0-versus-57-byte admission
+failure. Adversarial probes then caught incompatible concatenation comparisons,
+BYTEA cast ordering/control propagation and one full-library constant-planning
+regression (1,105 passed / one failed). The classifier now recognizes all six
+integer syntax/range formats; its expanded regression and every library test
+pass. Three overlong functions were extracted into focused helpers without
+lint suppression. Two allocation tests were split without removing assertions.
+
+Final ordered commands used `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4` and
+`CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target`:
+
+| Command | Final outcome |
+| --- | --- |
+| `cargo build --locked` | Passed |
+| `cargo test --locked` | Failed: library 1,108/0; analytics 179/0; backend coverage 2/0; benchmark operations 16/0; catalog/security 241/170. Cargo stopped at catalog/security. |
+| `cargo test --locked --lib -- parameter_cache_tests:: review_tests:: scoring_test_pause:: qualified_operators:: constant_planning::controls_tests:: should_preserve_native_base64_truncation_hint bytea --nocapture` | Passed: test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 1061 filtered out; finished in 0.43s |
+| `cargo test --locked --test pgwire_extended -- parameter_cache_identity:: parameter_operator_resolution:: review_diagnostics:: bytea_cast bytea_decode bytea_int2 bytea_int4 bytea_int8 --nocapture` | Passed: test result: ok. 273 passed; 0 failed; 0 ignored; 0 measured; 3488 filtered out; finished in 3.88s |
+| `cargo test --locked --test vector_embeddings -- should_cancel_during_exact_vector_scoring should_release_scoring_pause_when_a_diagnostic_endpoint_disconnects --nocapture` | Passed: test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 170 filtered out; finished in 0.01s |
+| `cargo test --locked --test search -- should_cancel_persisted_fulltext_scoring_at_a_candidate_boundary --nocapture` | Passed: test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 64 filtered out; finished in 0.37s |
+| `cargo test --locked --test sql_queries should_require_finite_regex_execution_before_active_cancellation -- --nocapture` | Known red: 0 passed / one failed; regex execution is absent under #799. |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed |
+| `cargo fmt --all -- --check` | Passed |
+| `/Users/jrepanich/Code/cntryl/cassie/target/test-inventory-tools312/bin/python tools/test_inventory.py --check` | Passed |
+| `cntryl-tools validate-docs --config .cntryl/repository.toml` | Passed |
+| `cntryl-tools validate-benchmarks --config .cntryl/repository.toml` | Blocked: existing missing `.github/workflows/bench.yml`; no CI change. |
+| `cntryl-tools check-module-sizes --config .cntryl/repository.toml` | Passed |
+| `git diff --check` | Passed |
+
+Touched-test policy commands all passed:
+
+- `cntryl-tools validate-tests -f src/executor/execution/constant_planning_controls_tests.rs`
+- `cntryl-tools validate-tests -f src/app/query_bind_tests.rs`
+- `cntryl-tools validate-tests -f src/app/query_parameter_cache_tests.rs`
+- `cntryl-tools validate-tests -f src/executor/filter/bytea_function_tests.rs`
+- `cntryl-tools validate-tests -f src/executor/filter/bytea_resource_tests.rs`
+- `cntryl-tools validate-tests -f src/executor/filter/bytea_codecs.rs`
+- `cntryl-tools validate-tests -f src/executor/filter/integers.rs`
+- `cntryl-tools validate-tests -f src/pgwire/connection/errors.rs`
+- `cntryl-tools validate-tests -f src/runtime/scoring_test_pause.rs`
+- `cntryl-tools validate-tests -f src/sql/functions/bytea.rs`
+- `cntryl-tools validate-tests -f tests/pgwire_extended.rs`
+- `cntryl-tools validate-tests -f tests/pgwire_extended/parameters/cache_identity.rs`
+- `cntryl-tools validate-tests -f tests/pgwire_extended/parameters/operator_resolution.rs`
+- `cntryl-tools validate-tests -f tests/pgwire_extended/types/review_diagnostics.rs`
+- `cntryl-tools validate-tests -f tests/support/parameter_cache_identity.rs`
+- `cntryl-tools validate-tests -f tests/support/parameter_operators.rs`
+- `cntryl-tools validate-tests -f tests/sql_queries/patterns/pattern_matching.rs`
+- `cntryl-tools validate-tests -f tests/sql_queries/patterns/pattern_matching/cancellation.rs`
+
+The 170 catalog failure identities exactly match the retained
+`target/catalog-datum-final-full-test.log`: zero added or resolved. Later full
+integration targets remain unqualified by this default invocation. The focused
+wire lane passed 273 tests, including 33 operator regressions, eleven cache
+regressions, two diagnostic tests covering seven runtime witnesses, and existing
+BYTEA casts/decodes. The focused library lane passed 47; vector cancellation
+passed two; persisted full-text cancellation passed one. No failed check was
+counted as passed. Compilation and harness durations are retained separately
+in `target/merge951/validation.json` and logs. Analytics took 182.23 seconds;
+the library took 67.98 seconds and catalog/security 69.60 seconds.
+
+The old `should_cancel_recursive_regex_work_with_cleanup` race (one million
+rows and a 25 ms sleep) is replaced with
+`should_require_finite_regex_execution_before_active_cancellation`, a three-row
+known-red prerequisite. #954 retains actual synchronized cancellation, cleanup,
+no partial output and session recovery after #799 implements regex. This is not
+active cancellation coverage or a pre-cancelled substitute.
+
+Two review items are explicitly deferred: #816 retains defensive complete
+BYTEA-carrier validation until every ingress invariant is proven; #796 owns
+qualified-operator token/offset integration and benchmark scaling. Depth probes
+pass but do not establish linear parser complexity. Their live owner records
+retain the next actions.
+
+Jev's gap judgments drove ordered-OID and cache-diagnostic probes, nested and
+mixed parameter operator cases, unknown-format scratch admission, actual wire
+C/M/H fields and recovery, exact/below-budget runtime/constant controls and the
+six constant-planning diagnostic formats. Confirmed defects were corrected;
+final bounded independent source review found no remaining material defect in
+the selected changes. Source and executable receipts, rather than probabilities,
+establish the finite result.
+
+Native PostgreSQL 18.6 supplied independent OIDs, typmods, text/binary values,
+error fields and same-socket recovery. The local oracle executable SHA256 is
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`. Full distribution/corpus and release qualification
+remain with #848/#849.
+
+The last audited pre-closeout hosted backend run was cancelled during tests;
+CodeQL's aggregate check failed with 143 changed-code alerts. A separate PR-ref
+snapshot had 186 open alerts. Specific modeled-flow/test-fixture groups have
+source-backed false-positive evidence, but no bulk dismissal or complete
+security clearance is claimed. Live main rules were inactive; enforcement, CI,
+release and version configuration were not changed. Final pushed-head and
+merge readback belong to the PR record. Local receipts are retained under
+`target/merge951/` and `target/finish-line/`.

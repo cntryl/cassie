@@ -3,30 +3,12 @@ use super::{invalid, QueryError, Work};
 
 pub(super) fn hex_bytes(input: &str, work: &Work<'_>) -> Result<Vec<u8>, QueryError> {
     let mut output = Vec::with_capacity(input.len() / 2);
-    let mut chars = input.chars();
-    while let Some(high) = chars.next() {
-        work.check()?;
-        if matches!(high, ' ' | '\t' | '\n' | '\r') {
-            continue;
-        }
-        let high = digit(high)?;
-        let low = digit(
-            chars
-                .next()
-                .ok_or_else(|| bytea(crate::types::ByteaInputError::HexOdd))?,
-        )?;
-        output.push(high * 16 + low);
-    }
+    crate::types::bytea_input::scan_hex::<crate::app::CassieError>(
+        input,
+        || work.check().map_err(Into::into),
+        |byte| output.push(byte),
+    )?;
     Ok(output)
-}
-fn digit(character: char) -> Result<u8, QueryError> {
-    character
-        .to_digit(16)
-        .and_then(|digit| u8::try_from(digit).ok())
-        .ok_or_else(|| bytea(crate::types::ByteaInputError::HexDigit(character)))
-}
-fn bytea(error: crate::types::ByteaInputError) -> QueryError {
-    QueryError::Cassie(error.into())
 }
 
 pub(super) fn decode(input: &str, format: &str, work: &Work<'_>) -> Result<Vec<u8>, QueryError> {
@@ -37,39 +19,17 @@ pub(super) fn decode(input: &str, format: &str, work: &Work<'_>) -> Result<Vec<u
         return base64_decode(input, work);
     }
     if !format.eq_ignore_ascii_case("escape") {
-        return Err(invalid(format!("unrecognized encoding: \"{format}\"")));
+        return Err(encoding_error(format));
     }
     let mut output = Vec::with_capacity(input.len());
-    let mut bytes = input.bytes();
-    while let Some(byte) = bytes.next() {
-        work.check()?;
-        if byte != b'\\' {
-            output.push(byte);
-            continue;
-        }
-        let first = bytes
-            .next()
-            .ok_or_else(|| bytea(crate::types::ByteaInputError::EscapeSyntax))?;
-        if first == b'\\' {
-            output.push(first);
-            continue;
-        }
-        let second = bytes
-            .next()
-            .ok_or_else(|| bytea(crate::types::ByteaInputError::EscapeSyntax))?;
-        let third = bytes
-            .next()
-            .ok_or_else(|| bytea(crate::types::ByteaInputError::EscapeSyntax))?;
-        if !matches!(first, b'0'..=b'3')
-            || !matches!(second, b'0'..=b'7')
-            || !matches!(third, b'0'..=b'7')
-        {
-            return Err(bytea(crate::types::ByteaInputError::EscapeSyntax));
-        }
-        output.push((first - b'0') * 64 + (second - b'0') * 8 + (third - b'0'));
-    }
+    crate::types::bytea_input::scan_escape::<crate::app::CassieError>(
+        input,
+        || work.check().map_err(Into::into),
+        |byte| output.push(byte),
+    )?;
     Ok(output)
 }
+
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 fn base64_decode(input: &str, work: &Work<'_>) -> Result<Vec<u8>, QueryError> {
     let mut output = Vec::with_capacity(input.len() / 4 * 3);
@@ -129,10 +89,12 @@ fn base64_decode(input: &str, work: &Work<'_>) -> Result<Vec<u8>, QueryError> {
 pub(super) fn encode(bytes: &[u8], format: &str, work: &Work<'_>) -> Result<String, QueryError> {
     use std::fmt::Write;
     if format.eq_ignore_ascii_case("hex") {
-        return Ok(super::carrier(bytes, work)?[2..].to_owned());
+        let mut output = String::with_capacity(bytes.len() * 2);
+        crate::types::bytea_input::append_hex(&mut output, bytes, || work.check())?;
+        return Ok(output);
     }
     if format.eq_ignore_ascii_case("escape") {
-        let mut output = String::new();
+        let mut output = String::with_capacity(bytes.len() * 4);
         for byte in bytes {
             work.check()?;
             if *byte == b'\\' {
@@ -146,9 +108,11 @@ pub(super) fn encode(bytes: &[u8], format: &str, work: &Work<'_>) -> Result<Stri
         return Ok(output);
     }
     if !format.eq_ignore_ascii_case("base64") {
-        return Err(invalid(format!("unrecognized encoding: \"{format}\"")));
+        return Err(encoding_error(format));
     }
-    let mut output = String::new();
+    let mut output = String::with_capacity(
+        super::work::base64_capacity(bytes.len()).expect("admitted Base64 capacity"),
+    );
     let mut line = 0;
     for chunk in bytes.chunks(3) {
         work.check()?;
@@ -175,10 +139,21 @@ pub(super) fn encode(bytes: &[u8], format: &str, work: &Work<'_>) -> Result<Stri
     Ok(output)
 }
 
+fn encoding_error(format: &str) -> QueryError {
+    let mut message = String::with_capacity(
+        super::work::encoding_error_capacity(format).expect("admitted encoding diagnostic"),
+    );
+    message.push_str(super::work::ENCODING_ERROR_PREFIX);
+    message.push_str(format);
+    message.push('"');
+    invalid(message)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{decode, Work};
+    use super::{decode, encode, Work};
     use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+    use crate::types::Value;
     #[test]
     fn should_interrupt_codec_given_cancellation_after_admission_when_bytes_are_consumed() {
         // Arrange
@@ -188,7 +163,7 @@ mod tests {
             std::time::Instant::now(),
             cancellation.clone(),
         );
-        let work = Work::admit(&[], Some(&controls)).unwrap();
+        let work = Work::admit("decode", &[], Some(&controls)).unwrap();
         cancellation.cancel();
         // Act
         let result = decode("00ff", "hex", &work).map_err(crate::app::CassieError::from);
@@ -199,5 +174,62 @@ mod tests {
         ));
         drop(work);
         assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_bound_encoding_allocations_given_padding_and_line_boundaries_when_formats_encode() {
+        // Arrange
+        for length in [0, 1, 2, 3, 56, 57, 58] {
+            let bytes = vec![255; length];
+            let carrier = Value::String(format!("\\x{}", "ff".repeat(length)));
+            for format in ["hex", "escape", "base64"] {
+                let controls = QueryExecutionControls::from_limits(
+                    &crate::config::CassieRuntimeLimits::default(),
+                    std::time::Instant::now(),
+                );
+                let args = [carrier.clone(), Value::String(format.into())];
+                let work = Work::admit("encode", &args, Some(&controls)).unwrap();
+                // Act
+                let encoded = encode(&bytes, format, &work).unwrap();
+                // Assert
+                assert!(
+                    bytes.capacity() + encoded.capacity() <= controls.peak_query_memory_bytes()
+                );
+                if length == 57 && format == "base64" {
+                    assert_eq!(encoded, format!("{}\n", "/".repeat(76)));
+                }
+                drop(work);
+                assert_eq!(controls.current_query_memory_bytes(), 0);
+            }
+        }
+    }
+
+    #[test]
+    fn should_bound_decoding_allocations_given_padding_and_line_boundaries_when_formats_round_trip()
+    {
+        // Arrange
+        for length in [0, 1, 2, 3, 56, 57, 58] {
+            let bytes = vec![255; length];
+            let carrier = Value::String(format!("\\x{}", "ff".repeat(length)));
+            for format in ["hex", "escape", "base64"] {
+                let args = [carrier.clone(), Value::String(format.into())];
+                let encoding_work = Work::admit("encode", &args, None).unwrap();
+                let encoded = encode(&bytes, format, &encoding_work).unwrap();
+                let controls = QueryExecutionControls::from_limits(
+                    &crate::config::CassieRuntimeLimits::default(),
+                    std::time::Instant::now(),
+                );
+                let args = [Value::String(encoded.clone()), Value::String(format.into())];
+                let work = Work::admit("decode", &args, Some(&controls)).unwrap();
+                let admitted = controls.current_query_memory_bytes();
+                // Act
+                let decoded = decode(&encoded, format, &work).unwrap();
+                // Assert
+                assert_eq!(decoded, bytes, "{format} length {length}");
+                assert!(decoded.capacity() + 2 * decoded.len() + 2 <= admitted);
+                drop(work);
+                assert_eq!(controls.current_query_memory_bytes(), 0);
+            }
+        }
     }
 }

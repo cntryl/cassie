@@ -88,7 +88,13 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
         })
         .or_else(|| evaluate_search_function(name, function, args, search_context))
         .or_else(|| evaluate_vector_function(name, function, args))
-        .or_else(|| evaluate_cast_function(name, args))
+        .or_else(|| {
+            evaluate_cast_function(
+                name,
+                args,
+                controls.or_else(|| session.and_then(CassieSession::statement_execution_controls)),
+            )
+        })
         .or_else(|| (name == "time_bucket").then(|| evaluate_time_bucket(args)))
 }
 
@@ -367,12 +373,24 @@ fn evaluate_vector_function(
     }
 }
 
-fn evaluate_cast_function(name: &str, args: &[Value]) -> Option<Result<Value, QueryError>> {
+fn execution_controls(context: EvalContext<'_>) -> Option<&crate::runtime::QueryExecutionControls> {
+    context.controls.or_else(|| {
+        context
+            .session
+            .and_then(CassieSession::statement_execution_controls)
+    })
+}
+
+fn evaluate_cast_function(
+    name: &str,
+    args: &[Value],
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Option<Result<Value, QueryError>> {
     (name == "cast").then(|| {
         require_arg_count("cast", args, 2)?;
         let target = DataType::parse_sql(&to_text(&args[1]))
             .map_err(|_| QueryError::General("cannot cast value".to_string()))?;
-        let value = cast_scalar(&scalar_from_value(&args[0]), &target)?;
+        let value = cast_scalar(&scalar_from_value(&args[0]), &target, controls)?;
         Ok(value.to_value())
     })
 }
@@ -409,7 +427,11 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         .iter()
         .zip(args)
         .map(|(arg, value)| {
-            let value = cast_scalar(&scalar_from_value(&value), &arg.data_type)?;
+            let value = cast_scalar(
+                &scalar_from_value(&value),
+                &arg.data_type,
+                execution_controls(context),
+            )?;
             Ok((arg.name.to_ascii_lowercase(), value.to_value()))
         })
         .collect::<Result<HashMap<String, Value>, QueryError>>()?;
@@ -423,7 +445,7 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         Some(&merged_args),
         context.session,
     )
-    .and_then(|value| cast_scalar(&value, &metadata.return_type))
+    .and_then(|value| cast_scalar(&value, &metadata.return_type, execution_controls(context)))
     .map(|value| value.to_value())
 }
 

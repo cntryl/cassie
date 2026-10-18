@@ -2,7 +2,6 @@
 
 use cassie::app::CassieError;
 use cassie::config::CassieRuntimeConfig;
-use cassie::runtime::QueryCancellationHandle;
 use cassie::types::Value;
 
 use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};

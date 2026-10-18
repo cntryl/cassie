@@ -435,16 +435,20 @@ fn cast_temporal_scalar(
         .map_err(|error| QueryError::General(format!("cannot cast value to {type_name}: {error}")))
 }
 
-fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue, QueryError> {
+fn cast_scalar(
+    value: &ScalarValue,
+    data_type: &DataType,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<ScalarValue, QueryError> {
     if matches!(value, ScalarValue::Null) {
         return Ok(ScalarValue::Null);
     }
 
     match data_type {
         DataType::Null => Ok(ScalarValue::Null),
-        DataType::SmallInt => integers::cast(value, crate::types::IntegerWidth::I16),
-        DataType::Int => integers::cast(value, crate::types::IntegerWidth::I32),
-        DataType::BigInt => integers::cast(value, crate::types::IntegerWidth::I64),
+        DataType::SmallInt => integers::cast(value, crate::types::IntegerWidth::I16, controls),
+        DataType::Int => integers::cast(value, crate::types::IntegerWidth::I32, controls),
+        DataType::BigInt => integers::cast(value, crate::types::IntegerWidth::I64, controls),
         DataType::Float => value
             .to_f64()
             .filter(|value| value.is_finite())
@@ -889,7 +893,16 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
     if let Expr::NumericLiteral(value) = expr {
-        return casts::numeric_literal(value, data_type, identity);
+        return casts::numeric_literal(
+            value,
+            data_type,
+            identity,
+            context.controls.or_else(|| {
+                context
+                    .session
+                    .and_then(CassieSession::statement_execution_controls)
+            }),
+        );
     }
     let value = eval_scalar_with_context(row, expr, context)?;
     if identity == crate::sql::ast::CastIdentity::Scalar
@@ -898,7 +911,16 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
     {
         numeric_comparison::float_scalar(&value)
     } else {
-        casts::scalar(&value, data_type, source_type)
+        casts::scalar(
+            &value,
+            data_type,
+            source_type,
+            context.controls.or_else(|| {
+                context
+                    .session
+                    .and_then(CassieSession::statement_execution_controls)
+            }),
+        )
     }
 }
 

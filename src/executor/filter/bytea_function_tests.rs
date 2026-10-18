@@ -6,10 +6,10 @@ use crate::sql::parser::parse_expression;
 #[test]
 fn should_reject_bytea_function_scratch_given_tiny_budget_when_constant_is_reached() {
     // Arrange
-    let expression = parse_expression(&format!("decode('{}','hex')", "ab".repeat(8192))).unwrap();
+    let expression = parse_expression(&format!("decode('{}','hex')", "ab".repeat(16))).unwrap();
     let controls = QueryExecutionControls::from_limits(
         &CassieRuntimeLimits {
-            query_memory_budget_bytes: 128,
+            query_memory_budget_bytes: 32,
             ..CassieRuntimeLimits::default()
         },
         std::time::Instant::now(),

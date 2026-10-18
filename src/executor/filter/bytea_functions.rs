@@ -28,7 +28,7 @@ fn run(
     if args.iter().any(|value| matches!(value, Value::Null)) {
         return Ok(Value::Null);
     }
-    let work = Work::admit(args, controls)?;
+    let work = Work::admit(name, args, controls)?;
     let text = |index| match args.get(index) {
         Some(Value::String(value)) => Ok(value.as_str()),
         _ => Err(QueryError::General(
@@ -115,16 +115,9 @@ fn invalid(message: String) -> QueryError {
 }
 
 fn carrier(bytes: &[u8], work: &Work<'_>) -> Result<String, QueryError> {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut output = String::with_capacity(2 + bytes.len() * 2);
     output.push_str("\\x");
-    for (index, byte) in bytes.iter().enumerate() {
-        if index.is_multiple_of(4096) {
-            work.check()?;
-        }
-        output.push(char::from(HEX[usize::from(byte >> 4)]));
-        output.push(char::from(HEX[usize::from(byte & 15)]));
-    }
+    crate::types::bytea_input::append_hex(&mut output, bytes, || work.check())?;
     Ok(output)
 }
 
@@ -136,3 +129,7 @@ fn hash<D: Digest>(bytes: &[u8], work: &Work<'_>) -> Result<String, QueryError> 
     }
     carrier(&hash.finalize(), work)
 }
+
+#[cfg(test)]
+#[path = "bytea_resource_tests.rs"]
+mod resource_tests;

@@ -6,6 +6,8 @@ mod mixed_numeric_comparisons;
 #[path = "support/mixed_numeric.rs"]
 mod support_mixed_numeric;
 
+#[path = "pgwire_extended/parameters/cache_identity.rs"]
+mod parameter_cache_identity;
 #[path = "pgwire_extended/mod.rs"]
 mod pgwire_extended;
 #[path = "pgwire_extended/parameters/occurrences.rs"]
@@ -16,6 +18,8 @@ mod pgwire_parameter_slot_completeness;
 mod pgwire_unsigned_parameter_oids;
 #[path = "pgwire_extended/grammar/rows/arity_aliases.rs"]
 mod row_arity_aliases;
+#[path = "support/parameter_cache_identity.rs"]
+mod support_parameter_cache_identity;
 #[path = "support/parameter_occurrence_wire.rs"]
 mod support_parameter_occurrence_wire;
 
@@ -633,3 +637,12 @@ mod bytea_functions_gaps;
 
 #[path = "pgwire_extended/grammar/bytea_functions_overloads.rs"]
 mod bytea_functions_overloads;
+
+#[path = "support/parameter_operators.rs"]
+mod support_parameter_operators;
+
+#[path = "pgwire_extended/parameters/operator_resolution.rs"]
+mod parameter_operator_resolution;
+
+#[path = "pgwire_extended/types/review_diagnostics.rs"]
+mod review_diagnostics;

@@ -253,6 +253,12 @@ Describe/capability surface with a new administrative catalog profile.
 
 Pgwire validates exported result types from the already compiled plan before a result-cache hit or any execution side effect. Describe and Execute use the existing metadata owner when there are no parameters and the private parameter-aware output contract when the prepared OID list is nonempty. The latter includes ordinary supported parameter types, because their exported ARRAY and CTE types also require propagation. Both paths apply the same logical VECTOR-array exclusion and execution controls. This preserves ordinary metadata and avoids repeating parameter analysis for queries without parameters; paired source-shape probes qualify the additional parameter path. Fresh, cached and fixed-schema suspended type cases retain their descriptors. Numeric input provenance follows exported positions through CTEs, derived tables and value-contributing set branches. An outer existing-type CAST consumes that provenance. Predicates, constrained assignments and independently fixed result expressions do not require a CAST merely because they use a numeric input adapter.
 
+Compiled-plan and execution-result cache identity includes the complete ordered
+effective parameter OID signature. Describe, Bind and Execute use that same
+signature: equal decoded values do not permit reuse across integer widths or
+BYTEA and TEXT inputs. Repeated statements with the same signature retain cache
+reuse. Rebuildable compiled entries from older binding epochs are discarded.
+
 Transaction-scoped portal lifetime and schema/snapshot changes remain owned by
 [#755](https://github.com/cntryl/cassie/issues/755)/[#757](https://github.com/cntryl/cassie/issues/757).
 A diagnostic that resumes a named wildcard cursor after Sync and column addition

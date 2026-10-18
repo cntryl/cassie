@@ -55,6 +55,40 @@ pub(super) fn logical<R: RowAccess + ?Sized>(
     )
 }
 
+fn cast_constant<R: RowAccess + ?Sized>(
+    expr: &Expr,
+    row: &R,
+    context: ConstantContext<'_>,
+) -> Result<Option<ScalarValue>, QueryError> {
+    let Expr::Cast {
+        expr: child,
+        data_type,
+        source_type,
+        identity,
+    } = expr
+    else {
+        unreachable!("only casts use constant conversion");
+    };
+    if let Some(admit) = context.admit_cast {
+        admit(expr)?;
+    }
+    let controls = context
+        .controls
+        .or(context.evaluation.controls)
+        .or_else(|| {
+            context
+                .evaluation
+                .session
+                .and_then(crate::app::CassieSession::statement_execution_controls)
+        });
+    if let Expr::NumericLiteral(input) = child.as_ref() {
+        return super::casts::numeric_literal(input, data_type, *identity, controls).map(Some);
+    }
+    resolve(child, row, context)?
+        .map(|value| super::casts::scalar(&value, data_type, source_type.as_ref(), controls))
+        .transpose()
+}
+
 fn resolve<R: RowAccess + ?Sized>(
     expr: &Expr,
     row: &R,
@@ -100,22 +134,7 @@ fn resolve<R: RowAccess + ?Sized>(
                 _ => Ok(None),
             }
         }
-        Expr::Cast {
-            expr: child,
-            data_type,
-            source_type,
-            identity,
-        } => {
-            if let Some(admit) = context.admit_cast {
-                admit(expr)?;
-            }
-            if let Expr::NumericLiteral(input) = child.as_ref() {
-                return super::casts::numeric_literal(input, data_type, *identity).map(Some);
-            }
-            resolve(child, row, context)?
-                .map(|value| super::casts::scalar(&value, data_type, source_type.as_ref()))
-                .transpose()
-        }
+        Expr::Cast { .. } => cast_constant(expr, row, context),
         Expr::UnaryNumeric { expr, op } => resolve(expr, row, context)?
             .map(|value| super::unary_numeric::evaluate(&value, *op))
             .transpose(),

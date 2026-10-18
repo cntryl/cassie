@@ -194,7 +194,7 @@ impl QueryExecutionControls {
         if let Some(pause) = &self.cancellation.2 {
             pause.reach(boundary)?;
         }
-        self.check_interruption()
+        Ok(())
     }
 
     pub(crate) fn check_interruption(&self) -> Result<(), CassieError> {

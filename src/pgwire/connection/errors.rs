@@ -96,6 +96,11 @@ impl PgWireError {
     pub(super) fn from_cassie_error(severity: PgWireSeverity, error: &CassieError) -> Self {
         let descriptor = error.descriptor();
         let mut pg_error = Self::new(severity, descriptor.sql_state, descriptor.message);
+        if pg_error.code == "22023" && pg_error.message == "invalid base64 end sequence" {
+            pg_error.hint = Some(
+                "Input data is missing padding, is truncated, or is otherwise corrupted.".into(),
+            );
+        }
         pg_error.table = descriptor.table;
         pg_error.column = descriptor.column;
         pg_error.constraint = descriptor.constraint;
@@ -106,6 +111,22 @@ impl PgWireError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_preserve_native_base64_truncation_hint() {
+        // Arrange
+        let error = CassieError::InvalidParameterValue("invalid base64 end sequence".into());
+        let hint = "Input data is missing padding, is truncated, or is otherwise corrupted.";
+        // Act
+        let mapped = cassie_pg_error(&error);
+        let unrelated = cassie_pg_error(&CassieError::InvalidParameterValue(
+            "invalid base64 symbol".into(),
+        ));
+        // Assert
+        assert_eq!(mapped.code, "22023");
+        assert_eq!(mapped.hint.as_deref(), Some(hint));
+        assert_eq!(unrelated.hint, None);
+    }
 
     #[test]
     fn should_map_retryable_storage_errors_to_cannot_connect_now_sqlstate() {

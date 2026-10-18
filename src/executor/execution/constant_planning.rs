@@ -754,9 +754,28 @@ fn is_folding_error(error: &QueryError) -> bool {
         QueryError::General(message)
             if matches!(message.as_str(), "division by zero" | "invalid escape string" | "LIKE pattern must not end with escape character" | "cannot take square root of a negative number" | "zero raised to a negative power is undefined" | "a negative number raised to a non-integer power yields a complex result")
                 || matches!(message.as_str(), "smallint out of range" | "integer out of range" | "invalid input syntax for type smallint" | "invalid input syntax for type integer" | "invalid input syntax for type bigint")
+                || is_integer_input_diagnostic(message)
                 || message == filter::BIGINT_OUT_OF_RANGE
                 || message == crate::types::numeric::FLOAT_OVERFLOW
     )
+}
+
+fn is_integer_input_diagnostic(message: &str) -> bool {
+    [
+        "invalid input syntax for type smallint: \"",
+        "invalid input syntax for type integer: \"",
+        "invalid input syntax for type bigint: \"",
+    ]
+    .iter()
+    .any(|prefix| message.starts_with(prefix))
+        || (message.starts_with("value \"")
+            && [
+                "\" is out of range for type smallint",
+                "\" is out of range for type integer",
+                "\" is out of range for type bigint",
+            ]
+            .iter()
+            .any(|suffix| message.ends_with(suffix)))
 }
 
 #[cfg(test)]

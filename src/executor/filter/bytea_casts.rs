@@ -36,8 +36,6 @@ fn canonical_digits(value: &str) -> Result<&str, QueryError> {
     value.strip_prefix("\\x").ok_or_else(invalid_bytea)
 }
 
-const HEX: &[u8; 16] = b"0123456789abcdef";
-
 const fn byte_width(width: IntegerWidth) -> usize {
     match width {
         IntegerWidth::I16 => 2,
@@ -67,10 +65,7 @@ pub(super) fn encode(value: &ScalarValue, width: IntegerWidth) -> Result<ScalarV
     let bytes = &bytes[8 - byte_width(width)..];
     let mut output = String::with_capacity(2 + 2 * bytes.len());
     output.push_str("\\x");
-    for byte in bytes {
-        output.push(char::from(HEX[usize::from(byte >> 4)]));
-        output.push(char::from(HEX[usize::from(byte & 15)]));
-    }
+    crate::types::bytea_input::append_hex(&mut output, bytes, || Ok::<_, QueryError>(()))?;
     Ok(ScalarValue::Str(output))
 }
 
@@ -97,8 +92,11 @@ pub(super) fn decode(value: &ScalarValue, width: IntegerWidth) -> Result<ScalarV
         .iter_mut()
         .zip(digits.as_bytes().as_chunks::<2>().0)
     {
-        *slot = (hex_digit(pair[0]).ok_or_else(invalid_bytea)? << 4)
-            | hex_digit(pair[1]).ok_or_else(invalid_bytea)?;
+        *slot = (crate::types::bytea_input::nibble(char::from(pair[0]))
+            .map_err(|_| invalid_bytea())?
+            << 4)
+            | crate::types::bytea_input::nibble(char::from(pair[1]))
+                .map_err(|_| invalid_bytea())?;
     }
     let value = match width {
         IntegerWidth::I16 => i64::from(i16::from_be_bytes([bytes[6], bytes[7]])),
@@ -108,15 +106,6 @@ pub(super) fn decode(value: &ScalarValue, width: IntegerWidth) -> Result<ScalarV
         IntegerWidth::I64 => i64::from_be_bytes(bytes),
     };
     Ok(ScalarValue::Int(value))
-}
-
-const fn hex_digit(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
 }
 
 fn invalid_bytea() -> QueryError {

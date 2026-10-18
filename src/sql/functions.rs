@@ -218,6 +218,9 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         || text::FUNCTIONS
                             .iter()
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                        || bytea::FUNCTIONS
+                            .iter()
+                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                 })
                 .and_then(|local| {
                     SCALAR_FUNCTIONS

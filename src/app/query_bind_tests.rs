@@ -73,7 +73,7 @@ fn probe(persisted: bool) -> Evidence {
         .to_vec();
     let mut key = cassie.plan_cache_key_from_fingerprint(
         fingerprint,
-        Vec::new(),
+        &[],
         ExecutionMode::ExtendedQuery,
         session.database.clone(),
         &session.search_path(),

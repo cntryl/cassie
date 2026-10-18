@@ -10,7 +10,7 @@ use case::case_operand_family;
 mod vector;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OperandFamily {
+pub(super) enum OperandFamily {
     Numeric,
     Boolean,
     Text,
@@ -206,6 +206,10 @@ fn binary_operand_family(
     match op {
         BinaryOp::ByteaConcat => Ok(Some(OperandFamily::Other)),
         BinaryOp::Concat => {
+            // Parameter OIDs choose the text or BYTEA overload in the typed pass.
+            if expr_contains_parameters(left) || expr_contains_parameters(right) {
+                return Ok(None);
+            }
             let family = |expr: &Expr, inferred| {
                 if matches!(expr, Expr::StringLiteral(_)) {
                     Some(OperandFamily::Text)
@@ -344,7 +348,7 @@ fn contextual_string_literal_families(
     }
 }
 
-fn require_compatible_families(
+pub(super) fn require_compatible_families(
     left: Option<OperandFamily>,
     right: Option<OperandFamily>,
     operation: &str,
@@ -397,7 +401,7 @@ fn families_compatible(left: OperandFamily, right: OperandFamily) -> bool {
         )
 }
 
-const fn data_type_family(data_type: &DataType) -> OperandFamily {
+pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
     match data_type {
         DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float => {
             OperandFamily::Numeric

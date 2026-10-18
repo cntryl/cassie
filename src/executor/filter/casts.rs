@@ -5,6 +5,7 @@ pub(super) fn scalar(
     value: &ScalarValue,
     target: &DataType,
     source: Option<&DataType>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
     if matches!(target,DataType::Array(element) if **element == DataType::Text)
         && source == Some(target)
@@ -21,6 +22,11 @@ pub(super) fn scalar(
             return super::bytea_casts::decode(value, width);
         }
     }
+    if let (ScalarValue::Str(input), Some(width)) =
+        (value, crate::types::IntegerWidth::from_data_type(target))
+    {
+        return super::integers::controlled_input(input, width, controls);
+    }
     // Explicit typmod casts truncate; assignment and function coercion still
     // use cast_scalar's bounded validation. Format the source before applying
     // the width so CHAR blanks and temporal spellings keep their SQL identity.
@@ -28,17 +34,7 @@ pub(super) fn scalar(
         length: Some(width),
     } = target
     {
-        let value = scalar(value, &DataType::Text, source)?;
-        return Ok(match value {
-            ScalarValue::Str(mut text) => {
-                let width = usize::try_from(*width).unwrap_or(usize::MAX);
-                if let Some((boundary, _)) = text.char_indices().nth(width) {
-                    text.truncate(boundary);
-                }
-                ScalarValue::Str(text)
-            }
-            value => value,
-        });
+        return varchar(value, *width, source, controls);
     }
     if *target == DataType::Date && source == Some(&DataType::Timestamp) {
         if let ScalarValue::Str(text) = value {
@@ -56,6 +52,7 @@ pub(super) fn scalar(
             return cast_scalar(
                 &ScalarValue::Str(crate::types::char_text::canonical_char_text(text).to_owned()),
                 target,
+                controls,
             );
         }
     }
@@ -89,6 +86,7 @@ pub(super) fn scalar(
                 return cast_scalar(
                     &ScalarValue::Str(crate::types::float_text::format(*value)),
                     target,
+                    controls,
                 );
             }
         }
@@ -102,11 +100,31 @@ pub(super) fn scalar(
                 return cast_scalar(
                     &ScalarValue::Str(formatted.map_err(QueryError::General)?),
                     target,
+                    controls,
                 );
             }
         }
     }
-    cast_scalar(value, target)
+    cast_scalar(value, target, controls)
+}
+
+fn varchar(
+    value: &ScalarValue,
+    width: u32,
+    source: Option<&DataType>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<ScalarValue, QueryError> {
+    let value = scalar(value, &DataType::Text, source, controls)?;
+    Ok(match value {
+        ScalarValue::Str(mut text) => {
+            let width = usize::try_from(width).unwrap_or(usize::MAX);
+            if let Some((boundary, _)) = text.char_indices().nth(width) {
+                text.truncate(boundary);
+            }
+            ScalarValue::Str(text)
+        }
+        value => value,
+    })
 }
 
 /// Conversions from exact integer NUMERIC tokens stay in the folding/runtime
@@ -115,6 +133,7 @@ pub(super) fn numeric_literal(
     input: &str,
     target: &DataType,
     identity: crate::sql::ast::CastIdentity,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
     if identity != crate::sql::ast::CastIdentity::Scalar {
         return Err(QueryError::Cassie(crate::app::CassieError::Unsupported(
@@ -122,7 +141,7 @@ pub(super) fn numeric_literal(
         )));
     }
     if let Some(width) = crate::types::IntegerWidth::from_data_type(target) {
-        return super::integers::input(input, width);
+        return super::integers::controlled_input(input, width, controls);
     }
     if *target == DataType::Float {
         return crate::types::float_input::parse(input)

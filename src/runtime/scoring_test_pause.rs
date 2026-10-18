@@ -65,6 +65,27 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
+    fn should_leave_interruption_to_the_operator_when_no_pause_is_installed() {
+        // Arrange
+        let cancellation = QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation.clone(),
+        );
+        cancellation.cancel();
+        // Act
+        let hook = controls.scored_candidate(ExactVector);
+        let interruption = controls.check_interruption();
+        // Assert
+        assert!(
+            hook.is_ok(),
+            "the diagnostic hook must not mask the operator check"
+        );
+        assert!(matches!(interruption, Err(CassieError::QueryCancelled)));
+    }
+
+    #[test]
     fn should_restrict_scoring_pause_to_its_request_operator_boundary() {
         // Arrange
         let mut owned = QueryCancellationHandle::new();
@@ -81,7 +102,10 @@ mod tests {
         let wrong_operator = controls.scored_candidate(PersistedFulltext);
         let other_request = unrelated.scored_candidate(ExactVector);
         let not_reached = selected.try_recv();
-        let worker = std::thread::spawn(move || controls.scored_candidate(ExactVector));
+        let worker = std::thread::spawn(move || {
+            let hook = controls.scored_candidate(ExactVector);
+            (hook, controls.check_interruption())
+        });
         let reached = selected.recv_timeout(Duration::from_secs(10));
         owned.cancel();
         let _ = resume.send(());
@@ -95,7 +119,8 @@ mod tests {
             Err(std::sync::mpsc::TryRecvError::Empty)
         ));
         reached.expect("owned scoring boundary");
-        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert!(result.0.is_ok());
+        assert!(matches!(result.1, Err(CassieError::QueryCancelled)));
     }
 
     #[test]

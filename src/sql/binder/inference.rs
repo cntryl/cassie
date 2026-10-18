@@ -779,7 +779,13 @@ pub(crate) fn infer_expr_type(
             | BinaryOp::Gte
             | BinaryOp::Like => Some(DataType::Boolean),
             BinaryOp::Power => Some(DataType::Float),
-            BinaryOp::Concat => Some(DataType::Text),
+            BinaryOp::Concat => infer_concatenation_type(
+                left,
+                right,
+                source_schema,
+                user_functions,
+                parameter_types,
+            ),
             BinaryOp::ByteaConcat => Some(DataType::Bytea),
             BinaryOp::Bitwise { operation } if operation.is_shift() => {
                 infer_expr_type(left, source_schema, user_functions, parameter_types)
@@ -807,6 +813,35 @@ pub(crate) fn infer_expr_type(
                 Some(DataType::Float)
             }
         },
+    }
+}
+
+fn infer_concatenation_type(
+    left: &Expr,
+    right: &Expr,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
+    let operands = [
+        infer_expr_type(left, source_schema, user_functions, parameter_types),
+        infer_expr_type(right, source_schema, user_functions, parameter_types),
+    ];
+    if operands
+        .iter()
+        .all(|kind| matches!(kind, Some(DataType::Null) | None))
+        && (super::validation::expr_contains_parameters(left)
+            || super::validation::expr_contains_parameters(right))
+    {
+        None
+    } else if operands.contains(&Some(DataType::Bytea))
+        && operands
+            .iter()
+            .all(|kind| matches!(kind, Some(DataType::Bytea | DataType::Null) | None))
+    {
+        Some(DataType::Bytea)
+    } else {
+        Some(DataType::Text)
     }
 }
 

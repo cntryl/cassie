@@ -57,7 +57,7 @@ impl Cassie {
         let physical = if matches!(parsed.statement, QueryStatement::Select(_)) {
             let key = self.plan_cache_key_from_fingerprint(
                 sql_fingerprint,
-                super::query_parameters::parameter_shape_for_oids(parameter_types),
+                parameter_types,
                 ExecutionMode::ExtendedQuery,
                 session.database.clone(),
                 &session.search_path(),

@@ -71,17 +71,31 @@ fn should_deny_values_scratch_given_small_budgets_when_bind_checks_constant_inpu
 #[test]
 fn should_release_values_scratch_given_folding_errors_when_constant_admission_is_owned() {
     // Arrange
-    let plan = logical("VALUES (CAST('bad' AS TEXT)::INT)");
-    let controls = controls(1_048_576);
-    // Act
-    let result = check_plan(&plan, &controls).map_err(CassieError::from);
-    // Assert
-    assert_eq!(
-        result.expect_err("invalid integer").descriptor().sql_state,
-        "22P02"
-    );
-    assert!(controls.peak_query_memory_bytes() > 0);
-    assert_eq!(controls.current_query_memory_bytes(), 0);
+    let cases = [
+        ("VALUES (CAST('bad' AS TEXT)::SMALLINT)", "22P02"),
+        ("VALUES (CAST('bad' AS TEXT)::INT)", "22P02"),
+        ("VALUES (CAST('bad' AS TEXT)::BIGINT)", "22P02"),
+        ("VALUES (CAST('32768' AS TEXT)::SMALLINT)", "22003"),
+        ("VALUES (CAST('2147483648' AS TEXT)::INT)", "22003"),
+        (
+            "VALUES (CAST('9223372036854775808' AS TEXT)::BIGINT)",
+            "22003",
+        ),
+    ];
+    for (sql, sqlstate) in cases {
+        let plan = logical(sql);
+        let controls = controls(1_048_576);
+        // Act
+        let result = check_plan(&plan, &controls).map_err(CassieError::from);
+        // Assert
+        assert_eq!(
+            result.expect_err("invalid integer").descriptor().sql_state,
+            sqlstate,
+            "{sql}"
+        );
+        assert!(controls.peak_query_memory_bytes() > 0);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
 }
 
 #[test]

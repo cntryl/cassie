@@ -1,4 +1,4 @@
-//! Fixed BYTEA builtins and their qualified aliases.
+//! Fixed BYTEA builtins; qualified lookup shares their canonical metadata.
 use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 pub(crate) const fn is_bytea_function(id: FunctionId) -> bool {
     matches!(
@@ -26,24 +26,8 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
-        id: FunctionId::Encode,
-        name: "pg_catalog.encode",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
         id: FunctionId::Decode,
         name: "decode",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Bytea,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Decode,
-        name: "pg_catalog.decode",
         arity: FunctionArity::Exact(2),
         return_type: FunctionReturnType::Bytea,
         is_aggregate: false,
@@ -58,24 +42,8 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
-        id: FunctionId::GetByte,
-        name: "pg_catalog.get_byte",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Int,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
         id: FunctionId::SetByte,
         name: "set_byte",
-        arity: FunctionArity::Exact(3),
-        return_type: FunctionReturnType::Bytea,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::SetByte,
-        name: "pg_catalog.set_byte",
         arity: FunctionArity::Exact(3),
         return_type: FunctionReturnType::Bytea,
         is_aggregate: false,
@@ -90,24 +58,8 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
-        id: FunctionId::GetBit,
-        name: "pg_catalog.get_bit",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Int,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
         id: FunctionId::SetBit,
         name: "set_bit",
-        arity: FunctionArity::Exact(3),
-        return_type: FunctionReturnType::Bytea,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::SetBit,
-        name: "pg_catalog.set_bit",
         arity: FunctionArity::Exact(3),
         return_type: FunctionReturnType::Bytea,
         is_aggregate: false,
@@ -122,24 +74,8 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
-        id: FunctionId::BitCount,
-        name: "pg_catalog.bit_count",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::BigInt,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
         id: FunctionId::Sha224,
         name: "sha224",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Bytea,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Sha224,
-        name: "pg_catalog.sha224",
         arity: FunctionArity::Exact(1),
         return_type: FunctionReturnType::Bytea,
         is_aggregate: false,
@@ -154,14 +90,6 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
-        id: FunctionId::Sha256,
-        name: "pg_catalog.sha256",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Bytea,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
         id: FunctionId::Sha384,
         name: "sha384",
         arity: FunctionArity::Exact(1),
@@ -170,24 +98,8 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
-        id: FunctionId::Sha384,
-        name: "pg_catalog.sha384",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Bytea,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
         id: FunctionId::Sha512,
         name: "sha512",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Bytea,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Sha512,
-        name: "pg_catalog.sha512",
         arity: FunctionArity::Exact(1),
         return_type: FunctionReturnType::Bytea,
         is_aggregate: false,
@@ -229,4 +141,42 @@ pub(crate) fn has_distinct_builtin_arity(name: &str, actual: usize, declared: us
             (is_bytea_function(metadata.id) || metadata.id == FunctionId::Lower)
                 && metadata.arity.matches(actual)
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FUNCTIONS;
+    use crate::sql::functions::{function, registry};
+
+    #[test]
+    fn should_share_bytea_metadata_given_qualified_names_when_builtins_are_resolved() {
+        // Arrange
+        let registry = registry();
+        for canonical in FUNCTIONS {
+            let qualified = format!("PG_CATALOG.{}", canonical.name.to_ascii_uppercase());
+            // Act
+            let resolved = function(&qualified).expect("qualified BYTEA builtin");
+            let definitions = registry
+                .iter()
+                .filter(|entry| entry.id == canonical.id)
+                .count();
+            // Assert
+            assert_eq!(
+                (
+                    resolved.name,
+                    resolved.id,
+                    resolved.arity,
+                    resolved.return_type
+                ),
+                (
+                    canonical.name,
+                    canonical.id,
+                    canonical.arity,
+                    canonical.return_type
+                ),
+                "{qualified}"
+            );
+            assert_eq!(definitions, 1, "{}", canonical.name);
+        }
+    }
 }

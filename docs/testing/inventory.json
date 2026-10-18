@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1761,
-    "rust_files": 1728,
-    "rust_test_declarations": 8811,
+    "files": 1765,
+    "rust_files": 1733,
+    "rust_test_declarations": 8857,
     "python_test_declarations": 19,
-    "registered_rust_instances": 8939,
+    "registered_rust_instances": 8985,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -130069,6 +130069,1370 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_preserve_integer_cast_widths_across_sessions",
+      "name": "should_preserve_integer_cast_widths_across_sessions",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 49,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_preserve_integer_cast_widths_across_sessions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_preserve_integer_cast_widths_given_disabled_result_cache",
+      "name": "should_preserve_integer_cast_widths_given_disabled_result_cache",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 59,
+      "end_line": 66,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_preserve_integer_cast_widths_given_disabled_result_cache"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_preserve_integer_cast_widths_given_cold_caches",
+      "name": "should_preserve_integer_cast_widths_given_cold_caches",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 69,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_preserve_integer_cast_widths_given_cold_caches"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_preserve_bytea_concatenation_across_sessions",
+      "name": "should_preserve_bytea_concatenation_across_sessions",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 81,
+      "end_line": 88,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_preserve_bytea_concatenation_across_sessions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_preserve_bytea_concatenation_given_disabled_result_cache",
+      "name": "should_preserve_bytea_concatenation_given_disabled_result_cache",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 91,
+      "end_line": 98,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_preserve_bytea_concatenation_given_disabled_result_cache"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_preserve_bytea_concatenation_given_cold_caches",
+      "name": "should_preserve_bytea_concatenation_given_cold_caches",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 101,
+      "end_line": 110,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_preserve_bytea_concatenation_given_cold_caches"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_reuse_same_oid_cached_plans_across_sessions",
+      "name": "should_reuse_same_oid_cached_plans_across_sessions",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 113,
+      "end_line": 129,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_reuse_same_oid_cached_plans_across_sessions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_preserve_transaction_result_cache_bypass_across_sessions",
+      "name": "should_preserve_transaction_result_cache_bypass_across_sessions",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 132,
+      "end_line": 148,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_preserve_transaction_result_cache_bypass_across_sessions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_isolate_ordered_parameter_signatures_across_sessions",
+      "name": "should_isolate_ordered_parameter_signatures_across_sessions",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 151,
+      "end_line": 187,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_isolate_ordered_parameter_signatures_across_sessions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_report_parameterized_text_diagnostic_cache_hits",
+      "name": "should_report_parameterized_text_diagnostic_cache_hits",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 190,
+      "end_line": 197,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_report_parameterized_text_diagnostic_cache_hits"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/cache_identity.rs::should_report_contextual_bytea_diagnostic_cache_hits",
+      "name": "should_report_contextual_bytea_diagnostic_cache_hits",
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "line": 200,
+      "end_line": 207,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_cache_identity::should_report_contextual_bytea_diagnostic_cache_hits"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "sequences",
+        "directory": "tests/pgwire_extended/sequences",
+        "file": "tests/pgwire_extended/sequences/cache_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_literal_known_given_parameter_operators",
+      "name": "should_resolve_bytea_literal_known_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 6,
+      "end_line": 22,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_literal_known_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_literal_unknown_given_parameter_operators",
+      "name": "should_resolve_bytea_literal_unknown_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 25,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_literal_unknown_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_casts_given_parameter_operators",
+      "name": "should_resolve_bytea_casts_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 44,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_casts_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_column_known_given_parameter_operators",
+      "name": "should_resolve_bytea_column_known_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 63,
+      "end_line": 79,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_column_known_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_column_unknown_given_parameter_operators",
+      "name": "should_resolve_bytea_column_unknown_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 82,
+      "end_line": 98,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_column_unknown_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_column_cast_given_parameter_operators",
+      "name": "should_resolve_bytea_column_cast_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 101,
+      "end_line": 117,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_column_cast_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_compare_given_parameter_operators",
+      "name": "should_resolve_bytea_compare_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 120,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_compare_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_text_given_parameter_operators",
+      "name": "should_resolve_bytea_text_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 139,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_text_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_remainder_column_given_parameter_operators",
+      "name": "should_resolve_remainder_column_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 158,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_remainder_column_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_remainder_cast_given_parameter_operators",
+      "name": "should_resolve_remainder_cast_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 177,
+      "end_line": 193,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_remainder_cast_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_remainder_unknown_given_parameter_operators",
+      "name": "should_resolve_remainder_unknown_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 196,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_remainder_unknown_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_remainder_bare_given_parameter_operators",
+      "name": "should_resolve_remainder_bare_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 215,
+      "end_line": 231,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_remainder_bare_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_add_bigint_given_parameter_operators",
+      "name": "should_resolve_add_bigint_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 234,
+      "end_line": 250,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_add_bigint_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_add_smallint_given_parameter_operators",
+      "name": "should_resolve_add_smallint_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 253,
+      "end_line": 269,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_add_smallint_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_divide_int_given_parameter_operators",
+      "name": "should_resolve_divide_int_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 272,
+      "end_line": 288,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_divide_int_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_subtract_int_given_parameter_operators",
+      "name": "should_resolve_subtract_int_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 291,
+      "end_line": 307,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_subtract_int_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_multiply_int_given_parameter_operators",
+      "name": "should_resolve_multiply_int_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 310,
+      "end_line": 326,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_multiply_int_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_remainder_bigint_given_parameter_operators",
+      "name": "should_resolve_remainder_bigint_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 329,
+      "end_line": 345,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_remainder_bigint_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_remainder_smallint_given_parameter_operators",
+      "name": "should_resolve_remainder_smallint_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 348,
+      "end_line": 364,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_remainder_smallint_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_cte_given_parameter_operators",
+      "name": "should_resolve_bytea_cte_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 367,
+      "end_line": 383,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_cte_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_subquery_given_parameter_operators",
+      "name": "should_resolve_bytea_subquery_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 386,
+      "end_line": 402,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_subquery_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bigint_subquery_given_parameter_operators",
+      "name": "should_resolve_bigint_subquery_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 405,
+      "end_line": 421,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bigint_subquery_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_mixed_remainder_given_parameter_operators",
+      "name": "should_resolve_mixed_remainder_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 424,
+      "end_line": 440,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_mixed_remainder_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_shift_smallint_given_parameter_operators",
+      "name": "should_resolve_shift_smallint_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 443,
+      "end_line": 459,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_shift_smallint_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_add_float_given_parameter_operators",
+      "name": "should_resolve_add_float_given_parameter_operators",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 462,
+      "end_line": 478,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_add_float_given_parameter_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_reject_bytea_boolean_given_parameter_operator_validation",
+      "name": "should_reject_bytea_boolean_given_parameter_operator_validation",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 481,
+      "end_line": 488,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_reject_bytea_boolean_given_parameter_operator_validation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_reject_unresolved_remainder_given_unknown_parameter_types",
+      "name": "should_reject_unresolved_remainder_given_unknown_parameter_types",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 491,
+      "end_line": 498,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_reject_unresolved_remainder_given_unknown_parameter_types"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_reject_integer_text_remainder_given_declared_parameter_types",
+      "name": "should_reject_integer_text_remainder_given_declared_parameter_types",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 501,
+      "end_line": 508,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_reject_integer_text_remainder_given_declared_parameter_types"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_resolve_bytea_coalesce_given_parameter_operator_inference",
+      "name": "should_resolve_bytea_coalesce_given_parameter_operator_inference",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 511,
+      "end_line": 527,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_resolve_bytea_coalesce_given_parameter_operator_inference"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_reject_bytea_concat_numeric_comparison_given_declared_parameters",
+      "name": "should_reject_bytea_concat_numeric_comparison_given_declared_parameters",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 530,
+      "end_line": 538,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_reject_bytea_concat_numeric_comparison_given_declared_parameters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_reject_text_concat_numeric_comparison_given_declared_parameters",
+      "name": "should_reject_text_concat_numeric_comparison_given_declared_parameters",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 541,
+      "end_line": 548,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_reject_text_concat_numeric_comparison_given_declared_parameters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_reject_bytea_concat_uuid_comparison_given_declared_parameters",
+      "name": "should_reject_bytea_concat_uuid_comparison_given_declared_parameters",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 551,
+      "end_line": 559,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_reject_bytea_concat_uuid_comparison_given_declared_parameters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/parameters/operator_resolution.rs::should_coerce_unknown_literal_given_bytea_concat_comparison",
+      "name": "should_coerce_unknown_literal_given_bytea_concat_comparison",
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "line": 562,
+      "end_line": 578,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "parameter_operator_resolution::should_coerce_unknown_literal_given_bytea_concat_comparison"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "operators",
+        "directory": "tests/pgwire_extended/operators",
+        "file": "tests/pgwire_extended/operators/operator_resolution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/parameters/parameter_admission.rs::should_reject_parse_metadata_before_publication_when_shared_budget_is_exceeded",
       "name": "should_reject_parse_metadata_before_publication_when_shared_budget_is_exceeded",
       "current_file": "tests/pgwire_extended/parameters/parameter_admission.rs",
@@ -178301,6 +179665,68 @@
         "file": "tests/pgwire_extended/types/ranges/range.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/review_diagnostics.rs::should_emit_base64_hint_given_truncated_stored_text_when_execute_fails_and_sync_recovers",
+      "name": "should_emit_base64_hint_given_truncated_stored_text_when_execute_fails_and_sync_recovers",
+      "current_file": "tests/pgwire_extended/types/review_diagnostics.rs",
+      "line": 8,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "review_diagnostics::should_emit_base64_hint_given_truncated_stored_text_when_execute_fails_and_sync_recovers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types",
+        "directory": "tests/pgwire_extended/types",
+        "file": "tests/pgwire_extended/types/review_diagnostics.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/review_diagnostics.rs::should_emit_integer_input_detail_given_invalid_stored_text_when_execute_fails_and_sync_recovers",
+      "name": "should_emit_integer_input_detail_given_invalid_stored_text_when_execute_fails_and_sync_recovers",
+      "current_file": "tests/pgwire_extended/types/review_diagnostics.rs",
+      "line": 59,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "review_diagnostics::should_emit_integer_input_detail_given_invalid_stored_text_when_execute_fails_and_sync_recovers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types",
+        "directory": "tests/pgwire_extended/types",
+        "file": "tests/pgwire_extended/types/review_diagnostics.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -237329,11 +238755,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/patterns/pattern_matching/cancellation.rs::should_cancel_recursive_regex_work_with_cleanup",
-      "name": "should_cancel_recursive_regex_work_with_cleanup",
+      "id": "tests/sql_queries/patterns/pattern_matching/cancellation.rs::should_require_finite_regex_execution_before_active_cancellation",
+      "name": "should_require_finite_regex_execution_before_active_cancellation",
       "current_file": "tests/sql_queries/patterns/pattern_matching/cancellation.rs",
       "line": 2,
-      "end_line": 43,
+      "end_line": 14,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -237341,7 +238767,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_pattern_matching::should_cancel_recursive_regex_work_with_cleanup"
+          "name": "sql_queries::postgresql18_pattern_matching::should_require_finite_regex_execution_before_active_cancellation"
         }
       ],
       "attributes": [
@@ -287931,6 +289357,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/parameters/cache_identity.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 207,
+      "sha256": "2e5ea094e5bb28dcb35f07f869303800bcd8eb30134edf0bcf8075fa4d5eaaa2",
+      "test_declarations": 11,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/sequences/cache_identity.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/parameters/occurrences.rs",
       "role": "module_registration",
       "action": "keep",
@@ -287942,6 +289383,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/parameters/occurrences.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/parameters/operator_resolution.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 578,
+      "sha256": "3d81f297c383b64bd272c2ad8211c46a291f6944183ed97e2729a02a4e87e61b",
+      "test_declarations": 33,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/operators/operator_resolution.rs"
       ],
       "line_limit": 1000
     },
@@ -292208,6 +293664,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/types/review_diagnostics.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 136,
+      "sha256": "8cd0ee0cd53417e5bf135680a636fe87ae1a6a609f00ef3dc2ebd81701ed55f8",
+      "test_declarations": 2,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/review_diagnostics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/types/scalars/scalar_array_matrix.rs",
       "role": "test_module",
       "action": "keep",
@@ -292496,8 +293967,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 635,
-      "sha256": "c33d993d4cc563962511cbb8953b451f414cc1cd236e4939f68c35c0df1ed524",
+      "lines": 648,
+      "sha256": "78ac849dd0e543f072011e125c73f02116d71754332a3fccf2c70f14658e6951",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -297298,8 +298769,8 @@
       "current_file": "tests/sql_queries/patterns/pattern_matching/cancellation.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 43,
-      "sha256": "2b5d2cb86790c7de2520080272ed8b7b5d8e3c5bc41e999519c3dfd6dcf3b8f4",
+      "lines": 14,
+      "sha256": "2b863f002dd1aac6b352e3a05b75c97582f14e042e6beae3ef4329397fc6a36b",
       "test_declarations": 1,
       "registered_suites": [
         "sql_queries"
@@ -297358,8 +298829,8 @@
       "current_file": "tests/sql_queries/patterns/pattern_matching.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 22,
-      "sha256": "395b44fe2f3596df9c47da1025f98e69e3d4bc7356d36590f5579644616f1a36",
+      "lines": 21,
+      "sha256": "b1a9fbc0659f298bfd12ccf52d08386a0e5dcaef1bf1558d047ca6999e1ed3a6",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -299509,6 +300980,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/support/parameter_cache_identity.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 191,
+      "sha256": "2f1b4048b029dcb88870bf38c12848c0dc275c211712f3f577b7143a039faa26",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/parameter_cache_identity.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/support/parameter_occurrence_wire.rs",
       "role": "shared_support",
       "action": "keep",
@@ -299520,6 +301006,21 @@
       ],
       "destinations": [
         "tests/support/parameter_occurrence_wire.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/parameter_operators.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 103,
+      "sha256": "d0586e5553858d947441c282ab45e9c738748bc429af5a545f762fe79771a408",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/parameter_operators.rs"
       ],
       "line_limit": 1000
     },
@@ -300383,19 +301884,6 @@
         "tests/temporal_predicate_literals.rs"
       ],
       "line_limit": 12000
-    },
-    {
-      "current_file": "tests/test_inventory/__pycache__/test_names.cpython-312.pyc",
-      "role": "fixture_data",
-      "action": "keep",
-      "lines": 33,
-      "sha256": "8cabf9d477daa054f17cf6f7e34bf6d6ea2de6c2b9503f7f313efd6247431490",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/test_inventory/__pycache__/test_names.cpython-312.pyc"
-      ],
-      "line_limit": null
     },
     {
       "current_file": "tests/test_inventory/test_names.py",

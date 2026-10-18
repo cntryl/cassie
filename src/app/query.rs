@@ -12,7 +12,8 @@ use super::{
 // Alias namespaces, expression bounds, concrete integer signatures and numeric
 // unary binding, FETCH pagination, set quantifiers, typed VALUES and explicit
 // Catalog read-model schemas and scalar helper signatures share this rebuildable compiled-plan cache epoch.
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 31;
+// Exact admitted parameter OIDs also namespace the rebuildable plan identity.
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 33;
 
 pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,
@@ -41,19 +42,22 @@ impl Cassie {
     pub(super) fn plan_cache_key_from_fingerprint(
         &self,
         sql_fingerprint: u64,
-        parameter_shape: Vec<crate::runtime::ParameterShape>,
+        parameter_type_oids: &[i32],
         mode: ExecutionMode,
         database: Option<String>,
         search_path: &[String],
     ) -> PlanCacheKey {
         PlanCacheKey {
-            sql_fingerprint,
+            sql_fingerprint: super::query_parameters::parameter_cache_fingerprint(
+                sql_fingerprint,
+                parameter_type_oids,
+            ),
             schema_epoch: self.runtime.schema_epoch(),
             data_epoch: self.runtime.data_epoch(),
             index_feedback_epoch: self.runtime.index_feedback_epoch(),
             cost_model_version: PLAN_CACHE_COST_MODEL_VERSION,
             adaptive_config_hash: self.adaptive_config_hash(),
-            parameter_shape,
+            parameter_shape: super::query_parameters::parameter_shape_for_oids(parameter_type_oids),
             mode,
             database,
             search_path: search_path.to_owned(),
@@ -82,9 +86,41 @@ impl Cassie {
         database: Option<String>,
         search_path: &[String],
     ) -> bool {
+        // This diagnostic reconstructs embedded input admission. Its existing
+        // signature has neither client-declared wire OIDs nor a session user.
+        let admitted = if params.is_empty() {
+            None
+        } else {
+            if search_path.iter().any(|schema| schema == "$user") {
+                return false;
+            }
+            let effective = super::query_parameters::effective_parameter_type_oids(params, &[]);
+            let controls = self.runtime.query_controls(Instant::now());
+            let scope = crate::catalog::FunctionInputScope {
+                database: database.as_deref().unwrap_or(&self.default_database),
+                search_path,
+                user: "",
+                enforce_database_scope: self.database_catalog_enforced(),
+            };
+            let Ok(admitted) = crate::sql::checked_parameter_types_in_scope(
+                parsed,
+                crate::sql::PrivateParameterTypeInput::Embedded {
+                    effective: &effective,
+                    values: params,
+                },
+                &self.catalog,
+                &controls,
+                Some(&scope),
+            ) else {
+                return false;
+            };
+            Some(admitted)
+        };
         let key = self.plan_cache_key_from_fingerprint(
             crate::runtime::sql_fingerprint(parsed),
-            crate::runtime::parameter_shape(params),
+            admitted
+                .as_ref()
+                .map_or(&[], crate::sql::AdmittedParameterTypes::types),
             mode,
             database,
             search_path,
@@ -393,7 +429,7 @@ impl Cassie {
         let cache_key = is_select.then(|| {
             self.plan_cache_key_from_fingerprint(
                 sql_fingerprint,
-                super::query_parameters::parameter_shape_for_oids(parameter_type_oids),
+                parameter_type_oids,
                 mode,
                 session.database.clone(),
                 &session.search_path(),
@@ -402,7 +438,10 @@ impl Cassie {
         let (exec_cache_key, key_memory) = if is_select {
             match self.admitted_execution_result_cache_key(
                 session,
-                sql_fingerprint,
+                super::query_parameters::parameter_cache_fingerprint(
+                    sql_fingerprint,
+                    parameter_type_oids,
+                ),
                 params,
                 mode,
                 controls,
@@ -822,6 +861,10 @@ fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> b
 #[cfg(test)]
 #[path = "query_cache_semantics_tests.rs"]
 mod cache_semantics_tests;
+
+#[cfg(test)]
+#[path = "query_parameter_cache_tests.rs"]
+mod parameter_cache_tests;
 
 #[cfg(test)]
 #[path = "query_text_tests.rs"]

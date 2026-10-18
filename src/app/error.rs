@@ -87,6 +87,9 @@ pub enum CassieError {
     #[error(transparent)]
     ObjectIdentifier(#[from] crate::types::ObjectIdentifierError),
 
+    #[error(transparent)]
+    TypeInput(#[from] crate::types::extended::TypeInputError),
+
     #[error("collection not found: {0}")]
     CollectionNotFound(String),
 
@@ -242,6 +245,7 @@ impl CassieError {
             Self::ObjectIdentifier(error) => {
                 bad_request_descriptor(error.sqlstate(), error.to_string())
             }
+            Self::TypeInput(error) => bad_request_descriptor(error.sqlstate, error.to_string()),
             Self::CollectionNotFound(table) => missing_relation_descriptor(table),
             Self::CatalogObjectNotFound { kind, name } => {
                 missing_catalog_object_descriptor(*kind, name, self.to_string())

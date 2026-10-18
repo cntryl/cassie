@@ -1,3 +1,5 @@
+#[path = "types/real/real.rs"]
+mod native_real;
 #[path = "aggregates/aggregate_query_contracts.rs"]
 mod postgresql18_aggregate_query_gaps;
 #[path = "aggregates/semantic_edges.rs"]

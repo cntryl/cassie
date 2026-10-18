@@ -11,6 +11,7 @@ pub enum Value {
     String(String),
     Vector(Vector),
     Json(serde_json::Value),
+    Typed(crate::types::typed::TypedValue),
 }
 
 impl Value {

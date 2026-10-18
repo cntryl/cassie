@@ -253,6 +253,13 @@ fn text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
             })
         }
         Value::Json(value) => return json_bytes(value),
+        Value::Typed(value) => {
+            let text = value.text();
+            return Ok(CellBytes {
+                encoded: text.len(),
+                scratch: mul(text.len().max(8), 3)?,
+            });
+        }
         Value::Vector(vector) => {
             let encoded = add(2, mul(vector.values.len(), 65)?)?;
             // f32 output is under 64 bytes. Count all intermediate strings,

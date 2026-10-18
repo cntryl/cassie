@@ -233,6 +233,7 @@ fn conversion_bytes(
                 Value::Vector(vector) => mul(vector.values.len(), size_of::<serde_json::Value>())?,
                 Value::Json(value) => json::retained_bytes(value)? - size_of::<serde_json::Value>(),
                 Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => 0,
+                Value::Typed(typed) => typed.heap_bytes(),
             };
             bytes = add(bytes, heap)?;
         }
@@ -251,6 +252,7 @@ fn convert_value(
         Value::Float64(value) => json_number(*value),
         Value::String(value) => Ok(serde_json::Value::String(copy_text(value, controls)?)),
         Value::Json(value) => Ok(value.clone()),
+        Value::Typed(value) => Ok(value.to_json()),
         Value::Vector(value) => {
             let mut values = fresh_vec(value.values.len())?;
             for component in &value.values {

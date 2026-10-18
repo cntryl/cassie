@@ -267,7 +267,11 @@ impl QueryResultBuilder<'_> {
         let (count, variable_bytes) =
             values.clone().try_fold((0, 0), |(count, bytes), value| {
                 self.controls.check_interruption()?;
-                Ok::<_, CassieError>((add(count, 1)?, add(bytes, value_clone_bytes(value)?)?))
+                let value_bytes = match value {
+                    Value::Typed(typed) => typed.text().len(),
+                    other => value_clone_bytes(other)?,
+                };
+                Ok::<_, CassieError>((add(count, 1)?, add(bytes, value_bytes)?))
             })?;
         let variable_memory = self.memory.try_sibling(variable_bytes)?;
         grow_vec(&mut self.rows, 1, &mut self.memory)?;
@@ -279,7 +283,11 @@ impl QueryResultBuilder<'_> {
         };
         for value in values {
             self.controls.check_interruption()?;
-            pending.values.push(value.clone());
+            // Natively represented types publish their PostgreSQL text output.
+            pending.values.push(match value {
+                Value::Typed(typed) => Value::String(typed.text()),
+                other => other.clone(),
+            });
         }
         self.rows.push(pending.values);
         self.memory.absorb(pending.slots);

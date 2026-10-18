@@ -16,6 +16,12 @@ pub(super) fn cast(
             .parse::<i64>()
             .map_err(|_| range(width))?,
         ScalarValue::Str(text) => return controlled_input(text, width, controls),
+        ScalarValue::Typed(typed) => {
+            return match typed.as_f64() {
+                Some(float) => cast(&ScalarValue::Float(float), width, controls),
+                None => Err(QueryError::General(width.syntax_message().into())),
+            }
+        }
         // Preserve Cassie's existing decimal-only JSON scalar conversion.
         // PostgreSQL text integer grammar must not admit new JSON spellings.
         ScalarValue::Json(input) => input.parse::<i64>().map_err(|error| {

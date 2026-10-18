@@ -6,6 +6,7 @@ publish = false
 license-file = "LICENSE"
 
 [dependencies]
+num-traits = "0.2.19"
 bytes = "1.12"
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["tokio"] }

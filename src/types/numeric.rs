@@ -18,6 +18,7 @@ pub fn non_numeric_aggregate_input(function: &str, value: &crate::types::Value) 
         Value::String(_) => "text",
         Value::Vector(_) => "vector",
         Value::Json(_) => "json",
+        Value::Typed(value) => value.kind().name(),
     };
     format!(
         "function {}({type_name}) does not exist",

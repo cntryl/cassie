@@ -331,7 +331,7 @@ impl Fold<'_, '_> {
             }
             let Some(data_type) = u32::try_from(summary.oid)
                 .ok()
-                .and_then(crate::types::builtin::builtin_for_oid)
+                .and_then(crate::types::builtin::parameter_builtin_for_oid)
                 .map(|metadata| metadata.kind.data_type())
             else {
                 continue;

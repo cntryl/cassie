@@ -52,6 +52,7 @@ impl SeenRows {
                     Value::Vector(vector) => mul(vector.values.len(), size_of::<u32>())?,
                     Value::Json(value) => mul(serialized_json_bytes(value)?, 2)?.max(128),
                     Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => 0,
+                    Value::Typed(typed) => typed.heap_bytes(),
                 };
                 add(bytes, heap)
             },

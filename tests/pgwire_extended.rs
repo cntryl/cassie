@@ -124,6 +124,8 @@ mod support_scalar_receive;
 mod pgwire_type_numeric_metadata;
 #[path = "pgwire_extended/type_resolution/output_source_seams.rs"]
 mod pgwire_type_output_source_seams;
+#[path = "pgwire_extended/types/real/real_wire.rs"]
+mod pgwire_type_real_wire;
 
 #[path = "pgwire_extended/type_resolution/output_identifier_identity.rs"]
 mod pgwire_type_output_identifier_identity;

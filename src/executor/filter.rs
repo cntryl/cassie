@@ -72,6 +72,7 @@ pub(crate) enum ScalarValue {
     Float(f64),
     Str(String),
     Json(String),
+    Typed(crate::types::typed::TypedValue),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,7 +129,8 @@ impl ScalarValue {
             ScalarValue::Int(_)
             | ScalarValue::Float(_)
             | ScalarValue::Str(_)
-            | ScalarValue::Json(_) => Err(QueryError::General(
+            | ScalarValue::Json(_)
+            | ScalarValue::Typed(_) => Err(QueryError::General(
                 "Boolean expression requires BOOLEAN or SQL NULL".to_string(),
             )),
         }
@@ -150,6 +152,7 @@ impl ScalarValue {
             ScalarValue::Float(v) => Some(*v),
             ScalarValue::Int(v) => Some(crate::types::numeric::i64_to_f64(*v)),
             ScalarValue::Bool(v) => Some(if *v { 1.0 } else { 0.0 }),
+            ScalarValue::Typed(v) => v.as_f64(),
             _ => None,
         }
     }
@@ -161,6 +164,7 @@ impl ScalarValue {
             ScalarValue::Int(v) => Value::Int64(*v),
             ScalarValue::Float(v) => Value::Float64(*v),
             ScalarValue::Str(v) | ScalarValue::Json(v) => Value::String(v.clone()),
+            ScalarValue::Typed(v) => Value::Typed(v.clone()),
         }
     }
 }
@@ -452,6 +456,10 @@ fn cast_scalar(
         DataType::Int => integers::cast(value, crate::types::IntegerWidth::I32, controls),
         DataType::BigInt => integers::cast(value, crate::types::IntegerWidth::I64, controls),
         DataType::ObjectId(_) => object_ids::cast(value),
+        DataType::Extended(kind) => kind
+            .cast_from(&value.to_value())
+            .map(ScalarValue::Typed)
+            .map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error))),
         DataType::Float => value
             .to_f64()
             .filter(|value| value.is_finite())
@@ -470,6 +478,7 @@ fn cast_scalar(
             ScalarValue::Int(value) => value.to_string(),
             ScalarValue::Float(value) => value.to_string(),
             ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
+            ScalarValue::Typed(value) => value.text(),
             ScalarValue::Null => String::new(),
         })),
         DataType::Char { length } => casts::character(value, *length),
@@ -518,6 +527,7 @@ fn cast_to_text(value: &ScalarValue) -> Option<String> {
         ScalarValue::Int(value) => Some(value.to_string()),
         ScalarValue::Float(value) => Some(value.to_string()),
         ScalarValue::Str(value) | ScalarValue::Json(value) => Some(value.clone()),
+        ScalarValue::Typed(value) => Some(value.text()),
         ScalarValue::Null => None,
     }
 }
@@ -532,6 +542,9 @@ fn cast_boolean_scalar(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
                 .map(ScalarValue::Bool)
                 .ok_or_else(|| QueryError::General("cannot cast value to BOOLEAN".to_string()))
         }
+        ScalarValue::Typed(_) => Err(QueryError::General(
+            "cannot cast value to BOOLEAN".to_string(),
+        )),
         ScalarValue::Null => Ok(ScalarValue::Null),
     }
 }
@@ -557,6 +570,7 @@ fn cast_json_text(value: &ScalarValue) -> String {
         ScalarValue::Int(value) => value.to_string(),
         ScalarValue::Float(value) => value.to_string(),
         ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
+        ScalarValue::Typed(value) => value.text(),
         ScalarValue::Null => "null".to_string(),
     }
 }
@@ -713,6 +727,7 @@ fn scalar_from_value(value: &Value) -> ScalarValue {
                 .join(",")
         )),
         Value::Json(v) => ScalarValue::Json(v.to_string()),
+        Value::Typed(v) => ScalarValue::Typed(v.clone()),
         Value::Null => ScalarValue::Null,
     }
 }

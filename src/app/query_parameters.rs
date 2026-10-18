@@ -56,6 +56,7 @@ pub(super) fn parameter_type_oids(params: &[Value]) -> Vec<i32> {
                 i32::try_from(DataType::Vector(vector.dimension()).type_oid()).unwrap_or(0)
             }
             Value::Json(_) => 114,
+            Value::Typed(typed) => i32::try_from(typed.kind().type_oid()).unwrap_or(0),
         })
         .collect()
 }
@@ -91,6 +92,7 @@ pub(super) fn parameter_shape_for_oids(oids: &[i32]) -> Vec<crate::runtime::Para
                 // A `reg*` parameter is an object name resolved by its cast.
                 Some(
                     DataType::ObjectId(_)
+                    | DataType::Extended(_)
                     | DataType::Text
                     | DataType::Char { .. }
                     | DataType::Varchar { .. }

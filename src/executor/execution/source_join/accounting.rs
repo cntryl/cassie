@@ -199,6 +199,7 @@ pub(super) fn join_key_bytes(
         Value::Float64(_) => 64,
         Value::Int64(_) if domain == NumericComparisonDomain::Float8 => 64,
         Value::Null | Value::Bool(_) | Value::Int64(_) => 0,
+        Value::Typed(typed) => typed.heap_bytes().max(64),
     };
     add(size_of::<SemanticValue>(), heap)
 }

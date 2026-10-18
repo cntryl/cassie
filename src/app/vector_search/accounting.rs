@@ -180,6 +180,7 @@ pub(super) fn type_name_bytes(data_type: &crate::types::DataType) -> Result<usiz
         )?,
         DataType::Array(inner) => checked_add(type_name_bytes(inner)?, 2)?,
         DataType::ObjectId(kind) => kind.name().len(),
+        DataType::Extended(kind) => kind.name().len(),
     })
 }
 

@@ -44,6 +44,10 @@ pub fn hash_params(params: &[Value]) -> u64 {
                 // str::hash appends this delimiter after its UTF-8 bytes.
                 hasher.write_u8(0xff);
             }
+            Value::Typed(v) => {
+                7u8.hash(hasher);
+                v.key().hash(hasher);
+            }
         }
     }
     let mut hasher = std::hash::DefaultHasher::new();
@@ -103,7 +107,8 @@ pub fn error_class(error: &CassieError) -> &'static str {
         | CassieError::AmbiguousFunction(_)
         | CassieError::ByteaIndex { .. }
         | CassieError::ByteaInput(_)
-        | CassieError::ObjectIdentifier(_) => "execution",
+        | CassieError::ObjectIdentifier(_)
+        | CassieError::TypeInput(_) => "execution",
         CassieError::Transaction { .. } => "transaction",
         CassieError::DeadlineExceeded => "deadline_exceeded",
         CassieError::QueryCancelled => "query_cancelled",
@@ -134,7 +139,7 @@ pub(super) fn parameter_shape_for_value(value: &Value) -> ParameterShape {
         Value::Bool(_) => ParameterShape::Bool,
         Value::Int64(_) => ParameterShape::Int64,
         Value::Float64(_) => ParameterShape::Float64,
-        Value::String(_) => ParameterShape::String,
+        Value::String(_) | Value::Typed(_) => ParameterShape::String,
         Value::Vector(vector) => ParameterShape::Vector(vector.values.len()),
         Value::Json(_) => ParameterShape::Json,
     }

@@ -43,6 +43,7 @@ pub enum DataType {
     Json,
     Array(Box<DataType>),
     ObjectId(super::ObjectIdKind),
+    Extended(super::extended::ExtendedType),
 }
 
 impl DataType {
@@ -80,6 +81,7 @@ impl DataType {
             Self::Json => "json".to_string(),
             Self::Array(inner) => format!("{}[]", inner.type_name()),
             Self::ObjectId(kind) => kind.name().to_string(),
+            Self::Extended(kind) => kind.name().to_string(),
         }
     }
 
@@ -221,7 +223,12 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         return Ok(DataType::Time);
     }
 
-    match lower.as_str() {
+    named_type(&lower, raw)
+}
+
+/// A type named by a single keyword or alias.
+fn named_type(lower: &str, raw: &str) -> Result<DataType, String> {
+    match lower {
         "null" => Ok(DataType::Null),
         "smallint" | "int2" => Ok(DataType::SmallInt),
         "int" | "integer" | "int4" => Ok(DataType::Int),
@@ -237,6 +244,7 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         "json" | "jsonb" => Ok(DataType::Json),
         name => super::ObjectIdKind::from_name(name)
             .map(DataType::ObjectId)
+            .or_else(|| super::extended::ExtendedType::from_sql_name(name).map(DataType::Extended))
             .ok_or_else(|| format!("unsupported data type '{raw}'")),
     }
 }

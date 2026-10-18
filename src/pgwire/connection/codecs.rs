@@ -48,6 +48,7 @@ pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
                 .join(",")
         ),
         Value::Json(v) => v.to_string(),
+        Value::Typed(v) => v.text(),
     }
 }
 
@@ -73,6 +74,13 @@ pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8
         BinaryCodecKind::Int4 => encode_integer(value, codec.name, encode_i32_binary),
         BinaryCodecKind::Int8 => encode_int8(value, codec.name),
         BinaryCodecKind::ObjectId(_) => encode_integer(value, codec.name, encode_oid_binary),
+        BinaryCodecKind::Extended(kind) => match value {
+            Value::Typed(typed) => Ok(typed.send_binary()),
+            other => kind
+                .cast_from(other)
+                .map(|typed| typed.send_binary())
+                .map_err(|_| invalid_data(codec.name)),
+        },
         BinaryCodecKind::Float8 => encode_float8(value, codec.name),
         BinaryCodecKind::Text
         | BinaryCodecKind::Bpchar
@@ -193,6 +201,10 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
             .map(u32::from_be_bytes)
             .map(i64::from)
             .map(Value::Int64),
+        BinaryCodecKind::Extended(kind) => kind
+            .receive_binary(parameter)
+            .map(Value::Typed)
+            .map_err(|_| invalid_data(codec.name)),
         BinaryCodecKind::Float8 => fixed_bytes::<8>(parameter, codec.name)
             .map(f64::from_be_bytes)
             .map(Value::Float64),
@@ -387,6 +399,10 @@ fn encode_array_string(value: &str, codec: &BinaryCodec) -> io::Result<Vec<u8>> 
         BinaryCodecKind::Int4 => parse_i64_binary(value).and_then(encode_i32_binary),
         BinaryCodecKind::Int8 => parse_i64_binary(value).map(|value| value.to_be_bytes().to_vec()),
         BinaryCodecKind::ObjectId(_) => parse_i64_binary(value).and_then(encode_oid_binary),
+        BinaryCodecKind::Extended(kind) => kind
+            .parse_text(value)
+            .map(|typed| typed.send_binary())
+            .map_err(|_| invalid_data(codec.name)),
         BinaryCodecKind::Float8 => {
             parse_f64_binary(value).map(|value| value.to_be_bytes().to_vec())
         }
@@ -414,6 +430,7 @@ fn value_to_json(value: Value) -> serde_json::Value {
         Value::Float64(value) => serde_json::Value::from(value),
         Value::String(value) => serde_json::Value::String(value),
         Value::Json(value) => value,
+        Value::Typed(value) => value.to_json(),
         Value::Vector(vector) => serde_json::Value::Array(
             vector
                 .values

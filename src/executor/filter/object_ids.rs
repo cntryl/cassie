@@ -80,7 +80,10 @@ pub(super) fn cast(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
         ScalarValue::Str(text) => {
             parse_oid_text(text).map_err(|error| QueryError::Cassie(error.into()))?
         }
-        ScalarValue::Float(_) | ScalarValue::Bool(_) | ScalarValue::Json(_) => {
+        ScalarValue::Float(_)
+        | ScalarValue::Bool(_)
+        | ScalarValue::Json(_)
+        | ScalarValue::Typed(_) => {
             return Err(QueryError::General("cannot cast value to oid".to_string()));
         }
         ScalarValue::Null => return Ok(ScalarValue::Null),

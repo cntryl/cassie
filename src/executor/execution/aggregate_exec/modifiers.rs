@@ -80,6 +80,7 @@ fn key_bound(value: &Value) -> Result<usize, QueryError> {
             add(mul(serialized_json_bytes(json)?, 2)?, 128)?,
         )?,
         Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => 0,
+        Value::Typed(typed) => typed.heap_bytes(),
     })
 }
 

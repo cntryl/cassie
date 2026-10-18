@@ -407,6 +407,10 @@ impl Cassie {
                 })
             }
             crate::types::DataType::BigInt => Self::validate_bigint(field, value),
+            crate::types::DataType::Extended(kind) => kind
+                .from_json(value)
+                .map(|_| ())
+                .map_err(|error| CassieError::InvalidVector(format!("field '{field}': {error}"))),
             crate::types::DataType::ObjectId(kind) => {
                 Self::validate_integer_range(field, value, kind.name(), |number| {
                     (0..=crate::types::object_id::MAX_OID).contains(&number)

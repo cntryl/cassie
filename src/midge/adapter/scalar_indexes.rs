@@ -566,6 +566,7 @@ fn query_value_to_json(value: Value) -> Result<serde_json::Value, CassieError> {
                 )
             }),
         Value::String(value) => Ok(serde_json::Value::String(value)),
+        Value::Typed(value) => Ok(value.to_json()),
         Value::Vector(value) => value
             .values
             .into_iter()

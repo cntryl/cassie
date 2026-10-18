@@ -23,6 +23,8 @@ const TYPE_TIME: u8 = 0x0A;
 const TYPE_TIMESTAMP: u8 = 0x0B;
 const TYPE_ARRAY: u8 = 0x0C;
 const TYPE_BYTEA: u8 = 0x0D;
+/// An extended type: the type OID, then its PostgreSQL binary form.
+const TYPE_EXTENDED: u8 = 0x0E;
 
 pub(crate) fn encode_compact_value(
     data_type: &DataType,
@@ -554,6 +556,7 @@ fn decode_directory_value(type_tag: u8, bytes: &[u8]) -> Result<serde_json::Valu
             | TYPE_TIME
             | TYPE_TIMESTAMP
             | TYPE_BYTEA
+            | TYPE_EXTENDED
     ) {
         write_varint(u64::try_from(bytes.len()).unwrap_or(u64::MAX), &mut framed);
         framed.extend_from_slice(bytes);
@@ -593,6 +596,7 @@ fn expected_type_tag(data_type: &DataType) -> u8 {
         DataType::Array(_) => TYPE_ARRAY,
         DataType::Json => TYPE_JSON,
         DataType::Vector(_) => TYPE_VECTOR_F32,
+        DataType::Extended(_) => TYPE_EXTENDED,
     }
 }
 
@@ -715,6 +719,17 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
             Ok(serde_json::Value::String(encode_bytea(&bytes)))
         }
         TYPE_ARRAY => decode_array(cursor),
+        TYPE_EXTENDED => {
+            let bytes = cursor.read_len_prefixed()?;
+            let (oid, payload) = bytes
+                .split_first_chunk::<4>()
+                .ok_or_else(|| CassieError::Parse("truncated typed value in row blob".into()))?;
+            let kind = crate::types::extended::ExtendedType::for_oid(u32::from_be_bytes(*oid))
+                .ok_or_else(|| CassieError::Parse("unknown typed value in row blob".into()))?;
+            kind.receive_binary(payload)
+                .map(|typed| typed.to_json())
+                .map_err(CassieError::Parse)
+        }
         TYPE_VECTOR_F32 => {
             let bytes = cursor.read_len_prefixed()?;
             if bytes.len() < 4 {

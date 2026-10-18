@@ -72,7 +72,9 @@ fn infer_column(
             Value::Int64(_) => DataType::BigInt,
             Value::Float64(_) => DataType::Float,
             Value::Bool(_) => DataType::Boolean,
-            Value::String(_) | Value::Vector(_) | Value::Json(_) => return Ok(None),
+            Value::String(_) | Value::Vector(_) | Value::Json(_) | Value::Typed(_) => {
+                return Ok(None)
+            }
         };
         if inferred != DataType::Null && inferred != carrier {
             return Ok(None);

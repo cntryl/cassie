@@ -9,6 +9,7 @@ fn matches_literal(actual: &Value, expected: &serde_json::Value) -> bool {
         Value::Float64(value) => expected.as_f64() == Some(*value),
         Value::String(value) => expected.as_str() == Some(value.as_str()),
         Value::Json(value) => value == expected,
+        Value::Typed(value) => expected.as_str() == Some(value.text().as_str()),
         Value::Vector(_) => false,
     }
 }

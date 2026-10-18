@@ -524,6 +524,7 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
             serde_json::Number::from_f64(*value).map(serde_json::Value::Number)
         }
         Value::String(value) => Some(serde_json::Value::String(value.clone())),
+        Value::Typed(value) => Some(value.to_json()),
         Value::Vector(_) | Value::Json(_) => None,
     }
 }
@@ -740,6 +741,11 @@ fn json_to_value(value: &serde_json::Value) -> Value {
 pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
     if matches!(data_type, DataType::Json) && crate::types::json::requires_document_carrier(value) {
         return Value::Json(value.clone());
+    }
+    if let DataType::Extended(kind) = data_type {
+        if let Ok(typed) = kind.from_json(value) {
+            return Value::Typed(typed);
+        }
     }
     if let DataType::Vector(dimensions) = data_type {
         if let Some(values) = value.as_array() {

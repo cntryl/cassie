@@ -408,6 +408,9 @@ pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
         | DataType::BigInt
         | DataType::Float
         | DataType::ObjectId(_) => OperandFamily::Numeric,
+        DataType::Extended(kind) => match kind.family() {
+            crate::types::extended::ExtendedFamily::Numeric => OperandFamily::Numeric,
+        },
         DataType::Boolean => OperandFamily::Boolean,
         DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => OperandFamily::Text,
         DataType::Date | DataType::Time | DataType::Timestamp => OperandFamily::Temporal,

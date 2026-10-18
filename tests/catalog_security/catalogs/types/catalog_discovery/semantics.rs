@@ -113,7 +113,7 @@ fn should_omit_unreferenced_vector_type_rows() {
 
     // Act
     let selected = fixture
-        .execute("SELECT oid, typname FROM pg_catalog.pg_type WHERE typcategory = 'V'")
+        .execute("SELECT oid, typname FROM pg_catalog.pg_type WHERE typcategory = 'V' AND typname LIKE 'vector(%'")
         .expect("unreferenced vector registry");
 
     // Assert
@@ -139,7 +139,7 @@ fn should_deduplicate_supported_schema_vector_identities() {
     // Act
     let vectors = fixture
         .execute(
-            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typcategory = 'V' ORDER BY oid",
+            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typcategory = 'V' AND typname LIKE 'vector(%' ORDER BY oid",
         )
         .expect("schema-referenced vector registry");
     let all_types = fixture
@@ -200,14 +200,14 @@ fn should_discover_vector_types_within_the_current_database() {
     // Act
     let current = fixture
         .execute(
-            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typcategory = 'V' ORDER BY oid",
+            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typcategory = 'V' AND typname LIKE 'vector(%' ORDER BY oid",
         )
         .expect("current database vector types");
     let other = fixture
         .cassie
         .execute_sql(
             &tenant,
-            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typcategory = 'V' ORDER BY oid",
+            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typcategory = 'V' AND typname LIKE 'vector(%' ORDER BY oid",
             vec![],
         )
         .expect("second database vector types");

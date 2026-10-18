@@ -9,6 +9,9 @@ pub struct RoleMeta {
     pub password_hash: Option<String>,
     #[serde(default)]
     pub database_grants: Option<BTreeSet<String>>,
+    /// Stable identity allocated at creation; zero for the bootstrap admin.
+    #[serde(default)]
+    pub object_id: u64,
 }
 
 impl RoleMeta {
@@ -24,6 +27,7 @@ impl RoleMeta {
             is_admin,
             password_hash,
             database_grants: Some(BTreeSet::new()),
+            object_id: 0,
         }
     }
 

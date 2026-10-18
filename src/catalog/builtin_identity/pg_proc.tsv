@@ -1,0 +1,3402 @@
+3	heap_tableam_handler	f	f	269	2281
+31	byteaout	f	f	2275	17
+33	charout	f	f	2275	18
+34	namein	f	f	19	2275
+35	nameout	f	f	2275	19
+38	int2in	f	f	21	2275
+39	int2out	f	f	2275	21
+40	int2vectorin	f	f	22	2275
+41	int2vectorout	f	f	2275	22
+42	int4in	f	f	23	2275
+43	int4out	f	f	2275	23
+44	regprocin	f	f	24	2275
+45	regprocout	f	f	2275	24
+46	textin	f	f	25	2275
+47	textout	f	f	2275	25
+48	tidin	f	f	27	2275
+49	tidout	f	f	2275	27
+50	xidin	f	f	28	2275
+51	xidout	f	f	2275	28
+52	cidin	f	f	29	2275
+53	cidout	f	f	2275	29
+54	oidvectorin	f	f	30	2275
+55	oidvectorout	f	f	2275	30
+56	boollt	f	f	16	16 16
+57	boolgt	f	f	16	16 16
+60	booleq	f	f	16	16 16
+61	chareq	f	f	16	18 18
+62	nameeq	f	f	16	19 19
+63	int2eq	f	f	16	21 21
+64	int2lt	f	f	16	21 21
+65	int4eq	f	f	16	23 23
+66	int4lt	f	f	16	23 23
+67	texteq	f	f	16	25 25
+68	xideq	f	f	16	28 28
+69	cideq	f	f	16	29 29
+70	charne	f	f	16	18 18
+72	charle	f	f	16	18 18
+73	chargt	f	f	16	18 18
+74	charge	f	f	16	18 18
+77	int4	f	f	23	18
+78	char	f	f	18	23
+79	nameregexeq	f	f	16	19 25
+84	boolne	f	f	16	16 16
+86	pg_ddl_command_in	f	f	32	2275
+87	pg_ddl_command_out	f	f	2275	32
+88	pg_ddl_command_recv	f	f	32	2281
+89	version	f	f	25	
+90	pg_ddl_command_send	f	f	17	32
+101	eqsel	f	f	701	2281 26 2281 23
+102	neqsel	f	f	701	2281 26 2281 23
+103	scalarltsel	f	f	701	2281 26 2281 23
+104	scalargtsel	f	f	701	2281 26 2281 23
+105	eqjoinsel	f	f	701	2281 26 2281 21 2281
+106	neqjoinsel	f	f	701	2281 26 2281 21 2281
+107	scalarltjoinsel	f	f	701	2281 26 2281 21 2281
+108	scalargtjoinsel	f	f	701	2281 26 2281 21 2281
+109	unknownin	f	f	705	2275
+110	unknownout	f	f	2275	705
+115	box_above_eq	f	f	16	603 603
+116	box_below_eq	f	f	16	603 603
+117	point_in	f	f	600	2275
+118	point_out	f	f	2275	600
+119	lseg_in	f	f	601	2275
+120	lseg_out	f	f	2275	601
+121	path_in	f	f	602	2275
+122	path_out	f	f	2275	602
+123	box_in	f	f	603	2275
+124	box_out	f	f	2275	603
+125	box_overlap	f	f	16	603 603
+126	box_ge	f	f	16	603 603
+127	box_gt	f	f	16	603 603
+128	box_eq	f	f	16	603 603
+129	box_lt	f	f	16	603 603
+130	box_le	f	f	16	603 603
+131	point_above	f	f	16	600 600
+132	point_left	f	f	16	600 600
+133	point_right	f	f	16	600 600
+134	point_below	f	f	16	600 600
+135	point_eq	f	f	16	600 600
+136	on_pb	f	f	16	600 603
+137	on_ppath	f	f	16	600 602
+138	box_center	f	f	600	603
+139	areasel	f	f	701	2281 26 2281 23
+140	areajoinsel	f	f	701	2281 26 2281 21 2281
+141	int4mul	f	f	23	23 23
+144	int4ne	f	f	16	23 23
+145	int2ne	f	f	16	21 21
+146	int2gt	f	f	16	21 21
+147	int4gt	f	f	16	23 23
+148	int2le	f	f	16	21 21
+149	int4le	f	f	16	23 23
+150	int4ge	f	f	16	23 23
+151	int2ge	f	f	16	21 21
+152	int2mul	f	f	21	21 21
+153	int2div	f	f	21	21 21
+154	int4div	f	f	23	23 23
+155	int2mod	f	f	21	21 21
+156	int4mod	f	f	23	23 23
+157	textne	f	f	16	25 25
+158	int24eq	f	f	16	21 23
+159	int42eq	f	f	16	23 21
+160	int24lt	f	f	16	21 23
+161	int42lt	f	f	16	23 21
+162	int24gt	f	f	16	21 23
+163	int42gt	f	f	16	23 21
+164	int24ne	f	f	16	21 23
+165	int42ne	f	f	16	23 21
+166	int24le	f	f	16	21 23
+167	int42le	f	f	16	23 21
+168	int24ge	f	f	16	21 23
+169	int42ge	f	f	16	23 21
+170	int24mul	f	f	23	21 23
+171	int42mul	f	f	23	23 21
+172	int24div	f	f	23	21 23
+173	int42div	f	f	23	23 21
+176	int2pl	f	f	21	21 21
+177	int4pl	f	f	23	23 23
+178	int24pl	f	f	23	21 23
+179	int42pl	f	f	23	23 21
+180	int2mi	f	f	21	21 21
+181	int4mi	f	f	23	23 23
+182	int24mi	f	f	23	21 23
+183	int42mi	f	f	23	23 21
+184	oideq	f	f	16	26 26
+185	oidne	f	f	16	26 26
+186	box_same	f	f	16	603 603
+187	box_contain	f	f	16	603 603
+188	box_left	f	f	16	603 603
+189	box_overleft	f	f	16	603 603
+190	box_overright	f	f	16	603 603
+191	box_right	f	f	16	603 603
+192	box_contained	f	f	16	603 603
+193	box_contain_pt	f	f	16	603 600
+195	pg_node_tree_in	f	f	194	2275
+196	pg_node_tree_out	f	f	2275	194
+197	pg_node_tree_recv	f	f	194	2281
+198	pg_node_tree_send	f	f	17	194
+200	float4in	f	f	700	2275
+201	float4out	f	f	2275	700
+202	float4mul	f	f	700	700 700
+203	float4div	f	f	700	700 700
+204	float4pl	f	f	700	700 700
+205	float4mi	f	f	700	700 700
+206	float4um	f	f	700	700
+207	float4abs	f	f	700	700
+208	float4_accum	f	f	1022	1022 700
+209	float4larger	f	f	700	700 700
+211	float4smaller	f	f	700	700 700
+212	int4um	f	f	23	23
+213	int2um	f	f	21	21
+214	float8in	f	f	701	2275
+215	float8out	f	f	2275	701
+216	float8mul	f	f	701	701 701
+217	float8div	f	f	701	701 701
+218	float8pl	f	f	701	701 701
+219	float8mi	f	f	701	701 701
+220	float8um	f	f	701	701
+221	float8abs	f	f	701	701
+222	float8_accum	f	f	1022	1022 701
+223	float8larger	f	f	701	701 701
+224	float8smaller	f	f	701	701 701
+225	lseg_center	f	f	600	601
+227	poly_center	f	f	600	604
+228	dround	f	f	701	701
+229	dtrunc	f	f	701	701
+230	dsqrt	f	f	701	701
+231	dcbrt	f	f	701	701
+232	dpow	f	f	701	701 701
+233	dexp	f	f	701	701
+234	dlog1	f	f	701	701
+235	float8	f	f	701	21
+236	float4	f	f	700	21
+237	int2	f	f	21	701
+238	int2	f	f	21	700
+239	line_distance	f	f	701	628 628
+240	nameeqtext	f	f	16	19 25
+241	namelttext	f	f	16	19 25
+242	nameletext	f	f	16	19 25
+243	namegetext	f	f	16	19 25
+244	namegttext	f	f	16	19 25
+245	namenetext	f	f	16	19 25
+246	btnametextcmp	f	f	23	19 25
+247	texteqname	f	f	16	25 19
+248	textltname	f	f	16	25 19
+249	textlename	f	f	16	25 19
+250	textgename	f	f	16	25 19
+251	textgtname	f	f	16	25 19
+252	textnename	f	f	16	25 19
+253	bttextnamecmp	f	f	23	25 19
+266	nameconcatoid	f	f	19	19 26
+267	table_am_handler_in	f	f	269	2275
+268	table_am_handler_out	f	f	2275	269
+274	timeofday	f	f	25	
+275	pg_nextoid	f	f	26	2205 19 2205
+276	float8_combine	f	f	1022	1022 1022
+277	inter_sl	f	f	16	601 628
+278	inter_lb	f	f	16	628 603
+279	float48mul	f	f	701	700 701
+280	float48div	f	f	701	700 701
+281	float48pl	f	f	701	700 701
+282	float48mi	f	f	701	700 701
+283	float84mul	f	f	701	701 700
+284	float84div	f	f	701	701 700
+285	float84pl	f	f	701	701 700
+286	float84mi	f	f	701	701 700
+287	float4eq	f	f	16	700 700
+288	float4ne	f	f	16	700 700
+289	float4lt	f	f	16	700 700
+290	float4le	f	f	16	700 700
+291	float4gt	f	f	16	700 700
+292	float4ge	f	f	16	700 700
+293	float8eq	f	f	16	701 701
+294	float8ne	f	f	16	701 701
+295	float8lt	f	f	16	701 701
+296	float8le	f	f	16	701 701
+297	float8gt	f	f	16	701 701
+298	float8ge	f	f	16	701 701
+299	float48eq	f	f	16	700 701
+300	float48ne	f	f	16	700 701
+301	float48lt	f	f	16	700 701
+302	float48le	f	f	16	700 701
+303	float48gt	f	f	16	700 701
+304	float48ge	f	f	16	700 701
+305	float84eq	f	f	16	701 700
+306	float84ne	f	f	16	701 700
+307	float84lt	f	f	16	701 700
+308	float84le	f	f	16	701 700
+309	float84gt	f	f	16	701 700
+310	float84ge	f	f	16	701 700
+311	float8	f	f	701	700
+312	float4	f	f	700	701
+313	int4	f	f	23	21
+314	int2	f	f	21	23
+315	pg_jit_available	f	f	16	
+316	float8	f	f	701	23
+317	int4	f	f	23	701
+318	float4	f	f	700	23
+319	int4	f	f	23	700
+320	width_bucket	f	f	23	701 701 701 23
+321	json_in	f	f	114	2275
+322	json_out	f	f	2275	114
+323	json_recv	f	f	114	2281
+324	json_send	f	f	17	114
+326	index_am_handler_in	f	f	325	2275
+327	index_am_handler_out	f	f	2275	325
+328	hashmacaddr8	f	f	23	774
+329	hash_aclitem	f	f	23	1033
+330	bthandler	f	f	325	2281
+331	hashhandler	f	f	325	2281
+332	gisthandler	f	f	325	2281
+333	ginhandler	f	f	325	2281
+334	spghandler	f	f	325	2281
+335	brinhandler	f	f	325	2281
+336	scalarlesel	f	f	701	2281 26 2281 23
+337	scalargesel	f	f	701	2281 26 2281 23
+338	amvalidate	f	f	16	26
+339	poly_same	f	f	16	604 604
+340	poly_contain	f	f	16	604 604
+341	poly_left	f	f	16	604 604
+342	poly_overleft	f	f	16	604 604
+343	poly_overright	f	f	16	604 604
+344	poly_right	f	f	16	604 604
+345	poly_contained	f	f	16	604 604
+346	poly_overlap	f	f	16	604 604
+347	poly_in	f	f	604	2275
+348	poly_out	f	f	2275	604
+350	btint2cmp	f	f	23	21 21
+351	btint4cmp	f	f	23	23 23
+354	btfloat4cmp	f	f	23	700 700
+355	btfloat8cmp	f	f	23	701 701
+356	btoidcmp	f	f	23	26 26
+357	dist_bp	f	f	701	603 600
+358	btcharcmp	f	f	23	18 18
+359	btnamecmp	f	f	23	19 19
+360	bttextcmp	f	f	23	25 25
+361	lseg_distance	f	f	701	601 601
+362	lseg_interpt	f	f	600	601 601
+363	dist_ps	f	f	701	600 601
+364	dist_pb	f	f	701	600 603
+365	dist_sb	f	f	701	601 603
+366	close_ps	f	f	600	600 601
+367	close_pb	f	f	600	600 603
+368	close_sb	f	f	600	601 603
+369	on_ps	f	f	16	600 601
+370	path_distance	f	f	701	602 602
+371	dist_ppath	f	f	701	600 602
+372	on_sb	f	f	16	601 603
+373	inter_sb	f	f	16	601 603
+376	string_to_array	f	f	1009	25 25 25
+377	cash_cmp	f	f	23	790 790
+378	array_append	f	f	5078	5078 5077
+379	array_prepend	f	f	5078	5077 5078
+380	dist_sp	f	f	701	601 600
+381	dist_bs	f	f	701	603 601
+382	btarraycmp	f	f	23	2277 2277
+383	array_cat	f	f	5078	5078 5078
+384	array_to_string	f	f	25	2277 25 25
+386	scalarlejoinsel	f	f	701	2281 26 2281 21 2281
+390	array_ne	f	f	16	2277 2277
+391	array_lt	f	f	16	2277 2277
+392	array_gt	f	f	16	2277 2277
+393	array_le	f	f	16	2277 2277
+394	string_to_array	f	f	1009	25 25
+395	array_to_string	f	f	25	2277 25
+396	array_ge	f	f	16	2277 2277
+398	scalargejoinsel	f	f	701	2281 26 2281 21 2281
+399	hashmacaddr	f	f	23	829
+400	hashtext	f	f	23	25
+401	text	f	f	25	1042
+404	btoidvectorcmp	f	f	23	30 30
+406	text	f	f	25	19
+407	name	f	f	19	25
+408	bpchar	f	f	1042	19
+409	name	f	f	19	1042
+421	dist_pathp	f	f	701	602 600
+422	hashinet	f	f	23	869
+425	hashint4extended	f	f	20	23 20
+432	hash_numeric	f	f	23	1700
+436	macaddr_in	f	f	829	2275
+437	macaddr_out	f	f	2275	829
+438	num_nulls	f	f	23	2276
+440	num_nonnulls	f	f	23	2276
+441	hashint2extended	f	f	20	21 20
+442	hashint8extended	f	f	20	20 20
+443	hashfloat4extended	f	f	20	700 20
+444	hashfloat8extended	f	f	20	701 20
+445	hashoidextended	f	f	20	26 20
+446	hashcharextended	f	f	20	18 20
+447	hashnameextended	f	f	20	19 20
+448	hashtextextended	f	f	20	25 20
+449	hashint2	f	f	23	21
+450	hashint4	f	f	23	23
+451	hashfloat4	f	f	23	700
+452	hashfloat8	f	f	23	701
+453	hashoid	f	f	23	26
+454	hashchar	f	f	23	18
+455	hashname	f	f	23	19
+456	hashvarlena	f	f	23	2281
+457	hashoidvector	f	f	23	30
+458	text_larger	f	f	25	25 25
+459	text_smaller	f	f	25	25 25
+460	int8in	f	f	20	2275
+461	int8out	f	f	2275	20
+462	int8um	f	f	20	20
+463	int8pl	f	f	20	20 20
+464	int8mi	f	f	20	20 20
+465	int8mul	f	f	20	20 20
+466	int8div	f	f	20	20 20
+467	int8eq	f	f	16	20 20
+468	int8ne	f	f	16	20 20
+469	int8lt	f	f	16	20 20
+470	int8gt	f	f	16	20 20
+471	int8le	f	f	16	20 20
+472	int8ge	f	f	16	20 20
+474	int84eq	f	f	16	20 23
+475	int84ne	f	f	16	20 23
+476	int84lt	f	f	16	20 23
+477	int84gt	f	f	16	20 23
+478	int84le	f	f	16	20 23
+479	int84ge	f	f	16	20 23
+480	int4	f	f	23	20
+481	int8	f	f	20	23
+482	float8	f	f	701	20
+483	int8	f	f	20	701
+515	array_larger	f	f	2277	2277 2277
+516	array_smaller	f	f	2277	2277 2277
+598	abbrev	f	f	25	869
+599	abbrev	f	f	25	650
+605	set_masklen	f	f	869	869 23
+619	oidvectorne	f	f	16	30 30
+626	hash_array	f	f	23	2277
+635	set_masklen	f	f	650	650 23
+636	pg_indexam_has_property	f	f	16	26 25
+637	pg_index_has_property	f	f	16	2205 25
+638	pg_index_column_has_property	f	f	16	2205 23 25
+652	float4	f	f	700	20
+653	int8	f	f	20	700
+655	namelt	f	f	16	19 19
+656	namele	f	f	16	19 19
+657	namegt	f	f	16	19 19
+658	namege	f	f	16	19 19
+659	namene	f	f	16	19 19
+668	bpchar	f	f	1042	1042 23 16
+669	varchar	f	f	1043	1043 23 16
+676	pg_indexam_progress_phasename	f	f	25	26 20
+677	oidvectorlt	f	f	16	30 30
+678	oidvectorle	f	f	16	30 30
+679	oidvectoreq	f	f	16	30 30
+680	oidvectorge	f	f	16	30 30
+681	oidvectorgt	f	f	16	30 30
+683	network	f	f	650	869
+696	netmask	f	f	869	869
+697	masklen	f	f	23	869
+698	broadcast	f	f	869	869
+699	host	f	f	25	869
+702	dist_lp	f	f	701	628 600
+704	dist_ls	f	f	701	628 601
+710	getpgusername	f	f	19	
+711	family	f	f	23	869
+714	int2	f	f	21	20
+715	lo_create	f	f	26	26
+716	oidlt	f	f	16	26 26
+717	oidle	f	f	16	26 26
+720	octet_length	f	f	23	17
+721	get_byte	f	f	23	17 23
+722	set_byte	f	f	17	17 23 23
+723	get_bit	f	f	23	17 20
+724	set_bit	f	f	17	17 20 23
+725	dist_pl	f	f	701	600 628
+727	dist_sl	f	f	701	601 628
+728	dist_cpoly	f	f	701	718 604
+729	poly_distance	f	f	701	604 604
+730	text	f	f	25	869
+740	text_lt	f	f	16	25 25
+741	text_le	f	f	16	25 25
+742	text_gt	f	f	16	25 25
+743	text_ge	f	f	16	25 25
+744	array_eq	f	f	16	2277 2277
+745	current_user	f	f	19	
+746	session_user	f	f	19	
+747	array_dims	f	f	25	2277
+748	array_ndims	f	f	23	2277
+749	overlay	f	f	17	17 17 23 23
+750	array_in	f	f	2277	2275 26 23
+751	array_out	f	f	2275	2277
+752	overlay	f	f	17	17 17 23
+753	trunc	f	f	829	829
+754	int8	f	f	20	21
+764	lo_import	f	f	26	25
+765	lo_export	f	f	23	26 25
+766	int4inc	f	f	23	23
+767	lo_import	f	f	26	25 26
+768	int4larger	f	f	23	23 23
+769	int4smaller	f	f	23	23 23
+770	int2larger	f	f	21	21 21
+771	int2smaller	f	f	21	21 21
+772	hashvarlenaextended	f	f	20	2281 20
+776	hashoidvectorextended	f	f	20	30 20
+777	hash_aclitem_extended	f	f	20	1033 20
+778	hashmacaddrextended	f	f	20	829 20
+779	hashinetextended	f	f	20	869 20
+780	hash_numeric_extended	f	f	20	1700 20
+781	hashmacaddr8extended	f	f	20	774 20
+782	hash_array_extended	f	f	20	2277 20
+785	dist_polyc	f	f	701	604 718
+810	pg_client_encoding	f	f	19	
+817	current_query	f	f	25	
+830	macaddr_eq	f	f	16	829 829
+831	macaddr_lt	f	f	16	829 829
+832	macaddr_le	f	f	16	829 829
+833	macaddr_gt	f	f	16	829 829
+834	macaddr_ge	f	f	16	829 829
+835	macaddr_ne	f	f	16	829 829
+836	macaddr_cmp	f	f	23	829 829
+837	int82pl	f	f	20	20 21
+838	int82mi	f	f	20	20 21
+839	int82mul	f	f	20	20 21
+840	int82div	f	f	20	20 21
+841	int28pl	f	f	20	21 20
+842	btint8cmp	f	f	23	20 20
+846	cash_mul_flt4	f	f	790	790 700
+847	cash_div_flt4	f	f	790	790 700
+848	flt4_mul_cash	f	f	790	700 790
+849	position	f	f	23	25 25
+850	textlike	f	f	16	25 25
+851	textnlike	f	f	16	25 25
+852	int48eq	f	f	16	23 20
+853	int48ne	f	f	16	23 20
+854	int48lt	f	f	16	23 20
+855	int48gt	f	f	16	23 20
+856	int48le	f	f	16	23 20
+857	int48ge	f	f	16	23 20
+858	namelike	f	f	16	19 25
+859	namenlike	f	f	16	19 25
+860	bpchar	f	f	1042	18
+861	current_database	f	f	19	
+862	int4_mul_cash	f	f	790	23 790
+863	int2_mul_cash	f	f	790	21 790
+864	cash_mul_int4	f	f	790	790 23
+865	cash_div_int4	f	f	790	790 23
+866	cash_mul_int2	f	f	790	790 21
+867	cash_div_int2	f	f	790	790 21
+868	strpos	f	f	23	25 25
+870	lower	f	f	25	25
+871	upper	f	f	25	25
+872	initcap	f	f	25	25
+873	lpad	f	f	25	25 23 25
+874	rpad	f	f	25	25 23 25
+875	ltrim	f	f	25	25 25
+876	rtrim	f	f	25	25 25
+877	substr	f	f	25	25 23 23
+878	translate	f	f	25	25 25 25
+879	lpad	f	f	25	25 23
+880	rpad	f	f	25	25 23
+881	ltrim	f	f	25	25
+882	rtrim	f	f	25	25
+883	substr	f	f	25	25 23
+884	btrim	f	f	25	25 25
+885	btrim	f	f	25	25
+886	cash_in	f	f	790	2275
+887	cash_out	f	f	2275	790
+888	cash_eq	f	f	16	790 790
+889	cash_ne	f	f	16	790 790
+890	cash_lt	f	f	16	790 790
+891	cash_le	f	f	16	790 790
+892	cash_gt	f	f	16	790 790
+893	cash_ge	f	f	16	790 790
+894	cash_pl	f	f	790	790 790
+895	cash_mi	f	f	790	790 790
+896	cash_mul_flt8	f	f	790	790 701
+897	cash_div_flt8	f	f	790	790 701
+898	cashlarger	f	f	790	790 790
+899	cashsmaller	f	f	790	790 790
+910	inet_in	f	f	869	2275
+911	inet_out	f	f	2275	869
+919	flt8_mul_cash	f	f	790	701 790
+920	network_eq	f	f	16	869 869
+921	network_lt	f	f	16	869 869
+922	network_le	f	f	16	869 869
+923	network_gt	f	f	16	869 869
+924	network_ge	f	f	16	869 869
+925	network_ne	f	f	16	869 869
+926	network_cmp	f	f	23	869 869
+927	network_sub	f	f	16	869 869
+928	network_subeq	f	f	16	869 869
+929	network_sup	f	f	16	869 869
+930	network_supeq	f	f	16	869 869
+935	cash_words	f	f	25	790
+936	substring	f	f	25	25 23 23
+937	substring	f	f	25	25 23
+938	generate_series	f	t	1114	1114 1114 1186
+939	generate_series	f	t	1184	1184 1184 1186
+940	mod	f	f	21	21 21
+941	mod	f	f	23	23 23
+942	int28mi	f	f	20	21 20
+943	int28mul	f	f	20	21 20
+944	char	f	f	18	25
+945	int8mod	f	f	20	20 20
+946	text	f	f	25	18
+947	mod	f	f	20	20 20
+948	int28div	f	f	20	21 20
+949	hashint8	f	f	23	20
+952	lo_open	f	f	23	26 23
+953	lo_close	f	f	23	23
+954	loread	f	f	17	23 23
+955	lowrite	f	f	23	23 17
+956	lo_lseek	f	f	23	23 23 23
+957	lo_creat	f	f	26	23
+958	lo_tell	f	f	23	23
+959	on_pl	f	f	16	600 628
+960	on_sl	f	f	16	601 628
+961	close_pl	f	f	600	600 628
+964	lo_unlink	f	f	23	26
+972	hashbpcharextended	f	f	20	1042 20
+973	path_inter	f	f	16	602 602
+975	area	f	f	701	603
+976	width	f	f	701	603
+977	height	f	f	701	603
+978	box_distance	f	f	701	603 603
+979	area	f	f	701	602
+980	box_intersect	f	f	603	603 603
+981	diagonal	f	f	601	603
+982	path_n_lt	f	f	16	602 602
+983	path_n_gt	f	f	16	602 602
+984	path_n_eq	f	f	16	602 602
+985	path_n_le	f	f	16	602 602
+986	path_n_ge	f	f	16	602 602
+987	path_length	f	f	701	602
+988	point_ne	f	f	16	600 600
+989	point_vert	f	f	16	600 600
+990	point_horiz	f	f	16	600 600
+991	point_distance	f	f	701	600 600
+992	slope	f	f	701	600 600
+993	lseg	f	f	601	600 600
+994	lseg_intersect	f	f	16	601 601
+995	lseg_parallel	f	f	16	601 601
+996	lseg_perp	f	f	16	601 601
+997	lseg_vertical	f	f	16	601
+998	lseg_horizontal	f	f	16	601
+999	lseg_eq	f	f	16	601 601
+1004	lo_truncate	f	f	23	23 23
+1023	textlike_support	f	f	2281	2281
+1024	texticregexeq_support	f	f	2281	2281
+1025	texticlike_support	f	f	2281	2281
+1026	timezone	f	f	1114	1186 1184
+1030	gist_point_compress	f	f	2281	2281
+1031	aclitemin	f	f	1033	2275
+1032	aclitemout	f	f	2275	1033
+1035	aclinsert	f	f	1034	1034 1033
+1036	aclremove	f	f	1034	1034 1033
+1037	aclcontains	f	f	16	1034 1033
+1039	getdatabaseencoding	f	f	19	
+1044	bpcharin	f	f	1042	2275 26 23
+1045	bpcharout	f	f	2275	1042
+1046	varcharin	f	f	1043	2275 26 23
+1047	varcharout	f	f	2275	1043
+1048	bpchareq	f	f	16	1042 1042
+1049	bpcharlt	f	f	16	1042 1042
+1050	bpcharle	f	f	16	1042 1042
+1051	bpchargt	f	f	16	1042 1042
+1052	bpcharge	f	f	16	1042 1042
+1053	bpcharne	f	f	16	1042 1042
+1062	aclitemeq	f	f	16	1033 1033
+1063	bpchar_larger	f	f	1042	1042 1042
+1064	bpchar_smaller	f	f	1042	1042 1042
+1065	pg_prepared_xact	f	t	2249	
+1066	generate_series	f	t	23	23 23 23
+1067	generate_series	f	t	23	23 23
+1068	generate_series	f	t	20	20 20 20
+1069	generate_series	f	t	20	20 20
+1078	bpcharcmp	f	f	23	1042 1042
+1079	regclass	f	f	2205	25
+1080	hashbpchar	f	f	23	1042
+1081	format_type	f	f	25	26 23
+1084	date_in	f	f	1082	2275
+1085	date_out	f	f	2275	1082
+1086	date_eq	f	f	16	1082 1082
+1087	date_lt	f	f	16	1082 1082
+1088	date_le	f	f	16	1082 1082
+1089	date_gt	f	f	16	1082 1082
+1090	date_ge	f	f	16	1082 1082
+1091	date_ne	f	f	16	1082 1082
+1092	date_cmp	f	f	23	1082 1082
+1102	time_lt	f	f	16	1083 1083
+1103	time_le	f	f	16	1083 1083
+1104	time_gt	f	f	16	1083 1083
+1105	time_ge	f	f	16	1083 1083
+1106	time_ne	f	f	16	1083 1083
+1107	time_cmp	f	f	23	1083 1083
+1136	pg_stat_get_wal	f	f	2249	
+1137	pg_get_wal_replay_pause_state	f	f	25	
+1138	date_larger	f	f	1082	1082 1082
+1139	date_smaller	f	f	1082	1082 1082
+1140	date_mi	f	f	23	1082 1082
+1141	date_pli	f	f	1082	1082 23
+1142	date_mii	f	f	1082	1082 23
+1143	time_in	f	f	1083	2275 26 23
+1144	time_out	f	f	2275	1083
+1145	time_eq	f	f	16	1083 1083
+1146	circle_add_pt	f	f	718	718 600
+1147	circle_sub_pt	f	f	718	718 600
+1148	circle_mul_pt	f	f	718	718 600
+1149	circle_div_pt	f	f	718	718 600
+1150	timestamptz_in	f	f	1184	2275 26 23
+1151	timestamptz_out	f	f	2275	1184
+1152	timestamptz_eq	f	f	16	1184 1184
+1153	timestamptz_ne	f	f	16	1184 1184
+1154	timestamptz_lt	f	f	16	1184 1184
+1155	timestamptz_le	f	f	16	1184 1184
+1156	timestamptz_ge	f	f	16	1184 1184
+1157	timestamptz_gt	f	f	16	1184 1184
+1158	to_timestamp	f	f	1184	701
+1159	timezone	f	f	1114	25 1184
+1160	interval_in	f	f	1186	2275 26 23
+1161	interval_out	f	f	2275	1186
+1162	interval_eq	f	f	16	1186 1186
+1163	interval_ne	f	f	16	1186 1186
+1164	interval_lt	f	f	16	1186 1186
+1165	interval_le	f	f	16	1186 1186
+1166	interval_ge	f	f	16	1186 1186
+1167	interval_gt	f	f	16	1186 1186
+1168	interval_um	f	f	1186	1186
+1169	interval_pl	f	f	1186	1186 1186
+1170	interval_mi	f	f	1186	1186 1186
+1171	date_part	f	f	701	25 1184
+1172	date_part	f	f	701	25 1186
+1173	network_subset_support	f	f	2281	2281
+1174	timestamptz	f	f	1184	1082
+1175	justify_hours	f	f	1186	1186
+1176	timestamptz	f	f	1184	1082 1083
+1177	jsonb_path_exists_tz	f	f	16	3802 4072 3802 16
+1178	date	f	f	1082	1184
+1179	jsonb_path_query_tz	f	t	3802	3802 4072 3802 16
+1180	jsonb_path_query_array_tz	f	f	3802	3802 4072 3802 16
+1181	age	f	f	23	28
+1188	timestamptz_mi	f	f	1186	1184 1184
+1189	timestamptz_pl_interval	f	f	1184	1184 1186
+1190	timestamptz_mi_interval	f	f	1184	1184 1186
+1191	generate_subscripts	f	t	23	2277 23 16
+1192	generate_subscripts	f	t	23	2277 23
+1193	array_fill	f	f	2277	2283 1007
+1194	log10	f	f	701	701
+1195	timestamptz_smaller	f	f	1184	1184 1184
+1196	timestamptz_larger	f	f	1184	1184 1184
+1197	interval_smaller	f	f	1186	1186 1186
+1198	interval_larger	f	f	1186	1186 1186
+1199	age	f	f	1186	1184 1184
+1200	interval	f	f	1186	1186 23
+1215	obj_description	f	f	25	26 19
+1216	col_description	f	f	25	26 23
+1217	date_trunc	f	f	1184	25 1184
+1218	date_trunc	f	f	1186	25 1186
+1219	int8inc	f	f	20	20
+1230	int8abs	f	f	20	20
+1236	int8larger	f	f	20	20 20
+1237	int8smaller	f	f	20	20 20
+1238	texticregexeq	f	f	16	25 25
+1239	texticregexne	f	f	16	25 25
+1240	nameicregexeq	f	f	16	19 25
+1241	nameicregexne	f	f	16	19 25
+1242	boolin	f	f	16	2275
+1243	boolout	f	f	2275	16
+1244	byteain	f	f	17	2275
+1245	charin	f	f	18	2275
+1246	charlt	f	f	16	18 18
+1250	unique_key_recheck	f	f	2279	
+1251	int4abs	f	f	23	23
+1252	nameregexne	f	f	16	19 25
+1253	int2abs	f	f	21	21
+1254	textregexeq	f	f	16	25 25
+1256	textregexne	f	f	16	25 25
+1257	textlen	f	f	23	25
+1258	textcat	f	f	25	25 25
+1264	pg_char_to_encoding	f	f	23	19
+1265	tidne	f	f	16	27 27
+1267	cidr_in	f	f	650	2275
+1268	parse_ident	f	f	1009	25 16
+1269	pg_column_size	f	f	23	2276
+1271	overlaps	f	f	16	1266 1266 1266 1266
+1272	datetime_pl	f	f	1114	1082 1083
+1273	date_part	f	f	701	25 1266
+1274	int84pl	f	f	20	20 23
+1275	int84mi	f	f	20	20 23
+1276	int84mul	f	f	20	20 23
+1277	int84div	f	f	20	20 23
+1278	int48pl	f	f	20	23 20
+1279	int48mi	f	f	20	23 20
+1280	int48mul	f	f	20	23 20
+1281	int48div	f	f	20	23 20
+1282	quote_ident	f	f	25	25
+1283	quote_literal	f	f	25	25
+1284	date_trunc	f	f	1184	25 1184 25
+1285	quote_literal	f	f	25	2283
+1286	array_fill	f	f	2277	2283 1007 1007
+1287	oid	f	f	26	20
+1288	int8	f	f	20	26
+1289	quote_nullable	f	f	25	25
+1290	quote_nullable	f	f	25	2283
+1291	suppress_redundant_updates_trigger	f	f	2279	
+1292	tideq	f	f	16	27 27
+1293	unnest	f	t	3831	4537
+1294	currtid2	f	f	27	25 27
+1295	justify_days	f	f	1186	1186
+1296	timedate_pl	f	f	1114	1083 1082
+1297	datetimetz_pl	f	f	1184	1082 1266
+1298	timetzdate_pl	f	f	1184	1266 1082
+1299	now	f	f	1184	
+1300	positionsel	f	f	701	2281 26 2281 23
+1301	positionjoinsel	f	f	701	2281 26 2281 21 2281
+1302	contsel	f	f	701	2281 26 2281 23
+1303	contjoinsel	f	f	701	2281 26 2281 21 2281
+1304	overlaps	f	f	16	1184 1184 1184 1184
+1305	overlaps	f	f	16	1184 1186 1184 1186
+1306	overlaps	f	f	16	1184 1184 1184 1186
+1307	overlaps	f	f	16	1184 1186 1184 1184
+1308	overlaps	f	f	16	1083 1083 1083 1083
+1309	overlaps	f	f	16	1083 1186 1083 1186
+1310	overlaps	f	f	16	1083 1083 1083 1186
+1311	overlaps	f	f	16	1083 1186 1083 1083
+1312	timestamp_in	f	f	1114	2275 26 23
+1313	timestamp_out	f	f	2275	1114
+1314	timestamptz_cmp	f	f	23	1184 1184
+1315	interval_cmp	f	f	23	1186 1186
+1316	time	f	f	1083	1114
+1317	length	f	f	23	25
+1318	length	f	f	23	1042
+1319	xideqint4	f	f	16	28 23
+1326	interval_div	f	f	1186	1186 701
+1339	dlog10	f	f	701	701
+1340	log	f	f	701	701
+1341	ln	f	f	701	701
+1342	round	f	f	701	701
+1343	trunc	f	f	701	701
+1344	sqrt	f	f	701	701
+1345	cbrt	f	f	701	701
+1346	pow	f	f	701	701 701
+1347	exp	f	f	701	701
+1348	obj_description	f	f	25	26
+1349	oidvectortypes	f	f	25	30
+1350	timetz_in	f	f	1266	2275 26 23
+1351	timetz_out	f	f	2275	1266
+1352	timetz_eq	f	f	16	1266 1266
+1353	timetz_ne	f	f	16	1266 1266
+1354	timetz_lt	f	f	16	1266 1266
+1355	timetz_le	f	f	16	1266 1266
+1356	timetz_ge	f	f	16	1266 1266
+1357	timetz_gt	f	f	16	1266 1266
+1358	timetz_cmp	f	f	23	1266 1266
+1359	timestamptz	f	f	1184	1082 1266
+1362	hostmask	f	f	869	869
+1364	textregexeq_support	f	f	2281	2281
+1365	makeaclitem	f	f	1033	26 26 25 16
+1367	character_length	f	f	23	1042
+1368	power	f	f	701	701 701
+1369	character_length	f	f	23	25
+1370	interval	f	f	1186	1083
+1371	pg_lock_status	f	t	2249	
+1372	char_length	f	f	23	1042
+1373	isfinite	f	f	16	1082
+1374	octet_length	f	f	23	25
+1375	octet_length	f	f	23	1042
+1376	factorial	f	f	1700	20
+1377	time_larger	f	f	1083	1083 1083
+1378	time_smaller	f	f	1083	1083 1083
+1379	timetz_larger	f	f	1266	1266 1266
+1380	timetz_smaller	f	f	1266	1266 1266
+1381	char_length	f	f	23	25
+1384	date_part	f	f	701	25 1082
+1385	date_part	f	f	701	25 1083
+1386	age	f	f	1186	1184
+1387	pg_get_constraintdef	f	f	25	26
+1388	timetz	f	f	1266	1184
+1389	isfinite	f	f	16	1184
+1390	isfinite	f	f	16	1186
+1391	pg_stat_get_backend_start	f	f	1184	23
+1392	pg_stat_get_backend_client_addr	f	f	869	23
+1393	pg_stat_get_backend_client_port	f	f	23	23
+1394	abs	f	f	700	700
+1395	abs	f	f	701	701
+1396	abs	f	f	20	20
+1397	abs	f	f	23	23
+1398	abs	f	f	21	21
+1400	name	f	f	19	1043
+1401	varchar	f	f	1043	19
+1402	current_schema	f	f	19	
+1403	current_schemas	f	f	1003	16
+1404	overlay	f	f	25	25 25 23 23
+1405	overlay	f	f	25	25 25 23
+1406	isvertical	f	f	16	600 600
+1407	ishorizontal	f	f	16	600 600
+1408	isparallel	f	f	16	601 601
+1409	isperp	f	f	16	601 601
+1410	isvertical	f	f	16	601
+1411	ishorizontal	f	f	16	601
+1412	isparallel	f	f	16	628 628
+1413	isperp	f	f	16	628 628
+1414	isvertical	f	f	16	628
+1415	ishorizontal	f	f	16	628
+1416	point	f	f	600	718
+1419	time	f	f	1083	1186
+1421	box	f	f	603	600 600
+1422	box_add	f	f	603	603 600
+1423	box_sub	f	f	603	603 600
+1424	box_mul	f	f	603	603 600
+1425	box_div	f	f	603	603 600
+1426	path_contain_pt	f	f	16	602 600
+1427	cidr_out	f	f	2275	650
+1428	poly_contain_pt	f	f	16	604 600
+1429	pt_contained_poly	f	f	16	600 604
+1430	isclosed	f	f	16	602
+1431	isopen	f	f	16	602
+1432	path_npoints	f	f	23	602
+1433	pclose	f	f	602	602
+1434	popen	f	f	602	602
+1435	path_add	f	f	602	602 602
+1436	path_add_pt	f	f	602	602 600
+1437	path_sub_pt	f	f	602	602 600
+1438	path_mul_pt	f	f	602	602 600
+1439	path_div_pt	f	f	602	602 600
+1440	point	f	f	600	701 701
+1441	point_add	f	f	600	600 600
+1442	point_sub	f	f	600	600 600
+1443	point_mul	f	f	600	600 600
+1444	point_div	f	f	600	600 600
+1445	poly_npoints	f	f	23	604
+1446	box	f	f	603	604
+1447	path	f	f	602	604
+1448	polygon	f	f	604	603
+1449	polygon	f	f	604	602
+1450	circle_in	f	f	718	2275
+1451	circle_out	f	f	2275	718
+1452	circle_same	f	f	16	718 718
+1453	circle_contain	f	f	16	718 718
+1454	circle_left	f	f	16	718 718
+1455	circle_overleft	f	f	16	718 718
+1456	circle_overright	f	f	16	718 718
+1457	circle_right	f	f	16	718 718
+1458	circle_contained	f	f	16	718 718
+1459	circle_overlap	f	f	16	718 718
+1460	circle_below	f	f	16	718 718
+1461	circle_above	f	f	16	718 718
+1462	circle_eq	f	f	16	718 718
+1463	circle_ne	f	f	16	718 718
+1464	circle_lt	f	f	16	718 718
+1465	circle_gt	f	f	16	718 718
+1466	circle_le	f	f	16	718 718
+1467	circle_ge	f	f	16	718 718
+1468	area	f	f	701	718
+1469	diameter	f	f	701	718
+1470	radius	f	f	701	718
+1471	circle_distance	f	f	701	718 718
+1472	circle_center	f	f	600	718
+1473	circle	f	f	718	600 701
+1474	circle	f	f	718	604
+1475	polygon	f	f	604	23 718
+1476	dist_pc	f	f	701	600 718
+1477	circle_contain_pt	f	f	16	718 600
+1478	pt_contained_circle	f	f	16	600 718
+1479	circle	f	f	718	603
+1480	box	f	f	603	718
+1481	log10	f	f	1700	1700
+1482	lseg_ne	f	f	16	601 601
+1483	lseg_lt	f	f	16	601 601
+1484	lseg_le	f	f	16	601 601
+1485	lseg_gt	f	f	16	601 601
+1486	lseg_ge	f	f	16	601 601
+1487	lseg_length	f	f	701	601
+1488	close_ls	f	f	600	628 601
+1489	close_lseg	f	f	600	601 601
+1490	line_in	f	f	628	2275
+1491	line_out	f	f	2275	628
+1492	line_eq	f	f	16	628 628
+1493	line	f	f	628	600 600
+1494	line_interpt	f	f	600	628 628
+1495	line_intersect	f	f	16	628 628
+1496	line_parallel	f	f	16	628 628
+1497	line_perp	f	f	16	628 628
+1498	line_vertical	f	f	16	628
+1499	line_horizontal	f	f	16	628
+1530	length	f	f	701	601
+1531	length	f	f	701	602
+1532	point	f	f	600	601
+1534	point	f	f	600	603
+1540	point	f	f	600	604
+1541	lseg	f	f	601	603
+1542	center	f	f	600	603
+1543	center	f	f	600	718
+1544	polygon	f	f	604	718
+1545	npoints	f	f	23	602
+1556	npoints	f	f	23	604
+1564	bit_in	f	f	1560	2275 26 23
+1565	bit_out	f	f	2275	1560
+1569	like	f	f	16	25 25
+1570	notlike	f	f	16	25 25
+1571	like	f	f	16	19 25
+1572	notlike	f	f	16	19 25
+1573	pg_get_ruledef	f	f	25	26
+1574	nextval	f	f	20	2205
+1575	currval	f	f	20	2205
+1576	setval	f	f	20	2205 20
+1579	varbit_in	f	f	1562	2275 26 23
+1580	varbit_out	f	f	2275	1562
+1581	biteq	f	f	16	1560 1560
+1582	bitne	f	f	16	1560 1560
+1592	bitge	f	f	16	1560 1560
+1593	bitgt	f	f	16	1560 1560
+1594	bitle	f	f	16	1560 1560
+1595	bitlt	f	f	16	1560 1560
+1596	bitcmp	f	f	23	1560 1560
+1597	pg_encoding_to_char	f	f	19	23
+1598	random	f	f	701	
+1599	setseed	f	f	2278	701
+1600	asin	f	f	701	701
+1601	acos	f	f	701	701
+1602	atan	f	f	701	701
+1603	atan2	f	f	701	701 701
+1604	sin	f	f	701	701
+1605	cos	f	f	701	701
+1606	tan	f	f	701	701
+1607	cot	f	f	701	701
+1608	degrees	f	f	701	701
+1609	radians	f	f	701	701
+1610	pi	f	f	701	
+1618	interval_mul	f	f	1186	1186 701
+1619	pg_typeof	f	f	2206	2276
+1620	ascii	f	f	23	25
+1621	chr	f	f	25	23
+1622	repeat	f	f	25	25 23
+1623	similar_escape	f	f	25	25 25
+1624	mul_d_interval	f	f	1186	701 1186
+1631	bpcharlike	f	f	16	1042 25
+1632	bpcharnlike	f	f	16	1042 25
+1633	texticlike	f	f	16	25 25
+1634	texticnlike	f	f	16	25 25
+1635	nameiclike	f	f	16	19 25
+1636	nameicnlike	f	f	16	19 25
+1637	like_escape	f	f	25	25 25
+1638	oidgt	f	f	16	26 26
+1639	oidge	f	f	16	26 26
+1640	pg_get_viewdef	f	f	25	25
+1641	pg_get_viewdef	f	f	25	26
+1642	pg_get_userbyid	f	f	19	26
+1643	pg_get_indexdef	f	f	25	26
+1644	RI_FKey_check_ins	f	f	2279	
+1645	RI_FKey_check_upd	f	f	2279	
+1646	RI_FKey_cascade_del	f	f	2279	
+1647	RI_FKey_cascade_upd	f	f	2279	
+1648	RI_FKey_restrict_del	f	f	2279	
+1649	RI_FKey_restrict_upd	f	f	2279	
+1650	RI_FKey_setnull_del	f	f	2279	
+1651	RI_FKey_setnull_upd	f	f	2279	
+1652	RI_FKey_setdefault_del	f	f	2279	
+1653	RI_FKey_setdefault_upd	f	f	2279	
+1654	RI_FKey_noaction_del	f	f	2279	
+1655	RI_FKey_noaction_upd	f	f	2279	
+1656	bpcharicregexeq	f	f	16	1042 25
+1657	bpcharicregexne	f	f	16	1042 25
+1658	bpcharregexeq	f	f	16	1042 25
+1659	bpcharregexne	f	f	16	1042 25
+1660	bpchariclike	f	f	16	1042 25
+1661	bpcharicnlike	f	f	16	1042 25
+1662	pg_get_triggerdef	f	f	25	26
+1665	pg_get_serial_sequence	f	f	25	25 25
+1666	varbiteq	f	f	16	1562 1562
+1667	varbitne	f	f	16	1562 1562
+1668	varbitge	f	f	16	1562 1562
+1669	varbitgt	f	f	16	1562 1562
+1670	varbitle	f	f	16	1562 1562
+1671	varbitlt	f	f	16	1562 1562
+1672	varbitcmp	f	f	23	1562 1562
+1673	bitand	f	f	1560	1560 1560
+1674	bitor	f	f	1560	1560 1560
+1675	bitxor	f	f	1560	1560 1560
+1676	bitnot	f	f	1560	1560
+1677	bitshiftleft	f	f	1560	1560 23
+1678	bitshiftright	f	f	1560	1560 23
+1679	bitcat	f	f	1562	1562 1562
+1680	substring	f	f	1560	1560 23 23
+1681	length	f	f	23	1560
+1682	octet_length	f	f	23	1560
+1683	bit	f	f	1560	23 23
+1684	int4	f	f	23	1560
+1685	bit	f	f	1560	1560 23 16
+1686	pg_get_keywords	f	t	2249	
+1687	varbit	f	f	1562	1562 23 16
+1688	time_hash	f	f	23	1083
+1689	aclexplode	f	t	2249	1034
+1690	time_mi_time	f	f	1186	1083 1083
+1691	boolle	f	f	16	16 16
+1692	boolge	f	f	16	16 16
+1693	btboolcmp	f	f	23	16 16
+1696	timetz_hash	f	f	23	1266
+1697	interval_hash	f	f	23	1186
+1698	position	f	f	23	1560 1560
+1699	substring	f	f	1560	1560 23
+1701	numeric_in	f	f	1700	2275 26 23
+1702	numeric_out	f	f	2275	1700
+1703	numeric	f	f	1700	1700 23
+1704	numeric_abs	f	f	1700	1700
+1705	abs	f	f	1700	1700
+1706	sign	f	f	1700	1700
+1707	round	f	f	1700	1700 23
+1708	round	f	f	1700	1700
+1709	trunc	f	f	1700	1700 23
+1710	trunc	f	f	1700	1700
+1711	ceil	f	f	1700	1700
+1712	floor	f	f	1700	1700
+1713	length	f	f	23	17 19
+1714	convert_from	f	f	25	17 19
+1715	cidr	f	f	650	869
+1716	pg_get_expr	f	f	25	194 26
+1717	convert_to	f	f	17	25 19
+1718	numeric_eq	f	f	16	1700 1700
+1719	numeric_ne	f	f	16	1700 1700
+1720	numeric_gt	f	f	16	1700 1700
+1721	numeric_ge	f	f	16	1700 1700
+1722	numeric_lt	f	f	16	1700 1700
+1723	numeric_le	f	f	16	1700 1700
+1724	numeric_add	f	f	1700	1700 1700
+1725	numeric_sub	f	f	1700	1700 1700
+1726	numeric_mul	f	f	1700	1700 1700
+1727	numeric_div	f	f	1700	1700 1700
+1728	mod	f	f	1700	1700 1700
+1729	numeric_mod	f	f	1700	1700 1700
+1730	sqrt	f	f	1700	1700
+1731	numeric_sqrt	f	f	1700	1700
+1732	exp	f	f	1700	1700
+1733	numeric_exp	f	f	1700	1700
+1734	ln	f	f	1700	1700
+1735	numeric_ln	f	f	1700	1700
+1736	log	f	f	1700	1700 1700
+1737	numeric_log	f	f	1700	1700 1700
+1738	pow	f	f	1700	1700 1700
+1739	numeric_power	f	f	1700	1700 1700
+1740	numeric	f	f	1700	23
+1741	log	f	f	1700	1700
+1742	numeric	f	f	1700	700
+1743	numeric	f	f	1700	701
+1744	int4	f	f	23	1700
+1745	float4	f	f	700	1700
+1746	float8	f	f	701	1700
+1747	time_pl_interval	f	f	1083	1083 1186
+1748	time_mi_interval	f	f	1083	1083 1186
+1749	timetz_pl_interval	f	f	1266	1266 1186
+1750	timetz_mi_interval	f	f	1266	1266 1186
+1764	numeric_inc	f	f	1700	1700
+1765	setval	f	f	20	2205 20 16
+1766	numeric_smaller	f	f	1700	1700 1700
+1767	numeric_larger	f	f	1700	1700 1700
+1768	to_char	f	f	25	1186 25
+1769	numeric_cmp	f	f	23	1700 1700
+1770	to_char	f	f	25	1184 25
+1771	numeric_uminus	f	f	1700	1700
+1772	to_char	f	f	25	1700 25
+1773	to_char	f	f	25	23 25
+1774	to_char	f	f	25	20 25
+1775	to_char	f	f	25	700 25
+1776	to_char	f	f	25	701 25
+1777	to_number	f	f	1700	25 25
+1778	to_timestamp	f	f	1184	25 25
+1779	int8	f	f	20	1700
+1780	to_date	f	f	1082	25 25
+1781	numeric	f	f	1700	20
+1782	numeric	f	f	1700	21
+1783	int2	f	f	21	1700
+1798	oidin	f	f	26	2275
+1799	oidout	f	f	2275	26
+1810	bit_length	f	f	23	17
+1811	bit_length	f	f	23	25
+1812	bit_length	f	f	23	1560
+1813	convert	f	f	17	17 19 19
+1814	iclikesel	f	f	701	2281 26 2281 23
+1815	icnlikesel	f	f	701	2281 26 2281 23
+1816	iclikejoinsel	f	f	701	2281 26 2281 21 2281
+1817	icnlikejoinsel	f	f	701	2281 26 2281 21 2281
+1818	regexeqsel	f	f	701	2281 26 2281 23
+1819	likesel	f	f	701	2281 26 2281 23
+1820	icregexeqsel	f	f	701	2281 26 2281 23
+1821	regexnesel	f	f	701	2281 26 2281 23
+1822	nlikesel	f	f	701	2281 26 2281 23
+1823	icregexnesel	f	f	701	2281 26 2281 23
+1824	regexeqjoinsel	f	f	701	2281 26 2281 21 2281
+1825	likejoinsel	f	f	701	2281 26 2281 21 2281
+1826	icregexeqjoinsel	f	f	701	2281 26 2281 21 2281
+1827	regexnejoinsel	f	f	701	2281 26 2281 21 2281
+1828	nlikejoinsel	f	f	701	2281 26 2281 21 2281
+1829	icregexnejoinsel	f	f	701	2281 26 2281 21 2281
+1830	float8_avg	f	f	701	1022
+1831	float8_var_samp	f	f	701	1022
+1832	float8_stddev_samp	f	f	701	1022
+1833	numeric_accum	f	f	2281	2281 1700
+1834	int2_accum	f	f	2281	2281 21
+1835	int4_accum	f	f	2281	2281 23
+1836	int8_accum	f	f	2281	2281 20
+1837	numeric_avg	f	f	1700	2281
+1838	numeric_var_samp	f	f	1700	2281
+1839	numeric_stddev_samp	f	f	1700	2281
+1840	int2_sum	f	f	20	20 21
+1841	int4_sum	f	f	20	20 23
+1842	int8_sum	f	f	1700	1700 20
+1843	interval_avg_accum	f	f	2281	2281 1186
+1844	interval_avg	f	f	1186	2281
+1845	to_ascii	f	f	25	25
+1846	to_ascii	f	f	25	25 23
+1847	to_ascii	f	f	25	25 19
+1848	interval_pl_time	f	f	1083	1186 1083
+1850	int28eq	f	f	16	21 20
+1851	int28ne	f	f	16	21 20
+1852	int28lt	f	f	16	21 20
+1853	int28gt	f	f	16	21 20
+1854	int28le	f	f	16	21 20
+1855	int28ge	f	f	16	21 20
+1856	int82eq	f	f	16	20 21
+1857	int82ne	f	f	16	20 21
+1858	int82lt	f	f	16	20 21
+1859	int82gt	f	f	16	20 21
+1860	int82le	f	f	16	20 21
+1861	int82ge	f	f	16	20 21
+1892	int2and	f	f	21	21 21
+1893	int2or	f	f	21	21 21
+1894	int2xor	f	f	21	21 21
+1895	int2not	f	f	21	21
+1896	int2shl	f	f	21	21 23
+1897	int2shr	f	f	21	21 23
+1898	int4and	f	f	23	23 23
+1899	int4or	f	f	23	23 23
+1900	int4xor	f	f	23	23 23
+1901	int4not	f	f	23	23
+1902	int4shl	f	f	23	23 23
+1903	int4shr	f	f	23	23 23
+1904	int8and	f	f	20	20 20
+1905	int8or	f	f	20	20 20
+1906	int8xor	f	f	20	20 20
+1907	int8not	f	f	20	20
+1908	int8shl	f	f	20	20 23
+1909	int8shr	f	f	20	20 23
+1910	int8up	f	f	20	20
+1911	int2up	f	f	21	21
+1912	int4up	f	f	23	23
+1913	float4up	f	f	700	700
+1914	float8up	f	f	701	701
+1915	numeric_uplus	f	f	1700	1700
+1922	has_table_privilege	f	f	16	19 25 25
+1923	has_table_privilege	f	f	16	19 26 25
+1924	has_table_privilege	f	f	16	26 25 25
+1925	has_table_privilege	f	f	16	26 26 25
+1926	has_table_privilege	f	f	16	25 25
+1927	has_table_privilege	f	f	16	26 25
+1928	pg_stat_get_numscans	f	f	20	26
+1929	pg_stat_get_tuples_returned	f	f	20	26
+1930	pg_stat_get_tuples_fetched	f	f	20	26
+1931	pg_stat_get_tuples_inserted	f	f	20	26
+1932	pg_stat_get_tuples_updated	f	f	20	26
+1933	pg_stat_get_tuples_deleted	f	f	20	26
+1934	pg_stat_get_blocks_fetched	f	f	20	26
+1935	pg_stat_get_blocks_hit	f	f	20	26
+1936	pg_stat_get_backend_idset	f	t	23	
+1937	pg_stat_get_backend_pid	f	f	23	23
+1938	pg_stat_get_backend_dbid	f	f	26	23
+1939	pg_stat_get_backend_userid	f	f	26	23
+1940	pg_stat_get_backend_activity	f	f	25	23
+1941	pg_stat_get_db_numbackends	f	f	23	26
+1942	pg_stat_get_db_xact_commit	f	f	20	26
+1943	pg_stat_get_db_xact_rollback	f	f	20	26
+1944	pg_stat_get_db_blocks_fetched	f	f	20	26
+1945	pg_stat_get_db_blocks_hit	f	f	20	26
+1946	encode	f	f	25	17 25
+1947	decode	f	f	17	25 25
+1948	byteaeq	f	f	16	17 17
+1949	bytealt	f	f	16	17 17
+1950	byteale	f	f	16	17 17
+1951	byteagt	f	f	16	17 17
+1952	byteage	f	f	16	17 17
+1953	byteane	f	f	16	17 17
+1954	byteacmp	f	f	23	17 17
+1961	timestamp	f	f	1114	1114 23
+1962	int2_avg_accum	f	f	1016	1016 21
+1963	int4_avg_accum	f	f	1016	1016 23
+1964	int8_avg	f	f	1700	1016
+1965	oidlarger	f	f	26	26 26
+1966	oidsmaller	f	f	26	26 26
+1967	timestamptz	f	f	1184	1184 23
+1968	time	f	f	1083	1083 23
+1969	timetz	f	f	1266	1266 23
+1972	pg_stat_get_tuples_hot_updated	f	f	20	26
+1973	div	f	f	1700	1700 1700
+1980	numeric_div_trunc	f	f	1700	1700 1700
+1986	similar_to_escape	f	f	25	25 25
+1987	similar_to_escape	f	f	25	25
+1993	shobj_description	f	f	25	26 19
+2003	textanycat	f	f	25	25 2776
+2004	anytextcat	f	f	25	2776 25
+2005	bytealike	f	f	16	17 17
+2006	byteanlike	f	f	16	17 17
+2007	like	f	f	16	17 17
+2008	notlike	f	f	16	17 17
+2009	like_escape	f	f	17	17 17
+2010	length	f	f	23	17
+2011	byteacat	f	f	17	17 17
+2012	substring	f	f	17	17 23 23
+2013	substring	f	f	17	17 23
+2014	position	f	f	23	17 17
+2015	btrim	f	f	17	17 17
+2019	time	f	f	1083	1184
+2020	date_trunc	f	f	1114	25 1114
+2021	date_part	f	f	701	25 1114
+2022	pg_stat_get_activity	f	t	2249	23
+2023	jsonb_path_query_first_tz	f	f	3802	3802 4072 3802 16
+2024	timestamp	f	f	1114	1082
+2025	timestamp	f	f	1114	1082 1083
+2026	pg_backend_pid	f	f	23	
+2027	timestamp	f	f	1114	1184
+2028	timestamptz	f	f	1184	1114
+2029	date	f	f	1082	1114
+2030	jsonb_path_match_tz	f	f	16	3802 4072 3802 16
+2031	timestamp_mi	f	f	1186	1114 1114
+2032	timestamp_pl_interval	f	f	1114	1114 1186
+2033	timestamp_mi_interval	f	f	1114	1114 1186
+2034	pg_conf_load_time	f	f	1184	
+2035	timestamp_smaller	f	f	1114	1114 1114
+2036	timestamp_larger	f	f	1114	1114 1114
+2037	timezone	f	f	1266	25 1266
+2038	timezone	f	f	1266	1186 1266
+2039	timestamp_hash	f	f	23	1114
+2041	overlaps	f	f	16	1114 1114 1114 1114
+2042	overlaps	f	f	16	1114 1186 1114 1186
+2043	overlaps	f	f	16	1114 1114 1114 1186
+2044	overlaps	f	f	16	1114 1186 1114 1114
+2045	timestamp_cmp	f	f	23	1114 1114
+2046	time	f	f	1083	1266
+2047	timetz	f	f	1266	1083
+2048	isfinite	f	f	16	1114
+2049	to_char	f	f	25	1114 25
+2050	max	a	f	2277	2277
+2051	min	a	f	2277	2277
+2052	timestamp_eq	f	f	16	1114 1114
+2053	timestamp_ne	f	f	16	1114 1114
+2054	timestamp_lt	f	f	16	1114 1114
+2055	timestamp_le	f	f	16	1114 1114
+2056	timestamp_ge	f	f	16	1114 1114
+2057	timestamp_gt	f	f	16	1114 1114
+2058	age	f	f	1186	1114 1114
+2059	age	f	f	1186	1114
+2069	timezone	f	f	1184	25 1114
+2070	timezone	f	f	1184	1186 1114
+2071	date_pl_interval	f	f	1114	1082 1186
+2072	date_mi_interval	f	f	1114	1082 1186
+2073	substring	f	f	25	25 25
+2074	substring	f	f	25	25 25 25
+2075	bit	f	f	1560	20 23
+2076	int8	f	f	20	1560
+2077	current_setting	f	f	25	25
+2078	set_config	f	f	25	25 25 16
+2079	pg_table_is_visible	f	f	16	26
+2080	pg_type_is_visible	f	f	16	26
+2081	pg_function_is_visible	f	f	16	26
+2082	pg_operator_is_visible	f	f	16	26
+2083	pg_opclass_is_visible	f	f	16	26
+2084	pg_show_all_settings	f	t	2249	
+2085	substr	f	f	17	17 23 23
+2086	substr	f	f	17	17 23
+2087	replace	f	f	25	25 25 25
+2088	split_part	f	f	25	25 25 23
+2089	to_hex	f	f	25	23
+2090	to_hex	f	f	25	20
+2091	array_lower	f	f	23	2277 23
+2092	array_upper	f	f	23	2277 23
+2093	pg_conversion_is_visible	f	f	16	26
+2094	pg_stat_get_backend_activity_start	f	f	1184	23
+2096	pg_terminate_backend	f	f	16	23 20
+2098	pg_get_functiondef	f	f	25	26
+2100	avg	a	f	1700	20
+2101	avg	a	f	1700	23
+2102	avg	a	f	1700	21
+2103	avg	a	f	1700	1700
+2104	avg	a	f	701	700
+2105	avg	a	f	701	701
+2106	avg	a	f	1186	1186
+2107	sum	a	f	1700	20
+2108	sum	a	f	20	23
+2109	sum	a	f	20	21
+2110	sum	a	f	700	700
+2111	sum	a	f	701	701
+2112	sum	a	f	790	790
+2113	sum	a	f	1186	1186
+2114	sum	a	f	1700	1700
+2115	max	a	f	20	20
+2116	max	a	f	23	23
+2117	max	a	f	21	21
+2118	max	a	f	26	26
+2119	max	a	f	700	700
+2120	max	a	f	701	701
+2121	pg_column_compression	f	f	25	2276
+2122	max	a	f	1082	1082
+2123	max	a	f	1083	1083
+2124	max	a	f	1266	1266
+2125	max	a	f	790	790
+2126	max	a	f	1114	1114
+2127	max	a	f	1184	1184
+2128	max	a	f	1186	1186
+2129	max	a	f	25	25
+2130	max	a	f	1700	1700
+2131	min	a	f	20	20
+2132	min	a	f	23	23
+2133	min	a	f	21	21
+2134	min	a	f	26	26
+2135	min	a	f	700	700
+2136	min	a	f	701	701
+2137	pg_stat_force_next_flush	f	f	2278	
+2138	min	a	f	1082	1082
+2139	min	a	f	1083	1083
+2140	min	a	f	1266	1266
+2141	min	a	f	790	790
+2142	min	a	f	1114	1114
+2143	min	a	f	1184	1184
+2144	min	a	f	1186	1186
+2145	min	a	f	25	25
+2146	min	a	f	1700	1700
+2147	count	a	f	20	2276
+2148	variance	a	f	1700	20
+2149	variance	a	f	1700	23
+2150	variance	a	f	1700	21
+2151	variance	a	f	701	700
+2152	variance	a	f	701	701
+2153	variance	a	f	1700	1700
+2154	stddev	a	f	1700	20
+2155	stddev	a	f	1700	23
+2156	stddev	a	f	1700	21
+2157	stddev	a	f	701	700
+2158	stddev	a	f	701	701
+2159	stddev	a	f	1700	1700
+2160	text_pattern_lt	f	f	16	25 25
+2161	text_pattern_le	f	f	16	25 25
+2162	pg_get_function_arguments	f	f	25	26
+2163	text_pattern_ge	f	f	16	25 25
+2164	text_pattern_gt	f	f	16	25 25
+2165	pg_get_function_result	f	f	25	26
+2166	bttext_pattern_cmp	f	f	23	25 25
+2167	ceiling	f	f	1700	1700
+2168	pg_database_size	f	f	20	19
+2169	power	f	f	1700	1700 1700
+2170	width_bucket	f	f	23	1700 1700 1700 23
+2171	pg_cancel_backend	f	f	16	23
+2172	pg_backup_start	f	f	3220	25 16
+2174	bpchar_pattern_lt	f	f	16	1042 1042
+2175	bpchar_pattern_le	f	f	16	1042 1042
+2176	array_length	f	f	23	2277 23
+2177	bpchar_pattern_ge	f	f	16	1042 1042
+2178	bpchar_pattern_gt	f	f	16	1042 1042
+2179	gist_point_consistent	f	f	16	2281 600 21 26 2281
+2180	btbpchar_pattern_cmp	f	f	23	1042 1042
+2181	has_sequence_privilege	f	f	16	19 25 25
+2182	has_sequence_privilege	f	f	16	19 26 25
+2183	has_sequence_privilege	f	f	16	26 25 25
+2184	has_sequence_privilege	f	f	16	26 26 25
+2185	has_sequence_privilege	f	f	16	25 25
+2186	has_sequence_privilege	f	f	16	26 25
+2188	btint48cmp	f	f	23	23 20
+2189	btint84cmp	f	f	23	20 23
+2190	btint24cmp	f	f	23	21 23
+2191	btint42cmp	f	f	23	23 21
+2192	btint28cmp	f	f	23	21 20
+2193	btint82cmp	f	f	23	20 21
+2194	btfloat48cmp	f	f	23	700 701
+2195	btfloat84cmp	f	f	23	701 700
+2196	inet_client_addr	f	f	869	
+2197	inet_client_port	f	f	23	
+2198	inet_server_addr	f	f	869	
+2199	inet_server_port	f	f	23	
+2212	regprocedurein	f	f	2202	2275
+2213	regprocedureout	f	f	2275	2202
+2214	regoperin	f	f	2203	2275
+2215	regoperout	f	f	2275	2203
+2216	regoperatorin	f	f	2204	2275
+2217	regoperatorout	f	f	2275	2204
+2218	regclassin	f	f	2205	2275
+2219	regclassout	f	f	2275	2205
+2220	regtypein	f	f	2206	2275
+2221	regtypeout	f	f	2275	2206
+2230	pg_stat_clear_snapshot	f	f	2278	
+2232	pg_get_function_identity_arguments	f	f	25	26
+2233	hashtid	f	f	23	27
+2234	hashtidextended	f	f	20	27 20
+2236	bit_and	a	f	21	21
+2237	bit_or	a	f	21	21
+2238	bit_and	a	f	23	23
+2239	bit_or	a	f	23	23
+2240	bit_and	a	f	20	20
+2241	bit_or	a	f	20	20
+2242	bit_and	a	f	1560	1560
+2243	bit_or	a	f	1560	1560
+2244	max	a	f	1042	1042
+2245	min	a	f	1042	1042
+2246	fmgr_internal_validator	f	f	2278	26
+2247	fmgr_c_validator	f	f	2278	26
+2248	fmgr_sql_validator	f	f	2278	26
+2250	has_database_privilege	f	f	16	19 25 25
+2251	has_database_privilege	f	f	16	19 26 25
+2252	has_database_privilege	f	f	16	26 25 25
+2253	has_database_privilege	f	f	16	26 26 25
+2254	has_database_privilege	f	f	16	25 25
+2255	has_database_privilege	f	f	16	26 25
+2256	has_function_privilege	f	f	16	19 25 25
+2257	has_function_privilege	f	f	16	19 26 25
+2258	has_function_privilege	f	f	16	26 25 25
+2259	has_function_privilege	f	f	16	26 26 25
+2260	has_function_privilege	f	f	16	25 25
+2261	has_function_privilege	f	f	16	26 25
+2262	has_language_privilege	f	f	16	19 25 25
+2263	has_language_privilege	f	f	16	19 26 25
+2264	has_language_privilege	f	f	16	26 25 25
+2265	has_language_privilege	f	f	16	26 26 25
+2266	has_language_privilege	f	f	16	25 25
+2267	has_language_privilege	f	f	16	26 25
+2268	has_schema_privilege	f	f	16	19 25 25
+2269	has_schema_privilege	f	f	16	19 26 25
+2270	has_schema_privilege	f	f	16	26 25 25
+2271	has_schema_privilege	f	f	16	26 26 25
+2272	has_schema_privilege	f	f	16	25 25
+2273	has_schema_privilege	f	f	16	26 25
+2274	pg_stat_reset	f	f	2278	
+2282	pg_get_backend_memory_contexts	f	t	2249	
+2284	regexp_replace	f	f	25	25 25 25
+2285	regexp_replace	f	f	25	25 25 25 25
+2286	pg_total_relation_size	f	f	20	2205
+2288	pg_size_pretty	f	f	25	20
+2289	pg_options_to_table	f	t	2249	1009
+2290	record_in	f	f	2249	2275 26 23
+2291	record_out	f	f	2275	2249
+2292	cstring_in	f	f	2275	2275
+2293	cstring_out	f	f	2275	2275
+2294	any_in	f	f	2276	2275
+2295	any_out	f	f	2275	2276
+2296	anyarray_in	f	f	2277	2275
+2297	anyarray_out	f	f	2275	2277
+2298	void_in	f	f	2278	2275
+2299	void_out	f	f	2275	2278
+2300	trigger_in	f	f	2279	2275
+2301	trigger_out	f	f	2275	2279
+2302	language_handler_in	f	f	2280	2275
+2303	language_handler_out	f	f	2275	2280
+2304	internal_in	f	f	2281	2275
+2305	internal_out	f	f	2275	2281
+2306	pg_stat_get_slru	f	t	2249	
+2307	pg_stat_reset_slru	f	f	2278	25
+2308	ceil	f	f	701	701
+2309	floor	f	f	701	701
+2310	sign	f	f	701	701
+2311	md5	f	f	25	25
+2312	anyelement_in	f	f	2283	2275
+2313	anyelement_out	f	f	2275	2283
+2316	postgresql_fdw_validator	f	f	16	1009 26
+2319	pg_encoding_max_length	f	f	23	23
+2320	ceiling	f	f	701	701
+2321	md5	f	f	25	17
+2322	pg_tablespace_size	f	f	20	26
+2323	pg_tablespace_size	f	f	20	19
+2324	pg_database_size	f	f	20	26
+2325	pg_relation_size	f	f	20	2205
+2331	unnest	f	t	2283	2277
+2332	pg_relation_size	f	f	20	2205 25
+2333	array_agg_transfn	f	f	2281	2281 2776
+2334	array_agg_finalfn	f	f	2277	2281 2776
+2335	array_agg	a	f	2277	2776
+2338	date_lt_timestamp	f	f	16	1082 1114
+2339	date_le_timestamp	f	f	16	1082 1114
+2340	date_eq_timestamp	f	f	16	1082 1114
+2341	date_gt_timestamp	f	f	16	1082 1114
+2342	date_ge_timestamp	f	f	16	1082 1114
+2343	date_ne_timestamp	f	f	16	1082 1114
+2344	date_cmp_timestamp	f	f	23	1082 1114
+2351	date_lt_timestamptz	f	f	16	1082 1184
+2352	date_le_timestamptz	f	f	16	1082 1184
+2353	date_eq_timestamptz	f	f	16	1082 1184
+2354	date_gt_timestamptz	f	f	16	1082 1184
+2355	date_ge_timestamptz	f	f	16	1082 1184
+2356	date_ne_timestamptz	f	f	16	1082 1184
+2357	date_cmp_timestamptz	f	f	23	1082 1184
+2364	timestamp_lt_date	f	f	16	1114 1082
+2365	timestamp_le_date	f	f	16	1114 1082
+2366	timestamp_eq_date	f	f	16	1114 1082
+2367	timestamp_gt_date	f	f	16	1114 1082
+2368	timestamp_ge_date	f	f	16	1114 1082
+2369	timestamp_ne_date	f	f	16	1114 1082
+2370	timestamp_cmp_date	f	f	23	1114 1082
+2377	timestamptz_lt_date	f	f	16	1184 1082
+2378	timestamptz_le_date	f	f	16	1184 1082
+2379	timestamptz_eq_date	f	f	16	1184 1082
+2380	timestamptz_gt_date	f	f	16	1184 1082
+2381	timestamptz_ge_date	f	f	16	1184 1082
+2382	timestamptz_ne_date	f	f	16	1184 1082
+2383	timestamptz_cmp_date	f	f	23	1184 1082
+2390	has_tablespace_privilege	f	f	16	19 25 25
+2391	has_tablespace_privilege	f	f	16	19 26 25
+2392	has_tablespace_privilege	f	f	16	26 25 25
+2393	has_tablespace_privilege	f	f	16	26 26 25
+2394	has_tablespace_privilege	f	f	16	25 25
+2395	has_tablespace_privilege	f	f	16	26 25
+2398	shell_in	f	f	2278	2275
+2399	shell_out	f	f	2275	2278
+2400	array_recv	f	f	2277	2281 26 23
+2401	array_send	f	f	17	2277
+2402	record_recv	f	f	2249	2281 26 23
+2403	record_send	f	f	17	2249
+2404	int2recv	f	f	21	2281
+2405	int2send	f	f	17	21
+2406	int4recv	f	f	23	2281
+2407	int4send	f	f	17	23
+2408	int8recv	f	f	20	2281
+2409	int8send	f	f	17	20
+2410	int2vectorrecv	f	f	22	2281
+2411	int2vectorsend	f	f	17	22
+2412	bytearecv	f	f	17	2281
+2413	byteasend	f	f	17	17
+2414	textrecv	f	f	25	2281
+2415	textsend	f	f	17	25
+2416	unknownrecv	f	f	705	2281
+2417	unknownsend	f	f	17	705
+2418	oidrecv	f	f	26	2281
+2419	oidsend	f	f	17	26
+2420	oidvectorrecv	f	f	30	2281
+2421	oidvectorsend	f	f	17	30
+2422	namerecv	f	f	19	2281
+2423	namesend	f	f	17	19
+2424	float4recv	f	f	700	2281
+2425	float4send	f	f	17	700
+2426	float8recv	f	f	701	2281
+2427	float8send	f	f	17	701
+2428	point_recv	f	f	600	2281
+2429	point_send	f	f	17	600
+2430	bpcharrecv	f	f	1042	2281 26 23
+2431	bpcharsend	f	f	17	1042
+2432	varcharrecv	f	f	1043	2281 26 23
+2433	varcharsend	f	f	17	1043
+2434	charrecv	f	f	18	2281
+2435	charsend	f	f	17	18
+2436	boolrecv	f	f	16	2281
+2437	boolsend	f	f	17	16
+2438	tidrecv	f	f	27	2281
+2439	tidsend	f	f	17	27
+2440	xidrecv	f	f	28	2281
+2441	xidsend	f	f	17	28
+2442	cidrecv	f	f	29	2281
+2443	cidsend	f	f	17	29
+2444	regprocrecv	f	f	24	2281
+2445	regprocsend	f	f	17	24
+2446	regprocedurerecv	f	f	2202	2281
+2447	regproceduresend	f	f	17	2202
+2448	regoperrecv	f	f	2203	2281
+2449	regopersend	f	f	17	2203
+2450	regoperatorrecv	f	f	2204	2281
+2451	regoperatorsend	f	f	17	2204
+2452	regclassrecv	f	f	2205	2281
+2453	regclasssend	f	f	17	2205
+2454	regtyperecv	f	f	2206	2281
+2455	regtypesend	f	f	17	2206
+2456	bit_recv	f	f	1560	2281 26 23
+2457	bit_send	f	f	17	1560
+2458	varbit_recv	f	f	1562	2281 26 23
+2459	varbit_send	f	f	17	1562
+2460	numeric_recv	f	f	1700	2281 26 23
+2461	numeric_send	f	f	17	1700
+2462	sinh	f	f	701	701
+2463	cosh	f	f	701	701
+2464	tanh	f	f	701	701
+2465	asinh	f	f	701	701
+2466	acosh	f	f	701	701
+2467	atanh	f	f	701	701
+2468	date_recv	f	f	1082	2281
+2469	date_send	f	f	17	1082
+2470	time_recv	f	f	1083	2281 26 23
+2471	time_send	f	f	17	1083
+2472	timetz_recv	f	f	1266	2281 26 23
+2473	timetz_send	f	f	17	1266
+2474	timestamp_recv	f	f	1114	2281 26 23
+2475	timestamp_send	f	f	17	1114
+2476	timestamptz_recv	f	f	1184	2281 26 23
+2477	timestamptz_send	f	f	17	1184
+2478	interval_recv	f	f	1186	2281 26 23
+2479	interval_send	f	f	17	1186
+2480	lseg_recv	f	f	601	2281
+2481	lseg_send	f	f	17	601
+2482	path_recv	f	f	602	2281
+2483	path_send	f	f	17	602
+2484	box_recv	f	f	603	2281
+2485	box_send	f	f	17	603
+2486	poly_recv	f	f	604	2281
+2487	poly_send	f	f	17	604
+2488	line_recv	f	f	628	2281
+2489	line_send	f	f	17	628
+2490	circle_recv	f	f	718	2281
+2491	circle_send	f	f	17	718
+2492	cash_recv	f	f	790	2281
+2493	cash_send	f	f	17	790
+2494	macaddr_recv	f	f	829	2281
+2495	macaddr_send	f	f	17	829
+2496	inet_recv	f	f	869	2281
+2497	inet_send	f	f	17	869
+2498	cidr_recv	f	f	650	2281
+2499	cidr_send	f	f	17	650
+2500	cstring_recv	f	f	2275	2281
+2501	cstring_send	f	f	17	2275
+2502	anyarray_recv	f	f	2277	2281
+2503	anyarray_send	f	f	17	2277
+2504	pg_get_ruledef	f	f	25	26 16
+2505	pg_get_viewdef	f	f	25	25 16
+2506	pg_get_viewdef	f	f	25	26 16
+2507	pg_get_indexdef	f	f	25	26 23 16
+2508	pg_get_constraintdef	f	f	25	26 16
+2509	pg_get_expr	f	f	25	194 26 16
+2510	pg_prepared_statement	f	t	2249	
+2511	pg_cursor	f	t	2249	
+2512	float8_var_pop	f	f	701	1022
+2513	float8_stddev_pop	f	f	701	1022
+2514	numeric_var_pop	f	f	1700	2281
+2515	booland_statefunc	f	f	16	16 16
+2516	boolor_statefunc	f	f	16	16 16
+2517	bool_and	a	f	16	16
+2518	bool_or	a	f	16	16
+2519	every	a	f	16	16
+2520	timestamp_lt_timestamptz	f	f	16	1114 1184
+2521	timestamp_le_timestamptz	f	f	16	1114 1184
+2522	timestamp_eq_timestamptz	f	f	16	1114 1184
+2523	timestamp_gt_timestamptz	f	f	16	1114 1184
+2524	timestamp_ge_timestamptz	f	f	16	1114 1184
+2525	timestamp_ne_timestamptz	f	f	16	1114 1184
+2526	timestamp_cmp_timestamptz	f	f	23	1114 1184
+2527	timestamptz_lt_timestamp	f	f	16	1184 1114
+2528	timestamptz_le_timestamp	f	f	16	1184 1114
+2529	timestamptz_eq_timestamp	f	f	16	1184 1114
+2530	timestamptz_gt_timestamp	f	f	16	1184 1114
+2531	timestamptz_ge_timestamp	f	f	16	1184 1114
+2532	timestamptz_ne_timestamp	f	f	16	1184 1114
+2533	timestamptz_cmp_timestamp	f	f	23	1184 1114
+2546	interval_pl_date	f	f	1114	1186 1082
+2547	interval_pl_timetz	f	f	1266	1186 1266
+2548	interval_pl_timestamp	f	f	1114	1186 1114
+2549	interval_pl_timestamptz	f	f	1184	1186 1184
+2550	integer_pl_date	f	f	1082	23 1082
+2556	pg_tablespace_databases	f	t	26	26
+2557	bool	f	f	16	23
+2558	int4	f	f	23	16
+2559	lastval	f	f	20	
+2560	pg_postmaster_start_time	f	f	1184	
+2561	pg_blocking_pids	f	f	1007	23
+2562	box_below	f	f	16	603 603
+2563	box_overbelow	f	f	16	603 603
+2564	box_overabove	f	f	16	603 603
+2565	box_above	f	f	16	603 603
+2566	poly_below	f	f	16	604 604
+2567	poly_overbelow	f	f	16	604 604
+2568	poly_overabove	f	f	16	604 604
+2569	poly_above	f	f	16	604 604
+2578	gist_box_consistent	f	f	16	2281 603 21 26 2281
+2580	float8	f	f	701	3802
+2581	gist_box_penalty	f	f	2281	2281 2281 2281
+2582	gist_box_picksplit	f	f	2281	2281 2281
+2583	gist_box_union	f	f	603	2281 2281
+2584	gist_box_same	f	f	2281	603 603 2281
+2585	gist_poly_consistent	f	f	16	2281 604 21 26 2281
+2586	gist_poly_compress	f	f	2281	2281
+2587	circle_overbelow	f	f	16	718 718
+2588	circle_overabove	f	f	16	718 718
+2591	gist_circle_consistent	f	f	16	2281 718 21 26 2281
+2592	gist_circle_compress	f	f	2281	2281
+2596	numeric_stddev_pop	f	f	1700	2281
+2597	domain_in	f	f	2276	2275 26 23
+2598	domain_recv	f	f	2276	2281 26 23
+2599	pg_timezone_abbrevs_abbrevs	f	t	2249	
+2614	xmlexists	f	f	16	25 142
+2621	pg_reload_conf	f	f	16	
+2622	pg_rotate_logfile	f	f	16	
+2623	pg_stat_file	f	f	2249	25
+2624	pg_read_file	f	f	25	25 20 20
+2625	pg_ls_dir	f	t	25	25
+2626	pg_sleep	f	f	2278	701
+2627	inetnot	f	f	869	869
+2628	inetand	f	f	869	869 869
+2629	inetor	f	f	869	869 869
+2630	inetpl	f	f	869	869 20
+2631	int8pl_inet	f	f	869	20 869
+2632	inetmi_int8	f	f	869	869 20
+2633	inetmi	f	f	20	869 869
+2641	var_samp	a	f	1700	20
+2642	var_samp	a	f	1700	23
+2643	var_samp	a	f	1700	21
+2644	var_samp	a	f	701	700
+2645	var_samp	a	f	701	701
+2646	var_samp	a	f	1700	1700
+2647	transaction_timestamp	f	f	1184	
+2648	statement_timestamp	f	f	1184	
+2649	clock_timestamp	f	f	1184	
+2700	gin_cmp_prefix	f	f	23	25 25 21 2281
+2705	pg_has_role	f	f	16	19 19 25
+2706	pg_has_role	f	f	16	19 26 25
+2707	pg_has_role	f	f	16	26 19 25
+2708	pg_has_role	f	f	16	26 26 25
+2709	pg_has_role	f	f	16	19 25
+2710	pg_has_role	f	f	16	26 25
+2711	justify_interval	f	f	1186	1186
+2712	stddev_samp	a	f	1700	20
+2713	stddev_samp	a	f	1700	23
+2714	stddev_samp	a	f	1700	21
+2715	stddev_samp	a	f	701	700
+2716	stddev_samp	a	f	701	701
+2717	stddev_samp	a	f	1700	1700
+2718	var_pop	a	f	1700	20
+2719	var_pop	a	f	1700	23
+2720	var_pop	a	f	1700	21
+2721	var_pop	a	f	701	700
+2722	var_pop	a	f	701	701
+2723	var_pop	a	f	1700	1700
+2724	stddev_pop	a	f	1700	20
+2725	stddev_pop	a	f	1700	23
+2726	stddev_pop	a	f	1700	21
+2727	stddev_pop	a	f	701	700
+2728	stddev_pop	a	f	701	701
+2729	stddev_pop	a	f	1700	1700
+2730	pg_get_triggerdef	f	f	25	26 16
+2731	asind	f	f	701	701
+2732	acosd	f	f	701	701
+2733	atand	f	f	701	701
+2734	atan2d	f	f	701	701 701
+2735	sind	f	f	701	701
+2736	cosd	f	f	701	701
+2737	tand	f	f	701	701
+2738	cotd	f	f	701	701
+2739	pg_backup_stop	f	f	2249	16
+2740	numeric_avg_serialize	f	f	17	2281
+2741	numeric_avg_deserialize	f	f	2281	17 2281
+2743	ginarrayextract	f	f	2281	2277 2281 2281
+2744	ginarrayconsistent	f	f	16	2281 21 2277 23 2281 2281 2281 2281
+2746	int8_avg_accum	f	f	2281	2281 20
+2747	arrayoverlap	f	f	16	2277 2277
+2748	arraycontains	f	f	16	2277 2277
+2749	arraycontained	f	f	16	2277 2277
+2758	pg_stat_get_db_tuples_returned	f	f	20	26
+2759	pg_stat_get_db_tuples_fetched	f	f	20	26
+2760	pg_stat_get_db_tuples_inserted	f	f	20	26
+2761	pg_stat_get_db_tuples_updated	f	f	20	26
+2762	pg_stat_get_db_tuples_deleted	f	f	20	26
+2763	regexp_matches	f	t	1009	25 25
+2764	regexp_matches	f	t	1009	25 25 25
+2765	regexp_split_to_table	f	t	25	25 25
+2766	regexp_split_to_table	f	t	25	25 25 25
+2767	regexp_split_to_array	f	f	1009	25 25
+2768	regexp_split_to_array	f	f	1009	25 25 25
+2769	pg_stat_get_checkpointer_num_timed	f	f	20	
+2770	pg_stat_get_checkpointer_num_requested	f	f	20	
+2771	pg_stat_get_checkpointer_buffers_written	f	f	20	
+2772	pg_stat_get_bgwriter_buf_written_clean	f	f	20	
+2773	pg_stat_get_bgwriter_maxwritten_clean	f	f	20	
+2774	ginqueryarrayextract	f	f	2281	2277 2281 21 2281 2281 2281 2281
+2777	anynonarray_in	f	f	2776	2275
+2778	anynonarray_out	f	f	2275	2776
+2781	pg_stat_get_last_vacuum_time	f	f	1184	26
+2782	pg_stat_get_last_autovacuum_time	f	f	1184	26
+2783	pg_stat_get_last_analyze_time	f	f	1184	26
+2784	pg_stat_get_last_autoanalyze_time	f	f	1184	26
+2785	int8_avg_combine	f	f	2281	2281 2281
+2786	int8_avg_serialize	f	f	17	2281
+2787	int8_avg_deserialize	f	f	2281	17 2281
+2788	pg_stat_get_backend_wait_event_type	f	f	25	23
+2790	tidgt	f	f	16	27 27
+2791	tidlt	f	f	16	27 27
+2792	tidge	f	f	16	27 27
+2793	tidle	f	f	16	27 27
+2794	bttidcmp	f	f	23	27 27
+2795	tidlarger	f	f	27	27 27
+2796	tidsmaller	f	f	27	27 27
+2797	max	a	f	27	27
+2798	min	a	f	27	27
+2803	count	a	f	20	
+2804	int8inc_any	f	f	20	20 2276
+2805	int8inc_float8_float8	f	f	20	20 701 701
+2806	float8_regr_accum	f	f	1022	1022 701 701
+2807	float8_regr_sxx	f	f	701	1022
+2808	float8_regr_syy	f	f	701	1022
+2809	float8_regr_sxy	f	f	701	1022
+2810	float8_regr_avgx	f	f	701	1022
+2811	float8_regr_avgy	f	f	701	1022
+2812	float8_regr_r2	f	f	701	1022
+2813	float8_regr_slope	f	f	701	1022
+2814	float8_regr_intercept	f	f	701	1022
+2815	float8_covar_pop	f	f	701	1022
+2816	float8_covar_samp	f	f	701	1022
+2817	float8_corr	f	f	701	1022
+2818	regr_count	a	f	20	701 701
+2819	regr_sxx	a	f	701	701 701
+2820	regr_syy	a	f	701	701 701
+2821	regr_sxy	a	f	701	701 701
+2822	regr_avgx	a	f	701	701 701
+2823	regr_avgy	a	f	701	701 701
+2824	regr_r2	a	f	701	701 701
+2825	regr_slope	a	f	701	701 701
+2826	regr_intercept	a	f	701	701 701
+2827	covar_pop	a	f	701	701 701
+2828	covar_samp	a	f	701	701 701
+2829	corr	a	f	701	701 701
+2844	pg_stat_get_db_blk_read_time	f	f	701	26
+2845	pg_stat_get_db_blk_write_time	f	f	701	26
+2848	pg_switch_wal	f	f	3220	
+2849	pg_current_wal_lsn	f	f	3220	
+2850	pg_walfile_name_offset	f	f	2249	3220
+2851	pg_walfile_name	f	f	25	3220
+2852	pg_current_wal_insert_lsn	f	f	3220	
+2853	pg_stat_get_backend_wait_event	f	f	25	23
+2854	pg_my_temp_schema	f	f	26	
+2855	pg_is_other_temp_schema	f	f	16	26
+2856	pg_timezone_names	f	t	2249	
+2857	pg_stat_get_backend_xact_start	f	f	1184	23
+2858	numeric_avg_accum	f	f	2281	2281 1700
+2859	pg_stat_get_buf_alloc	f	f	20	
+2878	pg_stat_get_live_tuples	f	f	20	26
+2879	pg_stat_get_dead_tuples	f	f	20	26
+2880	pg_advisory_lock	f	f	2278	20
+2881	pg_advisory_lock_shared	f	f	2278	20
+2882	pg_try_advisory_lock	f	f	16	20
+2883	pg_try_advisory_lock_shared	f	f	16	20
+2884	pg_advisory_unlock	f	f	16	20
+2885	pg_advisory_unlock_shared	f	f	16	20
+2886	pg_advisory_lock	f	f	2278	23 23
+2887	pg_advisory_lock_shared	f	f	2278	23 23
+2888	pg_try_advisory_lock	f	f	16	23 23
+2889	pg_try_advisory_lock_shared	f	f	16	23 23
+2890	pg_advisory_unlock	f	f	16	23 23
+2891	pg_advisory_unlock_shared	f	f	16	23 23
+2892	pg_advisory_unlock_all	f	f	2278	
+2893	xml_in	f	f	142	2275
+2894	xml_out	f	f	2275	142
+2895	xmlcomment	f	f	142	25
+2896	xml	f	f	142	25
+2897	xmlvalidate	f	f	16	142 25
+2898	xml_recv	f	f	142	2281
+2899	xml_send	f	f	17	142
+2900	xmlconcat2	f	f	142	142 142
+2901	xmlagg	a	f	142	142
+2902	varbittypmodin	f	f	23	1263
+2903	intervaltypmodin	f	f	23	1263
+2904	intervaltypmodout	f	f	2275	23
+2905	timestamptypmodin	f	f	23	1263
+2906	timestamptypmodout	f	f	2275	23
+2907	timestamptztypmodin	f	f	23	1263
+2908	timestamptztypmodout	f	f	2275	23
+2909	timetypmodin	f	f	23	1263
+2910	timetypmodout	f	f	2275	23
+2911	timetztypmodin	f	f	23	1263
+2912	timetztypmodout	f	f	2275	23
+2913	bpchartypmodin	f	f	23	1263
+2914	bpchartypmodout	f	f	2275	23
+2915	varchartypmodin	f	f	23	1263
+2916	varchartypmodout	f	f	2275	23
+2917	numerictypmodin	f	f	23	1263
+2918	numerictypmodout	f	f	2275	23
+2919	bittypmodin	f	f	23	1263
+2920	bittypmodout	f	f	2275	23
+2921	varbittypmodout	f	f	2275	23
+2922	text	f	f	25	142
+2923	table_to_xml	f	f	142	2205 16 16 25
+2924	query_to_xml	f	f	142	25 16 16 25
+2925	cursor_to_xml	f	f	142	1790 23 16 16 25
+2926	table_to_xmlschema	f	f	142	2205 16 16 25
+2927	query_to_xmlschema	f	f	142	25 16 16 25
+2928	cursor_to_xmlschema	f	f	142	1790 16 16 25
+2929	table_to_xml_and_xmlschema	f	f	142	2205 16 16 25
+2930	query_to_xml_and_xmlschema	f	f	142	25 16 16 25
+2931	xpath	f	f	143	25 142 1009
+2932	xpath	f	f	143	25 142
+2933	schema_to_xml	f	f	142	19 16 16 25
+2934	schema_to_xmlschema	f	f	142	19 16 16 25
+2935	schema_to_xml_and_xmlschema	f	f	142	19 16 16 25
+2936	database_to_xml	f	f	142	16 16 25
+2937	database_to_xmlschema	f	f	142	16 16 25
+2938	database_to_xml_and_xmlschema	f	f	142	16 16 25
+2939	txid_snapshot_in	f	f	2970	2275
+2940	txid_snapshot_out	f	f	2275	2970
+2941	txid_snapshot_recv	f	f	2970	2281
+2942	txid_snapshot_send	f	f	17	2970
+2943	txid_current	f	f	20	
+2944	txid_current_snapshot	f	f	2970	
+2945	txid_snapshot_xmin	f	f	20	2970
+2946	txid_snapshot_xmax	f	f	20	2970
+2947	txid_snapshot_xip	f	t	20	2970
+2948	txid_visible_in_snapshot	f	f	16	20 2970
+2952	uuid_in	f	f	2950	2275
+2953	uuid_out	f	f	2275	2950
+2954	uuid_lt	f	f	16	2950 2950
+2955	uuid_le	f	f	16	2950 2950
+2956	uuid_eq	f	f	16	2950 2950
+2957	uuid_ge	f	f	16	2950 2950
+2958	uuid_gt	f	f	16	2950 2950
+2959	uuid_ne	f	f	16	2950 2950
+2960	uuid_cmp	f	f	23	2950 2950
+2961	uuid_recv	f	f	2950	2281
+2962	uuid_send	f	f	17	2950
+2963	uuid_hash	f	f	23	2950
+2971	text	f	f	25	16
+2978	pg_stat_get_function_calls	f	f	20	26
+2979	pg_stat_get_function_total_time	f	f	701	26
+2980	pg_stat_get_function_self_time	f	f	701	26
+2981	record_eq	f	f	16	2249 2249
+2982	record_ne	f	f	16	2249 2249
+2983	record_lt	f	f	16	2249 2249
+2984	record_gt	f	f	16	2249 2249
+2985	record_le	f	f	16	2249 2249
+2986	record_ge	f	f	16	2249 2249
+2987	btrecordcmp	f	f	23	2249 2249
+2997	pg_table_size	f	f	20	2205
+2998	pg_indexes_size	f	f	20	2205
+2999	pg_relation_filenode	f	f	26	2205
+3000	has_foreign_data_wrapper_privilege	f	f	16	19 25 25
+3001	has_foreign_data_wrapper_privilege	f	f	16	19 26 25
+3002	has_foreign_data_wrapper_privilege	f	f	16	26 25 25
+3003	has_foreign_data_wrapper_privilege	f	f	16	26 26 25
+3004	has_foreign_data_wrapper_privilege	f	f	16	25 25
+3005	has_foreign_data_wrapper_privilege	f	f	16	26 25
+3006	has_server_privilege	f	f	16	19 25 25
+3007	has_server_privilege	f	f	16	19 26 25
+3008	has_server_privilege	f	f	16	26 25 25
+3009	has_server_privilege	f	f	16	26 26 25
+3010	has_server_privilege	f	f	16	25 25
+3011	has_server_privilege	f	f	16	26 25
+3012	has_column_privilege	f	f	16	19 25 25 25
+3013	has_column_privilege	f	f	16	19 25 21 25
+3014	has_column_privilege	f	f	16	19 26 25 25
+3015	has_column_privilege	f	f	16	19 26 21 25
+3016	has_column_privilege	f	f	16	26 25 25 25
+3017	has_column_privilege	f	f	16	26 25 21 25
+3018	has_column_privilege	f	f	16	26 26 25 25
+3019	has_column_privilege	f	f	16	26 26 21 25
+3020	has_column_privilege	f	f	16	25 25 25
+3021	has_column_privilege	f	f	16	25 21 25
+3022	has_column_privilege	f	f	16	26 25 25
+3023	has_column_privilege	f	f	16	26 21 25
+3024	has_any_column_privilege	f	f	16	19 25 25
+3025	has_any_column_privilege	f	f	16	19 26 25
+3026	has_any_column_privilege	f	f	16	26 25 25
+3027	has_any_column_privilege	f	f	16	26 26 25
+3028	has_any_column_privilege	f	f	16	25 25
+3029	has_any_column_privilege	f	f	16	26 25
+3030	overlay	f	f	1560	1560 1560 23 23
+3031	overlay	f	f	1560	1560 1560 23
+3032	get_bit	f	f	23	1560 23
+3033	set_bit	f	f	1560	1560 23 23
+3034	pg_relation_filepath	f	f	25	2205
+3035	pg_listening_channels	f	t	25	
+3036	pg_notify	f	f	2278	25 25
+3037	pg_stat_get_xact_numscans	f	f	20	26
+3038	pg_stat_get_xact_tuples_returned	f	f	20	26
+3039	pg_stat_get_xact_tuples_fetched	f	f	20	26
+3040	pg_stat_get_xact_tuples_inserted	f	f	20	26
+3041	pg_stat_get_xact_tuples_updated	f	f	20	26
+3042	pg_stat_get_xact_tuples_deleted	f	f	20	26
+3043	pg_stat_get_xact_tuples_hot_updated	f	f	20	26
+3044	pg_stat_get_xact_blocks_fetched	f	f	20	26
+3045	pg_stat_get_xact_blocks_hit	f	f	20	26
+3046	pg_stat_get_xact_function_calls	f	f	20	26
+3047	pg_stat_get_xact_function_total_time	f	f	701	26
+3048	pg_stat_get_xact_function_self_time	f	f	701	26
+3049	xpath_exists	f	f	16	25 142 1009
+3050	xpath_exists	f	f	16	25 142
+3051	xml_is_well_formed	f	f	16	25
+3052	xml_is_well_formed_document	f	f	16	25
+3053	xml_is_well_formed_content	f	f	16	25
+3054	pg_stat_get_vacuum_count	f	f	20	26
+3055	pg_stat_get_autovacuum_count	f	f	20	26
+3056	pg_stat_get_analyze_count	f	f	20	26
+3057	pg_stat_get_autoanalyze_count	f	f	20	26
+3058	concat	f	f	25	2276
+3059	concat_ws	f	f	25	25 2276
+3060	left	f	f	25	25 23
+3061	right	f	f	25	25 23
+3062	reverse	f	f	25	25
+3064	gist_point_distance	f	f	701	2281 600 21 26 2281
+3065	pg_stat_get_db_conflict_tablespace	f	f	20	26
+3066	pg_stat_get_db_conflict_lock	f	f	20	26
+3067	pg_stat_get_db_conflict_snapshot	f	f	20	26
+3068	pg_stat_get_db_conflict_bufferpin	f	f	20	26
+3069	pg_stat_get_db_conflict_startup_deadlock	f	f	20	26
+3070	pg_stat_get_db_conflict_all	f	f	20	26
+3071	pg_wal_replay_pause	f	f	2278	
+3072	pg_wal_replay_resume	f	f	2278	
+3073	pg_is_wal_replay_paused	f	f	16	
+3074	pg_stat_get_db_stat_reset_time	f	f	1184	26
+3075	pg_stat_get_bgwriter_stat_reset_time	f	f	1184	
+3076	ginarrayextract	f	f	2281	2277 2281
+3077	gin_extract_tsvector	f	f	2281	3614 2281
+3078	pg_sequence_parameters	f	f	2249	26
+3082	pg_available_extensions	f	t	2249	
+3083	pg_available_extension_versions	f	t	2249	
+3084	pg_extension_update_paths	f	t	2249	19
+3086	pg_extension_config_dump	f	f	2278	2205 25
+3087	gin_extract_tsquery	f	f	2281	3615 2281 21 2281 2281
+3088	gin_tsquery_consistent	f	f	16	2281 21 3615 23 2281 2281
+3089	pg_advisory_xact_lock	f	f	2278	20
+3090	pg_advisory_xact_lock_shared	f	f	2278	20
+3091	pg_try_advisory_xact_lock	f	f	16	20
+3092	pg_try_advisory_xact_lock_shared	f	f	16	20
+3093	pg_advisory_xact_lock	f	f	2278	23 23
+3094	pg_advisory_xact_lock_shared	f	f	2278	23 23
+3095	pg_try_advisory_xact_lock	f	f	16	23 23
+3096	pg_try_advisory_xact_lock_shared	f	f	16	23 23
+3097	varchar_support	f	f	2281	2281
+3098	pg_create_restore_point	f	f	3220	25
+3099	pg_stat_get_wal_senders	f	t	2249	
+3100	row_number	w	f	20	
+3101	rank	w	f	20	
+3102	dense_rank	w	f	20	
+3103	percent_rank	w	f	701	
+3104	cume_dist	w	f	701	
+3105	ntile	w	f	23	23
+3106	lag	w	f	2283	2283
+3107	lag	w	f	2283	2283 23
+3108	lag	w	f	5077	5077 23 5077
+3109	lead	w	f	2283	2283
+3110	lead	w	f	2283	2283 23
+3111	lead	w	f	5077	5077 23 5077
+3112	first_value	w	f	2283	2283
+3113	last_value	w	f	2283	2283
+3114	nth_value	w	f	2283	2283 23
+3116	fdw_handler_in	f	f	3115	2275
+3117	fdw_handler_out	f	f	2275	3115
+3120	void_recv	f	f	2278	2281
+3121	void_send	f	f	17	2278
+3129	btint2sortsupport	f	f	2278	2281
+3130	btint4sortsupport	f	f	2278	2281
+3131	btint8sortsupport	f	f	2278	2281
+3132	btfloat4sortsupport	f	f	2278	2281
+3133	btfloat8sortsupport	f	f	2278	2281
+3134	btoidsortsupport	f	f	2278	2281
+3135	btnamesortsupport	f	f	2278	2281
+3136	date_sortsupport	f	f	2278	2281
+3137	timestamp_sortsupport	f	f	2278	2281
+3138	has_type_privilege	f	f	16	19 25 25
+3139	has_type_privilege	f	f	16	19 26 25
+3140	has_type_privilege	f	f	16	26 25 25
+3141	has_type_privilege	f	f	16	26 26 25
+3142	has_type_privilege	f	f	16	25 25
+3143	has_type_privilege	f	f	16	26 25
+3144	macaddr_not	f	f	829	829
+3145	macaddr_and	f	f	829	829 829
+3146	macaddr_or	f	f	829	829 829
+3150	pg_stat_get_db_temp_files	f	f	20	26
+3151	pg_stat_get_db_temp_bytes	f	f	20	26
+3152	pg_stat_get_db_deadlocks	f	f	20	26
+3153	array_to_json	f	f	114	2277
+3154	array_to_json	f	f	114	2277 16
+3155	row_to_json	f	f	114	2249
+3156	row_to_json	f	f	114	2249 16
+3157	numeric_support	f	f	2281	2281
+3158	varbit_support	f	f	2281	2281
+3159	pg_get_viewdef	f	f	25	26 23
+3160	pg_stat_get_checkpointer_write_time	f	f	701	
+3161	pg_stat_get_checkpointer_sync_time	f	f	701	
+3162	pg_collation_for	f	f	25	2276
+3163	pg_trigger_depth	f	f	23	
+3165	pg_wal_lsn_diff	f	f	1700	3220 3220
+3166	pg_size_pretty	f	f	25	1700
+3167	array_remove	f	f	5078	5078 5077
+3168	array_replace	f	f	5078	5078 5077 5077
+3169	rangesel	f	f	701	2281 26 2281 23
+3170	lo_lseek64	f	f	20	23 20 23
+3171	lo_tell64	f	f	20	23
+3172	lo_truncate64	f	f	23	23 20
+3173	json_agg_transfn	f	f	2281	2281 2283
+3174	json_agg_finalfn	f	f	114	2281
+3175	json_agg	a	f	114	2283
+3176	to_json	f	f	114	2283
+3177	pg_stat_get_mod_since_analyze	f	f	20	26
+3178	numeric_sum	f	f	1700	2281
+3179	cardinality	f	f	23	2277
+3180	json_object_agg_transfn	f	f	2281	2281 2276 2276
+3181	record_image_eq	f	f	16	2249 2249
+3182	record_image_ne	f	f	16	2249 2249
+3183	record_image_lt	f	f	16	2249 2249
+3184	record_image_gt	f	f	16	2249 2249
+3185	record_image_le	f	f	16	2249 2249
+3186	record_image_ge	f	f	16	2249 2249
+3187	btrecordimagecmp	f	f	23	2249 2249
+3195	pg_stat_get_archiver	f	f	2249	
+3196	json_object_agg_finalfn	f	f	114	2281
+3197	json_object_agg	a	f	114	2276 2276
+3198	json_build_array	f	f	114	2276
+3199	json_build_array	f	f	114	
+3200	json_build_object	f	f	114	2276
+3201	json_build_object	f	f	114	
+3202	json_object	f	f	114	1009
+3203	json_object	f	f	114	1009 1009
+3204	json_to_record	f	f	2249	114
+3205	json_to_recordset	f	t	2249	114
+3207	jsonb_array_length	f	f	23	3802
+3208	jsonb_each	f	t	2249	3802
+3209	jsonb_populate_record	f	f	2283	2283 3802
+3210	jsonb_typeof	f	f	25	3802
+3214	jsonb_object_field_text	f	f	25	3802 25
+3215	jsonb_array_element	f	f	3802	3802 23
+3216	jsonb_array_element_text	f	f	25	3802 23
+3217	jsonb_extract_path	f	f	3802	3802 1009
+3218	width_bucket	f	f	23	5077 5078
+3219	jsonb_array_elements	f	t	3802	3802
+3229	pg_lsn_in	f	f	3220	2275
+3230	pg_lsn_out	f	f	2275	3220
+3231	pg_lsn_lt	f	f	16	3220 3220
+3232	pg_lsn_le	f	f	16	3220 3220
+3233	pg_lsn_eq	f	f	16	3220 3220
+3234	pg_lsn_ge	f	f	16	3220 3220
+3235	pg_lsn_gt	f	f	16	3220 3220
+3236	pg_lsn_ne	f	f	16	3220 3220
+3237	pg_lsn_mi	f	f	1700	3220 3220
+3238	pg_lsn_recv	f	f	3220	2281
+3239	pg_lsn_send	f	f	17	3220
+3251	pg_lsn_cmp	f	f	23	3220 3220
+3252	pg_lsn_hash	f	f	23	3220
+3255	bttextsortsupport	f	f	2278	2281
+3259	generate_series	f	t	1700	1700 1700 1700
+3260	generate_series	f	t	1700	1700 1700
+3261	json_strip_nulls	f	f	114	114 16
+3262	jsonb_strip_nulls	f	f	3802	3802 16
+3263	jsonb_object	f	f	3802	1009
+3264	jsonb_object	f	f	3802	1009 1009
+3265	jsonb_agg_transfn	f	f	2281	2281 2283
+3266	jsonb_agg_finalfn	f	f	3802	2281
+3267	jsonb_agg	a	f	3802	2283
+3268	jsonb_object_agg_transfn	f	f	2281	2281 2276 2276
+3269	jsonb_object_agg_finalfn	f	f	3802	2281
+3270	jsonb_object_agg	a	f	3802	2276 2276
+3271	jsonb_build_array	f	f	3802	2276
+3272	jsonb_build_array	f	f	3802	
+3273	jsonb_build_object	f	f	3802	2276
+3274	jsonb_build_object	f	f	3802	
+3275	dist_ppoly	f	f	701	600 604
+3277	array_position	f	f	23	5078 5077
+3278	array_position	f	f	23	5078 5077 23
+3279	array_positions	f	f	1007	5078 5077
+3280	gist_circle_distance	f	f	701	2281 718 21 26 2281
+3281	scale	f	f	23	1700
+3282	gist_point_fetch	f	f	2281	2281
+3283	numeric_sortsupport	f	f	2278	2281
+3288	gist_poly_distance	f	f	701	2281 604 21 26 2281
+3290	dist_cpoint	f	f	701	718 600
+3292	dist_polyp	f	f	701	604 600
+3293	pg_read_file	f	f	25	25 20 20 16
+3294	current_setting	f	f	25	25 16
+3295	pg_read_binary_file	f	f	17	25 20 20 16
+3296	pg_notification_queue_usage	f	f	701	
+3297	pg_ls_dir	f	t	25	25 16 16
+3298	row_security_active	f	f	16	26
+3299	row_security_active	f	f	16	25
+3300	uuid_sortsupport	f	f	2278	2281
+3301	jsonb_concat	f	f	3802	3802 3802
+3302	jsonb_delete	f	f	3802	3802 25
+3303	jsonb_delete	f	f	3802	3802 23
+3304	jsonb_delete_path	f	f	3802	3802 1009
+3305	jsonb_set	f	f	3802	3802 1009 3802 16
+3306	jsonb_pretty	f	f	25	3802
+3307	pg_stat_file	f	f	2249	25 16
+3308	xidneq	f	f	16	28 28
+3309	xidneqint4	f	f	16	28 23
+3311	tsm_handler_in	f	f	3310	2275
+3312	tsm_handler_out	f	f	2275	3310
+3313	bernoulli	f	f	3310	2281
+3314	system	f	f	3310	2281
+3317	pg_stat_get_wal_receiver	f	f	2249	
+3318	pg_stat_get_progress_info	f	t	2249	25
+3319	ts_filter	f	f	3614	3614 1002
+3320	setweight	f	f	3614	3614 18 1009
+3321	ts_delete	f	f	3614	3614 25
+3322	unnest	f	t	2249	3614
+3323	ts_delete	f	f	3614	3614 1009
+3324	int4_avg_combine	f	f	1016	1016 1016
+3325	interval_avg_combine	f	f	2281	2281 2281
+3326	tsvector_to_array	f	f	1009	3614
+3327	array_to_tsvector	f	f	3614	1009
+3328	bpchar_sortsupport	f	f	2278	2281
+3329	pg_show_all_file_settings	f	t	2249	
+3330	pg_current_wal_flush_lsn	f	f	3220	
+3331	bytea_sortsupport	f	f	2278	2281
+3332	bttext_pattern_sortsupport	f	f	2278	2281
+3333	btbpchar_pattern_sortsupport	f	f	2278	2281
+3334	pg_size_bytes	f	f	20	25
+3335	numeric_serialize	f	f	17	2281
+3336	numeric_deserialize	f	f	2281	17 2281
+3337	numeric_avg_combine	f	f	2281	2281 2281
+3338	numeric_poly_combine	f	f	2281	2281 2281
+3339	numeric_poly_serialize	f	f	17	2281
+3340	numeric_poly_deserialize	f	f	2281	17 2281
+3341	numeric_combine	f	f	2281	2281 2281
+3342	float8_regr_combine	f	f	1022	1022 1022
+3343	jsonb_delete	f	f	3802	3802 1009
+3344	cash_mul_int8	f	f	790	790 20
+3345	cash_div_int8	f	f	790	790 20
+3348	txid_current_if_assigned	f	f	20	
+3352	pg_get_partkeydef	f	f	25	26
+3353	pg_ls_logdir	f	t	2249	
+3354	pg_ls_waldir	f	t	2249	
+3355	pg_ndistinct_in	f	f	3361	2275
+3356	pg_ndistinct_out	f	f	2275	3361
+3357	pg_ndistinct_recv	f	f	3361	2281
+3358	pg_ndistinct_send	f	f	17	3361
+3359	macaddr_sortsupport	f	f	2278	2281
+3360	txid_status	f	f	25	20
+3376	pg_safe_snapshot_blocking_pids	f	f	1007	23
+3378	pg_isolation_test_session_is_blocked	f	f	16	23 1007
+3382	pg_identify_object_as_address	f	f	2249	26 26 23
+3383	brin_minmax_opcinfo	f	f	2281	2281
+3384	brin_minmax_add_value	f	f	16	2281 2281 2281 2281
+3385	brin_minmax_consistent	f	f	16	2281 2281 2281
+3386	brin_minmax_union	f	f	16	2281 2281 2281
+3387	int8_avg_accum_inv	f	f	2281	2281 20
+3388	numeric_poly_sum	f	f	1700	2281
+3389	numeric_poly_avg	f	f	1700	2281
+3390	numeric_poly_var_pop	f	f	1700	2281
+3391	numeric_poly_var_samp	f	f	1700	2281
+3392	numeric_poly_stddev_pop	f	f	1700	2281
+3393	numeric_poly_stddev_samp	f	f	1700	2281
+3396	regexp_match	f	f	1009	25 25
+3397	regexp_match	f	f	1009	25 25 25
+3399	int8_mul_cash	f	f	790	20 790
+3400	pg_config	f	t	2249	
+3401	pg_hba_file_rules	f	t	2249	
+3403	pg_statistics_obj_is_visible	f	f	16	26
+3404	pg_dependencies_in	f	f	3402	2275
+3405	pg_dependencies_out	f	f	2275	3402
+3406	pg_dependencies_recv	f	f	3402	2281
+3407	pg_dependencies_send	f	f	17	3402
+3408	pg_get_partition_constraintdef	f	f	25	26
+3409	time_hash_extended	f	f	20	1083 20
+3410	timetz_hash_extended	f	f	20	1266 20
+3411	timestamp_hash_extended	f	f	20	1114 20
+3412	uuid_hash_extended	f	f	20	2950 20
+3413	pg_lsn_hash_extended	f	f	20	3220 20
+3414	hashenumextended	f	f	20	3500 20
+3415	pg_get_statisticsobjdef	f	f	25	26
+3416	jsonb_hash_extended	f	f	20	3802 20
+3417	hash_range_extended	f	f	20	3831 20
+3418	interval_hash_extended	f	f	20	1186 20
+3419	sha224	f	f	17	17
+3420	sha256	f	f	17	17
+3421	sha384	f	f	17	17
+3422	sha512	f	f	17	17
+3423	pg_partition_tree	f	t	2249	2205
+3424	pg_partition_root	f	f	2205	2205
+3425	pg_partition_ancestors	f	t	2205	2205
+3426	pg_stat_get_db_checksum_failures	f	f	20	26
+3427	pg_mcv_list_items	f	t	2249	5017
+3428	pg_stat_get_db_checksum_last_failure	f	f	1184	26
+3432	gen_random_uuid	f	f	2950	
+3434	gtsvector_options	f	f	2278	2281
+3435	gist_point_sortsupport	f	f	2278	2281
+3436	pg_promote	f	f	16	16 23
+3437	prefixsel	f	f	701	2281 26 2281 23
+3438	prefixjoinsel	f	f	701	2281 26 2281 21 2281
+3441	pg_control_system	f	f	2249	
+3442	pg_control_checkpoint	f	f	2249	
+3443	pg_control_recovery	f	f	2249	
+3444	pg_control_init	f	f	2249	
+3445	pg_import_system_collations	f	f	23	4089
+3446	macaddr8_recv	f	f	774	2281
+3447	macaddr8_send	f	f	17	774
+3448	pg_collation_actual_version	f	f	25	26
+3449	numeric	f	f	1700	3802
+3450	int2	f	f	21	3802
+3451	int4	f	f	23	3802
+3452	int8	f	f	20	3802
+3453	float4	f	f	700	3802
+3454	pg_filenode_relation	f	f	2205	26 26
+3457	lo_from_bytea	f	f	26	26 17
+3458	lo_get	f	f	17	26
+3459	lo_get	f	f	17	26 20 23
+3460	lo_put	f	f	2278	26 20 17
+3461	make_timestamp	f	f	1114	23 23 23 23 23 701
+3462	make_timestamptz	f	f	1184	23 23 23 23 23 701
+3463	make_timestamptz	f	f	1184	23 23 23 23 23 701 25
+3464	make_interval	f	f	1186	23 23 23 23 23 23 701
+3465	jsonb_array_elements_text	f	t	25	3802
+3469	spg_range_quad_config	f	f	2278	2281 2281
+3470	spg_range_quad_choose	f	f	2278	2281 2281
+3471	spg_range_quad_picksplit	f	f	2278	2281 2281
+3472	spg_range_quad_inner_consistent	f	f	2278	2281 2281
+3473	spg_range_quad_leaf_consistent	f	f	16	2281 2281
+3475	jsonb_populate_recordset	f	t	2283	2283 3802
+3476	to_regoperator	f	f	2204	25
+3478	jsonb_object_field	f	f	3802	3802 25
+3479	to_regprocedure	f	f	2202	25
+3480	gin_compare_jsonb	f	f	23	25 25
+3482	gin_extract_jsonb	f	f	2281	3802 2281 2281
+3483	gin_extract_jsonb_query	f	f	2281	3802 2281 21 2281 2281 2281 2281
+3484	gin_consistent_jsonb	f	f	16	2281 21 3802 23 2281 2281 2281 2281
+3485	gin_extract_jsonb_path	f	f	2281	3802 2281 2281
+3486	gin_extract_jsonb_query_path	f	f	2281	3802 2281 21 2281 2281 2281 2281
+3487	gin_consistent_jsonb_path	f	f	16	2281 21 3802 23 2281 2281 2281 2281
+3488	gin_triconsistent_jsonb	f	f	18	2281 21 3802 23 2281 2281 2281
+3489	gin_triconsistent_jsonb_path	f	f	18	2281 21 3802 23 2281 2281 2281
+3490	jsonb_to_record	f	f	2249	3802
+3491	jsonb_to_recordset	f	t	2249	3802
+3492	to_regoper	f	f	2203	25
+3493	to_regtype	f	f	2206	25
+3494	to_regproc	f	f	24	25
+3495	to_regclass	f	f	2205	25
+3496	bool_accum	f	f	2281	2281 16
+3497	bool_accum_inv	f	f	2281	2281 16
+3498	bool_alltrue	f	f	16	2281
+3499	bool_anytrue	f	f	16	2281
+3504	anyenum_in	f	f	3500	2275
+3505	anyenum_out	f	f	2275	3500
+3506	enum_in	f	f	3500	2275 26
+3507	enum_out	f	f	2275	3500
+3508	enum_eq	f	f	16	3500 3500
+3509	enum_ne	f	f	16	3500 3500
+3510	enum_lt	f	f	16	3500 3500
+3511	enum_gt	f	f	16	3500 3500
+3512	enum_le	f	f	16	3500 3500
+3513	enum_ge	f	f	16	3500 3500
+3514	enum_cmp	f	f	23	3500 3500
+3515	hashenum	f	f	23	3500
+3524	enum_smaller	f	f	3500	3500 3500
+3525	enum_larger	f	f	3500	3500 3500
+3526	max	a	f	3500	3500
+3527	min	a	f	3500	3500
+3528	enum_first	f	f	3500	3500
+3529	enum_last	f	f	3500	3500
+3530	enum_range	f	f	2277	3500 3500
+3531	enum_range	f	f	2277	3500
+3532	enum_recv	f	f	3500	2281 26
+3533	enum_send	f	f	17	3500
+3535	string_agg_transfn	f	f	2281	2281 25 25
+3536	string_agg_finalfn	f	f	25	2281
+3537	pg_describe_object	f	f	25	26 26 23
+3538	string_agg	a	f	25	25 25
+3539	format	f	f	25	25 2276
+3540	format	f	f	25	25
+3543	bytea_string_agg_transfn	f	f	2281	2281 17 17
+3544	bytea_string_agg_finalfn	f	f	17	2281
+3545	string_agg	a	f	17	17 17
+3546	int8dec	f	f	20	20
+3547	int8dec_any	f	f	20	20 2276
+3548	numeric_accum_inv	f	f	2281	2281 1700
+3549	interval_avg_accum_inv	f	f	2281	2281 1186
+3551	network_overlap	f	f	16	869 869
+3553	inet_gist_consistent	f	f	16	2281 869 21 26 2281
+3554	inet_gist_union	f	f	869	2281 2281
+3555	inet_gist_compress	f	f	2281	2281
+3556	bool	f	f	16	3802
+3557	inet_gist_penalty	f	f	2281	2281 2281 2281
+3558	inet_gist_picksplit	f	f	2281	2281 2281
+3559	inet_gist_same	f	f	2281	869 869 2281
+3560	networksel	f	f	701	2281 26 2281 23
+3561	networkjoinsel	f	f	701	2281 26 2281 21 2281
+3562	network_larger	f	f	869	869 869
+3563	network_smaller	f	f	869	869 869
+3564	max	a	f	869	869
+3565	min	a	f	869	869
+3566	pg_event_trigger_dropped_objects	f	t	2249	
+3567	int2_accum_inv	f	f	2281	2281 21
+3568	int4_accum_inv	f	f	2281	2281 23
+3569	int8_accum_inv	f	f	2281	2281 20
+3570	int2_avg_accum_inv	f	f	1016	1016 21
+3571	int4_avg_accum_inv	f	f	1016	1016 23
+3572	int2int4_sum	f	f	20	1016
+3573	inet_gist_fetch	f	f	2281	2281
+3577	pg_logical_emit_message	f	f	3220	16 25 25 16
+3578	pg_logical_emit_message	f	f	3220	16 25 17 16
+3579	jsonb_insert	f	f	3802	3802 1009 3802 16
+3581	pg_xact_commit_timestamp	f	f	1184	28
+3582	binary_upgrade_set_next_pg_type_oid	f	f	2278	26
+3583	pg_last_committed_xact	f	f	2249	
+3584	binary_upgrade_set_next_array_pg_type_oid	f	f	2278	26
+3586	binary_upgrade_set_next_heap_pg_class_oid	f	f	2278	26
+3587	binary_upgrade_set_next_index_pg_class_oid	f	f	2278	26
+3588	binary_upgrade_set_next_toast_pg_class_oid	f	f	2278	26
+3589	binary_upgrade_set_next_pg_enum_oid	f	f	2278	26
+3590	binary_upgrade_set_next_pg_authid_oid	f	f	2278	26
+3591	binary_upgrade_create_empty_extension	f	f	2278	25 25 16 25 1028 1009 1009
+3594	event_trigger_in	f	f	3838	2275
+3595	event_trigger_out	f	f	2275	3838
+3610	tsvectorin	f	f	3614	2275
+3611	tsvectorout	f	f	2275	3614
+3612	tsqueryin	f	f	3615	2275
+3613	tsqueryout	f	f	2275	3615
+3616	tsvector_lt	f	f	16	3614 3614
+3617	tsvector_le	f	f	16	3614 3614
+3618	tsvector_eq	f	f	16	3614 3614
+3619	tsvector_ne	f	f	16	3614 3614
+3620	tsvector_ge	f	f	16	3614 3614
+3621	tsvector_gt	f	f	16	3614 3614
+3622	tsvector_cmp	f	f	23	3614 3614
+3623	strip	f	f	3614	3614
+3624	setweight	f	f	3614	3614 18
+3625	tsvector_concat	f	f	3614	3614 3614
+3634	ts_match_vq	f	f	16	3614 3615
+3635	ts_match_qv	f	f	16	3615 3614
+3638	tsvectorsend	f	f	17	3614
+3639	tsvectorrecv	f	f	3614	2281
+3640	tsquerysend	f	f	17	3615
+3641	tsqueryrecv	f	f	3615	2281
+3646	gtsvectorin	f	f	3642	2275
+3647	gtsvectorout	f	f	2275	3642
+3648	gtsvector_compress	f	f	2281	2281
+3649	gtsvector_decompress	f	f	2281	2281
+3650	gtsvector_picksplit	f	f	2281	2281 2281
+3651	gtsvector_union	f	f	3642	2281 2281
+3652	gtsvector_same	f	f	2281	3642 3642 2281
+3653	gtsvector_penalty	f	f	2281	2281 2281 2281
+3654	gtsvector_consistent	f	f	16	2281 3614 21 26 2281
+3656	gin_extract_tsvector	f	f	2281	3614 2281 2281
+3657	gin_extract_tsquery	f	f	2281	3614 2281 21 2281 2281 2281 2281
+3658	gin_tsquery_consistent	f	f	16	2281 21 3614 23 2281 2281 2281 2281
+3662	tsquery_lt	f	f	16	3615 3615
+3663	tsquery_le	f	f	16	3615 3615
+3664	tsquery_eq	f	f	16	3615 3615
+3665	tsquery_ne	f	f	16	3615 3615
+3666	tsquery_ge	f	f	16	3615 3615
+3667	tsquery_gt	f	f	16	3615 3615
+3668	tsquery_cmp	f	f	23	3615 3615
+3669	tsquery_and	f	f	3615	3615 3615
+3670	tsquery_or	f	f	3615	3615 3615
+3671	tsquery_not	f	f	3615	3615
+3672	numnode	f	f	23	3615
+3673	querytree	f	f	25	3615
+3684	ts_rewrite	f	f	3615	3615 3615 3615
+3685	ts_rewrite	f	f	3615	3615 25
+3686	tsmatchsel	f	f	701	2281 26 2281 23
+3687	tsmatchjoinsel	f	f	701	2281 26 2281 21 2281
+3688	ts_typanalyze	f	f	16	2281
+3689	ts_stat	f	t	2249	25
+3690	ts_stat	f	t	2249	25 25
+3691	tsq_mcontains	f	f	16	3615 3615
+3692	tsq_mcontained	f	f	16	3615 3615
+3695	gtsquery_compress	f	f	2281	2281
+3696	starts_with	f	f	16	25 25
+3697	gtsquery_picksplit	f	f	2281	2281 2281
+3698	gtsquery_union	f	f	20	2281 2281
+3699	gtsquery_same	f	f	2281	20 20 2281
+3700	gtsquery_penalty	f	f	2281	2281 2281 2281
+3701	gtsquery_consistent	f	f	16	2281 3615 21 26 2281
+3703	ts_rank	f	f	700	1021 3614 3615 23
+3704	ts_rank	f	f	700	1021 3614 3615
+3705	ts_rank	f	f	700	3614 3615 23
+3706	ts_rank	f	f	700	3614 3615
+3707	ts_rank_cd	f	f	700	1021 3614 3615 23
+3708	ts_rank_cd	f	f	700	1021 3614 3615
+3709	ts_rank_cd	f	f	700	3614 3615 23
+3710	ts_rank_cd	f	f	700	3614 3615
+3711	length	f	f	23	3614
+3713	ts_token_type	f	t	2249	26
+3714	ts_token_type	f	t	2249	25
+3715	ts_parse	f	t	2249	26 25
+3716	ts_parse	f	t	2249	25 25
+3717	prsd_start	f	f	2281	2281 23
+3718	prsd_nexttoken	f	f	2281	2281 2281 2281
+3719	prsd_end	f	f	2278	2281
+3720	prsd_headline	f	f	2281	2281 2281 3615
+3721	prsd_lextype	f	f	2281	2281
+3723	ts_lexize	f	f	1009	3769 25
+3724	gin_cmp_tslexeme	f	f	23	25 25
+3725	dsimple_init	f	f	2281	2281
+3726	dsimple_lexize	f	f	2281	2281 2281 2281 2281
+3728	dsynonym_init	f	f	2281	2281
+3729	dsynonym_lexize	f	f	2281	2281 2281 2281 2281
+3731	dispell_init	f	f	2281	2281
+3732	dispell_lexize	f	f	2281	2281 2281 2281 2281
+3736	regconfigin	f	f	3734	2275
+3737	regconfigout	f	f	2275	3734
+3738	regconfigrecv	f	f	3734	2281
+3739	regconfigsend	f	f	17	3734
+3740	thesaurus_init	f	f	2281	2281
+3741	thesaurus_lexize	f	f	2281	2281 2281 2281 2281
+3743	ts_headline	f	f	25	3734 25 3615 25
+3744	ts_headline	f	f	25	3734 25 3615
+3745	to_tsvector	f	f	3614	3734 25
+3746	to_tsquery	f	f	3615	3734 25
+3747	plainto_tsquery	f	f	3615	3734 25
+3749	to_tsvector	f	f	3614	25
+3750	to_tsquery	f	f	3615	25
+3751	plainto_tsquery	f	f	3615	25
+3752	tsvector_update_trigger	f	f	2279	
+3753	tsvector_update_trigger_column	f	f	2279	
+3754	ts_headline	f	f	25	25 3615 25
+3755	ts_headline	f	f	25	25 3615
+3756	pg_ts_parser_is_visible	f	f	16	26
+3757	pg_ts_dict_is_visible	f	f	16	26
+3758	pg_ts_config_is_visible	f	f	16	26
+3759	get_current_ts_config	f	f	3734	
+3760	ts_match_tt	f	f	16	25 25
+3761	ts_match_tq	f	f	16	25 3615
+3768	pg_ts_template_is_visible	f	f	16	26
+3771	regdictionaryin	f	f	3769	2275
+3772	regdictionaryout	f	f	2275	3769
+3773	regdictionaryrecv	f	f	3769	2281
+3774	regdictionarysend	f	f	17	3769
+3775	pg_stat_reset_shared	f	f	2278	25
+3776	pg_stat_reset_single_table_counters	f	f	2278	26
+3777	pg_stat_reset_single_function_counters	f	f	2278	26
+3778	pg_tablespace_location	f	f	25	26
+3779	pg_create_physical_replication_slot	f	f	2249	19 16 16
+3780	pg_drop_replication_slot	f	f	2278	19
+3781	pg_get_replication_slots	f	t	2249	
+3782	pg_logical_slot_get_changes	f	t	2249	19 3220 23 1009
+3783	pg_logical_slot_get_binary_changes	f	t	2249	19 3220 23 1009
+3784	pg_logical_slot_peek_changes	f	t	2249	19 3220 23 1009
+3785	pg_logical_slot_peek_binary_changes	f	t	2249	19 3220 23 1009
+3786	pg_create_logical_replication_slot	f	f	2249	19 19 16 16 16
+3787	to_jsonb	f	f	3802	2283
+3788	pg_stat_get_snapshot_timestamp	f	f	1184	
+3789	gin_clean_pending_list	f	f	20	2205
+3790	gtsvector_consistent	f	f	16	2281 3642 23 26 2281
+3791	gin_extract_tsquery	f	f	2281	3615 2281 21 2281 2281 2281 2281
+3792	gin_tsquery_consistent	f	f	16	2281 21 3615 23 2281 2281 2281 2281
+3793	gtsquery_consistent	f	f	16	2281 2281 23 26 2281
+3795	inet_spg_config	f	f	2278	2281 2281
+3796	inet_spg_choose	f	f	2278	2281 2281
+3797	inet_spg_picksplit	f	f	2278	2281 2281
+3798	inet_spg_inner_consistent	f	f	2278	2281 2281
+3799	inet_spg_leaf_consistent	f	f	16	2281 2281
+3800	pg_current_logfile	f	f	25	
+3801	pg_current_logfile	f	f	25	25
+3803	jsonb_send	f	f	17	3802
+3804	jsonb_out	f	f	2275	3802
+3805	jsonb_recv	f	f	3802	2281
+3806	jsonb_in	f	f	3802	2275
+3808	pg_get_function_arg_default	f	f	25	26 23
+3809	pg_export_snapshot	f	f	25	
+3810	pg_is_in_recovery	f	f	16	
+3811	money	f	f	790	23
+3812	money	f	f	790	20
+3813	xmltext	f	f	142	25
+3815	pg_collation_is_visible	f	f	16	26
+3816	array_typanalyze	f	f	16	2281
+3817	arraycontsel	f	f	701	2281 26 2281 23
+3818	arraycontjoinsel	f	f	701	2281 26 2281 21 2281
+3819	pg_get_multixact_members	f	t	2249	28
+3820	pg_last_wal_receive_lsn	f	f	3220	
+3821	pg_last_wal_replay_lsn	f	f	3220	
+3822	cash_div_cash	f	f	701	790 790
+3823	numeric	f	f	1700	790
+3824	money	f	f	790	1700
+3826	pg_read_file	f	f	25	25
+3827	pg_read_binary_file	f	f	17	25 20 20
+3828	pg_read_binary_file	f	f	17	25
+3829	pg_opfamily_is_visible	f	f	16	26
+3830	pg_last_xact_replay_timestamp	f	f	1184	
+3832	anyrange_in	f	f	3831	2275 26 23
+3833	anyrange_out	f	f	2275	3831
+3834	range_in	f	f	3831	2275 26 23
+3835	range_out	f	f	2275	3831
+3836	range_recv	f	f	3831	2281 26 23
+3837	range_send	f	f	17	3831
+3839	pg_identify_object	f	f	2249	26 26 23
+3840	int4range	f	f	3904	23 23
+3841	int4range	f	f	3904	23 23 25
+3842	pg_relation_is_updatable	f	f	23	2205 16
+3843	pg_column_is_updatable	f	f	16	2205 21 16
+3844	numrange	f	f	3906	1700 1700
+3845	numrange	f	f	3906	1700 1700 25
+3846	make_date	f	f	1082	23 23 23
+3847	make_time	f	f	1083	23 23 701
+3848	lower	f	f	2283	3831
+3849	upper	f	f	2283	3831
+3850	isempty	f	f	16	3831
+3851	lower_inc	f	f	16	3831
+3852	upper_inc	f	f	16	3831
+3853	lower_inf	f	f	16	3831
+3854	upper_inf	f	f	16	3831
+3855	range_eq	f	f	16	3831 3831
+3856	range_ne	f	f	16	3831 3831
+3857	range_overlaps	f	f	16	3831 3831
+3858	range_contains_elem	f	f	16	3831 2283
+3859	range_contains	f	f	16	3831 3831
+3860	elem_contained_by_range	f	f	16	2283 3831
+3861	range_contained_by	f	f	16	3831 3831
+3862	range_adjacent	f	f	16	3831 3831
+3863	range_before	f	f	16	3831 3831
+3864	range_after	f	f	16	3831 3831
+3865	range_overleft	f	f	16	3831 3831
+3866	range_overright	f	f	16	3831 3831
+3867	range_union	f	f	3831	3831 3831
+3868	range_intersect	f	f	3831	3831 3831
+3869	range_minus	f	f	3831	3831 3831
+3870	range_cmp	f	f	23	3831 3831
+3871	range_lt	f	f	16	3831 3831
+3872	range_le	f	f	16	3831 3831
+3873	range_ge	f	f	16	3831 3831
+3874	range_gt	f	f	16	3831 3831
+3875	range_gist_consistent	f	f	16	2281 3831 21 26 2281
+3876	range_gist_union	f	f	3831	2281 2281
+3878	pg_replication_slot_advance	f	f	2249	19 3220
+3879	range_gist_penalty	f	f	2281	2281 2281 2281
+3880	range_gist_picksplit	f	f	2281	2281 2281
+3881	range_gist_same	f	f	2281	3831 3831 2281
+3902	hash_range	f	f	23	3831
+3914	int4range_canonical	f	f	3904	3904
+3915	daterange_canonical	f	f	3912	3912
+3916	range_typanalyze	f	f	16	2281
+3917	timestamp_support	f	f	2281	2281
+3918	interval_support	f	f	2281	2281
+3920	ginarraytriconsistent	f	f	18	2281 21 2277 23 2281 2281 2281
+3921	gin_tsquery_triconsistent	f	f	18	2281 21 3614 23 2281 2281 2281
+3922	int4range_subdiff	f	f	701	23 23
+3923	int8range_subdiff	f	f	701	20 20
+3924	numrange_subdiff	f	f	701	1700 1700
+3925	daterange_subdiff	f	f	701	1082 1082
+3928	int8range_canonical	f	f	3926	3926
+3929	tsrange_subdiff	f	f	701	1114 1114
+3930	tstzrange_subdiff	f	f	701	1184 1184
+3931	jsonb_object_keys	f	t	25	3802
+3932	jsonb_each_text	f	t	2249	3802
+3933	tsrange	f	f	3908	1114 1114
+3934	tsrange	f	f	3908	1114 1114 25
+3935	pg_sleep_for	f	f	2278	1186
+3936	pg_sleep_until	f	f	2278	1184
+3937	tstzrange	f	f	3910	1184 1184
+3938	tstzrange	f	f	3910	1184 1184 25
+3939	mxid_age	f	f	23	28
+3940	jsonb_extract_path_text	f	f	25	3802 1009
+3941	daterange	f	f	3912	1082 1082
+3942	daterange	f	f	3912	1082 1082 25
+3943	acldefault	f	f	1034	18 26
+3944	time_support	f	f	2281	2281
+3945	int8range	f	f	3926	20 20
+3946	int8range	f	f	3926	20 20 25
+3947	json_object_field	f	f	114	114 25
+3948	json_object_field_text	f	f	25	114 25
+3949	json_array_element	f	f	114	114 23
+3950	json_array_element_text	f	f	25	114 23
+3951	json_extract_path	f	f	114	114 1009
+3952	brin_summarize_new_values	f	f	23	2205
+3953	json_extract_path_text	f	f	25	114 1009
+3954	pg_get_object_address	f	f	2249	25 1009 1009
+3955	json_array_elements	f	t	114	114
+3956	json_array_length	f	f	23	114
+3957	json_object_keys	f	t	25	114
+3958	json_each	f	t	2249	114
+3959	json_each_text	f	t	2249	114
+3960	json_populate_record	f	f	2283	2283 114 16
+3961	json_populate_recordset	f	t	2283	2283 114 16
+3968	json_typeof	f	f	25	114
+3969	json_array_elements_text	f	t	25	114
+3970	ordered_set_transition	f	f	2281	2281 2276
+3971	ordered_set_transition_multi	f	f	2281	2281 2276
+3972	percentile_disc	a	f	2283	701 2283
+3973	percentile_disc_final	f	f	2283	2281 701 2283
+3974	percentile_cont	a	f	701	701 701
+3975	percentile_cont_float8_final	f	f	701	2281 701
+3976	percentile_cont	a	f	1186	701 1186
+3977	percentile_cont_interval_final	f	f	1186	2281 701
+3978	percentile_disc	a	f	2277	1022 2283
+3979	percentile_disc_multi_final	f	f	2277	2281 1022 2283
+3980	percentile_cont	a	f	1022	1022 701
+3981	percentile_cont_float8_multi_final	f	f	1022	2281 1022
+3982	percentile_cont	a	f	1187	1022 1186
+3983	percentile_cont_interval_multi_final	f	f	1187	2281 1022
+3984	mode	a	f	2283	2283
+3985	mode_final	f	f	2283	2281 2283
+3986	rank	a	f	20	2276
+3987	rank_final	f	f	20	2281 2276
+3988	percent_rank	a	f	701	2276
+3989	percent_rank_final	f	f	701	2281 2276
+3990	cume_dist	a	f	701	2276
+3991	cume_dist_final	f	f	701	2281 2276
+3992	dense_rank	a	f	20	2276
+3993	dense_rank_final	f	f	20	2281 2276
+3994	generate_series_int4_support	f	f	2281	2281
+3995	generate_series_int8_support	f	f	2281	2281
+3996	array_unnest_support	f	f	2281	2281
+3998	gist_box_distance	f	f	701	2281 603 21 26 2281
+3999	brin_summarize_range	f	f	23	2205 20
+4001	jsonpath_in	f	f	4072	2275
+4002	jsonpath_recv	f	f	4072	2281
+4003	jsonpath_out	f	f	2275	4072
+4004	jsonpath_send	f	f	17	4072
+4005	jsonb_path_exists	f	f	16	3802 4072 3802 16
+4006	jsonb_path_query	f	t	3802	3802 4072 3802 16
+4007	jsonb_path_query_array	f	f	3802	3802 4072 3802 16
+4008	jsonb_path_query_first	f	f	3802	3802 4072 3802 16
+4009	jsonb_path_match	f	f	16	3802 4072 3802 16
+4010	jsonb_path_exists_opr	f	f	16	3802 4072
+4011	jsonb_path_match_opr	f	f	16	3802 4072
+4014	brin_desummarize_range	f	f	2278	2205 20
+4018	spg_quad_config	f	f	2278	2281 2281
+4019	spg_quad_choose	f	f	2278	2281 2281
+4020	spg_quad_picksplit	f	f	2278	2281 2281
+4021	spg_quad_inner_consistent	f	f	2278	2281 2281
+4022	spg_quad_leaf_consistent	f	f	16	2281 2281
+4023	spg_kd_config	f	f	2278	2281 2281
+4024	spg_kd_choose	f	f	2278	2281 2281
+4025	spg_kd_picksplit	f	f	2278	2281 2281
+4026	spg_kd_inner_consistent	f	f	2278	2281 2281
+4027	spg_text_config	f	f	2278	2281 2281
+4028	spg_text_choose	f	f	2278	2281 2281
+4029	spg_text_picksplit	f	f	2278	2281 2281
+4030	spg_text_inner_consistent	f	f	2278	2281 2281
+4031	spg_text_leaf_consistent	f	f	16	2281 2281
+4032	pg_sequence_last_value	f	f	20	2205
+4038	jsonb_ne	f	f	16	3802 3802
+4039	jsonb_lt	f	f	16	3802 3802
+4040	jsonb_gt	f	f	16	3802 3802
+4041	jsonb_le	f	f	16	3802 3802
+4042	jsonb_ge	f	f	16	3802 3802
+4043	jsonb_eq	f	f	16	3802 3802
+4044	jsonb_cmp	f	f	23	3802 3802
+4045	jsonb_hash	f	f	23	3802
+4046	jsonb_contains	f	f	16	3802 3802
+4047	jsonb_exists	f	f	16	3802 25
+4048	jsonb_exists_any	f	f	16	3802 1009
+4049	jsonb_exists_all	f	f	16	3802 1009
+4050	jsonb_contained	f	f	16	3802 3802
+4051	array_agg_array_transfn	f	f	2281	2281 2277
+4052	array_agg_array_finalfn	f	f	2277	2281 2277
+4053	array_agg	a	f	2277	2277
+4057	range_merge	f	f	3831	3831 3831
+4063	inet_merge	f	f	650	869 869
+4067	bound_box	f	f	603	603 603
+4071	inet_same_family	f	f	16	869 869
+4083	binary_upgrade_set_record_init_privs	f	f	2278	16
+4084	regnamespacein	f	f	4089	2275
+4085	regnamespaceout	f	f	2275	4089
+4086	to_regnamespace	f	f	4089	25
+4087	regnamespacerecv	f	f	4089	2281
+4088	regnamespacesend	f	f	17	4089
+4091	box	f	f	603	600
+4092	regroleout	f	f	2275	4096
+4093	to_regrole	f	f	4096	25
+4094	regrolerecv	f	f	4096	2281
+4095	regrolesend	f	f	17	4096
+4098	regrolein	f	f	4096	2275
+4099	pg_numa_available	f	f	16	
+4100	pg_get_shmem_allocations_numa	f	t	2249	
+4101	binary_upgrade_set_missing_value	f	f	2278	26 25 25
+4105	brin_inclusion_opcinfo	f	f	2281	2281
+4106	brin_inclusion_add_value	f	f	16	2281 2281 2281 2281
+4107	brin_inclusion_consistent	f	f	16	2281 2281 2281
+4108	brin_inclusion_union	f	f	16	2281 2281 2281
+4110	macaddr8_in	f	f	774	2275
+4111	macaddr8_out	f	f	2275	774
+4112	trunc	f	f	774	774
+4113	macaddr8_eq	f	f	16	774 774
+4114	macaddr8_lt	f	f	16	774 774
+4115	macaddr8_le	f	f	16	774 774
+4116	macaddr8_gt	f	f	16	774 774
+4117	macaddr8_ge	f	f	16	774 774
+4118	macaddr8_ne	f	f	16	774 774
+4119	macaddr8_cmp	f	f	23	774 774
+4120	macaddr8_not	f	f	774	774
+4121	macaddr8_and	f	f	774	774 774
+4122	macaddr8_or	f	f	774	774 774
+4123	macaddr8	f	f	774	829
+4124	macaddr	f	f	829	774
+4125	macaddr8_set7bit	f	f	774	774
+4126	in_range	f	f	16	20 20 20 16 16
+4127	in_range	f	f	16	23 23 20 16 16
+4128	in_range	f	f	16	23 23 23 16 16
+4129	in_range	f	f	16	23 23 21 16 16
+4130	in_range	f	f	16	21 21 20 16 16
+4131	in_range	f	f	16	21 21 23 16 16
+4132	in_range	f	f	16	21 21 21 16 16
+4133	in_range	f	f	16	1082 1082 1186 16 16
+4134	in_range	f	f	16	1114 1114 1186 16 16
+4135	in_range	f	f	16	1184 1184 1186 16 16
+4136	in_range	f	f	16	1186 1186 1186 16 16
+4137	in_range	f	f	16	1083 1083 1186 16 16
+4138	in_range	f	f	16	1266 1266 1186 16 16
+4139	in_range	f	f	16	701 701 701 16 16
+4140	in_range	f	f	16	700 700 701 16 16
+4141	in_range	f	f	16	1700 1700 1700 16 16
+4187	pg_lsn_larger	f	f	3220	3220 3220
+4188	pg_lsn_smaller	f	f	3220	3220 3220
+4189	max	a	f	3220	3220
+4190	min	a	f	3220	3220
+4193	regcollationin	f	f	4191	2275
+4194	regcollationout	f	f	2275	4191
+4195	to_regcollation	f	f	4191	25
+4196	regcollationrecv	f	f	4191	2281
+4197	regcollationsend	f	f	17	4191
+4201	ts_headline	f	f	3802	3734 3802 3615 25
+4202	ts_headline	f	f	3802	3734 3802 3615
+4203	ts_headline	f	f	3802	3802 3615 25
+4204	ts_headline	f	f	3802	3802 3615
+4205	ts_headline	f	f	114	3734 114 3615 25
+4206	ts_headline	f	f	114	3734 114 3615
+4207	ts_headline	f	f	114	114 3615 25
+4208	ts_headline	f	f	114	114 3615
+4209	to_tsvector	f	f	3614	3802
+4210	to_tsvector	f	f	3614	114
+4211	to_tsvector	f	f	3614	3734 3802
+4212	to_tsvector	f	f	3614	3734 114
+4213	jsonb_to_tsvector	f	f	3614	3802 3802
+4214	jsonb_to_tsvector	f	f	3614	3734 3802 3802
+4215	json_to_tsvector	f	f	3614	114 3802
+4216	json_to_tsvector	f	f	3614	3734 114 3802
+4220	pg_copy_physical_replication_slot	f	f	2249	19 19 16
+4221	pg_copy_physical_replication_slot	f	f	2249	19 19
+4222	pg_copy_logical_replication_slot	f	f	2249	19 19 16 19
+4223	pg_copy_logical_replication_slot	f	f	2249	19 19 16
+4224	pg_copy_logical_replication_slot	f	f	2249	19 19
+4226	anycompatiblemultirange_in	f	f	4538	2275 26 23
+4227	anycompatiblemultirange_out	f	f	2275	4538
+4228	range_merge	f	f	3831	4537
+4229	anymultirange_in	f	f	4537	2275 26 23
+4230	anymultirange_out	f	f	2275	4537
+4231	multirange_in	f	f	4537	2275 26 23
+4232	multirange_out	f	f	2275	4537
+4233	multirange_recv	f	f	4537	2281 26 23
+4234	multirange_send	f	f	17	4537
+4235	lower	f	f	2283	4537
+4236	upper	f	f	2283	4537
+4237	isempty	f	f	16	4537
+4238	lower_inc	f	f	16	4537
+4239	upper_inc	f	f	16	4537
+4240	lower_inf	f	f	16	4537
+4241	upper_inf	f	f	16	4537
+4242	multirange_typanalyze	f	f	16	2281
+4243	multirangesel	f	f	701	2281 26 2281 23
+4244	multirange_eq	f	f	16	4537 4537
+4245	multirange_ne	f	f	16	4537 4537
+4246	range_overlaps_multirange	f	f	16	3831 4537
+4247	multirange_overlaps_range	f	f	16	4537 3831
+4248	multirange_overlaps_multirange	f	f	16	4537 4537
+4249	multirange_contains_elem	f	f	16	4537 2283
+4250	multirange_contains_range	f	f	16	4537 3831
+4251	multirange_contains_multirange	f	f	16	4537 4537
+4252	elem_contained_by_multirange	f	f	16	2283 4537
+4253	range_contained_by_multirange	f	f	16	3831 4537
+4254	multirange_contained_by_multirange	f	f	16	4537 4537
+4255	range_adjacent_multirange	f	f	16	3831 4537
+4256	multirange_adjacent_multirange	f	f	16	4537 4537
+4257	multirange_adjacent_range	f	f	16	4537 3831
+4258	range_before_multirange	f	f	16	3831 4537
+4259	multirange_before_range	f	f	16	4537 3831
+4260	multirange_before_multirange	f	f	16	4537 4537
+4261	range_after_multirange	f	f	16	3831 4537
+4262	multirange_after_range	f	f	16	4537 3831
+4263	multirange_after_multirange	f	f	16	4537 4537
+4264	range_overleft_multirange	f	f	16	3831 4537
+4265	multirange_overleft_range	f	f	16	4537 3831
+4266	multirange_overleft_multirange	f	f	16	4537 4537
+4267	range_overright_multirange	f	f	16	3831 4537
+4268	multirange_overright_range	f	f	16	4537 3831
+4269	multirange_overright_multirange	f	f	16	4537 4537
+4270	multirange_union	f	f	4537	4537 4537
+4271	multirange_minus	f	f	4537	4537 4537
+4272	multirange_intersect	f	f	4537	4537 4537
+4273	multirange_cmp	f	f	23	4537 4537
+4274	multirange_lt	f	f	16	4537 4537
+4275	multirange_le	f	f	16	4537 4537
+4276	multirange_ge	f	f	16	4537 4537
+4277	multirange_gt	f	f	16	4537 4537
+4278	hash_multirange	f	f	23	4537
+4279	hash_multirange_extended	f	f	20	4537 20
+4280	int4multirange	f	f	4451	
+4281	int4multirange	f	f	4451	3904
+4282	int4multirange	f	f	4451	3905
+4283	nummultirange	f	f	4532	
+4284	nummultirange	f	f	4532	3906
+4285	nummultirange	f	f	4532	3907
+4286	tsmultirange	f	f	4533	
+4287	tsmultirange	f	f	4533	3908
+4288	tsmultirange	f	f	4533	3909
+4289	tstzmultirange	f	f	4534	
+4290	tstzmultirange	f	f	4534	3910
+4291	tstzmultirange	f	f	4534	3911
+4292	datemultirange	f	f	4535	
+4293	datemultirange	f	f	4535	3912
+4294	datemultirange	f	f	4535	3913
+4295	int8multirange	f	f	4536	
+4296	int8multirange	f	f	4536	3926
+4297	int8multirange	f	f	4536	3927
+4298	multirange	f	f	4537	3831
+4299	range_agg_transfn	f	f	2281	2281 3831
+4300	range_agg_finalfn	f	f	4537	2281 3831
+4301	range_agg	a	f	4537	3831
+4302	koi8r_to_mic	f	f	23	23 23 2275 2281 23 16
+4303	mic_to_koi8r	f	f	23	23 23 2275 2281 23 16
+4304	iso_to_mic	f	f	23	23 23 2275 2281 23 16
+4305	mic_to_iso	f	f	23	23 23 2275 2281 23 16
+4306	win1251_to_mic	f	f	23	23 23 2275 2281 23 16
+4307	mic_to_win1251	f	f	23	23 23 2275 2281 23 16
+4308	win866_to_mic	f	f	23	23 23 2275 2281 23 16
+4309	mic_to_win866	f	f	23	23 23 2275 2281 23 16
+4310	koi8r_to_win1251	f	f	23	23 23 2275 2281 23 16
+4311	win1251_to_koi8r	f	f	23	23 23 2275 2281 23 16
+4312	koi8r_to_win866	f	f	23	23 23 2275 2281 23 16
+4313	win866_to_koi8r	f	f	23	23 23 2275 2281 23 16
+4314	win866_to_win1251	f	f	23	23 23 2275 2281 23 16
+4315	win1251_to_win866	f	f	23	23 23 2275 2281 23 16
+4316	iso_to_koi8r	f	f	23	23 23 2275 2281 23 16
+4317	koi8r_to_iso	f	f	23	23 23 2275 2281 23 16
+4318	iso_to_win1251	f	f	23	23 23 2275 2281 23 16
+4319	win1251_to_iso	f	f	23	23 23 2275 2281 23 16
+4320	iso_to_win866	f	f	23	23 23 2275 2281 23 16
+4321	win866_to_iso	f	f	23	23 23 2275 2281 23 16
+4322	euc_cn_to_mic	f	f	23	23 23 2275 2281 23 16
+4323	mic_to_euc_cn	f	f	23	23 23 2275 2281 23 16
+4324	euc_jp_to_sjis	f	f	23	23 23 2275 2281 23 16
+4325	sjis_to_euc_jp	f	f	23	23 23 2275 2281 23 16
+4326	euc_jp_to_mic	f	f	23	23 23 2275 2281 23 16
+4327	sjis_to_mic	f	f	23	23 23 2275 2281 23 16
+4328	mic_to_euc_jp	f	f	23	23 23 2275 2281 23 16
+4329	mic_to_sjis	f	f	23	23 23 2275 2281 23 16
+4330	euc_kr_to_mic	f	f	23	23 23 2275 2281 23 16
+4331	mic_to_euc_kr	f	f	23	23 23 2275 2281 23 16
+4332	euc_tw_to_big5	f	f	23	23 23 2275 2281 23 16
+4333	big5_to_euc_tw	f	f	23	23 23 2275 2281 23 16
+4334	euc_tw_to_mic	f	f	23	23 23 2275 2281 23 16
+4335	big5_to_mic	f	f	23	23 23 2275 2281 23 16
+4336	mic_to_euc_tw	f	f	23	23 23 2275 2281 23 16
+4337	mic_to_big5	f	f	23	23 23 2275 2281 23 16
+4338	latin2_to_mic	f	f	23	23 23 2275 2281 23 16
+4339	mic_to_latin2	f	f	23	23 23 2275 2281 23 16
+4340	win1250_to_mic	f	f	23	23 23 2275 2281 23 16
+4341	mic_to_win1250	f	f	23	23 23 2275 2281 23 16
+4342	latin2_to_win1250	f	f	23	23 23 2275 2281 23 16
+4343	win1250_to_latin2	f	f	23	23 23 2275 2281 23 16
+4344	latin1_to_mic	f	f	23	23 23 2275 2281 23 16
+4345	mic_to_latin1	f	f	23	23 23 2275 2281 23 16
+4346	latin3_to_mic	f	f	23	23 23 2275 2281 23 16
+4347	mic_to_latin3	f	f	23	23 23 2275 2281 23 16
+4348	latin4_to_mic	f	f	23	23 23 2275 2281 23 16
+4349	mic_to_latin4	f	f	23	23 23 2275 2281 23 16
+4350	normalize	f	f	25	25 25
+4351	is_normalized	f	f	16	25 25
+4352	big5_to_utf8	f	f	23	23 23 2275 2281 23 16
+4353	utf8_to_big5	f	f	23	23 23 2275 2281 23 16
+4354	utf8_to_koi8r	f	f	23	23 23 2275 2281 23 16
+4355	koi8r_to_utf8	f	f	23	23 23 2275 2281 23 16
+4356	utf8_to_koi8u	f	f	23	23 23 2275 2281 23 16
+4357	koi8u_to_utf8	f	f	23	23 23 2275 2281 23 16
+4358	utf8_to_win	f	f	23	23 23 2275 2281 23 16
+4359	win_to_utf8	f	f	23	23 23 2275 2281 23 16
+4360	euc_cn_to_utf8	f	f	23	23 23 2275 2281 23 16
+4361	utf8_to_euc_cn	f	f	23	23 23 2275 2281 23 16
+4362	euc_jp_to_utf8	f	f	23	23 23 2275 2281 23 16
+4363	utf8_to_euc_jp	f	f	23	23 23 2275 2281 23 16
+4364	euc_kr_to_utf8	f	f	23	23 23 2275 2281 23 16
+4365	utf8_to_euc_kr	f	f	23	23 23 2275 2281 23 16
+4366	euc_tw_to_utf8	f	f	23	23 23 2275 2281 23 16
+4367	utf8_to_euc_tw	f	f	23	23 23 2275 2281 23 16
+4368	gb18030_to_utf8	f	f	23	23 23 2275 2281 23 16
+4369	utf8_to_gb18030	f	f	23	23 23 2275 2281 23 16
+4370	gbk_to_utf8	f	f	23	23 23 2275 2281 23 16
+4371	utf8_to_gbk	f	f	23	23 23 2275 2281 23 16
+4372	utf8_to_iso8859	f	f	23	23 23 2275 2281 23 16
+4373	iso8859_to_utf8	f	f	23	23 23 2275 2281 23 16
+4374	iso8859_1_to_utf8	f	f	23	23 23 2275 2281 23 16
+4375	utf8_to_iso8859_1	f	f	23	23 23 2275 2281 23 16
+4376	johab_to_utf8	f	f	23	23 23 2275 2281 23 16
+4377	utf8_to_johab	f	f	23	23 23 2275 2281 23 16
+4378	sjis_to_utf8	f	f	23	23 23 2275 2281 23 16
+4379	utf8_to_sjis	f	f	23	23 23 2275 2281 23 16
+4380	uhc_to_utf8	f	f	23	23 23 2275 2281 23 16
+4381	utf8_to_uhc	f	f	23	23 23 2275 2281 23 16
+4382	euc_jis_2004_to_utf8	f	f	23	23 23 2275 2281 23 16
+4383	utf8_to_euc_jis_2004	f	f	23	23 23 2275 2281 23 16
+4384	shift_jis_2004_to_utf8	f	f	23	23 23 2275 2281 23 16
+4385	utf8_to_shift_jis_2004	f	f	23	23 23 2275 2281 23 16
+4386	euc_jis_2004_to_shift_jis_2004	f	f	23	23 23 2275 2281 23 16
+4387	shift_jis_2004_to_euc_jis_2004	f	f	23	23 23 2275 2281 23 16
+4388	multirange_intersect_agg_transfn	f	f	4537	4537 4537
+4389	range_intersect_agg	a	f	4537	4537
+4390	binary_upgrade_set_next_multirange_pg_type_oid	f	f	2278	26
+4391	binary_upgrade_set_next_multirange_array_pg_type_oid	f	f	2278	26
+4401	range_intersect_agg_transfn	f	f	3831	3831 3831
+4450	range_intersect_agg	a	f	3831	3831
+4541	range_contains_multirange	f	f	16	3831 4537
+4542	multirange_contained_by_range	f	f	16	4537 3831
+4543	pg_log_backend_memory_contexts	f	f	16	23
+4545	binary_upgrade_set_next_heap_relfilenode	f	f	2278	26
+4546	binary_upgrade_set_next_index_relfilenode	f	f	2278	26
+4547	binary_upgrade_set_next_toast_relfilenode	f	f	2278	26
+4548	binary_upgrade_set_next_pg_tablespace_oid	f	f	2278	26
+4549	unicode_version	f	f	25	
+4566	pg_event_trigger_table_rewrite_oid	f	f	26	
+4567	pg_event_trigger_table_rewrite_reason	f	f	23	
+4568	pg_event_trigger_ddl_commands	f	t	2249	
+4591	brin_bloom_opcinfo	f	f	2281	2281
+4592	brin_bloom_add_value	f	f	16	2281 2281 2281 2281
+4593	brin_bloom_consistent	f	f	16	2281 2281 2281 23
+4594	brin_bloom_union	f	f	16	2281 2281 2281
+4595	brin_bloom_options	f	f	2278	2281
+4596	brin_bloom_summary_in	f	f	4600	2275
+4597	brin_bloom_summary_out	f	f	2275	4600
+4598	brin_bloom_summary_recv	f	f	4600	2281
+4599	brin_bloom_summary_send	f	f	17	4600
+4616	brin_minmax_multi_opcinfo	f	f	2281	2281
+4617	brin_minmax_multi_add_value	f	f	16	2281 2281 2281 2281
+4618	brin_minmax_multi_consistent	f	f	16	2281 2281 2281 23
+4619	brin_minmax_multi_union	f	f	16	2281 2281 2281
+4620	brin_minmax_multi_options	f	f	2278	2281
+4621	brin_minmax_multi_distance_int2	f	f	701	2281 2281
+4622	brin_minmax_multi_distance_int4	f	f	701	2281 2281
+4623	brin_minmax_multi_distance_int8	f	f	701	2281 2281
+4624	brin_minmax_multi_distance_float4	f	f	701	2281 2281
+4625	brin_minmax_multi_distance_float8	f	f	701	2281 2281
+4626	brin_minmax_multi_distance_numeric	f	f	701	2281 2281
+4627	brin_minmax_multi_distance_tid	f	f	701	2281 2281
+4628	brin_minmax_multi_distance_uuid	f	f	701	2281 2281
+4629	brin_minmax_multi_distance_date	f	f	701	2281 2281
+4630	brin_minmax_multi_distance_time	f	f	701	2281 2281
+4631	brin_minmax_multi_distance_interval	f	f	701	2281 2281
+4632	brin_minmax_multi_distance_timetz	f	f	701	2281 2281
+4633	brin_minmax_multi_distance_pg_lsn	f	f	701	2281 2281
+4634	brin_minmax_multi_distance_macaddr	f	f	701	2281 2281
+4635	brin_minmax_multi_distance_macaddr8	f	f	701	2281 2281
+4636	brin_minmax_multi_distance_inet	f	f	701	2281 2281
+4637	brin_minmax_multi_distance_timestamp	f	f	701	2281 2281
+4638	brin_minmax_multi_summary_in	f	f	4601	2275
+4639	brin_minmax_multi_summary_out	f	f	2275	4601
+4640	brin_minmax_multi_summary_recv	f	f	4601	2281
+4641	brin_minmax_multi_summary_send	f	f	17	4601
+5001	phraseto_tsquery	f	f	3615	25
+5003	tsquery_phrase	f	f	3615	3615 3615
+5004	tsquery_phrase	f	f	3615	3615 3615 23
+5006	phraseto_tsquery	f	f	3615	3734 25
+5007	websearch_to_tsquery	f	f	3615	3734 25
+5009	websearch_to_tsquery	f	f	3615	25
+5010	spg_bbox_quad_config	f	f	2278	2281 2281
+5011	spg_poly_quad_compress	f	f	603	604
+5012	spg_box_quad_config	f	f	2278	2281 2281
+5013	spg_box_quad_choose	f	f	2278	2281 2281
+5014	spg_box_quad_picksplit	f	f	2278	2281 2281
+5015	spg_box_quad_inner_consistent	f	f	2278	2281 2281
+5016	spg_box_quad_leaf_consistent	f	f	16	2281 2281
+5018	pg_mcv_list_in	f	f	5017	2275
+5019	pg_mcv_list_out	f	f	2275	5017
+5020	pg_mcv_list_recv	f	f	5017	2281
+5021	pg_mcv_list_send	f	f	17	5017
+5022	pg_lsn_pli	f	f	3220	3220 1700
+5023	numeric_pl_pg_lsn	f	f	3220	1700 3220
+5024	pg_lsn_mii	f	f	3220	3220 1700
+5028	satisfies_hash_partition	f	f	16	26 23 23 2276
+5029	pg_ls_tmpdir	f	t	2249	
+5030	pg_ls_tmpdir	f	t	2249	26
+5031	pg_ls_archive_statusdir	f	t	2249	
+5033	network_sortsupport	f	f	2278	2281
+5034	xid8lt	f	f	16	5069 5069
+5035	xid8gt	f	f	16	5069 5069
+5036	xid8le	f	f	16	5069 5069
+5037	xid8ge	f	f	16	5069 5069
+5040	matchingsel	f	f	701	2281 26 2281 23
+5041	matchingjoinsel	f	f	701	2281 26 2281 21 2281
+5042	min_scale	f	f	23	1700
+5043	trim_scale	f	f	1700	1700
+5044	gcd	f	f	23	23 23
+5045	gcd	f	f	20	20 20
+5046	lcm	f	f	23	23 23
+5047	lcm	f	f	20	20 20
+5048	gcd	f	f	1700	1700 1700
+5049	lcm	f	f	1700	1700 1700
+5050	btvarstrequalimage	f	f	16	26
+5051	btequalimage	f	f	16	26
+5052	pg_get_shmem_allocations	f	t	2249	
+5053	pg_stat_get_ins_since_vacuum	f	f	20	26
+5054	jsonb_set_lax	f	f	3802	3802 1009 3802 16 25
+5055	pg_snapshot_in	f	f	5038	2275
+5056	pg_snapshot_out	f	f	2275	5038
+5057	pg_snapshot_recv	f	f	5038	2281
+5058	pg_snapshot_send	f	f	17	5038
+5059	pg_current_xact_id	f	f	5069	
+5060	pg_current_xact_id_if_assigned	f	f	5069	
+5061	pg_current_snapshot	f	f	5038	
+5062	pg_snapshot_xmin	f	f	5069	5038
+5063	pg_snapshot_xmax	f	f	5069	5038
+5064	pg_snapshot_xip	f	t	5069	5038
+5065	pg_visible_in_snapshot	f	f	16	5069 5038
+5066	pg_xact_status	f	f	25	5069
+5070	xid8in	f	f	5069	2275
+5071	xid	f	f	28	5069
+5081	xid8out	f	f	2275	5069
+5082	xid8recv	f	f	5069	2281
+5083	xid8send	f	f	17	5069
+5084	xid8eq	f	f	16	5069 5069
+5085	xid8ne	f	f	16	5069 5069
+5086	anycompatible_in	f	f	5077	2275
+5087	anycompatible_out	f	f	2275	5077
+5088	anycompatiblearray_in	f	f	5078	2275
+5089	anycompatiblearray_out	f	f	2275	5078
+5090	anycompatiblearray_recv	f	f	5078	2281
+5091	anycompatiblearray_send	f	f	17	5078
+5092	anycompatiblenonarray_in	f	f	5079	2275
+5093	anycompatiblenonarray_out	f	f	2275	5079
+5094	anycompatiblerange_in	f	f	5080	2275 26 23
+5095	anycompatiblerange_out	f	f	2275	5080
+5096	xid8cmp	f	f	23	5069 5069
+5097	xid8_larger	f	f	5069	5069 5069
+5098	xid8_smaller	f	f	5069	5069 5069
+5099	max	a	f	5069	5069
+5100	min	a	f	5069	5069
+6003	pg_replication_origin_create	f	f	26	25
+6004	pg_replication_origin_drop	f	f	2278	25
+6005	pg_replication_origin_oid	f	f	26	25
+6006	pg_replication_origin_session_setup	f	f	2278	25
+6007	pg_replication_origin_session_reset	f	f	2278	
+6008	pg_replication_origin_session_is_setup	f	f	16	
+6009	pg_replication_origin_session_progress	f	f	3220	16
+6010	pg_replication_origin_xact_setup	f	f	2278	3220 1184
+6011	pg_replication_origin_xact_reset	f	f	2278	
+6012	pg_replication_origin_advance	f	f	2278	25 3220
+6013	pg_replication_origin_progress	f	f	3220	25 16
+6014	pg_show_replication_origin_status	f	t	2249	
+6098	jsonb_subscript_handler	f	f	2281	2281
+6099	icu_unicode_version	f	f	25	
+6103	pg_lsn	f	f	3220	1700
+6105	unicode_assigned	f	f	16	25
+6107	pg_stat_get_backend_subxact	f	f	2249	23
+6118	pg_stat_get_subscription	f	t	2249	26
+6119	pg_get_publication_tables	f	t	2249	1009
+6120	pg_get_replica_identity_index	f	f	2205	2205
+6121	pg_relation_is_publishable	f	f	16	2205
+6154	multirange_gist_consistent	f	f	16	2281 4537 21 26 2281
+6156	multirange_gist_compress	f	f	2281	2281
+6159	pg_get_catalog_foreign_keys	f	t	2249	
+6160	string_to_table	f	t	25	25 25
+6161	string_to_table	f	t	25	25 25 25
+6162	bit_count	f	f	20	1560
+6163	bit_count	f	f	20	17
+6164	bit_xor	a	f	21	21
+6165	bit_xor	a	f	23	23
+6166	bit_xor	a	f	20	20
+6167	bit_xor	a	f	1560	1560
+6168	pg_xact_commit_timestamp_origin	f	f	2249	28
+6169	pg_stat_get_replication_slot	f	f	2249	25
+6170	pg_stat_reset_replication_slot	f	f	2278	25
+6172	trim_array	f	f	2277	2277 23
+6173	pg_get_statisticsobjdef_expressions	f	f	1009	26
+6174	pg_get_statisticsobjdef_columns	f	f	25	26
+6177	date_bin	f	f	1114	1186 1114 1114
+6178	date_bin	f	f	1184	1186 1184 1184
+6179	array_subscript_handler	f	f	2281	2281
+6180	raw_array_subscript_handler	f	f	2281	2281
+6183	ts_debug	f	t	2249	3734 25
+6184	ts_debug	f	t	2249	25
+6185	pg_stat_get_db_session_time	f	f	701	26
+6186	pg_stat_get_db_active_time	f	f	701	26
+6187	pg_stat_get_db_idle_in_transaction_time	f	f	701	26
+6188	pg_stat_get_db_sessions	f	f	20	26
+6189	pg_stat_get_db_sessions_abandoned	f	f	20	26
+6190	pg_stat_get_db_sessions_fatal	f	f	20	26
+6191	pg_stat_get_db_sessions_killed	f	f	20	26
+6192	hash_record	f	f	23	2249
+6193	hash_record_extended	f	f	20	2249 20
+6195	ltrim	f	f	17	17 17
+6196	rtrim	f	f	17	17 17
+6197	pg_get_function_sqlbody	f	f	25	26
+6198	unistr	f	f	25	25
+6199	extract	f	f	1700	25 1082
+6200	extract	f	f	1700	25 1083
+6201	extract	f	f	1700	25 1266
+6202	extract	f	f	1700	25 1114
+6203	extract	f	f	1700	25 1184
+6204	extract	f	f	1700	25 1186
+6205	has_parameter_privilege	f	f	16	19 25 25
+6206	has_parameter_privilege	f	f	16	26 25 25
+6207	has_parameter_privilege	f	f	16	25 25
+6208	pg_read_file	f	f	25	25 16
+6209	pg_read_binary_file	f	f	17	25 16
+6210	pg_input_is_valid	f	f	16	25 25
+6211	pg_input_error_info	f	f	2249	25 25
+6212	random_normal	f	f	701	701 701
+6213	pg_split_walfile_name	f	f	2249	25
+6214	pg_stat_get_io	f	t	2249	
+6215	array_shuffle	f	f	2277	2277
+6216	array_sample	f	f	2277	2277 23
+6217	pg_stat_get_tuples_newpage_updated	f	f	20	26
+6218	pg_stat_get_xact_tuples_newpage_updated	f	f	20	26
+6219	erf	f	f	701	701
+6220	erfc	f	f	701	701
+6221	date_add	f	f	1184	1184 1186
+6222	date_add	f	f	1184	1184 1186 25
+6223	date_subtract	f	f	1184	1184 1186
+6224	pg_get_wal_resource_managers	f	t	2249	
+6225	multirange_agg_transfn	f	f	2281	2281 4537
+6226	multirange_agg_finalfn	f	f	4537	2281 4537
+6227	range_agg	a	f	4537	4537
+6230	pg_stat_have_stats	f	f	16	25 26 20
+6231	pg_stat_get_subscription_stats	f	f	2249	26
+6232	pg_stat_reset_subscription_stats	f	f	2278	26
+6233	window_row_number_support	f	f	2281	2281
+6234	window_rank_support	f	f	2281	2281
+6235	window_dense_rank_support	f	f	2281	2281
+6236	int8inc_support	f	f	2281	2281
+6240	pg_settings_get_flags	f	f	1009	25
+6241	pg_stop_making_pinned_objects	f	f	2278	
+6242	text_starts_with_support	f	f	2281	2281
+6248	pg_stat_get_recovery_prefetch	f	t	2249	
+6249	pg_database_collation_actual_version	f	f	25	26
+6250	pg_ident_file_mappings	f	t	2249	
+6251	regexp_replace	f	f	25	25 25 25 23 23 25
+6252	regexp_replace	f	f	25	25 25 25 23 23
+6253	regexp_replace	f	f	25	25 25 25 23
+6254	regexp_count	f	f	23	25 25
+6255	regexp_count	f	f	23	25 25 23
+6256	regexp_count	f	f	23	25 25 23 25
+6257	regexp_instr	f	f	23	25 25
+6258	regexp_instr	f	f	23	25 25 23
+6259	regexp_instr	f	f	23	25 25 23 23
+6260	regexp_instr	f	f	23	25 25 23 23 23
+6261	regexp_instr	f	f	23	25 25 23 23 23 25
+6262	regexp_instr	f	f	23	25 25 23 23 23 25 23
+6263	regexp_like	f	f	16	25 25
+6264	regexp_like	f	f	16	25 25 25
+6265	regexp_substr	f	f	25	25 25
+6266	regexp_substr	f	f	25	25 25 23
+6267	regexp_substr	f	f	25	25 25 23 23
+6268	regexp_substr	f	f	25	25 25 23 23 25
+6269	regexp_substr	f	f	25	25 25 23 23 25 23
+6270	pg_ls_logicalsnapdir	f	t	2249	
+6271	pg_ls_logicalmapdir	f	t	2249	
+6272	pg_ls_replslotdir	f	t	2249	25
+6273	date_subtract	f	f	1184	1184 1186 25
+6274	generate_series	f	t	1184	1184 1184 1186 25
+6275	json_agg_strict_transfn	f	f	2281	2281 2283
+6276	json_agg_strict	a	f	114	2283
+6277	json_object_agg_strict_transfn	f	f	2281	2281 2276 2276
+6278	json_object_agg_unique_transfn	f	f	2281	2281 2276 2276
+6279	json_object_agg_unique_strict_transfn	f	f	2281	2281 2276 2276
+6280	json_object_agg_strict	a	f	114	2276 2276
+6281	json_object_agg_unique	a	f	114	2276 2276
+6282	json_object_agg_unique_strict	a	f	114	2276 2276
+6283	jsonb_agg_strict_transfn	f	f	2281	2281 2283
+6284	jsonb_agg_strict	a	f	3802	2283
+6285	jsonb_object_agg_strict_transfn	f	f	2281	2281 2276 2276
+6286	jsonb_object_agg_unique_transfn	f	f	2281	2281 2276 2276
+6287	jsonb_object_agg_unique_strict_transfn	f	f	2281	2281 2276 2276
+6288	jsonb_object_agg_strict	a	f	3802	2276 2276
+6289	jsonb_object_agg_unique	a	f	3802	2276 2276
+6290	jsonb_object_agg_unique_strict	a	f	3802	2276 2276
+6291	any_value	a	f	2283	2283
+6292	any_value_transfn	f	f	2283	2283 2283
+6293	array_agg_combine	f	f	2281	2281 2281
+6294	array_agg_serialize	f	f	17	2281
+6295	array_agg_deserialize	f	f	2281	17 2281
+6296	array_agg_array_combine	f	f	2281	2281 2281
+6297	array_agg_array_serialize	f	f	17	2281
+6298	array_agg_array_deserialize	f	f	2281	17 2281
+6299	string_agg_combine	f	f	2281	2281 2281
+6300	string_agg_serialize	f	f	17	2281
+6301	string_agg_deserialize	f	f	2281	17 2281
+6305	pg_log_standby_snapshot	f	f	3220	
+6306	window_percent_rank_support	f	f	2281	2281
+6307	window_cume_dist_support	f	f	2281	2281
+6308	window_ntile_support	f	f	2281	2281
+6309	pg_stat_get_db_conflict_logicalslot	f	f	20	26
+6310	pg_stat_get_lastscan	f	f	1184	26
+6311	system_user	f	f	25	
+6312	binary_upgrade_logical_slot_has_caught_up	f	f	16	19
+6313	pg_stat_get_backend_wal	f	f	2249	23
+6314	pg_stat_get_checkpointer_stat_reset_time	f	f	1184	
+6315	pg_basetype	f	f	2206	2206
+6316	pg_column_toast_chunk_id	f	f	26	2276
+6317	to_regtypemod	f	f	23	25
+6318	pg_get_wait_events	f	t	2249	
+6319	binary_upgrade_add_sub_rel_state	f	f	2278	25 26 18 3220
+6320	binary_upgrade_replorigin_advance	f	f	2278	25 3220
+6321	pg_available_wal_summaries	f	t	2249	
+6322	pg_wal_summary_contents	f	t	2249	20 3220 3220
+6323	pg_get_wal_summarizer_state	f	f	2249	
+6324	interval_avg_serialize	f	f	17	2281
+6325	interval_avg_deserialize	f	f	2281	17 2281
+6326	interval_sum	f	f	1186	2281
+6327	pg_stat_get_checkpointer_restartpoints_timed	f	f	20	
+6328	pg_stat_get_checkpointer_restartpoints_requested	f	f	20	
+6329	pg_stat_get_checkpointer_restartpoints_performed	f	f	20	
+6330	to_bin	f	f	25	23
+6331	to_bin	f	f	25	20
+6332	to_oct	f	f	25	23
+6333	to_oct	f	f	25	20
+6334	timezone	f	f	1114	1184
+6335	timezone	f	f	1184	1114
+6336	timezone	f	f	1266	1266
+6338	jsonb_populate_record_valid	f	f	16	2283 3802
+6339	random	f	f	23	23 23
+6340	random	f	f	20	20 20
+6341	random	f	f	1700	1700 1700
+6342	uuid_extract_timestamp	f	f	1184	2950
+6343	uuid_extract_version	f	f	21	2950
+6344	pg_sync_replication_slots	f	f	2278	
+6345	range_contains_elem_support	f	f	2281	2281
+6346	elem_contained_by_range_support	f	f	2281	2281
+6347	gist_translate_cmptype_common	f	f	21	23
+6348	has_largeobject_privilege	f	f	16	19 26 25
+6349	has_largeobject_privilege	f	f	16	26 25
+6350	has_largeobject_privilege	f	f	16	26 26 25
+6353	pg_get_loaded_modules	f	t	2249	
+6354	generate_series_timestamp_support	f	f	2281	2281
+6355	pg_stat_get_db_parallel_workers_to_launch	f	f	20	26
+6356	pg_stat_get_db_parallel_workers_launched	f	f	20	26
+6357	generate_series_numeric_support	f	f	2281	2281
+6358	pg_stat_get_total_vacuum_time	f	f	701	26
+6359	pg_stat_get_total_autovacuum_time	f	f	701	26
+6360	pg_stat_get_total_analyze_time	f	f	701	26
+6361	pg_stat_get_total_autoanalyze_time	f	f	701	26
+6362	pg_restore_relation_stats	f	f	16	2276
+6363	pg_restore_attribute_stats	f	f	16	2276
+6364	crc32	f	f	20	17
+6365	crc32c	f	f	20	17
+6366	pg_stat_get_checkpointer_slru_written	f	f	20	
+6367	bytea	f	f	17	21
+6368	bytea	f	f	17	23
+6369	bytea	f	f	17	20
+6370	int2	f	f	21	17
+6371	int4	f	f	23	17
+6372	int8	f	f	20	17
+6373	max	a	f	2249	2249
+6374	min	a	f	2249	2249
+6375	record_larger	f	f	2249	2249 2249
+6376	record_smaller	f	f	2249	2249 2249
+6377	pg_stat_get_checkpointer_num_performed	f	f	20	
+6378	array_append_support	f	f	2281	2281
+6379	array_prepend_support	f	f	2281	2281
+6380	array_subscript_handler_support	f	f	2281	2281
+6381	array_reverse	f	f	2277	2277
+6382	reverse	f	f	17	17
+6383	gamma	f	f	701	701
+6384	lgamma	f	f	701	701
+6385	pg_get_acl	f	f	1034	26 26 23
+6386	pg_stat_get_backend_io	f	t	2249	23
+6387	pg_stat_reset_backend_stats	f	f	2278	23
+6388	array_sort	f	f	2277	2277
+6389	array_sort	f	f	2277	2277 16
+6390	array_sort	f	f	2277	2277 16 16
+6391	range_sortsupport	f	f	2278	2281
+6393	bytea_larger	f	f	17	17 17
+6394	bytea_smaller	f	f	17	17 17
+6395	max	a	f	17	17
+6396	min	a	f	17	17
+6397	pg_clear_relation_stats	f	f	2278	25 25
+6398	pg_clear_attribute_stats	f	f	2278	25 25 25 16
+6399	pg_get_aios	f	t	2249	
+6400	pg_ls_summariesdir	f	t	2249	
+6401	pg_timezone_abbrevs_zone	f	t	2249	
+6402	btint2skipsupport	f	f	2278	2281
+6403	btint4skipsupport	f	f	2278	2281
+6404	btint8skipsupport	f	f	2278	2281
+6405	btoidskipsupport	f	f	2278	2281
+6406	btcharskipsupport	f	f	2278	2281
+6407	date_skipsupport	f	f	2278	2281
+6408	btboolskipsupport	f	f	2278	2281
+6409	timestamp_skipsupport	f	f	2278	2281
+6410	uuid_skipsupport	f	f	2278	2281
+6412	casefold	f	f	25	25
+6413	hashbytea	f	f	23	17
+6414	hashbyteaextended	f	f	20	17 20
+6415	hashdate	f	f	23	1082
+6416	hashdateextended	f	f	20	1082 20
+6417	hashbool	f	f	23	16
+6418	hashboolextended	f	f	20	16 20
+6419	hashxid	f	f	23	28
+6420	hashxidextended	f	f	20	28 20
+6421	hashxid8	f	f	23	5069
+6422	hashxid8extended	f	f	20	5069 20
+6423	hashcid	f	f	23	29
+6424	hashcidextended	f	f	20	29 20
+6425	timestamptz_hash	f	f	23	1184
+6426	timestamptz_hash_extended	f	f	20	1184 20
+6427	pg_get_sequence_data	f	f	2249	2205
+6428	uuidv4	f	f	2950	
+6429	uuidv7	f	f	2950	
+6430	uuidv7	f	f	2950	1186
+13638	dsnowball_init	f	f	2281	2281
+13639	dsnowball_lexize	f	f	2281	2281 2281 2281 2281
+14050	plpgsql_call_handler	f	f	2280	
+14051	plpgsql_inline_handler	f	f	2278	2281
+14052	plpgsql_validator	f	f	2278	26

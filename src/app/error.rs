@@ -84,6 +84,9 @@ pub enum CassieError {
     #[error(transparent)]
     ByteaInput(#[from] crate::types::ByteaInputError),
 
+    #[error(transparent)]
+    ObjectIdentifier(#[from] crate::types::ObjectIdentifierError),
+
     #[error("collection not found: {0}")]
     CollectionNotFound(String),
 
@@ -236,6 +239,9 @@ impl CassieError {
             Self::ByteaIndex { .. } => bad_request_descriptor("2202E", self.to_string()),
             Self::AmbiguousFunction(message) => bad_request_descriptor("42725", message.clone()),
             Self::ByteaInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
+            Self::ObjectIdentifier(error) => {
+                bad_request_descriptor(error.sqlstate(), error.to_string())
+            }
             Self::CollectionNotFound(table) => missing_relation_descriptor(table),
             Self::CatalogObjectNotFound { kind, name } => {
                 missing_catalog_object_descriptor(*kind, name, self.to_string())

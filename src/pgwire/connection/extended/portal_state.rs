@@ -179,6 +179,7 @@ pub(super) async fn write_materialized_result(
         write_half,
         PortalPageFrames {
             result: &result,
+            row_offset: 0,
             rows: &result.rows()[..page_len],
             result_formats: &portal.result_formats,
             row_description_already_sent: row_description_sent,
@@ -246,6 +247,7 @@ pub(super) async fn write_suspended_result(
         write_half,
         PortalPageFrames {
             result: &suspended.result,
+            row_offset: suspended.row_offset,
             rows: &rows[..page_len],
             result_formats: &portal.result_formats,
             row_description_already_sent: suspended.row_description_sent,
@@ -330,6 +332,7 @@ pub(super) async fn write_streaming_result(
         write_half,
         PortalPageFrames {
             result: &result,
+            row_offset: 0,
             rows: &result.rows()[..page_len],
             result_formats: &portal.result_formats,
             row_description_already_sent: row_description_sent,
@@ -361,6 +364,8 @@ pub(super) async fn write_streaming_result(
 
 struct PortalPageFrames<'a> {
     result: &'a QueryResult,
+    /// Index of `rows[0]` within the result.
+    row_offset: usize,
     rows: &'a [Vec<Value>],
     result_formats: &'a [i16],
     row_description_already_sent: bool,
@@ -373,6 +378,7 @@ async fn write_portal_page_frames(
 ) -> Result<bool, ExtendedQueryError> {
     let PortalPageFrames {
         result,
+        row_offset,
         rows,
         result_formats,
         row_description_already_sent,
@@ -391,9 +397,9 @@ async fn write_portal_page_frames(
         write_frame(write_half, frames.bytes()).await?;
         row_description_sent = true;
     }
-    for row in rows {
+    for (index, row) in rows.iter().enumerate() {
         frames
-            .row(row, columns, result_formats)
+            .row(row_offset + index, row, columns, result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
         write_frame(write_half, frames.bytes()).await?;
     }

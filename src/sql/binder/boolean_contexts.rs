@@ -673,7 +673,7 @@ fn cast_source_type(
     types.expression_type(expr).filter(|kind| {
         matches!(
             kind,
-            DataType::Time | DataType::Timestamp | DataType::Char { .. }
+            DataType::Time | DataType::Timestamp | DataType::Char { .. } | DataType::ObjectId(_)
         ) || (*kind == DataType::Float && types.proven_float8(expr, catalog))
     })
 }

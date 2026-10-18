@@ -31,9 +31,9 @@ impl Cassie {
             )
         })?;
         let public_schema = canonical_schema_name(&database.name, DEFAULT_SCHEMA);
-        self.midge.create_namespace(&public_schema)?;
+        let public_namespace = self.midge.create_namespace(&public_schema)?;
         self.catalog.register_database_metadata(database.clone());
-        self.catalog.register_namespace(&public_schema, None);
+        self.catalog.register_namespace_meta(public_namespace);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
 
         Ok(database)

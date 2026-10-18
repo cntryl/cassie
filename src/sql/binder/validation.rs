@@ -403,9 +403,11 @@ fn families_compatible(left: OperandFamily, right: OperandFamily) -> bool {
 
 pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
     match data_type {
-        DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float => {
-            OperandFamily::Numeric
-        }
+        DataType::SmallInt
+        | DataType::Int
+        | DataType::BigInt
+        | DataType::Float
+        | DataType::ObjectId(_) => OperandFamily::Numeric,
         DataType::Boolean => OperandFamily::Boolean,
         DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => OperandFamily::Text,
         DataType::Date | DataType::Time | DataType::Timestamp => OperandFamily::Temporal,

@@ -64,7 +64,8 @@ impl Cassie {
 
         if let Some(session) = session {
             if session.is_transaction_active() {
-                let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+                // Time-ordered identities keep scans in insertion order.
+                let id = id.unwrap_or_else(|| Uuid::now_v7().to_string());
                 session.stage_document_write(collection, id.clone(), payload)?;
                 return Ok(id);
             }
@@ -406,6 +407,11 @@ impl Cassie {
                 })
             }
             crate::types::DataType::BigInt => Self::validate_bigint(field, value),
+            crate::types::DataType::ObjectId(kind) => {
+                Self::validate_integer_range(field, value, kind.name(), |number| {
+                    (0..=crate::types::object_id::MAX_OID).contains(&number)
+                })
+            }
             crate::types::DataType::Float => Self::validate_float(field, value),
             crate::types::DataType::Boolean => Self::validate_boolean(field, value),
             crate::types::DataType::Text | crate::types::DataType::Uuid => {

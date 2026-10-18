@@ -65,12 +65,12 @@ fn create_table_gated(
             })
             .collect(),
     };
-    let collection_meta =
+    let mut collection_meta =
         catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
     let table_sequences =
         super::sequence_command::prepare_create_table_sequences(cassie, statement)?;
     let output = super::command_output::empty("CREATE TABLE", controls)?;
-    cassie
+    collection_meta.storage_id = cassie
         .midge
         .create_collection_with_meta(table, &schema, &collection_meta)
         .map_err(QueryError::from)?;

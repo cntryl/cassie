@@ -105,7 +105,7 @@ fn create_in_namespace(
         fields: schema_fields,
     };
     let collection = canonical_relation_name(database, schema_name, &name);
-    let metadata = CollectionMeta::new(&collection, description);
+    let mut metadata = CollectionMeta::new(&collection, description);
     cassie
         .midge
         .with_collection_gates(std::slice::from_ref(&collection), || {
@@ -113,14 +113,15 @@ fn create_in_namespace(
                 return Err(collection_already_exists(&collection));
             }
 
-            let created = cassie.midge.create_collection_with_meta_if_absent(
+            let Some(storage_id) = cassie.midge.create_collection_with_meta_if_absent(
                 &collection,
                 &schema,
                 &metadata,
-            )?;
-            if !created {
+            )?
+            else {
                 return Err(collection_already_exists(&collection));
-            }
+            };
+            metadata.storage_id = storage_id;
 
             cassie.catalog.register_collection_meta_with_constraints(
                 metadata.clone(),

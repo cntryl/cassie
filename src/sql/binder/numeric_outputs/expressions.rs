@@ -242,6 +242,7 @@ fn fixed_function_type(policy: FunctionReturnType) -> Option<DataType> {
         FunctionReturnType::BigInt => Some(DataType::BigInt),
         FunctionReturnType::Boolean => Some(DataType::Boolean),
         FunctionReturnType::Timestamp => Some(DataType::Timestamp),
+        FunctionReturnType::ObjectId(kind) => Some(DataType::ObjectId(kind)),
         FunctionReturnType::FirstNonNullArgument
         | FunctionReturnType::FirstComparedArgument
         | FunctionReturnType::NumericArgument

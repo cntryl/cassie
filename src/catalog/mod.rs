@@ -1,3 +1,4 @@
+pub mod builtin_identity;
 pub mod cardinality;
 pub mod collections;
 pub mod column_defaults;
@@ -9,6 +10,7 @@ pub mod graphs;
 pub mod indexes;
 pub mod maintenance;
 pub mod metadata;
+pub mod object_identity;
 pub mod operational;
 pub mod programs;
 pub mod repair;

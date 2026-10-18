@@ -81,12 +81,17 @@ pub(super) fn parameter_shape_for_oids(oids: &[i32]) -> Vec<crate::runtime::Para
         .map(
             |oid| match crate::sql::binder::parameter_data_type_for_oid(*oid) {
                 Some(DataType::Boolean) => ParameterShape::Bool,
-                Some(DataType::SmallInt | DataType::Int | DataType::BigInt) => {
-                    ParameterShape::Int64
-                }
-                Some(DataType::Float) => ParameterShape::Float64,
                 Some(
-                    DataType::Text
+                    DataType::SmallInt
+                    | DataType::Int
+                    | DataType::BigInt
+                    | DataType::ObjectId(crate::types::ObjectIdKind::Oid),
+                ) => ParameterShape::Int64,
+                Some(DataType::Float) => ParameterShape::Float64,
+                // A `reg*` parameter is an object name resolved by its cast.
+                Some(
+                    DataType::ObjectId(_)
+                    | DataType::Text
                     | DataType::Char { .. }
                     | DataType::Varchar { .. }
                     | DataType::Uuid

@@ -1,26 +1,10 @@
 //! Remaining PostgreSQL object-identifier cast and wire contracts for #818.
 
 use super::super::support_pgwire as wire;
-use super::super::support_sql_fixture::{sql_fixture, SqlFixture};
+use super::super::support_sql_fixture::sql_fixture;
 use cassie::app::Cassie;
 use cassie::types::Value;
 use std::time::Duration;
-
-fn shadowed_routine_fixture(label: &str) -> SqlFixture {
-    let fixture = sql_fixture(
-        label,
-        &[
-            "CREATE SCHEMA issue_818_reg_lookup_a",
-            "CREATE SCHEMA issue_818_reg_lookup_b",
-            "CREATE FUNCTION issue_818_reg_lookup_a.wave_lookup(INTEGER) \
-             RETURNS INTEGER LANGUAGE SQL IMMUTABLE AS $$ SELECT 11 $$",
-            "CREATE FUNCTION issue_818_reg_lookup_b.wave_lookup(INTEGER) \
-             RETURNS INTEGER LANGUAGE SQL IMMUTABLE AS $$ SELECT 22 $$",
-        ],
-    );
-    fixture.cassie.startup().expect("startup");
-    fixture
-}
 
 #[test]
 fn should_preserve_regnamespace_oid_across_rollback_rename_drop() {

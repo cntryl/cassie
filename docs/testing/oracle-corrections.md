@@ -13,7 +13,7 @@ The local read-only offset probe used `psql -d postgres` on the admitted server 
 
 ## Correction count and mapping
 
-The reconciliation contains 28 unique correction IDs. The SQL oracle ledger has 27 rows: ORACLE-01 through ORACLE-06 and ORACLE-08 through ORACLE-28. The separate pgwire ledger supplies the missing ORACLE-07 observation. The `legacy_array_oid_34016` wire observation is supplemental policy evidence, not a 29th correction row. Two historical rows (ORACLE-09 and ORACLE-10) intentionally map to the same current duplicate-mapping test, which exercises both configuration setups.
+The reconciliation contains 30 unique correction IDs. The SQL oracle ledger has 27 rows: ORACLE-01 through ORACLE-06 and ORACLE-08 through ORACLE-28. The separate pgwire ledger supplies the missing ORACLE-07 observation. The `legacy_array_oid_34016` wire observation is supplemental policy evidence, not a 29th correction row. Two historical rows (ORACLE-09 and ORACLE-10) intentionally map to the same current duplicate-mapping test, which exercises both configuration setups.
 
 | ID | Issue | Current test assertion | PostgreSQL 18.6 expectation |
 | --- | ---: | --- | --- |
@@ -45,6 +45,8 @@ The reconciliation contains 28 unique correction IDs. The SQL oracle ledger has 
 | ORACLE-26 | #815 | [`tests/sql_queries/functions/temporal/temporal_functions.rs`](../../tests/sql_queries/functions/temporal/temporal_functions.rs) :: `should_format_both_occurrences_of_a_dst_fold_with_distinct_offsets` | In `America/New_York`, the two fall-fold instants render `01:30 -04|01:30 -05`. This is distinct from ORACLE-25's Denver `-07` result. |
 | ORACLE-27 | #815 | [`tests/pgwire_extended/functions/temporal/temporal_function.rs`](../../tests/pgwire_extended/functions/temporal/temporal_function.rs) :: `should_accept_make_time_hour_24` | `make_time(24,0,0)` succeeds as `24:00:00` with time OID `1083`. |
 | ORACLE-28 | #796 | [`tests/parser_types/grammar/parameters/parameters.rs`](../../tests/parser_types/grammar/parameters/parameters.rs) :: `should_bind_postgres_type_spellings_with_native_type_oids` | `NULL::integer[]` has PostgreSQL array type OID `1007` (not Cassie's legacy OID `34023`). |
+| ORACLE-29 | #818 | [`tests/catalog_security/catalogs/types/catalog_discovery/nulls.rs`](../../tests/catalog_security/catalogs/types/catalog_discovery/nulls.rs) :: `should_resolve_regtype_aliases_with_nullable_lookup` | `SELECT 'pg_catalog.int4'::regtype` returns the text `integer` (`regtypeout`), not the OID `23`; only `::regtype::oid` yields `23`. |
+| ORACLE-30 | #818 | [`tests/compatibility/lifecycle/routines/catalog_identity_lookups.rs`](../../tests/compatibility/lifecycle/routines/catalog_identity_lookups.rs) :: `read_relation_oid` (used by `should_refresh_prepared_regclass_lookup_after_relation_ddl` and `should_preserve_regclass_oid_across_catalog_lifecycle`) | `PREPARE p AS SELECT $1::regclass::oid::bigint` infers parameter type `{regclass}`, so a text-typed client binding is rejected by the client against PostgreSQL too; the helper binds `$1::text::regclass`. |
 
 ### Mapping caveats
 

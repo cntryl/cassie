@@ -48,6 +48,7 @@ pub(super) fn normalize_element(
         DataType::SmallInt => normalize_integer(&value, i64::from(i16::MIN), i64::from(i16::MAX)),
         DataType::Int => normalize_integer(&value, i64::from(i32::MIN), i64::from(i32::MAX)),
         DataType::BigInt => normalize_integer(&value, i64::MIN, i64::MAX),
+        DataType::ObjectId(_) => normalize_integer(&value, 0, crate::types::object_id::MAX_OID),
         DataType::Boolean => value
             .as_bool()
             .map(JsonValue::Bool)

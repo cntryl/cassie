@@ -655,6 +655,7 @@ pub(crate) fn infer_function_return_type(
         crate::sql::functions::FunctionReturnType::BigInt => Some(DataType::BigInt),
         crate::sql::functions::FunctionReturnType::Boolean => Some(DataType::Boolean),
         crate::sql::functions::FunctionReturnType::Timestamp => Some(DataType::Timestamp),
+        crate::sql::functions::FunctionReturnType::ObjectId(kind) => Some(DataType::ObjectId(kind)),
         crate::sql::functions::FunctionReturnType::FirstComparedArgument => {
             let argument_types = function
                 .args

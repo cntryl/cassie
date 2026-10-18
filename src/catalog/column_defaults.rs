@@ -144,7 +144,9 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
     }
     match data_type {
         DataType::Boolean => coerce_boolean(value),
-        DataType::SmallInt | DataType::Int | DataType::BigInt => coerce_integer(value),
+        DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::ObjectId(_) => {
+            coerce_integer(value)
+        }
         DataType::Float => coerce_float(value),
         DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => Ok(match value {
             Value::Number(number) => Value::String(number.to_string()),

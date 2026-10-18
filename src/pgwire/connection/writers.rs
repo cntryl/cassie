@@ -132,8 +132,8 @@ pub(super) async fn write_simple_query_result(
     if !columns.is_empty() {
         frames.description(columns, &[])?;
         write_half.write_all(frames.bytes()).await?;
-        for row in rows {
-            frames.row(row, columns, &[])?;
+        for (index, row) in rows.iter().enumerate() {
+            frames.row(index, row, columns, &[])?;
             write_half.write_all(frames.bytes()).await?;
         }
         frames.completion(false)?;
@@ -461,7 +461,7 @@ fn backend_frame_too_large_error() -> io::Error {
     )
 }
 
-fn result_format_for_index(result_formats: &[i16], index: usize) -> i16 {
+pub(super) fn result_format_for_index(result_formats: &[i16], index: usize) -> i16 {
     match result_formats.len() {
         0 => 0,
         1 => result_formats[0],

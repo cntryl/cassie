@@ -14,7 +14,11 @@ fn should_resolve_regtype_aliases_with_nullable_lookup() {
     // Assert
     assert_eq!(
         selected.rows(),
-        vec![vec![Value::Int64(23), Value::Bool(true), Value::Bool(true),]]
+        vec![vec![
+            Value::String("integer".to_owned()),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
     );
 }
 

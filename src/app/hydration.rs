@@ -43,7 +43,13 @@ impl Cassie {
         let namespaces = self.midge.list_namespaces_canonical();
         self.runtime.record_storage_access("schema", false, true);
         for namespace in namespaces {
-            self.catalog.register_namespace(&namespace, None);
+            match self.midge.namespace_metadata(&namespace) {
+                Ok(Some(mut metadata)) => {
+                    metadata.name = namespace;
+                    self.catalog.register_namespace_meta(metadata);
+                }
+                _ => self.catalog.register_namespace(&namespace, None),
+            }
         }
     }
 

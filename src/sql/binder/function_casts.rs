@@ -7,6 +7,9 @@ pub(super) fn lower(
     function: &mut FunctionCall,
     types: &ResultTypes,
 ) -> Result<Option<Expr>, CassieError> {
+    if let Some(type_of) = lower_type_of(function, types) {
+        return Ok(Some(type_of));
+    }
     let Some(target) = primitive_casts::candidate(function) else {
         return Ok(None);
     };
@@ -52,6 +55,30 @@ pub(super) fn lower(
         source_type: None,
         identity: CastIdentity::Scalar,
     }))
+}
+
+/// `pg_typeof(x)` is the `regtype` of the argument's resolved type, known
+/// at bind time; an untyped literal or NULL is `unknown`.
+fn lower_type_of(function: &FunctionCall, types: &ResultTypes) -> Option<Expr> {
+    let local = function
+        .name
+        .strip_prefix("pg_catalog.")
+        .unwrap_or(&function.name);
+    if !local.eq_ignore_ascii_case("pg_typeof") || function.args.len() != 1 {
+        return None;
+    }
+    let argument = &function.args[0];
+    let oid = if primitive_casts::unknown_literal(argument) || matches!(argument, Expr::Null) {
+        705
+    } else {
+        types.expression_type(argument)?.type_oid()
+    };
+    Some(Expr::Cast {
+        expr: Box::new(Expr::IntegerLiteral(oid)),
+        data_type: DataType::ObjectId(crate::types::ObjectIdKind::RegType),
+        source_type: Some(DataType::BigInt),
+        identity: CastIdentity::Scalar,
+    })
 }
 
 pub(super) fn lower_expression(

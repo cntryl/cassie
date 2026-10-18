@@ -529,7 +529,7 @@ fn pg_database_rows(catalog: &Catalog) -> Vec<VirtualRow> {
 
 fn database_row(database: DatabaseMeta) -> VirtualRow {
     vec![
-        int_value("oid", virtual_views_pg::relation_oid(&database.name)),
+        int_value("oid", virtual_views_pg::database_oid(&database.name)),
         string("datname", database.name),
         int_value("datdba", virtual_views_pg::postgres_role_oid()),
         string("encoding", "UTF8"),
@@ -817,6 +817,7 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::Vector(dimensions) => format!("vector({dimensions})"),
         DataType::Json => "json".to_string(),
         DataType::Array(inner) => format!("{}[]", inner.type_name()),
+        DataType::ObjectId(kind) => kind.name().to_string(),
     }
 }
 

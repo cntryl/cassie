@@ -16,7 +16,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 parking_lot = "0.12"
 thiserror = "2.0"
-uuid = { version = "1.28", features = ["v4", "serde"] }
+uuid = { version = "1.28", features = ["v4", "v7", "serde"] }
 cntryl-midge = "0.4.1"
 cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
 hyper = { version = "1.12", features = ["full"] }
@@ -196,9 +196,12 @@ path = "benches/tier6_soak_transport.rs"
 
 [profile.dev]
 opt-level = 0
+# Line tables keep backtraces readable while cutting link time and target size.
+debug = "line-tables-only"
 
 [profile.test]
 opt-level = 1
+debug = "line-tables-only"
 
 [workspace.lints.clippy]
 pedantic = "warn"

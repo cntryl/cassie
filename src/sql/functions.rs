@@ -4,7 +4,9 @@ pub(crate) use constant_folding::is_immutable_scalar;
 mod catalog;
 mod datum_size;
 mod numeric_identity;
+mod object_identity;
 pub(crate) use numeric_identity::has_unselected_numeric;
+pub(crate) use object_identity::lookup_kind as object_lookup_kind;
 mod runtime;
 pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};
 mod table;
@@ -108,6 +110,16 @@ pub enum FunctionId {
     UnicodeVersion,
     PgColumnCompression,
     PgColumnSize,
+    PgTypeof,
+    ToRegClass,
+    ToRegCollation,
+    ToRegNamespace,
+    ToRegOper,
+    ToRegOperator,
+    ToRegProc,
+    ToRegProcedure,
+    ToRegRole,
+    ToRegType,
 }
 
 #[derive(Debug, Clone)]
@@ -133,6 +145,7 @@ pub enum FunctionReturnType {
     NumericArgument,
     SumArgument,
     Timestamp,
+    ObjectId(crate::types::ObjectIdKind),
     Unknown,
 }
 
@@ -187,6 +200,7 @@ pub fn registry() -> Vec<ScalarFunction> {
         .chain(text::FUNCTIONS)
         .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
+        .chain(object_identity::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
         .cloned()
         .collect()
@@ -199,6 +213,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(text::FUNCTIONS)
         .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
+        .chain(object_identity::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
         .or_else(|| {
@@ -214,6 +229,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || catalog::FUNCTIONS
                             .iter()
+                            .chain(object_identity::FUNCTIONS)
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || text::FUNCTIONS
                             .iter()
@@ -228,6 +244,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         .chain(text::FUNCTIONS)
                         .chain(bytea::FUNCTIONS)
                         .chain(catalog::FUNCTIONS)
+                        .chain(object_identity::FUNCTIONS)
                         .chain(runtime::FUNCTIONS)
                         .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
                 })

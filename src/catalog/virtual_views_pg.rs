@@ -88,9 +88,9 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
 
 pub(super) fn pg_namespace(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = vec![
-        namespace_row("information_schema"),
-        namespace_row("pg_catalog"),
-        namespace_row("public"),
+        namespace_row(catalog, "information_schema", "information_schema"),
+        namespace_row(catalog, "pg_catalog", "pg_catalog"),
+        namespace_row(catalog, "public", "public"),
     ];
     rows.extend(
         catalog
@@ -100,7 +100,7 @@ pub(super) fn pg_namespace(catalog: &Catalog, current_database: Option<&str>) ->
                 current_database
                     .is_none_or(|database| schema_belongs_to_database(&namespace.name, database))
             })
-            .map(|namespace| namespace_row(&local_name(&namespace.name))),
+            .map(|namespace| namespace_row(catalog, &namespace.name, &local_name(&namespace.name))),
     );
     rows.sort_by_key(row_sort_key);
     rows.dedup_by_key(|row| row_sort_key(row));
@@ -166,6 +166,7 @@ pub(super) fn pg_attribute(catalog: &Catalog, current_database: Option<&str>) ->
         for (index, field) in schema.fields.iter().enumerate() {
             let constraint = constraint_for_field(&constraints, &field.name);
             rows.push(attribute_row(
+                catalog,
                 &schema.collection,
                 &field.name,
                 &field.data_type,
@@ -182,6 +183,7 @@ pub(super) fn pg_attribute(catalog: &Catalog, current_database: Option<&str>) ->
         }
         for (index, field) in view.schema.fields.iter().enumerate() {
             rows.push(attribute_row(
+                catalog,
                 &view.name,
                 &field.name,
                 &field.data_type,
@@ -225,7 +227,7 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
                 string("indexrelid", local_name(&index.name)),
                 string("indrelid", local_name(&index.collection)),
                 int_value("indexrelid_oid", index_oid(&index.name)),
-                int_value("indrelid_oid", relation_oid(&index.collection)),
+                int_value("indrelid_oid", relation_oid(catalog, &index.collection)),
                 bool_value("indisunique", index.unique),
                 bool_value("indisprimary", primary),
                 string("indkey", index_keys(catalog, &index)),
@@ -311,6 +313,7 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
 }
 
 fn attribute_row(
+    catalog: &Catalog,
     relation: &str,
     field_name: &str,
     data_type: &DataType,
@@ -319,7 +322,7 @@ fn attribute_row(
 ) -> VirtualRow {
     vec![
         string("attrelid", local_name(relation)),
-        int_value("attrelid_oid", relation_oid(relation)),
+        int_value("attrelid_oid", relation_oid(catalog, relation)),
         string("attname", field_name),
         int_value("attnum", index + 1),
         int_value("atttypid", data_type.type_oid()),
@@ -333,9 +336,9 @@ fn attribute_row(
     ]
 }
 
-fn namespace_row(name: &str) -> VirtualRow {
+fn namespace_row(catalog: &Catalog, canonical: &str, name: &str) -> VirtualRow {
     vec![
-        int_value("oid", namespace_oid(name)),
+        int_value("oid", namespace_oid(catalog, canonical)),
         string("nspname", name),
         int_value("nspowner", postgres_role_oid()),
         string("nspacl", ""),
@@ -346,11 +349,14 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str) -> VirtualRow {
     let relation_name = local_name(name);
     let schema_name = relation_schema_name(name);
     vec![
-        int_value("oid", relation_kind_oid(kind, name)),
+        int_value("oid", relation_kind_oid(catalog, kind, name)),
         string("relname", relation_name),
         string("relkind", kind),
         string("relnamespace", &schema_name),
-        int_value("relnamespace_oid", namespace_oid(&schema_name)),
+        int_value(
+            "relnamespace_oid",
+            namespace_oid(catalog, &relation_namespace(name)),
+        ),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
         string("relpersistence", "p"),
@@ -583,7 +589,11 @@ fn type_category(data_type: &DataType) -> String {
     match data_type {
         DataType::Null => "Z".to_string(),
         DataType::Boolean => "B".to_string(),
-        DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float => "N".to_string(),
+        DataType::SmallInt
+        | DataType::Int
+        | DataType::BigInt
+        | DataType::Float
+        | DataType::ObjectId(_) => "N".to_string(),
         DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Json => {
             "S".to_string()
         }
@@ -605,16 +615,30 @@ pub(super) fn postgres_role_oid() -> i64 {
     10
 }
 
-pub(super) fn namespace_oid(name: &str) -> i64 {
-    match name.to_ascii_lowercase().as_str() {
-        "pg_catalog" => 11,
-        "public" => 2200,
-        "information_schema" => 13428,
-        other => stable_catalog_oid("namespace", other, 50_000),
-    }
+/// `pg_namespace.oid`: the schema's stored identity. `schema` is canonical
+/// (`database.schema`) or one of the database-independent system schemas.
+pub(super) fn namespace_oid(catalog: &Catalog, schema: &str) -> i64 {
+    crate::catalog::object_identity::stored_namespace_oid(catalog, schema).map_or_else(
+        || stable_catalog_oid("namespace", schema, 50_000),
+        i64::from,
+    )
 }
 
-pub(super) fn relation_oid(name: &str) -> i64 {
+/// `pg_class.oid`: the relation's stored identity, which `regclass` shares.
+pub(super) fn relation_oid(catalog: &Catalog, name: &str) -> i64 {
+    crate::catalog::object_identity::stored_relation_oid(catalog, name)
+        .map_or_else(|| stable_catalog_oid("relation", name, 100_000), i64::from)
+}
+
+/// The canonical schema a canonical relation name belongs to.
+fn relation_namespace(relation: &str) -> String {
+    crate::catalog::RelationId::parse_canonical(relation).map_or_else(
+        || relation_schema_name(relation),
+        |relation| crate::catalog::canonical_schema_name(&relation.database, &relation.schema),
+    )
+}
+
+pub(super) fn database_oid(name: &str) -> i64 {
     stable_catalog_oid("relation", name, 100_000)
 }
 
@@ -626,11 +650,11 @@ pub(super) fn constraint_oid(collection: &str, constraint: &str) -> i64 {
     stable_catalog_oid("constraint", &format!("{collection}.{constraint}"), 300_000)
 }
 
-fn relation_kind_oid(kind: &str, name: &str) -> i64 {
+fn relation_kind_oid(catalog: &Catalog, kind: &str, name: &str) -> i64 {
     if kind == "i" {
         index_oid(name)
     } else {
-        relation_oid(name)
+        relation_oid(catalog, name)
     }
 }
 

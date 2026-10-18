@@ -15,6 +15,9 @@ pub struct SequenceMeta {
     pub start_value: i64,
     pub increment_by: i64,
     pub current_value: i64,
+    /// Stable relation identity allocated at creation; renames keep it.
+    #[serde(default)]
+    pub object_id: u64,
 }
 
 impl SequenceMeta {
@@ -25,6 +28,7 @@ impl SequenceMeta {
             start_value: 1,
             increment_by: 1,
             current_value: 0,
+            object_id: 0,
         }
     }
 }

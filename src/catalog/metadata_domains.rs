@@ -194,8 +194,12 @@ impl Catalog {
     }
 
     pub fn register_namespace(&self, name: &str, description: Option<String>) {
+        self.register_namespace_meta(NamespaceMeta::new(name, description));
+    }
+
+    pub fn register_namespace_meta(&self, metadata: NamespaceMeta) {
         let mut namespaces = self.namespaces.write();
-        namespaces.insert(name.to_string(), NamespaceMeta::new(name, description));
+        namespaces.insert(metadata.name.clone(), metadata);
         self.bump_version();
     }
 
@@ -206,15 +210,23 @@ impl Catalog {
 
     pub fn rename_namespace(&self, current_name: &str, next_name: &str) {
         let mut namespaces = self.namespaces.write();
-        let Some(namespace) = namespaces.remove(current_name) else {
+        let Some(mut namespace) = namespaces.remove(current_name) else {
             return;
         };
-        let description = namespace.description;
-        namespaces.insert(
-            next_name.to_string(),
-            NamespaceMeta::new(next_name, description),
-        );
+        next_name.clone_into(&mut namespace.name);
+        namespaces.insert(next_name.to_string(), namespace);
         self.bump_version();
+    }
+
+    #[must_use]
+    pub fn get_namespace(&self, name: &str) -> Option<NamespaceMeta> {
+        let namespaces = self.namespaces.read();
+        namespaces.get(name).cloned().or_else(|| {
+            namespaces
+                .iter()
+                .find(|(stored, _)| name_matches(stored, name))
+                .map(|(_, metadata)| metadata.clone())
+        })
     }
 
     #[must_use]

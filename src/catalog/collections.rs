@@ -377,6 +377,9 @@ pub struct ProjectionMeta {
 pub struct NamespaceMeta {
     pub name: String,
     pub description: Option<String>,
+    /// Stable identity allocated at creation; renames keep it.
+    #[serde(default)]
+    pub object_id: u64,
 }
 
 impl CollectionMeta {
@@ -550,6 +553,7 @@ impl NamespaceMeta {
         Self {
             name: name.into(),
             description,
+            object_id: 0,
         }
     }
 }

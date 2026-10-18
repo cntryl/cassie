@@ -104,10 +104,14 @@ fn create_view_gated(
     let schema =
         crate::sql::binder::infer_select_schema_with_context(select, &cassie.catalog, &context)
             .map_err(|error| QueryError::General(error.to_string()))?;
-    let metadata =
+    let mut metadata =
         crate::catalog::ViewMeta::new(statement.name.clone(), statement.query.clone(), schema);
 
     let output = empty_command("CREATE VIEW", controls)?;
+    metadata.object_id = cassie
+        .midge
+        .allocate_object_id()
+        .map_err(|error| QueryError::General(error.to_string()))?;
     cassie
         .midge
         .put_view(&metadata)
@@ -193,11 +197,11 @@ pub(super) fn create_schema(
     }
 
     let output = empty_command("CREATE SCHEMA", controls)?;
-    cassie
+    let namespace = cassie
         .midge
         .create_namespace(&statement.schema)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.register_namespace(&statement.schema, None);
+    cassie.catalog.register_namespace_meta(namespace);
 
     Ok(output)
 }

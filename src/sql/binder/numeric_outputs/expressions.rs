@@ -20,8 +20,17 @@ impl Analyzer<'_> {
             // A declared existing-type CAST is the selected output ABI
             // boundary. Ordinary expression/Boolean validation still visits
             // its child in the core path; this does not excuse invalid input.
-            Expr::Cast { data_type, .. } => {
-                if let Some(original) = super::super::result_coercion::original_operand(expression)
+            Expr::Cast {
+                data_type,
+                identity,
+                ..
+            } => {
+                if *identity == crate::sql::ast::CastIdentity::Numeric {
+                    let mut output = OutputType::fixed(data_type.clone());
+                    output.proven_float8 = false;
+                    output
+                } else if let Some(original) =
+                    super::super::result_coercion::original_operand(expression)
                 {
                     self.expression(original, lookup)?
                 } else {
@@ -43,42 +52,89 @@ impl Analyzer<'_> {
                 OutputType::common_result(&values)?
             }
             Expr::Function(function) => self.function(function, lookup)?,
+            Expr::NumericLiteral(_) => {
+                return Err(CassieError::Unsupported(
+                    "unmaterialized NUMERIC literal requires an explicit primitive cast".into(),
+                ))
+            }
             Expr::StringLiteral(_) => OutputType::fixed(DataType::Text),
             Expr::NumberLiteral(_) => {
                 let mut output = OutputType::fixed(DataType::Float);
                 output.proven_float8 = false;
                 output
             }
+            Expr::UnaryNumeric { expr, op } => {
+                if matches!(
+                    op,
+                    crate::sql::ast::UnaryNumericOp::SquareRoot
+                        | crate::sql::ast::UnaryNumericOp::CubeRoot
+                ) || matches!(
+                    op,
+                    crate::sql::ast::UnaryNumericOp::Plus
+                        | crate::sql::ast::UnaryNumericOp::Absolute
+                ) && super::super::unary_numeric::is_unknown_operand(expr)
+                {
+                    OutputType::fixed(DataType::Float)
+                } else {
+                    self.expression(expr, lookup)?
+                }
+            }
+            Expr::IntegerNegate { width, .. } => OutputType::fixed(width.data_type()),
             Expr::IntegerLiteral(value) => {
                 OutputType::fixed(inference::integer_literal_type(*value))
             }
-            Expr::BoolLiteral(_)
+            Expr::RowCompare(_)
+            | Expr::BoolLiteral(_)
             | Expr::Exists(_)
             | Expr::IsNull { .. }
+            | Expr::TruthTest { .. }
             | Expr::InList { .. }
             | Expr::Between { .. }
+            | Expr::Like { .. }
             | Expr::Not { .. } => OutputType::fixed(DataType::Boolean),
             Expr::Null => OutputType::fixed(DataType::Null),
-            Expr::Binary { left, op, right } => match op {
-                BinaryOp::And
-                | BinaryOp::Or
-                | BinaryOp::Eq
-                | BinaryOp::NotEq
-                | BinaryOp::IsDistinctFrom
-                | BinaryOp::IsNotDistinctFrom
-                | BinaryOp::Lt
-                | BinaryOp::Lte
-                | BinaryOp::Gt
-                | BinaryOp::Gte
-                | BinaryOp::Like => OutputType::fixed(DataType::Boolean),
-                BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
-                    OutputType::fixed(DataType::Float)
-                }
-                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => arithmetic(
-                    &self.expression(left, lookup)?,
-                    &self.expression(right, lookup)?,
-                ),
-            },
+            Expr::Binary { left, op, right } => self.binary_output(left, op, right, lookup)?,
+        })
+    }
+
+    fn binary_output(
+        &self,
+        left: &Expr,
+        op: &BinaryOp,
+        right: &Expr,
+        lookup: &[OutputField],
+    ) -> Result<OutputType, CassieError> {
+        Ok(match op {
+            BinaryOp::And
+            | BinaryOp::Or
+            | BinaryOp::Eq
+            | BinaryOp::NotEq
+            | BinaryOp::IsDistinctFrom
+            | BinaryOp::IsNotDistinctFrom
+            | BinaryOp::Lt
+            | BinaryOp::Lte
+            | BinaryOp::Gt
+            | BinaryOp::Gte
+            | BinaryOp::Like => OutputType::fixed(DataType::Boolean),
+            BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
+                OutputType::fixed(DataType::Float)
+            }
+            BinaryOp::Power => OutputType::fixed(DataType::Float),
+            BinaryOp::Concat => OutputType::fixed(DataType::Text),
+            BinaryOp::ByteaConcat => OutputType::fixed(DataType::Bytea),
+            BinaryOp::Bitwise { operation } if operation.is_shift() => {
+                self.expression(left, lookup)?
+            }
+            BinaryOp::Integer { width, .. } => OutputType::fixed(width.data_type()),
+            BinaryOp::Add
+            | BinaryOp::Sub
+            | BinaryOp::Mul
+            | BinaryOp::Div
+            | BinaryOp::Modulo
+            | BinaryOp::Bitwise { .. } => arithmetic(
+                &self.expression(left, lookup)?,
+                &self.expression(right, lookup)?,
+            ),
         })
     }
 
@@ -89,7 +145,13 @@ impl Analyzer<'_> {
     ) -> Result<OutputType, CassieError> {
         self.check_controls()?;
         let name = function.name.to_ascii_lowercase();
-        if let Some(metadata) = self.functions.get(&name) {
+        if let Some(metadata) = self.functions.get(&name).filter(|metadata| {
+            !crate::sql::functions::has_distinct_builtin_arity(
+                &name,
+                function.args.len(),
+                metadata.args.len(),
+            )
+        }) {
             return Ok(OutputType::fixed(metadata.return_type.clone()));
         }
         let Some(metadata) = crate::sql::functions::function(&name) else {
@@ -175,6 +237,7 @@ fn fixed_function_type(policy: FunctionReturnType) -> Option<DataType> {
     match policy {
         FunctionReturnType::Float => Some(DataType::Float),
         FunctionReturnType::Text => Some(DataType::Text),
+        FunctionReturnType::Bytea => Some(DataType::Bytea),
         FunctionReturnType::Int => Some(DataType::Int),
         FunctionReturnType::BigInt => Some(DataType::BigInt),
         FunctionReturnType::Boolean => Some(DataType::Boolean),

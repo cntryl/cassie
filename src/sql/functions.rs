@@ -1,13 +1,45 @@
+mod constant_folding;
+pub(crate) mod primitive_casts;
+pub(crate) use constant_folding::is_immutable_scalar;
+mod catalog;
+mod datum_size;
+mod numeric_identity;
+pub(crate) use numeric_identity::has_unselected_numeric;
+mod runtime;
+pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};
+mod table;
+pub(crate) use runtime::{is_loaded_modules, is_runtime_helper, loaded_modules_columns};
+pub(crate) use table::{catalog_table_columns, is_catalog_table, is_options_table};
+mod bytea;
 mod inputs;
-pub(crate) use inputs::{input_signature, FunctionInputSignature};
+pub(crate) use bytea::{
+    bit_input_selection, has_distinct_builtin_arity, is_bytea_function, BitInputSelection,
+};
+mod text;
+pub(crate) use inputs::{
+    aggregate_accepts_input, has_distinct_equality, input_signature, FunctionInputSignature,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FunctionId {
+    Encode,
+    Decode,
+    GetByte,
+    SetByte,
+    GetBit,
+    SetBit,
+    BitCount,
+    Sha224,
+    Sha256,
+    Sha384,
+    Sha512,
     Count,
     Sum,
     Avg,
     Min,
     Max,
+    BoolAnd,
+    BoolOr,
     Search,
     SearchScore,
     VectorDistance,
@@ -21,8 +53,12 @@ pub enum FunctionId {
     CurrentSetting,
     SetConfig,
     PgEncodingToChar,
+    PgCharToEncoding,
+    PgSizeBytes,
+    PgSizePretty,
     HasDatabasePrivilege,
     PgBackendPid,
+    CurrentQuery,
     CurrentSchema,
     CurrentDatabase,
     CurrentUser,
@@ -41,17 +77,37 @@ pub enum FunctionId {
     Upper,
     Substring,
     Trim,
+    Ltrim,
+    Rtrim,
+    SplitPart,
+    Strpos,
+    Left,
+    Right,
+    OctetLength,
+    BitLength,
+    Ascii,
+    Chr,
+    StartsWith,
+    NumNulls,
+    NumNonNulls,
     Concat,
     Coalesce,
     NullIf,
     Greatest,
     Least,
     Abs,
+    Power,
     TimeBucket,
     GraphNeighbors,
     GraphExpand,
     GraphShortestPath,
     PgShowAllSettings,
+    PgIsInRecovery,
+    PgJitAvailable,
+    PgNumaAvailable,
+    UnicodeVersion,
+    PgColumnCompression,
+    PgColumnSize,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +122,7 @@ pub struct ScalarFunction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionReturnType {
+    Bytea,
     Float,
     Text,
     Int,
@@ -125,23 +182,67 @@ pub fn aggregate_arity(name: &str) -> Option<usize> {
 
 #[must_use]
 pub fn registry() -> Vec<ScalarFunction> {
-    SCALAR_FUNCTIONS.to_vec()
+    SCALAR_FUNCTIONS
+        .iter()
+        .chain(text::FUNCTIONS)
+        .chain(bytea::FUNCTIONS)
+        .chain(catalog::FUNCTIONS)
+        .chain(runtime::FUNCTIONS)
+        .cloned()
+        .collect()
 }
 
 #[must_use]
 pub fn function(name: &str) -> Option<&'static ScalarFunction> {
-    let name = name
-        .get(..11)
-        .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
-        .and_then(|_| name.get(11..))
-        .filter(|local_name| local_name.eq_ignore_ascii_case("pg_show_all_settings"))
-        .unwrap_or(name);
     SCALAR_FUNCTIONS
         .iter()
+        .chain(text::FUNCTIONS)
+        .chain(bytea::FUNCTIONS)
+        .chain(catalog::FUNCTIONS)
+        .chain(runtime::FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
+        .or_else(|| {
+            name.get(..11)
+                .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
+                .and_then(|_| name.get(11..))
+                .filter(|local| {
+                    ["pg_show_all_settings", "substring", "trim", "power", "abs"]
+                        .iter()
+                        .any(|candidate| candidate.eq_ignore_ascii_case(local))
+                        || runtime::FUNCTIONS
+                            .iter()
+                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                        || catalog::FUNCTIONS
+                            .iter()
+                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                        || text::FUNCTIONS
+                            .iter()
+                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                        || bytea::FUNCTIONS
+                            .iter()
+                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                })
+                .and_then(|local| {
+                    SCALAR_FUNCTIONS
+                        .iter()
+                        .chain(text::FUNCTIONS)
+                        .chain(bytea::FUNCTIONS)
+                        .chain(catalog::FUNCTIONS)
+                        .chain(runtime::FUNCTIONS)
+                        .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                })
+        })
 }
 
 const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
+    ScalarFunction {
+        id: FunctionId::Power,
+        name: "power",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::Float,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
     ScalarFunction {
         id: FunctionId::Count,
         name: "count",
@@ -179,6 +280,54 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         name: "max",
         arity: FunctionArity::Exact(1),
         return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolAnd,
+        name: "bool_and",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolAnd,
+        name: "pg_catalog.bool_and",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolOr,
+        name: "bool_or",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolOr,
+        name: "pg_catalog.bool_or",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolAnd,
+        name: "every",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::BoolAnd,
+        name: "pg_catalog.every",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
         is_aggregate: true,
         bypass_arity_validation: false,
     },
@@ -569,7 +718,7 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
     ScalarFunction {
         id: FunctionId::Trim,
         name: "trim",
-        arity: FunctionArity::Exact(1),
+        arity: FunctionArity::Range { min: 1, max: 2 },
         return_type: FunctionReturnType::Text,
         is_aggregate: false,
         bypass_arity_validation: false,

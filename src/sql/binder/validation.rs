@@ -10,7 +10,7 @@ use case::case_operand_family;
 mod vector;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OperandFamily {
+pub(super) enum OperandFamily {
     Numeric,
     Boolean,
     Text,
@@ -68,7 +68,7 @@ fn validate_select_item_operand_families(
     match item {
         SelectItem::Wildcard | SelectItem::Column { .. } => Ok(()),
         SelectItem::Function { function, .. } => {
-            for argument in &function.args {
+            for argument in function.expressions() {
                 validate_expression_operand_families(argument, field_types)?;
             }
             vector::validate_vector_function_query(function, field_types)?;
@@ -107,7 +107,9 @@ fn expression_operand_family(
             .filter(|data_type| !matches!(data_type, DataType::Null))
             .map(data_type_family)),
         Expr::StringLiteral(value) => Ok(Some(string_literal_family(value))),
-        Expr::NumberLiteral(_) | Expr::IntegerLiteral(_) => Ok(Some(OperandFamily::Numeric)),
+        Expr::NumberLiteral(_) | Expr::IntegerLiteral(_) | Expr::NumericLiteral(_) => {
+            Ok(Some(OperandFamily::Numeric))
+        }
         Expr::BoolLiteral(_) => Ok(Some(OperandFamily::Boolean)),
         Expr::Null | Expr::Param(_) | Expr::Exists(_) => Ok(None),
         Expr::Case {
@@ -121,17 +123,29 @@ fn expression_operand_family(
             field_types,
         ),
         Expr::Function(function) => {
-            for argument in &function.args {
+            for argument in function.expressions() {
                 validate_expression_operand_families(argument, field_types)?;
             }
             vector::validate_vector_function_query(function, field_types)?;
             Ok(None)
         }
-        Expr::Cast { expr, data_type } => {
+        Expr::RowCompare(comparison) => {
+            for (left, right) in comparison.left.iter().zip(&comparison.right) {
+                binary_operand_family(left, &comparison.op.binary(), right, field_types)?;
+            }
+            Ok(Some(OperandFamily::Boolean))
+        }
+        Expr::UnaryNumeric { expr, .. } | Expr::IntegerNegate { expr, .. } => {
+            validate_expression_operand_families(expr, field_types)?;
+            Ok(Some(OperandFamily::Numeric))
+        }
+        Expr::Cast {
+            expr, data_type, ..
+        } => {
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(data_type_family(data_type)))
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } => {
+        Expr::IsNull { expr, .. } | Expr::TruthTest { expr, .. } | Expr::Not { expr } => {
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(OperandFamily::Boolean))
         }
@@ -151,6 +165,16 @@ fn expression_operand_family(
                     true,
                 )?;
                 require_compatible_families(expression_family, value_family, "IN")?;
+            }
+            Ok(Some(OperandFamily::Boolean))
+        }
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => {
+            for operand in [expr, pattern, escape] {
+                expression_operand_family(operand, field_types)?;
             }
             Ok(Some(OperandFamily::Boolean))
         }
@@ -180,6 +204,40 @@ fn binary_operand_family(
     let left_family = expression_operand_family(left, field_types)?;
     let right_family = expression_operand_family(right, field_types)?;
     match op {
+        BinaryOp::ByteaConcat => Ok(Some(OperandFamily::Other)),
+        BinaryOp::Concat => {
+            // Parameter OIDs choose the text or BYTEA overload in the typed pass.
+            if expr_contains_parameters(left) || expr_contains_parameters(right) {
+                return Ok(None);
+            }
+            let family = |expr: &Expr, inferred| {
+                if matches!(expr, Expr::StringLiteral(_)) {
+                    Some(OperandFamily::Text)
+                } else {
+                    inferred
+                }
+            };
+            let left = family(left, left_family);
+            let right = family(right, right_family);
+            if [left, right].into_iter().flatten().any(|family| {
+                !matches!(
+                    family,
+                    OperandFamily::Numeric | OperandFamily::Boolean | OperandFamily::Text
+                )
+            }) {
+                return Err(CassieError::Unsupported(
+                    "concatenation for this input layout remains pending under #793/#796".into(),
+                ));
+            }
+            if left.is_some_and(|family| family != OperandFamily::Text)
+                && right.is_some_and(|family| family != OperandFamily::Text)
+            {
+                return Err(CassieError::Execution(
+                    "operator does not exist: non-text || non-text".into(),
+                ));
+            }
+            Ok(Some(OperandFamily::Text))
+        }
         BinaryOp::And | BinaryOp::Or => Ok(Some(OperandFamily::Boolean)),
         BinaryOp::Eq
         | BinaryOp::NotEq
@@ -213,7 +271,14 @@ fn binary_operand_family(
             require_family(right_family, OperandFamily::Text, "LIKE")?;
             Ok(Some(OperandFamily::Boolean))
         }
-        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+        BinaryOp::Power
+        | BinaryOp::Integer { .. }
+        | BinaryOp::Add
+        | BinaryOp::Sub
+        | BinaryOp::Mul
+        | BinaryOp::Div
+        | BinaryOp::Modulo
+        | BinaryOp::Bitwise { .. } => {
             require_family(left_family, OperandFamily::Numeric, "arithmetic")?;
             require_family(right_family, OperandFamily::Numeric, "arithmetic")?;
             Ok(Some(OperandFamily::Numeric))
@@ -283,7 +348,7 @@ fn contextual_string_literal_families(
     }
 }
 
-fn require_compatible_families(
+pub(super) fn require_compatible_families(
     left: Option<OperandFamily>,
     right: Option<OperandFamily>,
     operation: &str,
@@ -336,7 +401,7 @@ fn families_compatible(left: OperandFamily, right: OperandFamily) -> bool {
         )
 }
 
-const fn data_type_family(data_type: &DataType) -> OperandFamily {
+pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
     match data_type {
         DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float => {
             OperandFamily::Numeric
@@ -448,7 +513,9 @@ pub(super) fn parsed_statement_contains_parameters(statement: &ParsedStatement) 
 pub(super) fn select_item_contains_parameters(item: &SelectItem) -> bool {
     match item {
         SelectItem::Wildcard | SelectItem::Column { .. } => false,
-        SelectItem::Function { function, .. } => function.args.iter().any(expr_contains_parameters),
+        SelectItem::Function { function, .. } => {
+            function.expressions().any(expr_contains_parameters)
+        }
         SelectItem::Expr { expr, .. } => expr_contains_parameters(expr),
         SelectItem::WindowFunction { function, .. } => {
             function.args.iter().any(expr_contains_parameters)
@@ -463,10 +530,12 @@ pub(super) fn select_item_contains_parameters(item: &SelectItem) -> bool {
 
 pub(super) fn source_contains_parameters(source: &QuerySource) -> bool {
     match source {
+        QuerySource::Values { rows } => rows.iter().flatten().any(expr_contains_parameters),
+
         QuerySource::Aliased { source, .. } => source_contains_parameters(source),
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
         QuerySource::TableFunction { function, .. } => {
-            function.args.iter().any(expr_contains_parameters)
+            function.expressions().any(expr_contains_parameters)
         }
         QuerySource::Subquery { select, .. } => select_contains_parameters(select),
         QuerySource::Join {
@@ -495,9 +564,15 @@ pub(super) fn qualified_fields(
     let mut out = HashSet::new();
     for field in fields {
         let field = crate::sql::ColumnIdentifierPath::from_field_name(&field).lookup_key();
-        out.insert(field.clone());
+        let duplicate = !out.insert(field.clone());
+        if duplicate {
+            out.insert(format!("__cassie_ambiguous__.{field}"));
+        }
         for qualifier in &qualifiers {
             out.insert(format!("{qualifier}.{field}"));
+            if duplicate {
+                out.insert(format!("__cassie_ambiguous__.{qualifier}.{field}"));
+            }
         }
     }
     out
@@ -537,62 +612,7 @@ pub(super) fn validate_functions(
     validate_function_calls(seen, catalog, context)
 }
 
-pub(super) fn validate_function_calls(
-    functions: Vec<FunctionCall>,
-    catalog: &Catalog,
-    context: &super::BindingContext,
-) -> Result<(), CassieError> {
-    let user_functions = crate::catalog::function_resolution::functions_for_scope(
-        &catalog.list_functions(),
-        &context.database,
-        &context.search_path,
-        context.scopes_database_objects(),
-    );
-
-    for function in functions {
-        if function.name.eq_ignore_ascii_case("cast") {
-            if function.args.len() != 2 {
-                return Err(CassieError::Planner(format!(
-                    "function '{}' expects 2 args",
-                    function.name
-                )));
-            }
-            continue;
-        }
-        if let Some(metadata) = crate::sql::functions::function(&function.name) {
-            if metadata.bypass_arity_validation {
-                continue;
-            }
-            if !metadata.arity.matches(function.args.len()) {
-                return Err(CassieError::Planner(format!(
-                    "function '{}' expects {}, got {}",
-                    function.name,
-                    metadata.arity.describe(),
-                    function.args.len()
-                )));
-            }
-            continue;
-        }
-        let lookup = function.name.to_ascii_lowercase();
-        let Some(metadata) = user_functions.get(&lookup) else {
-            return Err(CassieError::Planner(format!(
-                "unsupported function '{}'",
-                function.name
-            )));
-        };
-        if function.args.len() != metadata.args.len() {
-            return Err(CassieError::Planner(format!(
-                "function '{}' expects {}, got {}",
-                function.name,
-                metadata.args.len(),
-                function.args.len()
-            )));
-        }
-        crate::sql::definition_guard::expression_sql(&metadata.body)?;
-    }
-
-    Ok(())
-}
+pub(super) use super::function_validation::validate_function_calls;
 
 pub(super) fn validate_projection_references(
     projection: &[SelectItem],
@@ -614,7 +634,7 @@ pub(super) fn validate_projection_references(
                     validate_aggregate_function_args(function, known_fields)?;
                     continue;
                 }
-                for arg in &function.args {
+                for arg in function.expressions() {
                     validate_expression(arg, known_fields, &HashSet::new(), false)?;
                 }
             }
@@ -700,14 +720,8 @@ fn validate_column_reference(
     projection_aliases: &HashSet<String>,
     allow_projection_alias: bool,
 ) -> Result<(), CassieError> {
-    let column = crate::sql::ColumnIdentifierPath::parse(name).ok();
-    let is_qualified = column
-        .as_ref()
-        .is_some_and(crate::sql::ColumnIdentifierPath::is_qualified);
-    if !is_qualified && known_fields.contains(&format!("__cassie_ambiguous__.{name}")) {
-        return Err(CassieError::Planner(format!(
-            "column reference '{name}' is ambiguous"
-        )));
+    if known_fields.contains(&format!("__cassie_ambiguous__.{name}")) {
+        return Err(CassieError::AmbiguousColumn(name.to_string()));
     }
     if known_fields.contains("*") || known_fields.contains(name) {
         return Ok(());
@@ -717,9 +731,7 @@ fn validate_column_reference(
     {
         return Ok(());
     }
-    Err(CassieError::Planner(format!(
-        "unresolvable column reference '{name}'; known fields or aliases required"
-    )))
+    Err(CassieError::UndefinedColumn(name.into()))
 }
 
 pub(super) fn validate_expression(
@@ -752,7 +764,17 @@ pub(super) fn validate_expression(
             projection_aliases,
             allow_projection_alias,
         )
-    })
+    })?;
+    if let Expr::Cast {
+        expr,
+        data_type,
+        identity,
+        ..
+    } = expr
+    {
+        crate::sql::literal_inputs::validate(expr, data_type, *identity)?;
+    }
+    Ok(())
 }
 
 pub(super) fn validate_aggregate_function_args(
@@ -770,12 +792,21 @@ pub(super) fn validate_aggregate_function_args(
             function.args.len()
         )));
     }
-    if function.name.eq_ignore_ascii_case("count")
-        && matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*")
-    {
-        return Ok(());
-    }
     for arg in &function.args {
+        if crate::sql::functions::function(&function.name)
+            .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::Count)
+            && matches!(arg, Expr::Column(name) if name == "*")
+        {
+            continue;
+        }
+        validate_expression(arg, known_fields, &HashSet::new(), false)?;
+    }
+    for arg in function
+        .filter
+        .iter()
+        .map(Box::as_ref)
+        .chain(function.order_by.iter().map(|order| &order.expr))
+    {
         validate_expression(arg, known_fields, &HashSet::new(), false)?;
     }
     Ok(())
@@ -827,10 +858,18 @@ pub(super) fn collect_functions(statement: &SelectStatement, out: &mut Vec<Funct
 
 fn collect_source_functions(source: &QuerySource, out: &mut Vec<FunctionCall>) {
     match source {
+        QuerySource::Values { rows } => {
+            for expr in rows.iter().flatten() {
+                collect_expr(expr, out);
+            }
+        }
+
         QuerySource::Aliased { source, .. } => collect_source_functions(source, out),
         QuerySource::TableFunction { function, .. } => {
-            out.push(function.clone());
-            for arg in &function.args {
+            if !crate::sql::functions::is_catalog_table(&function.name) {
+                out.push(function.clone());
+            }
+            for arg in function.expressions() {
                 collect_expr(arg, out);
             }
         }
@@ -850,7 +889,7 @@ pub(super) fn collect_item(item: &SelectItem, out: &mut Vec<FunctionCall>) {
     match item {
         SelectItem::Function { function, .. } => {
             out.push(function.clone());
-            for arg in &function.args {
+            for arg in function.expressions() {
                 collect_expr(arg, out);
             }
         }
@@ -873,9 +912,14 @@ pub(super) fn collect_item(item: &SelectItem, out: &mut Vec<FunctionCall>) {
 }
 
 pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
+    if let Expr::RowCompare(comparison) = expr {
+        for field in comparison.left.iter().chain(&comparison.right) {
+            collect_expr(field, out);
+        }
+    }
     if let Expr::Function(function) = expr {
-        out.push(function.clone());
-        for arg in &function.args {
+        out.push((**function).clone());
+        for arg in function.expressions() {
             collect_expr(arg, out);
         }
     }
@@ -883,7 +927,7 @@ pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
         collect_expr(left, out);
         collect_expr(right, out);
     }
-    if let Expr::IsNull { expr, .. } = expr {
+    if let Expr::IsNull { expr, .. } | Expr::TruthTest { expr, .. } = expr {
         collect_expr(expr, out);
     }
     if let Expr::InList { expr, values, .. } = expr {
@@ -894,13 +938,21 @@ pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
     }
     if let Expr::Between {
         expr, low, high, ..
+    }
+    | Expr::Like {
+        expr,
+        pattern: low,
+        escape: high,
     } = expr
     {
         collect_expr(expr, out);
         collect_expr(low, out);
         collect_expr(high, out);
     }
-    if let Expr::Cast { expr, .. } = expr {
+    if let Expr::Cast { expr, .. }
+    | Expr::UnaryNumeric { expr, .. }
+    | Expr::IntegerNegate { expr, .. } = expr
+    {
         collect_expr(expr, out);
     }
     if let Expr::Not { expr } = expr {
@@ -924,7 +976,9 @@ fn source_cte_reference_count(source: &QuerySource, cte_name: &str) -> usize {
         QuerySource::Aliased { source, .. } => source_cte_reference_count(source, cte_name),
         QuerySource::Cte(name) => usize::from(name.eq_ignore_ascii_case(cte_name)),
         QuerySource::Collection(name) => usize::from(name.as_str().eq_ignore_ascii_case(cte_name)),
-        QuerySource::TableFunction { .. } | QuerySource::SingleRow => 0,
+        QuerySource::TableFunction { .. } | QuerySource::Values { .. } | QuerySource::SingleRow => {
+            0
+        }
         QuerySource::Subquery { select, .. } => {
             source_cte_reference_count(&select.source, cte_name)
         }

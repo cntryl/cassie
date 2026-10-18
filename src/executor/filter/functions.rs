@@ -8,12 +8,32 @@ use crate::executor::batch::RowAccess;
 use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, UtcOffset};
 
+#[path = "bytea_functions.rs"]
+mod bytea_functions;
+#[path = "catalog_sizes.rs"]
+mod catalog_sizes;
+#[path = "datum_size.rs"]
+mod datum_size;
+#[path = "encoding.rs"]
+mod encoding;
+#[path = "math.rs"]
+pub(super) mod math;
+#[path = "runtime_information.rs"]
+mod runtime_information;
+#[path = "text_scalar.rs"]
+mod text_scalar;
+#[path = "text_selection.rs"]
+mod text_selection;
+
 pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     row: &R,
     context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
+    if crate::sql::functions::is_column_size(&name) {
+        return datum_size::evaluate(function, row, context);
+    }
     if name == "coalesce" {
         return evaluate_coalesce(function, row, context);
     }
@@ -21,8 +41,10 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     let args: Vec<Value> = function
         .args
         .iter()
-        .map(|arg| {
-            super::conditional::evaluate_argument(&name, arg, row, context)
+        .enumerate()
+        .map(|(index, arg)| {
+            text_selection::literal_argument(&name, index, arg, &function.args, context.params)
+                .or_else(|| super::conditional::evaluate_argument(&name, arg, row, context))
                 .unwrap_or_else(|| super::evaluate_expr_value_with_context(row, arg, context))
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -34,6 +56,11 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         &args,
         context.search_context,
         context.session,
+        context.controls.or_else(|| {
+            context
+                .session
+                .and_then(CassieSession::statement_execution_controls)
+        }),
     )
     .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args))
 }
@@ -45,13 +72,29 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     args: &[Value],
     search_context: Option<&SearchContext>,
     session: Option<&CassieSession>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Option<Result<Value, QueryError>> {
-    evaluate_system_function(name, row, args, session)
+    runtime_information::evaluate(name, args, session)
+        .or_else(|| evaluate_system_function(name, row, args, session))
         .or_else(|| super::conditional::evaluate(name, args))
-        .or_else(|| evaluate_text_function(name, args))
+        .or_else(|| {
+            let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
+            bytea_functions::evaluate(local, args, controls)
+                .or_else(|| math::evaluate(local, args))
+                .or_else(|| catalog_sizes::evaluate(local, args))
+                .or_else(|| text_selection::evaluate(local, args))
+                .or_else(|| text_scalar::evaluate(local, args))
+                .or_else(|| evaluate_text_function(local, args))
+        })
         .or_else(|| evaluate_search_function(name, function, args, search_context))
         .or_else(|| evaluate_vector_function(name, function, args))
-        .or_else(|| evaluate_cast_function(name, args))
+        .or_else(|| {
+            evaluate_cast_function(
+                name,
+                args,
+                controls.or_else(|| session.and_then(CassieSession::statement_execution_controls)),
+            )
+        })
         .or_else(|| (name == "time_bucket").then(|| evaluate_time_bucket(args)))
 }
 
@@ -78,10 +121,25 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         "set_config" | "pg_catalog.set_config" => Some(evaluate_set_config(name, args, session)),
         "pg_encoding_to_char" | "pg_catalog.pg_encoding_to_char" => Some(
             require_arg_count(name, args, 1).map(|()| match args.first() {
-                Some(Value::Int64(6)) => Value::String("UTF8".to_string()),
+                Some(Value::Null) => Value::Null,
+                Some(Value::Int64(encoding)) => {
+                    Value::String(encoding::encoding_to_char(*encoding).to_owned())
+                }
                 _ => Value::String(String::new()),
             }),
         ),
+        "pg_char_to_encoding" | "pg_catalog.pg_char_to_encoding" => {
+            Some(require_arg_count(name, args, 1).and_then(|()| {
+                match &args[0] {
+                    Value::Null => Ok(Value::Null),
+                    Value::String(input) => Ok(Value::Int64(encoding::char_to_encoding(input))),
+                    _ => Err(crate::app::CassieError::Execution(
+                        "function pg_char_to_encoding(bigint) does not exist".into(),
+                    )
+                    .into()),
+                }
+            }))
+        }
         "has_database_privilege" | "pg_catalog.has_database_privilege" => {
             Some(require_arg_count_range(name, args, 2..=3).map(|()| Value::Bool(true)))
         }
@@ -262,19 +320,12 @@ fn value_as_string(value: &Value) -> Option<String> {
 
 fn evaluate_text_function(name: &str, args: &[Value]) -> Option<Result<Value, QueryError>> {
     match name {
-        "length" | "len" => Some(unary_nullable_text(name, args, |text| {
-            Value::Int64(i64::try_from(text.chars().count()).unwrap_or(i64::MAX))
-        })),
         "lower" => Some(unary_nullable_text(name, args, |text| {
             Value::String(text.to_lowercase())
         })),
         "upper" => Some(unary_nullable_text(name, args, |text| {
             Value::String(text.to_uppercase())
         })),
-        "trim" => Some(unary_nullable_text(name, args, |text| {
-            Value::String(text.trim().to_string())
-        })),
-        "substring" => Some(evaluate_substring(name, args)),
         "concat" => Some(evaluate_concat(name, args)),
         "abs" => Some(evaluate_abs(name, args)),
         _ => None,
@@ -322,12 +373,24 @@ fn evaluate_vector_function(
     }
 }
 
-fn evaluate_cast_function(name: &str, args: &[Value]) -> Option<Result<Value, QueryError>> {
+fn execution_controls(context: EvalContext<'_>) -> Option<&crate::runtime::QueryExecutionControls> {
+    context.controls.or_else(|| {
+        context
+            .session
+            .and_then(CassieSession::statement_execution_controls)
+    })
+}
+
+fn evaluate_cast_function(
+    name: &str,
+    args: &[Value],
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Option<Result<Value, QueryError>> {
     (name == "cast").then(|| {
         require_arg_count("cast", args, 2)?;
         let target = DataType::parse_sql(&to_text(&args[1]))
             .map_err(|_| QueryError::General("cannot cast value".to_string()))?;
-        let value = cast_scalar(&scalar_from_value(&args[0]), &target)?;
+        let value = cast_scalar(&scalar_from_value(&args[0]), &target, controls)?;
         Ok(value.to_value())
     })
 }
@@ -364,7 +427,11 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         .iter()
         .zip(args)
         .map(|(arg, value)| {
-            let value = cast_scalar(&scalar_from_value(&value), &arg.data_type)?;
+            let value = cast_scalar(
+                &scalar_from_value(&value),
+                &arg.data_type,
+                execution_controls(context),
+            )?;
             Ok((arg.name.to_ascii_lowercase(), value.to_value()))
         })
         .collect::<Result<HashMap<String, Value>, QueryError>>()?;
@@ -378,7 +445,7 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         Some(&merged_args),
         context.session,
     )
-    .and_then(|value| cast_scalar(&value, &metadata.return_type))
+    .and_then(|value| cast_scalar(&value, &metadata.return_type, execution_controls(context)))
     .map(|value| value.to_value())
 }
 
@@ -409,21 +476,6 @@ pub(super) fn text_arg(name: &str, value: &Value) -> Result<Option<String>, Quer
         Value::String(text) => Ok(Some(text.clone())),
         _ => Err(QueryError::General(format!(
             "function '{name}' expects text input"
-        ))),
-    }
-}
-
-pub(super) fn integer_arg(name: &str, value: &Value) -> Result<Option<usize>, QueryError> {
-    match value {
-        Value::Null => Ok(None),
-        Value::Int64(value) if *value >= 0 => Ok(usize::try_from(*value).ok()),
-        Value::Float64(value)
-            if value.is_finite() && *value >= 0.0 && value.fract().abs() < f64::EPSILON =>
-        {
-            Ok(parse_f64_to_usize(*value))
-        }
-        _ => Err(QueryError::General(format!(
-            "function '{name}' expects a non-negative integer input"
         ))),
     }
 }
@@ -492,25 +544,6 @@ fn format_character_type(name: &str, typmod: i64) -> String {
     } else {
         name.to_string()
     }
-}
-
-pub(super) fn substring_text(value: &str, start: usize, length: Option<usize>) -> String {
-    let chars = value.chars().collect::<Vec<_>>();
-    if chars.is_empty() {
-        return String::new();
-    }
-
-    let start_index = start.max(1).saturating_sub(1);
-    if start_index >= chars.len() {
-        return String::new();
-    }
-
-    let end_index = match length {
-        Some(length) => start_index.saturating_add(length).min(chars.len()),
-        None => chars.len(),
-    };
-
-    chars[start_index..end_index].iter().collect()
 }
 
 pub(super) fn scalar_to_f64(value: &Value) -> f64 {
@@ -724,30 +757,6 @@ fn evaluate_format_type(name: &str, args: &[Value]) -> Result<Value, QueryError>
     })
 }
 
-fn evaluate_substring(name: &str, args: &[Value]) -> Result<Value, QueryError> {
-    if !(2..=3).contains(&args.len()) {
-        return Err(QueryError::General(format!(
-            "{name} requires 2 or 3 args, got {}",
-            args.len()
-        )));
-    }
-    let Some(text) = text_arg(name, &args[0])? else {
-        return Ok(Value::Null);
-    };
-    let Some(start) = integer_arg(name, &args[1])? else {
-        return Ok(Value::Null);
-    };
-    let length = if args.len() == 3 {
-        match integer_arg(name, &args[2])? {
-            Some(length) => Some(length),
-            None => return Ok(Value::Null),
-        }
-    } else {
-        None
-    };
-    Ok(Value::String(substring_text(&text, start, length)))
-}
-
 fn evaluate_concat(name: &str, args: &[Value]) -> Result<Value, QueryError> {
     if args.is_empty() {
         return Err(QueryError::General(format!(
@@ -854,13 +863,6 @@ fn parse_f64_to_i64(value: f64) -> Option<i64> {
         return None;
     }
     format!("{value:.0}").parse::<i64>().ok()
-}
-
-fn parse_f64_to_usize(value: f64) -> Option<usize> {
-    if !value.is_finite() || value.fract() != 0.0 || value < 0.0 {
-        return None;
-    }
-    format!("{value:.0}").parse::<usize>().ok()
 }
 
 fn parse_f64_to_f32(value: f64) -> Option<f32> {

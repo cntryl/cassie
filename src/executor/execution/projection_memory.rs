@@ -104,7 +104,7 @@ pub(super) fn state_bytes(
             .count();
         bytes = add(bytes, mul(mul(wildcard_names, wildcards)?, 4)?)?;
         bytes = add(bytes, mul(largest_value, width)?)?;
-        if row.has_array_types() {
+        if crate::executor::projection_types::required(row) {
             let largest_type = row.maximum_type_heap_bytes()?;
             bytes = add(bytes, mul(slots, size_of::<DataType>())?)?;
             bytes = add(bytes, mul(largest_type, width)?)?;

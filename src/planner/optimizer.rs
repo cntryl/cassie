@@ -325,7 +325,10 @@ pub fn join_is_parameterized(source: &QuerySource) -> bool {
         QuerySource::Subquery { lateral, .. } | QuerySource::TableFunction { lateral, .. } => {
             *lateral
         }
-        QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
+        QuerySource::Collection(_)
+        | QuerySource::Cte(_)
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow => false,
     }
 }
 

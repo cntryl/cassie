@@ -1,5 +1,8 @@
 use std::fmt;
 
+#[path = "parser/aggregate_call.rs"]
+mod aggregate_call;
+
 use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
 use crate::sql::ast::{
     AlterRetentionPolicyStatement, AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement,
@@ -14,9 +17,7 @@ use crate::sql::ast::{
     DropSequenceStatement, DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement,
     ExplainStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
     NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement,
-    SelectItem, SetStatement, ShowStatement, SortDirection, TransactionAction,
-    TransactionIsolation, TransactionStatement, VerifyProjectionStatement, Volatility,
-    WindowFunctionCall,
+    SelectItem, SortDirection, VerifyProjectionStatement, Volatility, WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -26,6 +27,8 @@ use std::collections::HashSet;
 pub enum SqlErrorKind {
     Syntax,
     Unsupported,
+    NumericRange,
+    DuplicateColumn,
     ResourceLimit,
 }
 
@@ -55,6 +58,21 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::Unsupported,
             message,
+        }
+    }
+
+    #[must_use]
+    pub fn numeric_range(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::NumericRange,
+            message,
+        }
+    }
+
+    pub(super) fn duplicate_column(name: &str) -> Self {
+        Self {
+            kind: SqlErrorKind::DuplicateColumn,
+            message: format!("column \"{name}\" specified more than once"),
         }
     }
 
@@ -105,6 +123,7 @@ mod expr;
 #[path = "parser/identifiers.rs"]
 mod identifiers;
 mod lexical;
+pub(crate) use lexical::{dollar_quoted_content, dollar_quoted_end, escape_string_prefix};
 #[path = "parser/materialized_projection.rs"]
 mod materialized_projection;
 #[path = "parser/operators.rs"]
@@ -164,8 +183,8 @@ use statements::{
     parse_call_statement, parse_create_function_statement, parse_create_procedure_statement,
     parse_create_view_statement, parse_drop_function_statement, parse_drop_procedure_statement,
     parse_drop_view_statement, parse_explain_statement, parse_optional_role_password,
-    parse_set_statement, parse_show_statement, parse_transaction_statement, split_keyword,
-    unsupported_privilege_statement,
+    parse_reset_statement, parse_set_statement, parse_show_statement, parse_transaction_statement,
+    split_keyword, unsupported_privilege_statement,
 };
 
 /// # Errors
@@ -174,8 +193,9 @@ use statements::{
 pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     preflight_sql(sql)?;
     let raw_sql = sql.trim().trim_end_matches(';').trim();
-    let start = lexical::separator_end(raw_sql, 0);
-    let parsed = parse_statement_body(&raw_sql[start..])?;
+    let decoded = lexical::decode_unicode_identifiers(raw_sql)?;
+    let start = lexical::separator_end(&decoded, 0);
+    let parsed = parse_statement_body(&decoded[start..])?;
     Ok(ParsedStatement {
         raw_sql: raw_sql.to_string(),
         statement: parsed.statement,
@@ -223,7 +243,10 @@ fn parse_query_or_dml_statement(
         Ok(Some(parse_update_statement(trimmed)?))
     } else if starts_statement(lower, "delete") {
         Ok(Some(parse_delete_statement(trimmed)?))
-    } else if lexical::pattern_end(lower, 0, "select").is_some() {
+    } else if lexical::pattern_end(lower, 0, "select").is_some()
+        || lexical::pattern_end(lower, 0, "values").is_some()
+        || trimmed.starts_with('(')
+    {
         Ok(Some(parse_select_statement(trimmed, Vec::new(), false)?))
     } else if is_transaction_control_statement(lower) {
         Ok(Some(parse_transaction_statement(trimmed)?))
@@ -395,6 +418,8 @@ fn parse_session_statement(
         Ok(Some(parse_show_statement(trimmed)?))
     } else if starts_statement(lower, "set") {
         Ok(Some(parse_set_statement(trimmed)?))
+    } else if starts_statement(lower, "reset") {
+        Ok(Some(parse_reset_statement(trimmed)?))
     } else {
         Ok(None)
     }
@@ -406,3 +431,10 @@ fn starts_statement(lower: &str, keyword: &str) -> bool {
             .strip_prefix(keyword)
             .is_some_and(|remainder| lexical::separator_end(remainder, 0) > 0)
 }
+
+#[cfg(test)]
+#[path = "parser/cte_materialization_tests.rs"]
+mod cte_materialization_tests;
+
+#[path = "parser/cte_materialization.rs"]
+mod cte_materialization;

@@ -44,6 +44,16 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
         kind: SettingKind::Fixed,
     },
     SettingSpec {
+        name: "default_transaction_read_only",
+        default: "off",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
+        name: "default_transaction_deferrable",
+        default: "off",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
         name: "extra_float_digits",
         default: "3",
         kind: SettingKind::Fixed,
@@ -83,6 +93,7 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
 #[derive(Debug, Clone, Default, Serialize)]
 pub(crate) struct SessionSettings {
     mutable: BTreeMap<String, String>,
+    startup: BTreeMap<String, String>,
 }
 
 impl SessionSettings {
@@ -96,6 +107,29 @@ impl SessionSettings {
             .mutable
             .get(spec.name)
             .map_or(spec.default, String::as_str))
+    }
+
+    pub(crate) fn set_startup(&mut self, name: &str, value: &str) -> Result<(), CassieError> {
+        let canonical = self.set(name, value)?;
+        self.startup.insert(find(name)?.name.to_string(), canonical);
+        Ok(())
+    }
+
+    pub(crate) fn reset(&mut self, name: &str) -> Result<String, CassieError> {
+        let spec = find(name)?;
+        let value = self
+            .startup
+            .get(spec.name)
+            .map_or(spec.default, String::as_str)
+            .to_string();
+        if spec.kind == SettingKind::Mutable {
+            self.mutable.insert(spec.name.to_string(), value.clone());
+        }
+        Ok(value)
+    }
+
+    pub(crate) fn reset_all(&mut self) {
+        self.mutable.clone_from(&self.startup);
     }
 
     pub(crate) fn set(&mut self, name: &str, value: &str) -> Result<String, CassieError> {
@@ -127,7 +161,10 @@ fn find(name: &str) -> Result<&'static SettingSpec, CassieError> {
 fn validate_value(spec: &SettingSpec, value: &str) -> Result<String, CassieError> {
     let trimmed = value.trim();
     let valid = match spec.name {
-        "application_name" => true,
+        "application_name" | "search_path" => true,
+        "default_transaction_read_only" | "default_transaction_deferrable" => {
+            parse_bool(trimmed).is_ok()
+        }
         "client_min_messages" => matches!(
             trimmed.to_ascii_lowercase().as_str(),
             "debug5"
@@ -156,7 +193,16 @@ fn validate_value(spec: &SettingSpec, value: &str) -> Result<String, CassieError
         "datestyle" => "ISO, MDY".to_string(),
         "client_encoding" | "server_encoding" => "UTF8".to_string(),
         "client_min_messages" => trimmed.to_ascii_lowercase(),
+        "default_transaction_read_only" | "default_transaction_deferrable" => {
+            if parse_bool(trimmed)? { "on" } else { "off" }.to_string()
+        }
         _ if spec.kind == SettingKind::Fixed => spec.default.to_string(),
         _ => trimmed.to_string(),
+    })
+}
+
+pub(super) fn parse_bool(value: &str) -> Result<bool, CassieError> {
+    crate::types::boolean::parse_text(value).ok_or_else(|| {
+        CassieError::InvalidParameterValue(format!("invalid boolean value: {value}"))
     })
 }

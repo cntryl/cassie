@@ -1,0 +1,163 @@
+# PostgreSQL 18.6 oracle corrections
+
+This document reconciles the 28 historical oracle corrections and the 54 original parse-only checks with current test assertions. It records expected PostgreSQL behavior and where the corresponding current assertion lives. A mapping or an oracle observation does **not** mean Cassie passes the test or is qualified for PostgreSQL compatibility; the backfill is intended to expose remaining failures.
+
+## Pinned reference
+
+The admitted reference reports PostgreSQL version number `180006` (18.6); its binary manifest matched (`manifest_matches: true`). The pinned executable SHA-256 values are:
+
+- `postgres`: `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`
+- `initdb`: `fbc3a1583cdcf2c2374586b1ba2cf5770c6f6d07458a59abbeed8a32dfda060e`
+
+The local read-only offset probe used `psql -d postgres` on the admitted server (`SHOW server_version_num` returned `180006`); it returned `-07` for the ORACLE-25 Denver `OF` query. The audit observation files also record the exact SQL and results. No Cassie pass is claimed here.
+
+## Correction count and mapping
+
+The reconciliation contains 28 unique correction IDs. The SQL oracle ledger has 27 rows: ORACLE-01 through ORACLE-06 and ORACLE-08 through ORACLE-28. The separate pgwire ledger supplies the missing ORACLE-07 observation. The `legacy_array_oid_34016` wire observation is supplemental policy evidence, not a 29th correction row. Two historical rows (ORACLE-09 and ORACLE-10) intentionally map to the same current duplicate-mapping test, which exercises both configuration setups.
+
+| ID | Issue | Current test assertion | PostgreSQL 18.6 expectation |
+| --- | ---: | --- | --- |
+| ORACLE-01 | #762 | [`tests/sql_exists_subqueries/scalar_in_any_all.rs`](../../tests/sql_exists_subqueries/scalar_in_any_all.rs) :: `should_evaluate_scalar_subqueries_in_predicates` | Scalar-subquery predicate returns the single row `[1]`. |
+| ORACLE-02 | #800 | [`tests/pgwire_extended/grammar/errors.rs`](../../tests/pgwire_extended/grammar/errors.rs) :: `should_reject_unparenthesized_parameter_arithmetic_in_offset_with_syntax_sqlstate` | `PREPARE ... OFFSET $1 + 1 ROWS` is a syntax error, SQLSTATE `42601`; the parenthesized control is separate. |
+| ORACLE-03 | #800 | [`tests/pgwire_extended/grammar/errors.rs`](../../tests/pgwire_extended/grammar/errors.rs) :: `should_report_unsupported_comparison_for_empty_rows_with_0a000` | `ROW() = ROW()` raises SQLSTATE `0A000`. |
+| ORACLE-04 | #800 | [`tests/pgwire_extended/grammar/semantics.rs`](../../tests/pgwire_extended/grammar/semantics.rs) :: `should_report_undefined_operator_for_literal_row_image_comparisons` | Image operators applied to literal `ROW(...)` constructors are undefined, SQLSTATE `42883`; the positive constructor control is independent. |
+| ORACLE-05 | #800 | [`tests/pgwire_extended/grammar/errors.rs`](../../tests/pgwire_extended/grammar/errors.rs) :: `should_report_invalid_table_sample_percentages_with_2202h` | `TABLESAMPLE BERNOULLI(-1)` raises `2202H`. |
+| ORACLE-06 | #800 | [`tests/pgwire_extended/grammar/errors.rs`](../../tests/pgwire_extended/grammar/errors.rs) :: `should_report_invalid_table_sample_percentages_with_2202h` | `TABLESAMPLE BERNOULLI(101)` raises `2202H`. |
+| ORACLE-07 | #799 | [`tests/pgwire_extended/protocol/text.rs`](../../tests/pgwire_extended/protocol/text.rs) :: `should_bind_text_patterns_to_tsquery_constructors` | After Parse/Describe and Bind/Describe establish the descriptor, Execute returns `DataRow, CommandComplete, ReadyForQuery` (`D,C,Z`) with no second `RowDescription` (`T`). |
+| ORACLE-08 | #799 | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_normalize_selected_json_values_into_tsvectors` | For the audited JSON inputs the outputs are `'123':5 'fat':2 'rat':3` and `'123':8 'b':6 'fat':3 'rat':4`. |
+| ORACLE-09 | #799 | [`tests/pgwire_extended/protocol/text.rs`](../../tests/pgwire_extended/protocol/text.rs) :: `should_return_unique_violation_for_duplicate_text_search_mapping` | Adding the duplicate `asciiword` mapping to the copied English configuration raises unique-violation SQLSTATE `23505`. |
+| ORACLE-10 | #799 | [`tests/pgwire_extended/protocol/text.rs`](../../tests/pgwire_extended/protocol/text.rs) :: `should_return_unique_violation_for_duplicate_text_search_mapping` | Adding the duplicate `asciiword` mapping to the copied simple configuration raises unique-violation SQLSTATE `23505`. |
+| ORACLE-11 | #803 | [`tests/pgwire_extended/functions/string/error_sqlstates.rs`](../../tests/pgwire_extended/functions/string/error_sqlstates.rs) :: `should_return_22023_given_a_zero_field_position_when_split_part_is_called` | `split_part('a,b', ',', 0)` raises SQLSTATE `22023` (field position must not be zero). |
+| ORACLE-12 | #803 | [`tests/pgwire_extended/functions/string/error_sqlstates.rs`](../../tests/pgwire_extended/functions/string/error_sqlstates.rs) :: `should_return_22004_given_a_null_identifier_when_identifier_formatting_is_requested` | `format('%I', NULL::text)` raises SQLSTATE `22004` (a NULL identifier cannot be formatted). |
+| ORACLE-13 | #796 | [`tests/parser_types/grammar/semantics.rs`](../../tests/parser_types/grammar/semantics.rs) :: `should_parse_postgres_integer_literal_forms` | `SELECT 1_000_000` returns `1000000`; the current test asserts `Value::Int64(1_000_000)`. |
+| ORACLE-14 | #796 | [`tests/parser_types/grammar/functions/math/semantics.rs`](../../tests/parser_types/grammar/functions/math/semantics.rs) :: `should_use_left_associative_postgres_power_with_float8_result` | `^` is exponentiation with float8 result OID `701`; the audited `2^3^3` is `512`, while the current left-associativity assertion `2 ^ 3 ^ 2` is `64.0`. |
+| ORACLE-15 | #796 | [`tests/parser_types/grammar/patterns/semantics.rs`](../../tests/parser_types/grammar/patterns/semantics.rs) :: `should_resolve_unicode_escaped_identifiers` | The valid UESCAPE table-column CREATE TABLE, INSERT through the decoded name, and SELECT return `resolved`. |
+| ORACLE-16 | #796 | [`tests/pgwire_extended/protocol/query/errors.rs`](../../tests/pgwire_extended/protocol/query/errors.rs) :: `should_return_pg_input_error_info_as_a_star_expanded_row` | `SELECT * FROM pg_input_error_info('bad','integer')` expands to message, NULL detail, NULL hint, and SQLSTATE text `22P02`; the mapped wire test uses `not-an-int` and asserts all four text fields and the matching message/code. |
+| ORACLE-17 | #813 | [`tests/pgwire_extended/functions/math/typed_math/errors.rs`](../../tests/pgwire_extended/functions/math/typed_math/errors.rs) :: `should_reject_two_argument_float8_log_with_postgresql_sqlstate` | `log(2::float8,64::float8)` is undefined, SQLSTATE `42883`; one-argument `LOG($1)` is a positive control. |
+| ORACLE-18 | #813 | [`tests/pgwire_extended/functions/math/typed_math/metadata.rs`](../../tests/pgwire_extended/functions/math/typed_math/metadata.rs) :: `should_describe_untyped_ceiling_literal_as_numeric` | `CEILING(42.8)` returns `43` with result type OID `1700` (numeric). |
+| ORACLE-19 | #814 | [`tests/sql_queries/types/temporal/temporal.rs`](../../tests/sql_queries/types/temporal/temporal.rs) :: `should_add_calendar_day_across_daylight_saving_transition` | With `America/New_York`, adding one calendar day across the spring DST change compares equal (`t`) to `2024-03-10 16:00:00+00`. |
+| ORACLE-20 | #814 | [`tests/sql_queries/types/temporal/temporal.rs`](../../tests/sql_queries/types/temporal/temporal.rs) :: `should_distinguish_calendar_day_from_twenty_four_hours_across_dst` | With `America/New_York`, one calendar day is not equal to 24 elapsed hours across the DST transition (`t` for the inequality). |
+| ORACLE-21 | #814 | [`tests/sql_queries/types/temporal/temporal.rs`](../../tests/sql_queries/types/temporal/temporal.rs) :: `should_accept_timetz_literals_with_distinct_zone_offsets` | The audited equality `TIMETZ '01:00:00+00' = TIMETZ '02:00:00+01'` is false; the current test also asserts its four zone-sensitive true/false cases. |
+| ORACLE-22 | #814 | [`tests/pgwire_extended/types/temporal/metadata.rs`](../../tests/pgwire_extended/types/temporal/metadata.rs) :: `should_apply_interval_field_typmod_in_protocol_metadata` | The valid interval typmod syntax produces `atttypmod = 268435459`; the current wire test asserts interval OID `1186`, typmod `268435459`, and output `00:00:05.007`. |
+| ORACLE-23 | #814 | [`tests/pgwire_extended/types/temporal/semantics.rs`](../../tests/pgwire_extended/types/temporal/semantics.rs) :: `should_render_all_interval_style_outputs` | Under `IntervalStyle = 'sql_standard'`, the exact output is `+1-2 +3 +4:05:06.007`. |
+| ORACLE-24 | #815 | [`tests/pgwire_extended/functions/temporal/temporal_function.rs`](../../tests/pgwire_extended/functions/temporal/temporal_function.rs) :: `should_return_postgresql_date_bin_timestamptz_output` | With UTC session zone, `date_bin` floors to `2024-03-09 17:00:00+00`. |
+| ORACLE-25 | #815 | [`tests/sql_queries/functions/temporal/temporal_functions.rs`](../../tests/sql_queries/functions/temporal/temporal_functions.rs) :: `should_format_timestamptz_with_session_zone_offset` | In `America/Denver`, `to_char(..., 'OF')` returns `-07`; a fresh query against the admitted local `180006` server returned `-07`. |
+| ORACLE-26 | #815 | [`tests/sql_queries/functions/temporal/temporal_functions.rs`](../../tests/sql_queries/functions/temporal/temporal_functions.rs) :: `should_format_both_occurrences_of_a_dst_fold_with_distinct_offsets` | In `America/New_York`, the two fall-fold instants render `01:30 -04|01:30 -05`. This is distinct from ORACLE-25's Denver `-07` result. |
+| ORACLE-27 | #815 | [`tests/pgwire_extended/functions/temporal/temporal_function.rs`](../../tests/pgwire_extended/functions/temporal/temporal_function.rs) :: `should_accept_make_time_hour_24` | `make_time(24,0,0)` succeeds as `24:00:00` with time OID `1083`. |
+| ORACLE-28 | #796 | [`tests/parser_types/grammar/parameters/parameters.rs`](../../tests/parser_types/grammar/parameters/parameters.rs) :: `should_bind_postgres_type_spellings_with_native_type_oids` | `NULL::integer[]` has PostgreSQL array type OID `1007` (not Cassie's legacy OID `34023`). |
+
+### Mapping caveats
+
+- ORACLE-16's audit SQL uses input `bad`; its mapped pgwire assertion uses `not-an-int`. Both are invalid integer inputs and carry SQLSTATE text `22P02`, but the exact message text differs with the input.
+- ORACLE-14's audit expression is `2^3^3` (value `512`, OID `701`); the current test uses `2 ^ 3 ^ 2` to assert the same left-associative exponentiation/type rule (value `64.0`, OID `701`).
+- ORACLE-25 and ORACLE-26 are distinct: Denver `OF` is `-07`; New York's repeated fall-fold wall time is `-04` then `-05`. Earlier summary text incorrectly assigned `-07/-08` to the fold row.
+
+### Policy distinctions from PostgreSQL errors
+
+The following are explicit Cassie-profile decisions and must not be conflated with exact PostgreSQL error parity:
+
+- **Legacy array OID 34016:** [`tests/pgwire_extended/protocol/boolean_binary.rs`](../../tests/pgwire_extended/protocol/boolean_binary.rs) :: `should_reject_legacy_boolean_array_oid_before_result_metadata` expects Cassie's approved `0A000` rejection before result metadata. On the pinned PostgreSQL server, 34016 is not a known type OID and the supplemental oracle probe returns `XX000` (`cache lookup failed for type 34016`). The Cassie legacy-OID policy is intentionally different from PostgreSQL's unknown-OID failure.
+- **Other unknown high-bit OIDs:** [`tests/pgwire_extended/parameters/unsigned_parameter_oids.rs`](../../tests/pgwire_extended/parameters/unsigned_parameter_oids.rs) :: `should_match_postgres_unknown_high_bit_oid_error_at_result_description` and `should_match_postgres_unknown_high_bit_oid_error_when_binding` assert PostgreSQL's `XX000` cache-lookup error for `0x80000000` and `u32::MAX`. These are actual unknown OIDs, not the selected legacy-OID policy case.
+- **Issue #817 physical helpers:** [`tests/catalog_security/catalogs/locations.rs`](../../tests/catalog_security/catalogs/locations.rs) :: `should_report_truthful_relation_locations_given_live_relations_when_storage_location_helpers_are_called` expects typed NULL behavior but `0A000` for live Midge relations because they have no PostgreSQL heap files. [`tests/catalog_security/catalogs/commit_control.rs`](../../tests/catalog_security/catalogs/commit_control.rs) :: `should_follow_commit_timestamp_policy_given_transaction_outcomes_when_commit_timestamp_helpers_are_called` records `track_commit_timestamp = off`, typed-NULL results, and `55000` for non-NULL commit-time lookup. The same file's `should_follow_control_data_policy_given_an_authenticated_session_when_control_helpers_are_called` expects `0A000` for physical control-file helpers. These are approved Cassie architecture policies, not general PostgreSQL oracle results.
+
+## Original 54 parse-only checks: current assertion map
+
+Every original row now has a current test reference in the refreshed query report. Evidence labels describe the assertion kind only: `execution` means the test asserts query output/metadata, not that Cassie passed it; `AST` means structural AST assertions; `execution_error` means an error-path assertion. Current tests may still be intentionally red. Counts: 47 execution, 4 AST, 1 AST plus execution, and 2 execution-error rows. The table does not claim all acceptance dimensions or PostgreSQL parity are complete.
+
+### Historical file: `tests/parser_types/postgresql18_binary_bytea.rs`
+
+| Original test | Current test | Evidence | Current assertion contract |
+| --- | --- | --- | --- |
+| `should_parse_binary_plus_hex_bit_string_constants` | [`tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs`](../../tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs) :: `should_parse_binary_plus_hex_bit_string_constants` | `AST` | Checks projection length and exact decoded B/b/X/x bit strings and widths. |
+| `should_parse_bitwise_operator_forms` | [`tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs`](../../tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs) :: `should_execute_bitwise_operator_forms_with_postgres_values` | `execution` | Executes concat, bitwise and/or/xor/not/shift and asserts exact values plus OID 1560. |
+| `should_parse_bytea_operator_cast_forms` | [`tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs`](../../tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs) :: `should_execute_bytea_operator_cast_forms_with_postgres_values` | `execution` | Executes bytea concatenation/casts and asserts PostgreSQL text outputs. |
+| `should_parse_bytea_encoding_conversion_access_functions` | [`tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs`](../../tests/parser_types/grammar/types/bit_bytea/binary_bytea.rs) :: `should_parse_bytea_encoding_conversion_access_functions` | `AST` | Asserts nested function names, argument counts, literal arguments, and bytea cast nodes. |
+
+### Historical file: `tests/parser_types/postgresql18_math_operators.rs`
+
+| Original test | Current test | Evidence | Current assertion contract |
+| --- | --- | --- | --- |
+| `should_parse_left_associative_numeric_power_operators` | [`tests/parser_types/grammar/functions/math/semantics.rs`](../../tests/parser_types/grammar/functions/math/semantics.rs) :: `should_use_left_associative_postgres_power_with_float8_result` | `execution` | 2 ^ 3 ^ 2 returns 64.0 and OID 701. |
+| `should_parse_the_prefix_square_root_operator` | [`tests/parser_types/grammar/functions/math/math_operators.rs`](../../tests/parser_types/grammar/functions/math/math_operators.rs) :: `should_evaluate_the_prefix_square_root_operator_as_float8` | `execution` | \|/25.0 returns 5.0 and OID 701. |
+| `should_parse_the_prefix_cube_root_operator` | [`tests/parser_types/grammar/functions/math/cube_root.rs`](../../tests/parser_types/grammar/functions/math/cube_root.rs) :: `should_evaluate_the_prefix_cube_root_operator_as_float8` | `execution` | \|\|/64.0 returns 4.0 and OID 701. |
+
+### Historical file: `tests/parser_types/postgresql18_network_types.rs`
+
+| Original test | Current test | Evidence | Current assertion contract |
+| --- | --- | --- | --- |
+| `should_parse_inet_type_cast` | [`tests/parser_types/grammar/types/network/network_types.rs`](../../tests/parser_types/grammar/types/network/network_types.rs) :: `should_execute_inet_cast_with_postgres_identity` | `execution` | inet cast exact text and OID 869. |
+| `should_parse_cidr_type_cast` | [`tests/parser_types/grammar/types/network/network_types.rs`](../../tests/parser_types/grammar/types/network/network_types.rs) :: `should_execute_cidr_cast_with_postgres_identity` | `execution` | cidr cast exact text and OID 650. |
+| `should_parse_macaddr_type_cast` | [`tests/parser_types/grammar/types/network/network_types.rs`](../../tests/parser_types/grammar/types/network/network_types.rs) :: `should_execute_macaddr_cast_with_postgres_identity` | `execution` | macaddr cast exact normalized text and OID 829. |
+| `should_parse_macaddr8_type_cast` | [`tests/parser_types/grammar/types/network/network_types.rs`](../../tests/parser_types/grammar/types/network/network_types.rs) :: `should_execute_macaddr8_cast_with_postgres_identity` | `execution` | macaddr8 cast exact normalized text and OID 774. |
+| `should_parse_inet_subnet_containment_operator` | [`tests/parser_types/grammar/types/network/network_types.rs`](../../tests/parser_types/grammar/types/network/network_types.rs) :: `should_evaluate_inet_subnet_containment` | `execution` | inet containment true, Boolean OID 16. |
+| `should_parse_inet_subnet_overlap_operator` | [`tests/parser_types/grammar/types/network/network_types.rs`](../../tests/parser_types/grammar/types/network/network_types.rs) :: `should_evaluate_inet_subnet_overlap` | `execution` | inet overlap true, Boolean OID 16. |
+| `should_parse_inet_address_arithmetic` | [`tests/parser_types/grammar/types/network/network_types.rs`](../../tests/parser_types/grammar/types/network/network_types.rs) :: `should_add_an_integer_to_inet_address` | `execution` | inet plus integer returns 192.168.1.31/32, OID 869. |
+| `should_parse_macaddr_bitwise_not_operator` | [`tests/parser_types/grammar/types/network/network_types.rs`](../../tests/parser_types/grammar/types/network/network_types.rs) :: `should_invert_macaddr_bits` | `execution` | MAC address bitwise NOT returns exact address and OID 829. |
+
+### Historical file: `tests/parser_types/postgresql18_numeric.rs`
+
+| Original test | Current test | Evidence | Current assertion contract |
+| --- | --- | --- | --- |
+| `should_parse_numeric_precision_scale_modifiers` | [`tests/parser_types/grammar/types/numeric/numeric.rs`](../../tests/parser_types/grammar/types/numeric/numeric.rs) :: `should_round_numeric_values_at_declared_scale` | `execution` | NUMERIC(5,2) rounds 12.345 to 12.35, OID 1700. |
+| `should_parse_decimal_alias_with_negative_scale` | [`tests/parser_types/grammar/types/numeric/numeric.rs`](../../tests/parser_types/grammar/types/numeric/numeric.rs) :: `should_round_decimal_values_at_negative_scale` | `execution` | DECIMAL(2,-3) rounds 12500 to 13000, OID 1700. |
+
+### Historical file: `tests/parser_types/postgresql18_temporal.rs`
+
+| Original test | Current test | Evidence | Current assertion contract |
+| --- | --- | --- | --- |
+| `should_parse_timestamptz_alias_with_fractional_precision` | [`tests/parser_types/grammar/types/temporal/temporal.rs`](../../tests/parser_types/grammar/types/temporal/temporal.rs) :: `should_round_timestamp_with_time_zone_precision` | `execution` | TIMESTAMPTZ(3) exact rounding/output. |
+| `should_parse_timestamp_with_time_zone_field_order` | [`tests/parser_types/grammar/types/temporal/temporal.rs`](../../tests/parser_types/grammar/types/temporal/temporal.rs) :: `should_round_timestamp_with_time_zone_precision` | `execution` | TIMESTAMP(3) WITH TIME ZONE exact field-order output. |
+| `should_parse_timetz_precision_alias` | [`tests/parser_types/grammar/types/temporal/temporal.rs`](../../tests/parser_types/grammar/types/temporal/temporal.rs) :: `should_round_time_with_time_zone_precision` | `execution` | TIMETZ(2) rounds and prints correct offset. |
+| `should_parse_time_with_time_zone_precision` | [`tests/parser_types/grammar/types/temporal/temporal.rs`](../../tests/parser_types/grammar/types/temporal/temporal.rs) :: `should_round_time_with_time_zone_precision` | `execution` | TIME(2) WITH TIME ZONE alias output. |
+| `should_parse_timestamp_time_without_zone_typmods` | [`tests/parser_types/grammar/types/temporal/temporal.rs`](../../tests/parser_types/grammar/types/temporal/temporal.rs) :: `should_preserve_local_timestamp_fractional_precision` | `execution` | TIMESTAMP/TIME WITHOUT TIME ZONE typmods preserve six digits. |
+| `should_parse_interval_qualifier_precision_matrix` | [`tests/parser_types/grammar/types/temporal/temporal.rs`](../../tests/parser_types/grammar/types/temporal/temporal.rs) :: `should_format_interval_qualifiers_with_sql_standard_style` | `execution` | Interval qualifier/precision matrix exact SQL-standard outputs. |
+| `should_parse_timestamp_at_time_zone_for_each_timestamp_direction` | [`tests/parser_types/grammar/types/temporal/temporal.rs`](../../tests/parser_types/grammar/types/temporal/temporal.rs) :: `should_evaluate_timestamp_at_time_zone_directions` | `execution` | AT TIME ZONE directions return exact text values. |
+| `should_parse_at_local_for_timestamp_values` | [`tests/parser_types/grammar/types/temporal/temporal.rs`](../../tests/parser_types/grammar/types/temporal/temporal.rs) :: `should_evaluate_at_local_for_timestamp_values` | `execution` | AT LOCAL values follow session zone across timestamp variants. |
+| `should_parse_temporal_arithmetic_operator_forms` | [`tests/parser_types/grammar/types/temporal/temporal.rs`](../../tests/parser_types/grammar/types/temporal/temporal.rs) :: `should_evaluate_temporal_arithmetic_with_postgres_outputs` | `execution` | Temporal arithmetic asserts exact outputs. |
+| `should_parse_timezone_function_overloads` | [`tests/parser_types/grammar/types/temporal/temporal.rs`](../../tests/parser_types/grammar/types/temporal/temporal.rs) :: `should_evaluate_timezone_function_overloads` | `execution` | Timezone overload values asserted. |
+
+### Historical file: `tests/parser_types/postgresql18_temporal_functions.rs`
+
+| Original test | Current test | Evidence | Current assertion contract |
+| --- | --- | --- | --- |
+| `should_parse_overlaps_period_operator` | [`tests/parser_types/grammar/functions/temporal/temporal_functions.rs`](../../tests/parser_types/grammar/functions/temporal/temporal_functions.rs) :: `should_evaluate_overlaps_period_operator` | `execution` | OVERLAPS true, OID 16. |
+
+### Historical file: `tests/parser_types/postgresql18_text_search.rs`
+
+| Original test | Current test | Evidence | Current assertion contract |
+| --- | --- | --- | --- |
+| `should_parse_text_search_configuration_copy_form` | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_manage_a_builtin_text_search_configuration` | `execution` | Copies English config, asserts tsvector value, then drops config. |
+| `should_parse_text_search_configuration_parser_form` | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_create_a_text_search_configuration_with_an_explicit_parser` | `execution` | Creates parser-backed configuration, adds mapping, asserts token output. |
+| `should_parse_text_search_configuration_add_mapping` | [`tests/pgwire_extended/protocol/text.rs`](../../tests/pgwire_extended/protocol/text.rs) :: `should_return_unique_violation_for_duplicate_text_search_mapping` | `execution` | Valid mapping setup/add returns expected vector; duplicate add expects 23505. |
+| `should_parse_text_search_configuration_replace_mapping_dictionary` | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_apply_text_search_configuration_mapping_lifecycle` | `execution` | Replacement changes output from unstemmed to stemmed tokens. |
+| `should_parse_text_search_configuration_drop_mapping` | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_apply_text_search_configuration_mapping_lifecycle` | `execution` | Before/replacement/after-DROP MAPPING vectors are asserted as exact values; after removing asciiword mapping the output is the empty tsvector. |
+| `should_parse_text_search_configuration_rename` | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_move_a_renamed_text_search_configuration` | `execution` | Rename, schema move, and drop execute. |
+| `should_parse_text_search_configuration_owner_change` | [`tests/sql_queries/text_search/dictionary_lifecycle.rs`](../../tests/sql_queries/text_search/dictionary_lifecycle.rs) :: `should_publish_the_new_owner_given_a_text_search_configuration_when_ownership_is_transferred` | `execution` | ALTER TEXT SEARCH CONFIGURATION OWNER TO is followed by pg_ts_config.cfgowner resolving to search_configuration_owner. |
+| `should_parse_text_search_configuration_schema_move` | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_move_a_renamed_text_search_configuration` | `execution` | Configuration SET SCHEMA executes. |
+| `should_parse_text_search_configuration_drop_modes` | [`tests/sql_queries/text_search/dictionary_lifecycle.rs`](../../tests/sql_queries/text_search/dictionary_lifecycle.rs) :: `should_skip_missing_configurations_given_if_exists_when_text_search_configurations_are_dropped` | `execution` | DROP TEXT SEARCH CONFIGURATION IF EXISTS succeeds for a missing and already-dropped configuration; command tags are asserted. |
+| `should_parse_simple_text_search_dictionary_template` | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_manage_builtin_text_search_dictionaries` | `execution` | Creates and uses a simple-template dictionary. |
+| `should_parse_snowball_text_search_dictionary_template` | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_apply_snowball_dictionary_options_through_a_text_search_configuration` | `execution` | Executes Snowball dictionary and checks stemming/stopword effects. |
+| `should_parse_synonym_text_search_dictionary_template` | [`tests/sql_queries/text_search/dictionary_lifecycle.rs`](../../tests/sql_queries/text_search/dictionary_lifecycle.rs) :: `should_replace_lexemes_given_the_pinned_synonym_dictionary_when_sample_words_are_lexized` | `execution` | Pinned PostgreSQL synonym_sample data is asserted through ts_lexize: postgres -> {pgsql}, gogle -> {googl}; source SHA-256 is recorded in the test. |
+| `should_parse_ispell_text_search_dictionary_template` | [`tests/sql_queries/text_search/dictionary_lifecycle.rs`](../../tests/sql_queries/text_search/dictionary_lifecycle.rs) :: `should_expand_lexemes_given_the_pinned_ispell_dictionary_when_sample_words_are_lexized` | `execution` | Pinned PostgreSQL ispell_sample data is asserted through ts_lexize: bookings -> {booking,book}, footballklubber -> {footballklubber,foot,ball,klubber,football,klubber}; source hashes are recorded. |
+| `should_parse_thesaurus_text_search_dictionary_template` | [`tests/sql_queries/text_search/dictionary_lifecycle.rs`](../../tests/sql_queries/text_search/dictionary_lifecycle.rs) :: `should_replace_phrases_given_the_pinned_thesaurus_dictionary_when_sample_text_is_vectorized` | `execution` | Pinned thesaurus behavior asserts one two three -> {123}, booking tickets phrase rewriting, and a nonmatching intervening-word result. |
+| `should_parse_text_search_dictionary_option_changes` | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_manage_builtin_text_search_dictionaries` | `execution` | Simple dictionary options execute; Snowball option changes also have observable output. |
+| `should_parse_text_search_dictionary_rename` | [`tests/sql_queries/text_search/text_search.rs`](../../tests/sql_queries/text_search/text_search.rs) :: `should_manage_builtin_text_search_dictionaries` | `execution` | Dictionary rename and drop execute. |
+| `should_parse_text_search_dictionary_owner_change` | [`tests/sql_queries/text_search/dictionary_lifecycle.rs`](../../tests/sql_queries/text_search/dictionary_lifecycle.rs) :: `should_publish_the_new_owner_given_a_text_search_dictionary_when_ownership_is_transferred` | `execution` | ALTER TEXT SEARCH DICTIONARY OWNER TO is followed by pg_ts_dict.dictowner resolving to search_dictionary_owner. |
+| `should_parse_text_search_dictionary_schema_move` | [`tests/sql_queries/text_search/dictionary_lifecycle.rs`](../../tests/sql_queries/text_search/dictionary_lifecycle.rs) :: `should_resolve_the_new_schema_given_a_text_search_dictionary_when_it_is_moved_between_schemas` | `execution` | SET SCHEMA updates dictnamespace to dictionary_target_schema and the moved dictionary remains callable by qualified name. |
+| `should_parse_text_search_dictionary_drop_statement` | [`tests/sql_queries/text_search/dictionary_lifecycle.rs`](../../tests/sql_queries/text_search/dictionary_lifecycle.rs) :: `should_skip_missing_dictionaries_given_if_exists_when_text_search_dictionaries_are_dropped` | `execution` | DROP TEXT SEARCH DICTIONARY IF EXISTS succeeds for a missing and already-dropped dictionary; command tags are asserted. |
+| `should_parse_text_search_parser_creation_before_rejecting_native_callbacks` | [`tests/pgwire_extended/protocol/text.rs`](../../tests/pgwire_extended/protocol/text.rs) :: `should_report_missing_text_search_parser_callback_with_42883` | `execution_error` | Wire error test asserts 42883 for unresolved callback names. |
+| `should_parse_text_search_template_creation_before_rejecting_native_callbacks` | [`tests/pgwire_extended/protocol/text.rs`](../../tests/pgwire_extended/protocol/text.rs) :: `should_report_missing_text_search_template_callback_with_42883` | `execution_error` | Wire error test asserts 42883 for unresolved callback names. |
+
+### Historical file: `tests/parser_types/postgresql18_uuid_hash_lsn.rs`
+
+| Original test | Current test | Evidence | Current assertion contract |
+| --- | --- | --- | --- |
+| `should_parse_uuid_alternative_input_casts` | [`tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs`](../../tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs) :: `should_parse_uuid_alternative_input_casts` | `AST` | Three exact UUID cast nodes and literal forms. |
+| `should_parse_postgresql_uuid_generation_extraction_calls` | [`tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs`](../../tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs) :: `should_parse_postgresql_uuid_generation_calls_as_generic_function_nodes` | `AST_and_execution` | AST asserts UUID generation function names/args; separate execution asserts UUIDv7 extraction result and OIDs. |
+| `should_parse_pg_lsn_input_operators` | [`tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs`](../../tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs) :: `should_preserve_pg_lsn_operator_outputs` | `execution` | pg_lsn comparison/add/sub exact values/OIDs. |
+| `should_parse_pg_lsn_function_calls` | [`tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs`](../../tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs) :: `should_evaluate_pg_lsn_functions_with_postgres_result_types` | `execution` | pg_lsn functions assert exact values/OIDs. |
+| `should_parse_postgresql_hashing_calls` | [`tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs`](../../tests/parser_types/grammar/types/uuid_lsn/uuid_hash_lsn.rs) :: `should_parse_postgresql_hashing_calls` | `AST` | Exact hash function nodes and arguments are asserted; wire hash suite exercises values. |
+
+## Scope limits
+
+This ledger records expected results, current source references, and assertion shapes. It does not prove that every mapped test has run, that intentional failures occur at the target behavior rather than a prerequisite, or that any issue's broader acceptance criteria are complete. Parse-only rows now mapped to execution tests still need their focused runtime result and issue-level coverage review; AST-only rows remain parser-structure evidence.

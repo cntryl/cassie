@@ -1,3 +1,8 @@
+#[path = "text_array_literals.rs"]
+mod text_array_literals;
+pub(super) fn parse_text_array_element(raw: &str) -> Result<Option<String>, SqlError> {
+    string_literals::parse(raw)
+}
 use super::clauses::{split_top_level, strip_parentheses};
 use super::identifiers::{normalize_identifier, parse_quoted_identifier_chain};
 use super::schema::{parse_data_type, starts_with_keyword};
@@ -8,6 +13,27 @@ use super::{
 
 #[path = "expr_case.rs"]
 mod case;
+#[path = "expression_depth.rs"]
+pub(super) mod depth;
+#[path = "generic_prefix.rs"]
+mod generic_prefix;
+#[path = "like_predicates.rs"]
+mod like_predicates;
+#[path = "numeric_literals.rs"]
+mod numeric_literals;
+#[path = "qualified_operators.rs"]
+mod qualified_operators;
+#[path = "row_predicates.rs"]
+mod row_predicates;
+#[path = "string_literals.rs"]
+mod string_literals;
+#[path = "truth_predicates.rs"]
+mod truth_predicates;
+#[path = "unary_numeric.rs"]
+mod unary_numeric;
+
+pub(super) use numeric_literals::is_numeric_mantissa;
+pub(super) use string_literals::unicode_identifier_prefix;
 
 pub(super) fn split_csv(s: &str) -> Vec<&str> {
     let mut out = Vec::new();
@@ -21,37 +47,7 @@ pub(super) fn split_csv(s: &str) -> Vec<&str> {
 }
 
 pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError> {
-    let Some((open, _)) = super::clauses::find_top_level_keyword_span(raw, 0, "(") else {
-        return Ok(None);
-    };
-    let Some(close) = raw.rfind(')') else {
-        return Ok(None);
-    };
-    if close < open {
-        return Ok(None);
-    }
-    let name = super::lexical::trim_separators(&raw[..open]).to_string();
-    if name.is_empty() {
-        return Ok(None);
-    }
-    let args_raw = &raw[(open + 1)..close];
-    let args = if args_raw.trim().is_empty() {
-        Vec::new()
-    } else {
-        split_csv(args_raw)
-            .into_iter()
-            .map(parse_function_argument)
-            .collect::<Result<Vec<_>, _>>()?
-    };
-
-    Ok(Some(FunctionCall { name, args }))
-}
-
-/// Parses one function argument. An argument that is not a single token,
-/// such as `NOT EXISTS (...)` or a comparison, is parsed as a full boolean
-/// expression.
-fn parse_function_argument(raw: &str) -> Result<Expr, SqlError> {
-    parse_expr_token(raw).or_else(|error| parse_expression(raw).map_err(|_| error))
+    super::aggregate_call::parse_function(raw)
 }
 
 pub(crate) fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
@@ -107,6 +103,18 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         }
     }
 
+    if let Some(truth) = truth_predicates::parse(raw)? {
+        return Ok(truth);
+    }
+    for (suffix, negated) in [(" isnull", false), (" notnull", true)] {
+        if let Some(operand) = super::lexical::strip_keyword_suffix(raw, suffix) {
+            return Ok(Expr::IsNull {
+                expr: Box::new(parse_comparison_expression(operand)?),
+                negated,
+            });
+        }
+    }
+
     for (token, op) in [
         (" is not distinct from ", BinaryOp::IsNotDistinctFrom),
         (" is distinct from ", BinaryOp::IsDistinctFrom),
@@ -123,11 +131,7 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
                     "chained null-safe comparisons require parentheses".into(),
                 ));
             }
-            return Ok(Expr::Binary {
-                left: Box::new(parse_comparison_expression(left)?),
-                right: Box::new(parse_comparison_expression(right)?),
-                op,
-            });
+            return row_predicates::comparison(left, op, right);
         }
     }
 
@@ -159,13 +163,6 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
     if let Some((left, right)) = split_top_level(raw, " between ") {
         return parse_between_expression(left, right, false);
     }
-    if split_top_level(raw, " like ")
-        .is_some_and(|(_, pattern)| split_top_level(pattern, " escape ").is_some())
-    {
-        return Err(SqlError::unsupported(
-            "LIKE ... ESCAPE is not supported".into(),
-        ));
-    }
     for (op, parsed) in [
         (" <=> ", BinaryOp::PgvectorCosine),
         (" <-> ", BinaryOp::PgvectorL2),
@@ -174,7 +171,6 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         (">=", BinaryOp::Gte),
         ("<>", BinaryOp::NotEq),
         ("!=", BinaryOp::NotEq),
-        (" like ", BinaryOp::Like),
         ("=", BinaryOp::Eq),
         ("<", BinaryOp::Lt),
         (">", BinaryOp::Gt),
@@ -185,22 +181,97 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
             super::operators::split_operator(raw, op, false)
         };
         if let Some((left, right)) = split {
+            return row_predicates::comparison(left, parsed, right);
+        }
+    }
+    if let Some(predicate) = like_predicates::parse(raw)? {
+        return Ok(predicate);
+    }
+
+    parse_prefix_expression(raw)
+}
+
+fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
+    use crate::types::IntegerOperation;
+    let operators = [
+        ("||", Some(BinaryOp::Concat)),
+        (
+            "|",
+            Some(BinaryOp::Bitwise {
+                operation: IntegerOperation::Or,
+            }),
+        ),
+        (
+            "&",
+            Some(BinaryOp::Bitwise {
+                operation: IntegerOperation::And,
+            }),
+        ),
+        (
+            "#",
+            Some(BinaryOp::Bitwise {
+                operation: IntegerOperation::Xor,
+            }),
+        ),
+        (
+            "<<",
+            Some(BinaryOp::Bitwise {
+                operation: IntegerOperation::Shl,
+            }),
+        ),
+        (
+            ">>",
+            Some(BinaryOp::Bitwise {
+                operation: IntegerOperation::Shr,
+            }),
+        ),
+        ("^@", None),
+    ];
+    let selected = operators
+        .into_iter()
+        .filter_map(|(token, op)| {
+            super::operators::split_operator(raw, token, true)
+                .map(|(left, right)| (left, right, op))
+        })
+        .max_by_key(|(left, _, _)| left.len());
+    if let Some(span) = qualified_operators::last_binary(raw)? {
+        if selected
+            .as_ref()
+            .is_none_or(|(left, _, _)| span.start > left.len())
+        {
+            let left = parse_prefix_expression(&raw[..span.start])?;
+            let right = parse_prefix_expression(&raw[span.end..])?;
+            depth::validate(&left, 1)?;
+            depth::validate(&right, 1)?;
             return Ok(Expr::Binary {
-                left: Box::new(parse_comparison_expression(left)?),
-                right: Box::new(parse_comparison_expression(right)?),
-                op: parsed,
+                left: Box::new(left),
+                right: Box::new(right),
+                op: qualified_operators::binary(span)?,
             });
         }
     }
-
-    if let Some((left, right)) = split_top_level(raw, "::") {
-        let data_type = parse_data_type(right.trim())?;
-        return Ok(Expr::Cast {
-            expr: Box::new(parse_comparison_expression(left)?),
-            data_type,
+    if let Some((left, right, op)) = selected {
+        let left = parse_prefix_expression(left)?;
+        let right = parse_prefix_expression(right)?;
+        return Ok(if let Some(op) = op {
+            Expr::Binary {
+                left: Box::new(left),
+                right: Box::new(right),
+                op,
+            }
+        } else {
+            Expr::Function(Box::new(FunctionCall {
+                name: "pg_catalog.starts_with".into(),
+                args: vec![left, right],
+                quantifier: crate::sql::ast::AggregateQuantifier::Default,
+                filter: None,
+                order_by: Vec::new(),
+            }))
         });
     }
-
+    if let Some(expression) = generic_prefix::parse(raw)? {
+        return Ok(expression);
+    }
     parse_arithmetic_expression(raw)
 }
 
@@ -209,21 +280,100 @@ fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
         split_arithmetic_operator(raw, &[("+", BinaryOp::Add), ("-", BinaryOp::Sub)])
     {
         return Ok(Expr::Binary {
-            left: Box::new(parse_arithmetic_expression(left)?),
-            right: Box::new(parse_arithmetic_expression(right)?),
+            left: Box::new(parse_prefix_expression(left)?),
+            right: Box::new(parse_prefix_expression(right)?),
             op,
         });
     }
-    if let Some((left, right, op)) =
-        split_arithmetic_operator(raw, &[("*", BinaryOp::Mul), ("/", BinaryOp::Div)])
-    {
+    if let Some((left, right, op)) = split_arithmetic_operator(
+        raw,
+        &[
+            ("*", BinaryOp::Mul),
+            ("/", BinaryOp::Div),
+            ("%", BinaryOp::Modulo),
+        ],
+    ) {
         return Ok(Expr::Binary {
-            left: Box::new(parse_arithmetic_expression(left)?),
-            right: Box::new(parse_arithmetic_expression(right)?),
+            left: Box::new(parse_prefix_expression(left)?),
+            right: Box::new(parse_prefix_expression(right)?),
             op,
         });
     }
-    parse_expr_token(raw)
+    if let Some((left, right)) = super::operators::split_arithmetic(raw, "^") {
+        let operand = |expr: Expr| -> Result<Expr, SqlError> {
+            if crate::sql::functions::has_unselected_numeric(&expr) {
+                return Err(SqlError::unsupported(
+                    "NUMERIC power remains pending under #793/#812; select FLOAT8 explicitly"
+                        .into(),
+                ));
+            }
+            Ok(if matches!(expr, Expr::StringLiteral(_)) {
+                Expr::Cast {
+                    expr: Box::new(expr),
+                    data_type: crate::types::DataType::Float,
+                    identity: crate::sql::ast::CastIdentity::Scalar,
+                    source_type: None,
+                }
+            } else {
+                expr
+            })
+        };
+        return Ok(Expr::Binary {
+            left: Box::new(operand(parse_prefix_expression(left)?)?),
+            right: Box::new(operand(parse_prefix_expression(right)?)?),
+            op: BinaryOp::Power,
+        });
+    }
+    unary_numeric::parse(raw)
+}
+
+fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
+    let mut cast_positions = [0; depth::MAX_POSTFIX_DEPTH];
+    let mut cast_count = 0;
+
+    for position in super::lexical::top_level_cast_positions(raw) {
+        if cast_count == depth::MAX_POSTFIX_DEPTH {
+            return Err(depth::limit_error());
+        }
+        cast_positions[cast_count] = position;
+        cast_count += 1;
+    }
+    let operand_end = if cast_count == 0 {
+        raw.len()
+    } else {
+        cast_positions[0]
+    };
+    let operand_sql = super::lexical::trim_separators(&raw[..operand_end]);
+    let selected_array = if cast_count > 0 {
+        let end = if cast_count > 1 {
+            cast_positions[1]
+        } else {
+            raw.len()
+        };
+        let target = parse_data_type(raw[cast_positions[0] + 2..end].trim())?;
+        text_array_literals::parse(operand_sql, &target)?
+    } else {
+        None
+    };
+    let mut expr = selected_array.map_or_else(|| parse_expr_token(operand_sql), Ok)?;
+    if cast_count > 0 {
+        depth::validate(&expr, cast_count)?;
+    }
+    for (index, position) in cast_positions[..cast_count].iter().enumerate() {
+        let type_end = if index + 1 == cast_count {
+            raw.len()
+        } else {
+            cast_positions[index + 1]
+        };
+        let data_type = super::lexical::trim_separators(&raw[position + 2..type_end]);
+        expr = Expr::Cast {
+            expr: Box::new(expr),
+            data_type: parse_data_type(data_type)?,
+            source_type: None,
+            identity: cast_identity(data_type),
+        };
+    }
+    Ok(expr)
 }
 
 fn split_arithmetic_operator<'a>(
@@ -233,7 +383,7 @@ fn split_arithmetic_operator<'a>(
     operators
         .iter()
         .filter_map(|(operator, parsed)| {
-            super::operators::split_operator(raw, operator, true)
+            super::operators::split_arithmetic(raw, operator)
                 .map(|(left, right)| (left, right, parsed.clone()))
         })
         .max_by_key(|(left, _, _)| left.len())
@@ -270,6 +420,15 @@ pub(super) fn parse_between_expression(
     right: &str,
     negated: bool,
 ) -> Result<Expr, SqlError> {
+    let right = super::lexical::trim_separators(right);
+    let symmetric = starts_with_keyword(right, "symmetric");
+    let right = if symmetric {
+        super::lexical::trim_separators(&right[9..])
+    } else if starts_with_keyword(right, "asymmetric") {
+        super::lexical::trim_separators(&right[10..])
+    } else {
+        right
+    };
     let (low, high) = split_top_level(right, " and ")
         .ok_or_else(|| SqlError::new("BETWEEN predicate requires AND upper bound".into()))?;
     if high.trim().is_empty() {
@@ -278,11 +437,18 @@ pub(super) fn parse_between_expression(
         ));
     }
 
+    let expr = parse_comparison_expression(left)?;
+    let low = parse_comparison_expression(low)?;
+    let high = parse_comparison_expression(high)?;
+    for child in [&expr, &low, &high] {
+        depth::validate(child, 1)?;
+    }
     Ok(Expr::Between {
-        expr: Box::new(parse_comparison_expression(left)?),
-        low: Box::new(parse_comparison_expression(low)?),
-        high: Box::new(parse_comparison_expression(high)?),
+        expr: Box::new(expr),
+        low: Box::new(low),
+        high: Box::new(high),
         negated,
+        symmetric,
     })
 }
 
@@ -349,12 +515,13 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     if raw.is_empty() {
         return Err(SqlError::new("invalid expression token".into()));
     }
-    if split_top_level(raw, "||").is_some() {
-        return Err(SqlError::unsupported(
-            "operator || is not supported; use concat()".into(),
-        ));
+    if let Some(inner) = strip_parentheses(raw) {
+        return parse_expression(inner);
     }
 
+    if let Some(value) = super::lexical::dollar_quoted_content(raw) {
+        return Ok(Expr::StringLiteral(value.to_owned()));
+    }
     if raw.starts_with('$') {
         let value = raw.trim_start_matches('$');
         if value.is_empty() {
@@ -388,16 +555,14 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
             column.lookup_key()
         }));
     }
-    if let Some(value) = parse_single_string_literal(raw) {
+    if let Some(value) = string_literals::parse(raw)? {
         return Ok(Expr::StringLiteral(value));
     }
-    // Integer tokens keep integer typing (PostgreSQL types them int4/int8);
-    // only tokens with a decimal point or exponent become float literals.
-    if is_integer_literal(raw) {
-        let value = raw
-            .parse::<i64>()
-            .map_err(|_| SqlError::new(format!("numeric literal out of range '{raw}'")))?;
-        return Ok(Expr::IntegerLiteral(value));
+    if let Some(value) = parse_typed_string_literal(raw)? {
+        return Ok(value);
+    }
+    if let Some(value) = numeric_literals::parse(raw)? {
+        return Ok(value);
     }
     if let Ok(value) = raw.parse::<f64>() {
         if !value.is_finite() {
@@ -420,38 +585,33 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
         return Err(SqlError::new(format!("invalid expression token '{raw}'")));
     }
     if let Some(func) = parse_function(raw)? {
-        return Ok(Expr::Function(func));
+        return Ok(Expr::Function(Box::new(func)));
     }
 
     if raw.chars().any(char::is_whitespace) {
         return Err(SqlError::new(format!("invalid expression token '{raw}'")));
     }
 
-    let path = crate::sql::ColumnIdentifierPath::parse(raw).map_err(SqlError::new)?;
+    let path = crate::sql::ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
     Ok(Expr::Column(path.lookup_key()))
 }
 
-/// Parses `raw` as exactly one single-quoted literal: the opening quote's
-/// match must be the final character, with `''` read as an escaped quote.
-fn parse_single_string_literal(raw: &str) -> Option<String> {
-    let inner = raw.strip_prefix('\'')?;
-    let mut value = String::with_capacity(inner.len());
-    let mut chars = inner.char_indices().peekable();
-    while let Some((idx, ch)) = chars.next() {
-        if ch != '\'' {
-            value.push(ch);
-        } else if chars.next_if(|&(_, next)| next == '\'').is_some() {
-            value.push('\'');
-        } else {
-            return (idx + 1 == inner.len()).then_some(value);
-        }
-    }
-    None
-}
-
-fn is_integer_literal(raw: &str) -> bool {
-    let digits = raw.strip_prefix(['+', '-']).unwrap_or(raw);
-    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+fn parse_typed_string_literal(raw: &str) -> Result<Option<Expr>, SqlError> {
+    let Some(quote) = raw.find('\'') else {
+        return Ok(None);
+    };
+    let Ok(data_type) = parse_data_type(raw[..quote].trim()) else {
+        return Ok(None);
+    };
+    let Some(value) = string_literals::parse(&raw[quote..])? else {
+        return Ok(None);
+    };
+    Ok(Some(Expr::Cast {
+        expr: Box::new(Expr::StringLiteral(value)),
+        data_type,
+        source_type: None,
+        identity: cast_identity(raw[..quote].trim()),
+    }))
 }
 
 pub(super) fn parse_exists_expression(raw: &str) -> Result<Option<Expr>, SqlError> {
@@ -481,8 +641,13 @@ pub(super) fn parse_cast_expression(raw: &str) -> Result<Option<Expr>, SqlError>
     let data_type = parse_data_type(super::lexical::trim_separators(type_raw))?;
 
     Ok(Some(Expr::Cast {
-        expr: Box::new(parse_expression(expr_raw)?),
+        expr: Box::new(
+            text_array_literals::parse(expr_raw, &data_type)?
+                .map_or_else(|| parse_expression(expr_raw), Ok)?,
+        ),
         data_type,
+        source_type: None,
+        identity: cast_identity(type_raw),
     }))
 }
 
@@ -497,4 +662,13 @@ pub(super) fn parse_alias(raw: &str) -> (&str, Option<String>) {
         return (left.trim(), Some(alias));
     }
     (token, None)
+}
+
+fn cast_identity(raw: &str) -> crate::sql::ast::CastIdentity {
+    let base = raw.split_once('(').map_or(raw, |(base, _)| base).trim();
+    if base.eq_ignore_ascii_case("numeric") || base.eq_ignore_ascii_case("decimal") {
+        crate::sql::ast::CastIdentity::Numeric
+    } else {
+        crate::sql::ast::CastIdentity::Scalar
+    }
 }

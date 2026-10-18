@@ -15,13 +15,19 @@ pub use ast_schema::{AlterTableOperation, AlterTableStatement};
 
 #[path = "ast_query.rs"]
 mod ast_query;
+#[path = "ast_truth.rs"]
+mod ast_truth;
+pub use ast_truth::TruthValue;
+#[path = "ast_row.rs"]
+mod ast_row;
+pub use ast_row::{RowComparison, RowComparisonOp};
 #[path = "ast_visit.rs"]
 mod ast_visit;
 pub use ast_query::{
-    BinaryOp, Bm25Params, CommonTableExpression, CteQuery, Expr, FunctionCall, JoinKind,
-    NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet, SelectStatement, SetOperator,
-    SortDirection, WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit,
-    WindowFunctionCall,
+    AggregateQuantifier, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression,
+    CteMaterialization, CteQuery, Expr, FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource,
+    SelectItem, SelectSet, SelectStatement, SetOperator, SortDirection, UnaryNumericOp,
+    WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +52,7 @@ pub enum Volatility {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueryStatement {
     Explain(ExplainStatement),
-    Select(SelectStatement),
+    Select(Box<SelectStatement>),
     Show(ShowStatement),
     Set(SetStatement),
     Copy(CopyStatement),
@@ -129,6 +135,16 @@ pub struct ExplainStatement {
 pub struct TransactionStatement {
     pub action: TransactionAction,
     pub isolation: Option<TransactionIsolation>,
+    #[serde(default)]
+    pub modes: TransactionModes,
+    #[serde(default)]
+    pub chain: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TransactionModes {
+    pub read_only: Option<bool>,
+    pub deferrable: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -143,6 +159,7 @@ pub enum TransactionAction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionIsolation {
+    ReadUncommitted,
     ReadCommitted,
     RepeatableRead,
     Serializable,
@@ -438,6 +455,17 @@ pub struct ShowStatement {
 pub struct SetStatement {
     pub variable: String,
     pub value: Option<String>,
+    #[serde(default)]
+    pub action: SettingAction,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SettingAction {
+    #[default]
+    Set,
+    SetDefault,
+    Reset,
+    ResetAll,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

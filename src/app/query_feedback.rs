@@ -289,6 +289,8 @@ impl Cassie {
         parameter_type_oids: &[i32],
     ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
         let context = self.binding_context_for_session(session);
+        let mut parsed = parsed;
+        binder::values::bind_input_types(&mut parsed, parameter_type_oids)?;
         let mut bound =
             binder::bind_initial_with_controls(parsed, &self.catalog, &context, controls)?;
         if let Some(controls) = controls {
@@ -313,6 +315,17 @@ impl Cassie {
         let cardinality_stats = self.catalog.cardinality_snapshot();
         let mut logical = crate::planner::logical::plan(&bound)?;
         crate::planner::logical::rewrite_reserved_id_references(&mut logical, &self.catalog);
+        let fallback_controls;
+        let source_controls = if let Some(controls) = controls {
+            controls
+        } else {
+            fallback_controls = self.runtime.query_controls(std::time::Instant::now());
+            &fallback_controls
+        };
+        let _cte_memory =
+            crate::planner::cte_inlining::inline(&mut logical, &self.catalog, source_controls)?;
+        let _constant_memory =
+            crate::planner::constant_sources::inline(&mut logical, source_controls)?;
         let optimized = crate::planner::optimizer::optimize_with_stats(logical, &cardinality_stats);
         let not_null_fields = self.catalog.not_null_fields(&optimized.collection);
         let selection = crate::planner::physical::read_operator_selection(
@@ -372,6 +385,11 @@ impl Cassie {
         let cardinality_stats = self.catalog.cardinality_snapshot();
         let mut logical_plan = crate::planner::logical::plan(&bound)?;
         crate::planner::logical::rewrite_reserved_id_references(&mut logical_plan, &self.catalog);
+        let controls = self.runtime.query_controls(std::time::Instant::now());
+        let _cte_memory =
+            crate::planner::cte_inlining::inline(&mut logical_plan, &self.catalog, &controls)?;
+        let _constant_memory =
+            crate::planner::constant_sources::inline(&mut logical_plan, &controls)?;
         let logical =
             crate::planner::optimizer::optimize_with_stats(logical_plan, &cardinality_stats);
         let selection = crate::planner::physical::read_operator_selection(

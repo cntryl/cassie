@@ -23,6 +23,6 @@ pub(super) fn float_scalar(value: &ScalarValue) -> Result<ScalarValue, QueryErro
         ScalarValue::Int(value) => Ok(ScalarValue::Float(crate::types::numeric::i64_to_f64(
             *value,
         ))),
-        _ => cast_scalar(value, &DataType::Float),
+        _ => cast_scalar(value, &DataType::Float, None),
     }
 }

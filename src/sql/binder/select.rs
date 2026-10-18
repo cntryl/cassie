@@ -1,11 +1,13 @@
+use super::table_functions::bind as bind_table_function;
+pub(super) use super::table_functions::columns as table_function_columns;
 use super::{
     bind_recursive_cte_query, bind_statement, collect_projection_aliases, mem, qualified_fields,
     resolve_relation_path, validate_distinct_on_order_prefix, validate_expression,
     validate_expression_operand_families, validate_expression_references, validate_functions,
     validate_order_by_references, validate_projection_references, validate_select_operand_families,
     virtual_views, BindingContext, CassieError, Catalog, CteQuery, CteScope, DataType, Expr,
-    FieldSchema, FunctionCall, HashMap, HashSet, QuerySource, QueryStatement, Schema, SelectItem,
-    SelectSet, SelectStatement,
+    FieldSchema, HashMap, HashSet, QuerySource, QueryStatement, Schema, SelectItem, SelectSet,
+    SelectStatement,
 };
 use crate::sql::ast::IdentifierPath;
 use crate::types::row_identity::{
@@ -80,12 +82,14 @@ pub(super) fn bind_select_with_lateral_fields(
             name: cte.name,
             aliases: stored_aliases,
             query,
+            materialization: cte.materialization,
         };
         let binding = cte_columns::binding(&bound_cte, &bound_ctes, &scope, catalog, context)?;
         scope.insert(cte_name_lc, binding);
         bound_ctes.push(bound_cte);
     }
 
+    super::values::validate_aliases(&select.source)?;
     super::aliases::allocate_scope(&mut select)?;
     let source = bind_query_source_with_lateral_fields(
         select.source.clone(),
@@ -96,7 +100,7 @@ pub(super) fn bind_select_with_lateral_fields(
     )?;
     select.source = source;
     select.ctes = bound_ctes;
-    super::aliases::lower_select(&mut select, catalog, &scope, lateral_fields)?;
+    super::aliases::lower_select(&mut select, catalog, &scope, lateral_fields, set.is_some())?;
     let mut known_fields = source_fields(catalog, &select.source, &scope)?;
     known_fields.extend(lateral_fields.iter().cloned());
     if lateral_fields.is_empty() {
@@ -110,10 +114,11 @@ pub(super) fn bind_select_with_lateral_fields(
     }
     super::json_predicates::rewrite_select(&mut select, &field_types);
     super::case_unify::unify_select_case_results(&mut select, &field_types);
+    super::boolean_contexts::qualify_declared_boolean_functions(&mut select, catalog, context)?;
 
     let projection_aliases = collect_projection_aliases(&select);
     validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
-    super::boolean_contexts::validate_select(&mut select, catalog, context)?;
+    super::boolean_contexts::validate_select(&mut select, catalog, context, outer_scope)?;
     validate_select_operand_families(&select, catalog)?;
     super::coalesce_results::validate_select(&select, catalog, context)?;
 
@@ -137,6 +142,12 @@ pub(super) fn canonicalize_typed_predicate_literals(
     field_types: &crate::sql::FieldTypeMap,
 ) -> Result<(), CassieError> {
     match expr {
+        Expr::RowCompare(comparison) => {
+            for field in comparison.left.iter_mut().chain(&mut comparison.right) {
+                canonicalize_typed_predicate_literals(field, field_types)?;
+            }
+            Ok(())
+        }
         Expr::Case {
             operand,
             branches,
@@ -168,6 +179,11 @@ pub(super) fn canonicalize_typed_predicate_literals(
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             canonicalize_column_literal_pair(expr, low, field_types)?;
             canonicalize_column_literal_pair(expr, high, field_types)?;
@@ -175,11 +191,16 @@ pub(super) fn canonicalize_typed_predicate_literals(
             canonicalize_typed_predicate_literals(low, field_types)?;
             canonicalize_typed_predicate_literals(high, field_types)
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+        Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => {
             canonicalize_typed_predicate_literals(expr, field_types)
         }
         Expr::Function(function) => {
-            for argument in &mut function.args {
+            for argument in function.expressions_mut() {
                 canonicalize_typed_predicate_literals(argument, field_types)?;
             }
             Ok(())
@@ -188,6 +209,7 @@ pub(super) fn canonicalize_typed_predicate_literals(
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_)
@@ -267,6 +289,7 @@ fn validate_bound_select_references(
         projection_aliases,
         false,
     )?;
+    super::pagination_references::validate(select, known_fields, projection_aliases)?;
     validate_order_by_references(&select.order, known_fields, projection_aliases)?;
     validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
     Ok(())
@@ -297,7 +320,7 @@ fn validate_grouped_projection(
             {
                 continue;
             }
-            SelectItem::Function { function, .. } => Expr::Function(function.clone()),
+            SelectItem::Function { function, .. } => Expr::Function(Box::new(function.clone())),
             SelectItem::Expr { expr, .. } => expr.clone(),
             SelectItem::WindowFunction { .. } => continue,
         };
@@ -348,7 +371,7 @@ fn projection_has_aggregate(select: &SelectStatement) -> bool {
     select.projection.iter().any(|item| match item {
         SelectItem::Function { function, .. } => {
             crate::sql::functions::is_aggregate_function(&function.name)
-                || function.args.iter().any(is_aggregate)
+                || function.expressions().any(is_aggregate)
         }
         SelectItem::Expr { expr, .. } => is_aggregate(expr),
         SelectItem::Wildcard | SelectItem::Column { .. } | SelectItem::WindowFunction { .. } => {
@@ -555,6 +578,11 @@ pub(super) fn bind_query_source_with_lateral_fields(
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
     match source {
+        QuerySource::Values { mut rows } => {
+            super::values::coerce(&mut rows, &HashMap::new(), &[])?;
+            Ok(QuerySource::Values { rows })
+        }
+
         QuerySource::Aliased {
             source,
             alias,
@@ -658,6 +686,8 @@ pub(super) fn source_fields(
     scope: &CteScope,
 ) -> Result<HashSet<String>, CassieError> {
     match source {
+        QuerySource::Values { rows } => Ok(super::values::names(rows).collect()),
+
         QuerySource::Aliased { source, alias, .. } => {
             let names = super::aliases::columns(source, &[], catalog, scope)?;
             let qualifier = super::aliases::qualifier(alias);
@@ -774,110 +804,6 @@ pub(super) fn base_table_fields(
         fields.insert(IDENTITY_ALIAS_MARKER.to_string());
     }
     fields
-}
-
-fn validate_graph_table_function(
-    function: &FunctionCall,
-    lateral_fields: &HashSet<String>,
-) -> Result<(), CassieError> {
-    let expected = match function.name.to_ascii_lowercase().as_str() {
-        "pg_show_all_settings" | "pg_catalog.pg_show_all_settings" => 0,
-        "graph_neighbors" => 6,
-        "graph_expand" => 7,
-        "graph_shortest_path" => 9,
-        other => {
-            return Err(CassieError::Planner(format!(
-                "unsupported table function '{other}'"
-            )))
-        }
-    };
-    if function.args.len() != expected {
-        return Err(CassieError::Planner(format!(
-            "{} requires {} arguments",
-            function.name, expected
-        )));
-    }
-    for arg in &function.args {
-        validate_expression(arg, lateral_fields, &HashSet::new(), false)?;
-    }
-    Ok(())
-}
-
-fn literal_string_arg(function: &FunctionCall, index: usize) -> Option<String> {
-    match function.args.get(index)? {
-        Expr::StringLiteral(value) => Some(value.clone()),
-        _ => None,
-    }
-}
-
-pub(super) fn graph_table_function_columns() -> Vec<(String, DataType)> {
-    vec![
-        ("depth".to_string(), DataType::BigInt),
-        ("path_rank".to_string(), DataType::BigInt),
-        ("cost".to_string(), DataType::Float),
-        ("node_type".to_string(), DataType::Text),
-        ("node_id".to_string(), DataType::Text),
-        ("edge_id".to_string(), DataType::Text),
-        ("edge_type".to_string(), DataType::Text),
-        ("source_type".to_string(), DataType::Text),
-        ("source_id".to_string(), DataType::Text),
-        ("target_type".to_string(), DataType::Text),
-        ("target_id".to_string(), DataType::Text),
-        ("path_nodes".to_string(), DataType::Json),
-        ("path_edges".to_string(), DataType::Json),
-    ]
-}
-
-pub(super) fn table_function_columns(name: &str) -> Vec<(String, DataType)> {
-    if matches!(
-        name.to_ascii_lowercase().as_str(),
-        "pg_show_all_settings" | "pg_catalog.pg_show_all_settings"
-    ) {
-        return vec![
-            ("name".to_string(), DataType::Text),
-            ("setting".to_string(), DataType::Text),
-            ("unit".to_string(), DataType::Text),
-            ("category".to_string(), DataType::Text),
-            ("short_desc".to_string(), DataType::Text),
-            ("extra_desc".to_string(), DataType::Text),
-            ("context".to_string(), DataType::Text),
-            ("vartype".to_string(), DataType::Text),
-            ("source".to_string(), DataType::Text),
-            ("min_val".to_string(), DataType::Text),
-            ("max_val".to_string(), DataType::Text),
-            ("enumvals".to_string(), DataType::Text),
-            ("boot_val".to_string(), DataType::Text),
-            ("reset_val".to_string(), DataType::Text),
-            ("sourcefile".to_string(), DataType::Text),
-            ("sourceline".to_string(), DataType::BigInt),
-            ("pending_restart".to_string(), DataType::Boolean),
-        ];
-    }
-    graph_table_function_columns()
-}
-
-fn bind_table_function(
-    name: String,
-    function: FunctionCall,
-    lateral: bool,
-    catalog: &Catalog,
-    lateral_fields: &HashSet<String>,
-    context: &BindingContext,
-) -> Result<QuerySource, CassieError> {
-    validate_graph_table_function(&function, lateral_fields)?;
-    if let Some(graph_name) = literal_string_arg(&function, 0) {
-        let graph_name = super::normalize_relation_name(&graph_name, context)?;
-        if !catalog.graph_exists_exact(&graph_name) {
-            return Err(CassieError::Planner(format!(
-                "graph '{graph_name}' does not exist"
-            )));
-        }
-    }
-    Ok(QuerySource::TableFunction {
-        name,
-        function,
-        lateral,
-    })
 }
 
 fn bind_collection_source(

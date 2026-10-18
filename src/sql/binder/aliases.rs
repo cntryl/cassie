@@ -28,6 +28,8 @@ pub(super) fn columns(
     scope: &CteScope,
 ) -> Result<Vec<(String, String)>, CassieError> {
     let (names, implicit_identity) = match source {
+        QuerySource::Values { rows } => (super::values::names(rows).collect(), false),
+
         QuerySource::Collection(name) => {
             let schema = super::inference::relation_output_schema(catalog, name)?;
             let implicit = catalog.get_view(name).is_none()
@@ -70,14 +72,7 @@ pub(super) fn columns(
                 .collect());
         }
         QuerySource::Aliased { source, .. } => return columns(source, aliases, catalog, scope),
-        QuerySource::Subquery { select, .. } => (
-            super::inference::infer_select_schema(select, catalog)?
-                .fields
-                .into_iter()
-                .map(|field| field.name)
-                .collect(),
-            false,
-        ),
+        QuerySource::Subquery { select, .. } => (subquery_names(select, catalog, scope)?, false),
         QuerySource::TableFunction { name, .. } => (
             super::select::table_function_columns(name)
                 .into_iter()
@@ -186,7 +181,7 @@ fn namespaces(
             fields: columns(source, &[], catalog, scope)?,
             reserved_identity: false,
         }),
-        QuerySource::SingleRow => {}
+        QuerySource::Values { .. } | QuerySource::SingleRow => {}
     }
     Ok(())
 }
@@ -239,7 +234,7 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
             return Ok(format!("{}.{field}", namespace.qualifier));
         }
         if ambiguous_field(namespace, &field) {
-            return Err(CassieError::Planner(format!("ambiguous column '{name}'")));
+            return Err(CassieError::AmbiguousColumn(name.to_string()));
         }
         let physical = if field == "_id" && namespace.reserved_identity {
             "_id"
@@ -249,7 +244,7 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
                 .iter()
                 .find(|(visible, _)| *visible == field)
                 .map(|(_, physical)| physical.as_str())
-                .ok_or_else(|| CassieError::Planner(format!("unknown column '{name}'")))?
+                .ok_or_else(|| CassieError::UndefinedColumn(name.to_string()))?
         };
         return Ok(if single {
             physical.to_string()
@@ -265,7 +260,7 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
             .count()
             > 1
     }) {
-        return Err(CassieError::Planner(format!("ambiguous column '{name}'")));
+        return Err(CassieError::AmbiguousColumn(name.to_string()));
     }
     let mut matches = namespaces.iter().filter_map(|namespace| {
         let physical = if field == "_id" && namespace.reserved_identity {
@@ -286,12 +281,12 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
                 .iter()
                 .any(|(visible, physical)| *physical == field && *visible != field)
         }) {
-            return Err(CassieError::Planner(format!("unknown column '{name}'")));
+            return Err(CassieError::UndefinedColumn(name.to_string()));
         }
         return Ok(name.to_string());
     };
     if matches.next().is_some() {
-        return Err(CassieError::Planner(format!("ambiguous column '{name}'")));
+        return Err(CassieError::AmbiguousColumn(name.to_string()));
     }
     Ok(if single {
         physical.to_string()
@@ -371,6 +366,7 @@ pub(super) fn lower_select(
     catalog: &Catalog,
     scope: &CteScope,
     lateral_fields: &std::collections::HashSet<String>,
+    set_result: bool,
 ) -> Result<(), CassieError> {
     if !has_alias(&select.source) {
         return Ok(());
@@ -381,7 +377,7 @@ pub(super) fn lower_select(
         return Ok(());
     }
     let correlated = select_contains_exists(select);
-    let output_aliases = super::collect_projection_aliases(select);
+    let mut output_aliases = super::collect_projection_aliases(select);
     // Reusing the collection's physical qualifier would hide an admitted
     // enclosing reference to that same collection. Retain only this carrier.
     let outer_source_collision = lateral_fields.iter().any(|name| {
@@ -422,7 +418,7 @@ pub(super) fn lower_select(
                 rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
             }
             SelectItem::Function { function, .. } => {
-                for expr in &mut function.args {
+                for expr in function.expressions_mut() {
                     rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
                 }
             }
@@ -439,15 +435,11 @@ pub(super) fn lower_select(
         projection.push(item);
     }
     select.projection = projection;
-    for expr in select
-        .filter
-        .iter_mut()
-        .chain(&mut select.having)
-        .chain(&mut select.group_by)
-        .chain(&mut select.distinct_on)
-    {
-        rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
+    if set_result {
+        // Global set ordering addresses exported result names, after projection.
+        output_aliases.extend(super::collect_projection_aliases(select));
     }
+    rewrite_source_clauses(select, &spaces, single, lateral_fields)?;
     for order in &mut select.order {
         if let Expr::Column(name) = &order.expr {
             if ColumnIdentifierPath::parse(name).is_ok_and(|path| !path.is_qualified())
@@ -467,6 +459,26 @@ pub(super) fn lower_select(
     Ok(())
 }
 
+fn rewrite_source_clauses(
+    select: &mut SelectStatement,
+    spaces: &[Namespace],
+    single: bool,
+    lateral_fields: &std::collections::HashSet<String>,
+) -> Result<(), CassieError> {
+    for expr in select
+        .filter
+        .iter_mut()
+        .chain(&mut select.having)
+        .chain(&mut select.group_by)
+        .chain(&mut select.distinct_on)
+        .chain(&mut select.limit)
+        .chain(&mut select.offset)
+    {
+        rewrite_with_outer(expr, spaces, single, lateral_fields)?;
+    }
+    Ok(())
+}
+
 fn select_contains_exists(select: &SelectStatement) -> bool {
     let has_exists =
         |expr: &Expr| expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_)));
@@ -475,7 +487,7 @@ fn select_contains_exists(select: &SelectStatement) -> bool {
         || select.order.iter().any(|order| has_exists(&order.expr))
         || select.projection.iter().any(|item| match item {
             SelectItem::Expr { expr, .. } => has_exists(expr),
-            SelectItem::Function { function, .. } => function.args.iter().any(has_exists),
+            SelectItem::Function { function, .. } => function.expressions().any(has_exists),
             SelectItem::WindowFunction { function, .. } => {
                 function
                     .args
@@ -530,6 +542,7 @@ pub(super) fn lower_lateral(
     let mut spaces = Vec::new();
     namespaces(left, catalog, scope, &mut spaces)?;
     match right {
+        QuerySource::Aliased { source, .. } => lower_lateral(left, source, catalog, scope)?,
         QuerySource::Subquery {
             select,
             lateral: true,
@@ -540,7 +553,7 @@ pub(super) fn lower_lateral(
             lateral: true,
             ..
         } => {
-            for expr in &mut function.args {
+            for expr in function.expressions_mut() {
                 rewrite(expr, &spaces, false)?;
             }
         }
@@ -590,4 +603,29 @@ fn expand_wildcard(
             });
         }
     }
+}
+
+fn subquery_names(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    scope: &CteScope,
+) -> Result<Vec<String>, CassieError> {
+    let schemas = scope
+        .iter()
+        .map(|(name, binding)| {
+            (
+                name.clone(),
+                crate::types::Schema {
+                    fields: binding.row_fields.clone(),
+                },
+            )
+        })
+        .collect();
+    Ok(
+        super::inference::infer_select_schema_with_ctes(select, catalog, &schemas)?
+            .fields
+            .into_iter()
+            .map(|field| field.name)
+            .collect(),
+    )
 }

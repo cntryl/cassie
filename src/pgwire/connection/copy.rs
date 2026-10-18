@@ -90,6 +90,9 @@ pub(super) async fn try_handle_simple_copy_query(
         }
         let parsed = crate::sql::parser::parse_statement(&sql)?;
         session_for_parse.authorize_statement(&parsed.statement)?;
+        Cassie::ensure_transaction_recovery(&session_for_parse, &parsed)?;
+        session_for_parse.ensure_transaction_writable()?;
+        session_for_parse.mark_transaction_query();
         let QueryStatement::Copy(_) = &parsed.statement else {
             return Ok(None);
         };

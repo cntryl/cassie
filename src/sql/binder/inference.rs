@@ -11,6 +11,14 @@ pub fn infer_select_schema(
     select: &SelectStatement,
     catalog: &Catalog,
 ) -> Result<Schema, CassieError> {
+    infer_select_schema_with_ctes(select, catalog, &HashMap::new())
+}
+
+pub(super) fn infer_select_schema_with_ctes(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    ctes: &HashMap<String, Schema>,
+) -> Result<Schema, CassieError> {
     let user_functions = crate::catalog::function_resolution::functions_for_scope(
         &catalog.list_functions(),
         "postgres",
@@ -18,7 +26,7 @@ pub fn infer_select_schema(
         false,
     );
 
-    infer_select_schema_with_scope(select, catalog, &HashMap::new(), &user_functions)
+    infer_select_schema_with_scope(select, catalog, ctes, &user_functions)
 }
 
 /// # Errors
@@ -293,6 +301,10 @@ pub(super) fn infer_source_schema_with_outer(
     outer_fields: Option<&Schema>,
 ) -> Result<Schema, CassieError> {
     let schema = match source {
+        QuerySource::Values { rows } => {
+            super::values::schema(rows, user_functions, parameter_types)?
+        }
+
         QuerySource::Aliased { source, alias, .. } => {
             let mut schema = infer_source_schema_with_outer(
                 source,
@@ -312,19 +324,16 @@ pub(super) fn infer_source_schema_with_outer(
             .cloned()
             .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?,
         QuerySource::SingleRow => Schema { fields: Vec::new() },
-        QuerySource::TableFunction { name, .. } => {
-            let schema = Schema {
-                fields: super::select::table_function_columns(name)
-                    .into_iter()
-                    .map(|(name, data_type)| FieldSchema {
-                        name,
-                        data_type,
-                        nullable: true,
-                    })
-                    .collect(),
-            };
-            qualify_schema(&schema, name)
-        }
+        QuerySource::TableFunction { name, .. } => Schema {
+            fields: super::select::table_function_columns(name)
+                .into_iter()
+                .map(|(name, data_type)| FieldSchema {
+                    name,
+                    data_type,
+                    nullable: true,
+                })
+                .collect(),
+        },
         QuerySource::Subquery {
             alias,
             select,
@@ -374,10 +383,12 @@ pub(super) fn infer_source_schema_with_outer(
     if qualify {
         Ok(match source {
             QuerySource::Collection(name) => qualify_schema(&schema, name),
-            QuerySource::Cte(name) => qualify_schema(&schema, name),
+            QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
+                qualify_schema(&schema, name)
+            }
             QuerySource::SingleRow
+            | QuerySource::Values { .. }
             | QuerySource::Aliased { .. }
-            | QuerySource::TableFunction { .. }
             | QuerySource::Subquery { .. }
             | QuerySource::Join { .. } => schema,
         })
@@ -609,7 +620,29 @@ pub(crate) fn infer_function_return_type(
     parameter_types: &[i32],
 ) -> Option<DataType> {
     let name = function.name.to_ascii_lowercase();
-    if let Some(metadata) = user_functions.get(&name) {
+    if let Some(target) = crate::sql::functions::primitive_casts::candidate(function) {
+        let source = infer_expr_type(
+            &function.args[0],
+            source_schema,
+            user_functions,
+            parameter_types,
+        );
+        let exact = user_functions.get(&name).is_some_and(|metadata| {
+            metadata.args.len() == 1 && source.as_ref() == Some(&metadata.args[0].data_type)
+        });
+        if crate::sql::functions::primitive_casts::unknown_literal(&function.args[0])
+            || !exact && (!user_functions.contains_key(&name) || source.is_some())
+        {
+            return Some(target.data_type);
+        }
+    }
+    if let Some(metadata) = user_functions.get(&name).filter(|metadata| {
+        !crate::sql::functions::has_distinct_builtin_arity(
+            &name,
+            function.args.len(),
+            metadata.args.len(),
+        )
+    }) {
         return Some(metadata.return_type.clone());
     }
 
@@ -617,6 +650,7 @@ pub(crate) fn infer_function_return_type(
     match metadata.return_type {
         crate::sql::functions::FunctionReturnType::Float => Some(DataType::Float),
         crate::sql::functions::FunctionReturnType::Text => Some(DataType::Text),
+        crate::sql::functions::FunctionReturnType::Bytea => Some(DataType::Bytea),
         crate::sql::functions::FunctionReturnType::Int => Some(DataType::Int),
         crate::sql::functions::FunctionReturnType::BigInt => Some(DataType::BigInt),
         crate::sql::functions::FunctionReturnType::Boolean => Some(DataType::Boolean),
@@ -707,14 +741,24 @@ pub(crate) fn infer_expr_type(
         Expr::Function(function) => {
             infer_function_return_type(function, source_schema, user_functions, parameter_types)
         }
+        Expr::NumericLiteral(_) => None,
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
+        Expr::UnaryNumeric { expr, op } => super::unary_numeric::result_type(
+            *op,
+            expr,
+            infer_expr_type(expr, source_schema, user_functions, parameter_types),
+        ),
+        Expr::IntegerNegate { width, .. } => Some(width.data_type()),
         Expr::IntegerLiteral(value) => Some(integer_literal_type(*value)),
-        Expr::BoolLiteral(_)
+        Expr::RowCompare(_)
+        | Expr::BoolLiteral(_)
         | Expr::Exists(_)
         | Expr::IsNull { .. }
+        | Expr::TruthTest { .. }
         | Expr::InList { .. }
         | Expr::Between { .. }
+        | Expr::Like { .. }
         | Expr::Not { .. } => Some(DataType::Boolean),
         Expr::Null => Some(DataType::Null),
         Expr::Param(index) => parameter_types
@@ -734,7 +778,25 @@ pub(crate) fn infer_expr_type(
             | BinaryOp::Gt
             | BinaryOp::Gte
             | BinaryOp::Like => Some(DataType::Boolean),
-            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+            BinaryOp::Power => Some(DataType::Float),
+            BinaryOp::Concat => infer_concatenation_type(
+                left,
+                right,
+                source_schema,
+                user_functions,
+                parameter_types,
+            ),
+            BinaryOp::ByteaConcat => Some(DataType::Bytea),
+            BinaryOp::Bitwise { operation } if operation.is_shift() => {
+                infer_expr_type(left, source_schema, user_functions, parameter_types)
+            }
+            BinaryOp::Integer { width, .. } => Some(width.data_type()),
+            BinaryOp::Add
+            | BinaryOp::Sub
+            | BinaryOp::Mul
+            | BinaryOp::Div
+            | BinaryOp::Modulo
+            | BinaryOp::Bitwise { .. } => {
                 let left_type =
                     infer_expr_type(left, source_schema, user_functions, parameter_types);
                 let right_type =
@@ -751,6 +813,35 @@ pub(crate) fn infer_expr_type(
                 Some(DataType::Float)
             }
         },
+    }
+}
+
+fn infer_concatenation_type(
+    left: &Expr,
+    right: &Expr,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
+    let operands = [
+        infer_expr_type(left, source_schema, user_functions, parameter_types),
+        infer_expr_type(right, source_schema, user_functions, parameter_types),
+    ];
+    if operands
+        .iter()
+        .all(|kind| matches!(kind, Some(DataType::Null) | None))
+        && (super::validation::expr_contains_parameters(left)
+            || super::validation::expr_contains_parameters(right))
+    {
+        None
+    } else if operands.contains(&Some(DataType::Bytea))
+        && operands
+            .iter()
+            .all(|kind| matches!(kind, Some(DataType::Bytea | DataType::Null) | None))
+    {
+        Some(DataType::Bytea)
+    } else {
+        Some(DataType::Text)
     }
 }
 
@@ -822,8 +913,12 @@ pub(crate) fn known_expr_type(
         Expr::Cast { data_type, .. } => Some(data_type.clone()),
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
+        Expr::UnaryNumeric { expr, op } => {
+            super::unary_numeric::result_type(*op, expr, known_expr_type(expr, field_types))
+        }
+        Expr::IntegerNegate { width, .. } => Some(width.data_type()),
         Expr::IntegerLiteral(value) => Some(integer_literal_type(*value)),
-        Expr::BoolLiteral(_) => Some(DataType::Boolean),
+        Expr::RowCompare(_) | Expr::BoolLiteral(_) => Some(DataType::Boolean),
         Expr::Null => Some(DataType::Null),
         _ => None,
     }

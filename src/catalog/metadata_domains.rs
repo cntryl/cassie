@@ -237,6 +237,18 @@ impl Catalog {
     }
 
     #[must_use]
+    pub(crate) fn function_volatility(&self, name: &str) -> Option<crate::catalog::Volatility> {
+        let functions = self.functions.read();
+        let mut matching = functions
+            .values()
+            .filter(|function| name_matches(&function.name, name));
+        let first = matching.next()?;
+        matching
+            .all(|function| function.volatility == first.volatility)
+            .then(|| first.volatility.clone())
+    }
+
+    #[must_use]
     pub fn get_function(&self, name: &str) -> Option<FunctionMeta> {
         let key = name.to_ascii_lowercase();
         let functions = self.functions.read();

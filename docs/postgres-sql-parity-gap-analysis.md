@@ -42,7 +42,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | INNER/LEFT/RIGHT/FULL/CROSS/LATERAL joins, aliases | Supported | — |
 | NATURAL JOIN, JOIN USING, qualified star `t.*` | Absent | #800 |
 | UNION [ALL], INTERSECT, EXCEPT | Supported | — |
-| INTERSECT ALL, EXCEPT ALL | Absent | #800 |
+| INTERSECT ALL, EXCEPT ALL | Selected integer/text/NULL multiplicity qualified, including VALUES branches and explicit DISTINCT; wider coercions pending | #800 |
 | VALUES relations, row constructors, tuple comparison | Absent | #800 |
 | WITH [RECURSIVE] | Supported | — |
 | CTE `[NOT] MATERIALIZED`, `SEARCH`, `CYCLE` | Absent | #801 |

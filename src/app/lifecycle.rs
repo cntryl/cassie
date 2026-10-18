@@ -6,6 +6,21 @@ use super::{
 use crate::catalog::{canonical_schema_name, DEFAULT_SCHEMA};
 
 impl Cassie {
+    /// Creates an isolated ephemeral instance using Midge's in-memory storage.
+    ///
+    /// Storage environment variables do not override this explicit mode. Use a
+    /// data-directory constructor when persistence or restart is required.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when storage or configured providers cannot initialize.
+    pub fn new_in_memory_with_config(
+        runtime_config: CassieRuntimeConfig,
+    ) -> Result<Self, CassieError> {
+        let midge = Arc::new(Midge::new_in_memory(&runtime_config.database)?);
+        Self::new_with_midge_and_config(midge, runtime_config)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.

@@ -44,7 +44,9 @@ pub(crate) fn expression(
         | Expr::BoolLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::Null => Capability::NativeTyped,
-        Expr::IsNull { expr, .. } | Expr::Not { expr } => expression(expr, schema, params),
+        Expr::IsNull { expr, .. } | Expr::TruthTest { expr, .. } | Expr::Not { expr } => {
+            expression(expr, schema, params)
+        }
         Expr::Binary { left, op, right } => {
             if expression(left, schema, params) != Capability::NativeTyped
                 || expression(right, schema, params) != Capability::NativeTyped
@@ -98,6 +100,7 @@ fn operand_type(expr: &Expr, schema: &[(String, DataType)], params: &[Value]) ->
         Expr::BoolLiteral(_)
         | Expr::Not { .. }
         | Expr::IsNull { .. }
+        | Expr::TruthTest { .. }
         | Expr::Binary {
             op:
                 BinaryOp::And

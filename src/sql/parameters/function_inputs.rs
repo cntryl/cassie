@@ -18,11 +18,17 @@ pub(super) fn infer_function_parameter_type_oids(
     catalog: &Catalog,
     inference: &mut ParameterInference,
 ) {
-    if !inference.check() || function.args.is_empty() {
+    if !inference.check() {
         return;
     }
-    for argument in &function.args {
+    for argument in function.expressions() {
         infer_parameter_type_oids_expr(argument, field_types, catalog, inference);
+    }
+    if let Some(filter) = &function.filter {
+        infer_parameter_type_from_expected_expr(filter, &DataType::Boolean, inference);
+    }
+    if function.args.is_empty() {
+        return;
     }
     if !inference.check() {
         return;
@@ -64,30 +70,20 @@ fn infer_inputs(
     catalog: &Catalog,
     inference: &mut ParameterInference,
 ) -> Result<(), ParameterAdmissionError> {
-    let declared = catalog
-        .with_function_signature(
-            &function.name,
-            inference.scope,
-            inference.controls,
-            |signature| {
-                let Some((arguments, _)) = signature else {
-                    return false;
-                };
-                if arguments.len() == function.args.len() {
-                    for (argument, input) in function.args.iter().zip(arguments) {
-                        if let Some(data_type) = primitive_type(&input.data_type) {
-                            // This visitor only sees Params/Casts; it cannot reenter
-                            // the catalog while the signature read guard is held.
-                            infer_parameter_type_from_expected_expr(
-                                argument, &data_type, inference,
-                            );
-                        }
-                    }
-                }
-                true
-            },
-        )
-        .map_err(admission_error)?;
+    let cast = functions::primitive_casts::candidate(function);
+    if let Some(cast) = &cast {
+        if matches!(cast.data_type, DataType::Text | DataType::Varchar { .. }) {
+            inference.without_context_demands(|inference| {
+                infer_parameter_type_from_expected_expr(
+                    &function.args[0],
+                    &cast.data_type,
+                    inference,
+                );
+            });
+            return Ok(());
+        }
+    }
+    let declared = infer_declared_inputs(function, catalog, inference)?;
     if declared || !inference.check() {
         return Ok(());
     }
@@ -96,8 +92,49 @@ fn infer_inputs(
     else {
         return Ok(());
     };
+    // Both native pg_size_pretty overloads are candidates for an unknown
+    // parameter. Only an explicit cast/declaration selects the bigint path.
+    if matches!(
+        metadata.id,
+        functions::FunctionId::PgSizePretty | functions::FunctionId::PgCharToEncoding
+    ) {
+        return Ok(());
+    }
     let data_type = match functions::input_signature(metadata.id) {
+        Some(FunctionInputSignature::Positional(oids)) => {
+            let mut integer_substring = false;
+            if metadata.id == functions::FunctionId::Substring {
+                for argument in function.args.iter().skip(1) {
+                    integer_substring |= matches!(
+                        argument_type(argument, field_types, catalog, inference)?,
+                        ArgumentType::Known(DataType::SmallInt | DataType::Int)
+                    );
+                }
+            }
+            let oids = if function
+                .name
+                .rsplit('.')
+                .next()
+                .is_some_and(|name| name.eq_ignore_ascii_case("substring"))
+                && !integer_substring
+            {
+                &[25, 25, 25]
+            } else {
+                oids
+            };
+            for (argument, oid) in function.args.iter().zip(oids) {
+                let data_type = match *oid {
+                    20 => DataType::BigInt,
+                    23 => DataType::Int,
+                    701 => DataType::Float,
+                    _ => DataType::Text,
+                };
+                infer_parameter_type_from_expected_expr(argument, &data_type, inference);
+            }
+            None
+        }
         Some(FunctionInputSignature::Text) => Some(DataType::Text),
+        Some(FunctionInputSignature::Boolean) => Some(DataType::Boolean),
         Some(FunctionInputSignature::CommonArguments) => {
             common_argument_type(function, field_types, catalog, inference)?
         }
@@ -115,6 +152,45 @@ enum ArgumentType {
     Known(DataType),
     Unknown,
     Unqualified,
+}
+
+fn infer_declared_inputs(
+    function: &FunctionCall,
+    catalog: &Catalog,
+    inference: &mut ParameterInference,
+) -> Result<bool, ParameterAdmissionError> {
+    let cast = functions::primitive_casts::candidate(function);
+    catalog
+        .with_function_signature(
+            &function.name,
+            inference.scope,
+            inference.controls,
+            |signature| {
+                let Some((arguments, _)) = signature else {
+                    return false;
+                };
+                if cast.as_ref().is_some_and(|cast| cast.data_type != DataType::Uuid)
+                    && arguments.len() == 1
+                    && !matches!(arguments[0].data_type, DataType::Text | DataType::Varchar { .. } | DataType::Char { .. })
+                    && matches!(function.args.as_slice(), [Expr::Param(index)] if matches!(inference.oids.get(*index).copied(), None | Some(0 | 705)))
+                {
+                    return false;
+                }
+                if arguments.len() == function.args.len() {
+                    for (argument, input) in function.args.iter().zip(arguments) {
+                        if let Some(data_type) = primitive_type(&input.data_type) {
+                            // This visitor only sees Params/Casts; it cannot reenter
+                            // the catalog while the signature read guard is held.
+                            infer_parameter_type_from_expected_expr(
+                                argument, &data_type, inference,
+                            );
+                        }
+                    }
+                }
+                true
+            },
+        )
+        .map_err(admission_error)
 }
 
 fn common_argument_type(
@@ -194,7 +270,17 @@ fn function_result_type(
             &function.name,
             inference.scope,
             inference.controls,
-            |signature| signature.map(|(_, result)| primitive_type(result)),
+            |signature| {
+                signature
+                    .filter(|(arguments, _)| {
+                        !functions::has_distinct_builtin_arity(
+                            &function.name,
+                            function.args.len(),
+                            arguments.len(),
+                        )
+                    })
+                    .map(|(_, result)| primitive_type(result))
+            },
         )
         .map_err(admission_error)?;
     if let Some(data_type) = declared {
@@ -206,6 +292,7 @@ fn function_result_type(
         return Ok(ArgumentType::Unqualified);
     };
     match functions::input_signature(metadata.id) {
+        Some(FunctionInputSignature::Boolean) => Ok(ArgumentType::Known(DataType::Boolean)),
         Some(FunctionInputSignature::CommonArguments) => {
             Ok(
                 common_argument_type(function, field_types, catalog, inference)?
@@ -214,6 +301,15 @@ fn function_result_type(
         }
         Some(FunctionInputSignature::Text) if metadata.return_type == FunctionReturnType::Text => {
             Ok(ArgumentType::Known(DataType::Text))
+        }
+        Some(FunctionInputSignature::Positional(_)) => {
+            Ok(ArgumentType::Known(match metadata.return_type {
+                FunctionReturnType::Int => DataType::Int,
+                FunctionReturnType::BigInt => DataType::BigInt,
+                FunctionReturnType::Boolean => DataType::Boolean,
+                FunctionReturnType::Bytea => DataType::Bytea,
+                _ => DataType::Text,
+            }))
         }
         _ => Ok(ArgumentType::Unqualified),
     }

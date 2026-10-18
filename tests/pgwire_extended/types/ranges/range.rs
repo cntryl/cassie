@@ -1,0 +1,661 @@
+#[test]
+fn should_describe_null_int4range_with_postgresql_type_identity() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT NULL::int4range AS value",
+    )])];
+
+    // Act
+    let batches = run_script("postgresql18-int4range-null-identity", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("int4range RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (column.type_oid, column.type_size, column.type_mod),
+        (3_904, -1, -1)
+    );
+    assert_eq!(wire::data_rows(result), vec![vec![None]]);
+}
+
+#[test]
+fn should_describe_null_int4multirange_with_postgresql_type_identity() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT NULL::int4multirange AS value",
+    )])];
+
+    // Act
+    let batches = run_script("postgresql18-int4multirange-null-identity", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("int4multirange RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (column.type_oid, column.type_size, column.type_mod),
+        (4_451, -1, -1)
+    );
+    assert_eq!(wire::data_rows(result), vec![vec![None]]);
+}
+
+#[test]
+fn should_describe_builtin_range_families_with_postgresql_oids() {
+    // Arrange
+    let sql = "SELECT '[1,4]'::int4range AS integer_range, '[1.20,2.40)'::numrange AS numeric_range, 'empty'::int8range AS empty_range, daterange('2020-01-01', '2020-01-03', '[]') AS date_range, '{[1,3),[3,5)}'::int4multirange AS integer_multirange";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("postgresql18-range-wire-oids", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("range RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![3_904, 3_906, 3_926, 3_912, 4_451]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some("[1,5)".to_owned()),
+            Some("[1.20,2.40)".to_owned()),
+            Some("empty".to_owned()),
+            Some("[2020-01-01,2020-01-04)".to_owned()),
+            Some("{[1,5)}".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_send_range_families_in_postgresql_binary_format() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let range_binary = [
+        0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+        0x00, 0x05,
+    ];
+    let multirange_binary = [
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x11, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+        0x00, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x05,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            "range_binary_statement",
+            "SELECT '[1,5)'::int4range AS value",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "range_binary_portal",
+                "range_binary_statement",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("range_binary_portal"),
+            wire::execute_frame("range_binary_portal"),
+            wire::sync_frame(),
+        ]),
+        Step::ParseFlush(wire::parse_frame(
+            "multirange_binary_statement",
+            "SELECT '{[1,3),[3,5)}'::int4multirange AS value",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "multirange_binary_portal",
+                "multirange_binary_statement",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("multirange_binary_portal"),
+            wire::execute_frame("multirange_binary_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-905-range-binary-output", steps);
+
+    // Assert
+    for ((frames, oid, expected), parse_complete) in [
+        (&batches[1], 3_904, &range_binary[..]),
+        (&batches[3], 4_451, &multirange_binary[..]),
+    ]
+    .into_iter()
+    .zip([&batches[0], &batches[2]])
+    {
+        assert_eq!(wire::error_code(parse_complete), None);
+        assert_eq!(parse_complete.first().map(|(tag, _)| *tag), Some(b'1'));
+        assert_eq!(wire::error_code(frames), None);
+        let description = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("range binary RowDescription");
+        let column = &wire::parse_row_description(&description.1)[0];
+        assert_eq!(
+            (
+                column.type_oid,
+                column.type_size,
+                column.type_mod,
+                column.format_code
+            ),
+            (oid, -1, -1, 1)
+        );
+        assert_eq!(
+            fixture::data_row_payloads(frames),
+            vec![fixture::one_field_row(expected)]
+        );
+    }
+}
+
+#[test]
+fn should_send_every_builtin_range_family_in_postgresql_binary_format() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let cases = [
+        (3_904, "0200000004000000010000000400000005"),
+        (3_926, "02000000080000000000000001000000080000000000000005"),
+        (
+            3_906,
+            "020000000a000100000000000000010000000a00010000000000000005",
+        ),
+        (3_912, "020000000400001c890000000400001c8b"),
+        (3_908, "020000000800023e0786c260000000000800023e2fc2712000"),
+        (3_910, "020000000800023e0786c260000000000800023e2fc2712000"),
+        (4_451, "00000001000000110200000004000000010000000400000005"),
+        (
+            4_536,
+            "000000010000001902000000080000000000000001000000080000000000000005",
+        ),
+        (
+            4_532,
+            "000000010000001d020000000a000100000000000000010000000a00010000000000000005",
+        ),
+        (4_535, "0000000100000011020000000400001c890000000400001c8b"),
+        (
+            4_533,
+            "0000000100000019020000000800023e0786c260000000000800023e2fc2712000",
+        ),
+        (
+            4_534,
+            "0000000100000019020000000800023e0786c260000000000800023e2fc2712000",
+        ),
+    ];
+    let sql = "SELECT '[1,5)'::int4range AS int4_range, '[1,5)'::int8range AS int8_range, '[1,5)'::numrange AS numeric_range, '[2020-01-01,2020-01-03)'::daterange AS date_range, '[2020-01-01 00:00:00,2020-01-03 00:00:00)'::tsrange AS timestamp_range, '[2020-01-01 00:00:00+00,2020-01-03 00:00:00+00)'::tstzrange AS timestamptz_range, '{[1,5)}'::int4multirange AS int4_multirange, '{[1,5)}'::int8multirange AS int8_multirange, '{[1,5)}'::nummultirange AS numeric_multirange, '{[2020-01-01,2020-01-03)}'::datemultirange AS date_multirange, '{[2020-01-01 00:00:00,2020-01-03 00:00:00)}'::tsmultirange AS timestamp_multirange, '{[2020-01-01 00:00:00+00,2020-01-03 00:00:00+00)}'::tstzmultirange AS timestamptz_multirange";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame("all_range_binary_types", sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "all_range_binary_portal",
+                "all_range_binary_types",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("all_range_binary_portal"),
+            wire::execute_frame("all_range_binary_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-905-all-range-binary-families", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("all range family RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        cases.iter().map(|(oid, _)| *oid).collect::<Vec<_>>()
+    );
+    assert!(columns
+        .iter()
+        .all(|column| column.type_size == -1 && column.type_mod == -1));
+    assert!(columns.iter().all(|column| column.format_code == 1));
+
+    let expected_fields = cases
+        .iter()
+        .map(|(_, hex)| bytes_from_hex(hex))
+        .collect::<Vec<_>>();
+    let expected_field_slices = expected_fields
+        .iter()
+        .map(Vec::as_slice)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        fixture::data_row_payloads(result),
+        vec![binary_row(&expected_field_slices)]
+    );
+}
+
+#[test]
+fn should_describe_timestamp_ranges_with_postgresql_oids() {
+    // Arrange
+    let sql = "SELECT NULL::tsrange AS tsrange, NULL::tstzrange AS tstzrange, NULL::nummultirange AS nummultirange, NULL::tsmultirange AS tsmultirange, NULL::tstzmultirange AS tstzmultirange, NULL::datemultirange AS datemultirange, NULL::int8multirange AS int8multirange";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-905-range-multirange-oids", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("timestamp range and multirange RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![3_908, 3_910, 4_532, 4_533, 4_534, 4_535, 4_536]
+    );
+    assert_eq!(wire::data_rows(&batches[0]), vec![vec![None; 7]]);
+}
+
+#[test]
+fn should_return_text_for_binary_int4range_parameters() {
+    // Arrange
+    let range_binary = [
+        0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+        0x00, 0x05,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "range_binary_input_statement",
+            "SELECT $1::int4range AS value",
+            &[3_904],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "range_binary_input_portal",
+                "range_binary_input_statement",
+                &[1],
+                &[Some(&range_binary)],
+                &[0],
+            ),
+            wire::describe_portal_frame("range_binary_input_portal"),
+            wire::execute_frame("range_binary_input_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-905-range-binary-input", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("range binary-input RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!(
+        (
+            column.type_oid,
+            column.type_size,
+            column.type_mod,
+            column.format_code
+        ),
+        (3_904, -1, -1, 0)
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("[1,5)".to_owned())]]
+    );
+}
+
+#[test]
+fn should_decode_binary_int4multirange_parameters() {
+    // Arrange
+    let multirange_binary = [
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x11, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+        0x00, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x05,
+    ];
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "int4multirange_binary_input",
+            "SELECT $1::text AS value",
+            &[4_451],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "int4multirange_binary_input_portal",
+                "int4multirange_binary_input",
+                &[1],
+                &[Some(&multirange_binary)],
+                &[0],
+            ),
+            wire::describe_portal_frame("int4multirange_binary_input_portal"),
+            wire::execute_frame("int4multirange_binary_input_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-905-int4multirange-binary-input", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("int4multirange binary-input RowDescription");
+    let column = &wire::parse_row_description(&description.1)[0];
+    assert_eq!((column.type_oid, column.format_code), (25, 0));
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("{[1,5)}".to_owned())]]
+    );
+}
+
+#[test]
+fn should_decode_text_parameters_for_every_builtin_range_family() {
+    // Arrange
+    let parameters = BUILTIN_RANGE_TEXT_INPUTS
+        .iter()
+        .map(|value| Some(*value))
+        .collect::<Vec<_>>();
+    let steps = range_parameter_steps("all_range_text_inputs", 0, &parameters);
+
+    // Act
+    let batches = run_script("issue-905-all-range-text-inputs", steps);
+
+    // Assert
+    assert_range_parameter_results(&batches, &BUILTIN_RANGE_TEXT_INPUT_RESULTS);
+}
+
+#[test]
+fn should_decode_binary_parameters_for_every_builtin_range_family() {
+    // Arrange
+    let decoded_parameters = BUILTIN_RANGE_BINARY_INPUT_HEX
+        .iter()
+        .map(|value| bytes_from_hex(value))
+        .collect::<Vec<_>>();
+    let parameters = decoded_parameters
+        .iter()
+        .map(|value| Some(value.as_slice()))
+        .collect::<Vec<_>>();
+    let steps = range_parameter_steps("all_range_binary_inputs", 1, &parameters);
+
+    // Act
+    let batches = run_script("issue-905-all-range-binary-inputs", steps);
+
+    // Assert
+    assert_range_parameter_results(&batches, &BUILTIN_RANGE_TEXT_RESULTS);
+}
+
+#[test]
+fn should_compare_timestamptz_range_values_by_instant() {
+    // Arrange
+    let sql = "SELECT '[2020-01-01 01:00:00+01,2020-01-03 01:00:00+01)'::tstzrange = '[2020-01-01 00:00:00+00,2020-01-03 00:00:00+00)'::tstzrange, '{[2020-01-01 01:00:00+01,2020-01-02 01:00:00+01),[2020-01-02 01:00:00+01,2020-01-03 01:00:00+01)}'::tstzmultirange = '{[2020-01-01 00:00:00+00,2020-01-03 00:00:00+00)}'::tstzmultirange";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-905-timestamptz-range-instant-values", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("timestamptz range comparison RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16, 16]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![Some("t".to_owned()), Some("t".to_owned())]]
+    );
+}
+
+#[test]
+fn should_report_malformed_range_text_with_invalid_text_representation_sqlstate() {
+    // PostgreSQL 18.6 returns 22P02 for this malformed range literal. Cassie
+    // currently stops earlier with 0A000 because int4range is unsupported, so
+    // this acceptance expectation is masked and does not prove input parsing.
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT 'not-a-range'::int4range",
+    )])];
+
+    // Act
+    let batches = run_script("issue-905-malformed-range-text", steps);
+
+    // Assert
+    assert_eq!(
+        wire::error_code(&batches[0]),
+        Some("22P02".to_owned()),
+        "wire errors: {:?}",
+        batches[0]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn should_encode_range_boundary_values_in_postgresql_binary_format() {
+    // Arrange
+    let cases = [
+        (3_904, "01"),
+        (3_904, "080000000400000005"),
+        (3_926, "12000000080000000000000001"),
+        (3_906, "100000000c0002000000000002000107d0"),
+        (4_451, "00000000"),
+        (
+            4_451,
+            "000000020000001102000000040000000100000004000000020000001102000000040000000400000005",
+        ),
+    ];
+    let sql = "SELECT 'empty'::INT4RANGE AS empty_range, int4range(NULL, 5, '()') AS lower_unbounded_range, int8range(1, NULL, '[]') AS upper_unbounded_range, numrange(1.20, NULL, '(]') AS unbounded_numeric_range, '{}'::INT4MULTIRANGE AS empty_multirange, '{[1,2),[4,5)}'::INT4MULTIRANGE AS split_multirange";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame("range_edge_binary_statement", sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "range_edge_binary_portal",
+                "range_edge_binary_statement",
+                &[],
+                &[],
+                &[1],
+            ),
+            wire::describe_portal_frame("range_edge_binary_portal"),
+            wire::execute_frame("range_edge_binary_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-905-range-edge-binary-output", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    let result = &batches[1];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("empty and unbounded range RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        cases.iter().map(|(oid, _)| *oid).collect::<Vec<_>>()
+    );
+    assert!(columns
+        .iter()
+        .all(|column| column.type_size == -1 && column.type_mod == -1));
+    assert!(columns.iter().all(|column| column.format_code == 1));
+    let expected_fields = cases
+        .iter()
+        .map(|(_, hex)| bytes_from_hex(hex))
+        .collect::<Vec<_>>();
+    let expected_field_slices = expected_fields
+        .iter()
+        .map(Vec::as_slice)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        crate::support_type_metadata_contract::data_row_payloads(result),
+        vec![binary_row(&expected_field_slices)]
+    );
+}
+
+#[test]
+fn should_report_subtype_oids_for_range_lower_functions() {
+    // Arrange
+    let sql = "SELECT lower(int4range(1, 3, '[)')) AS int4_lower, lower(int8range(1, 3, '[)')) AS int8_lower, lower(numrange(1.20, 2.40, '[)')) AS numeric_lower, lower(daterange(DATE '2024-02-28', DATE '2024-03-01', '[)')) AS date_lower, lower(tsrange(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-02 00:00:00', '[)')) AS timestamp_lower";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-905-range-accessor-result-oids", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("range lower-function RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 20, 1_700, 1_082, 1_114]
+    );
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("1".to_owned()),
+            Some("1".to_owned()),
+            Some("1.20".to_owned()),
+            Some("2024-02-28".to_owned()),
+            Some("2024-01-01 00:00:00".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_report_range_accessor_subtype_metadata() {
+    // Arrange
+    let sql = "SET TIME ZONE 'UTC'; SELECT lower(int4range(1, 3, '[)')) AS int4_lower, upper(int4range(1, 3, '[)')) AS int4_upper, lower(int8range(1, 3, '[)')) AS int8_lower, upper(int8range(1, 3, '[)')) AS int8_upper, lower(numrange(1.20, 2.40, '[)')) AS numeric_lower, upper(numrange(1.20, 2.40, '[)')) AS numeric_upper, lower(daterange(DATE '2024-01-01', DATE '2024-01-03', '[)')) AS date_lower, upper(daterange(DATE '2024-01-01', DATE '2024-01-03', '[)')) AS date_upper, lower(tsrange(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-03 00:00:00', '[)')) AS timestamp_lower, upper(tsrange(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-03 00:00:00', '[)')) AS timestamp_upper, lower(tstzrange(TIMESTAMPTZ '2024-01-01 00:00:00+00', TIMESTAMPTZ '2024-01-03 00:00:00+00', '[)')) AS timestamptz_lower, upper(tstzrange(TIMESTAMPTZ '2024-01-01 00:00:00+00', TIMESTAMPTZ '2024-01-03 00:00:00+00', '[)')) AS timestamptz_upper";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-905-range-accessor-subtype-metadata", steps);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let description = result
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("range accessor RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![
+            (23, 4, -1),
+            (23, 4, -1),
+            (20, 8, -1),
+            (20, 8, -1),
+            (1_700, -1, -1),
+            (1_700, -1, -1),
+            (1_082, 4, -1),
+            (1_082, 4, -1),
+            (1_114, 8, -1),
+            (1_114, 8, -1),
+            (1_184, 8, -1),
+            (1_184, 8, -1),
+        ]
+    );
+    assert!(columns.iter().all(|column| column.format_code == 0));
+    assert_eq!(
+        wire::data_rows(result),
+        vec![vec![
+            Some("1".to_owned()),
+            Some("3".to_owned()),
+            Some("1".to_owned()),
+            Some("3".to_owned()),
+            Some("1.20".to_owned()),
+            Some("2.40".to_owned()),
+            Some("2024-01-01".to_owned()),
+            Some("2024-01-03".to_owned()),
+            Some("2024-01-01 00:00:00".to_owned()),
+            Some("2024-01-03 00:00:00".to_owned()),
+            Some("2024-01-01 00:00:00+00".to_owned()),
+            Some("2024-01-03 00:00:00+00".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_report_disconnected_range_union_with_data_exception_sqlstate() {
+    // Arrange
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT int4range(1, 3, '[)') + int4range(5, 7, '[)')",
+    )])];
+
+    // Act
+    let batches = run_script("issue-905-disconnected-range-union", steps);
+
+    // Assert
+    assert_eq!(
+        wire::error_code(&batches[0]).as_deref(),
+        Some("22000"),
+        "wire errors: {:?}",
+        batches[0]
+            .iter()
+            .filter(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .collect::<Vec<_>>()
+    );
+    assert!(!batches[0].iter().any(|(tag, _)| *tag == b'D'));
+}

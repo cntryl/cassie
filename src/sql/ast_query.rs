@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::IdentifierPath;
-use super::ParsedStatement;
+use super::{ParsedStatement, TruthValue};
 use crate::types::DataType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -9,6 +9,18 @@ pub struct CommonTableExpression {
     pub name: String,
     pub aliases: Vec<String>,
     pub query: CteQuery,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub materialization: CteMaterialization,
+}
+
+/// Explicit CTE planning policy; recursive and volatile inputs retain sharing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CteMaterialization {
+    #[default]
+    Default,
+    Materialized,
+    NotMaterialized,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,6 +35,9 @@ pub enum CteQuery {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QuerySource {
+    Values {
+        rows: Vec<Vec<Expr>>,
+    },
     Collection(IdentifierPath),
     Cte(String),
     Aliased {
@@ -52,6 +67,16 @@ pub enum QuerySource {
 impl PartialEq for QuerySource {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Values { rows: left }, Self::Values { rows: right }) => {
+                left.len() == right.len()
+                    && left.iter().zip(right).all(|(left, right)| {
+                        left.len() == right.len()
+                            && left
+                                .iter()
+                                .zip(right)
+                                .all(|(left, right)| left.structurally_eq(right))
+                    })
+            }
             (Self::Collection(left), Self::Collection(right)) => left == right,
             (Self::Cte(left), Self::Cte(right)) => left == right,
             (
@@ -92,6 +117,8 @@ pub enum SetOperator {
     UnionAll,
     Intersect,
     Except,
+    IntersectAll,
+    ExceptAll,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,10 +165,56 @@ pub enum SelectItem {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FunctionCall {
     pub name: String,
     pub args: Vec<Expr>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub quantifier: AggregateQuantifier,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<Box<Expr>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub order_by: Vec<OrderExpr>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AggregateQuantifier {
+    #[default]
+    Default,
+    All,
+    Distinct,
+}
+
+fn is_default<T: Default + PartialEq>(value: &T) -> bool {
+    value == &T::default()
+}
+
+impl FunctionCall {
+    #[must_use]
+    pub fn has_modifiers(&self) -> bool {
+        self.quantifier != AggregateQuantifier::Default
+            || self.filter.is_some()
+            || !self.order_by.is_empty()
+    }
+
+    #[must_use]
+    pub fn is_distinct(&self) -> bool {
+        self.quantifier == AggregateQuantifier::Distinct
+    }
+
+    pub fn expressions(&self) -> impl Iterator<Item = &Expr> {
+        self.args
+            .iter()
+            .chain(self.filter.as_deref())
+            .chain(self.order_by.iter().map(|order| &order.expr))
+    }
+
+    pub fn expressions_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
+        self.args
+            .iter_mut()
+            .chain(self.filter.as_deref_mut())
+            .chain(self.order_by.iter_mut().map(|order| &mut order.expr))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,6 +279,16 @@ pub enum NullsOrder {
     Last,
 }
 
+/// Requested cast identity when a legacy carrier is shared by SQL families.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CastIdentity {
+    #[default]
+    Scalar,
+    /// NUMERIC/DECIMAL has no qualified exact carrier in the current runtime.
+    Numeric,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Expr {
     Column(String),
@@ -213,6 +296,9 @@ pub enum Expr {
     StringLiteral(String),
     NumberLiteral(f64),
     IntegerLiteral(i64),
+    /// Exact normalized decimal integer outside the existing signed carrier.
+    /// Materializes only through an explicitly supported primitive cast.
+    NumericLiteral(String),
     BoolLiteral(bool),
     Null,
     Case {
@@ -225,6 +311,11 @@ pub enum Expr {
         op: BinaryOp,
         right: Box<Expr>,
     },
+    TruthTest {
+        expr: Box<Expr>,
+        truth: TruthValue,
+        negated: bool,
+    },
     IsNull {
         expr: Box<Expr>,
         negated: bool,
@@ -234,11 +325,18 @@ pub enum Expr {
         values: Vec<Expr>,
         negated: bool,
     },
+    Like {
+        expr: Box<Expr>,
+        pattern: Box<Expr>,
+        escape: Box<Expr>,
+    },
     Between {
         expr: Box<Expr>,
         low: Box<Expr>,
         high: Box<Expr>,
         negated: bool,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        symmetric: bool,
     },
     Not {
         expr: Box<Expr>,
@@ -246,12 +344,29 @@ pub enum Expr {
     Cast {
         expr: Box<Expr>,
         data_type: DataType,
+        /// Bound source identity required by the selected conversion.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source_type: Option<DataType>,
+        #[serde(default)]
+        identity: CastIdentity,
     },
+    /// Numeric prefix operator, resolved against its operand during binding.
+    UnaryNumeric {
+        expr: Box<Expr>,
+        op: UnaryNumericOp,
+    },
+    /// Integer negation applied after its operand's casts.
+    IntegerNegate {
+        expr: Box<Expr>,
+        width: crate::types::IntegerWidth,
+    },
+    /// A predicate comparing corresponding row-constructor fields.
+    RowCompare(Box<super::RowComparison>),
     Exists(Box<ParsedStatement>),
-    Function(FunctionCall),
+    Function(Box<FunctionCall>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BinaryOp {
     Eq,
     NotEq,
@@ -263,10 +378,24 @@ pub enum BinaryOp {
     Gte,
     And,
     Or,
+    /// Strict selected text concatenation.
+    Concat,
+    /// Strict BYTEA concatenation selected before its shared string carrier is evaluated.
+    ByteaConcat,
     Add,
     Sub,
     Mul,
     Div,
+    Bitwise {
+        operation: crate::types::IntegerOperation,
+    },
+    Modulo,
+    Power,
+    /// A selected builtin integer operator, retaining its operand/result domain.
+    Integer {
+        operation: crate::types::IntegerOperation,
+        width: crate::types::IntegerWidth,
+    },
     Like,
     PgvectorCosine,
     PgvectorL2,
@@ -277,4 +406,14 @@ pub enum BinaryOp {
 pub struct Bm25Params {
     pub k1: f64,
     pub b: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnaryNumericOp {
+    Complement,
+    Absolute,
+    SquareRoot,
+    CubeRoot,
+    Plus,
+    Minus,
 }

@@ -17,20 +17,17 @@ fn case_keywords(raw: &str) -> Result<Vec<(usize, Keyword)>, SqlError> {
     let mut index = 0;
     let mut parentheses = 0u32;
     let mut cases = 0u32;
-    let mut single_quote = false;
-    let mut double_quote = false;
     while index < bytes.len() {
+        if let Some(end) = super::super::lexical::quoted_end(raw, index) {
+            index = end;
+            continue;
+        }
         match bytes[index] {
-            b'\'' if !double_quote => single_quote = !single_quote,
-            b'"' if !single_quote => double_quote = !double_quote,
-            b'(' if !single_quote && !double_quote => parentheses += 1,
-            b')' if !single_quote && !double_quote => {
+            b'(' => parentheses += 1,
+            b')' => {
                 parentheses = parentheses.saturating_sub(1);
             }
-            byte if !single_quote
-                && !double_quote
-                && (byte.is_ascii_alphabetic() || byte == b'_') =>
-            {
+            byte if byte.is_ascii_alphabetic() || byte == b'_' => {
                 let start = index;
                 while index < bytes.len()
                     && (bytes[index].is_ascii_alphanumeric() || bytes[index] == b'_')
@@ -68,7 +65,7 @@ fn case_keywords(raw: &str) -> Result<Vec<(usize, Keyword)>, SqlError> {
         }
         index += 1;
     }
-    if cases != 0 || single_quote || double_quote {
+    if cases != 0 {
         return Err(SqlError::new("CASE requires a matching END".into()));
     }
     Ok(tokens)

@@ -1,5 +1,4 @@
-//! A local-storage Cassie instance seeded by SQL statements, for tests that
-//! only need to run queries and inspect rows or errors.
+//! Ephemeral SQL correctness fixtures, with explicit local storage for lifecycle tests.
 #![allow(dead_code)]
 
 use cassie::app::{Cassie, CassieError, CassieSession};
@@ -11,7 +10,7 @@ pub struct SqlFixture {
     // Fields drop in declaration order; directory cleanup must come last.
     pub session: CassieSession,
     pub cassie: Cassie,
-    path: FixtureDirectory,
+    path: Option<FixtureDirectory>,
 }
 
 struct FixtureDirectory {
@@ -41,7 +40,7 @@ impl Drop for FixtureDirectory {
     }
 }
 
-/// Opens a fresh local-storage instance and runs every `setup` statement.
+/// Opens a fresh in-memory instance and runs every `setup` statement.
 ///
 /// # Panics
 ///
@@ -64,20 +63,44 @@ pub fn sql_fixture_with_config(
     setup: &[&str],
     config: cassie::config::CassieRuntimeConfig,
 ) -> SqlFixture {
+    let cassie = Cassie::new_in_memory_with_config(config).expect("create ephemeral Cassie");
+    seeded_fixture(cassie, None, setup, label)
+}
+
+/// Opens a local fixture for tests of persistence, restart, or directory cleanup.
+///
+/// # Panics
+///
+/// Panics when construction or a setup statement fails.
+pub fn local_sql_fixture_with_config(
+    label: &str,
+    setup: &[&str],
+    config: cassie::config::CassieRuntimeConfig,
+) -> SqlFixture {
     crate::support_sql::use_local_storage();
     let path = crate::support_sql::data_dir(label);
+    let directory = FixtureDirectory { path: path.clone() };
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("create Cassie");
+    seeded_fixture(cassie, Some(directory), setup, label)
+}
+
+fn seeded_fixture(
+    cassie: Cassie,
+    path: Option<FixtureDirectory>,
+    setup: &[&str],
+    label: &str,
+) -> SqlFixture {
     let session = cassie.create_session("tester", None);
     for sql in setup {
         assert!(
             cassie.execute_sql(&session, sql, vec![]).is_ok(),
-            "setup statement failed: {sql}"
+            "setup statement failed in {label}: {sql}"
         );
     }
     SqlFixture {
-        cassie,
         session,
-        path: FixtureDirectory { path },
+        cassie,
+        path,
     }
 }
 
@@ -136,11 +159,20 @@ mod teardown_tests {
         // Arrange
         crate::support_sql::use_local_storage();
         for startup in [false, true] {
-            let fixture = sql_fixture("782-generic-drop-order", &[]);
+            let fixture = local_sql_fixture_with_config(
+                "782-generic-drop-order",
+                &[],
+                cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),
+            );
             if startup {
                 fixture.cassie.startup().expect("startup control");
             }
-            let path = fixture.path.path.clone();
+            let path = fixture
+                .path
+                .as_ref()
+                .expect("local fixture directory")
+                .path
+                .clone();
             let result = fixture
                 .execute("SELECT CAST(7 AS BIGINT) AS n UNION ALL SELECT CAST(8 AS BIGINT) AS n")
                 .expect("same generic SQL");

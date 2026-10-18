@@ -9,6 +9,30 @@ use crate::app::CassieError;
 const DIAGNOSTIC: &str = "IS [NOT] DISTINCT FROM is not supported in persisted definitions; compatibility law is not selected";
 
 pub(crate) fn expression(expr: &Expr) -> Result<(), CassieError> {
+    if let Expr::Function(function) = expr {
+        if crate::sql::functions::function(&function.name)
+            .is_some_and(|metadata| !metadata.is_aggregate)
+        {
+            let modifier = if function.is_distinct() {
+                Some("DISTINCT")
+            } else if !function.order_by.is_empty() {
+                Some("ORDER BY")
+            } else if function.filter.is_some() {
+                Some("FILTER")
+            } else {
+                None
+            };
+            if let Some(modifier) = modifier {
+                return Err(CassieError::Execution(format!(
+                    "{modifier} specified, but {} is not an aggregate function",
+                    function.name.to_ascii_lowercase()
+                )));
+            }
+        }
+    }
+    if matches!(expr, Expr::RowCompare(comparison) if comparison.op.null_safe()) {
+        return Err(CassieError::Unsupported(DIAGNOSTIC.into()));
+    }
     if matches!(
         expr,
         Expr::Binary {
@@ -150,6 +174,8 @@ fn select(query: &SelectStatement) -> Result<(), CassieError> {
 
 fn source(query: &QuerySource) -> Result<(), CassieError> {
     match query {
+        QuerySource::Values { rows } => rows.iter().flatten().try_for_each(expression)?,
+
         QuerySource::Aliased { source: query, .. } => source(query)?,
         QuerySource::Subquery { select: query, .. } => select(query)?,
         QuerySource::Join {
@@ -160,7 +186,7 @@ fn source(query: &QuerySource) -> Result<(), CassieError> {
             expression(on)?;
         }
         QuerySource::TableFunction { function, .. } => {
-            for expr in &function.args {
+            for expr in function.expressions() {
                 expression(expr)?;
             }
         }
@@ -174,7 +200,7 @@ pub(crate) fn items(projection: &[SelectItem]) -> Result<(), CassieError> {
         match item {
             SelectItem::Expr { expr, .. } => expression(expr)?,
             SelectItem::Function { function, .. } => {
-                for expr in &function.args {
+                for expr in function.expressions() {
                     expression(expr)?;
                 }
             }
@@ -231,6 +257,9 @@ pub(crate) fn rollup(metadata: &crate::catalog::RollupMeta) -> Result<(), Cassie
         .chain(&metadata.filter_expr)
     {
         expression_sql(expression)?;
+        if let Ok(Expr::Function(function)) = super::parser::parse_expression(expression) {
+            reject_rollup_modifiers(&function)?;
+        }
     }
     Ok(())
 }
@@ -238,6 +267,11 @@ pub(crate) fn rollup(metadata: &crate::catalog::RollupMeta) -> Result<(), Cassie
 pub(crate) fn create_rollup(
     definition: &super::ast::CreateRollupStatement,
 ) -> Result<(), CassieError> {
+    for item in &definition.aggregates {
+        if let SelectItem::Function { function, .. } = item {
+            reject_rollup_modifiers(function)?;
+        }
+    }
     for expr in definition
         .bucket
         .args
@@ -248,4 +282,37 @@ pub(crate) fn create_rollup(
         expression(expr)?;
     }
     items(&definition.aggregates)
+}
+
+fn reject_rollup_modifiers(function: &super::ast::FunctionCall) -> Result<(), CassieError> {
+    if function.is_distinct() || function.filter.is_some() || !function.order_by.is_empty() {
+        return Err(CassieError::Unsupported(
+            "aggregate modifiers are not supported in incremental rollup definitions".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn should_reject_scalar_aggregate_modifiers_given_a_persisted_expression_when_definition_admission_runs(
+    ) {
+        // Arrange
+        let cases = ["LOWER(label) FILTER (WHERE TRUE)", "LOWER(DISTINCT label)"];
+
+        // Act
+        for sql in cases {
+            let expression =
+                crate::sql::parser::parse_expression(sql).expect("function clause syntax");
+            let error = super::expression(&expression)
+                .expect_err("scalar modifiers cannot enter persisted definitions");
+
+            // Assert
+            assert_eq!(error.descriptor().sql_state, "42809");
+        }
+        let control =
+            crate::sql::parser::parse_expression("LOWER(ALL label)").expect("valid ALL control");
+        assert!(super::expression(&control).is_ok());
+    }
 }

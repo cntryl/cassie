@@ -5,103 +5,15 @@ use cassie::app::Cassie;
 use cassie::types::Value;
 use tokio::io::AsyncWriteExt;
 
-pub type Frames = Vec<(u8, Vec<u8>)>;
-pub type Cycle = Vec<Vec<u8>>;
+#[path = "wire_bind.rs"]
+mod bind;
+#[path = "wire_queries.rs"]
+mod queries;
 
-pub fn run_cycles(label: &str, setup: &[(&str, Vec<Value>)], cycles: Vec<Cycle>) -> Vec<Frames> {
-    wire::use_local_storage();
-    let path = wire::data_dir(label);
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
-    let batches = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
-        cassie.startup().expect("startup before table creation");
-        let session = cassie.create_session("tester", None);
-        for (sql, params) in setup {
-            cassie
-                .execute_sql(&session, sql, params.clone())
-                .expect("seed finite metadata fixture");
-        }
-        let server = wire::spawn_server(cassie).await;
-        let socket = tokio::net::TcpStream::connect(server.addr)
-            .await
-            .expect("connect pgwire");
-        let (mut reader, mut writer) = tokio::io::split(socket);
-        wire::complete_startup(&mut reader, &mut writer).await;
-        let mut batches = Vec::new();
-        for cycle in cycles {
-            wire::write_frames(&mut writer, cycle).await;
-            batches.push(
-                wire::read_frames_until_ready_within(
-                    &mut reader,
-                    std::time::Duration::from_secs(5),
-                )
-                .await,
-            );
-        }
-        drop(reader);
-        drop(writer);
-        server.stop().await;
-        batches
-    });
-    let _ = std::fs::remove_dir_all(path);
-    batches
-}
+pub use bind::{data_row_payloads, execute_cycle};
+pub use queries::{assert_success, run_cycles, Cycle, Frames};
 
-pub fn execute_cycle(
-    sql: &str,
-    parameter: Option<(i32, i16, Option<&[u8]>)>,
-    result_format: i16,
-    describe: bool,
-) -> Cycle {
-    let oids = parameter.map_or_else(Vec::new, |(oid, _, _)| vec![oid]);
-    let formats = parameter.map_or_else(Vec::new, |(_, format, _)| vec![format]);
-    let params = parameter.map_or_else(Vec::new, |(_, _, body)| vec![body]);
-    // Empty result formats select default text without handle_bind's explicit-
-    // format Describe. No-Describe text owners must reach Execute itself.
-    let result_formats = if result_format == 0 {
-        Vec::new()
-    } else {
-        vec![result_format]
-    };
-    let mut frames = vec![wire::parse_frame_with_types("", sql, &oids)];
-    if describe {
-        frames.push(wire::describe_statement_frame(""));
-    }
-    frames.push(wire::bind_frame_with_formats(
-        "",
-        "",
-        &formats,
-        &params,
-        &result_formats,
-    ));
-    if describe {
-        frames.push(wire::describe_portal_frame(""));
-    }
-    frames.extend([wire::execute_frame(""), wire::sync_frame()]);
-    frames
-}
-
-pub fn assert_success(frames: &Frames) {
-    assert_eq!(
-        wire::error_code(frames),
-        None,
-        "wire errors: {:?}",
-        frames
-            .iter()
-            .filter(|(tag, _)| *tag == b'E')
-            .map(|(_, body)| wire::parse_error_fields(body))
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        frames.last().map(|frame| frame.1.as_slice()),
-        Some(&b"I"[..])
-    );
-}
-
-pub fn assert_unsupported_before_metadata(frames: &Frames) {
+pub fn assert_unsupported_before_metadata(frames: &[(u8, Vec<u8>)]) {
     assert_eq!(wire::error_code(frames).as_deref(), Some("0A000"));
     assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
     assert_eq!(
@@ -118,7 +30,7 @@ pub fn assert_unsupported_before_metadata(frames: &Frames) {
 }
 
 pub fn assert_single_column_descriptors(
-    frames: &Frames,
+    frames: &[(u8, Vec<u8>)],
     expected: (i32, i16, i32),
     result_format: i16,
     described: bool,
@@ -145,14 +57,6 @@ pub fn assert_single_column_descriptors(
             }
         );
     }
-}
-
-pub fn data_row_payloads(frames: &Frames) -> Vec<Vec<u8>> {
-    frames
-        .iter()
-        .filter(|(tag, _)| *tag == b'D')
-        .map(|(_, payload)| payload.clone())
-        .collect()
 }
 
 pub fn one_field_row(field: &[u8]) -> Vec<u8> {

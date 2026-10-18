@@ -1,3 +1,19 @@
+mod function_casts;
+#[path = "binder/function_validation.rs"]
+mod function_validation;
+#[path = "binder/integer_operators.rs"]
+mod integer_operators;
+mod like_predicates;
+mod pagination_references;
+#[path = "binder/string_operators.rs"]
+mod string_operators;
+mod symmetric_between;
+#[path = "binder/table_functions.rs"]
+mod table_functions;
+#[path = "binder/unary_numeric.rs"]
+pub(crate) mod unary_numeric;
+#[path = "binder/values.rs"]
+pub(crate) mod values;
 pub(crate) use coalesce_coercion::has_float_domain as coalesce_has_float_domain;
 mod coalesce_coercion;
 mod result_coercion;
@@ -12,6 +28,8 @@ pub(crate) use boolean_parameters::validate_plan as validate_boolean_parameter_p
 mod boolean_bindings;
 #[path = "binder/boolean_contexts.rs"]
 mod boolean_contexts;
+mod bytea_functions;
+mod character_comparison;
 pub(crate) use boolean_bindings::bind_boolean_parameters;
 use std::collections::{HashMap, HashSet};
 use std::mem;
@@ -128,7 +146,9 @@ use schema::{
 };
 use schema_sequences::{bind_create_sequence, bind_drop_sequence};
 use select::bind_select;
-pub(crate) use source_schema::{derived_source_schema, joined_source_schema};
+pub(crate) use source_schema::{
+    derived_source_schema, derived_source_schema_with_parameters, joined_source_schema,
+};
 use validation::{
     collect_expr, collect_item, collect_projection_aliases, qualified_fields,
     recursive_cte_reference_count, recursive_cte_references_self, select_contains_parameters,
@@ -136,7 +156,10 @@ use validation::{
     validate_expression_references, validate_function_calls, validate_functions,
     validate_order_by_references, validate_projection_references, validate_select_operand_families,
 };
-pub(crate) use wildcard::{cte_row_fields, source_row_fields, wildcard_output_fields_and_identity};
+pub(crate) use wildcard::{
+    cte_row_fields, source_row_fields, wildcard_output_fields_and_identity,
+    wildcard_output_shape_with_parameters,
+};
 
 pub(crate) fn parameter_data_type_for_oid(oid: i32) -> Option<DataType> {
     inference::data_type_for_parameter_oid(oid)
@@ -212,7 +235,10 @@ fn source_collection(source: &QuerySource) -> Option<String> {
         QuerySource::Collection(collection) => Some(collection.to_string()),
         QuerySource::Subquery { select, .. } => source_collection(&select.source),
         QuerySource::Join { left, .. } => source_collection(left),
-        QuerySource::Cte(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => None,
+        QuerySource::Cte(_)
+        | QuerySource::TableFunction { .. }
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow => None,
     }
 }
 
@@ -254,13 +280,13 @@ pub(crate) fn bind_with_outer_ctes(
         QueryStatement::Select(select) if !outer_fields.is_empty() => {
             // A correlated subquery also sees the enclosing row's columns.
             let select = select::bind_select_with_lateral_fields(
-                select,
+                *select,
                 catalog,
                 &outer_ctes,
                 outer_fields,
                 context,
             )?;
-            parsed_statement(&statement.raw_sql, QueryStatement::Select(select))
+            parsed_statement(&statement.raw_sql, QueryStatement::Select(Box::new(select)))
         }
         other => bind_statement(
             ParsedStatement {
@@ -308,7 +334,7 @@ fn bind_runtime_route(
 ) -> Result<ParsedStatement, CassieError> {
     match statement {
         RuntimeStatement::Select(select) => {
-            bind_select_statement(select, catalog, outer_scope, raw_sql, context)
+            bind_select_statement(*select, catalog, outer_scope, raw_sql, context)
         }
         RuntimeStatement::Explain(statement) => {
             bind_explain_statement(statement, catalog, outer_scope, raw_sql, context)
@@ -672,7 +698,10 @@ fn bind_select_statement(
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let select = bind_select(select, catalog, outer_scope, context)?;
-    Ok(parsed_statement(raw_sql, QueryStatement::Select(select)))
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::Select(Box::new(select)),
+    ))
 }
 
 fn bind_explain_statement(

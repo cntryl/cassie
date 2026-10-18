@@ -558,7 +558,7 @@ async fn handle_simple_query(
         write_half,
         state,
         &session,
-        statements,
+        (statements, sql),
         parsed,
     )
     .await
@@ -585,6 +585,8 @@ async fn write_simple_query_split_error(
 ) -> ConnectionStep {
     let (sqlstate, message, protocol_error) = match error {
         simple_query::SplitError::Syntax(message) => ("42601", message, true),
+        simple_query::SplitError::DuplicateColumn(message) => ("42701", message, false),
+        simple_query::SplitError::NumericRange(message) => ("22003", message, true),
         simple_query::SplitError::Unsupported(message) => ("0A000", message, true),
         simple_query::SplitError::ResourceLimit(message) => ("54000", message, false),
     };
@@ -618,9 +620,10 @@ async fn execute_simple_statement(
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
     session: &CassieSession,
-    statement: String,
+    query: (String, Arc<str>),
 ) -> Result<bool, ()> {
     let was_in_transaction = session.is_transaction_active() || session.is_transaction_failed();
+    let transaction_generation = session.transaction_generation();
     let registration = state.backend_registration.as_ref().ok_or(())?;
     let cancellation = registration.begin_query();
     let cancellation_handle = cancellation.handle();
@@ -628,13 +631,16 @@ async fn execute_simple_statement(
     let query_result = run_pgwire_blocking(cassie, "pgwire_simple_query", move |cassie| {
         cassie.execute_pgwire_sql_with_cancellation(
             &execution_session,
-            &statement,
+            (&query.0, &query.1),
             &cancellation_handle,
         )
     })
     .await;
     drop(cancellation);
-    if was_in_transaction && !session.is_transaction_active() && !session.is_transaction_failed() {
+    if was_in_transaction
+        && (transaction_generation != session.transaction_generation()
+            || !session.is_transaction_active() && !session.is_transaction_failed())
+    {
         state.clear_all_portals(runtime);
     }
 

@@ -22,6 +22,157 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
+fn should_admit_embedded_integer_carriers_given_bounded_values_when_wire_int8_is_still_rejected() {
+    // Arrange
+    let statement = parse_statement("SELECT split_part($1,$2,$3)").expect("split_part");
+    let catalog = Catalog::new();
+    let controls = controls(1_048_576);
+    let values = [
+        crate::types::Value::String("a,b".into()),
+        crate::types::Value::String(",".into()),
+        crate::types::Value::Int64(2),
+    ];
+
+    // Act
+    let embedded = super::checked_parameter_types_in_scope(
+        &statement,
+        super::PrivateParameterTypeInput::Embedded {
+            effective: &[25, 25, 20],
+            values: &values,
+        },
+        &catalog,
+        &controls,
+        None,
+    );
+    let wire = checked_parse_parameter_types(&statement, &[25, 25, 20], &catalog, &controls);
+
+    // Assert
+    let embedded = embedded.expect("existing untyped embedded integer carrier remains usable");
+    assert_eq!(embedded.types(), [25, 25, 20]);
+    let Err(ParameterAdmissionError::Semantic(diagnostic)) = wire else {
+        panic!("wire int8 cannot bind an int4-only overload");
+    };
+    assert_eq!(diagnostic.code(), "42883");
+    drop(embedded);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_infer_boolean_aggregate_parameters_given_unknown_wire_oids_when_inputs_are_resolved() {
+    // Arrange
+    let catalog = Catalog::new();
+    let statements = [
+        "SELECT BOOL_AND($1)",
+        "SELECT BOOL_OR($1)",
+        "SELECT EVERY($1)",
+        "SELECT COALESCE(pg_catalog.bool_and($1), FALSE)",
+    ];
+
+    // Act
+    for sql in statements {
+        let statement = parse_statement(sql).expect("Boolean aggregate syntax");
+        let controls = controls(1_024 * 1_024);
+        let admitted = checked_parse_parameter_types(&statement, &[0], &catalog, &controls)
+            .expect("fixed Boolean input signature");
+
+        // Assert
+        assert_eq!(admitted.types(), [16], "{sql}");
+        drop(admitted);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_reject_boolean_aggregate_overloads_given_known_non_boolean_oids_when_parse_is_admitted() {
+    // Arrange
+    let catalog = Catalog::new();
+    let statements = [
+        ("SELECT BOOL_AND(1)", vec![]),
+        ("SELECT BOOL_OR($1)", vec![23]),
+        ("SELECT EVERY(CAST(NULL AS TEXT))", vec![]),
+        ("SELECT BOOL_AND()", vec![]),
+        ("SELECT BOOL_OR(*)", vec![]),
+        ("SELECT EVERY(TRUE, FALSE)", vec![]),
+    ];
+
+    // Act
+    for (sql, supplied) in statements {
+        let statement = parse_statement(sql).expect("call syntax precedes overload resolution");
+        let controls = controls(1_024 * 1_024);
+        let result = checked_parse_parameter_types(&statement, &supplied, &catalog, &controls);
+
+        // Assert
+        let Err(ParameterAdmissionError::Semantic(diagnostic)) = result else {
+            panic!("undefined aggregate overload must fail during Parse: {sql}");
+        };
+        assert_eq!(diagnostic.code(), "42883", "{sql}");
+        let message = diagnostic.message();
+        assert!(message.capacity() >= message.len());
+        assert!(diagnostic.message_capacity() >= message.len());
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_reject_non_boolean_filters_given_typed_nulls_and_parameters_when_parse_is_admitted() {
+    // Arrange
+    let catalog = Catalog::new();
+    let cases = [
+        ("SELECT COUNT(*) FILTER (WHERE CAST(NULL AS INT))", vec![]),
+        (
+            "SELECT BOOL_AND(TRUE) FILTER (WHERE CAST(NULL AS TEXT))",
+            vec![],
+        ),
+        ("SELECT SUM(1) FILTER (WHERE CAST(NULL AS FLOAT8))", vec![]),
+        ("SELECT COUNT(*) FILTER (WHERE $1)", vec![23]),
+    ];
+
+    // Act
+    for (sql, supplied) in cases {
+        let statement = parse_statement(sql).expect("valid FILTER grammar");
+        let controls = controls(1_024 * 1_024);
+        let result = checked_parse_parameter_types(&statement, &supplied, &catalog, &controls);
+
+        // Assert
+        let Err(ParameterAdmissionError::Semantic(diagnostic)) = result else {
+            panic!("non-Boolean FILTER must fail during Parse: {sql}");
+        };
+        assert_eq!(diagnostic.code(), "42804", "{sql}");
+        assert!(diagnostic.message().contains("FILTER"), "{sql}");
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_preserve_boolean_filters_given_nulls_and_unknown_parameters_when_parse_is_admitted() {
+    // Arrange
+    let catalog = Catalog::new();
+    let cases = [
+        ("SELECT COUNT(*) FILTER (WHERE NULL)", vec![], vec![]),
+        (
+            "SELECT COUNT(*) FILTER (WHERE CAST(NULL AS BOOLEAN))",
+            vec![],
+            vec![],
+        ),
+        ("SELECT BOOL_AND(TRUE) FILTER (WHERE TRUE)", vec![], vec![]),
+        ("SELECT COUNT(*) FILTER (WHERE $1)", vec![0], vec![16]),
+    ];
+
+    // Act
+    for (sql, supplied, expected) in cases {
+        let statement = parse_statement(sql).expect("valid FILTER grammar");
+        let controls = controls(1_024 * 1_024);
+        let admitted = checked_parse_parameter_types(&statement, &supplied, &catalog, &controls)
+            .expect("Boolean or untyped NULL FILTER is valid");
+
+        // Assert
+        assert_eq!(admitted.types(), expected, "{sql}");
+        drop(admitted);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
 fn should_bound_repeated_parameter_occurrences_on_shared_controls() {
     // Arrange
     let wide = parse_statement(&format!(
@@ -132,6 +283,23 @@ fn should_bound_diagnostic_formatting_by_source_derived_capacities() {
         ParameterSemanticDiagnostic::BooleanOperand {
             construct: BooleanConstruct::Where,
             actual: 1043,
+        },
+        ParameterSemanticDiagnostic::ValuesWidth,
+        ParameterSemanticDiagnostic::ValuesTypes {
+            left: 23,
+            right: 25,
+        },
+        ParameterSemanticDiagnostic::DistinctAggregateOrder,
+        ParameterSemanticDiagnostic::MissingEquality { actual: 114 },
+        ParameterSemanticDiagnostic::UndefinedFunction {
+            function: "bool_and",
+            argument_count: 1,
+            actual: Some(100_002),
+        },
+        ParameterSemanticDiagnostic::UndefinedFunction {
+            function: "bool_and",
+            argument_count: 1,
+            actual: Some(132_767),
         },
     ];
     // Act
@@ -411,4 +579,35 @@ fn should_preserve_source_local_column_types_during_parameter_admission() {
     );
     assert_eq!(rejected_current, 0);
     assert!(controls.peak_query_memory_bytes() > 0);
+}
+
+#[test]
+fn should_copy_scalar_literal_error_given_budget_when_type_function_is_admitted() {
+    // Arrange
+    let catalog = Catalog::new();
+    let valid = parse_statement("SELECT int4('7')").expect("valid type function");
+    let baseline = controls(1_048_576);
+    let admitted =
+        checked_parse_parameter_types(&valid, &[], &catalog, &baseline).expect("valid input");
+    let baseline_peak = baseline.peak_query_memory_bytes();
+    drop(admitted);
+    let input = "x".repeat(8_192);
+    let invalid =
+        parse_statement(&format!("SELECT int4('{input}')")).expect("invalid input syntax tree");
+    let generous = controls(1_048_576);
+    let constrained = controls(baseline_peak + 512);
+    // Act
+    let result = checked_parse_parameter_types(&invalid, &[], &catalog, &generous);
+    let denied = checked_parse_parameter_types(&invalid, &[], &catalog, &constrained);
+    // Assert
+    assert!(
+        matches!(&result, Err(ParameterAdmissionError::InvalidScalarLiteral { input: actual, .. }) if actual == &input)
+    );
+    assert!(generous.current_query_memory_bytes() >= input.len());
+    assert!(matches!(denied, Err(ParameterAdmissionError::Memory(_))));
+    assert!(constrained.peak_query_memory_bytes() <= baseline_peak + 512);
+    assert_eq!(constrained.current_query_memory_bytes(), 0);
+    drop(result);
+    assert_eq!(generous.current_query_memory_bytes(), 0);
+    assert_eq!(baseline.current_query_memory_bytes(), 0);
 }

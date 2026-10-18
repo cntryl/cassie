@@ -6,7 +6,11 @@ use crate::sql::ast::{BinaryOp, Expr, ParsedStatement};
 use crate::types::{DataType, Value};
 
 mod admission;
+mod constants;
+pub(crate) use constants::check as check_constants;
+mod parameters;
 mod traversal;
+mod unary;
 
 fn bound_needs_resolution(bound: Option<&Expr>) -> bool {
     bound.is_some_and(|expr| !matches!(expr, Expr::IntegerLiteral(value) if *value >= 0))
@@ -32,6 +36,7 @@ pub(crate) fn resolve_plan(
 > {
     use crate::sql::ast::{QueryStatement, SelectStatement};
     for bound in plan.limit.iter().chain(&plan.offset) {
+        unary::validate(bound)?;
         if !is_admitted(bound) {
             return Err(type_error());
         }
@@ -39,7 +44,7 @@ pub(crate) fn resolve_plan(
     let reservation = admission::reserve_plan_clone(plan, controls)?;
     let mut statement = ParsedStatement {
         raw_sql: String::new(),
-        statement: QueryStatement::Select(SelectStatement {
+        statement: QueryStatement::Select(Box::new(SelectStatement {
             source: plan.source.clone(),
             ctes: plan.ctes.clone(),
             recursive: false,
@@ -53,7 +58,7 @@ pub(crate) fn resolve_plan(
             limit: plan.limit.clone(),
             offset: plan.offset.clone(),
             set: plan.set.clone(),
-        }),
+        })),
     };
     // Direct executor values carry concrete integer domains. The application
     // validates the original prepared OIDs before reaching this fallback.
@@ -103,9 +108,12 @@ fn is_admitted_at_depth(expr: &Expr, depth: usize) -> bool {
     }
     match expr {
         Expr::IntegerLiteral(_) | Expr::Null | Expr::Param(_) => true,
-        Expr::Cast { expr, data_type } => {
-            is_integer(data_type) && is_admitted_at_depth(expr, depth + 1)
+        Expr::UnaryNumeric { expr, .. } | Expr::IntegerNegate { expr, .. } => {
+            is_admitted_at_depth(expr, depth + 1)
         }
+        Expr::Cast {
+            expr, data_type, ..
+        } => is_integer(data_type) && is_admitted_at_depth(expr, depth + 1),
         Expr::Binary { left, op, right } => {
             matches!(op, BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul)
                 && is_admitted_at_depth(left, depth + 1)
@@ -125,7 +133,9 @@ fn is_integer(data_type: &DataType) -> bool {
 pub(crate) fn has_parameters(expr: &Expr) -> bool {
     match expr {
         Expr::Param(_) => true,
-        Expr::Cast { expr, .. } => has_parameters(expr),
+        Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => has_parameters(expr),
         Expr::Binary { left, right, .. } => has_parameters(left) || has_parameters(right),
         _ => false,
     }
@@ -146,6 +156,7 @@ pub(crate) fn validate_statement(
 ) -> Result<(), CassieError> {
     traversal::visit_statement(statement, &mut |bound, _| {
         if let Some(expr) = bound {
+            unary::validate(expr)?;
             if !is_admitted(expr) {
                 return Err(type_error());
             }
@@ -175,13 +186,20 @@ fn validate_parameters(
                 ));
             }
         }
-        Expr::Cast { expr, data_type } => {
+        Expr::Cast {
+            expr, data_type, ..
+        } => {
             validate_parameters(expr, oids, arithmetic, Some(data_type))?;
+        }
+        Expr::UnaryNumeric { expr, .. } | Expr::IntegerNegate { expr, .. } => {
+            validate_parameters(expr, oids, arithmetic, cast)?;
         }
         Expr::Binary { left, right, .. } => {
             // An outer cast does not select the argument operators.
-            validate_parameters(left, oids, true, None)?;
-            validate_parameters(right, oids, true, None)?;
+            let left_type = parameters::signature(left, oids);
+            let right_type = parameters::signature(right, oids);
+            validate_parameters(left, oids, true, right_type.as_ref())?;
+            validate_parameters(right, oids, true, left_type.as_ref())?;
         }
         _ => {}
     }
@@ -196,27 +214,31 @@ pub(crate) fn resolve_statement(
 ) -> Result<bool, CassieError> {
     validate_statement(statement, Some(declared_oids))?;
     let mut parameter_dependent = false;
-    traversal::visit_statement(statement, &mut |bound, offset| {
-        if controls.is_cancelled() {
-            return Err(CassieError::QueryCancelled);
-        }
-        if controls.is_timed_out() {
-            return Err(CassieError::DeadlineExceeded);
-        }
-        if let Some(expr) = bound.as_ref() {
-            parameter_dependent |= has_parameters(expr);
-            let value = evaluate(expr, params, declared_oids, controls)?.0;
-            if value.is_some_and(|value| value < 0) {
-                return Err(CassieError::Execution(if offset {
-                    "OFFSET must not be negative".into()
-                } else {
-                    "LIMIT must not be negative".into()
-                }));
+    traversal::visit_reached_statement(
+        statement,
+        &mut |bound, offset| {
+            if controls.is_cancelled() {
+                return Err(CassieError::QueryCancelled);
             }
-            *bound = value.map(Expr::IntegerLiteral);
-        }
-        Ok(())
-    })?;
+            if controls.is_timed_out() {
+                return Err(CassieError::DeadlineExceeded);
+            }
+            if let Some(expr) = bound.as_ref() {
+                parameter_dependent |= has_parameters(expr);
+                let value = evaluate(expr, params, declared_oids, controls)?.0;
+                if value.is_some_and(|value| value < 0) {
+                    return Err(CassieError::Execution(if offset {
+                        "OFFSET must not be negative".into()
+                    } else {
+                        "LIMIT must not be negative".into()
+                    }));
+                }
+                *bound = value.map(Expr::IntegerLiteral);
+            }
+            Ok(())
+        },
+        controls,
+    )?;
     Ok(parameter_dependent)
 }
 
@@ -276,7 +298,36 @@ fn evaluate(
                 _ => Err(type_error()),
             }
         }
-        Expr::Cast { expr, data_type } if is_integer(data_type) => {
+        Expr::UnaryNumeric { expr, op } => {
+            let (value, domain) = evaluate(expr, params, declared_oids, controls)?;
+            if *op == crate::sql::ast::UnaryNumericOp::Plus {
+                return Ok((value, domain));
+            }
+            let width =
+                crate::types::IntegerWidth::from_data_type(&domain).ok_or_else(type_error)?;
+            Ok((
+                value
+                    .map(|value| {
+                        crate::types::integer::negate(width, value).map_err(|_| overflow())
+                    })
+                    .transpose()?,
+                domain,
+            ))
+        }
+        Expr::IntegerNegate { expr, width } => {
+            let value = evaluate(expr, params, declared_oids, controls)?.0;
+            Ok((
+                value
+                    .map(|value| {
+                        crate::types::integer::negate(*width, value).map_err(|_| overflow())
+                    })
+                    .transpose()?,
+                width.data_type(),
+            ))
+        }
+        Expr::Cast {
+            expr, data_type, ..
+        } if is_integer(data_type) => {
             let value = evaluate(expr, params, declared_oids, controls)?.0;
             Ok((
                 value

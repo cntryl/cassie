@@ -26,6 +26,8 @@ pub(super) fn strip_select_own_qualifiers(select: &mut SelectStatement) {
     strip_optional(&mut select.filter, &qualifiers);
     strip_all(&mut select.group_by, &qualifiers);
     strip_optional(&mut select.having, &qualifiers);
+    strip_optional(&mut select.limit, &qualifiers);
+    strip_optional(&mut select.offset, &qualifiers);
     strip_order(&mut select.order, &qualifiers);
     strip_all(&mut select.distinct_on, &qualifiers);
 }
@@ -56,7 +58,11 @@ pub(super) fn strip_delete_own_qualifiers(statement: &mut DeleteStatement) {
 fn strip_select_item(item: &mut SelectItem, qualifiers: &[String]) {
     match item {
         SelectItem::Column { name, .. } => strip_name(name, qualifiers),
-        SelectItem::Function { function, .. } => strip_all(&mut function.args, qualifiers),
+        SelectItem::Function { function, .. } => {
+            for expr in function.expressions_mut() {
+                *expr = strip_expr(expr, qualifiers);
+            }
+        }
         SelectItem::Expr { expr, .. } => *expr = strip_expr(expr, qualifiers),
         SelectItem::WindowFunction { function, .. } => {
             strip_all(&mut function.args, qualifiers);
@@ -151,5 +157,34 @@ mod tests {
 
         // Assert
         assert_eq!(name, "other.k");
+    }
+
+    #[test]
+    fn should_strip_aggregate_clause_qualifiers_given_a_single_relation_when_references_are_lowered(
+    ) {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT SUM(DISTINCT tq.k ORDER BY tq.k DESC) FILTER (WHERE tq.flag) FROM tq",
+        )
+        .expect("aggregate clause syntax");
+        let crate::sql::ast::QueryStatement::Select(mut select) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+
+        // Act
+        strip_select_own_qualifiers(&mut select);
+
+        // Assert
+        let SelectItem::Function { function, .. } = &select.projection[0] else {
+            panic!("aggregate projection");
+        };
+        let columns = function
+            .expressions()
+            .map(|expr| match expr {
+                Expr::Column(name) => name.as_str(),
+                _ => panic!("column expression"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(columns, ["k", "flag", "k"]);
     }
 }

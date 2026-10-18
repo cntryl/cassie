@@ -6,6 +6,9 @@ use super::{
     QueryError, QueryExecutionControls, QueryResult, QuerySource, Value,
 };
 
+#[path = "insert_values.rs"]
+mod scalar_values;
+
 pub(in crate::executor::execution) fn execute_insert(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -259,14 +262,9 @@ fn insert_source_rows(
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Vec<Value>>, QueryError> {
     match &statement.source {
-        InsertSource::Values(rows) => rows
-            .iter()
-            .map(|row| {
-                row.iter()
-                    .map(|expr| insert_expr_to_value(expr, params).map_err(QueryError::General))
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .collect::<Result<Vec<_>, _>>(),
+        InsertSource::Values(rows) => {
+            scalar_values::evaluate(rows, params, user_functions, session, controls)
+        }
         InsertSource::Select(select) => {
             let statement_controls =
                 crate::executor::execution::entrypoints::statement_read_controls(
@@ -279,6 +277,7 @@ fn insert_source_rows(
                 command: None,
                 source: select.source.clone(),
                 collection: match &select.source {
+                    QuerySource::Values { .. } => "values".into(),
                     QuerySource::Aliased { source, .. } => {
                         crate::planner::logical::source_name(source)
                     }
@@ -911,13 +910,19 @@ fn insert_expr_to_value(expr: &Expr, params: &[Value]) -> Result<Value, String> 
             .get(*index)
             .ok_or_else(|| format!("missing bind parameter ${}", index + 1))
             .cloned(),
-        Expr::Column(_)
+        Expr::NumericLiteral(_)
+        | Expr::Column(_)
         | Expr::Case { .. }
         | Expr::Function(_)
         | Expr::IsNull { .. }
+        | Expr::TruthTest { .. }
         | Expr::InList { .. }
         | Expr::Between { .. }
+        | Expr::Like { .. }
         | Expr::Not { .. }
+        | Expr::RowCompare(_)
+        | Expr::UnaryNumeric { .. }
+        | Expr::IntegerNegate { .. }
         | Expr::Cast { .. }
         | Expr::Exists(_)
         | Expr::Binary {

@@ -39,23 +39,23 @@ pub(super) fn bind_recursive_cte_query(
             "recursive CTE '{cte_name}' requires named output columns"
         )));
     }
+    let bound_base = bind_statement(*base, catalog, outer_scope, context)?;
+    let row_fields = anchor_fields(
+        &bound_base,
+        outer_scope,
+        catalog,
+        context,
+        &recursive_aliases,
+    )?;
     let mut recursive_scope = outer_scope.clone();
     recursive_scope.insert(
         cte_name_lc,
         super::CteBinding {
             visible: recursive_aliases.clone(),
-            row_fields: recursive_aliases
-                .iter()
-                .map(|name| crate::types::FieldSchema {
-                    name: name.clone(),
-                    data_type: crate::types::DataType::Null,
-                    nullable: true,
-                })
-                .collect(),
+            row_fields,
         },
     );
 
-    let bound_base = bind_statement(*base, catalog, outer_scope, context)?;
     let bound_recursive = bind_statement(*recursive, catalog, &recursive_scope, context)?;
 
     let reference_count = recursive_cte_reference_count(&bound_recursive, cte_name);
@@ -84,4 +84,46 @@ pub(super) fn bind_recursive_cte_query(
         base: Box::new(bound_base),
         recursive: Box::new(bound_recursive),
     })
+}
+
+fn anchor_fields(
+    base: &crate::sql::ast::ParsedStatement,
+    outer_scope: &CteScope,
+    catalog: &Catalog,
+    context: &super::context::BindingContext,
+    aliases: &[String],
+) -> Result<Vec<crate::types::FieldSchema>, CassieError> {
+    let super::QueryStatement::Select(select) = &base.statement else {
+        return Err(CassieError::Planner(
+            "recursive CTE anchor must be a SELECT statement".into(),
+        ));
+    };
+    let schemas = outer_scope
+        .iter()
+        .map(|(name, binding)| {
+            (
+                name.clone(),
+                crate::types::Schema {
+                    fields: binding.row_fields.clone(),
+                },
+            )
+        })
+        .collect();
+    let functions = crate::catalog::function_resolution::functions_for_scope(
+        &catalog.list_functions(),
+        &context.database,
+        &context.search_path,
+        context.scopes_database_objects(),
+    );
+    let mut schema =
+        super::inference::infer_select_schema_with_scope(select, catalog, &schemas, &functions)?;
+    if schema.fields.len() != aliases.len() {
+        return Err(CassieError::Planner(
+            "recursive CTE anchor column count mismatch".into(),
+        ));
+    }
+    for (field, alias) in schema.fields.iter_mut().zip(aliases) {
+        field.name.clone_from(alias);
+    }
+    Ok(schema.fields)
 }

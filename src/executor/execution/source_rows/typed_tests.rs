@@ -261,3 +261,78 @@ fn should_complete_empty_relational_inputs_without_allocating_operator_state() {
     assert_eq!(controls.peak_query_memory_bytes(), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_retain_multiset_output_given_repeated_tuples_when_sources_drop() {
+    // Arrange
+    for (operator, count) in [(SetOperator::IntersectAll, 2), (SetOperator::ExceptAll, 1)] {
+        let controls = controls();
+        let set = SelectSet {
+            operator,
+            right: Box::new(
+                match crate::sql::parse_statement("SELECT 7")
+                    .expect("query")
+                    .statement
+                {
+                    crate::sql::ast::QueryStatement::Select(select) => *select,
+                    _ => panic!("select"),
+                },
+            ),
+        };
+        // Act
+        let output = apply_set_operation(
+            rows(&[Value::Int64(7), Value::Int64(7), Value::Int64(7)]),
+            rows(&[Value::Int64(7), Value::Int64(7)]),
+            &["n".into()],
+            &set,
+            &controls,
+        )
+        .expect("multiset");
+        // Assert
+        assert_eq!(output.len(), count);
+        assert!(output
+            .iter()
+            .all(|row| row.entries()[0].1 == Value::Int64(7)));
+        assert!(controls.current_query_memory_bytes() > 0);
+        drop(output);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_release_multiset_scratch_given_failed_controls_when_selection_is_admitted() {
+    // Arrange
+    for cancelled in [false, true] {
+        let limits = CassieRuntimeLimits {
+            query_memory_budget_bytes: 1,
+            ..CassieRuntimeLimits::default()
+        };
+        let cancellation = crate::runtime::QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &limits,
+            Instant::now(),
+            cancellation.clone(),
+        );
+        if cancelled {
+            cancellation.cancel();
+        }
+        // Act
+        let result = typed::set(
+            rows(&[Value::Int64(7)]),
+            rows(&[Value::Int64(7)]),
+            &["n".into()],
+            SetOperator::IntersectAll,
+            &controls,
+        );
+        // Assert
+        let error = result
+            .map_err(crate::app::CassieError::from)
+            .expect_err("admission");
+        if cancelled {
+            assert!(matches!(error, crate::app::CassieError::QueryCancelled));
+        } else {
+            assert!(matches!(error, crate::app::CassieError::ResourceLimit(_)));
+        }
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}

@@ -17,13 +17,69 @@ fn word_boundary(input: &str, index: usize) -> bool {
         .is_none_or(|character| !identifier_character(character))
 }
 
-fn quoted_end(input: &str, start: usize) -> Option<usize> {
+fn dollar_quote_delimiter(input: &str, start: usize) -> Option<&str> {
+    let bytes = input.as_bytes();
+    if bytes.get(start) != Some(&b'$')
+        || input[..start]
+            .chars()
+            .next_back()
+            .is_some_and(identifier_character)
+    {
+        return None;
+    }
+    let mut end = start + 1;
+    while bytes
+        .get(end)
+        .is_some_and(|byte| identifier_byte(*byte) && *byte != b'$')
+    {
+        end += 1;
+    }
+    if bytes.get(end) != Some(&b'$') || end > start + 1 && bytes[start + 1].is_ascii_digit() {
+        return None;
+    }
+    Some(&input[start..=end])
+}
+
+pub(crate) fn dollar_quoted_content(input: &str) -> Option<&str> {
+    let delimiter = dollar_quote_delimiter(input, 0)?;
+    let start = delimiter.len();
+    let end = start + input[start..].find(delimiter)?;
+    (end + delimiter.len() == input.len()).then_some(&input[start..end])
+}
+
+pub(crate) fn dollar_quoted_end(input: &str, start: usize) -> Option<usize> {
+    let delimiter = dollar_quote_delimiter(input, start)?;
+    let content_start = start + delimiter.len();
+    Some(
+        input[content_start..]
+            .find(delimiter)
+            .map_or(input.len(), |offset| {
+                content_start + offset + delimiter.len()
+            }),
+    )
+}
+
+pub(crate) fn escape_string_prefix(input: &str, quote: usize) -> bool {
+    input[..quote]
+        .strip_suffix(['e', 'E'])
+        .is_some_and(|prefix| {
+            prefix
+                .chars()
+                .next_back()
+                .is_none_or(|value| !identifier_character(value))
+        })
+}
+
+pub(super) fn quoted_end(input: &str, start: usize) -> Option<usize> {
     let bytes = input.as_bytes();
     let quote = *bytes.get(start)?;
     if matches!(quote, b'\'' | b'"') {
+        let escapes = quote == b'\'' && escape_string_prefix(input, start);
         let mut index = start + 1;
         while index < bytes.len() {
-            if bytes[index] == quote {
+            if escapes && bytes[index] == b'\\' {
+                index = (index + 2).min(bytes.len());
+            } else if bytes[index] == quote {
                 if bytes.get(index + 1) == Some(&quote) {
                     index += 2;
                 } else {
@@ -35,30 +91,7 @@ fn quoted_end(input: &str, start: usize) -> Option<usize> {
         }
         return Some(bytes.len());
     }
-    if quote != b'$'
-        || input[..start]
-            .chars()
-            .next_back()
-            .is_some_and(identifier_character)
-    {
-        return None;
-    }
-    let mut end = start + 1;
-    while bytes
-        .get(end)
-        .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
-    {
-        end += 1;
-    }
-    if bytes.get(end) != Some(&b'$') || end > start + 1 && bytes[start + 1].is_ascii_digit() {
-        return None;
-    }
-    let delimiter = &input[start..=end];
-    Some(
-        input[end + 1..]
-            .find(delimiter)
-            .map_or(bytes.len(), |offset| end + 1 + offset + delimiter.len()),
-    )
+    dollar_quoted_end(input, start)
 }
 
 fn comment_end(input: &str, start: usize) -> Option<usize> {
@@ -172,6 +205,41 @@ pub(super) fn without_comments(input: &str) -> Cow<'_, str> {
     })
 }
 
+pub(super) fn decode_unicode_identifiers(input: &str) -> Result<Cow<'_, str>, super::SqlError> {
+    let mut output: Option<String> = None;
+    let mut copied = 0;
+    let mut index = 0;
+    while index < input.len() {
+        let unicode_prefix = input[index..]
+            .get(..3)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("U&\""));
+        let boundary = input[..index]
+            .chars()
+            .next_back()
+            .is_none_or(|value| !identifier_character(value));
+        if unicode_prefix && boundary {
+            let (identifier, consumed) = super::expr::unicode_identifier_prefix(&input[index..])?;
+            let output = output.get_or_insert_with(String::new);
+            output.push_str(&input[copied..index]);
+            output.push('"');
+            output.push_str(&identifier.replace('"', "\"\""));
+            output.push('"');
+            index += consumed;
+            copied = index;
+        } else if let Some(end) = quoted_end(input, index).or_else(|| comment_end(input, index)) {
+            index = end;
+        } else {
+            index += input[index..].chars().next().map_or(0, char::len_utf8);
+        }
+    }
+    if let Some(mut output) = output {
+        output.push_str(&input[copied..]);
+        Ok(Cow::Owned(output))
+    } else {
+        Ok(Cow::Borrowed(input))
+    }
+}
+
 pub(super) fn pattern_end(input: &str, start: usize, pattern: &str) -> Option<usize> {
     let bytes = input.as_bytes();
     let trimmed = pattern.trim();
@@ -264,6 +332,40 @@ pub(super) fn find_top_level_span(
         index += input[index..].chars().next().map_or(0, char::len_utf8);
     }
     None
+}
+
+pub(super) fn top_level_cast_positions(input: &str) -> impl Iterator<Item = usize> + '_ {
+    let mut index = 0;
+    let mut depth = 0usize;
+    let mut brackets = 0usize;
+    let mut cases = 0usize;
+    std::iter::from_fn(move || {
+        while index < input.len() {
+            if let Some(end) = quoted_end(input, index).or_else(|| comment_end(input, index)) {
+                index = end;
+                continue;
+            }
+            if depth == 0 && brackets == 0 && cases == 0 && input[index..].starts_with("::") {
+                let position = index;
+                index += 2;
+                return Some(position);
+            }
+            if pattern_end(input, index, "case").is_some() {
+                cases += 1;
+            } else if pattern_end(input, index, "end").is_some() {
+                cases = cases.saturating_sub(1);
+            }
+            match input.as_bytes()[index] {
+                b'(' => depth += 1,
+                b')' => depth = depth.saturating_sub(1),
+                b'[' => brackets += 1,
+                b']' => brackets = brackets.saturating_sub(1),
+                _ => {}
+            }
+            index += input[index..].chars().next().map_or(0, char::len_utf8);
+        }
+        None
+    })
 }
 
 pub(super) fn strip_keyword_suffix<'a>(input: &'a str, keyword: &str) -> Option<&'a str> {

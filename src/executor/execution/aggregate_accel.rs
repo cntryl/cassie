@@ -36,6 +36,14 @@ pub(super) fn try_execute_column_batch_aggregate(
 
     let specs = aggregate_specs(plan);
     if specs.is_empty() {
+        if plan.projection.iter().any(|item| {
+            matches!(item, SelectItem::Function { function, .. }
+                if crate::sql::functions::is_aggregate_function(&function.name))
+        }) {
+            cassie
+                .runtime
+                .record_aggregate_acceleration_row_blob_fallback();
+        }
         return Ok(None);
     }
     let mut fields = specs
@@ -242,6 +250,9 @@ fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSummarySpec> {
             return Vec::new();
         };
         let function_name = function.name.to_ascii_lowercase();
+        if function.is_distinct() || function.filter.is_some() || !function.order_by.is_empty() {
+            return Vec::new();
+        }
         if !matches!(
             function_name.as_str(),
             "count" | "sum" | "avg" | "min" | "max"

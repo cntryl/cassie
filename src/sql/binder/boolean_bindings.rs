@@ -155,10 +155,11 @@ fn validate_items(
                 boolean_contexts::validate_value(expr, types, None, catalog, context)?;
             }
             SelectItem::Function { function, .. } => {
-                for argument in &mut function.args {
+                for argument in function.expressions_mut() {
                     boolean_contexts::validate_value(argument, types, None, catalog, context)?;
                 }
                 super::coalesce_coercion::coerce_function(function, types);
+                boolean_contexts::validate_boolean_aggregate(function, types)?;
             }
             SelectItem::WindowFunction { function, .. } => {
                 for expression in function

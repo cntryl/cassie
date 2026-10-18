@@ -9,15 +9,17 @@ impl Cassie {
     pub(crate) fn execute_parsed_sql_with_cancellation(
         &self,
         session: &CassieSession,
-        parsed: crate::sql::ast::ParsedStatement,
+        statement: (crate::sql::ast::ParsedStatement, &str),
         sql_fingerprint: u64,
         parameters: (Vec<Value>, &[i32]),
         mode: ExecutionMode,
         cancellation: &QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
         self.execute_pgwire_query(session, cancellation, |controls| {
+            let (parsed, sql) = statement;
+            let execution_session = session.with_statement_text(sql, controls)?;
             self.execute_pgwire_statement_core(
-                session,
+                &execution_session,
                 parsed,
                 sql_fingerprint,
                 parameters,
@@ -30,10 +32,13 @@ impl Cassie {
     pub(crate) fn execute_pgwire_sql_with_cancellation(
         &self,
         session: &CassieSession,
-        sql: &str,
+        query: (&str, &str),
         cancellation: &QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
         self.execute_pgwire_query(session, cancellation, |controls| {
+            let (sql, frontend_sql) = query;
+            let execution_session = session.with_statement_text(frontend_sql, controls)?;
+            let session = &execution_session;
             if session.user.is_empty() {
                 return Err(CassieError::Unauthorized);
             }

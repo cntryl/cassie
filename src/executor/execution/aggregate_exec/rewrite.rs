@@ -83,6 +83,7 @@ pub(in crate::executor::execution) fn rewrite_aggregate_projection(
                             .iter()
                             .map(|arg| rewrite_aggregate_expr(arg, group_by))
                             .collect(),
+                        ..function.clone()
                     },
                     alias: alias.clone(),
                 }

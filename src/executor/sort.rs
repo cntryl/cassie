@@ -329,7 +329,7 @@ fn alias_item<'a>(expr: &Expr, projection: &'a [SelectItem]) -> Option<&'a Selec
 pub(crate) fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
     match alias_item(expr, projection)? {
         SelectItem::Column { name, .. } => Some(Expr::Column(name.clone())),
-        SelectItem::Function { function, .. } => Some(Expr::Function(function.clone())),
+        SelectItem::Function { function, .. } => Some(Expr::Function(Box::new(function.clone()))),
         SelectItem::Expr { expr, .. } => Some(expr.clone()),
         _ => None,
     }

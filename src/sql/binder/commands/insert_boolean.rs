@@ -255,7 +255,7 @@ fn validate_item(
             context,
         ),
         SelectItem::Function { function, .. } => boolean_contexts::validate_value(
-            &mut Expr::Function(function.clone()),
+            &mut Expr::Function(Box::new(function.clone())),
             types,
             expected,
             catalog,
@@ -281,6 +281,8 @@ fn validate_known_type(
     let mut expression = Expr::Cast {
         expr: Box::new(Expr::Null),
         data_type: data_type.clone(),
+        source_type: None,
+        identity: crate::sql::ast::CastIdentity::Scalar,
     };
     boolean_contexts::validate_value(&mut expression, types, expected, catalog, context)
 }

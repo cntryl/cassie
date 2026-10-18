@@ -585,13 +585,21 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
     match filter {
         Expr::Param(index) => params.get(*index).is_some_and(is_non_finite_float),
         Expr::Exists(_) => params.iter().any(is_non_finite_float),
+        Expr::RowCompare(comparison) => comparison
+            .left
+            .iter()
+            .chain(&comparison.right)
+            .any(|field| filter_binds_non_finite_param(Some(field), params)),
         Expr::Binary { left, right, .. } => {
             filter_binds_non_finite_param(Some(left), params)
                 || filter_binds_non_finite_param(Some(right), params)
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            filter_binds_non_finite_param(Some(expr), params)
-        }
+        Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => filter_binds_non_finite_param(Some(expr), params),
         Expr::InList { expr, values, .. } => {
             filter_binds_non_finite_param(Some(expr), params)
                 || values
@@ -600,6 +608,11 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             filter_binds_non_finite_param(Some(expr), params)
                 || filter_binds_non_finite_param(Some(low), params)
@@ -629,6 +642,7 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => false,
     }

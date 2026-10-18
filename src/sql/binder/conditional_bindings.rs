@@ -145,7 +145,7 @@ fn coerce_items(
         match item {
             SelectItem::Expr { expr, .. } => coerce_nested(expr, types, catalog, context)?,
             SelectItem::Function { function, .. } => {
-                for arg in &mut function.args {
+                for arg in function.expressions_mut() {
                     coerce_nested(arg, types, catalog, context)?;
                 }
             }
@@ -229,7 +229,7 @@ fn coerce_source(
             lateral.then_some(types),
         )?,
         QuerySource::TableFunction { function, .. } => {
-            for arg in &mut function.args {
+            for arg in function.expressions_mut() {
                 coerce_expression(arg, types, catalog, context)?;
             }
         }

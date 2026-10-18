@@ -8,6 +8,7 @@ pub(super) enum Clause {
     Order,
     Limit,
     Offset,
+    Fetch,
 }
 
 impl Clause {
@@ -19,6 +20,7 @@ impl Clause {
             Self::Order => "order by",
             Self::Limit => "limit",
             Self::Offset => "offset",
+            Self::Fetch => "fetch",
         }
     }
 
@@ -30,6 +32,7 @@ impl Clause {
             Self::Order => "ORDER BY",
             Self::Limit => "LIMIT",
             Self::Offset => "OFFSET",
+            Self::Fetch => "FETCH",
         }
     }
 }
@@ -66,6 +69,7 @@ pub(super) fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
         ("order by", ClauseToken::Recognized(Clause::Order)),
         ("limit", ClauseToken::Recognized(Clause::Limit)),
         ("offset", ClauseToken::Recognized(Clause::Offset)),
+        ("fetch", ClauseToken::Recognized(Clause::Fetch)),
         ("intersect", ClauseToken::Unsupported("INTERSECT")),
         ("except", ClauseToken::Unsupported("EXCEPT")),
     ] {
@@ -145,6 +149,7 @@ pub(super) fn find_top_level_union(rest: &str) -> Option<(usize, usize, bool)> {
             return Some((position, all_end - position, true));
         }
     }
+    let end = super::lexical::pattern_end(rest, next, "distinct").unwrap_or(end);
     Some((position, end - position, false))
 }
 

@@ -10,6 +10,7 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
         Expr::Column(name) if name == "*" => Ok("*".to_string()),
         Expr::Column(name) => Ok(quote_identifier(name)),
         Expr::Param(index) => Ok(format!("${}", index + 1)),
+        Expr::NumericLiteral(value) => Ok(value.clone()),
         Expr::StringLiteral(value) => Ok(format!("'{}'", value.replace('\'', "''"))),
         Expr::NumberLiteral(value) => format_float(*value),
         Expr::IntegerLiteral(value) => Ok(value.to_string()),
@@ -19,30 +20,21 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
             operand,
             branches,
             else_expr,
-        } => {
-            let mut sql = String::from("CASE");
-            if let Some(operand) = operand {
-                sql.push(' ');
-                sql.push_str(&format_expression(operand)?);
-            }
-            for (when, then) in branches {
-                sql.push_str(" WHEN ");
-                sql.push_str(&format_expression(when)?);
-                sql.push_str(" THEN ");
-                sql.push_str(&format_expression(then)?);
-            }
-            if let Some(else_expr) = else_expr {
-                sql.push_str(" ELSE ");
-                sql.push_str(&format_expression(else_expr)?);
-            }
-            sql.push_str(" END");
-            Ok(sql)
-        }
+        } => format_case(operand.as_deref(), branches, else_expr.as_deref()),
         Expr::Binary { left, op, right } => Ok(format!(
             "({} {} {})",
             format_expression(left)?,
             format_binary_operator(op),
             format_expression(right)?
+        )),
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => Ok(format!(
+            "({} {})",
+            format_expression(expr)?,
+            truth.label(*negated)
         )),
         Expr::IsNull { expr, negated } => Ok(format!(
             "({} IS{} NULL)",
@@ -66,20 +58,43 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
                 values
             ))
         }
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => format_like(expr, pattern, escape),
         Expr::Between {
             expr,
             low,
             high,
             negated,
+            symmetric,
         } => Ok(format!(
-            "({}{} BETWEEN {} AND {})",
+            "({}{} BETWEEN{} {} AND {})",
             format_expression(expr)?,
             if *negated { " NOT" } else { "" },
+            if *symmetric { " SYMMETRIC" } else { "" },
             format_expression(low)?,
             format_expression(high)?
         )),
         Expr::Not { expr } => Ok(format!("(NOT {})", format_expression(expr)?)),
-        Expr::Cast { expr, data_type } => Ok(format!(
+        Expr::RowCompare(comparison) => format_row_comparison(comparison),
+        Expr::UnaryNumeric { expr, op } => Ok(format!(
+            "({} {})",
+            match op {
+                crate::sql::ast::UnaryNumericOp::Minus => "-",
+                crate::sql::ast::UnaryNumericOp::Plus => "+",
+                crate::sql::ast::UnaryNumericOp::Complement => "~",
+                crate::sql::ast::UnaryNumericOp::Absolute => "@",
+                crate::sql::ast::UnaryNumericOp::SquareRoot => "|/",
+                crate::sql::ast::UnaryNumericOp::CubeRoot => "||/",
+            },
+            format_expression(expr)?
+        )),
+        Expr::IntegerNegate { expr, .. } => Ok(format!("(-{})", format_expression(expr)?)),
+        Expr::Cast {
+            expr, data_type, ..
+        } => Ok(format!(
             "CAST({} AS {})",
             format_expression(expr)?,
             data_type.type_name()
@@ -90,6 +105,11 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
 }
 
 fn format_function(function: &FunctionCall) -> Result<String, String> {
+    if function.is_distinct() || function.filter.is_some() || !function.order_by.is_empty() {
+        return Err(
+            "aggregate modifiers are not supported in incremental rollup definitions".into(),
+        );
+    }
     let args = function
         .args
         .iter()
@@ -111,6 +131,30 @@ fn format_float(value: f64) -> Result<String, String> {
     }
 }
 
+fn format_case(
+    operand: Option<&Expr>,
+    branches: &[(Expr, Expr)],
+    else_expr: Option<&Expr>,
+) -> Result<String, String> {
+    let mut sql = String::from("CASE");
+    if let Some(operand) = operand {
+        sql.push(' ');
+        sql.push_str(&format_expression(operand)?);
+    }
+    for (when, then) in branches {
+        sql.push_str(" WHEN ");
+        sql.push_str(&format_expression(when)?);
+        sql.push_str(" THEN ");
+        sql.push_str(&format_expression(then)?);
+    }
+    if let Some(else_expr) = else_expr {
+        sql.push_str(" ELSE ");
+        sql.push_str(&format_expression(else_expr)?);
+    }
+    sql.push_str(" END");
+    Ok(sql)
+}
+
 fn format_binary_operator(operator: &BinaryOp) -> &'static str {
     match operator {
         BinaryOp::Eq => "=",
@@ -123,10 +167,14 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
         BinaryOp::Gte => ">=",
         BinaryOp::And => "AND",
         BinaryOp::Or => "OR",
+        BinaryOp::Integer { operation, .. } | BinaryOp::Bitwise { operation } => operation.symbol(),
+        BinaryOp::Concat | BinaryOp::ByteaConcat => "||",
         BinaryOp::Add => "+",
         BinaryOp::Sub => "-",
         BinaryOp::Mul => "*",
         BinaryOp::Div => "/",
+        BinaryOp::Modulo => "%",
+        BinaryOp::Power => "^",
         BinaryOp::Like => "LIKE",
         BinaryOp::PgvectorCosine => "<=>",
         BinaryOp::PgvectorL2 => "<->",
@@ -139,6 +187,40 @@ fn quote_identifier(identifier: &str) -> String {
         |_| format!("\"{}\"", identifier.replace('"', "\"\"")),
         |column| column.canonical_sql(),
     )
+}
+
+fn format_row_comparison(comparison: &crate::sql::ast::RowComparison) -> Result<String, String> {
+    let fields = |fields: &[Expr]| {
+        fields
+            .iter()
+            .map(format_expression)
+            .collect::<Result<Vec<_>, _>>()
+            .map(|fields| fields.join(", "))
+    };
+    let op = match comparison.op {
+        crate::sql::ast::RowComparisonOp::Eq => "=",
+        crate::sql::ast::RowComparisonOp::NotEq => "<>",
+        crate::sql::ast::RowComparisonOp::Lt => "<",
+        crate::sql::ast::RowComparisonOp::Lte => "<=",
+        crate::sql::ast::RowComparisonOp::Gt => ">",
+        crate::sql::ast::RowComparisonOp::Gte => ">=",
+        crate::sql::ast::RowComparisonOp::IsDistinctFrom => "IS DISTINCT FROM",
+        crate::sql::ast::RowComparisonOp::IsNotDistinctFrom => "IS NOT DISTINCT FROM",
+    };
+    Ok(format!(
+        "(ROW({}) {op} ROW({}))",
+        fields(&comparison.left)?,
+        fields(&comparison.right)?
+    ))
+}
+
+fn format_like(expr: &Expr, pattern: &Expr, escape: &Expr) -> Result<String, String> {
+    Ok(format!(
+        "({} LIKE {} ESCAPE {})",
+        format_expression(expr)?,
+        format_expression(pattern)?,
+        format_expression(escape)?
+    ))
 }
 
 #[cfg(test)]
@@ -174,6 +256,8 @@ mod tests {
             "MAX(CASE WHEN tenant = 'O''Reilly' THEN amount ELSE 0 END)",
             "MAX(CAST(amount AS FLOAT))",
             "MAX(amount BETWEEN 1 AND 5)",
+            "MAX(amount BETWEEN SYMMETRIC 5 AND 1)",
+            "MAX(amount NOT BETWEEN SYMMETRIC 5 AND 1)",
             "MAX(amount IS NOT NULL)",
             "MAX(amount IN (1, 2))",
             "MAX(amount NOT IN (1, 2))",
@@ -209,6 +293,75 @@ mod tests {
                 original.structurally_eq(&reparsed),
                 "canonical expression {canonical:?} did not preserve source {source:?}: {original:?} != {reparsed:?}"
             );
+        }
+    }
+    #[test]
+    fn should_round_trip_negative_unary_math_given_aggregate_when_canonical_sql_is_parsed() {
+        // Arrange
+        let sources = ["MAX(||/ -8.0)", "MAX(|/ -0.0)", "MAX(@ -7)", "MAX(~ -1)"];
+        // Act
+        let results = sources.map(|source| {
+            let original = crate::sql::parser::parse_expression(source).expect("source");
+            let Expr::Function(function) = &original else {
+                panic!("aggregate");
+            };
+            let canonical = canonical_aggregate_expression(function).expect("canonical SQL");
+            let reparsed = crate::sql::parser::parse_expression(&canonical);
+            (original, canonical, reparsed)
+        });
+        // Assert
+        for (original, canonical, reparsed) in results {
+            assert!(original
+                .structurally_eq(&reparsed.unwrap_or_else(|error| panic!("{canonical}: {error}"))));
+        }
+    }
+    #[test]
+    fn should_round_trip_truth_predicates_given_aggregate_when_canonical_sql_is_parsed() {
+        // Arrange
+        let sources = [
+            "BOOL_OR(flag IS TRUE)",
+            "BOOL_AND(flag IS NOT FALSE)",
+            "COUNT(flag IS UNKNOWN)",
+            "COUNT(flag IS NOT UNKNOWN)",
+        ];
+        // Act
+        let results = sources.map(|source| {
+            let original = crate::sql::parser::parse_expression(source).expect("source");
+            let Expr::Function(function) = &original else {
+                panic!("aggregate");
+            };
+            let canonical = canonical_aggregate_expression(function).expect("canonical SQL");
+            let reparsed =
+                crate::sql::parser::parse_expression(&canonical).expect("parse canonical SQL");
+            (original, reparsed)
+        });
+        // Assert
+        assert!(results
+            .iter()
+            .all(|(original, reparsed)| original.structurally_eq(reparsed)));
+    }
+    #[test]
+    fn should_round_trip_qualified_operators_given_aggregate_when_builtin_precedence_is_rendered() {
+        // Arrange
+        let sources = [
+            "MAX(amount OPERATOR(pg_catalog.*) 3 + 4)",
+            "MAX(OPERATOR(pg_catalog.-) amount + 3)",
+            "MAX(OPERATOR(pg_catalog.~) (amount | 2))",
+            "MAX(payload OPERATOR(pg_catalog.||) '\\x01'::BYTEA)",
+        ];
+        // Act
+        let results = sources.map(|source| {
+            let original = crate::sql::parser::parse_expression(source).expect("qualified source");
+            let Expr::Function(function) = &original else {
+                panic!("aggregate")
+            };
+            let canonical = canonical_aggregate_expression(function).expect("canonical SQL");
+            let reparsed = crate::sql::parser::parse_expression(&canonical).expect("reparse");
+            (original, canonical, reparsed)
+        });
+        // Assert
+        for (original, canonical, reparsed) in results {
+            assert!(original.structurally_eq(&reparsed), "{canonical}");
         }
     }
 }

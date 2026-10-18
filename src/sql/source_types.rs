@@ -13,7 +13,28 @@ pub(crate) fn source_field_type_map_with_ctes(
     ctes: &[ast::CommonTableExpression],
     catalog: &crate::catalog::Catalog,
 ) -> FieldTypeMap {
+    source_field_type_map_with_parameters(source, ctes, catalog, &[])
+}
+
+pub(crate) fn source_field_type_map_with_parameters(
+    source: &ast::QuerySource,
+    ctes: &[ast::CommonTableExpression],
+    catalog: &crate::catalog::Catalog,
+    parameter_types: &[i32],
+) -> FieldTypeMap {
     match source {
+        ast::QuerySource::Values { rows } => {
+            binder::values::schema(rows, &HashMap::new(), parameter_types)
+                .map(|schema| {
+                    schema
+                        .fields
+                        .into_iter()
+                        .map(|field| (field.name, field.data_type))
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
+
         ast::QuerySource::Aliased {
             source,
             alias,
@@ -23,9 +44,13 @@ pub(crate) fn source_field_type_map_with_ctes(
             let qualifier = binder::alias_row_qualifier(alias);
             let visible_qualifier = super::ColumnIdentifierPath::parse(alias)
                 .map_or_else(|_| alias.clone(), |path| path.namespace_key());
-            if let Ok((shape, identity)) =
-                binder::wildcard_output_fields_and_identity(source, ctes, catalog, &HashMap::new())
-            {
+            if let Ok((shape, identity)) = binder::wildcard_output_shape_with_parameters(
+                source,
+                ctes,
+                catalog,
+                &HashMap::new(),
+                parameter_types,
+            ) {
                 for (index, field) in shape.into_iter().enumerate() {
                     let visible = column_aliases.get(index).cloned().unwrap_or_else(|| {
                         super::ColumnIdentifierPath::stored_field_key(&field.name)
@@ -50,14 +75,24 @@ pub(crate) fn source_field_type_map_with_ctes(
             .map(|schema| field_type_map(schema.fields.iter()))
             .unwrap_or_default(),
         ast::QuerySource::Join { left, right, .. } => {
-            let mut fields = source_field_type_map_with_ctes(left, ctes, catalog);
-            fields.extend(source_field_type_map_with_ctes(right, ctes, catalog));
+            let mut fields =
+                source_field_type_map_with_parameters(left, ctes, catalog, parameter_types);
+            fields.extend(source_field_type_map_with_parameters(
+                right,
+                ctes,
+                catalog,
+                parameter_types,
+            ));
             fields
         }
         ast::QuerySource::Subquery { select, .. } => {
-            if let Some(schema) =
-                binder::derived_source_schema(source, ctes, catalog, &HashMap::new())
-            {
+            if let Some(schema) = binder::derived_source_schema_with_parameters(
+                source,
+                ctes,
+                catalog,
+                &HashMap::new(),
+                parameter_types,
+            ) {
                 return field_type_map(schema.fields.iter());
             }
             let mut fields = source_field_type_map(&select.source, catalog);
@@ -68,11 +103,15 @@ pub(crate) fn source_field_type_map_with_ctes(
             }
             fields
         }
-        ast::QuerySource::Cte(_) => {
-            binder::derived_source_schema(source, ctes, catalog, &HashMap::new())
-                .map(|schema| field_type_map(schema.fields.iter()))
-                .unwrap_or_default()
-        }
+        ast::QuerySource::Cte(_) => binder::derived_source_schema_with_parameters(
+            source,
+            ctes,
+            catalog,
+            &HashMap::new(),
+            parameter_types,
+        )
+        .map(|schema| field_type_map(schema.fields.iter()))
+        .unwrap_or_default(),
         ast::QuerySource::TableFunction { .. } | ast::QuerySource::SingleRow => FieldTypeMap::new(),
     }
 }

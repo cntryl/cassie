@@ -1,17 +1,18 @@
-use std::iter::Peekable;
 use std::str::Chars;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum SplitError {
     Syntax(String),
     Unsupported(String),
+    NumericRange(String),
+    DuplicateColumn(String),
     ResourceLimit(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LexState {
     Normal,
-    SingleQuoted,
+    SingleQuoted(bool),
     DoubleQuoted,
     LineComment,
     BlockComment(usize),
@@ -20,6 +21,8 @@ enum LexState {
 pub(super) fn split_simple_query(sql: &str) -> Result<Vec<String>, SplitError> {
     crate::sql::parser::preflight_sql(sql).map_err(|error| match error.kind() {
         crate::sql::SqlErrorKind::ResourceLimit => SplitError::ResourceLimit(error.to_string()),
+        crate::sql::SqlErrorKind::NumericRange => SplitError::NumericRange(error.to_string()),
+        crate::sql::SqlErrorKind::DuplicateColumn => SplitError::DuplicateColumn(error.to_string()),
         crate::sql::SqlErrorKind::Syntax => SplitError::Syntax(error.to_string()),
         crate::sql::SqlErrorKind::Unsupported => SplitError::Unsupported(error.to_string()),
     })?;
@@ -27,9 +30,26 @@ pub(super) fn split_simple_query(sql: &str) -> Result<Vec<String>, SplitError> {
     let mut current = String::new();
     let mut statements = Vec::new();
     let mut requires_normalization = false;
-    let mut chars = sql.chars().peekable();
+    let mut chars = sql.chars();
 
-    while let Some(character) = chars.next() {
+    loop {
+        let start = sql.len() - chars.as_str().len();
+        let Some(character) = chars.next() else {
+            break;
+        };
+        if matches!(state, LexState::Normal) && character == '$' {
+            if let Some(end) = crate::sql::parser::dollar_quoted_end(sql, start) {
+                let literal = &sql[start..end];
+                if crate::sql::parser::dollar_quoted_content(literal).is_none() {
+                    return Err(SplitError::Syntax(
+                        "unterminated dollar-quoted string in simple query".to_owned(),
+                    ));
+                }
+                current.push_str(literal);
+                chars = sql[end..].chars();
+                continue;
+            }
+        }
         consume_character(
             character,
             &mut chars,
@@ -42,7 +62,7 @@ pub(super) fn split_simple_query(sql: &str) -> Result<Vec<String>, SplitError> {
 
     match state {
         LexState::Normal | LexState::LineComment => {}
-        LexState::SingleQuoted => {
+        LexState::SingleQuoted(_) => {
             return Err(SplitError::Syntax(
                 "unterminated quoted string in simple query".to_string(),
             ));
@@ -89,7 +109,7 @@ pub(super) fn split_simple_query(sql: &str) -> Result<Vec<String>, SplitError> {
 
 fn consume_character(
     character: char,
-    chars: &mut Peekable<Chars<'_>>,
+    chars: &mut Chars<'_>,
     state: &mut LexState,
     current: &mut String,
     statements: &mut Vec<String>,
@@ -104,8 +124,12 @@ fn consume_character(
             statements,
             requires_normalization,
         ),
-        LexState::SingleQuoted => consume_quoted_character(character, chars, state, current, '\''),
-        LexState::DoubleQuoted => consume_quoted_character(character, chars, state, current, '"'),
+        LexState::SingleQuoted(escapes) => {
+            consume_quoted_character(character, chars, state, current, '\'', escapes);
+        }
+        LexState::DoubleQuoted => {
+            consume_quoted_character(character, chars, state, current, '"', false);
+        }
         LexState::LineComment => {
             if character == '\n' || character == '\r' {
                 current.push(character);
@@ -113,9 +137,9 @@ fn consume_character(
             }
         }
         LexState::BlockComment(depth) => {
-            if character == '/' && chars.next_if_eq(&'*').is_some() {
+            if character == '/' && consume_if(chars, '*') {
                 *state = LexState::BlockComment(depth.saturating_add(1));
-            } else if character == '*' && chars.next_if_eq(&'/').is_some() {
+            } else if character == '*' && consume_if(chars, '/') {
                 if depth == 1 {
                     current.push(' ');
                     *state = LexState::Normal;
@@ -129,7 +153,7 @@ fn consume_character(
 
 fn consume_normal_character(
     character: char,
-    chars: &mut Peekable<Chars<'_>>,
+    chars: &mut Chars<'_>,
     state: &mut LexState,
     current: &mut String,
     statements: &mut Vec<String>,
@@ -137,19 +161,20 @@ fn consume_normal_character(
 ) {
     match character {
         '\'' => {
+            let escapes = crate::sql::parser::escape_string_prefix(current, current.len());
             current.push(character);
-            *state = LexState::SingleQuoted;
+            *state = LexState::SingleQuoted(escapes);
         }
         '"' => {
             current.push(character);
             *state = LexState::DoubleQuoted;
         }
-        '-' if chars.next_if_eq(&'-').is_some() => {
+        '-' if consume_if(chars, '-') => {
             current.push(' ');
             *requires_normalization = true;
             *state = LexState::LineComment;
         }
-        '/' if chars.next_if_eq(&'*').is_some() => {
+        '/' if consume_if(chars, '*') => {
             current.push(' ');
             *requires_normalization = true;
             *state = LexState::BlockComment(1);
@@ -164,23 +189,28 @@ fn consume_normal_character(
 
 fn consume_quoted_character(
     character: char,
-    chars: &mut Peekable<Chars<'_>>,
+    chars: &mut Chars<'_>,
     state: &mut LexState,
     current: &mut String,
     quote: char,
+    escapes: bool,
 ) {
     current.push(character);
-    if character == '\\' {
+    if escapes && character == '\\' {
         if let Some(escaped) = chars.next() {
             current.push(escaped);
         }
     } else if character == quote {
-        if chars.next_if_eq(&quote).is_some() {
+        if consume_if(chars, quote) {
             current.push(quote);
         } else {
             *state = LexState::Normal;
         }
     }
+}
+
+fn consume_if(chars: &mut Chars<'_>, expected: char) -> bool {
+    chars.as_str().starts_with(expected) && chars.next().is_some()
 }
 
 pub(super) fn is_streaming_copy(statement: &str) -> bool {
@@ -231,5 +261,41 @@ mod tests {
 
         // Assert
         assert_eq!(statements, vec!["SELECT ';'", "SELECT 2"]);
+    }
+
+    #[test]
+    fn should_preserve_dollar_quoted_regions_given_literal_delimiters_when_splitting_real_statements(
+    ) {
+        // Arrange
+        let sql = "SELECT $té$it's; /* untouched */ (END)$té$ AS value; \
+                   SELECT $$next; ' -- literal$$";
+
+        // Act
+        let statements = split_simple_query(sql).expect("split outside dollar-quoted literals");
+
+        // Assert
+        assert_eq!(
+            statements,
+            vec![
+                "SELECT $té$it's; /* untouched */ (END)$té$ AS value",
+                "SELECT $$next; ' -- literal$$",
+            ]
+        );
+    }
+
+    #[test]
+    fn should_reject_unterminated_dollar_quotes_given_an_earlier_statement_when_splitting_the_batch(
+    ) {
+        // Arrange
+        let sql = "SELECT 1; SELECT $tag$unterminated";
+
+        // Act
+        let result = split_simple_query(sql);
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(SplitError::Syntax(message)) if message.contains("unterminated dollar-quoted")
+        ));
     }
 }

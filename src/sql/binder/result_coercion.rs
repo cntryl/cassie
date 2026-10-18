@@ -17,6 +17,8 @@ pub(super) fn float(operand: Expr) -> Expr {
             else_expr: Some(Box::new(operand)),
         }),
         data_type: DataType::Float,
+        source_type: None,
+        identity: crate::sql::ast::CastIdentity::Scalar,
     }
 }
 
@@ -24,6 +26,8 @@ pub(crate) fn original_operand(expression: &Expr) -> Option<&Expr> {
     let Expr::Cast {
         expr,
         data_type: DataType::Float,
+        identity: crate::sql::ast::CastIdentity::Scalar,
+        ..
     } = expression
     else {
         return None;

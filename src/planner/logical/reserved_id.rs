@@ -120,7 +120,9 @@ fn source_resolves_id_to_identity(
             .is_some_and(|select| inner_resolves_id_to_identity(select, ctes, catalog)),
         // A table function's rows and the single synthetic row have no
         // document identity to resolve to, so `id` is left as written.
-        QuerySource::TableFunction { .. } | QuerySource::SingleRow => false,
+        QuerySource::TableFunction { .. } | QuerySource::Values { .. } | QuerySource::SingleRow => {
+            false
+        }
     }
 }
 
@@ -180,7 +182,7 @@ fn rewrite_select_item(item: &mut SelectItem) {
             }
         }
         SelectItem::Function { function, .. } => {
-            for arg in &mut function.args {
+            for arg in function.expressions_mut() {
                 rewrite_expr(arg);
             }
         }
@@ -221,11 +223,21 @@ fn rewrite_expr(expr: &mut Expr) {
                 *name = ROW_IDENTITY_COLUMN.to_string();
             }
         }
+        Expr::RowCompare(comparison) => comparison
+            .left
+            .iter_mut()
+            .chain(&mut comparison.right)
+            .for_each(rewrite_expr),
         Expr::Binary { left, right, .. } => {
             rewrite_expr(left);
             rewrite_expr(right);
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+        Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => {
             rewrite_expr(expr);
         }
         Expr::InList { expr, values, .. } => {
@@ -236,13 +248,18 @@ fn rewrite_expr(expr: &mut Expr) {
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             rewrite_expr(expr);
             rewrite_expr(low);
             rewrite_expr(high);
         }
         Expr::Function(function) => {
-            for arg in &mut function.args {
+            for arg in function.expressions_mut() {
                 rewrite_expr(arg);
             }
         }
@@ -253,6 +270,7 @@ fn rewrite_expr(expr: &mut Expr) {
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
     }

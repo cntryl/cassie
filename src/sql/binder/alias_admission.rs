@@ -160,7 +160,7 @@ impl Walk<'_> {
                     .extend(crate::catalog::qualifier_variants(name));
                 false
             }
-            QuerySource::SingleRow => false,
+            QuerySource::Values { .. } | QuerySource::SingleRow => false,
         })
     }
 
@@ -242,7 +242,7 @@ impl Walk<'_> {
                 }
             }
             QuerySource::TableFunction { function, .. } => {
-                for expr in &function.args {
+                for expr in function.expressions() {
                     self.expression(expr, visible, active)?;
                 }
                 Ok(())
@@ -263,7 +263,7 @@ impl Walk<'_> {
                 SelectItem::Column { name, .. } => self.column(name, visible, active)?,
                 SelectItem::Expr { expr, .. } => self.expression(expr, visible, active)?,
                 SelectItem::Function { function, .. } => {
-                    for expr in &function.args {
+                    for expr in function.expressions() {
                         self.expression(expr, visible, active)?;
                     }
                 }

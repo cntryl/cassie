@@ -87,11 +87,22 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::UniqueViolation { .. } => "unique_violation",
         CassieError::CheckViolation { .. } => "check_violation",
         CassieError::ForeignKeyViolation { .. } => "foreign_key_violation",
+        CassieError::ArrayInput(_) => "array_input",
+        CassieError::NullArrayElement => "null_array_element",
         CassieError::CardinalityViolation(_) => "cardinality_violation",
         CassieError::Parse(_) => "parse",
         CassieError::InvalidQuery(_) => "invalid_query",
+        CassieError::UndefinedColumn(_) => "undefined_column",
+        CassieError::AmbiguousColumn(_) => "ambiguous_column",
         CassieError::Planner(_) => "planner",
-        CassieError::Execution(_) => "execution",
+        CassieError::Execution(_)
+        | CassieError::FloatInput(_)
+        | CassieError::BooleanInput(_)
+        | CassieError::IntegerBytea(_)
+        | CassieError::SizeInput(_)
+        | CassieError::AmbiguousFunction(_)
+        | CassieError::ByteaIndex { .. }
+        | CassieError::ByteaInput(_) => "execution",
         CassieError::Transaction { .. } => "transaction",
         CassieError::DeadlineExceeded => "deadline_exceeded",
         CassieError::QueryCancelled => "query_cancelled",

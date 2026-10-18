@@ -86,7 +86,11 @@ impl Reader<'_> {
             ));
         }
         match expr {
-            Expr::Cast { expr, .. } => self.bound_depth(expr, depth + 1)?,
+            Expr::Cast { expr, .. }
+            | Expr::UnaryNumeric { expr, .. }
+            | Expr::IntegerNegate { expr, .. } => {
+                self.bound_depth(expr, depth + 1)?;
+            }
             Expr::Binary { left, right, .. } => {
                 self.bound_depth(left, depth + 1)?;
                 self.bound_depth(right, depth + 1)?;
@@ -109,7 +113,7 @@ impl Reader<'_> {
                 self.expr(on, depth + 1)?;
             }
             QuerySource::TableFunction { function, .. } => {
-                for expr in &function.args {
+                for expr in function.expressions() {
                     self.expr(expr, depth + 1)?;
                 }
             }
@@ -179,7 +183,7 @@ impl Reader<'_> {
         match item {
             SelectItem::Expr { expr, .. } => self.expr(expr, depth + 1)?,
             SelectItem::Function { function, .. } => {
-                for expr in &function.args {
+                for expr in function.expressions() {
                     self.expr(expr, depth + 1)?;
                 }
             }
@@ -200,11 +204,21 @@ impl Reader<'_> {
         self.guard(depth)?;
         match expr {
             Expr::Exists(statement) => self.statement(statement, depth + 1)?,
+            Expr::RowCompare(comparison) => {
+                for field in comparison.left.iter().chain(&comparison.right) {
+                    self.expr(field, depth + 1)?;
+                }
+            }
             Expr::Binary { left, right, .. } => {
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
             }
-            Expr::Cast { expr, .. } | Expr::IsNull { expr, .. } | Expr::Not { expr } => {
+            Expr::Cast { expr, .. }
+            | Expr::UnaryNumeric { expr, .. }
+            | Expr::IntegerNegate { expr, .. }
+            | Expr::IsNull { expr, .. }
+            | Expr::TruthTest { expr, .. }
+            | Expr::Not { expr } => {
                 self.expr(expr, depth + 1)?;
             }
             Expr::InList { expr, values, .. } => {
@@ -215,6 +229,11 @@ impl Reader<'_> {
             }
             Expr::Between {
                 expr, low, high, ..
+            }
+            | Expr::Like {
+                expr,
+                pattern: low,
+                escape: high,
             } => {
                 self.expr(expr, depth + 1)?;
                 self.expr(low, depth + 1)?;
@@ -237,7 +256,7 @@ impl Reader<'_> {
                 }
             }
             Expr::Function(function) => {
-                for expr in &function.args {
+                for expr in function.expressions() {
                     self.expr(expr, depth + 1)?;
                 }
             }

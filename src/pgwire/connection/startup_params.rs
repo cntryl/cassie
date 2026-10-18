@@ -36,7 +36,7 @@ pub(super) fn apply_startup_parameters(
 ) -> Result<(), crate::app::CassieError> {
     for key in ["application_name", "client_encoding"] {
         if let Some(value) = parameters.get(key) {
-            session.set_setting(key, value)?;
+            session.set_startup_setting(key, value)?;
         }
     }
     Ok(())

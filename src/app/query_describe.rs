@@ -108,7 +108,7 @@ impl Cassie {
             .then(|| {
                 self.plan_cache_key_from_fingerprint(
                     sql_fingerprint,
-                    super::query_parameters::parameter_shape_for_oids(parameter_type_oids),
+                    parameter_type_oids,
                     crate::runtime::ExecutionMode::DescribeQuery,
                     database,
                     &search_path,

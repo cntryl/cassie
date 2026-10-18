@@ -129,7 +129,10 @@ pub(in crate::executor::execution) fn source_contains_lateral(source: &QuerySour
         QuerySource::Subquery { lateral, .. } | QuerySource::TableFunction { lateral, .. } => {
             *lateral
         }
-        QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
+        QuerySource::Collection(_)
+        | QuerySource::Cte(_)
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow => false,
     }
 }
 
@@ -379,6 +382,9 @@ pub(super) fn apply_set_operation(
     }
     let right = rekey_set_rows(left_output_names, right);
     let output: Result<_, QueryError> = match set.operator {
+        SetOperator::IntersectAll | SetOperator::ExceptAll => {
+            typed::set(left, right, left_output_names, set.operator, controls)
+        }
         SetOperator::UnionAll => {
             let mut rows = left;
             rows.extend(right);
@@ -549,7 +555,7 @@ pub(crate) fn group_expr_name(expr: &Expr) -> String {
 }
 
 pub(crate) fn aggregate_signature(function: &FunctionCall) -> String {
-    format!(
+    let mut signature = format!(
         "{}({})",
         function.name.to_ascii_lowercase(),
         function
@@ -558,7 +564,23 @@ pub(crate) fn aggregate_signature(function: &FunctionCall) -> String {
             .map(expr_key)
             .collect::<Vec<_>>()
             .join(",")
-    )
+    );
+    if function.is_distinct() {
+        signature.push_str(" DISTINCT");
+    }
+    for order in &function.order_by {
+        let _ = write!(
+            &mut signature,
+            " ORDER({}:{:?}:{:?})",
+            expr_key(&order.expr),
+            order.direction,
+            order.nulls
+        );
+    }
+    if let Some(filter) = &function.filter {
+        let _ = write!(&mut signature, " FILTER({})", expr_key(filter));
+    }
+    signature
 }
 
 pub(crate) fn expr_key(expr: &Expr) -> String {
@@ -589,11 +611,17 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
         Expr::BoolLiteral(value) => value.to_string(),
         Expr::NumberLiteral(value) => value.to_string(),
         Expr::IntegerLiteral(value) => value.to_string(),
+        Expr::NumericLiteral(value) => format!("numeric:{value}"),
         Expr::StringLiteral(value) => format!("'{value}'"),
         Expr::Function(function) => aggregate_signature(function),
         Expr::Binary { left, op, right } => {
             format!("{}{:?}{}", expr_key(left), op, expr_key(right))
         }
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => format!("{} {}", expr_key(expr), truth.label(*negated)),
         Expr::IsNull { expr, negated } => {
             format!(
                 "{} is{} null",
@@ -611,20 +639,48 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
             if *negated { " not" } else { "" },
             values.iter().map(expr_key).collect::<Vec<_>>().join(",")
         ),
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => format!(
+            "({} LIKE {} ESCAPE {})",
+            expr_key(expr),
+            expr_key(pattern),
+            expr_key(escape)
+        ),
         Expr::Between {
             expr,
             low,
             high,
             negated,
+            symmetric,
         } => format!(
-            "{}{} between {} and {}",
+            "{}{} between{} {} and {}",
             expr_key(expr),
             if *negated { " not" } else { "" },
+            if *symmetric { " symmetric" } else { "" },
             expr_key(low),
             expr_key(high)
         ),
         Expr::Not { expr } => format!("not {}", expr_key(expr)),
-        Expr::Cast { expr, data_type } => format!("{}::{data_type:?}", expr_key(expr)),
+        Expr::RowCompare(comparison) => format!(
+            "row:{:?}:{:?}:{:?}",
+            comparison.op,
+            comparison.left.iter().map(expr_key).collect::<Vec<_>>(),
+            comparison.right.iter().map(expr_key).collect::<Vec<_>>()
+        ),
+        Expr::UnaryNumeric { expr, op } => format!("unary:{op:?}({})", expr_key(expr)),
+        Expr::IntegerNegate { expr, width } => format!("negate:{width:?}({})", expr_key(expr)),
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            identity,
+        } => format!(
+            "{}::{data_type:?}[{source_type:?},{identity:?}]",
+            expr_key(expr)
+        ),
         Expr::Exists(_) => "exists".to_string(),
     }
 }

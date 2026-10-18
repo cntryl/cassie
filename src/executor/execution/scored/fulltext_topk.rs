@@ -6,7 +6,7 @@ use super::{
     FulltextSearchTuning, FulltextTopKSpec, HashSet, Instant, QueryError,
     TokenizedFulltextDocument,
 };
-use crate::runtime::QueryExecutionControls;
+use crate::runtime::{QueryExecutionControls, QueryScoringTestBoundary};
 
 pub(super) fn execute_fulltext_top_k(
     cassie: &Cassie,
@@ -224,6 +224,7 @@ fn try_execute_persisted_fulltext_top_k(
             search_context.score_term_stats(Some(&spec.text_field), &term_stats, &query_terms);
         if score > 0.0 {
             top.try_push(spec.top_needed(), -score, score, id)?;
+            controls.scored_candidate(QueryScoringTestBoundary::PersistedFulltext)?;
         }
     }
     let (top, _top_memory) = top.into_parts();

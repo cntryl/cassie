@@ -33,6 +33,16 @@ impl ResultTypes {
         )
     }
 
+    pub(super) fn declared_function(&self, name: &str) -> Option<&crate::catalog::FunctionMeta> {
+        self.functions.get(&name.to_ascii_lowercase())
+    }
+
+    pub(super) fn declared_function_identity(&self, name: &str) -> Option<&str> {
+        self.functions
+            .get(&name.to_ascii_lowercase())
+            .map(|metadata| metadata.name.as_str())
+    }
+
     pub(super) fn proven_float8(&self, expr: &Expr, catalog: &Catalog) -> bool {
         !self.has_unresolved_qualified_column(expr)
             && self.comparison_types.expression(
@@ -264,7 +274,7 @@ impl ResultTypes {
     pub(super) fn item(&self, item: &SelectItem) -> Result<(), CassieError> {
         match item {
             SelectItem::Function { function, .. } => {
-                self.expression(&Expr::Function(function.clone()))
+                self.expression(&Expr::Function(Box::new(function.clone())))
             }
             SelectItem::Expr { expr, .. } => self.expression(expr),
             SelectItem::WindowFunction { function, .. } => {
@@ -392,7 +402,7 @@ fn validate_source(
             validate_source(types, right)
         }
         crate::sql::ast::QuerySource::TableFunction { function, .. } => {
-            for arg in &function.args {
+            for arg in function.expressions() {
                 types.expression(arg)?;
             }
             Ok(())
@@ -663,7 +673,7 @@ fn item_contains_coalesce(item: &SelectItem) -> bool {
         SelectItem::Function { function, .. } => {
             function.name.eq_ignore_ascii_case("coalesce")
                 || super::conditional_types::is_conditional(&function.name)
-                || function.args.iter().any(expression_contains_coalesce)
+                || function.expressions().any(expression_contains_coalesce)
         }
         SelectItem::Expr { expr, .. } => expression_contains_coalesce(expr),
         SelectItem::WindowFunction { function, .. } => function
@@ -719,7 +729,7 @@ fn source_contains_coalesce(source: &crate::sql::ast::QuerySource) -> bool {
                 || expression_contains_coalesce(on)
         }
         crate::sql::ast::QuerySource::TableFunction { function, .. } => {
-            function.args.iter().any(expression_contains_coalesce)
+            function.expressions().any(expression_contains_coalesce)
         }
         _ => false,
     }

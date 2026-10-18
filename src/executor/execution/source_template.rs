@@ -30,10 +30,10 @@ pub(super) fn known_cte_template(
         bytes,
         source_collection::qualification_bytes(qualifier, fields.len(), names, 0, 0)?,
     )?;
-    let arrays = fields
+    let needs_types = fields
         .iter()
-        .any(|field| matches!(field.data_type, DataType::Array(_)));
-    if arrays {
+        .any(|field| matches!(field.data_type, DataType::Array(_) | DataType::Char { .. }));
+    if needs_types {
         bytes = add(
             bytes,
             add(
@@ -48,7 +48,7 @@ pub(super) fn known_cte_template(
     memory.try_grow(bytes)?;
     let _scratch = source_collection::qualification_scratch(env, qualifier)?;
     let memory = Arc::new(memory);
-    let data_types = if arrays {
+    let data_types = if needs_types {
         let mut types = Vec::new();
         types
             .try_reserve_exact(fields.len())

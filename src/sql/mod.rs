@@ -1,3 +1,5 @@
+pub(crate) mod literal_inputs;
+pub(crate) mod parse_analysis;
 use std::collections::HashMap;
 
 use crate::catalog::FieldMeta;
@@ -8,6 +10,7 @@ pub mod binder;
 mod column_identifier;
 pub(crate) mod definition_guard;
 pub mod functions;
+mod identifier_text;
 pub(crate) mod numeric_comparison;
 pub(crate) mod pagination;
 mod parameters;
@@ -15,7 +18,9 @@ pub mod parser;
 mod source_identity;
 mod source_types;
 pub(crate) use source_identity::physical_collection;
-pub(crate) use source_types::source_field_type_map_with_ctes;
+pub(crate) use source_types::{
+    source_field_type_map_with_ctes, source_field_type_map_with_parameters,
+};
 
 pub use ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
@@ -37,8 +42,9 @@ pub(crate) use parameters::checked_parse_parameter_types_in_scope;
 pub(crate) use parameters::AdmittedParameterTypes;
 pub(crate) use parameters::{
     checked_parameter_types_in_scope, checked_wire_parse_parameter_types_in_scope,
-    contextual_string_parameter_type_oids, ParameterAdmissionError, ParameterSemanticDiagnostic,
-    PrivateParameterTypeInput, validate_wire_parse_parameter_slots,
+    contextual_string_parameter_type_oids, validate_wire_parse_parameter_slots,
+    ParameterAdmissionError, ParameterSemanticDiagnostic, PrivateParameterTypeInput,
+    ScalarLiteralDiagnostic,
 };
 pub use parameters::{
     declared_parameter_type_conflict, parameter_count, parameter_type_oids,
@@ -94,3 +100,6 @@ pub(crate) fn field_type_for_column<'a>(
         .or_else(|| field_types.get(&column.lookup_key()))
         .or_else(|| field_types.get(&column.field_lookup_key()))
 }
+
+#[cfg(test)]
+mod parse_analysis_tests;

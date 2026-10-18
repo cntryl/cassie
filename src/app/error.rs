@@ -1,5 +1,8 @@
+#[path = "error/execution.rs"]
+mod execution;
 use super::{EmbeddingError, QueryError, TransactionErrorKind};
 use crate::catalog::local_name;
+use execution::execution_descriptor;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogObjectKind {
@@ -63,6 +66,24 @@ pub(crate) struct CassieErrorDescriptor {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CassieError {
+    #[error("unresolvable column reference '{0}'; known fields or aliases required")]
+    UndefinedColumn(String),
+
+    #[error("column reference '{0}' is ambiguous")]
+    AmbiguousColumn(String),
+
+    #[error(transparent)]
+    BooleanInput(#[from] crate::types::BooleanInputError),
+
+    #[error(transparent)]
+    FloatInput(#[from] crate::types::FloatInputError),
+
+    #[error(transparent)]
+    IntegerBytea(#[from] crate::types::IntegerByteaError),
+
+    #[error(transparent)]
+    ByteaInput(#[from] crate::types::ByteaInputError),
+
     #[error("collection not found: {0}")]
     CollectionNotFound(String),
 
@@ -142,8 +163,21 @@ pub enum CassieError {
     #[error("invalid embedding: {0}")]
     InvalidEmbedding(String),
 
+    #[error("{0}")]
+    ArrayInput(String),
+
+    #[error("null array element not allowed in this context")]
+    NullArrayElement,
+
+    #[error(transparent)]
+    SizeInput(#[from] crate::types::SizeInputError),
+
     #[error("invalid parameter value: {0}")]
     InvalidParameterValue(String),
+    #[error("{0}")]
+    AmbiguousFunction(String),
+    #[error("index {index} out of valid range, 0..{maximum}")]
+    ByteaIndex { index: i64, maximum: i64 },
 
     #[error("embedding unavailable: {0}")]
     EmbeddingUnavailable(String),
@@ -194,6 +228,14 @@ pub enum CassieError {
 impl CassieError {
     pub(crate) fn descriptor(&self) -> CassieErrorDescriptor {
         match self {
+            Self::UndefinedColumn(_) => bad_request_descriptor("42703", self.to_string()),
+            Self::AmbiguousColumn(_) => bad_request_descriptor("42702", self.to_string()),
+            Self::BooleanInput(error) => bad_request_descriptor("22P02", error.to_string()),
+            Self::FloatInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
+            Self::IntegerBytea(error) => bad_request_descriptor("22003", error.to_string()),
+            Self::ByteaIndex { .. } => bad_request_descriptor("2202E", self.to_string()),
+            Self::AmbiguousFunction(message) => bad_request_descriptor("42725", message.clone()),
+            Self::ByteaInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::CollectionNotFound(table) => missing_relation_descriptor(table),
             Self::CatalogObjectNotFound { kind, name } => {
                 missing_catalog_object_descriptor(*kind, name, self.to_string())
@@ -205,6 +247,14 @@ impl CassieError {
             | Self::UniqueViolation { .. }
             | Self::CheckViolation { .. }
             | Self::ForeignKeyViolation { .. } => constraint_descriptor(self),
+            Self::InvalidQuery(message) if message == "invalid Unicode escape in escape string" => {
+                bad_request_descriptor("22025", "invalid Unicode escape".into())
+            }
+            Self::InvalidQuery(message)
+                if message.starts_with("invalid byte sequence for encoding \"UTF8\":") =>
+            {
+                bad_request_descriptor("22021", message.clone())
+            }
             Self::Parse(message) | Self::InvalidQuery(message) => {
                 bad_request_descriptor("42601", message.clone())
             }
@@ -225,6 +275,9 @@ impl CassieError {
             Self::InvalidVector(_) | Self::InvalidEmbedding(_) => {
                 bad_request_descriptor("22000", self.to_string())
             }
+            Self::ArrayInput(message) => bad_request_descriptor("22P02", message.clone()),
+            Self::NullArrayElement => bad_request_descriptor("22004", self.to_string()),
+            Self::SizeInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
             Self::InvalidParameterValue(message) => {
                 bad_request_descriptor("22023", message.clone())
             }
@@ -412,7 +465,11 @@ fn cancellation_descriptor() -> CassieErrorDescriptor {
 fn resource_limit_descriptor(message: String) -> CassieErrorDescriptor {
     CassieErrorDescriptor {
         http_status: 400,
-        sql_state: "54000",
+        sql_state: if message == "ROW expressions can have at most 1664 entries" {
+            "54011"
+        } else {
+            "54000"
+        },
         message,
         table: None,
         column: None,
@@ -485,45 +542,16 @@ fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
     bad_request_descriptor("42601", message.to_string())
 }
 
-fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
-    let pagination_state = match message {
+fn pagination_sql_state(message: &str) -> Option<&'static str> {
+    match message {
         "LIMIT must not be negative" => Some("2201W"),
         "OFFSET must not be negative" => Some("2201X"),
         "pagination operator is ambiguous for unknown parameters" => Some("42725"),
         "pagination requires an admitted integer expression" => Some("42804"),
+        "argument of LIMIT must not contain variables"
+        | "argument of OFFSET must not contain variables" => Some("42P10"),
         _ => None,
-    };
-    if let Some(sql_state) = pagination_state {
-        return bad_request_descriptor(sql_state, message.to_string());
     }
-    if message.eq_ignore_ascii_case("query canceled") {
-        return cancellation_descriptor();
-    }
-    if message.eq_ignore_ascii_case("query timeout exceeded") {
-        return timeout_descriptor();
-    }
-    if message.eq_ignore_ascii_case("division by zero") {
-        return bad_request_descriptor("22012", message.to_string());
-    }
-    if message.eq_ignore_ascii_case("aggregate integer overflow")
-        || message.eq_ignore_ascii_case(crate::types::numeric::FLOAT_OVERFLOW)
-        || message.eq_ignore_ascii_case(crate::executor::filter::BIGINT_OUT_OF_RANGE)
-    {
-        return bad_request_descriptor("22003", message.to_string());
-    }
-    if message.starts_with("function ") && message.ends_with(") does not exist") {
-        return bad_request_descriptor("42883", message.to_string());
-    }
-    if message.eq_ignore_ascii_case("query admission exhausted") {
-        return service_unavailable_descriptor("53300", message.to_string());
-    }
-    if message.starts_with("query memory budget exceeded:") {
-        return resource_limit_descriptor(message.to_string());
-    }
-    if message.starts_with("query result row limit exceeded:") {
-        return resource_limit_descriptor(message.to_string());
-    }
-    bad_request_descriptor("22000", message.to_string())
 }
 
 pub(crate) fn unsupported_sql_error(sql: &str) -> Option<CassieError> {
@@ -616,6 +644,9 @@ impl From<crate::sql::SqlError> for CassieError {
     fn from(value: crate::sql::SqlError) -> Self {
         match value.kind() {
             crate::sql::SqlErrorKind::Syntax => CassieError::InvalidQuery(value.to_string()),
+            crate::sql::SqlErrorKind::NumericRange | crate::sql::SqlErrorKind::DuplicateColumn => {
+                CassieError::Execution(value.to_string())
+            }
             crate::sql::SqlErrorKind::Unsupported => CassieError::Unsupported(value.to_string()),
             crate::sql::SqlErrorKind::ResourceLimit => {
                 CassieError::ResourceLimit(value.to_string())
@@ -711,6 +742,9 @@ impl From<cntryl_midge::MidgeError> for CassieError {
     fn from(value: cntryl_midge::MidgeError) -> Self {
         let message = value.to_string();
         match value {
+            cntryl_midge::MidgeError::OutcomeUnknown(detail) => CassieError::Storage(format!(
+                "midge write outcome unknown: {detail}; reconcile the transaction after recovery before retrying"
+            )),
             cntryl_midge::MidgeError::WriteStall(message) => CassieError::storage_retryable(
                 StorageRetryKind::WriteStall,
                 STORAGE_WRITE_STALL_PREFIX,
@@ -733,7 +767,7 @@ impl From<cntryl_midge::MidgeError> for CassieError {
                     CassieError::Storage(message)
                 }
             }
-            _ if message.to_ascii_lowercase().contains("write conflict") => {
+            cntryl_midge::MidgeError::WriteConflict(_) => {
                 CassieError::storage_retryable(
                     StorageRetryKind::WriteConflict,
                     STORAGE_WRITE_CONFLICT_PREFIX,

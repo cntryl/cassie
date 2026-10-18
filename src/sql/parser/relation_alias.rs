@@ -30,7 +30,7 @@ pub(super) fn parse(source: QuerySource, tail: &str) -> Result<QuerySource, SqlE
         return Err(SqlError::new("invalid relation alias".into()));
     }
     let alias = tail[..end].trim();
-    let identifier = ColumnIdentifierPath::parse(alias).map_err(SqlError::new)?;
+    let identifier = ColumnIdentifierPath::parse_sql(alias).map_err(SqlError::new)?;
     if identifier.is_qualified()
         || (!alias.starts_with('"')
             && !alias
@@ -58,7 +58,11 @@ pub(super) fn parse(source: QuerySource, tail: &str) -> Result<QuerySource, SqlE
     };
     Ok(QuerySource::Aliased {
         source: Box::new(source),
-        alias: alias.to_string(),
+        alias: if alias.starts_with('"') {
+            identifier.canonical_sql()
+        } else {
+            identifier.declared_name()
+        },
         column_aliases,
     })
 }

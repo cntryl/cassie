@@ -60,7 +60,12 @@ pub(super) fn null_row(
     }
     let data_types = fields
         .iter()
-        .any(|field| matches!(field.data_type, crate::types::DataType::Array(_)))
+        .any(|field| {
+            matches!(
+                field.data_type,
+                crate::types::DataType::Array(_) | crate::types::DataType::Char { .. }
+            )
+        })
         .then(|| {
             fields
                 .iter()
@@ -80,7 +85,7 @@ pub(super) fn null_row(
         QuerySource::Collection(name) => Some(name.to_string()),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => Some(name.clone()),
         QuerySource::Subquery { alias, .. } => Some(alias.clone()),
-        QuerySource::SingleRow | QuerySource::Join { .. } => None,
+        QuerySource::Values { .. } | QuerySource::SingleRow | QuerySource::Join { .. } => None,
     };
     Ok(match qualifier {
         Some(qualifier) => qualify_row(row, &qualifier),
@@ -142,10 +147,12 @@ pub(super) fn attach_types(
         env.user_functions,
     )
     .map_err(|error| QueryError::General(error.to_string()))?;
-    if !fields
-        .iter()
-        .any(|field| matches!(field.data_type, crate::types::DataType::Array(_)))
-    {
+    if !fields.iter().any(|field| {
+        matches!(
+            field.data_type,
+            crate::types::DataType::Array(_) | crate::types::DataType::Char { .. }
+        )
+    }) {
         return Ok(());
     }
     let retained = batches

@@ -471,7 +471,7 @@ fn metadata_from_statement(
         timestamp_field: timestamp_field.clone(),
         bucket_width: width.clone(),
         origin,
-        bucket_expr: expr_key(&Expr::Function(statement.bucket.clone())),
+        bucket_expr: expr_key(&Expr::Function(Box::new(statement.bucket.clone()))),
         group_keys: statement.group_by.iter().map(group_expr_name).collect(),
         aggregates,
         filter_expr: statement.filter.as_ref().map(expr_key),
@@ -636,7 +636,7 @@ fn rollup_projection(meta: &RollupMeta) -> Result<Vec<SelectItem>, QueryError> {
             return Err(QueryError::General("invalid rollup aggregate".to_string()));
         };
         projection.push(SelectItem::Function {
-            function,
+            function: *function,
             alias: Some(aggregate.alias.clone()),
         });
     }

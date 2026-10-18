@@ -82,7 +82,7 @@ fn scope_names(
         | QuerySource::Subquery { alias: name, .. } => {
             visible.extend(crate::catalog::qualifier_variants(name));
         }
-        QuerySource::SingleRow => {}
+        QuerySource::Values { .. } | QuerySource::SingleRow => {}
     }
 }
 
@@ -111,7 +111,7 @@ fn query_names(select: &SelectStatement, names: &mut HashSet<String>) {
             SelectItem::Wildcard => {}
             SelectItem::Expr { expr, .. } => expression_names(expr, names),
             SelectItem::Function { function, .. } => {
-                for expr in &function.args {
+                for expr in function.expressions() {
                     expression_names(expr, names);
                 }
             }
@@ -179,11 +179,11 @@ fn source_names(source: &QuerySource, names: &mut HashSet<String>) {
         }
         QuerySource::TableFunction { name, function, .. } => {
             names.extend(crate::catalog::qualifier_variants(name));
-            for expr in &function.args {
+            for expr in function.expressions() {
                 expression_names(expr, names);
             }
         }
-        QuerySource::SingleRow => {}
+        QuerySource::Values { .. } | QuerySource::SingleRow => {}
     }
 }
 

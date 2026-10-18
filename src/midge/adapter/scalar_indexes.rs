@@ -376,12 +376,7 @@ impl Midge {
                 None,
                 None,
             )
-            .map_err(|error| {
-                CassieError::Parse(format!(
-                    "invalid scalar index expression evaluation for '{}': {error}",
-                    index.name
-                ))
-            })?;
+            .map_err(CassieError::from)?;
             if matches!(value, Value::Null) {
                 return Ok(None);
             }
@@ -433,11 +428,7 @@ impl Midge {
         crate::sql::definition_guard::expression(&predicate)?;
         let row = payload_to_row(payload, row_schema);
         let matched = !filter::filter_rows(vec![row], &predicate, &[], None, &HashMap::new(), None)
-            .map_err(|error| {
-                CassieError::Parse(format!(
-                    "invalid scalar index predicate evaluation: {error}"
-                ))
-            })?
+            .map_err(CassieError::from)?
             .is_empty();
         Ok(matched)
     }

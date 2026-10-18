@@ -1,5 +1,9 @@
 #[path = "dispatch/exists_binding.rs"]
 mod exists_binding;
+#[path = "dispatch/exists_predicate.rs"]
+mod exists_predicate;
+#[path = "dispatch/predicates.rs"]
+mod predicates;
 pub(super) use exists_binding::build_exists_logical_plan_with_fields;
 
 #[cfg(test)]
@@ -186,7 +190,14 @@ fn execute_plan_with_physical(
     // A CTE body is an input relation: the result-row cap applies to the
     // final result only and must not truncate it.
     let cte_controls = env.controls.for_uncapped_input();
-    for cte in &plan.ctes {
+    let live_ctes = super::cte_reachability::used(
+        &super::cte_reachability::SelectParts::plan(plan),
+        &cte_controls,
+    )?;
+    for (index, cte) in plan.ctes.iter().enumerate() {
+        if !live_ctes.contains(index) {
+            continue;
+        }
         let rows = execute_cte(
             env.cassie,
             env.session,
@@ -277,9 +288,10 @@ pub(super) fn source_has_cte_boundary(source: &crate::sql::ast::QuerySource) -> 
             source_has_cte_boundary(left) || source_has_cte_boundary(right)
         }
         QuerySource::Subquery { select, .. } => select_has_cte_boundary(select),
-        QuerySource::Collection(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => {
-            false
-        }
+        QuerySource::Collection(_)
+        | QuerySource::TableFunction { .. }
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow => false,
     }
 }
 
@@ -481,7 +493,10 @@ fn source_reads_materialized_projection(cassie: &Cassie, source: &QuerySource) -
             source_reads_materialized_projection(cassie, left)
                 || source_reads_materialized_projection(cassie, right)
         }
-        QuerySource::Cte(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => false,
+        QuerySource::Cte(_)
+        | QuerySource::TableFunction { .. }
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow => false,
     }
 }
 
@@ -586,7 +601,17 @@ pub(super) fn resolve_exists_expr<'a>(
                 else_expr,
             })
         }
+        Expr::RowCompare(comparison) => resolve_row_exists_expr(context, comparison),
         Expr::Binary { left, op, right } => resolve_binary_exists_expr(context, left, op, right),
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => Ok(Expr::TruthTest {
+            expr: Box::new(resolve_exists_expr(context, expr)?),
+            truth: *truth,
+            negated: *negated,
+        }),
         Expr::IsNull { expr, negated } => resolve_is_null_exists_expr(context, expr, *negated),
         Expr::InList {
             expr,
@@ -598,58 +623,64 @@ pub(super) fn resolve_exists_expr<'a>(
             low,
             high,
             negated,
-        } => resolve_between_exists_expr(context, expr, low, high, *negated),
+            symmetric,
+        } => predicates::between(context, expr, low, high, *negated, *symmetric),
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => predicates::like(context, expr, pattern, escape),
         Expr::Not { expr } => resolve_not_exists_expr(context, expr),
-        Expr::Cast { expr, data_type } => resolve_cast_exists_expr(context, expr, data_type),
-        Expr::Exists(statement) => {
-            let logical = build_exists_logical_plan(context, statement.as_ref())?;
-            let (logical, _bound_memory) =
-                if crate::sql::pagination::plan_needs_resolution(&logical, context.controls)? {
-                    let (resolved, reservation) = crate::sql::pagination::resolve_plan(
-                        &logical,
-                        context.params,
-                        context.controls,
-                    )?;
-                    (resolved, Some(reservation))
-                } else {
-                    (logical, None)
-                };
-            let logical = super::exists_target::bounded_exists_logical(logical);
-            let mut subquery_context = context.cte_context.copy(context.controls)?;
-            let env = plan_execution_env(
-                context.cassie,
-                context.session,
-                context.user_functions,
-                context.params,
-                context.controls,
-            );
-            let outer_row = context
-                .outer_row
-                .map(|row| super::exists_correlated::scoped_outer_row(context, &logical, row))
-                .transpose()?;
-            let rows = execute_plan_with_outer_row(
-                &env,
-                &logical,
-                &mut subquery_context,
-                outer_row.as_ref(),
-            )?;
-            Ok(Expr::BoolLiteral(!rows.is_empty()))
-        }
+        Expr::UnaryNumeric { expr, op } => Ok(Expr::UnaryNumeric {
+            expr: Box::new(resolve_exists_expr(context, expr)?),
+            op: *op,
+        }),
+        Expr::IntegerNegate { expr, width } => Ok(Expr::IntegerNegate {
+            expr: Box::new(resolve_exists_expr(context, expr)?),
+            width: *width,
+        }),
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            identity,
+        } => resolve_cast_exists_expr(context, expr, data_type, source_type.as_ref(), *identity),
+        Expr::Exists(statement) => exists_predicate::execute(context, statement),
         Expr::Column(_)
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => Ok(expr.clone()),
         Expr::Function(function) => {
             let mut function = function.clone();
-            for argument in &mut function.args {
+            for argument in function.expressions_mut() {
                 *argument = resolve_exists_expr(context, argument)?;
             }
             Ok(Expr::Function(function))
         }
     }
+}
+
+fn resolve_row_exists_expr<'a>(
+    context: &'a ExistsResolutionContext<'a>,
+    comparison: &'a crate::sql::ast::RowComparison,
+) -> ExprResolution<'a> {
+    Ok(Expr::RowCompare(Box::new(crate::sql::ast::RowComparison {
+        left: comparison
+            .left
+            .iter()
+            .map(|field| resolve_exists_expr(context, field))
+            .collect::<Result<_, _>>()?,
+        op: comparison.op,
+        right: comparison
+            .right
+            .iter()
+            .map(|field| resolve_exists_expr(context, field))
+            .collect::<Result<_, _>>()?,
+    })))
 }
 
 fn resolve_binary_exists_expr<'a>(
@@ -694,21 +725,6 @@ fn resolve_in_list_exists_expr<'a>(
     })
 }
 
-fn resolve_between_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-    low: &'a Expr,
-    high: &'a Expr,
-    negated: bool,
-) -> ExprResolution<'a> {
-    Ok(Expr::Between {
-        expr: Box::new(resolve_exists_expr(context, expr)?),
-        low: Box::new(resolve_exists_expr(context, low)?),
-        high: Box::new(resolve_exists_expr(context, high)?),
-        negated,
-    })
-}
-
 fn resolve_not_exists_expr<'a>(
     context: &'a ExistsResolutionContext<'a>,
     expr: &'a Expr,
@@ -722,10 +738,14 @@ fn resolve_cast_exists_expr<'a>(
     context: &'a ExistsResolutionContext<'a>,
     expr: &'a Expr,
     data_type: &'a crate::types::DataType,
+    source_type: Option<&'a crate::types::DataType>,
+    identity: crate::sql::ast::CastIdentity,
 ) -> ExprResolution<'a> {
     Ok(Expr::Cast {
         expr: Box::new(resolve_exists_expr(context, expr)?),
         data_type: data_type.clone(),
+        source_type: source_type.cloned(),
+        identity,
     })
 }
 
@@ -893,6 +913,12 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
                     .as_ref()
                     .map_or(0, |expr| expression_expansion_weight(expr)),
             ),
+        Expr::RowCompare(comparison) => comparison
+            .left
+            .iter()
+            .chain(&comparison.right)
+            .map(expression_expansion_weight)
+            .sum(),
         Expr::Function(function) => function
             .args
             .iter()
@@ -902,9 +928,21 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
         Expr::Binary { left, right, .. } => {
             expression_expansion_weight(left).saturating_add(expression_expansion_weight(right))
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            expression_expansion_weight(expr)
-        }
+        Expr::Cast {
+            expr,
+            data_type:
+                crate::types::DataType::Char {
+                    length: Some(width),
+                },
+            ..
+        } => expression_expansion_weight(expr)
+            .saturating_add(usize::try_from(*width).unwrap_or(usize::MAX)),
+        Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => expression_expansion_weight(expr),
         Expr::InList { expr, values, .. } => values
             .iter()
             .fold(expression_expansion_weight(expr), |weight, value| {
@@ -912,6 +950,11 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
             }),
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => expression_expansion_weight(expr)
             .saturating_add(expression_expansion_weight(low))
             .saturating_add(expression_expansion_weight(high)),
@@ -921,6 +964,7 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => 1,
     }

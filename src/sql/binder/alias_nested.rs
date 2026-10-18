@@ -25,7 +25,7 @@ fn shadows(source: &QuerySource, name: &str) -> bool {
             alias.eq_ignore_ascii_case(name)
         }
         QuerySource::Join { left, right, .. } => shadows(left, name) || shadows(right, name),
-        QuerySource::SingleRow => false,
+        QuerySource::Values { .. } | QuerySource::SingleRow => false,
     }
 }
 
@@ -71,7 +71,7 @@ pub(super) fn query(select: &mut SelectStatement, outer: &[Namespace]) -> Result
             }
             SelectItem::Expr { expr, .. } => expression(expr, &select.source, outer)?,
             SelectItem::Function { function, .. } => {
-                for expr in &mut function.args {
+                for expr in function.expressions_mut() {
                     expression(expr, &select.source, outer)?;
                 }
             }
@@ -140,7 +140,7 @@ fn source(
             lateral: true,
             ..
         } => {
-            for expr in &mut function.args {
+            for expr in function.expressions_mut() {
                 expression(expr, scope, outer)?;
             }
         }

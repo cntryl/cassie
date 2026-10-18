@@ -13,6 +13,8 @@ fn generated_float(expression: Expr) -> Expr {
             else_expr: Some(Box::new(expression)),
         }),
         data_type: DataType::Float,
+        source_type: None,
+        identity: crate::sql::ast::CastIdentity::Scalar,
     }
 }
 

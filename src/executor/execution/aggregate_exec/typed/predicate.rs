@@ -57,7 +57,11 @@ fn collect(
             };
             if !matches!(
                 field.data_type,
-                DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float
+                DataType::SmallInt
+                    | DataType::Int
+                    | DataType::BigInt
+                    | DataType::Float
+                    | DataType::Boolean
             ) {
                 return Ok(false);
             }
@@ -73,7 +77,9 @@ fn collect(
         Expr::IntegerLiteral(_) | Expr::NumberLiteral(_) | Expr::BoolLiteral(_) | Expr::Null => {
             Ok(true)
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } => collect(expr, schema, prepared),
+        Expr::IsNull { expr, .. } | Expr::TruthTest { expr, .. } | Expr::Not { expr } => {
+            collect(expr, schema, prepared)
+        }
         Expr::Binary {
             left,
             op:

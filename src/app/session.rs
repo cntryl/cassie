@@ -1,7 +1,10 @@
 mod statement_read;
+mod statement_text;
 pub(crate) use statement_read::{SessionReadScope, StatementOverlay};
 
 mod owned_setting;
+mod setting_control;
+mod transaction_control;
 #[path = "session/transaction_origin.rs"]
 mod transaction_origin;
 
@@ -14,6 +17,8 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieSession {
+    #[serde(skip)]
+    statement_text: Option<Arc<statement_text::StatementText>>,
     pub user: String,
     pub database: Option<String>,
     #[serde(skip)]
@@ -44,6 +49,9 @@ struct SessionTransactionState {
     status: SessionTransactionStatus,
     implicit: bool,
     isolation: Option<TransactionIsolation>,
+    modes: crate::sql::ast::TransactionModes,
+    has_query: bool,
+    generation: u64,
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
     savepoints: Vec<SessionSavepoint>,
@@ -59,6 +67,7 @@ struct SessionStateSnapshot {
 #[derive(Debug, Clone)]
 struct SessionSavepoint {
     name: String,
+    modes: crate::sql::ast::TransactionModes,
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
     session_state: SessionStateSnapshot,
@@ -173,6 +182,7 @@ impl CassieSession {
 
     fn with_access(user: String, database: Option<String>, access: SessionAccess) -> Self {
         Self {
+            statement_text: None,
             user: normalize_role_name(user),
             database,
             access,
@@ -184,6 +194,9 @@ impl CassieSession {
                 status: SessionTransactionStatus::Idle,
                 implicit: false,
                 isolation: None,
+                modes: crate::sql::ast::TransactionModes::default(),
+                has_query: false,
+                generation: 0,
                 writes: SharedTransactionWrites::default(),
                 conflict_intents: Vec::new(),
                 savepoints: Vec::new(),
@@ -200,19 +213,34 @@ impl CassieSession {
         }
 
         let base_transaction_active = transaction.status == SessionTransactionStatus::InTransaction;
-        let (isolation, base_writes, conflict_intents) = if base_transaction_active {
-            (
-                transaction.isolation,
-                transaction.writes.clone(),
-                transaction.conflict_intents.clone(),
-            )
-        } else {
-            (None, SharedTransactionWrites::default(), Vec::new())
-        };
+        let (isolation, modes, has_query, generation, base_writes, conflict_intents) =
+            if base_transaction_active {
+                (
+                    transaction.isolation,
+                    transaction.modes,
+                    transaction.has_query,
+                    transaction.generation,
+                    transaction.writes.clone(),
+                    transaction.conflict_intents.clone(),
+                )
+            } else {
+                (
+                    None,
+                    crate::sql::ast::TransactionModes {
+                        read_only: Some(self.default_transaction_read_only()),
+                        deferrable: Some(self.default_transaction_deferrable()),
+                    },
+                    false,
+                    transaction.generation,
+                    SharedTransactionWrites::default(),
+                    Vec::new(),
+                )
+            };
         drop(transaction);
 
         let base_conflict_intent_count = conflict_intents.len();
         let session = Self {
+            statement_text: self.statement_text.clone(),
             user: self.user.clone(),
             database: self.database.clone(),
             access: self.access,
@@ -224,6 +252,9 @@ impl CassieSession {
                 status: SessionTransactionStatus::InTransaction,
                 implicit: false,
                 isolation,
+                modes,
+                has_query,
+                generation,
                 writes: base_writes.clone(),
                 conflict_intents,
                 savepoints: Vec::new(),
@@ -354,6 +385,9 @@ impl CassieSession {
         if name.trim().eq_ignore_ascii_case("search_path") {
             return Ok(self.search_path().join(", "));
         }
+        if let Some(value) = self.transaction_setting(name) {
+            return Ok(value.to_string());
+        }
         self.settings.lock().get(name)
     }
 
@@ -368,6 +402,9 @@ impl CassieSession {
     /// Returns an invalid-parameter error for unknown settings or values that
     /// are incompatible with Cassie's fixed `PostgreSQL` compatibility values.
     pub fn set_setting(&self, name: &str, value: &str) -> Result<String, CassieError> {
+        if name.trim().eq_ignore_ascii_case("transaction_read_only") {
+            return self.set_transaction_read_only(value);
+        }
         self.settings.lock().set(name, value)
     }
 
@@ -378,69 +415,6 @@ impl CassieSession {
     #[must_use]
     pub fn backend_pid(&self) -> i32 {
         self.backend_pid.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn begin_transaction(
-        &self,
-        isolation: Option<TransactionIsolation>,
-    ) -> Result<(), CassieError> {
-        let session_state = self.session_state_snapshot();
-        let mut transaction = self.transaction.lock();
-        if transaction.status == SessionTransactionStatus::Failed
-            || (transaction.status != SessionTransactionStatus::Idle && !transaction.implicit)
-        {
-            return Err(CassieError::Unsupported(
-                "transaction already in progress".to_string(),
-            ));
-        }
-        if matches!(
-            isolation,
-            Some(TransactionIsolation::RepeatableRead | TransactionIsolation::Serializable)
-        ) {
-            return Err(CassieError::Unsupported(
-                "only READ COMMITTED transaction isolation is supported".to_string(),
-            ));
-        }
-
-        if transaction.implicit {
-            transaction.implicit = false;
-            transaction.isolation = isolation;
-            return Ok(());
-        }
-
-        transaction.status = SessionTransactionStatus::InTransaction;
-        transaction.implicit = false;
-        transaction.isolation = isolation;
-        transaction.writes = SharedTransactionWrites::default();
-        transaction.conflict_intents.clear();
-        transaction.savepoints.clear();
-        transaction.session_state = Some(session_state);
-        Ok(())
-    }
-
-    pub(crate) fn commit_transaction(&self) {
-        let mut transaction = self.transaction.lock();
-        transaction.status = SessionTransactionStatus::Idle;
-        transaction.implicit = false;
-        transaction.isolation = None;
-        transaction.writes = SharedTransactionWrites::default();
-        transaction.conflict_intents.clear();
-        transaction.savepoints.clear();
-        transaction.session_state = None;
-    }
-
-    pub(crate) fn rollback_transaction(&self) {
-        let mut transaction = self.transaction.lock();
-        let session_state = transaction.session_state.take();
-        transaction.status = SessionTransactionStatus::Idle;
-        transaction.implicit = false;
-        transaction.isolation = None;
-        transaction.writes = SharedTransactionWrites::default();
-        transaction.conflict_intents.clear();
-        transaction.savepoints.clear();
-        if let Some(session_state) = session_state {
-            self.restore_session_state(session_state);
-        }
     }
 
     pub(crate) fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
@@ -460,8 +434,10 @@ impl CassieSession {
 
         let writes = transaction.writes.clone();
         let conflict_intents = transaction.conflict_intents.clone();
+        let modes = transaction.modes;
         transaction.savepoints.push(SessionSavepoint {
             name: name.to_ascii_lowercase(),
+            modes,
             writes,
             conflict_intents,
             session_state: self.session_state_snapshot(),
@@ -489,6 +465,7 @@ impl CassieSession {
             return Err(CassieError::missing_savepoint(&normalized));
         };
 
+        transaction.modes = transaction.savepoints[index].modes;
         transaction.writes = transaction.savepoints[index].writes.clone();
         let conflict_intents = transaction.savepoints[index].conflict_intents.clone();
         let session_state = transaction.savepoints[index].session_state.clone();
@@ -579,6 +556,7 @@ impl CassieSession {
         id: String,
         payload: serde_json::Value,
     ) -> Result<(), CassieError> {
+        self.ensure_transaction_writable()?;
         self.preflight_transaction_collections(&[collection.to_string()])?;
         let mut transaction = self.transaction.lock();
         let writes = Arc::make_mut(&mut transaction.writes);
@@ -592,6 +570,7 @@ impl CassieSession {
         collection: &str,
         id: String,
     ) -> Result<(), CassieError> {
+        self.ensure_transaction_writable()?;
         self.preflight_transaction_collections(&[collection.to_string()])?;
         let mut transaction = self.transaction.lock();
         let writes = Arc::make_mut(&mut transaction.writes);

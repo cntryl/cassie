@@ -8,6 +8,7 @@ use std::sync::Weak;
 pub struct QueryCancellationHandle(
     Arc<AtomicBool>,
     Option<Arc<crate::midge::adapter::QueryScanControlScope>>,
+    Option<Arc<super::scoring_test_pause::ScoringTestPause>>,
 );
 
 impl Default for QueryCancellationHandle {
@@ -15,6 +16,7 @@ impl Default for QueryCancellationHandle {
         Self(
             Arc::new(AtomicBool::new(false)),
             crate::midge::adapter::current_query_scan_control_scope(),
+            None,
         )
     }
 }
@@ -23,6 +25,23 @@ impl QueryCancellationHandle {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Pauses this request once after a candidate is scored and retained.
+    /// Install before cloning the handle. Unrelated requests have no pause.
+    /// Both endpoints must be serviced; a disconnected or stalled observer fails
+    /// the diagnostic query rather than hanging the process indefinitely.
+    #[doc(hidden)]
+    pub fn pause_after_scored_candidate(
+        &mut self,
+        boundary: super::QueryScoringTestBoundary,
+    ) -> (
+        std::sync::mpsc::Receiver<()>,
+        std::sync::mpsc::SyncSender<()>,
+    ) {
+        let (pause, selected, resume) = super::scoring_test_pause::ScoringTestPause::new(boundary);
+        self.2 = Some(Arc::new(pause));
+        (selected, resume)
     }
 
     pub fn cancel(&self) {
@@ -168,6 +187,16 @@ impl Drop for QueryMemoryReservation {
 }
 
 impl QueryExecutionControls {
+    pub(crate) fn scored_candidate(
+        &self,
+        boundary: super::QueryScoringTestBoundary,
+    ) -> Result<(), CassieError> {
+        if let Some(pause) = &self.cancellation.2 {
+            pause.reach(boundary)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn check_interruption(&self) -> Result<(), CassieError> {
         if self.is_cancelled() {
             return Err(CassieError::QueryCancelled);

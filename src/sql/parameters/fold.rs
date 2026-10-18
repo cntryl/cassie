@@ -9,12 +9,16 @@ use super::diagnostics::BooleanConstruct;
 use super::occurrences::{Occurrences, PrivateParameterTypeInput, Summary};
 use super::ParameterAdmissionError;
 
+#[path = "fold_bytea_functions.rs"]
+mod bytea_functions;
 #[path = "fold_columns.rs"]
 mod columns;
 #[path = "fold_expressions.rs"]
 mod expressions;
 #[path = "fold_functions.rs"]
 mod functions;
+#[path = "fold_literal_inputs.rs"]
+mod literal_inputs;
 #[path = "fold_nodes.rs"]
 mod nodes;
 
@@ -33,6 +37,7 @@ enum Node<'a> {
     Item(&'a ast::SelectItem),
     Expr(&'a ast::Expr),
     Function(&'a ast::FunctionCall),
+    FunctionModifiers(&'a ast::FunctionCall),
     Expressions(&'a [ast::Expr]),
     Items(&'a [ast::SelectItem]),
     Orders(&'a [ast::OrderExpr]),
@@ -128,14 +133,29 @@ impl<'a, 'c> Fold<'a, 'c> {
         target: bool,
         qualified: bool,
     ) -> Result<(), ParameterAdmissionError> {
+        if let Node::Source(ast::QuerySource::Values { rows }) = node {
+            let width = rows.first().map_or(0, Vec::len);
+            if width == 0 {
+                self.occurrences.values_width()?;
+                return Ok(());
+            }
+            for row in rows {
+                check_controls(self.controls)?;
+                if row.len() != width {
+                    self.occurrences.values_width()?;
+                    return Ok(());
+                }
+            }
+        }
         if let Node::Select(select) = node {
             context = self.contexts.values.len();
             // Source metadata discovery is the existing catalog-input boundary.
             // New fold directories and retained summaries are admitted separately.
-            let fields = crate::sql::source_field_type_map_with_ctes(
+            let fields = crate::sql::source_field_type_map_with_parameters(
                 &select.source,
                 &select.ctes,
                 self.catalog,
+                &self.occurrences.slots.values,
             );
             self.contexts.try_push(
                 Context {
@@ -169,6 +189,10 @@ impl<'a, 'c> Fold<'a, 'c> {
             }
         }
         let mut summary = match frame.node {
+            Node::Source(ast::QuerySource::Values { rows }) => {
+                self.values_columns(rows, frame)?;
+                None
+            }
             Node::Expr(expr) => Some(self.expression(expr, frame)?),
             Node::Function(function) => {
                 let summary = self.function(function, frame)?;
@@ -202,6 +226,7 @@ impl<'a, 'c> Fold<'a, 'c> {
             | Node::Orders(_)
             | Node::Ctes(_)
             | Node::Cte(_)
+            | Node::FunctionModifiers(_)
             | Node::Window(_) => None,
         };
         self.summaries.values.truncate(frame.start);

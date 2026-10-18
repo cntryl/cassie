@@ -196,6 +196,14 @@ pub(super) fn native_value<'a>(
         Expr::BoolLiteral(value) => Ok(Cell::Boolean(*value)),
         Expr::StringLiteral(value) => Ok(Cell::Text(value)),
         Expr::Null => Ok(Cell::Null),
+        Expr::TruthTest {
+            expr,
+            truth: target,
+            negated,
+        } => Ok(Cell::Boolean(target.evaluate(
+            truth(native_value(batch, lane, expr, params)?)?,
+            *negated,
+        ))),
         Expr::IsNull { expr, negated } => Ok(Cell::Boolean(
             is_null(native_value(batch, lane, expr, params)?) != *negated,
         )),

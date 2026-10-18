@@ -749,12 +749,12 @@ pub(super) fn validate_returning_items(
             }
             SelectItem::Function { function, .. } => {
                 validate_expression(
-                    &Expr::Function(function.clone()),
+                    &Expr::Function(Box::new(function.clone())),
                     &known_fields,
                     &HashSet::new(),
                     false,
                 )?;
-                for argument in &mut function.args {
+                for argument in function.expressions_mut() {
                     super::boolean_contexts::validate_value(
                         argument,
                         &result_types,

@@ -433,6 +433,7 @@ fn collect_expression_index_constraints(
             low,
             high,
             negated: false,
+            symmetric: false,
         } if expr_has_column(expr) && !matches!(expr.as_ref(), Expr::Column(_)) => {
             let constraint = constraints
                 .expressions
@@ -494,6 +495,7 @@ fn collect_concrete_constraints(
             low,
             high,
             negated: false,
+            symmetric: false,
         } => {
             let Expr::Column(field) = expr.as_ref() else {
                 return None;

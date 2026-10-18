@@ -29,7 +29,7 @@ pub(super) fn infer(
     for spec in aggregate_specs(context.plan) {
         if let Some(data_type @ DataType::Array(_)) = array_order::expression_type(
             row,
-            &Expr::Function(spec.function),
+            &Expr::Function(Box::new(spec.function)),
             context.user_functions,
         ) {
             for name in spec.output_names {

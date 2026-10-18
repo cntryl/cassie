@@ -24,7 +24,7 @@ pub(super) fn plan_expressions(plan: &LogicalPlan) -> impl Iterator<Item = &Expr
 fn select_item_expressions(item: &SelectItem) -> Vec<&Expr> {
     match item {
         SelectItem::Wildcard | SelectItem::Column { .. } => Vec::new(),
-        SelectItem::Function { function, .. } => function.args.iter().collect(),
+        SelectItem::Function { function, .. } => function.expressions().collect(),
         SelectItem::Expr { expr, .. } => vec![expr],
         SelectItem::WindowFunction { function, .. } => window_function_expressions(function),
     }
@@ -72,7 +72,7 @@ pub(super) fn function_uses_fulltext(function: &FunctionCall) -> bool {
     matches!(
         function.name.to_ascii_lowercase().as_str(),
         "search" | "search_score" | "snippet"
-    ) || function.args.iter().any(expr_uses_fulltext)
+    ) || function.expressions().any(expr_uses_fulltext)
 }
 
 fn expr_uses_vector(expr: &Expr) -> bool {
@@ -90,5 +90,5 @@ pub(super) fn function_uses_vector(function: &FunctionCall) -> bool {
     matches!(
         function.name.to_ascii_lowercase().as_str(),
         "vector_distance" | "vector_score" | "cosine_distance" | "dot_product"
-    ) || function.args.iter().any(expr_uses_vector)
+    ) || function.expressions().any(expr_uses_vector)
 }

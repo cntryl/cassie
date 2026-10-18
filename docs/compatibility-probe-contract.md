@@ -6,7 +6,7 @@ runtime profile.
 
 ## Dispatch
 
-Run `.github/workflows/compatibility-probes.yml` manually with:
+The [archived workflow at the frozen baseline](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/.github/workflows/compatibility-probes.yml) records this external dispatch interface. Current local coverage runs through `cargo test --locked --test compatibility`; externally provisioned runners retain the manifests specified below. The archived inputs are:
 
 - `probe`: `native`, `sqlx`, `diesel`, `prisma`, `sqlalchemy`, `psql`, `pgadmin-9.16`,
   `dbeaver-26.1.3`, or `catalog`;
@@ -14,7 +14,7 @@ Run `.github/workflows/compatibility-probes.yml` manually with:
 - `source_revision`: the full Cassie commit SHA being tested; the workflow fails unless it exactly
   matches the checked-out `HEAD`.
 
-The workflow never accepts a password or other secret input. It starts Cassie with the test-only
+The archived workflow never accepts a password or other secret input. It starts Cassie with the test-only
 in-memory fallback and uses loopback connections. External runs must retain only normalized,
 secret-free stdout/stderr and the generated manifest.
 

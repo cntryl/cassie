@@ -12,7 +12,6 @@ use crate::search::analyzer::AnalyzerConfig;
 use crate::sql::ast::FunctionCall;
 use crate::sql::ast::{BinaryOp, Expr};
 use crate::types::{DataType, Value};
-use uuid::Uuid;
 
 /// PostgreSQL's message (SQLSTATE 22003) for an overflowing int8 result.
 pub(crate) const BIGINT_OUT_OF_RANGE: &str = "bigint out of range";
@@ -22,12 +21,18 @@ mod exists_value;
 pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
 pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<bool, QueryError> + 'a;
 
+#[path = "filter/binary.rs"]
+mod binary;
+#[path = "filter/bytea_casts.rs"]
+mod bytea_casts;
 #[path = "filter/coalesce.rs"]
 mod coalesce;
 #[path = "filter/conditional.rs"]
 mod conditional;
+use binary::binary_scalar;
 #[path = "filter/numeric_comparison.rs"]
 mod numeric_comparison;
+pub(crate) use casts::cast_scratch_bytes;
 pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]
 mod functions;
@@ -35,6 +40,8 @@ mod functions;
 mod like;
 #[path = "filter/search.rs"]
 mod search;
+#[path = "filter/unary_numeric.rs"]
+mod unary_numeric;
 
 use functions::{evaluate_function, parse_vector_text};
 pub(crate) use like::like_matches;
@@ -52,6 +59,7 @@ pub(super) struct EvalContext<'a> {
     local_args: Option<&'a HashMap<String, Value>>,
     session: Option<&'a CassieSession>,
     exists: Option<&'a ExistsResolver<'a>>,
+    controls: Option<&'a crate::runtime::QueryExecutionControls>,
 }
 
 #[derive(Debug, Clone)]
@@ -224,6 +232,7 @@ pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
             local_args,
             session,
             exists: None,
+            controls: None,
         },
     )
 }
@@ -233,6 +242,10 @@ pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
     expr: &Expr,
     context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
+    let _statement_scratch = context
+        .session
+        .map(|session| session.statement_text_scratch(expr))
+        .transpose()?;
     match expr {
         Expr::Param(index) => Ok(context.params.get(*index).cloned().unwrap_or(Value::Null)),
         Expr::Column(name) => Ok(column_value_ref(row, name, context.local_args)
@@ -261,6 +274,7 @@ fn eval_filter<R: RowAccess + ?Sized>(
             local_args: None,
             session,
             exists: None,
+            controls: None,
         },
     )?;
     value.is_true()
@@ -285,73 +299,113 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
             local_args,
             session,
             exists: None,
+            controls: None,
         },
     )
 }
+
+#[path = "filter/casts.rs"]
+mod casts;
+#[path = "filter/constants.rs"]
+mod constants;
+mod like_predicate;
+pub(crate) mod symmetric_between;
+#[cfg(test)]
+mod symmetric_between_tests;
+#[path = "filter/text_arrays.rs"]
+mod text_arrays;
+pub(crate) use constants::constant_scalar_with_parameters;
+#[path = "filter/case.rs"]
+mod case;
+#[path = "filter/row_predicates.rs"]
+mod row_predicates;
+#[path = "filter/truth_tests.rs"]
+mod truth_tests;
+pub(crate) use row_predicates::field_result as row_field_result;
 
 fn eval_scalar_with_context<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    let _statement_scratch = context
+        .session
+        .map(|session| session.statement_text_scratch(expr))
+        .transpose()?;
     match expr {
+        Expr::RowCompare(comparison) => row_predicates::evaluate(row, comparison, context),
         Expr::Column(name) => Ok(eval_column_value(row, name, context.local_args)),
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),
         Expr::IntegerLiteral(value) => Ok(ScalarValue::Int(*value)),
+        Expr::NumericLiteral(_) => Err(QueryError::General(
+            "unmaterialized NUMERIC literal requires an explicit primitive cast".into(),
+        )),
         Expr::BoolLiteral(value) => Ok(ScalarValue::Bool(*value)),
         Expr::Null => Ok(ScalarValue::Null),
         Expr::Case {
             operand,
             branches,
             else_expr,
-        } => {
-            let operand_value = operand
-                .as_ref()
-                .map(|operand| eval_scalar_with_context(row, operand, context))
-                .transpose()?;
-            for (when, then) in branches {
-                let when_value = eval_scalar_with_context(row, when, context)?;
-                if operand_value.is_none()
-                    && !matches!(when_value, ScalarValue::Bool(_) | ScalarValue::Null)
-                {
-                    return Err(QueryError::General(
-                        "CASE WHEN condition must be BOOLEAN".to_string(),
-                    ));
-                }
-                let selected = if let Some(operand_value) = &operand_value {
-                    eq_value(operand_value, &when_value) == Some(true)
-                } else {
-                    matches!(when_value, ScalarValue::Bool(true))
-                };
-                if selected {
-                    return eval_scalar_with_context(row, then, context);
-                }
-            }
-            else_expr.as_ref().map_or(Ok(ScalarValue::Null), |expr| {
-                eval_scalar_with_context(row, expr, context)
-            })
-        }
+        } => case::evaluate(
+            row,
+            operand.as_deref(),
+            branches,
+            else_expr.as_deref(),
+            context,
+        ),
         Expr::Param(index) => Ok(context
             .params
             .get(*index)
             .map_or(ScalarValue::Null, scalar_from_value)),
         Expr::Function(function) => evaluate_function_scalar(row, function, context),
         Expr::Binary { left, op, right } => eval_binary_expr(row, left, op, right, context),
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => truth_tests::evaluate(
+            &eval_scalar_with_context(row, expr, context)?,
+            *truth,
+            *negated,
+        ),
         Expr::IsNull { expr, negated } => eval_is_null_expr(row, expr, *negated, context),
         Expr::InList {
             expr,
             values,
             negated,
         } => eval_in_list_expr(row, expr, values, *negated, context),
+        expression @ Expr::Between {
+            symmetric: true, ..
+        } => symmetric_between::runtime(row, expression, context),
+        expression @ Expr::Like { .. } => like_predicate::runtime(row, expression, context),
         Expr::Between {
             expr,
             low,
             high,
             negated,
+            symmetric: false,
         } => eval_between_expr(row, expr, low, high, *negated, context),
         Expr::Not { expr } => eval_not_expr(row, expr, context),
-        Expr::Cast { expr, data_type } => eval_cast_expr(row, expr, data_type, context),
+        Expr::UnaryNumeric { expr, op } => {
+            unary_numeric::evaluate(&eval_scalar_with_context(row, expr, context)?, *op)
+        }
+        Expr::IntegerNegate { expr, width } => {
+            integers::negate(&eval_scalar_with_context(row, expr, context)?, *width)
+        }
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            identity,
+        } => eval_cast_expr(
+            row,
+            expr,
+            data_type,
+            source_type.as_ref(),
+            *identity,
+            context,
+        ),
         Expr::Exists(_) => context.exists.map_or_else(
             || {
                 Err(QueryError::General(
@@ -381,24 +435,20 @@ fn cast_temporal_scalar(
         .map_err(|error| QueryError::General(format!("cannot cast value to {type_name}: {error}")))
 }
 
-fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue, QueryError> {
+fn cast_scalar(
+    value: &ScalarValue,
+    data_type: &DataType,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<ScalarValue, QueryError> {
     if matches!(value, ScalarValue::Null) {
         return Ok(ScalarValue::Null);
     }
 
     match data_type {
         DataType::Null => Ok(ScalarValue::Null),
-        DataType::SmallInt => scalar_to_i64(value)
-            .and_then(|value| i16::try_from(value).ok())
-            .map(|value| ScalarValue::Int(i64::from(value)))
-            .ok_or_else(|| QueryError::General("cannot cast value to SMALLINT".to_string())),
-        DataType::Int => scalar_to_i64(value)
-            .and_then(|value| i32::try_from(value).ok())
-            .map(|value| ScalarValue::Int(i64::from(value)))
-            .ok_or_else(|| QueryError::General("cannot cast value to INT".to_string())),
-        DataType::BigInt => scalar_to_i64(value)
-            .map(ScalarValue::Int)
-            .ok_or_else(|| QueryError::General("cannot cast value to BIGINT".to_string())),
+        DataType::SmallInt => integers::cast(value, crate::types::IntegerWidth::I16, controls),
+        DataType::Int => integers::cast(value, crate::types::IntegerWidth::I32, controls),
+        DataType::BigInt => integers::cast(value, crate::types::IntegerWidth::I64, controls),
         DataType::Float => value
             .to_f64()
             .filter(|value| value.is_finite())
@@ -419,24 +469,22 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
             ScalarValue::Null => String::new(),
         })),
-        DataType::Char { length } => cast_bounded_text(value, length.unwrap_or(1), "CHAR"),
+        DataType::Char { length } => casts::character(value, *length),
         DataType::Varchar { length } => cast_varchar_text(value, *length),
         DataType::Bytea => {
             let value = value
                 .as_str()
                 .ok_or_else(|| QueryError::General("cannot cast value to BYTEA".to_string()))?;
-            decode_bytea(value)?;
-            Ok(ScalarValue::Str(format!(
-                "\\x{}",
-                value[2..].to_ascii_lowercase()
-            )))
+            crate::types::bytea_input::canonical(value)
+                .map(ScalarValue::Str)
+                .map_err(|error| QueryError::Cassie(error.into()))
         }
         DataType::Uuid => {
             let value = value
                 .as_str()
                 .ok_or_else(|| QueryError::General("cannot cast value to UUID".to_string()))?;
-            let canonical = Uuid::parse_str(value)
-                .map_err(|_| QueryError::General("cannot cast value to UUID".to_string()))?;
+            let canonical = crate::types::uuid_text::parse(value)
+                .ok_or_else(|| QueryError::General("cannot cast value to UUID".to_string()))?;
             Ok(ScalarValue::Str(canonical.to_string()))
         }
         DataType::Date => {
@@ -451,6 +499,7 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             crate::types::temporal::canonical_timestamp,
         ),
         DataType::Json => Ok(ScalarValue::Json(cast_json_text(value))),
+        DataType::Array(element) if **element == DataType::Text => text_arrays::cast(value),
         DataType::Array(_) => Err(QueryError::General(
             "cannot cast scalar value to ARRAY".to_string(),
         )),
@@ -484,19 +533,6 @@ fn cast_boolean_scalar(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
     }
 }
 
-fn cast_bounded_text(
-    value: &ScalarValue,
-    max_length: u32,
-    type_name: &str,
-) -> Result<ScalarValue, QueryError> {
-    let value = cast_to_text(value)
-        .filter(|value| {
-            usize::try_from(max_length).is_ok_and(|max_length| value.chars().count() <= max_length)
-        })
-        .ok_or_else(|| QueryError::General(format!("cannot cast value to {type_name}")))?;
-    Ok(ScalarValue::Str(value))
-}
-
 fn cast_varchar_text(
     value: &ScalarValue,
     max_length: Option<u32>,
@@ -520,96 +556,6 @@ fn cast_json_text(value: &ScalarValue) -> String {
         ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
         ScalarValue::Null => "null".to_string(),
     }
-}
-
-fn scalar_to_i64(value: &ScalarValue) -> Option<i64> {
-    match value {
-        ScalarValue::Int(value) => Some(*value),
-        ScalarValue::Bool(value) => Some(i64::from(*value)),
-        // PostgreSQL rounds float-to-integer casts to the nearest integer
-        // (ties to even, like `rint`) and fails only on range overflow.
-        ScalarValue::Float(value) if value.is_finite() => parse_f64_to_i64(value.round_ties_even()),
-        ScalarValue::Float(_) | ScalarValue::Null => None,
-        ScalarValue::Str(value) | ScalarValue::Json(value) => value.parse().ok(),
-    }
-}
-
-fn decode_bytea(value: &str) -> Result<(), QueryError> {
-    if !value.starts_with("\\x") {
-        return Err(QueryError::General(
-            "cannot cast value to BYTEA".to_string(),
-        ));
-    }
-    if (value.len() - 2).rem_euclid(2) != 0 {
-        return Err(QueryError::General(
-            "cannot cast value to BYTEA".to_string(),
-        ));
-    }
-    for byte in &value.as_bytes()[2..] {
-        if !byte.is_ascii_hexdigit() {
-            return Err(QueryError::General(
-                "cannot cast value to BYTEA".to_string(),
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn binary_scalar(
-    left: &ScalarValue,
-    op: &BinaryOp,
-    right: &ScalarValue,
-) -> Result<ScalarValue, QueryError> {
-    let result = match op {
-        BinaryOp::And => left
-            .predicate_result()?
-            .and(right.predicate_result()?)
-            .into_scalar(),
-        BinaryOp::Or => left
-            .predicate_result()?
-            .or(right.predicate_result()?)
-            .into_scalar(),
-        BinaryOp::Eq => comparison_result(eq_value(left, right)),
-        BinaryOp::IsDistinctFrom | BinaryOp::IsNotDistinctFrom => {
-            let equal = match (left, right) {
-                (ScalarValue::Null, ScalarValue::Null) => true,
-                (ScalarValue::Null, _) | (_, ScalarValue::Null) => false,
-                _ => eq_value(left, right).ok_or_else(|| {
-                    QueryError::General("incompatible null-safe comparison operands".to_string())
-                })?,
-            };
-            ScalarValue::Bool(if matches!(op, BinaryOp::IsNotDistinctFrom) {
-                equal
-            } else {
-                !equal
-            })
-        }
-        BinaryOp::NotEq => comparison_result(eq_value(left, right).map(|value| !value)),
-        BinaryOp::Lt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_lt)),
-        BinaryOp::Lte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_gt())),
-        BinaryOp::Gt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_gt)),
-        BinaryOp::Gte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_lt())),
-        BinaryOp::Like => comparison_result(like_match(left.as_str(), right.as_str())?),
-        BinaryOp::Add => checked_math_result(left, right, i64::checked_add, |a, b| a + b)?,
-        BinaryOp::Sub => checked_math_result(left, right, i64::checked_sub, |a, b| a - b)?,
-        BinaryOp::Mul => checked_math_result(left, right, i64::checked_mul, |a, b| a * b)?,
-        BinaryOp::Div => {
-            if right.to_f64().is_some_and(|value| value == 0.0) && left.to_f64().is_some() {
-                return Err(QueryError::General("division by zero".to_string()));
-            }
-            // Integer operands divide with truncation toward zero, as in
-            // PostgreSQL; `i64::MIN / -1` is the one overflowing quotient.
-            checked_math_result(left, right, i64::checked_div, |a, b| a / b)?
-        }
-        BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
-            if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
-                ScalarValue::Null
-            } else {
-                ScalarValue::Float(vector_distance(op, left, right)?)
-            }
-        }
-    };
-    Ok(result)
 }
 
 fn comparison_result(result: Option<bool>) -> ScalarValue {
@@ -808,6 +754,17 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
     right: &Expr,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    if matches!(op, BinaryOp::And | BinaryOp::Or) {
+        if let Some(value) = constants::logical(left, op, right, row, context)? {
+            return Ok(value);
+        }
+        let left = eval_scalar_with_context(row, left, context)?;
+        if matches!(&left, ScalarValue::Bool(value) if *value == matches!(op, BinaryOp::Or)) {
+            return Ok(left);
+        }
+        let right = eval_scalar_with_context(row, right, context)?;
+        return binary_scalar(&left, op, &right);
+    }
     let left_value = eval_scalar_with_context(row, left, context)?;
     let right_value = eval_scalar_with_context(row, right, context)?;
     if matches!(
@@ -931,23 +888,40 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
     data_type: &DataType,
+    source_type: Option<&DataType>,
+    identity: crate::sql::ast::CastIdentity,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    if let Expr::NumericLiteral(value) = expr {
+        return casts::numeric_literal(
+            value,
+            data_type,
+            identity,
+            context.controls.or_else(|| {
+                context
+                    .session
+                    .and_then(CassieSession::statement_execution_controls)
+            }),
+        );
+    }
     let value = eval_scalar_with_context(row, expr, context)?;
-    if *data_type == DataType::Float
+    if identity == crate::sql::ast::CastIdentity::Scalar
+        && *data_type == DataType::Float
         && crate::sql::binder::generated_float_coercion_case_operand(expr).is_some()
     {
         numeric_comparison::float_scalar(&value)
     } else {
-        cast_scalar(&value, data_type)
+        casts::scalar(
+            &value,
+            data_type,
+            source_type,
+            context.controls.or_else(|| {
+                context
+                    .session
+                    .and_then(CassieSession::statement_execution_controls)
+            }),
+        )
     }
-}
-
-fn parse_f64_to_i64(value: f64) -> Option<i64> {
-    if !value.is_finite() || value.fract() != 0.0 {
-        return None;
-    }
-    format!("{value:.0}").parse::<i64>().ok()
 }
 
 #[cfg(test)]
@@ -960,3 +934,10 @@ mod json_equality;
 #[cfg(test)]
 #[path = "filter/null_safe_tests.rs"]
 mod null_safe_tests;
+
+#[path = "filter/integers.rs"]
+mod integers;
+
+#[cfg(test)]
+#[path = "filter/bytea_function_tests.rs"]
+mod bytea_function_tests;

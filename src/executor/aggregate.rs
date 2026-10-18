@@ -315,6 +315,7 @@ mod tests {
             function: FunctionCall {
                 name: "count".to_string(),
                 args: vec![],
+                ..Default::default()
             },
             alias: None,
         }];

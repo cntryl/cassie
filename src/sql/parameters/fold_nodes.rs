@@ -30,7 +30,7 @@ impl<'a> Fold<'a, '_> {
     ) -> Result<Option<Child<'a>>, ParameterAdmissionError> {
         loop {
             let frame = &mut self.frames.values[frame_index];
-            if frame.next >= children(frame.node) {
+            if frame.next >= children(frame.node)? {
                 return Ok(None);
             }
             let index = frame.next;
@@ -43,7 +43,15 @@ impl<'a> Fold<'a, '_> {
                 Node::Source(source) => source_child(source, index),
                 Node::Item(item) => item_child(item),
                 Node::Expr(expr) => expression_child(expr, index),
-                Node::Function(function) => function.args.get(index).map(Node::Expr),
+                Node::Function(function) => {
+                    function.args.get(index).map(Node::Expr).or_else(|| {
+                        (index == function.args.len()).then_some(Node::FunctionModifiers(function))
+                    })
+                }
+                Node::FunctionModifiers(function) => match index {
+                    0 => function.filter.as_deref().map(Node::Expr),
+                    _ => Some(Node::Orders(&function.order_by)),
+                },
                 Node::Expressions(expressions) => expressions.get(index).map(Node::Expr),
                 Node::Items(items) => items.get(index).map(Node::Item),
                 Node::Orders(orders) => orders.get(index).map(|order| Node::Expr(&order.expr)),
@@ -65,11 +73,17 @@ impl<'a> Fold<'a, '_> {
     }
 }
 
-fn children(node: Node<'_>) -> usize {
-    match node {
+fn children(node: Node<'_>) -> Result<usize, ParameterAdmissionError> {
+    Ok(match node {
         Node::Query(_) | Node::Item(_) => 1,
         Node::Select(_) => 11,
         Node::Source(source) => match source {
+            ast::QuerySource::Values { rows } => rows
+                .len()
+                .checked_mul(rows.first().map_or(0, Vec::len))
+                .ok_or_else(|| {
+                    ParameterAdmissionError::Memory("VALUES expression count overflow".into())
+                })?,
             ast::QuerySource::Join { .. } => 3,
             ast::QuerySource::Aliased { .. } | ast::QuerySource::Subquery { .. } => 1,
             ast::QuerySource::Collection(_)
@@ -78,7 +92,8 @@ fn children(node: Node<'_>) -> usize {
             | ast::QuerySource::TableFunction { .. } => 0,
         },
         Node::Expr(expr) => expression_children(expr),
-        Node::Function(function) => function.args.len(),
+        Node::Function(function) => function.args.len() + 1,
+        Node::FunctionModifiers(_) => 2,
         Node::Expressions(expressions) => expressions.len(),
         Node::Items(items) => items.len(),
         Node::Orders(orders) => orders.len(),
@@ -91,7 +106,7 @@ fn children(node: Node<'_>) -> usize {
             }
         }
         Node::Window(_) => 3,
-    }
+    })
 }
 
 fn query_child(query: &QueryStatement) -> Option<Node<'_>> {
@@ -169,6 +184,11 @@ fn select_child(select: &ast::SelectStatement, index: usize) -> Option<Node<'_>>
 
 fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
     match source {
+        ast::QuerySource::Values { rows } => {
+            let width = rows.first()?.len();
+            rows.get(index / width)?.get(index % width).map(Node::Expr)
+        }
+
         ast::QuerySource::Aliased { source, .. } => Some(Node::Source(source)),
         ast::QuerySource::Subquery { select, .. } => Some(Node::Select(select)),
         ast::QuerySource::Join {
@@ -217,14 +237,19 @@ fn expression_children(expr: &ast::Expr) -> usize {
         | ast::Expr::StringLiteral(_)
         | ast::Expr::NumberLiteral(_)
         | ast::Expr::IntegerLiteral(_)
+        | ast::Expr::NumericLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => 0,
+        ast::Expr::RowCompare(comparison) => comparison.left.len() + comparison.right.len(),
         ast::Expr::Binary { .. } => 2,
-        ast::Expr::Between { .. } => 3,
+        ast::Expr::Between { .. } | ast::Expr::Like { .. } => 3,
         ast::Expr::Case { branches, .. } => 2 + branches.len() * 2,
         ast::Expr::InList { values, .. } => 1 + values.len(),
         ast::Expr::IsNull { .. }
+        | ast::Expr::TruthTest { .. }
         | ast::Expr::Not { .. }
+        | ast::Expr::UnaryNumeric { .. }
+        | ast::Expr::IntegerNegate { .. }
         | ast::Expr::Cast { .. }
         | ast::Expr::Exists(_)
         | ast::Expr::Function(_) => 1,
@@ -233,16 +258,33 @@ fn expression_children(expr: &ast::Expr) -> usize {
 
 fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
     match expr {
+        ast::Expr::RowCompare(comparison) => comparison
+            .left
+            .get(index)
+            .or_else(|| {
+                index
+                    .checked_sub(comparison.left.len())
+                    .and_then(|index| comparison.right.get(index))
+            })
+            .map(Node::Expr),
         ast::Expr::Binary { left, right, .. } => {
             Some(Node::Expr(if index == 0 { left } else { right }))
         }
-        ast::Expr::IsNull { expr, .. } | ast::Expr::Not { expr } | ast::Expr::Cast { expr, .. } => {
-            Some(Node::Expr(expr))
-        }
+        ast::Expr::IsNull { expr, .. }
+        | ast::Expr::TruthTest { expr, .. }
+        | ast::Expr::Not { expr }
+        | ast::Expr::Cast { expr, .. }
+        | ast::Expr::UnaryNumeric { expr, .. }
+        | ast::Expr::IntegerNegate { expr, .. } => Some(Node::Expr(expr)),
         ast::Expr::Exists(statement) => Some(Node::Query(&statement.statement)),
         ast::Expr::Function(function) => Some(Node::Function(function)),
         ast::Expr::Between {
             expr, low, high, ..
+        }
+        | ast::Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => Some(Node::Expr(match index {
             0 => expr,
             1 => low,
@@ -273,6 +315,7 @@ fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
         | ast::Expr::StringLiteral(_)
         | ast::Expr::NumberLiteral(_)
         | ast::Expr::IntegerLiteral(_)
+        | ast::Expr::NumericLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => None,
     }
@@ -281,6 +324,9 @@ fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
 fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
     match parent {
         Node::Items(_) => child.target = true,
+        Node::FunctionModifiers(_) if index == 0 => {
+            child.expected = Expected::Boolean(BooleanConstruct::Filter);
+        }
         Node::Select(_) => {
             child.expected = match index {
                 3 => Expected::Boolean(BooleanConstruct::Where),
@@ -291,6 +337,30 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
         }
         Node::Source(ast::QuerySource::Join { .. }) if index == 2 => {
             child.expected = Expected::Boolean(BooleanConstruct::Join);
+        }
+        Node::Expr(ast::Expr::Binary {
+            op: ast::BinaryOp::Integer { operation, .. },
+            ..
+        }) if operation.is_shift() && index == 1 => {
+            child.expected = Expected::Type(23, true);
+        }
+        Node::Expr(
+            ast::Expr::Binary {
+                op: ast::BinaryOp::Integer { width, .. },
+                ..
+            }
+            | ast::Expr::IntegerNegate { width, .. },
+        ) => {
+            child.expected = Expected::Type(super::expressions::oid(&width.data_type()), true);
+        }
+        Node::Expr(ast::Expr::UnaryNumeric {
+            op: ast::UnaryNumericOp::SquareRoot | ast::UnaryNumericOp::CubeRoot,
+            ..
+        }) => {
+            child.expected = Expected::Type(701, true);
+        }
+        Node::Expr(ast::Expr::TruthTest { truth, negated, .. }) => {
+            child.expected = Expected::Boolean(BooleanConstruct::Truth(*truth, *negated));
         }
         Node::Expr(ast::Expr::Not { .. }) => {
             child.expected = Expected::Boolean(BooleanConstruct::Not);
@@ -318,7 +388,10 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
             }
         }
         Node::Expr(
-            ast::Expr::Binary { .. } | ast::Expr::Between { .. } | ast::Expr::InList { .. },
+            ast::Expr::Binary { .. }
+            | ast::Expr::Between { .. }
+            | ast::Expr::InList { .. }
+            | ast::Expr::Like { .. },
         )
         | Node::Window(_)
         | Node::Cte(ast::CteQuery::Recursive { .. }) => child.qualified = false,

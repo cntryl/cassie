@@ -223,7 +223,7 @@ fn projection_fields(
                 allocation.push(&mut fields, field)?;
             }
             SelectItem::Function { function, .. } => {
-                for argument in &function.args {
+                for argument in function.expressions() {
                     collect_expr_columns(argument, &mut fields, allocation)?;
                 }
             }
@@ -249,15 +249,30 @@ fn collect_expr_columns(
             let field = allocation.field_key(field)?;
             allocation.push(fields, field)?;
         }
+        Expr::RowCompare(comparison) => {
+            for field in comparison.left.iter().chain(&comparison.right) {
+                collect_expr_columns(field, fields, allocation)?;
+            }
+        }
         Expr::Binary { left, right, .. } => {
             collect_expr_columns(left, fields, allocation)?;
             collect_expr_columns(right, fields, allocation)?;
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+        Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => {
             collect_expr_columns(expr, fields, allocation)?;
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             collect_expr_columns(expr, fields, allocation)?;
             collect_expr_columns(low, fields, allocation)?;
@@ -270,7 +285,7 @@ fn collect_expr_columns(
             }
         }
         Expr::Function(function) => {
-            for argument in &function.args {
+            for argument in function.expressions() {
                 collect_expr_columns(argument, fields, allocation)?;
             }
         }

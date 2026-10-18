@@ -1,4 +1,4 @@
-use super::expr::{parse_expr_token, parse_expression, split_csv};
+use super::expr::{parse_expression, split_csv};
 use super::identifiers::{normalize_column_identifier, parse_relation_path_prefix};
 use super::query::parse_projection_items;
 use super::{
@@ -79,7 +79,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
                 table,
                 columns,
-                source: InsertSource::Select(Box::new(select)),
+                source: InsertSource::Select(select),
                 on_conflict,
                 returning: Vec::new(),
             }),
@@ -98,7 +98,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
         statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
             table,
             columns,
-            source: InsertSource::Select(Box::new(select)),
+            source: InsertSource::Select(select),
             on_conflict,
             returning,
         }),
@@ -201,6 +201,13 @@ pub(super) fn split_statement_and_returning(
 }
 
 pub(super) fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr>>, SqlError> {
+    parse_values_rows(values_part, parse_expression)
+}
+
+pub(super) fn parse_values_rows(
+    values_part: &str,
+    parse: fn(&str) -> Result<Expr, SqlError>,
+) -> Result<Vec<Vec<Expr>>, SqlError> {
     let mut rows = Vec::new();
     let mut rest = super::lexical::trim_separators(values_part);
 
@@ -224,7 +231,7 @@ pub(super) fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr
         rows.push(
             split_csv(values_raw)
                 .into_iter()
-                .map(parse_expr_token)
+                .map(parse)
                 .collect::<Result<Vec<_>, _>>()?,
         );
 

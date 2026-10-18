@@ -112,6 +112,7 @@ pub(super) async fn execute_streaming_portal_page(
             "streaming portal requires a select statement",
         ));
     };
+    request.session.mark_transaction_query();
     let resolved = cassie.resolve_portal_read_spec(request.session, parsed);
     let resolved = match resolved {
         Ok(resolved) => resolved,
@@ -216,12 +217,13 @@ async fn execute_offset_portal_page(
     );
     let cancellation_handle = cancellation.handle();
     let session = request.session.clone();
+    let sql = request.prepared.query.clone();
     let params = request.portal.params.clone();
     let parameter_type_oids = request.prepared.parameter_types.clone();
     let result = run_pgwire_blocking(cassie, "pgwire_extended_query", move |cassie| {
         cassie.execute_parsed_sql_with_cancellation(
             &session,
-            parsed,
+            (parsed, &sql),
             fingerprint,
             (params, &parameter_type_oids),
             ExecutionMode::ExtendedQuery,

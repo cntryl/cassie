@@ -45,6 +45,8 @@ fn should_preserve_generated_float_wrapper_evaluation() {
             else_expr: Some(Box::new(operand)),
         }),
         data_type: DataType::Float,
+        source_type: None,
+        identity: crate::sql::ast::CastIdentity::Scalar,
     };
     let repeated = float(generated.clone());
     let cases = [

@@ -56,6 +56,17 @@ impl Midge {
         Self::open_with_write_policy(config.open_options, default_database, config.write_policy)
     }
 
+    pub(crate) fn new_in_memory(default_database: impl Into<String>) -> Result<Self, CassieError> {
+        let options = cntryl_midge::OpenOptions::in_memory()
+            .build()
+            .map_err(CassieError::from)?;
+        Self::open_with_write_policy(
+            options,
+            default_database,
+            super::storage_config::WritePolicy::Local,
+        )
+    }
+
     fn open_with_write_policy(
         options: cntryl_midge::OpenOptions,
         default_database: impl Into<String>,

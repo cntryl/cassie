@@ -888,6 +888,7 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_) => true,
@@ -906,9 +907,12 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
             ) && vector_prefilter_supported(left, schema)
                 && vector_prefilter_supported(right, schema)
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            vector_prefilter_supported(expr, schema)
-        }
+        Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => vector_prefilter_supported(expr, schema),
         Expr::InList { expr, values, .. } => {
             vector_prefilter_supported(expr, schema)
                 && values
@@ -917,12 +921,17 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             vector_prefilter_supported(expr, schema)
                 && vector_prefilter_supported(low, schema)
                 && vector_prefilter_supported(high, schema)
         }
-        Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => false,
+        Expr::RowCompare(_) | Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => false,
     }
 }
 

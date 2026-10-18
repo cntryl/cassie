@@ -551,7 +551,7 @@ fn plan_projection_query(
     crate::planner::logical::rewrite_reserved_id_references(&mut logical, &cassie.catalog);
     Ok(ProjectionBuildPlan {
         logical,
-        select: select.clone(),
+        select: select.as_ref().clone(),
         schema,
         source_collections,
     })
@@ -747,7 +747,10 @@ fn collect_source_collections_into(source: &QuerySource, out: &mut Vec<String>) 
             collect_source_collections_into(left, out);
             collect_source_collections_into(right, out);
         }
-        QuerySource::Cte(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => {}
+        QuerySource::Cte(_)
+        | QuerySource::TableFunction { .. }
+        | QuerySource::Values { .. }
+        | QuerySource::SingleRow => {}
     }
 }
 
@@ -808,7 +811,7 @@ fn collect_functions_in_expr(expr: &Expr, out: &mut Vec<String>) {
 
 fn collect_functions_in_call(function: &FunctionCall, out: &mut Vec<String>) {
     out.push(function.name.clone());
-    for arg in &function.args {
+    for arg in function.expressions() {
         collect_functions_in_expr(arg, out);
     }
 }

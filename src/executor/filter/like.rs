@@ -4,8 +4,8 @@
 //! any sequence of zero or more characters, `_` matches exactly one character,
 //! and a backslash escapes the next pattern character so `%`, `_`, or `\` can
 //! be matched literally. A pattern that ends with an unpaired backslash is
-//! rejected. The `ESCAPE` clause and `ILIKE` are not part of the supported
-//! grammar.
+//! reported only when matching reaches it with remaining input. ESCAPE may
+//! select another character or disable escaping; ILIKE remains unselected.
 //!
 //! The matcher walks the pattern and value in place, without allocating or
 //! compiling the pattern, so it is safe to call once per row.
@@ -29,15 +29,20 @@ enum Token {
 }
 
 /// Reads the next pattern token, returning it with the remaining pattern.
-fn next_token(pattern: &str) -> Result<Option<(Token, &str)>, LikePatternError> {
+fn next_token(
+    pattern: &str,
+    escape: Option<char>,
+) -> Result<Option<(Token, &str)>, LikePatternError> {
     let mut chars = pattern.chars();
     let Some(first) = chars.next() else {
         return Ok(None);
     };
     let token = match first {
+        character if Some(character) == escape => {
+            Token::Literal(chars.next().ok_or(LikePatternError)?)
+        }
         '%' => Token::AnySequence,
         '_' => Token::AnyChar,
-        ESCAPE => Token::Literal(chars.next().ok_or(LikePatternError)?),
         literal => Token::Literal(literal),
     };
     Ok(Some((token, chars.as_str())))
@@ -54,7 +59,30 @@ fn split_first_char(value: &str) -> Option<(char, &str)> {
 ///
 /// Returns [`LikePatternError`] when the pattern ends with an unpaired escape
 /// character.
+#[derive(Debug)]
+pub(super) enum MatchError<E> {
+    Pattern,
+    Interrupted(E),
+}
+
 pub(crate) fn like_matches(value: &str, pattern: &str) -> Result<bool, LikePatternError> {
+    controlled(value, pattern, Some(ESCAPE), || {
+        Ok::<_, std::convert::Infallible>(())
+    })
+    .map_err(|error| match error {
+        MatchError::Pattern => LikePatternError,
+        MatchError::Interrupted(never) => match never {},
+    })
+}
+
+pub(super) fn controlled<E>(
+    value: &str,
+    pattern: &str,
+    escape: Option<char>,
+    mut check: impl FnMut() -> Result<(), E>,
+) -> Result<bool, MatchError<E>> {
+    check().map_err(MatchError::Interrupted)?;
+    let mut steps = 0_u8;
     let mut remaining_pattern = pattern;
     let mut remaining_value = value;
     // Resume point after the most recent `%`: the pattern after it and the
@@ -62,7 +90,27 @@ pub(crate) fn like_matches(value: &str, pattern: &str) -> Result<bool, LikePatte
     let mut backtrack: Option<(&str, &str)> = None;
 
     loop {
-        let step = match next_token(remaining_pattern)? {
+        steps = steps.wrapping_add(1);
+        if steps == 0 {
+            check().map_err(MatchError::Interrupted)?;
+        }
+        // Native MatchText stops on exhausted input before interpreting escapes.
+        if remaining_value.is_empty() {
+            if escape == Some('%') {
+                return Ok(remaining_pattern.is_empty());
+            }
+            for character in remaining_pattern.chars() {
+                steps = steps.wrapping_add(1);
+                if steps == 0 {
+                    check().map_err(MatchError::Interrupted)?;
+                }
+                if character != '%' {
+                    return Ok(false);
+                }
+            }
+            return Ok(true);
+        }
+        let step = match next_token(remaining_pattern, escape).map_err(|_| MatchError::Pattern)? {
             Some((Token::AnySequence, rest)) => {
                 remaining_pattern = rest;
                 backtrack = Some((rest, remaining_value));
@@ -201,9 +249,40 @@ mod tests {
         let pattern = r"abc\";
 
         // Act
-        let result = like_matches("abc", pattern);
+        let result = like_matches("abcd", pattern);
 
         // Assert
         assert_eq!(result, Err(LikePatternError));
+    }
+    #[test]
+    fn should_stop_before_unreached_escape_given_exhausted_input_when_matching() {
+        // Arrange
+        let cases = [("abc", r"abc\"), ("", r"%\"), ("x", r"y\")];
+        // Act
+        let results = cases.map(|(value, pattern)| like_matches(value, pattern));
+        // Assert
+        assert_eq!(results, [Ok(false); 3]);
+    }
+
+    #[test]
+    fn should_check_interruption_given_backtracking_work_when_matching() {
+        // Arrange
+        let value = "a".repeat(4096);
+        let mut checks = 0;
+        // Act
+        let result = super::controlled(&value, "%ab", Some('!'), || {
+            checks += 1;
+            if checks == 3 {
+                Err("cancelled")
+            } else {
+                Ok(())
+            }
+        });
+        // Assert
+        assert!(matches!(
+            result,
+            Err(super::MatchError::Interrupted("cancelled"))
+        ));
+        assert_eq!(checks, 3);
     }
 }

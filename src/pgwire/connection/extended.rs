@@ -1,3 +1,11 @@
+#[path = "extended/bind_planning.rs"]
+mod bind_planning;
+#[path = "extended/parameter_errors.rs"]
+mod parameter_errors;
+
+#[path = "extended/parse_analysis.rs"]
+mod parse_analysis;
+
 #[path = "extended/transaction_boundary.rs"]
 mod transaction_boundary;
 
@@ -286,23 +294,13 @@ async fn handle_parse(
         .authorize_statement(&parsed.statement)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let controls = runtime.query_controls(std::time::Instant::now());
-    let admitted = with_function_input_scope(&cassie, session, |scope| {
-        crate::sql::checked_wire_parse_parameter_types_in_scope(
-            &parsed,
-            &parameter_type_oids,
-            &cassie.catalog,
-            &controls,
-            Some(scope),
-        )
-    })
-    .map_err(|error| ExtendedQueryError::parameter_admission(error, &controls))?;
-    if let Some(oid) = unknown_high_bit_projection_oid(&parsed, admitted.types()) {
-        return Err(ExtendedQueryError::unknown_type_oid(oid));
-    }
-    crate::sql::pagination::validate_statement(&mut parsed, Some(admitted.types()))
-        .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    crate::sql::validate_wire_parse_parameter_slots(admitted.types(), &controls)
-        .map_err(|error| ExtendedQueryError::parameter_admission(error, &controls))?;
+    let admitted = parse_analysis::admit(
+        &cassie,
+        session,
+        &mut parsed,
+        &parameter_type_oids,
+        &controls,
+    )?;
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let parameter_types = admitted
         .into_vec()
@@ -423,7 +421,8 @@ async fn handle_bind(
         .cloned()
         .ok_or_else(|| missing_statement_error(&statement))?;
     if !result_formats.is_empty() {
-        let columns = describe_prepared(cassie, session.clone(), prepared.clone()).await?;
+        let columns =
+            describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?;
         validate_result_formats(&columns, &result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
     }
@@ -449,6 +448,10 @@ async fn handle_bind(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    let prepared_id = prepared.id;
+    let described = prepared.described;
+    let values = bind_planning::validate(cassie, session, state, prepared, values).await?;
+
     let replaced_portal = state.remove_portal(&portal).is_some();
     if !replaced_portal && state.portals.len() >= MAX_PORTALS_PER_CONNECTION {
         return Err(ExtendedQueryError::cassie(&CassieError::ResourceLimit(
@@ -460,10 +463,10 @@ async fn handle_bind(
         Portal {
             name: portal,
             statement_name: statement,
-            prepared_id: prepared.id,
+            prepared_id,
             params: values,
             result_formats,
-            described: prepared.described,
+            described,
             suspended: None,
             completed_command: None,
         },
@@ -579,6 +582,7 @@ async fn handle_execute(
         .await;
     }
     let execution_session = session.clone();
+    let sql = prepared.query.clone();
     let params = portal.params.clone();
     let parameter_type_oids = prepared.parameter_types.clone();
     let sql_fingerprint = prepared.sql_fingerprint;
@@ -589,11 +593,11 @@ async fn handle_execute(
     let cancellation = registration.begin_query();
     let cancellation_handle = cancellation.handle();
     let result_cap = cassie.runtime.limits().max_result_rows;
-    let was_in_transaction = session.is_transaction_active() || session.is_transaction_failed();
+    let transaction_owner = transaction_boundary::TransactionOwner::capture(session);
     let result = run_pgwire_blocking(cassie, "pgwire_extended_query", move |cassie| {
         cassie.execute_parsed_sql_with_cancellation(
             &execution_session,
-            parsed,
+            (parsed, &sql),
             sql_fingerprint,
             (params, &parameter_type_oids),
             ExecutionMode::ExtendedQuery,
@@ -602,7 +606,7 @@ async fn handle_execute(
     })
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    transaction_boundary::close_completed_owner(state, runtime, session, was_in_transaction);
+    transaction_owner.close_completed(state, runtime, session);
     let window = PortalFetchWindow::new(result_cap, 0, max_rows);
     let suspended_cancellation = if window.page_rows() < result.row_count() {
         Some(cancellation.suspend())
@@ -810,7 +814,12 @@ fn missing_statement_error(name: &str) -> ExtendedQueryError {
 }
 
 fn missing_portal_error(name: &str) -> ExtendedQueryError {
-    ExtendedQueryError::invalid_name(format!("portal '{name}' is not bound"))
+    ExtendedQueryError {
+        pg_error: Box::new(PgWireError::invalid_cursor_name(format!(
+            "portal '{name}' is not bound"
+        ))),
+        record_protocol_error: false,
+    }
 }
 
 #[derive(Debug)]
@@ -834,28 +843,6 @@ impl ExtendedQueryError {
         Self {
             pg_error: Box::new(PgWireError::protocol(message)),
             record_protocol_error: true,
-        }
-    }
-
-    fn invalid_input_syntax(type_name: &str, input: &str) -> Self {
-        Self {
-            pg_error: Box::new(PgWireError::new(
-                PgWireSeverity::Error,
-                "22P02",
-                format!("invalid input syntax for type {type_name}: \"{input}\""),
-            )),
-            record_protocol_error: false,
-        }
-    }
-
-    fn numeric_value_out_of_range(type_name: &str, input: &str) -> Self {
-        Self {
-            pg_error: Box::new(PgWireError::new(
-                PgWireSeverity::Error,
-                "22003",
-                format!("value \"{input}\" is out of range for type {type_name}"),
-            )),
-            record_protocol_error: false,
         }
     }
 
@@ -889,43 +876,6 @@ impl ExtendedQueryError {
                 record_protocol_error: false,
             },
             Err(error) => Self::cassie(&error),
-        }
-    }
-
-    fn parameter_admission(
-        error: crate::sql::ParameterAdmissionError,
-        controls: &crate::runtime::QueryExecutionControls,
-    ) -> Self {
-        use crate::sql::ParameterAdmissionError;
-
-        let (sqlstate, message) = match error {
-            ParameterAdmissionError::Memory(message) => ("53200", message),
-            ParameterAdmissionError::InvalidParam(message) => ("42P02", message),
-            ParameterAdmissionError::Cancelled => ("57014", "query cancelled".to_string()),
-            ParameterAdmissionError::Deadline => ("57014", "query deadline exceeded".to_string()),
-            ParameterAdmissionError::InvalidBooleanLiteral {
-                input,
-                _reservation: reservation,
-            } => {
-                let result = Self::admitted_parameter_error(PgWireError::invalid_boolean_input(
-                    &input, controls,
-                ));
-                drop(input);
-                drop(reservation);
-                return result;
-            }
-            ParameterAdmissionError::LegacyConflict(message) => {
-                return Self::cassie(&CassieError::Planner(message));
-            }
-            ParameterAdmissionError::Semantic(diagnostic) => {
-                return Self::admitted_parameter_error(PgWireError::parameter_semantic(
-                    diagnostic, controls,
-                ));
-            }
-        };
-        Self {
-            pg_error: Box::new(PgWireError::new(PgWireSeverity::Error, sqlstate, message)),
-            record_protocol_error: false,
         }
     }
 
@@ -973,3 +923,6 @@ impl From<CassieError> for ExtendedQueryError {
         Self::cassie(&error)
     }
 }
+
+#[path = "extended/scalar_errors.rs"]
+mod scalar_errors;

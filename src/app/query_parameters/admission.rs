@@ -105,12 +105,56 @@ fn project_error(error: ParameterAdmissionError) -> CassieError {
             input,
             _reservation: reservation,
         } => {
-            let error = CassieError::Planner("invalid input syntax for type boolean".to_owned());
+            let error =
+                CassieError::Execution(format!("invalid input syntax for type boolean: {input:?}"));
             drop(input);
             drop(reservation);
             error
         }
+        ParameterAdmissionError::InvalidScalarLiteral {
+            input,
+            diagnostic,
+            _reservation: reservation,
+        } => {
+            let mut message = String::new();
+            diagnostic
+                .write(&input, &mut message)
+                .expect("String formatting cannot fail");
+            let error = CassieError::Execution(message);
+            drop(input);
+            drop(reservation);
+            error
+        }
+        ParameterAdmissionError::ByteaInput(error) => error.into(),
+        ParameterAdmissionError::FunctionDiagnostic {
+            sqlstate,
+            message,
+            _reservation: reservation,
+            ..
+        } => {
+            let error = match sqlstate {
+                "0A000" => CassieError::Unsupported(message),
+                "42725" => CassieError::AmbiguousFunction(message),
+                _ => CassieError::Execution(message),
+            };
+            drop(reservation);
+            error
+        }
+        ParameterAdmissionError::NonAggregateModifier {
+            message,
+            _reservation: reservation,
+        } => {
+            let error = CassieError::Execution(message);
+            drop(reservation);
+            error
+        }
         // The existing public error shape has no ownership/detail/SQLSTATE carrier.
+        ParameterAdmissionError::Semantic(diagnostic) if diagnostic.code() == "0A000" => {
+            CassieError::Unsupported(diagnostic.message())
+        }
+        ParameterAdmissionError::Semantic(diagnostic) if diagnostic.uses_execution_error() => {
+            CassieError::Execution(diagnostic.message())
+        }
         ParameterAdmissionError::Semantic(diagnostic) => CassieError::Planner(diagnostic.message()),
     }
 }

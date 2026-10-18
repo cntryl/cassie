@@ -189,7 +189,9 @@ fn plan_needed_columns(plan: &LogicalPlan) -> Option<BTreeSet<String>> {
             }
             SelectItem::Wildcard | SelectItem::WindowFunction { .. } => return None,
             SelectItem::Function { function, .. } => {
-                collect_expr_columns_from_slice(function.args.as_slice(), &mut columns);
+                for expression in function.expressions() {
+                    collect_expr_columns(expression, &mut columns);
+                }
             }
             SelectItem::Expr { expr, .. } => collect_expr_columns(expr, &mut columns),
         }
@@ -201,12 +203,6 @@ fn plan_needed_columns(plan: &LogicalPlan) -> Option<BTreeSet<String>> {
         collect_expr_columns(&order.expr, &mut columns);
     }
     Some(columns)
-}
-
-fn collect_expr_columns_from_slice(exprs: &[Expr], columns: &mut BTreeSet<String>) {
-    for expr in exprs {
-        collect_expr_columns(expr, columns);
-    }
 }
 
 fn collect_expr_columns(expr: &Expr, columns: &mut BTreeSet<String>) {

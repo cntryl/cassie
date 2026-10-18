@@ -71,6 +71,14 @@ fn canonicalize_function(function: &mut FunctionCall, fields: &[String]) {
             _ => *arg = canonicalize_expr(arg, fields),
         }
     }
+    for expression in function
+        .filter
+        .as_deref_mut()
+        .into_iter()
+        .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
+    {
+        *expression = canonicalize_expr(expression, fields);
+    }
 }
 
 fn declared_field(fields: &[String], column: &str) -> Option<String> {

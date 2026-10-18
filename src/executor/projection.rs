@@ -191,10 +191,10 @@ fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
                 } else {
                     ProjectionOp::ScalarFunction {
                         key,
-                        expr: Expr::Function(function.clone()),
-                        precomputed_key: Some(projection_expr_key(&Expr::Function(
+                        expr: Expr::Function(Box::new(function.clone())),
+                        precomputed_key: Some(projection_expr_key(&Expr::Function(Box::new(
                             function.clone(),
-                        ))),
+                        )))),
                     }
                 }
             }
@@ -410,7 +410,15 @@ fn projection_expr_key(expr: &Expr) -> String {
         Expr::BoolLiteral(value) => value.to_string(),
         Expr::NumberLiteral(value) => value.to_string(),
         Expr::IntegerLiteral(value) => value.to_string(),
+        Expr::NumericLiteral(value) => format!("numeric:{value}"),
         Expr::StringLiteral(value) => format!("'{value}'"),
+        Expr::Function(function)
+            if function.is_distinct()
+                || function.filter.is_some()
+                || !function.order_by.is_empty() =>
+        {
+            crate::executor::execution::aggregate_signature(function)
+        }
         Expr::Function(function) => format!(
             "{}({})",
             function.name.to_ascii_lowercase(),
@@ -429,6 +437,11 @@ fn projection_expr_key(expr: &Expr) -> String {
                 projection_expr_key(right)
             )
         }
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => format!("{} {}", projection_expr_key(expr), truth.label(*negated)),
         Expr::IsNull { expr, negated } => {
             format!(
                 "{} is{} null",
@@ -450,20 +463,40 @@ fn projection_expr_key(expr: &Expr) -> String {
                 .collect::<Vec<_>>()
                 .join(",")
         ),
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => like_expr_key(expr, pattern, escape),
         Expr::Between {
             expr,
             low,
             high,
             negated,
+            symmetric,
         } => format!(
-            "{}{} between {} and {}",
+            "{}{} between{} {} and {}",
             projection_expr_key(expr),
             if *negated { " not" } else { "" },
+            if *symmetric { " symmetric" } else { "" },
             projection_expr_key(low),
             projection_expr_key(high)
         ),
         Expr::Not { expr } => format!("not {}", projection_expr_key(expr)),
-        Expr::Cast { expr, data_type } => format!("{}::{data_type:?}", projection_expr_key(expr)),
+        Expr::RowCompare(_) => crate::executor::execution::expr_key(expr),
+        Expr::UnaryNumeric { expr, op } => format!("unary:{op:?}({})", projection_expr_key(expr)),
+        Expr::IntegerNegate { expr, width } => {
+            format!("negate:{width:?}({})", projection_expr_key(expr))
+        }
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            identity,
+        } => format!(
+            "{}::{data_type:?}[{source_type:?},{identity:?}]",
+            projection_expr_key(expr)
+        ),
         Expr::Exists(_) => "exists".to_string(),
     }
 }
@@ -477,6 +510,15 @@ impl ProjectionOp {
                 | ProjectionOp::WindowFunction { .. }
         )
     }
+}
+
+fn like_expr_key(expr: &Expr, pattern: &Expr, escape: &Expr) -> String {
+    format!(
+        "({} LIKE {} ESCAPE {})",
+        projection_expr_key(expr),
+        projection_expr_key(pattern),
+        projection_expr_key(escape)
+    )
 }
 
 #[cfg(test)]

@@ -9,7 +9,7 @@ use std::ops::ControlFlow;
 use super::ast_query::Expr;
 
 impl Expr {
-    /// Visits each direct sub-expression in evaluation order, stopping early
+    /// Visits each direct sub-expression in structural order, stopping early
     /// when `visit` breaks. Subqueries inside `EXISTS` are not visited.
     pub fn try_for_each_child<'a, B>(
         &'a self,
@@ -32,11 +32,21 @@ impl Expr {
                     visit(else_expr)?;
                 }
             }
+            Self::RowCompare(comparison) => {
+                for field in comparison.left.iter().chain(&comparison.right) {
+                    visit(field)?;
+                }
+            }
             Self::Binary { left, right, .. } => {
                 visit(left)?;
                 visit(right)?;
             }
-            Self::IsNull { expr, .. } | Self::Not { expr } | Self::Cast { expr, .. } => {
+            Self::IsNull { expr, .. }
+            | Self::TruthTest { expr, .. }
+            | Self::Not { expr }
+            | Self::Cast { expr, .. }
+            | Self::UnaryNumeric { expr, .. }
+            | Self::IntegerNegate { expr, .. } => {
                 visit(expr)?;
             }
             Self::InList { expr, values, .. } => {
@@ -47,13 +57,18 @@ impl Expr {
             }
             Self::Between {
                 expr, low, high, ..
+            }
+            | Self::Like {
+                expr,
+                pattern: low,
+                escape: high,
             } => {
                 visit(expr)?;
                 visit(low)?;
                 visit(high)?;
             }
             Self::Function(function) => {
-                for arg in &function.args {
+                for arg in function.expressions() {
                     visit(arg)?;
                 }
             }
@@ -62,6 +77,7 @@ impl Expr {
             | Self::StringLiteral(_)
             | Self::NumberLiteral(_)
             | Self::IntegerLiteral(_)
+            | Self::NumericLiteral(_)
             | Self::BoolLiteral(_)
             | Self::Null
             | Self::Exists(_) => {}
@@ -78,18 +94,25 @@ impl Expr {
                 operand,
                 branches,
                 else_expr,
-            } => Self::Case {
-                operand: operand.as_deref().map(|expr| Box::new(map(expr))),
-                branches: branches
-                    .iter()
-                    .map(|(when, then)| (map(when), map(then)))
-                    .collect(),
-                else_expr: else_expr.as_deref().map(|expr| Box::new(map(expr))),
-            },
+            } => map_case_children(operand.as_deref(), branches, else_expr.as_deref(), &mut map),
+            Self::RowCompare(comparison) => Self::RowCompare(Box::new(super::RowComparison {
+                left: comparison.left.iter().map(&mut map).collect(),
+                op: comparison.op,
+                right: comparison.right.iter().map(&mut map).collect(),
+            })),
             Self::Binary { left, op, right } => Self::Binary {
                 left: Box::new(map(left)),
                 op: op.clone(),
                 right: Box::new(map(right)),
+            },
+            Self::TruthTest {
+                expr,
+                truth,
+                negated,
+            } => Self::TruthTest {
+                expr: Box::new(map(expr)),
+                truth: *truth,
+                negated: *negated,
             },
             Self::IsNull { expr, negated } => Self::IsNull {
                 expr: Box::new(map(expr)),
@@ -104,40 +127,57 @@ impl Expr {
                 values: values.iter().map(&mut map).collect(),
                 negated: *negated,
             },
-            Self::Between {
-                expr,
-                low,
-                high,
-                negated,
-            } => Self::Between {
-                expr: Box::new(map(expr)),
-                low: Box::new(map(low)),
-                high: Box::new(map(high)),
-                negated: *negated,
-            },
+            Self::Like { .. } | Self::Between { .. } => map_predicate(self, &mut map),
             Self::Not { expr } => Self::Not {
                 expr: Box::new(map(expr)),
             },
-            Self::Cast { expr, data_type } => Self::Cast {
+            Self::UnaryNumeric { expr, op } => Self::UnaryNumeric {
+                expr: Box::new(map(expr)),
+                op: *op,
+            },
+            Self::IntegerNegate { expr, width } => Self::IntegerNegate {
+                expr: Box::new(map(expr)),
+                width: *width,
+            },
+            Self::Cast {
+                expr,
+                data_type,
+                source_type,
+                identity,
+            } => Self::Cast {
                 expr: Box::new(map(expr)),
                 data_type: data_type.clone(),
+                source_type: source_type.clone(),
+                identity: *identity,
             },
-            Self::Function(function) => Self::Function(super::ast_query::FunctionCall {
+            Self::Function(function) => Self::Function(Box::new(super::ast_query::FunctionCall {
                 name: function.name.clone(),
                 args: function.args.iter().map(&mut map).collect(),
-            }),
+                quantifier: function.quantifier,
+                filter: function.filter.as_deref().map(|expr| Box::new(map(expr))),
+                order_by: function
+                    .order_by
+                    .iter()
+                    .map(|order| super::ast_query::OrderExpr {
+                        expr: map(&order.expr),
+                        direction: order.direction.clone(),
+                        nulls: order.nulls,
+                    })
+                    .collect(),
+            })),
             Self::Column(_)
             | Self::Param(_)
             | Self::StringLiteral(_)
             | Self::NumberLiteral(_)
             | Self::IntegerLiteral(_)
+            | Self::NumericLiteral(_)
             | Self::BoolLiteral(_)
             | Self::Null
             | Self::Exists(_) => self.clone(),
         }
     }
 
-    /// Visits each direct sub-expression in evaluation order.
+    /// Visits each direct sub-expression in structural order.
     pub fn for_each_child<'a>(&'a self, mut visit: impl FnMut(&'a Expr)) {
         let _ = self.try_for_each_child(|child| {
             visit(child);
@@ -161,6 +201,85 @@ impl Expr {
             ControlFlow::Continue(()) => Ok(()),
             ControlFlow::Break(error) => Err(error),
         }
+    }
+
+    /// Mutates each direct sub-expression in structural order.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error produced by `visit`.
+    pub fn try_visit_children_mut<E>(
+        &mut self,
+        mut visit: impl FnMut(&mut Expr) -> Result<(), E>,
+    ) -> Result<(), E> {
+        match self {
+            Self::RowCompare(comparison) => {
+                for field in comparison.left.iter_mut().chain(&mut comparison.right) {
+                    visit(field)?;
+                }
+            }
+            Self::Binary { left, right, .. } => {
+                visit(left)?;
+                visit(right)?;
+            }
+            Self::Cast { expr, .. }
+            | Self::UnaryNumeric { expr, .. }
+            | Self::IntegerNegate { expr, .. }
+            | Self::Not { expr }
+            | Self::IsNull { expr, .. }
+            | Self::TruthTest { expr, .. } => {
+                visit(expr)?;
+            }
+            Self::Between {
+                expr, low, high, ..
+            }
+            | Self::Like {
+                expr,
+                pattern: low,
+                escape: high,
+            } => {
+                visit(expr)?;
+                visit(low)?;
+                visit(high)?;
+            }
+            Self::InList { expr, values, .. } => {
+                visit(expr)?;
+                for value in values {
+                    visit(value)?;
+                }
+            }
+            Self::Case {
+                operand,
+                branches,
+                else_expr,
+            } => {
+                if let Some(operand) = operand {
+                    visit(operand)?;
+                }
+                for (when, then) in branches {
+                    visit(when)?;
+                    visit(then)?;
+                }
+                if let Some(otherwise) = else_expr {
+                    visit(otherwise)?;
+                }
+            }
+            Self::Function(function) => {
+                for argument in function.expressions_mut() {
+                    visit(argument)?;
+                }
+            }
+            Self::Column(_)
+            | Self::Param(_)
+            | Self::StringLiteral(_)
+            | Self::NumberLiteral(_)
+            | Self::IntegerLiteral(_)
+            | Self::NumericLiteral(_)
+            | Self::BoolLiteral(_)
+            | Self::Null
+            | Self::Exists(_) => {}
+        }
+        Ok(())
     }
 
     /// Returns the first `Some` produced by `visit` over direct sub-expressions.
@@ -193,6 +312,7 @@ impl Expr {
     pub fn structurally_eq(&self, other: &Expr) -> bool {
         match (self, other) {
             (Self::Column(left), Self::Column(right))
+            | (Self::NumericLiteral(left), Self::NumericLiteral(right))
             | (Self::StringLiteral(left), Self::StringLiteral(right)) => left == right,
             (Self::Param(left), Self::Param(right)) => left == right,
             (Self::NumberLiteral(left), Self::NumberLiteral(right)) => {
@@ -201,9 +321,27 @@ impl Expr {
             (Self::IntegerLiteral(left), Self::IntegerLiteral(right)) => left == right,
             (Self::BoolLiteral(left), Self::BoolLiteral(right)) => left == right,
             (Self::Null, Self::Null) => true,
+            (Self::RowCompare(left), Self::RowCompare(right)) => {
+                left.op == right.op
+                    && all_structurally_eq(&left.left, &right.left)
+                    && all_structurally_eq(&left.right, &right.right)
+            }
             (Self::Function(left), Self::Function(right)) => {
                 left.name.eq_ignore_ascii_case(&right.name)
                     && all_structurally_eq(&left.args, &right.args)
+                    && left.is_distinct() == right.is_distinct()
+                    && optional_structurally_eq(left.filter.as_deref(), right.filter.as_deref())
+                    && left.order_by.len() == right.order_by.len()
+                    && left
+                        .order_by
+                        .iter()
+                        .zip(&right.order_by)
+                        .all(|(left, right)| {
+                            left.expr.structurally_eq(&right.expr)
+                                && std::mem::discriminant(&left.direction)
+                                    == std::mem::discriminant(&right.direction)
+                                && left.nulls == right.nulls
+                        })
             }
             (Self::Exists(left), Self::Exists(right)) => {
                 format!("{left:?}") == format!("{right:?}")
@@ -222,6 +360,13 @@ impl Expr {
 /// Compares the expression forms that carry sub-expressions: their shape,
 /// operator, and flags must match before their children are compared.
 fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
+    if let Some(equal) = like_structurally_eq(left, right) {
+        return equal;
+    }
+    if let Some(equal) = truth_test_eq(left, right) {
+        return equal;
+    }
+
     match (left, right) {
         (
             Expr::Case {
@@ -257,7 +402,7 @@ fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 right: right_right,
             },
         ) => {
-            std::mem::discriminant(left_op) == std::mem::discriminant(right_op)
+            left_op == right_op
                 && left_left.structurally_eq(right_left)
                 && left_right.structurally_eq(right_right)
         }
@@ -293,30 +438,68 @@ fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 low: left_low,
                 high: left_high,
                 negated: left_negated,
+                symmetric: left_symmetric,
             },
             Expr::Between {
                 expr: right,
                 low: right_low,
                 high: right_high,
                 negated: right_negated,
+                symmetric: right_symmetric,
             },
         ) => {
             left_negated == right_negated
+                && left_symmetric == right_symmetric
                 && left.structurally_eq(right)
                 && left_low.structurally_eq(right_low)
                 && left_high.structurally_eq(right_high)
         }
+        _ => unary_structurally_eq(left, right),
+    }
+}
+
+fn unary_structurally_eq(left: &Expr, right: &Expr) -> bool {
+    match (left, right) {
         (Expr::Not { expr: left }, Expr::Not { expr: right }) => left.structurally_eq(right),
         (
             Expr::Cast {
                 expr: left,
                 data_type: left_type,
+                source_type: left_source,
+                identity: left_identity,
             },
             Expr::Cast {
                 expr: right,
                 data_type: right_type,
+                source_type: right_source,
+                identity: right_identity,
             },
-        ) => left_type == right_type && left.structurally_eq(right),
+        ) => {
+            left_type == right_type
+                && left_source == right_source
+                && left_identity == right_identity
+                && left.structurally_eq(right)
+        }
+        (
+            Expr::UnaryNumeric {
+                expr: left,
+                op: lop,
+            },
+            Expr::UnaryNumeric {
+                expr: right,
+                op: rop,
+            },
+        ) => lop == rop && left.structurally_eq(right),
+        (
+            Expr::IntegerNegate {
+                expr: left,
+                width: lw,
+            },
+            Expr::IntegerNegate {
+                expr: right,
+                width: rw,
+            },
+        ) => lw == rw && left.structurally_eq(right),
         _ => false,
     }
 }
@@ -335,4 +518,91 @@ fn all_structurally_eq(left: &[Expr], right: &[Expr]) -> bool {
             .iter()
             .zip(right)
             .all(|(left, right)| left.structurally_eq(right))
+}
+
+fn map_predicate(expr: &Expr, mut map: impl FnMut(&Expr) -> Expr) -> Expr {
+    match expr {
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+        } => Expr::Like {
+            expr: Box::new(map(expr)),
+            pattern: Box::new(map(pattern)),
+            escape: Box::new(map(escape)),
+        },
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated,
+            symmetric,
+        } => Expr::Between {
+            expr: Box::new(map(expr)),
+            low: Box::new(map(low)),
+            high: Box::new(map(high)),
+            negated: *negated,
+            symmetric: *symmetric,
+        },
+        _ => unreachable!("ternary predicate mapping"),
+    }
+}
+
+fn like_structurally_eq(left: &Expr, right: &Expr) -> Option<bool> {
+    match (left, right) {
+        (
+            Expr::Like {
+                expr: left,
+                pattern: lp,
+                escape: le,
+            },
+            Expr::Like {
+                expr: right,
+                pattern: rp,
+                escape: re,
+            },
+        ) => Some(left.structurally_eq(right) && lp.structurally_eq(rp) && le.structurally_eq(re)),
+
+        (Expr::Like { .. }, _) | (_, Expr::Like { .. }) => Some(false),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+#[path = "ast_visit_tests.rs"]
+mod tests;
+
+fn map_case_children(
+    operand: Option<&Expr>,
+    branches: &[(Expr, Expr)],
+    else_expr: Option<&Expr>,
+    map: &mut impl FnMut(&Expr) -> Expr,
+) -> Expr {
+    Expr::Case {
+        operand: operand.map(|expr| Box::new(map(expr))),
+        branches: branches
+            .iter()
+            .map(|(when, then)| (map(when), map(then)))
+            .collect(),
+        else_expr: else_expr.map(|expr| Box::new(map(expr))),
+    }
+}
+
+fn truth_test_eq(left: &Expr, right: &Expr) -> Option<bool> {
+    let (
+        Expr::TruthTest {
+            expr: left,
+            truth: left_truth,
+            negated: left_negated,
+        },
+        Expr::TruthTest {
+            expr: right,
+            truth: right_truth,
+            negated: right_negated,
+        },
+    ) = (left, right)
+    else {
+        return None;
+    };
+    Some(left_truth == right_truth && left_negated == right_negated && left.structurally_eq(right))
 }

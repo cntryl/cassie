@@ -23,16 +23,39 @@ impl Fold<'_, '_> {
                     .parameter(*slot, self.controls, frame.qualified)
             }
             ast::Expr::StringLiteral(_) | ast::Expr::Null => Ok(Summary::literal()),
-            ast::Expr::BoolLiteral(_) => Ok(Summary::known(16)),
             ast::Expr::IntegerLiteral(value) => {
                 Ok(Summary::known(oid(&binder::integer_literal_type(*value))))
             }
             ast::Expr::NumberLiteral(_) => Ok(Summary::known(701)),
+            ast::Expr::NumericLiteral(_) => Ok(Summary::unqualified()),
             ast::Expr::Column(name) => Ok(self
                 .column_oid(frame.context, name)
                 .map_or_else(Summary::unqualified, Summary::known)),
-            ast::Expr::Cast { data_type, .. } => Ok(Summary::known(oid(data_type))),
-            ast::Expr::IsNull { .. } | ast::Expr::Not { .. } | ast::Expr::Exists(_) => {
+            ast::Expr::UnaryNumeric { expr, op } => Ok(
+                if matches!(
+                    op,
+                    ast::UnaryNumericOp::SquareRoot | ast::UnaryNumericOp::CubeRoot
+                ) || matches!(
+                    op,
+                    ast::UnaryNumericOp::Absolute | ast::UnaryNumericOp::Plus
+                ) && binder::unary_numeric::is_unknown_operand(expr)
+                {
+                    Summary::known(701)
+                } else {
+                    first()
+                },
+            ),
+            ast::Expr::IntegerNegate { width, .. } => Ok(Summary::known(oid(&width.data_type()))),
+            ast::Expr::Cast {
+                expr, data_type, ..
+            } => self.cast_summary(expr, data_type),
+            ast::Expr::BoolLiteral(_)
+            | ast::Expr::IsNull { .. }
+            | ast::Expr::TruthTest { .. }
+            | ast::Expr::Not { .. }
+            | ast::Expr::Exists(_) => Ok(Summary::known(16)),
+            ast::Expr::RowCompare(comparison) => {
+                self.row_inputs(comparison, frame)?;
                 Ok(Summary::known(16))
             }
             ast::Expr::Function(_) => Ok(first()),
@@ -57,6 +80,7 @@ impl Fold<'_, '_> {
                 }
                 self.binary(op, frame)
             }
+            ast::Expr::Like { .. } => self.like_inputs(frame),
             ast::Expr::Between {
                 expr, low, high, ..
             } => {
@@ -91,9 +115,69 @@ impl Fold<'_, '_> {
         if matches!(op, ast::BinaryOp::And | ast::BinaryOp::Or) {
             return Ok(Summary::known(16));
         }
+        if matches!(op, ast::BinaryOp::Concat | ast::BinaryOp::ByteaConcat) {
+            let args = &mut self.summaries.values[frame.start..];
+            let bytea = *op == ast::BinaryOp::ByteaConcat
+                || args.iter().any(|argument| argument.oid == 17)
+                    && args
+                        .iter()
+                        .all(|argument| matches!(argument.oid, 0 | 705 | 17));
+            if bytea {
+                if args
+                    .iter()
+                    .any(|argument| !matches!(argument.oid, 0 | 705 | 17))
+                {
+                    self.occurrences.undefined_function("||", 2, None)?;
+                }
+                for argument in args {
+                    if matches!(argument.oid, 0 | 705) {
+                        self.occurrences.coerce(argument, 17, true)?;
+                    }
+                }
+                return Ok(Summary::known(17));
+            }
+            if args
+                .iter()
+                .all(|argument| !matches!(argument.oid, 0 | 705 | 25 | 1043))
+            {
+                self.occurrences.undefined_function("||", 2, None)?;
+            }
+            for argument in args {
+                if matches!(argument.oid, 0 | 705) {
+                    self.occurrences.coerce(argument, 25, true)?;
+                }
+            }
+            return Ok(Summary::known(25));
+        }
+        if let ast::BinaryOp::Bitwise { operation } = op {
+            if operation.is_shift() {
+                let left = &mut self.summaries.values[frame.start];
+                if matches!(left.oid, 0 | 705) {
+                    self.occurrences.coerce(left, 23, true)?;
+                }
+                let result = left.oid;
+                let right = &mut self.summaries.values[frame.start + 1];
+                if !matches!(right.oid, 0 | 705 | 21 | 23) {
+                    self.occurrences
+                        .undefined_function(operation.symbol(), 2, Some(right.oid))?;
+                }
+                self.occurrences.coerce(right, 23, true)?;
+                return Ok(Summary::known(result));
+            }
+        }
         self.comparison_inputs(frame)?;
         Ok(match op {
-            ast::BinaryOp::Add | ast::BinaryOp::Sub | ast::BinaryOp::Mul | ast::BinaryOp::Div => {
+            ast::BinaryOp::Concat => Summary::known(25),
+            ast::BinaryOp::ByteaConcat => Summary::known(17),
+            ast::BinaryOp::Integer { width, .. } => {
+                Summary::known(super::expressions::oid(&width.data_type()))
+            }
+            ast::BinaryOp::Add
+            | ast::BinaryOp::Sub
+            | ast::BinaryOp::Mul
+            | ast::BinaryOp::Div
+            | ast::BinaryOp::Modulo
+            | ast::BinaryOp::Bitwise { .. } => {
                 let left = self.summaries.values[frame.start];
                 let right = self.summaries.values[frame.start + 1];
                 common(left, right).map_or_else(Summary::unqualified, |oid| {
@@ -102,7 +186,8 @@ impl Fold<'_, '_> {
                     result
                 })
             }
-            ast::BinaryOp::PgvectorCosine
+            ast::BinaryOp::Power
+            | ast::BinaryOp::PgvectorCosine
             | ast::BinaryOp::PgvectorL2
             | ast::BinaryOp::PgvectorDot => Summary::known(701),
             ast::BinaryOp::Eq
@@ -117,6 +202,39 @@ impl Fold<'_, '_> {
             | ast::BinaryOp::And
             | ast::BinaryOp::Or => Summary::known(16),
         })
+    }
+
+    fn row_inputs(
+        &mut self,
+        comparison: &ast::RowComparison,
+        frame: &Frame<'_>,
+    ) -> Result<(), ParameterAdmissionError> {
+        for index in 0..comparison.left.len() {
+            check_controls(self.controls)?;
+            let indices = [
+                frame.start + index,
+                frame.start + comparison.left.len() + index,
+            ];
+            let candidate = indices
+                .iter()
+                .map(|index| self.summaries.values[*index])
+                .find(|summary| summary.oid != 705 && summary.qualified)
+                .map_or(25, |summary| summary.oid);
+            for (index, expr) in indices
+                .into_iter()
+                .zip([&comparison.left[index], &comparison.right[index]])
+            {
+                if candidate == 16 && self.summaries.values[index].oid == 705 {
+                    if let ast::Expr::StringLiteral(input) = expr {
+                        self.occurrences
+                            .invalid_boolean_literal(input, self.controls)?;
+                    }
+                }
+                self.occurrences
+                    .coerce(&mut self.summaries.values[index], candidate, true)?;
+            }
+        }
+        Ok(())
     }
 
     fn comparison_inputs(&mut self, frame: &Frame<'_>) -> Result<(), ParameterAdmissionError> {
@@ -269,4 +387,21 @@ pub(super) fn common(left: Summary, right: Summary) -> Option<i32> {
         }
     };
     binder::common_case_type(data_type(left)?, data_type(right)?).map(|data_type| oid(&data_type))
+}
+
+impl Fold<'_, '_> {
+    fn like_inputs(&mut self, frame: &Frame<'_>) -> Result<Summary, ParameterAdmissionError> {
+        let operands = &mut self.summaries.values[frame.start..];
+        if operands[1..]
+            .iter()
+            .all(|summary| matches!(summary.oid, 0 | 705 | 25 | 1042 | 1043))
+        {
+            for summary in operands {
+                if matches!(summary.oid, 0 | 705) {
+                    self.occurrences.coerce(summary, 25, true)?;
+                }
+            }
+        }
+        Ok(Summary::known(16))
+    }
 }

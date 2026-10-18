@@ -36,7 +36,10 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
         remainder
     };
 
-    let select_pos = find_top_level_keyword(after_recursive, 0, "select")
+    let select_pos = ["select", "values"]
+        .iter()
+        .filter_map(|keyword| find_top_level_keyword(after_recursive, 0, keyword))
+        .min()
         .ok_or_else(|| SqlError::new("missing SELECT after WITH clause".into()))?;
 
     let cte_sql = after_recursive[..select_pos].trim();
@@ -45,7 +48,9 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
             "missing CTE definition in WITH clause".into(),
         ));
     }
-    if super::lexical::pattern_end(&after_recursive[select_pos..], 0, "select").is_none() {
+    if super::lexical::pattern_end(&after_recursive[select_pos..], 0, "select").is_none()
+        && super::lexical::pattern_end(&after_recursive[select_pos..], 0, "values").is_none()
+    {
         return Err(SqlError::new(
             "only SELECT statements are supported in this stage".into(),
         ));
@@ -89,19 +94,28 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
 
     let expr = parse_expression(expr_raw)?;
     Ok(match expr {
-        Expr::Function(function) => SelectItem::Function { function, alias },
-        Expr::Cast { .. }
+        Expr::Function(function) => SelectItem::Function {
+            function: *function,
+            alias,
+        },
+        Expr::RowCompare(_)
+        | Expr::UnaryNumeric { .. }
+        | Expr::IntegerNegate { .. }
+        | Expr::Cast { .. }
         | Expr::Case { .. }
         | Expr::Binary { .. }
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::IsNull { .. }
+        | Expr::TruthTest { .. }
         | Expr::InList { .. }
         | Expr::Between { .. }
+        | Expr::Like { .. }
         | Expr::Not { .. }
         | Expr::Exists(_) => SelectItem::Expr { expr, alias },
         Expr::Column(name) => SelectItem::Column { name, alias },
@@ -114,6 +128,11 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
     };
     let function = parse_function(function_raw.trim())?
         .ok_or_else(|| SqlError::new("window function requires function call".into()))?;
+    if function.has_modifiers() {
+        return Err(SqlError::unsupported(
+            "aggregate modifiers on window functions are not yet supported".into(),
+        ));
+    }
     let function_name = function.name.to_ascii_lowercase();
     if !matches!(
         function_name.as_str(),
@@ -470,23 +489,66 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
         let alias = super::lexical::pattern_end(alias_raw, 0, "as").map_or(alias_raw, |end| {
             super::lexical::trim_separators(&alias_raw[end..])
         });
-        if alias.is_empty() || alias.split_whitespace().count() != 1 {
-            return Err(SqlError::new(
-                "FROM subquery requires a deterministic alias".into(),
-            ));
-        }
-
         let parsed = parse_statement(subquery_sql)?;
         let QueryStatement::Select(select) = parsed.statement else {
             return Err(SqlError::new(
                 "FROM subquery must be a SELECT statement".into(),
             ));
         };
+        if matches!(select.source, QuerySource::Values { .. })
+            && select.ctes.is_empty()
+            && select.order.is_empty()
+            && select.limit.is_none()
+            && select.offset.is_none()
+            && select.set.is_none()
+        {
+            if lateral {
+                return Err(SqlError::unsupported(
+                    "lateral VALUES is not yet supported".into(),
+                ));
+            }
+            return relation_alias::parse(select.source, alias_raw);
+        }
+        if alias.contains('(') || alias.starts_with('"') {
+            return relation_alias::parse(
+                QuerySource::Subquery {
+                    alias: "__derived_query".to_string(),
+                    select,
+                    lateral,
+                },
+                alias_raw,
+            );
+        }
+        if alias.is_empty() || alias.split_whitespace().count() != 1 {
+            return Err(SqlError::new(
+                "FROM subquery requires a deterministic alias".into(),
+            ));
+        }
+
         return Ok(QuerySource::Subquery {
-            alias: alias.to_string(),
-            select: Box::new(select),
+            alias: super::identifiers::normalize_identifier(alias)?,
+            select,
             lateral,
         });
+    }
+
+    if let Some(open) = raw.find('(') {
+        if crate::sql::functions::is_catalog_table(raw[..open].trim()) {
+            let close = super::lexical::matching_paren(raw, open)
+                .ok_or_else(|| SqlError::new("invalid catalog table-function call".into()))?;
+            let function = parse_function(&raw[..=close])?
+                .ok_or_else(|| SqlError::new("invalid catalog table-function call".into()))?;
+            let name = function.name.to_ascii_lowercase();
+            let lateral = lateral || crate::sql::functions::is_options_table(&name);
+            return relation_alias::parse(
+                QuerySource::TableFunction {
+                    name,
+                    function,
+                    lateral,
+                },
+                &raw[close + 1..],
+            );
+        }
     }
 
     if let Some(function) = parse_function(raw)? {
@@ -498,7 +560,8 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
                 | "graph_shortest_path"
                 | "pg_show_all_settings"
                 | "pg_catalog.pg_show_all_settings"
-        ) {
+        ) || crate::sql::functions::is_catalog_table(&lower_name)
+        {
             return Ok(QuerySource::TableFunction {
                 name: lower_name,
                 function,
@@ -533,9 +596,17 @@ pub(super) fn parse_cte_definitions(
         let body = super::lexical::trim_separators(&definition[as_pos + 2..]);
 
         let (name, aliases) = parse_cte_header(head)?;
+        let (materialization, body) = super::cte_materialization::parse(body);
         let body_sql = parse_enclosed_parenthesized(body)
             .ok_or_else(|| SqlError::new(format!("invalid CTE body for '{name}'")))?;
-        let query = if let Some(query) = parse_recursive_cte_query(&body_sql)? {
+        // UNION is also valid in an ordinary CTE; the WITH keyword controls
+        // whether its body may use the recursive representation.
+        let recursive_query = if recursive {
+            parse_recursive_cte_query(&body_sql)?
+        } else {
+            None
+        };
+        let query = if let Some(query) = recursive_query {
             query
         } else {
             let parsed_body = parse_statement(&body_sql).map_err(|error| {
@@ -544,21 +615,11 @@ pub(super) fn parse_cte_definitions(
 
             CteQuery::Simple(Box::new(parsed_body))
         };
-        if recursive && !matches!(query, CteQuery::Recursive { .. }) {
-            return Err(SqlError::new(format!(
-                "recursive CTE '{name}' must include UNION ALL between anchor and recursive queries"
-            )));
-        }
-        if !recursive && matches!(query, CteQuery::Recursive { .. }) {
-            return Err(SqlError::new(
-                "WITH clause is not marked RECURSIVE".to_string(),
-            ));
-        }
-
         out.push(CommonTableExpression {
             name: name.clone(),
             aliases,
             query,
+            materialization,
         });
     }
 
@@ -625,7 +686,7 @@ pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlEr
             .filter(|alias| !alias.is_empty())
             .map(|alias| {
                 let column =
-                    crate::sql::ColumnIdentifierPath::parse(alias).map_err(SqlError::new)?;
+                    crate::sql::ColumnIdentifierPath::parse_sql(alias).map_err(SqlError::new)?;
                 if column.is_qualified() {
                     return Err(SqlError::new(format!(
                         "invalid column identifier '{alias}'"
@@ -638,13 +699,13 @@ pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlEr
             return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
-        Ok((name.to_string(), aliases))
+        Ok((super::identifiers::normalize_identifier(name)?, aliases))
     } else {
         if raw.contains('(') || raw.contains(')') {
             return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
-        Ok((raw.to_string(), Vec::new()))
+        Ok((super::identifiers::normalize_identifier(raw)?, Vec::new()))
     }
 }
 

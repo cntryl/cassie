@@ -27,18 +27,20 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Null-safe comparisons | `IS DISTINCT FROM` / `IS NOT DISTINCT FROM` over selected current scalar/ARRAY equality in query and DML expressions; native typed numeric filter/projection/aggregate-predicate kernels and projected-scan pruning, scalar/residual fallback otherwise (including joins), persisted-definition rejection. See [finite contract](null-safe-predicate-contract.md). | Experimental |
 | Existing operator spelling | Compact and spaced `=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`, `+`, `-`, `*`, and `/` share expression precedence, literal boundaries and parameter identity. Generic parser and bound-query witnesses live in `tests/parser_types/dialect_syntax.rs`; [#794](https://github.com/cntryl/cassie/issues/794) tracks qualification. | Experimental |
 | Ordering and pagination | `ORDER BY`, null placement, `LIMIT`, `OFFSET` | Stable |
+| SQL-standard pagination spelling | Selected integer `FETCH FIRST/NEXT … ROW/ROWS ONLY` and `OFFSET … ROW/ROWS`, including omitted FETCH count, checked parameters, and local/global set-query bounds. `WITH TIES` rejects 0A000 and remains pending. | Experimental |
 | Deduplication | `DISTINCT`, `DISTINCT ON` | Stable |
 | Aggregation | `count`, `sum`, `avg`, `min`, `max`, grouping and `HAVING` | Stable |
 | Join syntax | Inner, left, right, full outer, cross, lateral, apply, semi, and anti forms with legality-preserving planning | Experimental |
 | Subqueries | Implemented table, predicate (including EXISTS), lateral, and correlated forms; scalar expression subqueries are absent. | Experimental |
 | Scalar expression subqueries | Absent; selected syntax, type, correlation and cardinality semantics are tracked in [#762](https://github.com/cntryl/cassie/issues/762). | Planned |
 | Common table expressions | Non-recursive and recursive `WITH` | Experimental |
-| Set operations | `UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT` | Stable |
+| Typed VALUES sources | Selected DATE/TIME/TIMESTAMP/UUID/BYTEA and character casts, NULL/common-column typing, inferred/supplied parameters, text/binary formats and source-aware text conversion. Unbounded bpchar and character padding retain comparison/DISTINCT identity through projection and CTEs. Complete type/coercion/collation qualification remains pending. | Experimental |
+| Set operations | `UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT`; selected integer/text/NULL `INTERSECT ALL`, `EXCEPT ALL`, explicit DISTINCT, SELECT ALL and VALUES branches now match native multiplicity and ordering. Wider coercion qualification remains pending under #800. | Experimental |
 | Window functions | Ranking, offset, value functions, and documented row frames | Experimental |
 | Views | Read-only views and nested views | Stable |
 | User functions | Scalar UDFs with declared volatility | Experimental |
 | Procedures | `CREATE PROCEDURE`, `CALL`, and `DROP PROCEDURE` for the narrow one-statement contract in [Limited Procedures and CALL](procedure-support.md); not a stored-procedure business-logic platform | Stable |
-| Types and casts | Text, numeric, bool, timestamp, UUID, JSON, arrays, vectors, and supported casts | Experimental |
+| Types and casts | Text, numeric, bool, timestamp, UUID, JSON, arrays, vectors, and supported casts. Selected explicit VARCHAR(n) casts truncate by Unicode character count after source-aware formatting; selected INT2/INT4/INT8 ↔ BYTEA casts preserve declared widths, zero extension, signed boundaries, NULLs and native overlength errors. Selected BYTEA hex/escape input preserves native conversion phases and errors across text/binary parameters; canonical hex storage is unchanged. Complete assignment, session output and cast-family qualification remains pending. | Experimental |
 | Conditional scalar expressions | Selected `NULLIF`, `GREATEST` and `LEAST` over existing integer, FLOAT, TEXT and BOOLEAN families; see [Conditional expressions](conditional-expressions.md) for coercion, NULL, descriptor and exclusion rules. | Experimental |
 | Reserved identity column | `_id` names the internal document identity and cannot be declared or dropped; a table may declare its own `id` column and query it as an ordinary column | Stable |
 
@@ -145,6 +147,7 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 | Local deterministic embeddings | In-process deterministic hashing protocol with configured model label and dimensions; no external service or learned semantic model | Stable |
 | Time-series indexes | Ordered partition/range lookup with fixed-duration positive integer `minute(s)`, `hour(s)`, or `day(s)` bucket widths. The promoted evidence matrix uses 15 minutes, 1 hour, and 1 day. Buckets are fixed UTC durations; calendar month, week, local-time, and daylight-saving semantics are unsupported. Missing, stale, corrupt, or interrupted derived state falls back atomically to authoritative rows. | Stable |
 | Time-series rollups and retention | Explicit rollup refresh and retention-policy enforcement over time-series data | Experimental |
+| Catalog scalar helpers | Exact `pg_size_bytes(text)`, bigint `pg_size_pretty`, and selected encoding-name lookup; native NAME parameter ABI, NUMERIC formatting and physical sizes remain pending. See [catalog support](catalog-support.md). | Experimental |
 | Column-batch analytics | Stable CBM2 batches provide deterministic automatic plain, constant, typed RLE, dictionary, 128-value frame-of-reference, FSST UTF-8 symbol streams, and ALP decimal-scaled float blocks, summary pruning, late materialization, encoded scans, exact filtered aggregate acceleration, and generation-fenced range copy-on-write maintenance. FSST uses manifest codec tag 6 and codec version 1 with at most 256 deterministic symbols and a bounded 64 KiB symbol table; selective projection validates the complete table, framing, indices, decoded sizes, and UTF-8 while materializing only selected values. ALP uses manifest codec tag 5 and codec version 1, encodes only finite bit-exact values, and leaves signed zero or non-exact values on plain encoding. Unsupported, stale, corrupt, unknown-version, or over-limit derived state falls back atomically to authoritative rows. Codec selection is not a SQL or configuration surface. | Stable |
 | Graph traversal | Neighbor expansion and shortest paths | Experimental |
 
@@ -152,6 +155,9 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 
 | Capability | Behavior | Status |
 | --- | --- | --- |
+| Option expansion | Selected one-dimensional logical TEXT[] inputs to pg_options_to_table FROM relations, with native TEXT outputs and selected errors. Native array/RECORD ABI, bounds, dimensions and SQL array assignment remain pending. | Experimental |
+| Runtime information | Actual recovery/JIT/NUMA capabilities and Rust Unicode version; NULL compression for materialized SQL values; empty loaded-module FROM relation with three TEXT columns. Scalar RECORD projection and complete system/catalog ABI remain pending. | Experimental |
+| Catalog read models | Selected database-scoped table/view/sequence discovery, ordinary column identity/generation flags, and column-name/empty-row shapes for 26 absent object registries. Native catalog-domain OIDs/codecs, ownership, definitions, OID/reg* lifecycle and wider DDL remain pending. | Experimental |
 | Plan cache | Session-safe reusable parsed and physical plans | Experimental |
 | Execution-result cache | Context-isolated, epoch-invalidated, byte-bounded query results | Experimental |
 | Cost planning | Relational join enumeration, deterministic statistics fallbacks, physical properties, and access-path selection | Experimental |

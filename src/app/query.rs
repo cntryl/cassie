@@ -9,8 +9,11 @@ use super::{
     QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement,
 };
 // Discard compiled plans from earlier Boolean/conditional binding and literal-only pagination.
-// Alias namespaces and expression bounds share this rebuildable cache epoch.
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 4;
+// Alias namespaces, expression bounds, concrete integer signatures and numeric
+// unary binding, FETCH pagination, set quantifiers, typed VALUES and explicit
+// Catalog read-model schemas and scalar helper signatures share this rebuildable compiled-plan cache epoch.
+// Exact admitted parameter OIDs also namespace the rebuildable plan identity.
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 33;
 
 pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,
@@ -39,19 +42,22 @@ impl Cassie {
     pub(super) fn plan_cache_key_from_fingerprint(
         &self,
         sql_fingerprint: u64,
-        parameter_shape: Vec<crate::runtime::ParameterShape>,
+        parameter_type_oids: &[i32],
         mode: ExecutionMode,
         database: Option<String>,
         search_path: &[String],
     ) -> PlanCacheKey {
         PlanCacheKey {
-            sql_fingerprint,
+            sql_fingerprint: super::query_parameters::parameter_cache_fingerprint(
+                sql_fingerprint,
+                parameter_type_oids,
+            ),
             schema_epoch: self.runtime.schema_epoch(),
             data_epoch: self.runtime.data_epoch(),
             index_feedback_epoch: self.runtime.index_feedback_epoch(),
             cost_model_version: PLAN_CACHE_COST_MODEL_VERSION,
             adaptive_config_hash: self.adaptive_config_hash(),
-            parameter_shape,
+            parameter_shape: super::query_parameters::parameter_shape_for_oids(parameter_type_oids),
             mode,
             database,
             search_path: search_path.to_owned(),
@@ -80,9 +86,41 @@ impl Cassie {
         database: Option<String>,
         search_path: &[String],
     ) -> bool {
+        // This diagnostic reconstructs embedded input admission. Its existing
+        // signature has neither client-declared wire OIDs nor a session user.
+        let admitted = if params.is_empty() {
+            None
+        } else {
+            if search_path.iter().any(|schema| schema == "$user") {
+                return false;
+            }
+            let effective = super::query_parameters::effective_parameter_type_oids(params, &[]);
+            let controls = self.runtime.query_controls(Instant::now());
+            let scope = crate::catalog::FunctionInputScope {
+                database: database.as_deref().unwrap_or(&self.default_database),
+                search_path,
+                user: "",
+                enforce_database_scope: self.database_catalog_enforced(),
+            };
+            let Ok(admitted) = crate::sql::checked_parameter_types_in_scope(
+                parsed,
+                crate::sql::PrivateParameterTypeInput::Embedded {
+                    effective: &effective,
+                    values: params,
+                },
+                &self.catalog,
+                &controls,
+                Some(&scope),
+            ) else {
+                return false;
+            };
+            Some(admitted)
+        };
         let key = self.plan_cache_key_from_fingerprint(
             crate::runtime::sql_fingerprint(parsed),
-            crate::runtime::parameter_shape(params),
+            admitted
+                .as_ref()
+                .map_or(&[], crate::sql::AdmittedParameterTypes::types),
             mode,
             database,
             search_path,
@@ -293,6 +331,8 @@ impl Cassie {
             return Err(CassieError::DeadlineExceeded);
         }
 
+        let execution_session = session.with_statement_text(sql, controls)?;
+        let session = &execution_session;
         self.runtime.record_sql_parse();
         let parsed = parser::parse_statement(sql)?;
         let explain = if matches!(parsed.statement, QueryStatement::Explain(_)) {
@@ -345,6 +385,8 @@ impl Cassie {
             return Err(CassieError::DeadlineExceeded);
         }
 
+        let execution_session = session.with_statement_text(sql, controls)?;
+        let session = &execution_session;
         self.runtime.record_sql_parse();
         let parsed = parser::parse_statement(sql)?;
         let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
@@ -387,7 +429,7 @@ impl Cassie {
         let cache_key = is_select.then(|| {
             self.plan_cache_key_from_fingerprint(
                 sql_fingerprint,
-                super::query_parameters::parameter_shape_for_oids(parameter_type_oids),
+                parameter_type_oids,
                 mode,
                 session.database.clone(),
                 &session.search_path(),
@@ -396,7 +438,10 @@ impl Cassie {
         let (exec_cache_key, key_memory) = if is_select {
             match self.admitted_execution_result_cache_key(
                 session,
-                sql_fingerprint,
+                super::query_parameters::parameter_cache_fingerprint(
+                    sql_fingerprint,
+                    parameter_type_oids,
+                ),
                 params,
                 mode,
                 controls,
@@ -461,6 +506,18 @@ impl Cassie {
             )
         }) {
             return Some("session_mutating_function");
+        }
+        if ["current_query", "pg_catalog.current_query"]
+            .iter()
+            .any(|name| {
+                crate::executor::plan_uses_function_including_views(
+                    &physical.logical,
+                    name,
+                    &self.catalog,
+                )
+            })
+        {
+            return Some("statement_text_function");
         }
         if crate::executor::plan_uses_function_including_views(
             &physical.logical,
@@ -675,6 +732,7 @@ impl Cassie {
             &self.binding_context_for_session(Some(session)),
             parameter_type_oids,
         )?;
+        crate::executor::check_plan_constants(&physical.logical, controls)?;
         let mut plan = super::query_explain::plan_line(self, &physical, controls)?;
         let mut structured = super::query_explain::structured_plan(self, &physical, controls)?;
 
@@ -794,6 +852,7 @@ fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> b
             query_source_uses_virtual_catalog(left) || query_source_uses_virtual_catalog(right)
         }
         crate::sql::ast::QuerySource::Cte(_)
+        | crate::sql::ast::QuerySource::Values { .. }
         | crate::sql::ast::QuerySource::SingleRow
         | crate::sql::ast::QuerySource::TableFunction { .. } => false,
     }
@@ -802,3 +861,19 @@ fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> b
 #[cfg(test)]
 #[path = "query_cache_semantics_tests.rs"]
 mod cache_semantics_tests;
+
+#[cfg(test)]
+#[path = "query_parameter_cache_tests.rs"]
+mod parameter_cache_tests;
+
+#[cfg(test)]
+#[path = "query_text_tests.rs"]
+mod text_tests;
+
+#[cfg(test)]
+#[path = "query_test_fixture.rs"]
+mod query_test_fixture;
+
+#[cfg(test)]
+#[path = "query_datum_tests.rs"]
+mod datum_tests;

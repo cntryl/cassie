@@ -485,7 +485,14 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::Explain(_) => "EXPLAIN",
         QueryStatement::Select(_) => "SELECT",
         QueryStatement::Show(_) => "SHOW",
-        QueryStatement::Set(_) => "SET",
+        QueryStatement::Set(statement) => {
+            match statement.action {
+                crate::sql::ast::SettingAction::Set
+                | crate::sql::ast::SettingAction::SetDefault => "SET",
+                crate::sql::ast::SettingAction::Reset
+                | crate::sql::ast::SettingAction::ResetAll => "RESET",
+            }
+        }
         QueryStatement::Copy(_) => "COPY",
         QueryStatement::Insert(_) => "INSERT",
         QueryStatement::Update(_) => "UPDATE",

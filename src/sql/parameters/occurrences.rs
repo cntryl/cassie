@@ -65,7 +65,10 @@ impl Summary {
 }
 
 pub(super) const fn primitive_oid(oid: i32) -> bool {
-    matches!(oid, 16 | 20 | 21 | 23 | 25 | 700 | 701 | 1042 | 1043 | 1700)
+    matches!(
+        oid,
+        16 | 17 | 20 | 21 | 23 | 25 | 700 | 701 | 1042 | 1043 | 1082 | 1083 | 1114 | 1700 | 2950
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -87,11 +90,26 @@ pub(super) struct Occurrences<'a> {
 }
 
 impl<'a> Occurrences<'a> {
+    pub(super) fn stops_on_error(&self) -> bool {
+        self.stop_on_error
+    }
     pub(super) fn into_slots(self) -> ReservedVector<i32> {
         self.slots
     }
     pub(super) fn len(&self) -> usize {
         self.ledger.values.len()
+    }
+
+    pub(super) fn invalid_scalar_literal(
+        &self,
+        input: &str,
+        diagnostic: super::diagnostics::ScalarLiteralDiagnostic,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), ParameterAdmissionError> {
+        if self.stop_on_error {
+            return Err(super::literal_input::admit(input, diagnostic, controls)?);
+        }
+        Ok(())
     }
 
     pub(super) fn invalid_boolean_literal(
@@ -108,6 +126,89 @@ impl<'a> Occurrences<'a> {
             )?);
         }
         Ok(())
+    }
+
+    pub(super) fn boolean_aggregate_literal(
+        &self,
+        input: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), ParameterAdmissionError> {
+        if self.stop_on_error && crate::types::boolean::parse_text(input).is_none() {
+            return Err(super::admission::admit_invalid_boolean_literal(
+                input, controls,
+            )?);
+        }
+        Ok(())
+    }
+
+    pub(super) fn boolean_aggregate_input(
+        &mut self,
+        function: &'static str,
+        summary: Summary,
+    ) -> Result<(), ParameterAdmissionError> {
+        if !matches!(summary.oid, 0 | 16 | UNKNOWN_PARAMETER_TYPE_OID) {
+            self.undefined_function(function, 1, Some(summary.oid))?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn unresolved_parameter(
+        &mut self,
+        slot: usize,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::Unresolved { slot })
+    }
+
+    pub(super) fn pending_datum_input(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::PendingDatumInput)
+    }
+
+    pub(super) fn pending_name_input(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::PendingNameInput)
+    }
+
+    pub(super) fn pending_type_function_input(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::PendingTypeFunctionInput)
+    }
+
+    pub(super) fn ambiguous_function(
+        &mut self,
+        function: &'static str,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::AmbiguousFunction { function })
+    }
+
+    pub(super) fn undefined_function(
+        &mut self,
+        function: &'static str,
+        argument_count: usize,
+        actual: Option<i32>,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::UndefinedFunction {
+            function,
+            argument_count,
+            actual,
+        })
+    }
+
+    pub(super) fn values_width(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::ValuesWidth)
+    }
+
+    pub(super) fn values_types(
+        &mut self,
+        left: i32,
+        right: i32,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::ValuesTypes { left, right })
+    }
+
+    pub(super) fn invalid_distinct_order(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::DistinctAggregateOrder)
+    }
+
+    pub(super) fn missing_equality(&mut self, actual: i32) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::MissingEquality { actual })
     }
 
     pub(super) fn unqualify_since(
@@ -256,6 +357,19 @@ impl<'a> Occurrences<'a> {
         Ok(())
     }
 
+    pub(super) fn embedded_int4_carrier(&self, summary: Summary) -> bool {
+        let PrivateParameterTypeInput::Embedded { values, .. } = self.input else {
+            return false;
+        };
+        summary
+            .occurrence
+            .and_then(|ordinal| self.ledger.values.get(ordinal))
+            .and_then(|occurrence| values.get(occurrence.slot))
+            .is_some_and(
+                |value| matches!(value, Value::Int64(value) if i32::try_from(*value).is_ok()),
+            )
+    }
+
     pub(super) fn boolean(
         &mut self,
         summary: &mut Summary,
@@ -269,9 +383,13 @@ impl<'a> Occurrences<'a> {
                 | BooleanConstruct::And
                 | BooleanConstruct::Or
                 | BooleanConstruct::CaseWhen
+                | BooleanConstruct::Truth(..)
         );
         let selected_for_diagnostics = selected_for_inference
-            || matches!(construct, BooleanConstruct::Having | BooleanConstruct::Join);
+            || matches!(
+                construct,
+                BooleanConstruct::Having | BooleanConstruct::Join | BooleanConstruct::Filter
+            );
         if !selected_for_inference {
             if let Some(ordinal) = summary.occurrence {
                 let occurrence = self.ledger.values[ordinal];

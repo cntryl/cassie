@@ -30,8 +30,8 @@ pub(super) fn result_type(name: &str, arguments: &[DataType]) -> Result<DataType
                 "{name} argument type is outside the selected conditional expression contract"
             )));
         }
-        common = super::inference::common_case_type(common, argument.clone())
-            .ok_or_else(|| CassieError::Planner(format!("incompatible {name} argument types")))?;
+        common = super::inference::common_case_type(common.clone(), argument.clone())
+            .ok_or_else(|| incompatible_types(name, &common, argument))?;
     }
     let result = if name.eq_ignore_ascii_case("nullif") && common != DataType::Float {
         arguments
@@ -47,6 +47,20 @@ pub(super) fn result_type(name: &str, arguments: &[DataType]) -> Result<DataType
     } else {
         result
     })
+}
+
+fn incompatible_types(name: &str, left: &DataType, right: &DataType) -> CassieError {
+    let left = super::values::pg_name(left);
+    let right = super::values::pg_name(right);
+    let message = if name.eq_ignore_ascii_case("nullif") {
+        format!("operator does not exist: {left} = {right}")
+    } else {
+        format!(
+            "{} types {left} and {right} cannot be matched",
+            name.to_ascii_uppercase()
+        )
+    };
+    CassieError::Execution(message)
 }
 
 pub(super) fn validate_expression(expr: &Expr, types: &ResultTypes) -> Result<(), CassieError> {
@@ -75,7 +89,7 @@ fn validate_function_type(function: &FunctionCall, types: &ResultTypes) -> Resul
 pub(super) fn validate_item(item: &SelectItem, types: &ResultTypes) -> Result<(), CassieError> {
     match item {
         SelectItem::Function { function, .. } => {
-            for arg in &function.args {
+            for arg in function.expressions() {
                 validate_expression(arg, types)?;
             }
             validate_function_type(function, types)?;

@@ -51,7 +51,7 @@ fn run_with_execution_breakdown_controls(
 ) -> Result<ExecutionBreakdownOutput, QueryError> {
     let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
     let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
-    super::constant_planning::check_plan(&plan.logical)?;
+    check_constants(&plan.logical, controls, &params)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, None, &plan.logical);
 
@@ -108,7 +108,7 @@ pub(crate) fn run_with_session_controls(
 ) -> Result<QueryResult, QueryError> {
     let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
     let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
-    super::constant_planning::check_plan(&plan.logical)?;
+    check_constants(&plan.logical, controls, &params)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, session, &plan.logical);
 
@@ -243,6 +243,18 @@ pub(super) fn enter_statement_read(
         controls.statement_read().and_then(|owner| owner.overlay()),
     );
     (read_scope, overlay_scope)
+}
+
+fn check_constants(
+    plan: &super::LogicalPlan,
+    controls: &QueryExecutionControls,
+    parameters: &[Value],
+) -> Result<(), QueryError> {
+    if parameters.is_empty() {
+        super::constant_planning::check_plan(plan, controls)
+    } else {
+        super::constant_planning::check_plan_with_parameters(plan, controls, parameters)
+    }
 }
 
 #[cfg(test)]

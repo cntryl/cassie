@@ -7,22 +7,23 @@
 //! prunes as it goes: a constant FALSE or NULL `WHEN` drops its arm unprocessed,
 //! a constant TRUE `WHEN` ends the CASE, a deciding constant AND/OR input skips
 //! the inputs after it, and COALESCE stops at its first non-NULL constant.
-//! Row values, parameters, subqueries and non-immutable functions are not
-//! constant, so expressions that read them keep their runtime laziness.
+//! Row values, unbound parameters, subqueries and non-immutable functions are
+//! not constant. Bind checks can supply primitive parameter values without
+//! placing them in a cached plan; the semantic evaluator preserves laziness.
 //!
 //! The plan is not rewritten; this walk only reports the arithmetic error that
 //! folding raises. Constant subtrees are evaluated with the scalar evaluator,
 //! once, at the outermost node that still folds. An `EXISTS` subquery is
 //! checked after discarding the clauses PostgreSQL drops from it.
 
+use super::cte_reachability::{self, SelectParts};
 use super::exists_target::ExistsClauses;
 use super::{filter, Expr, FunctionMeta, HashMap, LogicalCommand, LogicalPlan, QueryError};
-use super::{CommonTableExpression, CteQuery, HashSet, InsertSource, QuerySource};
+use super::{CteQuery, InsertSource, QuerySource};
 use super::{QueryStatement, SelectItem};
 use crate::executor::filter::ScalarValue;
 use crate::sql::ast::{
-    BinaryOp, FunctionCall, InsertConflictAction, OrderExpr, ParsedStatement, SelectSet,
-    SelectStatement,
+    BinaryOp, FunctionCall, InsertConflictAction, ParsedStatement, SelectStatement,
 };
 use crate::sql::functions::FunctionId;
 
@@ -32,19 +33,33 @@ use crate::sql::functions::FunctionId;
 /// # Errors
 ///
 /// Returns the folding error, such as division by zero.
-pub(super) fn check_plan(plan: &LogicalPlan) -> Result<(), QueryError> {
-    let folder = Folder::default();
-    folder.check_select(&SelectParts {
-        ctes: &plan.ctes,
-        source: &plan.source,
-        projection: &plan.projection,
-        filter: plan.filter.as_ref(),
-        group_by: &plan.group_by,
-        having: plan.having.as_ref(),
-        order: &plan.order,
-        distinct_on: &plan.distinct_on,
-        set: plan.set.as_deref(),
-    })?;
+pub(crate) fn check_plan(
+    plan: &LogicalPlan,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(), QueryError> {
+    check_with_parameters(plan, controls, None)
+}
+
+pub(crate) fn check_plan_with_parameters(
+    plan: &LogicalPlan,
+    controls: &crate::runtime::QueryExecutionControls,
+    parameters: &[crate::types::Value],
+) -> Result<(), QueryError> {
+    check_with_parameters(plan, controls, Some(parameters))
+}
+
+fn check_with_parameters(
+    plan: &LogicalPlan,
+    controls: &crate::runtime::QueryExecutionControls,
+    parameters: Option<&[crate::types::Value]>,
+) -> Result<(), QueryError> {
+    super::check_timeout(controls)?;
+    let folder = Folder {
+        no_functions: HashMap::new(),
+        controls,
+        parameters,
+    };
+    folder.check_select(&SelectParts::plan(plan))?;
     match &plan.command {
         Some(LogicalCommand::Insert(insert)) => {
             match &insert.source {
@@ -77,14 +92,20 @@ pub(super) fn check_plan(plan: &LogicalPlan) -> Result<(), QueryError> {
 /// What folding learned about an expression.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Fold {
-    /// Only constant inputs; evaluating the original expression follows the
-    /// same pruned path, so evaluation is deferred to the outermost such node.
+    /// Semantically constant inputs, including already-pruned descendants.
+    /// Evaluate through the shared semantic-constant evaluator first.
     Constant,
     /// A Boolean (`None` is NULL) decided by short-circuit folding; the
     /// original expression may still contain non-constant inputs.
     Decided(Option<bool>),
     /// Reads a row, a parameter, a subquery or a non-immutable function.
     Variable,
+}
+
+impl Fold {
+    fn is_known(self) -> bool {
+        !matches!(self, Self::Variable)
+    }
 }
 
 /// A folded condition: a constant truth value (`None` is NULL), or unknown
@@ -95,40 +116,13 @@ enum Truth {
     Unknown,
 }
 
-struct SelectParts<'a> {
-    ctes: &'a [CommonTableExpression],
-    source: &'a QuerySource,
-    projection: &'a [SelectItem],
-    filter: Option<&'a Expr>,
-    group_by: &'a [Expr],
-    having: Option<&'a Expr>,
-    order: &'a [OrderExpr],
-    distinct_on: &'a [Expr],
-    set: Option<&'a SelectSet>,
-}
-
-impl<'a> SelectParts<'a> {
-    fn of(select: &'a SelectStatement) -> Self {
-        Self {
-            ctes: &select.ctes,
-            source: &select.source,
-            projection: &select.projection,
-            filter: select.filter.as_ref(),
-            group_by: &select.group_by,
-            having: select.having.as_ref(),
-            order: &select.order,
-            distinct_on: &select.distinct_on,
-            set: select.set.as_deref(),
-        }
-    }
-}
-
-#[derive(Default)]
-struct Folder {
+struct Folder<'a> {
+    controls: &'a crate::runtime::QueryExecutionControls,
     no_functions: HashMap<String, FunctionMeta>,
+    parameters: Option<&'a [crate::types::Value]>,
 }
 
-impl Folder {
+impl Folder<'_> {
     fn check_select(&self, select: &SelectParts<'_>) -> Result<(), QueryError> {
         self.check_ctes(select)?;
         self.check_source(select.source)?;
@@ -138,6 +132,9 @@ impl Folder {
         self.check_all(select.having)?;
         self.check_all(select.order.iter().map(|order| &order.expr))?;
         self.check_all(select.distinct_on)?;
+        for bound in select.limit.into_iter().chain(select.offset) {
+            crate::sql::pagination::check_constants(bound, self.controls)?;
+        }
         if let Some(set) = select.set {
             self.check_statement_select(&set.right)?;
         }
@@ -153,16 +150,9 @@ impl Folder {
         if select.ctes.is_empty() {
             return Ok(());
         }
-        let mut referenced = HashSet::new();
-        source_names(select.source, &mut referenced);
-        if let Some(set) = select.set {
-            select_names(&set.right, &mut referenced);
-        }
-        for cte in select.ctes {
-            cte_names(&cte.query, &mut referenced);
-        }
-        for cte in select.ctes {
-            if !referenced.contains(&cte.name.to_ascii_lowercase()) {
+        let live = cte_reachability::used(select, self.controls)?;
+        for (index, cte) in select.ctes.iter().enumerate() {
+            if !live.contains(index) {
                 continue;
             }
             match &cte.query {
@@ -187,8 +177,22 @@ impl Folder {
 
     fn check_source(&self, source: &QuerySource) -> Result<(), QueryError> {
         match source {
+            QuerySource::Values { rows } => {
+                for expression in rows.iter().flatten() {
+                    super::check_timeout(self.controls)?;
+                    let _scratch =
+                        self.controls
+                            .reserve_query_memory(super::source::values_scratch_bytes(
+                                expression,
+                                &[],
+                            )?)?;
+                    self.check(expression)?;
+                }
+                Ok(())
+            }
+
             QuerySource::Aliased { source, .. } => self.check_source(source),
-            QuerySource::TableFunction { function, .. } => self.check_all(&function.args),
+            QuerySource::TableFunction { function, .. } => self.check_all(function.expressions()),
             QuerySource::Subquery { select, .. } => self.check_statement_select(select),
             QuerySource::Join {
                 left, right, on, ..
@@ -208,6 +212,7 @@ impl Folder {
             return Ok(());
         };
         if ExistsClauses::of_select(select).target_is_irrelevant() {
+            self.check_ctes(&SelectParts::of(select))?;
             self.check_source(&select.source)?;
             self.check_all(&select.filter)
         } else {
@@ -222,8 +227,8 @@ impl Folder {
                 SelectItem::Expr { expr, .. } => self.check(expr)?,
                 SelectItem::Function { function, .. } => {
                     let fold = self.fold_function(function)?;
-                    if fold == Fold::Constant {
-                        self.evaluate(&Expr::Function(function.clone()))?;
+                    if fold.is_known() {
+                        self.evaluate(&Expr::Function(Box::new(function.clone())))?;
                     }
                 }
                 SelectItem::WindowFunction { function, .. } => {
@@ -247,7 +252,7 @@ impl Folder {
 
     /// Evaluates a constant expression whose parent does not fold.
     fn settle(&self, fold: Fold, expr: &Expr) -> Result<(), QueryError> {
-        if fold == Fold::Constant && !is_literal(expr) {
+        if fold.is_known() && !is_literal(expr) {
             self.evaluate(expr)?;
         }
         Ok(())
@@ -257,8 +262,35 @@ impl Folder {
     /// error; any other failure means the evaluator cannot fold this constant,
     /// which is left to run time.
     fn evaluate(&self, expr: &Expr) -> Result<Option<ScalarValue>, QueryError> {
+        let _cast_memory = self
+            .controls
+            .reserve_query_memory(filter::cast_scratch_bytes(expr)?)?;
+        let (constant, _constant_memory) = match filter::constant_scalar_with_parameters(
+            expr,
+            self.parameters.unwrap_or(&[]),
+            self.controls,
+        ) {
+            Ok((value, memory)) => (Ok(value), Some(memory)),
+            Err(error) => (Err(error), None),
+        };
+        match constant {
+            Ok(Some(value)) => return Ok(Some(value)),
+            Err(error) if is_folding_error(&error) => return Err(error),
+            Ok(None) | Err(_) => {}
+        }
+        if self.parameters.is_some() {
+            return Ok(None);
+        }
         let row: Vec<(String, crate::types::Value)> = Vec::new();
-        match filter::eval_scalar(&row, expr, &[], None, &self.no_functions, None, None) {
+        match filter::eval_scalar(
+            &row,
+            expr,
+            self.parameters.unwrap_or(&[]),
+            None,
+            &self.no_functions,
+            None,
+            None,
+        ) {
             Ok(value) => Ok(Some(value)),
             Err(error) if is_folding_error(&error) => Err(error),
             Err(_) => Ok(None),
@@ -279,8 +311,25 @@ impl Folder {
     }
 
     fn fold(&self, expr: &Expr) -> Result<Fold, QueryError> {
+        super::check_timeout(self.controls)?;
         match expr {
-            Expr::Column(_) | Expr::Param(_) => Ok(Fold::Variable),
+            Expr::Column(_) => Ok(Fold::Variable),
+            Expr::Param(index) => Ok(
+                if self
+                    .parameters
+                    .and_then(|params| params.get(*index))
+                    .is_some_and(|value| {
+                        !matches!(
+                            value,
+                            crate::types::Value::Json(_) | crate::types::Value::Vector(_)
+                        )
+                    })
+                {
+                    Fold::Constant
+                } else {
+                    Fold::Variable
+                },
+            ),
             Expr::Exists(statement) => {
                 self.check_exists(statement)?;
                 Ok(Fold::Variable)
@@ -288,8 +337,10 @@ impl Folder {
             Expr::StringLiteral(_)
             | Expr::NumberLiteral(_)
             | Expr::IntegerLiteral(_)
+            | Expr::NumericLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::Null => Ok(Fold::Constant),
+            Expr::RowCompare(comparison) => self.fold_row(comparison),
             Expr::Binary { left, op, right } => match op {
                 BinaryOp::And => self.fold_logical(left, right, false),
                 BinaryOp::Or => self.fold_logical(left, right, true),
@@ -299,6 +350,14 @@ impl Folder {
                 }
                 _ => self.fold_operands([&**left, &**right], true, false),
             },
+            Expr::TruthTest {
+                expr,
+                truth,
+                negated,
+            } => Ok(match self.fold(expr)? {
+                Fold::Decided(value) => Fold::Decided(Some(truth.evaluate(value, *negated))),
+                fold => fold,
+            }),
             Expr::IsNull { expr, negated } => Ok(match self.fold(expr)? {
                 Fold::Decided(value) => Fold::Decided(Some(value.is_none() != *negated)),
                 fold => fold,
@@ -307,17 +366,39 @@ impl Folder {
                 Fold::Decided(value) => Fold::Decided(value.map(|value| !value)),
                 fold => fold,
             }),
-            Expr::Cast { expr, .. } => self.fold_operands([&**expr], true, false),
+            Expr::Cast { expr, .. }
+            | Expr::UnaryNumeric { expr, .. }
+            | Expr::IntegerNegate { expr, .. } => self.fold_operands([&**expr], true, false),
             // `x IN (...)` folds as `x = ANY(ARRAY[...])`: every element folds,
             // although the runtime list test stops at its first match.
             Expr::InList { expr, values, .. } => {
                 self.fold_operands(std::iter::once(&**expr).chain(values), true, true)
+            }
+            predicate @ Expr::Like {
+                expr,
+                pattern,
+                escape,
+            } => {
+                self.fold_operands([&**expr, &**pattern, &**escape], true, true)?;
+                Ok(match self.evaluate(predicate)? {
+                    Some(ScalarValue::Null) => Fold::Decided(None),
+                    Some(ScalarValue::Bool(value)) => Fold::Decided(Some(value)),
+                    _ => Fold::Variable,
+                })
             }
             Expr::Between {
                 expr,
                 low,
                 high,
                 negated,
+                symmetric: true,
+            } => self.fold_symmetric_between(expr, low, high, *negated),
+            Expr::Between {
+                expr,
+                low,
+                high,
+                negated,
+                symmetric: false,
             } => self.fold_between(expr, low, high, *negated),
             Expr::Case {
                 operand,
@@ -325,6 +406,66 @@ impl Folder {
                 else_expr,
             } => self.fold_case(operand.as_deref(), branches, else_expr.as_deref()),
             Expr::Function(function) => self.fold_function(function),
+        }
+    }
+
+    fn fold_row(&self, comparison: &crate::sql::ast::RowComparison) -> Result<Fold, QueryError> {
+        use crate::sql::ast::RowComparisonOp;
+        let equality = matches!(comparison.op, RowComparisonOp::Eq | RowComparisonOp::NotEq)
+            || comparison.op.null_safe();
+        if !equality {
+            let folded =
+                self.fold_operands(comparison.left.iter().chain(&comparison.right), true, true)?;
+            // PostgreSQL retains multi-field RowCompareExpr nodes after
+            // folding arguments. Singletons lower to scalar operators.
+            return Ok(if comparison.left.len() == 1 {
+                folded
+            } else {
+                Fold::Variable
+            });
+        }
+        let is_or = matches!(
+            comparison.op,
+            RowComparisonOp::NotEq | RowComparisonOp::IsDistinctFrom
+        );
+        let mut variable = false;
+        let mut has_null = false;
+        for (left, right) in comparison.left.iter().zip(&comparison.right) {
+            super::check_timeout(self.controls)?;
+            let left_fold = self.fold(left)?;
+            let right_fold = self.fold(right)?;
+            if left_fold != Fold::Variable && right_fold != Fold::Variable {
+                if let (Some(left), Some(right)) = (
+                    self.folded_value(left_fold, left)?,
+                    self.folded_value(right_fold, right)?,
+                ) {
+                    match filter::row_field_result(&left, comparison.op, &right)? {
+                        ScalarValue::Bool(value) if value == is_or => {
+                            return Ok(Fold::Decided(Some(value)))
+                        }
+                        ScalarValue::Null => has_null = true,
+                        ScalarValue::Bool(_) => {}
+                        _ => variable = true,
+                    }
+                    continue;
+                }
+            }
+            self.settle(left_fold, left)?;
+            self.settle(right_fold, right)?;
+            variable = true;
+        }
+        Ok(combined(variable, has_null, is_or))
+    }
+
+    fn folded_value(
+        &self,
+        fold: Fold,
+        expression: &Expr,
+    ) -> Result<Option<ScalarValue>, QueryError> {
+        match fold {
+            Fold::Constant => self.evaluate(expression),
+            Fold::Decided(value) => Ok(Some(value.map_or(ScalarValue::Null, ScalarValue::Bool))),
+            Fold::Variable => Ok(None),
         }
     }
 
@@ -340,7 +481,7 @@ impl Folder {
         for operand in operands {
             folded.push((self.fold(operand)?, operand));
         }
-        let constant = immutable && folded.iter().all(|(fold, _)| *fold == Fold::Constant);
+        let constant = immutable && folded.iter().all(|(fold, _)| fold.is_known());
         if !constant || settle_constants {
             for (fold, operand) in folded {
                 self.settle(fold, operand)?;
@@ -371,6 +512,35 @@ impl Folder {
             }
         }
         Ok(combined(variable, has_null, is_or))
+    }
+
+    fn fold_symmetric_between(
+        &self,
+        expr: &Expr,
+        low: &Expr,
+        high: &Expr,
+        negated: bool,
+    ) -> Result<Fold, QueryError> {
+        crate::executor::filter::symmetric_between::evaluate(
+            expr,
+            low,
+            high,
+            negated,
+            |left, op, right| {
+                let left_fold = self.fold(left)?;
+                let right_fold = self.fold(right)?;
+                Ok::<_, QueryError>(
+                    match self.compare(left_fold, left, op, right_fold, right)? {
+                        Truth::Known(value) => filter::symmetric_between::Comparison::Known(value),
+                        Truth::Unknown => filter::symmetric_between::Comparison::Variable,
+                    },
+                )
+            },
+        )
+        .map(|value| match value {
+            filter::symmetric_between::Comparison::Known(value) => Fold::Decided(value),
+            filter::symmetric_between::Comparison::Variable => Fold::Variable,
+        })
     }
 
     /// `a BETWEEN b AND c` folds as `a >= b AND a <= c`, and NOT BETWEEN as
@@ -416,7 +586,7 @@ impl Folder {
         right_fold: Fold,
         right: &Expr,
     ) -> Result<Truth, QueryError> {
-        if left_fold == Fold::Constant && right_fold == Fold::Constant {
+        if left_fold.is_known() && right_fold.is_known() {
             let comparison = Expr::Binary {
                 left: Box::new(left.clone()),
                 op,
@@ -439,19 +609,15 @@ impl Folder {
         else_expr: Option<&Expr>,
     ) -> Result<Fold, QueryError> {
         // A simple CASE compares a constant operand with each WHEN value. A
-        // short-circuited operand is compared through its decided literal, so
-        // the original CASE is no longer safe to evaluate as a whole.
-        let mut deferrable = true;
+        // short-circuited operand is compared through its decided literal.
+        // The semantic evaluator preserves that pruning through parent casts.
         let operand = match operand {
             Some(operand) => {
                 let fold = self.fold(operand)?;
                 self.settle(fold, operand)?;
                 Some(match fold {
                     Fold::Constant => Some(operand.clone()),
-                    Fold::Decided(value) => {
-                        deferrable = false;
-                        Some(value.map_or(Expr::Null, Expr::BoolLiteral))
-                    }
+                    Fold::Decided(value) => Some(value.map_or(Expr::Null, Expr::BoolLiteral)),
                     Fold::Variable => None,
                 })
             }
@@ -461,11 +627,8 @@ impl Folder {
         for (when, then) in branches {
             let when_fold = self.fold(when)?;
             let condition = match &operand {
-                None => {
-                    deferrable &= !matches!(when_fold, Fold::Decided(_));
-                    self.truth(when_fold, when)?
-                }
-                Some(Some(operand)) if when_fold == Fold::Constant => {
+                None => self.truth(when_fold, when)?,
+                Some(Some(operand)) if when_fold.is_known() => {
                     self.truth(Fold::Constant, &simple_case_match(operand, when))?
                 }
                 Some(_) => {
@@ -475,7 +638,7 @@ impl Folder {
             };
             match condition {
                 Truth::Known(Some(false) | None) => {}
-                Truth::Known(Some(true)) => return self.case_result(then, variable, deferrable),
+                Truth::Known(Some(true)) => return self.case_result(then, variable),
                 Truth::Unknown => {
                     variable = true;
                     self.check(then)?;
@@ -483,20 +646,15 @@ impl Folder {
             }
         }
         match else_expr {
-            Some(else_expr) => self.case_result(else_expr, variable, deferrable),
+            Some(else_expr) => self.case_result(else_expr, variable),
             None if variable => Ok(Fold::Variable),
             None => Ok(Fold::Constant),
         }
     }
 
-    fn case_result(
-        &self,
-        result: &Expr,
-        variable: bool,
-        deferrable: bool,
-    ) -> Result<Fold, QueryError> {
+    fn case_result(&self, result: &Expr, variable: bool) -> Result<Fold, QueryError> {
         let fold = self.fold(result)?;
-        if fold == Fold::Constant && (variable || !deferrable) {
+        if fold.is_known() && variable {
             self.settle(fold, result)?;
             return Ok(Fold::Variable);
         }
@@ -504,20 +662,14 @@ impl Folder {
     }
 
     fn fold_function(&self, function: &FunctionCall) -> Result<Fold, QueryError> {
+        self.check_all(function.filter.as_deref())?;
+        self.check_all(function.order_by.iter().map(|order| &order.expr))?;
         let id = crate::sql::functions::function(&function.name).map(|metadata| metadata.id);
         match id {
             Some(FunctionId::Coalesce) => self.fold_coalesce(&function.args),
-            Some(
-                FunctionId::Length
-                | FunctionId::Lower
-                | FunctionId::Upper
-                | FunctionId::Substring
-                | FunctionId::Trim
-                | FunctionId::NullIf
-                | FunctionId::Greatest
-                | FunctionId::Least
-                | FunctionId::Abs,
-            ) => self.fold_operands(&function.args, true, false),
+            Some(id) if crate::sql::functions::is_immutable_scalar(id) => {
+                self.fold_operands(&function.args, true, false)
+            }
             _ => self.fold_operands(&function.args, false, false),
         }
     }
@@ -526,7 +678,6 @@ impl Folder {
     /// constant; inputs after it are never processed.
     fn fold_coalesce(&self, args: &[Expr]) -> Result<Fold, QueryError> {
         let mut variable = false;
-        let mut deferrable = true;
         for arg in args {
             let fold = self.fold(arg)?;
             let is_null = match fold {
@@ -537,67 +688,19 @@ impl Folder {
                 Fold::Variable => None,
             };
             match is_null {
-                Some(true) => deferrable &= fold == Fold::Constant,
+                Some(true) => {}
                 Some(false) if variable => return Ok(Fold::Variable),
                 Some(false) => {
-                    return Ok(match fold {
-                        Fold::Constant if !deferrable => Fold::Variable,
-                        fold => fold,
-                    });
+                    return Ok(fold);
                 }
                 None => variable = true,
             }
         }
-        Ok(if variable || !deferrable {
+        Ok(if variable {
             Fold::Variable
         } else {
             Fold::Constant
         })
-    }
-}
-
-/// Collects the relation names a FROM tree reads, through nested subqueries.
-fn source_names(source: &QuerySource, names: &mut HashSet<String>) {
-    match source {
-        QuerySource::Cte(name) => {
-            names.insert(name.to_ascii_lowercase());
-        }
-        QuerySource::Collection(path) => {
-            if let Some(name) = path.values().last() {
-                names.insert(name.to_ascii_lowercase());
-            }
-        }
-        QuerySource::Aliased { source, .. } => source_names(source, names),
-        QuerySource::Subquery { select, .. } => select_names(select, names),
-        QuerySource::Join { left, right, .. } => {
-            source_names(left, names);
-            source_names(right, names);
-        }
-        QuerySource::TableFunction { .. } | QuerySource::SingleRow => {}
-    }
-}
-
-fn select_names(select: &SelectStatement, names: &mut HashSet<String>) {
-    source_names(&select.source, names);
-    if let Some(set) = &select.set {
-        select_names(&set.right, names);
-    }
-    for cte in &select.ctes {
-        cte_names(&cte.query, names);
-    }
-}
-
-fn cte_names(query: &CteQuery, names: &mut HashSet<String>) {
-    let statements: [Option<&ParsedStatement>; 2] = match query {
-        CteQuery::Simple(statement) => [Some(statement), None],
-        CteQuery::Recursive {
-            base, recursive, ..
-        } => [Some(base), Some(recursive)],
-    };
-    for statement in statements.into_iter().flatten() {
-        if let QueryStatement::Select(select) = &statement.statement {
-            select_names(select, names);
-        }
     }
 }
 
@@ -625,6 +728,7 @@ const fn is_literal(expr: &Expr) -> bool {
         Expr::StringLiteral(_)
             | Expr::NumberLiteral(_)
             | Expr::IntegerLiteral(_)
+            | Expr::NumericLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::Null
     )
@@ -633,9 +737,47 @@ const fn is_literal(expr: &Expr) -> bool {
 fn is_folding_error(error: &QueryError) -> bool {
     matches!(
         error,
+        QueryError::Cassie(
+            crate::app::CassieError::SizeInput(_)
+                | crate::app::CassieError::FloatInput(_)
+                | crate::app::CassieError::BooleanInput(_)
+                | crate::app::CassieError::IntegerBytea(_)
+                | crate::app::CassieError::ByteaInput(_)
+                | crate::app::CassieError::ByteaIndex { .. }
+                | crate::app::CassieError::InvalidParameterValue(_)
+                | crate::app::CassieError::ResourceLimit(_)
+                | crate::app::CassieError::QueryCancelled
+                | crate::app::CassieError::DeadlineExceeded
+        )
+    ) || matches!(
+        error,
         QueryError::General(message)
-            if message == "division by zero"
+            if matches!(message.as_str(), "division by zero" | "invalid escape string" | "LIKE pattern must not end with escape character" | "cannot take square root of a negative number" | "zero raised to a negative power is undefined" | "a negative number raised to a non-integer power yields a complex result")
+                || matches!(message.as_str(), "smallint out of range" | "integer out of range" | "invalid input syntax for type smallint" | "invalid input syntax for type integer" | "invalid input syntax for type bigint")
+                || is_integer_input_diagnostic(message)
                 || message == filter::BIGINT_OUT_OF_RANGE
                 || message == crate::types::numeric::FLOAT_OVERFLOW
     )
 }
+
+fn is_integer_input_diagnostic(message: &str) -> bool {
+    [
+        "invalid input syntax for type smallint: \"",
+        "invalid input syntax for type integer: \"",
+        "invalid input syntax for type bigint: \"",
+    ]
+    .iter()
+    .any(|prefix| message.starts_with(prefix))
+        || (message.starts_with("value \"")
+            && [
+                "\" is out of range for type smallint",
+                "\" is out of range for type integer",
+                "\" is out of range for type bigint",
+            ]
+            .iter()
+            .any(|suffix| message.ends_with(suffix)))
+}
+
+#[cfg(test)]
+#[path = "constant_planning_controls_tests.rs"]
+mod controls_tests;

@@ -128,7 +128,11 @@ fn estimate_filter_rows(expr: &Expr, stats: &CollectionCardinalityStats) -> Opti
         }
         Expr::Binary { left, op, right } => estimate_binary_filter_rows(left, op, right, stats),
         Expr::Between {
-            expr, low, high, ..
+            expr,
+            low,
+            high,
+            symmetric: false,
+            ..
         } => {
             let Expr::Column(field) = expr.as_ref() else {
                 return None;
@@ -255,6 +259,8 @@ fn estimated_source_rows<S: BuildHasher>(
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> u64 {
     match source {
+        QuerySource::Values { rows } => u64::try_from(rows.len()).unwrap_or(u64::MAX),
+
         QuerySource::Aliased { source, .. } => estimated_source_rows(source, cardinality_stats),
         QuerySource::Collection(collection) => collection_stats(collection, cardinality_stats)
             .map_or(PlanEstimates::DEFAULT_ROWS, |stats| stats.row_count),

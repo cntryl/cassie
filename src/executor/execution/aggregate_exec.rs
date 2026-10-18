@@ -14,8 +14,11 @@ use crate::types::Value;
 
 use super::{aggregate_signature, check_timeout, group_expr_name, QueryError};
 
+mod boolean;
 #[path = "aggregate_exec/group_memory.rs"]
 mod group_memory;
+#[path = "aggregate_exec/modifiers.rs"]
+mod modifiers;
 mod output_types;
 #[path = "aggregate_exec/rewrite.rs"]
 mod rewrite;
@@ -340,6 +343,12 @@ fn parallel_aggregation_eligibility(
     if plan.set.is_some() {
         return Err("set-operation");
     }
+    if specs
+        .iter()
+        .any(|spec| spec.function.is_distinct() || !spec.function.order_by.is_empty())
+    {
+        return Err("aggregate-local-distinct-or-order");
+    }
     if plan
         .projection
         .iter()
@@ -351,7 +360,7 @@ fn parallel_aggregation_eligibility(
         !matches!(
             spec.function.name.to_ascii_lowercase().as_str(),
             "count" | "sum" | "avg" | "min" | "max"
-        )
+        ) && boolean::BooleanState::new(&spec.function.name).is_none()
     }) {
         return Err("unsupported-aggregate");
     }
@@ -363,8 +372,7 @@ fn parallel_aggregation_eligibility(
         .any(|expr| !expr_supports_parallel_aggregation(expr, user_functions))
         || specs.iter().any(|spec| {
             spec.function
-                .args
-                .iter()
+                .expressions()
                 .any(|expr| !expr_supports_parallel_aggregation(expr, user_functions))
         })
     {
@@ -379,6 +387,9 @@ fn expr_supports_parallel_aggregation(
 ) -> bool {
     match expr {
         Expr::Function(function) => {
+            if function.is_distinct() || !function.order_by.is_empty() {
+                return false;
+            }
             let name = function.name.to_ascii_lowercase();
             if user_functions.contains_key(&name) {
                 return false;
@@ -396,6 +407,7 @@ fn expr_supports_parallel_aggregation(
             }
             if crate::sql::functions::is_aggregate_function(&function.name)
                 && !matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
+                && boolean::BooleanState::new(&function.name).is_none()
             {
                 return false;
             }
@@ -416,7 +428,7 @@ fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSpec> {
                 register_aggregate_spec(&mut specs, function, alias.clone());
             }
             SelectItem::Function { function, .. } => {
-                for arg in &function.args {
+                for arg in function.expressions() {
                     collect_aggregate_specs_from_expr(arg, &mut specs);
                 }
             }
@@ -484,7 +496,9 @@ fn evaluate_aggregate(
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
-    if matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max") {
+    if matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
+        || boolean::BooleanState::new(&function.name).is_some()
+    {
         AggregateAccumulator::evaluate(function, rows, context)
     } else {
         Ok(Value::Null)

@@ -7,7 +7,7 @@ pub(super) fn rewrite_select(select: &mut SelectStatement, fields: &crate::sql::
         match item {
             SelectItem::Expr { expr, .. } => rewrite(expr, fields),
             SelectItem::Function { function, .. } => {
-                for argument in &mut function.args {
+                for argument in function.expressions_mut() {
                     rewrite(argument, fields);
                 }
             }
@@ -87,6 +87,8 @@ fn cast_column(expr: &mut Expr, fields: &crate::sql::FieldTypeMap) {
             *expr = Expr::Cast {
                 expr: Box::new(expr.clone()),
                 data_type: DataType::Json,
+                source_type: None,
+                identity: crate::sql::ast::CastIdentity::Scalar,
             };
         }
     }

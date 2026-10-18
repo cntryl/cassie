@@ -1,3 +1,10 @@
+#[path = "statements/settings.rs"]
+mod settings;
+#[path = "statements/transaction.rs"]
+mod transaction;
+pub(super) use settings::{parse_reset_statement, parse_set_statement, parse_show_statement};
+pub(super) use transaction::parse_transaction_statement;
+
 use super::expr::{parse_expr_token, split_csv};
 use super::schema::{
     parse_constraint_literal, parse_data_type, parse_if_exists, parse_if_not_exists,
@@ -7,8 +14,7 @@ use super::{
     find_top_level_keyword, parse_statement, CallProcedureStatement, CreateFunctionStatement,
     CreateProcedureStatement, CreateViewStatement, DataType, DropFunctionStatement,
     DropProcedureStatement, DropViewStatement, ExplainStatement, FunctionArg, ParsedStatement,
-    QueryStatement, SetStatement, ShowStatement, SqlError, TransactionAction, TransactionIsolation,
-    TransactionStatement, Value, Volatility,
+    QueryStatement, SqlError, Value, Volatility,
 };
 
 pub(super) fn parse_explain_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
@@ -44,8 +50,12 @@ pub(super) fn is_transaction_control_statement(lower: &str) -> bool {
         || lower.starts_with("start transaction ")
         || lower == "commit"
         || lower.starts_with("commit ")
+        || lower == "end"
+        || lower.starts_with("end ")
         || lower == "rollback"
         || lower.starts_with("rollback ")
+        || lower == "abort"
+        || lower.starts_with("abort ")
         || lower == "savepoint"
         || lower.starts_with("savepoint ")
         || lower == "release"
@@ -89,181 +99,6 @@ pub(super) fn is_unsupported_transaction_control_statement(lower: &str) -> bool 
         || lower.starts_with("rollback prepared ")
         || lower == "set transaction"
         || lower.starts_with("set transaction ")
-}
-
-pub(super) fn parse_transaction_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
-    let trimmed = sql.trim().trim_end_matches(';').trim();
-    let tokens = trimmed
-        .split_whitespace()
-        .map(str::to_lowercase)
-        .collect::<Vec<_>>();
-    let token_refs = tokens.iter().map(String::as_str).collect::<Vec<_>>();
-
-    let statement = match token_refs.as_slice() {
-        ["begin", "isolation", "level", isolation @ ..]
-        | ["begin" | "start", "transaction", "isolation", "level", isolation @ ..] => {
-            TransactionStatement {
-                action: TransactionAction::Begin,
-                isolation: Some(parse_transaction_isolation(isolation)?),
-            }
-        }
-        ["begin"] | ["begin" | "start", "transaction"] => TransactionStatement {
-            action: TransactionAction::Begin,
-            isolation: None,
-        },
-        ["commit"] | ["commit", "transaction"] => TransactionStatement {
-            action: TransactionAction::Commit,
-            isolation: None,
-        },
-        ["rollback"] | ["rollback", "transaction"] => TransactionStatement {
-            action: TransactionAction::Rollback,
-            isolation: None,
-        },
-        ["rollback", "to", name] | ["rollback", "to", "savepoint", name] => TransactionStatement {
-            action: TransactionAction::RollbackTo {
-                name: parse_savepoint_name(name, "ROLLBACK TO")?,
-            },
-            isolation: None,
-        },
-        ["rollback", "to", ..] => {
-            return Err(SqlError::new(
-                "ROLLBACK TO requires a savepoint name".to_string(),
-            ));
-        }
-        ["savepoint", name] => TransactionStatement {
-            action: TransactionAction::Savepoint {
-                name: parse_savepoint_name(name, "SAVEPOINT")?,
-            },
-            isolation: None,
-        },
-        ["savepoint", ..] => {
-            return Err(SqlError::new("SAVEPOINT requires a name".to_string()));
-        }
-        ["release", name] | ["release", "savepoint", name] => TransactionStatement {
-            action: TransactionAction::Release {
-                name: parse_savepoint_name(name, "RELEASE")?,
-            },
-            isolation: None,
-        },
-        ["release", ..] => {
-            return Err(SqlError::new(
-                "RELEASE requires a savepoint name".to_string(),
-            ));
-        }
-        _ => {
-            return Err(SqlError::new(
-                "unsupported transaction control statement".to_string(),
-            ));
-        }
-    };
-
-    Ok(ParsedStatement {
-        raw_sql: trimmed.to_string(),
-        statement: QueryStatement::Transaction(statement),
-    })
-}
-
-pub(super) fn parse_savepoint_name(raw: &str, command: &str) -> Result<String, SqlError> {
-    let raw_name = raw.trim();
-    let name = if raw_name.starts_with('"') && raw_name.ends_with('"') && raw_name.len() >= 2 {
-        &raw_name[1..raw_name.len() - 1]
-    } else {
-        raw_name
-    };
-    if name.is_empty() {
-        return Err(SqlError::new(format!(
-            "{command} requires a savepoint name"
-        )));
-    }
-    if name.chars().any(|character| {
-        !(character.is_ascii_alphanumeric() || character == '_' || character == '-')
-    }) {
-        return Err(SqlError::new(format!("invalid savepoint name '{name}'")));
-    }
-    Ok(name.to_ascii_lowercase())
-}
-
-pub(super) fn parse_transaction_isolation(
-    tokens: &[&str],
-) -> Result<TransactionIsolation, SqlError> {
-    match tokens {
-        ["read", "committed"] => Ok(TransactionIsolation::ReadCommitted),
-        ["repeatable", "read"] => Ok(TransactionIsolation::RepeatableRead),
-        ["serializable"] => Ok(TransactionIsolation::Serializable),
-        _ => Err(SqlError::new(
-            "unsupported transaction control statement".to_string(),
-        )),
-    }
-}
-
-pub(super) fn parse_show_statement(trimmed: &str) -> Result<ParsedStatement, SqlError> {
-    let trimmed = trimmed.trim().trim_end_matches(';').trim();
-    let argument = trimmed[4..].trim();
-    if argument.is_empty() {
-        return Err(SqlError::new("SHOW requires a parameter".into()));
-    }
-
-    Ok(ParsedStatement {
-        raw_sql: trimmed.to_string(),
-        statement: QueryStatement::Show(ShowStatement {
-            variable: argument.to_string(),
-        }),
-    })
-}
-
-pub(super) fn normalize_set_value(value: &str) -> String {
-    let trimmed = value.trim();
-    if (trimmed.starts_with('\'') && trimmed.ends_with('\''))
-        || (trimmed.starts_with('\"') && trimmed.ends_with('\"'))
-    {
-        return trimmed[1..trimmed.len() - 1].to_string();
-    }
-    trimmed.to_string()
-}
-
-pub(super) fn parse_set_statement(trimmed: &str) -> Result<ParsedStatement, SqlError> {
-    let trimmed = trimmed.trim().trim_end_matches(';').trim();
-    let argument = trimmed[3..].trim();
-    if argument.is_empty() {
-        return Err(SqlError::new("SET requires a parameter".into()));
-    }
-
-    let mut variable = argument;
-    let mut value = None;
-
-    if argument.to_ascii_lowercase().starts_with("time zone ") {
-        variable = "timezone";
-        value = Some(normalize_set_value(argument["time zone ".len()..].trim()));
-    } else if let Some((left, right)) = argument.split_once('=') {
-        variable = left.trim();
-        value = Some(normalize_set_value(right.trim()));
-    } else if let Some(pos) = argument.to_ascii_lowercase().find(" to ") {
-        variable = argument[..pos].trim();
-        value = Some(normalize_set_value(argument[pos + 4..].trim()));
-    }
-
-    if variable.trim().is_empty() {
-        return Err(SqlError::new("invalid SET statement".into()));
-    }
-
-    let variable_lower = variable.to_lowercase();
-    if variable_lower == "role"
-        || variable_lower.starts_with("role ")
-        || variable_lower == "session authorization"
-        || variable_lower.starts_with("session authorization ")
-    {
-        return Err(SqlError::new(
-            "SET ROLE and SET SESSION AUTHORIZATION are not supported in this version".into(),
-        ));
-    }
-
-    Ok(ParsedStatement {
-        raw_sql: trimmed.to_string(),
-        statement: QueryStatement::Set(SetStatement {
-            variable: variable.to_string(),
-            value,
-        }),
-    })
 }
 
 pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStatement, SqlError> {

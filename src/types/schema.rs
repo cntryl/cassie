@@ -120,10 +120,9 @@ impl DataType {
                     .unwrap_or(-1)
             }
             Self::Char { length } => length
-                .unwrap_or(1)
-                .checked_add(4)
+                .and_then(|length| length.checked_add(4))
                 .and_then(|length| i32::try_from(length).ok())
-                .unwrap_or(5),
+                .unwrap_or(-1),
             _ => -1,
         }
     }
@@ -140,6 +139,56 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
     }
 
     let lower = raw.to_lowercase();
+    if let Some(local_name) = lower.strip_prefix("pg_catalog.") {
+        let name = local_name
+            .split_once('(')
+            .map_or(local_name, |(name, _)| name.trim());
+        let known_builtin = super::builtin::BUILTIN_TYPES.iter().any(|metadata| {
+            metadata.name == name
+                // UNKNOWN and unconstrained BPCHAR require cast semantics
+                // that the existing scalar runtime does not yet provide.
+                && !matches!(
+                    metadata.kind,
+                    super::builtin::BuiltinKind::Unknown | super::builtin::BuiltinKind::Bpchar
+                )
+        });
+        if !known_builtin {
+            return Err(format!("unsupported data type '{raw}'"));
+        }
+        return parse_sql_type(local_name);
+    }
+    if lower.split_whitespace().eq(["double", "precision"]) {
+        return Ok(DataType::Float);
+    }
+    let (base, modifier) = lower
+        .split_once('(')
+        .map_or((lower.as_str(), ""), |(base, _)| {
+            (base, &lower[base.len()..])
+        });
+    let canonical = if base.split_whitespace().eq(["character"])
+        || base.split_whitespace().eq(["national", "character"])
+        || base.split_whitespace().eq(["nchar"])
+    {
+        Some("char")
+    } else if base.split_whitespace().eq(["character", "varying"])
+        || base.split_whitespace().eq(["char", "varying"])
+        || base
+            .split_whitespace()
+            .eq(["national", "character", "varying"])
+        || base.split_whitespace().eq(["nchar", "varying"])
+    {
+        Some("varchar")
+    } else {
+        None
+    };
+    if let Some(canonical) = canonical {
+        return parse_sql_type(&format!("{canonical}{modifier}"));
+    }
+    if let Some(temporal) = lower.strip_suffix(" without time zone") {
+        if temporal.starts_with("timestamp") || temporal.starts_with("time") {
+            return parse_sql_type(temporal);
+        }
+    }
     if let Some(inner) = lower.strip_prefix("vector(") {
         let Some(inner) = inner.strip_suffix(')') else {
             return Err(format!("invalid vector type '{raw}'"));
@@ -175,9 +224,9 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         "smallint" | "int2" => Ok(DataType::SmallInt),
         "int" | "integer" | "int4" => Ok(DataType::Int),
         "bigint" | "int8" => Ok(DataType::BigInt),
-        "float" | "double" | "numeric" | "decimal" => Ok(DataType::Float),
+        "float" | "float8" | "double" | "numeric" | "decimal" => Ok(DataType::Float),
         "boolean" | "bool" => Ok(DataType::Boolean),
-        "text" | "string" | "varchar" => Ok(DataType::Text),
+        "text" | "string" => Ok(DataType::Text),
         "uuid" => Ok(DataType::Uuid),
         "bytea" => Ok(DataType::Bytea),
         "date" => Ok(DataType::Date),

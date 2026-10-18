@@ -197,8 +197,16 @@ fn should_retain_long_positional_prefix_output_backing_until_drop() {
     // Arrange
     with_fixture(|cassie| {
         let prefix = "p".repeat(4096);
-        let sql = format!("WITH c AS (SELECT CAST(NULL AS TEXT[]) AS n, CAST(2 AS BIGINT) AS tail) SELECT * FROM c AS a(\"{prefix}\")");
-        let statement = crate::sql::parse_statement(&sql).expect("prefix SQL");
+        let sql = "WITH c AS (SELECT CAST(NULL AS TEXT[]) AS n, CAST(2 AS BIGINT) AS tail) SELECT * FROM c AS a(prefix)";
+        let mut statement = crate::sql::parse_statement(sql).expect("prefix SQL");
+        // SQL identifiers truncate at 63 bytes; programmatic AST names remain exact.
+        let crate::sql::ast::QueryStatement::Select(select) = &mut statement.statement else {
+            panic!("SELECT fixture");
+        };
+        let QuerySource::Aliased { column_aliases, .. } = &mut select.source else {
+            panic!("aliased CTE fixture");
+        };
+        column_aliases[0].clone_from(&prefix);
         let plan = super::super::build_logical_plan_in_session(cassie, None, &statement)
             .expect("D1 bound prefix");
         let controls = QueryExecutionControls::from_limits(
@@ -283,7 +291,7 @@ fn should_preserve_public_positional_prefix_metadata() {
                 .expect("public prefix SQL");
             // Assert
             assert_eq!(result.rows(), vec![vec![Value::Null, Value::Int64(2)]]);
-            assert_eq!(result.columns()[0].name, prefix);
+            assert_eq!(result.columns()[0].name, prefix[..63]);
             assert_eq!(result.columns()[0].type_oid, 34025);
             assert_eq!(result.columns()[1].name, "tail");
             assert_eq!(result.columns()[1].type_oid, 20);

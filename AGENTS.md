@@ -49,6 +49,16 @@ find src tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr 
 
 ## Testing
 
+- Correctness tests use the smallest fixture that proves the invariant. Throughput,
+  scaling, saturation, and endurance workloads belong in `benches/`, using the
+  existing stress tiers. Do not add performance timing assertions to correctness tests.
+- Resource tests lower configured limits and exercise just-below/just-above cases.
+  Cancellation and concurrency tests synchronize at the relevant execution boundary;
+  do not seed large inputs or sleep to win a scheduling race. Deadlines remain hang guards.
+- Start network fixtures with an owned, bound listener instead of a fixed startup sleep.
+  Use `Cassie::new_in_memory_with_config` for ephemeral SQL/protocol fixtures;
+  do not mutate process-wide storage environment variables to select their mode.
+  Keep restart/persistence tests on local storage and retain their actual recovery assertions.
 - All integration tests live in `tests/`. Module tests live near the code they cover.
 - **Async tests**: use `tokio::runtime::Builder::new_current_thread().enable_all().build()` — never `#[tokio::test]`.
 - Benchmark fixtures select `CASSIE_STORAGE_MODE=memory` for ephemeral runs and

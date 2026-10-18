@@ -685,6 +685,7 @@ fn collect_column_batch_predicates(
             low,
             high,
             negated: false,
+            symmetric: false,
         } => {
             let Expr::Column(field) = expr.as_ref() else {
                 return None;
@@ -814,6 +815,7 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => Some(()),
         Expr::Binary {
@@ -836,9 +838,12 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
             collect_projected_scan_filter_columns(left, fields)?;
             collect_projected_scan_filter_columns(right, fields)
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            collect_projected_scan_filter_columns(expr, fields)
-        }
+        Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => collect_projected_scan_filter_columns(expr, fields),
         Expr::InList { expr, values, .. } => {
             collect_projected_scan_filter_columns(expr, fields)?;
             for value in values {
@@ -848,12 +853,17 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
         }
         Expr::Between {
             expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             collect_projected_scan_filter_columns(expr, fields)?;
             collect_projected_scan_filter_columns(low, fields)?;
             collect_projected_scan_filter_columns(high, fields)
         }
-        Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => None,
+        Expr::RowCompare(_) | Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => None,
     }
 }
 

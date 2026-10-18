@@ -124,7 +124,7 @@ Text and binary support below describe the selected finite current profile. Nume
 | Int | trim + exact i64 parse + i32 range; decimal output | exact 4-byte network-endian signed integer |
 | BigInt | trim + exact i64 parse; decimal output | exact 8-byte network-endian signed integer; float-backed output requires finite integral in-range value |
 | Float | OID 700/701 -> f64; OID 1700 -> i64 if integral/in-range otherwise f64; text output Infinity/-Infinity/NaN where query values exist | OID 701: exact 8-byte network-endian f64; inexact i64-to-f64 output rejected; OID 700 and 1700 unsupported |
-| Boolean | PostgreSQL-style accepted vocabulary through shared boolean parser; result t/f | receive exactly one byte, nonzero means true; send canonical 0/1; empty input 08P01, excess bytes 22P03 |
+| Boolean | Native unique prefixes and ASCII whitespace through shared parser; invalid text input 22P02; result t/f | receive exactly one byte, nonzero means true; send canonical 0/1; empty input 08P01, excess bytes 22P03 |
 | Text | raw UTF-8 | raw UTF-8, invalid UTF-8 rejected |
 | Char | raw input -> write validation; raw unpadded output | UTF-8 text payload |
 | Varchar | raw input -> write validation; raw output | UTF-8 text payload |
@@ -253,6 +253,12 @@ Describe/capability surface with a new administrative catalog profile.
 
 Pgwire validates exported result types from the already compiled plan before a result-cache hit or any execution side effect. Describe and Execute use the existing metadata owner when there are no parameters and the private parameter-aware output contract when the prepared OID list is nonempty. The latter includes ordinary supported parameter types, because their exported ARRAY and CTE types also require propagation. Both paths apply the same logical VECTOR-array exclusion and execution controls. This preserves ordinary metadata and avoids repeating parameter analysis for queries without parameters; paired source-shape probes qualify the additional parameter path. Fresh, cached and fixed-schema suspended type cases retain their descriptors. Numeric input provenance follows exported positions through CTEs, derived tables and value-contributing set branches. An outer existing-type CAST consumes that provenance. Predicates, constrained assignments and independently fixed result expressions do not require a CAST merely because they use a numeric input adapter.
 
+Compiled-plan and execution-result cache identity includes the complete ordered
+effective parameter OID signature. Describe, Bind and Execute use that same
+signature: equal decoded values do not permit reuse across integer widths or
+BYTEA and TEXT inputs. Repeated statements with the same signature retain cache
+reuse. Rebuildable compiled entries from older binding epochs are discarded.
+
 Transaction-scoped portal lifetime and schema/snapshot changes remain owned by
 [#755](https://github.com/cntryl/cassie/issues/755)/[#757](https://github.com/cntryl/cassie/issues/757).
 A diagnostic that resumes a named wildcard cursor after Sync and column addition
@@ -320,3 +326,208 @@ temporal error priority, existing array-element delegation and indexed scalar
 mutations across savepoint recovery and restart. Independent packet/value
 fixtures retain the current adapters. Whole PostgreSQL comparisons, including
 still-pending temporal and standard-array forms, remain in the default corpus.
+
+
+Row-constructor predicates use transient expression metadata and produce the
+existing Boolean identity (OID 16). Their primitive implementation adds no
+DataType variant, stored record representation, row codec or migration. Integer
+field operations retain INT2/INT4/INT8 signatures before common comparison
+coercion. Executed row/null/parameter/restart evidence and pending whole-record,
+extended-family and broader source-constant obligations are recorded in
+[validation.md](testing/validation.md). Existing persisted-null-safe-definition
+admission continues to follow the separate null-safe predicate contract.
+
+Eligible single-row VALUES sources propagate their bound typed expressions
+into the consuming SELECT before planning-time constant checks. This preserves
+primitive widths, output names and parameter analysis while pruning unused
+cells. Propagation retains row-ordering expression structure; multi-field row
+ordering does not become a scalar constant merely because its fields do.
+Clone storage is admitted before substitution. Parameter/function/CHAR source
+cells and nested scope, window and set boundaries remain outside this increment.
+
+
+Scalar text output uses the existing declared identities. Default FLOAT8 output
+uses PostgreSQL's scientific thresholds, ties to even and strict midpoint
+selection; transient cast metadata retains proven FLOAT8 source identity for
+SQL text output without relabeling unresolved NUMERIC proxies. TIME and
+TIMESTAMP use ISO text with compact fractions for wire output and bound
+TEXT/VARCHAR casts. Their existing persisted normalization is unchanged.
+`Expr::Cast::source_type` is optional bound metadata, preserved through AST
+mapping, structural equality, expression keys and EXISTS reconstruction.
+`CastIdentity` retains requested NUMERIC/DECIMAL cast origin while the legacy
+parser still shares their carrier with FLOAT8. Those casts cannot become proven
+FLOAT8 sources. Exact NUMERIC storage, codecs and legacy schema aliases remain
+unqualified under #793/#812; preserving cast origin does not implement them.
+Current binding populates it for the selected primitive output conversions;
+unbound and unrelated casts leave it absent. Catalog definitions persist SQL
+and rebind against the schema. Full DateStyle, extra_float_digits, extended
+temporal families and native literal-input phase qualification remain pending.
+Executed evidence and the explicit pending probes remain in the validation log.
+
+`Expr::NumericLiteral` preserves normalized decimal integer magnitudes outside
+INT8 as transient syntax, distinct from quoted unknown strings. Explicit
+INT2/INT4/INT8, FLOAT8, TEXT and VARCHAR casts materialize existing primitive
+identities; numeric conversion errors remain eligible for native constant
+pruning. Integer tokens obey PostgreSQL's 131,072 significant decimal digit
+limit before pruning. Radix conversion currently extends through u64 only.
+Bare exact NUMERIC outputs and legacy NUMERIC/DECIMAL casts of these new leaves
+are explicitly unsupported, rather than publishing rounded FLOAT8 values.
+This AST addition introduces no stored NUMERIC carrier or persistent layout.
+
+
+Selected quoted unknown INT2/INT4/INT8, FLOAT8 and BOOLEAN inputs are validated
+while binding before expression pruning and VALUES coercion. Explicitly typed
+TEXT conversions retain their later folding/runtime phase. Exact NumericLiteral
+syntax and legacy NUMERIC/DECIMAL cast identities remain separate from unknown
+string input. BooleanInput and UndefinedColumn typed public errors retain
+22P02 and 42703 respectively. BOOLEAN binary receive rules are unchanged.
+Standalone wire Parse now binds SELECT and EXPLAIN SELECT semantics before
+publishing ParseComplete or storing a prepared statement. It admits a temporary
+analysis tree, retains the original raw tree for subsequent catalog/session
+rebinding, and does not invoke physical planning or constant folding. Shared
+parameter occurrence/type admission precedes semantic binding; final trailing-slot
+checks follow it.
+Selected native phase/order and recovery witnesses pass; broader mixed-error
+precedence and parameter-dependent planning remain under #794/#796/#821. Clone
+admission covers the new temporary raw tree; legacy binder catalog/type/name
+allocation and expansion are separate resource qualification boundaries.
+
+
+Wire Bind now checks independently constant planning errors for SELECT and DML
+before portal storage or BindComplete, after parameter count/format/receiver
+validation. It compiles under registered cancellation and query controls and
+reuses the executor's constant checker without executing query rows or writes.
+EXPLAIN remains a utility at Bind and checks its contained plan at Execute.
+Concrete parameter-free integer arithmetic selects existing checked integer
+signatures; referenced-parameter/custom-plan folding remains unqualified.
+Rebuildable compiled-plan epoch 5 separates earlier fallback arithmetic plans,
+including persisted L2 entries; it changes no stored data format. Missing
+portals report 34000, while missing prepared statements retain 26000. Wider
+portal/prepared lifecycle parity remains with #821.
+
+Numeric prefix syntax uses the additive public `Expr::UnaryNumeric` node and
+`UnaryNumericOp::{Plus, Minus}`. The parser preserves signs outside postfix
+casts, folds signs on direct numeric constants and bounds combined prefix/tree
+nesting before wrapping an operand. Concrete integer minus binds to the existing
+`IntegerNegate` signature for SMALLINT, INT or BIGINT. Concrete numeric plus
+retains its operand identity. FLOAT8 minus preserves IEEE signed zero and
+infinity; an unresolved integer unary node never guesses a BIGINT signature.
+Raw unknown text/NULL select FLOAT8 for unary plus, while unary minus reports
+42725. The selected type participates in Boolean context and CASE/parameter
+inference before the temporary unary node is rewritten. Explicit typed text
+and Boolean operands report 42883. These contracts use PostgreSQL 18.6 probes.
+
+Rebuildable compiled-plan epoch 6 separates the earlier literal-specific unary
+parser from the new binding law, including persisted derived L2 plans. Stored
+Value types/layouts remain unchanged. Explicitly cast parameter operands are
+covered; bare-parameter overload defaults, parameter-dependent Bind planning,
+full NUMERIC and interval/geometric/extension unary families remain pending
+under #793/#794/#796/#821. This finite primitive increment does not close them.
+
+Pagination parses expression syntax before semantic integer-domain admission.
+Its borrowed prefix-signature check shares the binder's operator-selection law,
+so unknown minus and nonnumeric literal/cast operands retain native Parse SQLSTATEs
+42725 and 42883. Typed NULL and integer-width evaluation retain the existing
+integer-only bound contract. General FLOAT8/NUMERIC bound coercions and unknown
+parameter overload defaults remain pending under #793/#796/#821.
+
+Planning checks reached integer-bound constant subtrees for overflow without
+applying negative LIMIT/OFFSET values, which remain execution-time 2201W/2201X
+errors. Execution resolves bounds only in reached CTE definitions using the
+same scope-aware mask as planning/materialization; all definitions still receive
+semantic validation. Rebuildable compiled-plan epoch 7 isolates the earlier
+pagination planning law, including derived L2 plans, without changing stored
+Value layouts.
+
+
+SQL-standard FETCH FIRST/NEXT ROW/ROWS ONLY and OFFSET ROW/ROWS reuse the
+existing integer bound AST, including default count 1. Parenthesized set
+operands retain local bounds through existing derived-source nodes. Ordinary
+UNION CTE bodies remain simple CTEs. Concrete integer siblings select arithmetic
+signatures for otherwise unknown bound parameters; unknown-plus-unknown stays
+ambiguous even below an outer cast. Bound names use the source namespace before
+row-variable rejection (42P10). The additive public
+`CassieError::AmbiguousColumn(String)` carries SQLSTATE 42702 and telemetry kind
+`ambiguous_column`; unknown columns retain 42703. Private compiled-plan epoch 8
+isolates the new parsing/binding law without changing stored Value layouts.
+WITH TIES, general FLOAT8/NUMERIC bounds and complete owner qualification remain
+pending; see [validation.md](testing/validation.md) for executed evidence.
+
+
+Selected typed VALUES casts now retain DATE/TIME/TIMESTAMP/UUID/BYTEA and
+character source identity through common-column coercion and text output.
+Internal `DataType::Char { length: None }` is unbounded bpchar (OID 1042, typmod
+-1); SQL CHAR's default remains `length: Some(1)` (typmod 5). Padded cast
+results retain their bytes while character comparison and DISTINCT keys ignore
+trailing ASCII blanks according to the selected native signature. Declared
+character metadata survives projection and CTE materialization with admitted
+ownership. Unknown VALUES parameters infer the selected existing scalar OIDs.
+Compiled-plan epoch 10 invalidates older binding laws; storage encoding and AST
+variants do not change. Full family, collation and resource qualification
+remain pending; see [validation.md](testing/validation.md).
+
+Explicit scalar `VARCHAR(n)` casts truncate by Unicode character count after
+source-aware text conversion. NULL stays NULL; short input is not padded;
+CHAR blanks and temporal/FLOAT8 output use their existing source identities
+before truncation. Assignment and function coercion keep their existing bounded
+validation path. Compiled plans rebuild at epoch 11; persisted Value layouts
+and public AST variants are unchanged. This does not qualify assignment error
+SQLSTATEs, trailing-blank assignment coercion or general INSERT VALUES expressions.
+
+Selected PostgreSQL 18 integer/BYTEA casts reuse the
+existing INT2/INT4/INT8 and canonical hex BYTEA identities. Integer-to-BYTEA
+retains the declared source width and emits big-endian two's complement;
+BYTEA-to-integer zero-pads short inputs, interprets full-width inputs as signed,
+and rejects excess bytes (including leading zeroes) with 22003. Empty BYTEA
+converts to zero and NULL remains NULL. Native receipts establish these laws.
+
+This cast-only slice needs no function resolution, comparison operator or new
+storage type: #803 and the wider #796/#793/#816 obligations remain open. Existing
+integer/parameter/cast foundations and typed VALUES at `a5be39d5`, followed by
+`b181036f`, supply its implementation prerequisites. It retains source
+identity in the existing Cast AST field and invalidates rebuildable plans at
+epoch 12.
+The additive public `IntegerByteaError` exposes the target width and rejected
+byte count; transparent `CassieError::IntegerBytea` reports native 22003 range
+messages. Stored Value/AST layouts do not change.
+
+The integer/BYTEA phase probes also require Bind-time folding with decoded
+parameters and propagation of pure single-row VALUES CTE sources. Reuse the
+existing constant planner and accounted VALUES propagation, moving decoded
+parameter ownership through Bind validation without cloning it. Cached physical
+plans remain independent of values. The CTE optimization is limited to direct,
+nonrecursive, scope-free, parameter-free one-row VALUES bodies with identity column output and no
+filter, grouping, ordering, set operation or bounds. Wider CTE planning remains
+an open obligation; preserve reached/dead-definition behavior.
+
+Bound constant checks admit only reached primitive parameter copies through
+the existing lazy semantic evaluator. Decoded values move through Bind
+validation into the portal without entering cached physical plans. Execute
+uses the same bound-value law. Fixed integer/BYTEA output scratch is admitted
+before constant allocation. JSON/Vector parameters remain variable; complete
+family, CTE and resource qualification is still pending. Executed evidence is
+recorded in [validation.md](testing/validation.md).
+
+Selected BYTEA input checkpoint: SQL casts and typed text Bind now share
+borrowed hex/escape validation. Ordinary UTF-8 bytes, doubled backslashes and
+three-digit octal escapes (000–377) canonicalize to the existing lower-case
+hex Value::String. Hex input accepts space/tab/CR/LF between complete pairs;
+whitespace within a pair, form feed and vertical tab reject. Native error
+precedence is retained: malformed escape input is 22P02; invalid hex digits
+and odd input lengths are 22023. ByteaInputError is an additive typed public
+error; selected ASCII diagnostic messages match the native oracle.
+
+Quoted invalid BYTEA inputs fail analysis even in dead CASE arms. Explicit
+TEXT conversions and typed parameters fail at Bind when constant, or at row
+execution for stored TEXT. A failed Bind preserves the prepared statement for
+valid reuse. Text and binary inputs produce the same OID 17 and canonical
+text/raw-byte binary results, including the full 256-byte octal domain.
+
+Reached direct literal/cast-chain constant expansion is admitted before
+allocation through the existing lazy evaluator. The focused dead CASE probe
+caught structural overcharging and now passes through reached-cast admission.
+Bound primitive copies retain their existing admission law. Per-portal decoded
+parameter retention and complete transport/resource qualification remain under
+#849; this checkpoint does not establish them. Compiled plans rebuild at epoch
+13. No persistent type or layout is changed. Fixed encode/decode signatures,
+session BYTEA output selection and wider #803/#816 functions remain open.

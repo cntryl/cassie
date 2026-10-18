@@ -190,8 +190,7 @@ fn select_item_uses_view_function(
 ) -> bool {
     match item {
         SelectItem::Function { function, .. } => function
-            .args
-            .iter()
+            .expressions()
             .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views)),
         SelectItem::Expr { expr, .. } => {
             expr_uses_view_function(expr, function_name, catalog, visited_views)
@@ -219,6 +218,11 @@ fn query_source_uses_view_function(
     visited_views: &mut HashSet<String>,
 ) -> bool {
     match source {
+        QuerySource::Values { rows } => rows
+            .iter()
+            .flatten()
+            .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views)),
+
         QuerySource::Aliased { source, .. } => {
             query_source_uses_view_function(source, function_name, catalog, visited_views)
         }
@@ -254,8 +258,7 @@ fn query_source_uses_view_function(
                 || expr_uses_view_function(on, function_name, catalog, visited_views)
         }
         QuerySource::TableFunction { function, .. } => function
-            .args
-            .iter()
+            .expressions()
             .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views)),
         QuerySource::Cte(_) | QuerySource::SingleRow => false,
     }
@@ -343,10 +346,12 @@ fn select_needs_user_functions(select: &SelectStatement) -> bool {
 
 fn query_source_needs_user_functions(source: &QuerySource) -> bool {
     match source {
+        QuerySource::Values { rows } => rows.iter().flatten().any(expr_needs_user_functions),
+
         QuerySource::Aliased { source, .. } => query_source_needs_user_functions(source),
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
         QuerySource::TableFunction { function, .. } => {
-            function.args.iter().any(expr_needs_user_functions)
+            function.expressions().any(expr_needs_user_functions)
         }
         QuerySource::Subquery { select, .. } => select_needs_user_functions(select),
         QuerySource::Join {
@@ -422,9 +427,18 @@ pub(super) fn function_needs_user_functions(function: &FunctionCall) -> bool {
             | "abs"
             | "time_bucket"
             | "cast"
-    ) || crate::sql::functions::is_aggregate_function(&function.name);
+    ) || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        metadata.is_aggregate
+            || crate::sql::functions::is_runtime_helper(metadata.id)
+            || matches!(
+                metadata.id,
+                crate::sql::functions::FunctionId::PgSizeBytes
+                    | crate::sql::functions::FunctionId::PgSizePretty
+                    | crate::sql::functions::FunctionId::PgCharToEncoding
+            )
+    });
 
-    !is_builtin || function.args.iter().any(expr_needs_user_functions)
+    !is_builtin || function.expressions().any(expr_needs_user_functions)
 }
 
 fn cte_uses_function(cte: &CommonTableExpression, function_name: &str) -> bool {
@@ -481,7 +495,7 @@ fn function_uses_vector_operator(function: &crate::sql::ast::FunctionCall) -> bo
     {
         true
     } else {
-        function.args.iter().any(expr_uses_vector_operator)
+        function.expressions().any(expr_uses_vector_operator)
     }
 }
 
@@ -496,6 +510,11 @@ fn select_item_uses_vector_operator(item: &crate::sql::ast::SelectItem) -> bool 
 
 fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
     match expr {
+        crate::sql::ast::Expr::RowCompare(comparison) => comparison
+            .left
+            .iter()
+            .chain(&comparison.right)
+            .any(expr_uses_vector_operator),
         crate::sql::ast::Expr::Binary {
             left, right, op, ..
         } => {
@@ -508,14 +527,21 @@ fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
                 || expr_uses_vector_operator(right)
         }
         crate::sql::ast::Expr::Function(function) => function_uses_vector_operator(function),
-        crate::sql::ast::Expr::IsNull { expr, .. } | crate::sql::ast::Expr::Cast { expr, .. } => {
-            expr_uses_vector_operator(expr)
-        }
+        crate::sql::ast::Expr::IsNull { expr, .. }
+        | crate::sql::ast::Expr::TruthTest { expr, .. }
+        | crate::sql::ast::Expr::Cast { expr, .. }
+        | crate::sql::ast::Expr::UnaryNumeric { expr, .. }
+        | crate::sql::ast::Expr::IntegerNegate { expr, .. } => expr_uses_vector_operator(expr),
         crate::sql::ast::Expr::InList { expr, values, .. } => {
             expr_uses_vector_operator(expr) || values.iter().any(expr_uses_vector_operator)
         }
         crate::sql::ast::Expr::Between {
             expr, low, high, ..
+        }
+        | crate::sql::ast::Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             expr_uses_vector_operator(expr)
                 || expr_uses_vector_operator(low)
@@ -594,6 +620,11 @@ fn select_uses_function(select: &crate::sql::ast::SelectStatement, function_name
 
 fn query_source_uses_function(source: &QuerySource, function_name: &str) -> bool {
     match source {
+        QuerySource::Values { rows } => rows
+            .iter()
+            .flatten()
+            .any(|expr| expr_uses_function(expr, function_name)),
+
         QuerySource::Aliased { source, .. } => query_source_uses_function(source, function_name),
         QuerySource::TableFunction { function, .. } => {
             function_uses_function(function, function_name)
@@ -651,8 +682,7 @@ fn function_uses_function(function: &crate::sql::ast::FunctionCall, function_nam
     // Catalog names are qualified after startup, while plan calls may be unqualified.
     crate::catalog::scope::name_matches(function_name, &function.name)
         || function
-            .args
-            .iter()
+            .expressions()
             .any(|expr| expr_uses_function(expr, function_name))
 }
 
@@ -667,6 +697,11 @@ fn collect_fulltext_fields_from_select_item(
 
 fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut HashSet<String>) {
     match expr {
+        crate::sql::ast::Expr::RowCompare(comparison) => {
+            for field in comparison.left.iter().chain(&comparison.right) {
+                collect_fulltext_fields_from_expr(field, fields);
+            }
+        }
         crate::sql::ast::Expr::Binary { left, right, .. } => {
             collect_fulltext_fields_from_expr(left, fields);
             collect_fulltext_fields_from_expr(right, fields);
@@ -674,7 +709,11 @@ fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut 
         crate::sql::ast::Expr::Function(function) => {
             collect_fulltext_fields_from_function(function, fields);
         }
-        crate::sql::ast::Expr::IsNull { expr, .. } | crate::sql::ast::Expr::Cast { expr, .. } => {
+        crate::sql::ast::Expr::IsNull { expr, .. }
+        | crate::sql::ast::Expr::TruthTest { expr, .. }
+        | crate::sql::ast::Expr::Cast { expr, .. }
+        | crate::sql::ast::Expr::UnaryNumeric { expr, .. }
+        | crate::sql::ast::Expr::IntegerNegate { expr, .. } => {
             collect_fulltext_fields_from_expr(expr, fields);
         }
         crate::sql::ast::Expr::InList { expr, values, .. } => {
@@ -685,6 +724,11 @@ fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut 
         }
         crate::sql::ast::Expr::Between {
             expr, low, high, ..
+        }
+        | crate::sql::ast::Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => {
             collect_fulltext_fields_from_expr(expr, fields);
             collect_fulltext_fields_from_expr(low, fields);
@@ -705,7 +749,7 @@ fn collect_fulltext_fields_from_function(
         }
     }
 
-    for arg in &function.args {
+    for arg in function.expressions() {
         collect_fulltext_fields_from_expr(arg, fields);
     }
 }
@@ -731,11 +775,67 @@ pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan 
 
 fn execution_source_name(source: &QuerySource) -> String {
     match source {
+        QuerySource::Values { .. } => "values".into(),
+
         QuerySource::Aliased { source, .. } => execution_source_name(source),
         QuerySource::Collection(name) => name.to_string(),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Join { .. } => "join".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_find_nested_routines_given_aggregate_filter_and_order_when_dependencies_are_inspected(
+    ) {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT SUM(n ORDER BY custom_key(n)) FILTER (WHERE custom_filter(flag)) FROM records",
+        )
+        .expect("aggregate clause syntax");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let uses_filter = plan_uses_function(&plan, "custom_filter");
+        let uses_key = plan_uses_function(&plan, "custom_key");
+        let needs_routines = plan_needs_user_functions(&plan);
+
+        // Assert
+        assert!(uses_filter);
+        assert!(uses_key);
+        assert!(needs_routines);
+        assert!(!plan_uses_function(&plan, "absent_routine"));
+    }
+
+    #[test]
+    fn should_find_search_fields_given_search_in_aggregate_clauses_when_search_inputs_are_collected(
+    ) {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT SUM(n ORDER BY search_score(title, 'needle')) \
+             FILTER (WHERE search(body, 'needle')) FROM records",
+        )
+        .expect("aggregate clause syntax");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let fields = fulltext_query_fields(&plan);
+
+        // Assert
+        assert_eq!(
+            fields,
+            HashSet::from(["body".to_owned(), "title".to_owned()])
+        );
     }
 }

@@ -6,16 +6,22 @@ fn should_reject_persisted_view_null_safe_predicates_before_publication() {
     // Arrange
     let fixture = sql_fixture("null_safe_view_guard", &[]);
     // Act
-    let result = fixture.execute(
+    let results = [
         "CREATE VIEW forbidden_null_safe AS SELECT NULL IS NOT DISTINCT FROM NULL AS same",
-    );
+        "CREATE VIEW forbidden_row_null_safe AS SELECT ROW(NULL) IS NOT DISTINCT FROM ROW(NULL) AS same",
+    ].map(|sql| fixture.execute(sql));
     // Assert
-    assert!(
-        matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-        "should_reject_persisted_view_null_safe_predicates_before_publication should report Unsupported (SQLSTATE 0A000) for persisted definition"
-    );
+    for result in results {
+        assert!(
+            matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+            "existing durable-definition boundary"
+        );
+    }
     assert!(fixture
         .execute("SELECT * FROM forbidden_null_safe")
+        .is_err());
+    assert!(fixture
+        .execute("SELECT * FROM forbidden_row_null_safe")
         .is_err());
 }
 

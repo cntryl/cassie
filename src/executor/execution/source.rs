@@ -1,3 +1,7 @@
+#[path = "source_options.rs"]
+mod source_options;
+#[path = "source_values.rs"]
+mod source_values;
 use super::plan_inspection;
 #[cfg(test)]
 use super::reserve_projection_output_before_building;
@@ -10,6 +14,7 @@ use super::{
     Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, QueryError,
     QueryExecutionControls, QuerySource, Value,
 };
+pub(super) use source_values::scratch_bytes as values_scratch_bytes;
 
 #[path = "source_join.rs"]
 mod source_join;
@@ -45,6 +50,7 @@ pub(super) fn execute_query_source(
     row_budget: Option<usize>,
 ) -> SourceExecution {
     let (mut batches, text_fields) = match source {
+        QuerySource::Values { rows } => source_values::execute(env, rows, row_budget),
         QuerySource::Aliased { source, alias, .. } => {
             let (batches, text_fields) =
                 execute_query_source(env, source, cte_context, false, outer_row, row_budget)?;
@@ -199,6 +205,15 @@ fn execute_table_function_source(
     outer_row: Option<&BatchRow>,
     qualify: bool,
 ) -> SourceExecution {
+    if crate::sql::functions::is_options_table(&function.name) {
+        let batches = source_options::execute(env, &function.args[0], outer_row)?;
+        return finalize_source_batches(env, batches, Vec::new(), qualify, name);
+    }
+    if crate::sql::functions::is_loaded_modules(&function.name) {
+        env.controls.check_interruption()?;
+        // Native plugin loading is absent from the current Cassie profile.
+        return finalize_source_batches(env, Vec::new(), Vec::new(), qualify, name);
+    }
     if matches!(
         function.name.to_ascii_lowercase().as_str(),
         "pg_show_all_settings" | "pg_catalog.pg_show_all_settings"

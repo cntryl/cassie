@@ -1,4 +1,4 @@
-//! Preserve declared ARRAY ordering metadata through a projection without
+//! Preserve declared ARRAY and CHAR semantics through a projection without
 //! changing values, aliases or equality keys.
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,7 +15,7 @@ pub(super) fn projected<R: RowAccess>(
     ops: &[ProjectionOp],
     functions: &HashMap<String, FunctionMeta>,
 ) -> Option<Arc<Vec<DataType>>> {
-    if !row.has_array_types() {
+    if !required(row) {
         return None;
     }
     let mut types = Vec::new();
@@ -66,6 +66,16 @@ pub(super) fn projected<R: RowAccess>(
     }
     types
         .iter()
-        .any(|data_type| matches!(data_type, DataType::Array(_)))
+        .any(|data_type| matches!(data_type, DataType::Array(_) | DataType::Char { .. }))
         .then(|| types.into())
+}
+
+/// Both array ordering and bpchar equality require declared column identity.
+pub(super) fn required(row: &impl RowAccess) -> bool {
+    row.has_array_types()
+        || row
+            .entries()
+            .iter()
+            .enumerate()
+            .any(|(index, _)| matches!(row.entry_type(index), Some(DataType::Char { .. })))
 }

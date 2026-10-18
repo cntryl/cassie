@@ -1,4 +1,4 @@
-//! Scoped SQL result-cache inputs; compiled-plan input ownership is a separate boundary.
+//! Scoped SQL result-cache inputs; the caller namespaces SQL by admitted parameter OIDs.
 
 use std::mem::size_of;
 

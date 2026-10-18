@@ -26,6 +26,21 @@ pub(crate) enum ParameterAdmissionError {
         input: String,
         _reservation: QueryMemoryReservation,
     },
+    InvalidScalarLiteral {
+        input: String,
+        diagnostic: super::diagnostics::ScalarLiteralDiagnostic,
+        _reservation: QueryMemoryReservation,
+    },
+    ByteaInput(crate::types::ByteaInputError),
+    FunctionDiagnostic {
+        sqlstate: &'static str,
+        message: String,
+        _reservation: QueryMemoryReservation,
+    },
+    NonAggregateModifier {
+        message: String,
+        _reservation: QueryMemoryReservation,
+    },
     Cancelled,
     Deadline,
     LegacyConflict(String),
@@ -188,6 +203,47 @@ pub(super) fn admit_invalid_boolean_literal(
     })
 }
 
+pub(super) fn admit_nonaggregate_modifier(
+    function: &str,
+    modifier: &'static str,
+    controls: &QueryExecutionControls,
+) -> Result<ParameterAdmissionError, ParameterAdmissionError> {
+    check_controls(controls)?;
+    let capacity = function
+        .len()
+        .checked_add(modifier.len())
+        .and_then(|length| {
+            length.checked_add(" specified, but  is not an aggregate function".len())
+        })
+        .ok_or_else(|| {
+            ParameterAdmissionError::Memory("function diagnostic capacity overflow".into())
+        })?;
+    let mut reservation = controls
+        .reserve_query_memory(capacity)
+        .map_err(memory_error)?;
+    check_controls(controls)?;
+    let mut admitted = String::new();
+    admitted.try_reserve_exact(capacity).map_err(|error| {
+        ParameterAdmissionError::Memory(format!("unable to allocate function diagnostic: {error}"))
+    })?;
+    if admitted.capacity() > capacity {
+        reservation
+            .try_grow(admitted.capacity() - capacity)
+            .map_err(memory_error)?;
+    }
+    check_controls(controls)?;
+    admitted.push_str(modifier);
+    admitted.push_str(" specified, but ");
+    let start = admitted.len();
+    admitted.push_str(function);
+    admitted[start..].make_ascii_lowercase();
+    admitted.push_str(" is not an aggregate function");
+    Ok(ParameterAdmissionError::NonAggregateModifier {
+        message: admitted,
+        _reservation: reservation,
+    })
+}
+
 struct WorkStack<'a, 'c> {
     frames: Vec<Frame<'a>>,
     reservation: QueryMemoryReservation,
@@ -303,6 +359,7 @@ enum Node<'a> {
     Item(&'a ast::SelectItem),
     Cte(&'a ast::CteQuery),
     Expr(&'a ast::Expr),
+    Function(&'a ast::FunctionCall),
     Expressions(&'a [ast::Expr]),
     Items(&'a [ast::SelectItem]),
     Orders(&'a [ast::OrderExpr]),
@@ -348,7 +405,8 @@ impl Node<'_> {
             Self::Query(query) => query_children(query),
             Self::Select(_) => 11,
             Self::Source(source) => match source {
-                ast::QuerySource::Aliased { .. }
+                ast::QuerySource::Values { .. }
+                | ast::QuerySource::Aliased { .. }
                 | ast::QuerySource::TableFunction { .. }
                 | ast::QuerySource::Subquery { .. } => 1,
                 ast::QuerySource::Join { .. } => 3,
@@ -366,6 +424,7 @@ impl Node<'_> {
                 ast::CteQuery::Recursive { .. } => 2,
             },
             Self::Expr(expr) => expr_children(expr),
+            Self::Function(_) => 3,
             Self::Expressions(values) => values.len(),
             Self::Items(values) => values.len(),
             Self::Orders(values) => values.len(),
@@ -398,6 +457,11 @@ impl Node<'_> {
                 }
             },
             Self::Expr(expr) => expr_child(expr, index),
+            Self::Function(function) => match index {
+                0 => Some(Self::Expressions(&function.args)),
+                1 => function.filter.as_deref().map(Self::Expr),
+                _ => Some(Self::Orders(&function.order_by)),
+            },
             Self::Expressions(values) => values.get(index).map(Self::Expr),
             Self::Items(values) => values.get(index).map(Self::Item),
             Self::Orders(values) => values.get(index).map(|order| Self::Expr(&order.expr)),
@@ -568,8 +632,10 @@ fn select_child(select: &ast::SelectStatement, index: usize) -> Option<Node<'_>>
 
 fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
     match source {
+        ast::QuerySource::Values { rows } => Some(Node::Rows(rows)),
+
         ast::QuerySource::Aliased { source, .. } => Some(Node::Source(source)),
-        ast::QuerySource::TableFunction { function, .. } => Some(Node::Expressions(&function.args)),
+        ast::QuerySource::TableFunction { function, .. } => Some(Node::Function(function)),
         ast::QuerySource::Subquery { select, .. } => Some(Node::Select(select)),
         ast::QuerySource::Join {
             left, right, on, ..
@@ -587,7 +653,7 @@ fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
 fn item_child(item: &ast::SelectItem, index: usize) -> Option<Node<'_>> {
     match item {
         ast::SelectItem::Wildcard | ast::SelectItem::Column { .. } => None,
-        ast::SelectItem::Function { function, .. } => Some(Node::Expressions(&function.args)),
+        ast::SelectItem::Function { function, .. } => Some(Node::Function(function)),
         ast::SelectItem::Expr { expr, .. } => Some(Node::Expr(expr)),
         ast::SelectItem::WindowFunction { function, .. } => Some(match index {
             0 => Node::Expressions(&function.args),
@@ -604,12 +670,17 @@ fn expr_children(expr: &ast::Expr) -> usize {
         | ast::Expr::StringLiteral(_)
         | ast::Expr::NumberLiteral(_)
         | ast::Expr::IntegerLiteral(_)
+        | ast::Expr::NumericLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => 0,
-        ast::Expr::Case { .. } | ast::Expr::Between { .. } => 3,
+        ast::Expr::Case { .. } | ast::Expr::Between { .. } | ast::Expr::Like { .. } => 3,
+        ast::Expr::RowCompare(comparison) => comparison.left.len() + comparison.right.len(),
         ast::Expr::Binary { .. } | ast::Expr::InList { .. } => 2,
         ast::Expr::IsNull { .. }
+        | ast::Expr::TruthTest { .. }
         | ast::Expr::Not { .. }
+        | ast::Expr::UnaryNumeric { .. }
+        | ast::Expr::IntegerNegate { .. }
         | ast::Expr::Cast { .. }
         | ast::Expr::Exists(_)
         | ast::Expr::Function(_) => 1,
@@ -627,12 +698,24 @@ fn expr_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
             1 => Some(Node::Branches(branches)),
             _ => else_expr.as_deref().map(Node::Expr),
         },
+        ast::Expr::RowCompare(comparison) => comparison
+            .left
+            .get(index)
+            .or_else(|| {
+                index
+                    .checked_sub(comparison.left.len())
+                    .and_then(|index| comparison.right.get(index))
+            })
+            .map(Node::Expr),
         ast::Expr::Binary { left, right, .. } => {
             Some(Node::Expr(if index == 0 { left } else { right }))
         }
-        ast::Expr::IsNull { expr, .. } | ast::Expr::Not { expr } | ast::Expr::Cast { expr, .. } => {
-            Some(Node::Expr(expr))
-        }
+        ast::Expr::IsNull { expr, .. }
+        | ast::Expr::TruthTest { expr, .. }
+        | ast::Expr::Not { expr }
+        | ast::Expr::Cast { expr, .. }
+        | ast::Expr::UnaryNumeric { expr, .. }
+        | ast::Expr::IntegerNegate { expr, .. } => Some(Node::Expr(expr)),
         ast::Expr::InList { expr, values, .. } => Some(if index == 0 {
             Node::Expr(expr)
         } else {
@@ -640,18 +723,24 @@ fn expr_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
         }),
         ast::Expr::Between {
             expr, low, high, ..
+        }
+        | ast::Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
         } => Some(Node::Expr(match index {
             0 => expr,
             1 => low,
             _ => high,
         })),
         ast::Expr::Exists(statement) => Some(Node::Query(&statement.statement)),
-        ast::Expr::Function(function) => Some(Node::Expressions(&function.args)),
+        ast::Expr::Function(function) => Some(Node::Function(function)),
         ast::Expr::Column(_)
         | ast::Expr::Param(_)
         | ast::Expr::StringLiteral(_)
         | ast::Expr::NumberLiteral(_)
         | ast::Expr::IntegerLiteral(_)
+        | ast::Expr::NumericLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => None,
     }

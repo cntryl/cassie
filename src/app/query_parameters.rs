@@ -103,6 +103,16 @@ pub(super) fn parameter_shape_for_oids(oids: &[i32]) -> Vec<crate::runtime::Para
         .collect()
 }
 
+pub(super) fn parameter_cache_fingerprint(sql_fingerprint: u64, oids: &[i32]) -> u64 {
+    if oids.is_empty() {
+        sql_fingerprint
+    } else {
+        // A shared Value carrier does not identify an integer width, string
+        // domain, or other SQL overload selected by the admitted parameter OIDs.
+        crate::runtime::stable_fingerprint(&("parameter_oids_v1", sql_fingerprint, oids))
+    }
+}
+
 pub(super) fn validate_plan_parameters(
     plan: &crate::planner::logical::LogicalPlan,
     catalog: &Catalog,

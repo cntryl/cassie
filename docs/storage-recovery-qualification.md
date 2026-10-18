@@ -50,3 +50,29 @@ operational soak drills and authenticated deployment qualification are not
 promoted by this finite local record. Failed-cleanup retry retention is a source
 law; successful prefix cleanup and repeated abort have executable witnesses,
 but no fabricated runtime fault-injection proof is claimed.
+
+## Midge 0.4.1 fresh-store boundary (2026-10-17)
+
+Cassie selects the published `cntryl-midge` 0.4.1 release for fresh stores.
+Midge requires database FORMAT 8, SST V4, cloud WAL catalog v3 and cloud lease
+metadata v3. Stores created with the former 0.3.2 dependency are not compatible;
+there is no in-place upgrade. Cassie's own logical layout marker is unchanged.
+
+For a fresh deployment, select a new empty `CASSIE_STORAGE_PATH` (or a fresh
+cloud prefix) and retain the old store separately. Do not delete the old store
+or copy its WAL, catalog, lease or metadata files into the new store. Existing
+data requires logical export with the old binary and import into a new store,
+followed by application-level verification before switching traffic. This
+checkpoint adopts fresh stores only; it does not implement or qualify a
+migration utility, migrate an existing deployment, or qualify a cloud provider.
+See the [Midge 0.4.1 migration guide](https://github.com/cntryl/midge/blob/v0.4.1/docs/operations/migration-guide.md#032-to-040).
+
+Midge's `OutcomeUnknown` means a write may already be committed despite failed
+acknowledgment. Cassie returns a terminal storage error with reconciliation
+guidance. It must not become an automatic write retry because its message
+contains “write conflict”. Only the typed `WriteConflict` variant licenses that
+retry; corruption and other terminal variants remain terminal regardless of
+message text. The existing bounded conflict/stall retry policies are retained.
+
+Validation evidence and remaining compatibility failures are recorded in
+[validation](testing/validation.md).

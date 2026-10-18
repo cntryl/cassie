@@ -129,7 +129,13 @@ impl QueryResult {
         if columns == self.columns() {
             return self.try_clone_for_query(controls);
         }
-        Self::try_rebuild(controls, columns, self.rows(), self.command())
+        Self::try_rebuild(
+            controls,
+            columns,
+            self.rows(),
+            self.command(),
+            &self.payload.object_oids,
+        )
     }
 
     /// # Errors
@@ -139,7 +145,7 @@ impl QueryResult {
         controls: &QueryExecutionControls,
         rows: &[Vec<Value>],
     ) -> Result<Self, CassieError> {
-        Self::try_rebuild(controls, self.columns(), rows, self.command())
+        Self::try_rebuild(controls, self.columns(), rows, self.command(), &[])
     }
 
     /// # Errors
@@ -152,7 +158,13 @@ impl QueryResult {
         if command == self.command() {
             return self.try_clone_for_query(controls);
         }
-        Self::try_rebuild(controls, self.columns(), self.rows(), command)
+        Self::try_rebuild(
+            controls,
+            self.columns(),
+            self.rows(),
+            command,
+            &self.payload.object_oids,
+        )
     }
 
     /// Transfers rows without detaching their physical or requesting-query owners.
@@ -192,11 +204,14 @@ impl QueryResult {
         size_of::<QueryMemoryReservation>() + 2 * size_of::<usize>()
     }
 
+    /// Rebuilds the result; `object_oids` carries `reg*` identities only when
+    /// the rows are unchanged.
     fn try_rebuild(
         controls: &QueryExecutionControls,
         columns: &[ColumnMeta],
         rows: &[Vec<Value>],
         command: &str,
+        object_oids: &[(usize, Vec<Option<u32>>)],
     ) -> Result<Self, CassieError> {
         let mut builder = Self::try_builder(controls)?;
         for column in columns {
@@ -204,6 +219,9 @@ impl QueryResult {
         }
         for row in rows {
             builder.try_push_row(row)?;
+        }
+        for (column, oids) in object_oids {
+            builder.try_set_object_oids(*column, oids.clone())?;
         }
         builder.try_set_command(command)?;
         builder.finish()

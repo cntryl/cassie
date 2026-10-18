@@ -151,6 +151,13 @@ impl Analyzer<'_> {
             | BinaryOp::Bitwise { .. } => {
                 let left = self.expression(left, lookup)?;
                 let right = self.expression(right, lookup)?;
+                if let Some(data_type) = crate::sql::functions::temporal_binary_type(
+                    op,
+                    Some(&left.data_type),
+                    Some(&right.data_type),
+                ) {
+                    return Ok(OutputType::fixed(data_type));
+                }
                 crate::types::extended::numeric_types::arithmetic(
                     &left.data_type,
                     &right.data_type,
@@ -197,6 +204,9 @@ impl Analyzer<'_> {
         // COUNT(*) and other fixed-return policies do not export argument
         // values. Ordinary validation checks their arguments separately;
         // this output analyzer must not resolve the `*` pseudo-column.
+        if let Some(output) = self.temporal_function(function, metadata.id, lookup)? {
+            return Ok(output);
+        }
         if let Some(output) = self.numeric_function(function, metadata.id, lookup)? {
             return Ok(output);
         }
@@ -267,6 +277,42 @@ impl Analyzer<'_> {
             }
             _ => unreachable!("fixed function return policies return before argument analysis"),
         })
+    }
+
+    /// Date/time builtins, and `sum`/`avg` over `interval` (an `interval`).
+    fn temporal_function(
+        &self,
+        function: &FunctionCall,
+        id: crate::sql::functions::FunctionId,
+        lookup: &[OutputField],
+    ) -> Result<Option<OutputType>, CassieError> {
+        use crate::sql::functions::FunctionId;
+        if !matches!(id, FunctionId::Sum | FunctionId::Avg | FunctionId::Temporal) {
+            return Ok(None);
+        }
+        let arguments = self.function_arguments(function, lookup)?;
+        if id == FunctionId::Temporal {
+            let argument_type = |index: usize| {
+                arguments
+                    .get(index)
+                    .map(|argument| argument.data_type.clone())
+            };
+            return Ok(crate::sql::functions::temporal_return_type(
+                &function.name.to_ascii_lowercase(),
+                &function.args,
+                &argument_type,
+            )
+            .map(OutputType::fixed));
+        }
+        Ok(arguments
+            .first()
+            .filter(|argument| {
+                matches!(
+                    argument.data_type,
+                    DataType::Extended(crate::types::extended::ExtendedType::Interval { .. })
+                )
+            })
+            .map(|argument| OutputType::fixed(argument.data_type.clone())))
     }
 
     /// `power` and `avg` result types that depend on a `numeric` argument.

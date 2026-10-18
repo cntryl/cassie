@@ -21,6 +21,11 @@ pub(crate) use bytea::{
     bit_input_selection, has_distinct_builtin_arity, is_bytea_function, BitInputSelection,
 };
 pub(crate) mod math;
+mod temporal;
+pub(crate) use temporal::{
+    binary_type as temporal_binary_type, clock_dependent as temporal_clock_dependent,
+    is_temporal as is_temporal_function, return_type as temporal_return_type,
+};
 mod text;
 pub(crate) use inputs::{
     aggregate_accepts_input, has_distinct_equality, input_signature, FunctionInputSignature,
@@ -131,6 +136,8 @@ pub enum FunctionId {
     Lastval,
     PgGetSerialSequence,
     Math(MathFunction),
+    /// A date/time builtin; its result type depends on its arguments.
+    Temporal,
 }
 
 #[derive(Debug, Clone)]
@@ -232,6 +239,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(sequences::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
         .chain(math::FUNCTIONS)
+        .chain(temporal::FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
         .or_else(|| {
             name.get(..11)
@@ -243,6 +251,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         .any(|candidate| candidate.eq_ignore_ascii_case(local))
                         || runtime::FUNCTIONS
                             .iter()
+                            .chain(temporal::FUNCTIONS)
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || catalog::FUNCTIONS
                             .iter()
@@ -267,6 +276,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         .chain(sequences::FUNCTIONS)
                         .chain(runtime::FUNCTIONS)
                         .chain(math::FUNCTIONS)
+                        .chain(temporal::FUNCTIONS)
                         .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
                 })
         })

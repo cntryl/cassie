@@ -81,7 +81,7 @@ impl PartialAggregateGroup {
 
 /// Retained accumulator bytes before and after an update or merge.
 #[derive(Clone, Copy, Default)]
-pub(super) struct RetainedChange {
+pub(in crate::executor::execution) struct RetainedChange {
     pub(super) before: usize,
     pub(super) after: usize,
 }
@@ -131,6 +131,8 @@ pub(super) enum AggregateAccumulator {
         key: Option<SemanticValue>,
         max: bool,
     },
+    /// `sum`/`avg` over `interval` inputs.
+    Interval(super::interval_aggregate::IntervalAggregate),
 }
 
 impl AggregateAccumulator {
@@ -245,7 +247,11 @@ impl AggregateAccumulator {
         value: Value,
         new_key: Option<SemanticValue>,
     ) -> Result<RetainedChange, QueryError> {
+        if let Some(change) = super::interval_aggregate::update(self, &value) {
+            return change;
+        }
         match self {
+            Self::Interval(_) => {}
             Self::Boolean(state) => match value {
                 Value::Bool(value) => state.update(value),
                 Value::Null => {}
@@ -330,6 +336,7 @@ impl AggregateAccumulator {
     fn merge(&mut self, other: &Self) -> Result<RetainedChange, QueryError> {
         match (self, other) {
             (Self::Boolean(state), Self::Boolean(later)) => state.merge(later)?,
+            (Self::Interval(state), Self::Interval(later)) => state.merge(later)?,
             (Self::Count { count }, Self::Count { count: other }) => {
                 *count = count
                     .checked_add(*other)
@@ -410,6 +417,7 @@ impl AggregateAccumulator {
                 }
             }
             Self::MinMax { selected, .. } => selected.unwrap_or(Value::Null),
+            Self::Interval(state) => state.finish()?,
         })
     }
 
@@ -419,7 +427,9 @@ impl AggregateAccumulator {
         match self {
             Self::Sum { sum, .. } => sum.requires_row_order(),
             Self::Avg { sum, .. } => sum.requires_row_order(),
-            Self::Boolean(_) | Self::Count { .. } | Self::MinMax { .. } => false,
+            Self::Boolean(_) | Self::Count { .. } | Self::MinMax { .. } | Self::Interval(_) => {
+                false
+            }
         }
     }
 

@@ -320,7 +320,7 @@ fn should_backfill_timestamp_reservations_after_creating_unique_index() {
     assert_eq!(
         rows.rows(),
         vec![vec![
-            Value::String("2024-01-01T00:00:00.000000Z".to_string()),
+            Value::String("2024-01-01 00:00:00".to_string()),
             Value::Int64(1)
         ]]
     );

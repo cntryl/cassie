@@ -77,8 +77,10 @@ fn should_return_stored_canonical_typed_text_from_insert_update_returning() {
                     vec![],
                 )
                 .unwrap();
+            // PostgreSQL 18.6 returns timestamp text in ISO DateStyle
+            // (docs/testing/oracle-corrections.md, ORACLE-T05).
             let expected = vec![
-                Value::String("2024-06-01T08:00:00.000000Z".to_string()),
+                Value::String("2024-06-01 08:00:00".to_string()),
                 Value::String("6ba7b810-9dad-11d1-80b4-00c04fd430c8".to_string()),
                 Value::String("\\xcafe".to_string()),
             ];
@@ -874,10 +876,11 @@ fn should_cast_a_timestamp_string_to_its_canonical_utc_form() {
             vec![],
         );
 
-        // Assert
+        // Assert: PostgreSQL 18.6 ignores the offset of `timestamp` input
+        // (see docs/testing/oracle-corrections.md, ORACLE-T01).
         assert_eq!(
             cast_offset.rows()[0][0],
-            Value::String("2024-01-01T07:00:00.000000Z".to_string())
+            Value::String("2024-01-01 09:00:00".to_string())
         );
         assert!(
             cast_invalid.is_err(),

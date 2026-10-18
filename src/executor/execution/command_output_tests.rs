@@ -85,6 +85,7 @@ fn should_admit_command_output_before_changing_session_settings() {
         variable: "application_name".to_owned(),
         value: Some("denied replacement".to_owned()),
         action: crate::sql::ast::SettingAction::Set,
+        local: false,
     };
     let controls = exhausted_controls();
 
@@ -114,6 +115,7 @@ fn should_preserve_settings_given_denied_output_when_reset_all_executes() {
         variable: "all".to_owned(),
         value: None,
         action: crate::sql::ast::SettingAction::ResetAll,
+        local: false,
     };
     let controls = exhausted_controls();
 

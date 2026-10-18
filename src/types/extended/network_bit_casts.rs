@@ -22,7 +22,14 @@ pub(super) fn parse_text(kind: ExtendedType, text: &str) -> Result<TypedValue, T
             length,
             true,
         )?),
-        ExtendedType::Real | ExtendedType::Numeric(_) => return kind.parse_text(text),
+        ExtendedType::Real
+        | ExtendedType::Numeric(_)
+        | ExtendedType::Date
+        | ExtendedType::Time { .. }
+        | ExtendedType::TimeTz { .. }
+        | ExtendedType::Timestamp { .. }
+        | ExtendedType::TimestampTz { .. }
+        | ExtendedType::Interval { .. } => return kind.parse_text(text),
     })
 }
 
@@ -92,6 +99,13 @@ pub(super) fn receive_binary(kind: ExtendedType, bytes: &[u8]) -> Result<TypedVa
                 bit_string::check_length(bits, length, true).map_err(|error| error.message)?,
             )
         }
-        ExtendedType::Real | ExtendedType::Numeric(_) => return kind.receive_binary(bytes),
+        ExtendedType::Real
+        | ExtendedType::Numeric(_)
+        | ExtendedType::Date
+        | ExtendedType::Time { .. }
+        | ExtendedType::TimeTz { .. }
+        | ExtendedType::Timestamp { .. }
+        | ExtendedType::TimestampTz { .. }
+        | ExtendedType::Interval { .. } => return kind.receive_binary(bytes),
     })
 }

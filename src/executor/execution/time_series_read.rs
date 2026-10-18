@@ -738,7 +738,9 @@ fn value_text(value: &Value) -> Option<String> {
         Value::Float64(value) => Some(value.to_string()),
         Value::Bool(value) => Some(value.to_string()),
         Value::Null => Some("null".to_string()),
-        Value::Typed(value) => Some(value.text()),
+        Value::Typed(value) => {
+            crate::types::extended::temporal_legacy_text(value).or_else(|| Some(value.text()))
+        }
         Value::Json(_) | Value::Vector(_) => None,
     }
 }
@@ -894,6 +896,10 @@ fn typed_value(value: &serde_json::Value, schema: Option<&CollectionSchema>, fie
         Some(DataType::Boolean) => value
             .as_bool()
             .map_or_else(|| json_to_query_value(value), Value::Bool),
+        Some(data_type @ (DataType::Date | DataType::Time | DataType::Timestamp)) => {
+            crate::types::extended::temporal_column_value(value, data_type)
+                .map_or_else(|| json_to_query_value(value), Value::Typed)
+        }
         _ => json_to_query_value(value),
     }
 }
@@ -931,13 +937,19 @@ fn count_batch_row_buckets(
     timestamp_field: &str,
     index: &catalog::IndexMeta,
 ) -> usize {
-    count_ordered_buckets(
-        batches.iter().flatten().filter_map(|row| {
+    let timestamps = batches
+        .iter()
+        .flatten()
+        .filter_map(|row| {
             row.get(timestamp_field).and_then(|value| match value {
-                Value::String(value) => Some(value.as_str()),
+                Value::String(value) => Some(value.clone()),
+                Value::Typed(typed) => crate::types::extended::temporal_legacy_text(typed),
                 _ => None,
             })
-        }),
+        })
+        .collect::<Vec<_>>();
+    count_ordered_buckets(
+        timestamps.iter().map(String::as_str),
         bucket_precision(index),
     )
 }

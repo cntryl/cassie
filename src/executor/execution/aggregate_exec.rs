@@ -17,6 +17,8 @@ use super::{aggregate_signature, check_timeout, group_expr_name, QueryError};
 mod boolean;
 #[path = "aggregate_exec/group_memory.rs"]
 mod group_memory;
+#[path = "aggregate_exec/interval_aggregate.rs"]
+mod interval_aggregate;
 #[path = "aggregate_exec/modifiers.rs"]
 mod modifiers;
 mod output_types;

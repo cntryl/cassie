@@ -8,6 +8,15 @@ use crate::sql::parser::{expr::parse_expr_token, lexical, SqlError};
 pub(in crate::sql::parser) fn parse_show_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let sql = sql.trim().trim_end_matches(';').trim();
     let variable = sql[4..].trim();
+    let variable = if variable
+        .split_whitespace()
+        .map(str::to_ascii_lowercase)
+        .eq(["time", "zone"])
+    {
+        "timezone"
+    } else {
+        variable
+    };
     if variable.is_empty() {
         return Err(SqlError::syntax("SHOW requires a parameter".into()));
     }
@@ -52,10 +61,13 @@ pub(in crate::sql::parser) fn parse_set_statement(sql: &str) -> Result<ParsedSta
     if argument.is_empty() {
         return Err(SqlError::syntax("SET requires a parameter".into()));
     }
-    if lexical::pattern_end(argument, 0, "LOCAL ").is_some() {
-        return Err(SqlError::unsupported(
-            "SET LOCAL is not supported in this version".into(),
-        ));
+    if let Some(end) = lexical::pattern_end(argument, 0, "LOCAL ") {
+        let mut statement = parse_set_statement(&format!("SET {}", &argument[end..]))?;
+        if let QueryStatement::Set(set) = &mut statement.statement {
+            set.local = true;
+        }
+        statement.raw_sql = sql.to_string();
+        return Ok(statement);
     }
     if let Some(statement) = parse_set_names(sql, argument)? {
         return Ok(statement);
@@ -179,6 +191,7 @@ fn parsed(
             variable: variable.to_ascii_lowercase(),
             value,
             action,
+            local: false,
         }),
     }
 }

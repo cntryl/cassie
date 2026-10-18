@@ -110,6 +110,17 @@ pub(crate) fn validate_signature(
             crate::sql::ast::CastIdentity::Scalar,
         );
     }
+    if matches!(
+        (op, data_type),
+        (
+            UnaryNumericOp::Minus | UnaryNumericOp::Plus,
+            Some(DataType::Extended(
+                crate::types::extended::ExtendedType::Interval { .. }
+            ))
+        )
+    ) {
+        return Ok(());
+    }
     if let Some(data_type) = data_type {
         if op == UnaryNumericOp::Complement
             && crate::types::extended::operations::complement_type(data_type).is_some()

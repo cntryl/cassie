@@ -81,7 +81,22 @@ pub(crate) const BUILTIN_TYPES: &[BuiltinType] = &[
     extended_type(super::extended::ExtendedType::Bit { length: None }),
     extended_type(super::extended::ExtendedType::VarBit { length: None }),
     extended_type(super::extended::ExtendedType::Numeric(None)),
+    extended_type(super::extended::ExtendedType::TimeTz { precision: None }),
+    extended_type(super::extended::ExtendedType::TimestampTz { precision: None }),
+    extended_type(super::extended::ExtendedType::Interval { typmod: -1 }),
 ];
+
+/// Natively carried `date`/`time`/`timestamp` share the existing identities;
+/// typmods do not change a type's catalog entry.
+const fn extended_builtin_kind(kind: super::extended::ExtendedType) -> BuiltinKind {
+    use super::extended::ExtendedType;
+    match kind.base() {
+        ExtendedType::Date => BuiltinKind::Date,
+        ExtendedType::Time { .. } => BuiltinKind::Time,
+        ExtendedType::Timestamp { .. } => BuiltinKind::Timestamp,
+        base => BuiltinKind::Extended(base),
+    }
+}
 
 const fn extended_type(kind: super::extended::ExtendedType) -> BuiltinType {
     BuiltinType::new(
@@ -166,7 +181,7 @@ pub(crate) fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
         DataType::Timestamp => BuiltinKind::Timestamp,
         DataType::Json => BuiltinKind::Json,
         DataType::ObjectId(kind) => BuiltinKind::ObjectId(*kind),
-        DataType::Extended(kind) => BuiltinKind::Extended(kind.base()),
+        DataType::Extended(kind) => extended_builtin_kind(*kind),
         DataType::Vector(dimensions) => return TypeMetadata::Vector(*dimensions),
         DataType::Array(inner) => return TypeMetadata::Array(inner),
     };

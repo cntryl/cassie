@@ -82,6 +82,9 @@ pub(super) fn execute_set(
             let path = parse_search_path(statement.value.as_deref().unwrap_or(""));
             session.set_search_path(path);
         }
+        SettingAction::Set if statement.local => {
+            session.set_local_setting(&variable, statement.value.as_deref().unwrap_or(""))?;
+        }
         SettingAction::Set => {
             session.set_setting(&variable, statement.value.as_deref().unwrap_or(""))?;
         }
@@ -100,6 +103,7 @@ fn setting_display_name(name: &str) -> &str {
     match name {
         "datestyle" => "DateStyle",
         "timezone" => "TimeZone",
+        "intervalstyle" => "IntervalStyle",
         _ => name,
     }
 }

@@ -111,6 +111,9 @@ pub(in crate::executor::execution) fn scratch_bytes(
             })?,
             4,
         )?,
+        Expr::Function(function) if crate::sql::functions::is_temporal_function(&function.name) => {
+            64
+        }
         Expr::Function(_) | Expr::Exists(_) | Expr::Column(_) => {
             return Err(crate::app::CassieError::Unsupported(
                 "functions and subqueries in VALUES are not yet supported".into(),

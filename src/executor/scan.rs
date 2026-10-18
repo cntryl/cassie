@@ -747,6 +747,9 @@ pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataTyp
             return Value::Typed(typed);
         }
     }
+    if let Some(typed) = crate::types::extended::temporal_column_value(value, data_type) {
+        return Value::Typed(typed);
+    }
     if let DataType::Vector(dimensions) = data_type {
         if let Some(values) = value.as_array() {
             if values.len() == *dimensions {

@@ -32,7 +32,9 @@ pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
             crate::types::float_text::format(*v)
         }
         Value::Float64(v) => v.to_string(),
-        Value::String(v) if type_oid == 1114 => {
+        Value::String(v)
+            if type_oid == 1114 && crate::types::temporal::is_canonical_timestamp_text(v) =>
+        {
             crate::types::temporal::timestamp_text(v).unwrap_or_else(|_| v.clone())
         }
         Value::String(v) if type_oid == 1083 => {
@@ -104,20 +106,18 @@ pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8
                 .map_err(|_| invalid_data(codec.name)),
             _ => invalid_value(codec.name),
         },
-        BinaryCodecKind::Date => match value {
-            Value::String(value) => encode_date(value).map(|value| value.to_be_bytes().to_vec()),
-            _ => invalid_value(codec.name),
-        },
-        BinaryCodecKind::Time => match value {
-            Value::String(value) => encode_time(value).map(|value| value.to_be_bytes().to_vec()),
-            _ => invalid_value(codec.name),
-        },
-        BinaryCodecKind::Timestamp => match value {
-            Value::String(value) => {
-                encode_timestamp(value).map(|value| value.to_be_bytes().to_vec())
-            }
-            _ => invalid_value(codec.name),
-        },
+        BinaryCodecKind::Date | BinaryCodecKind::Time | BinaryCodecKind::Timestamp => {
+            native_temporal(codec.kind).map_or_else(
+                || invalid_value(codec.name),
+                |kind| match value {
+                    Value::Typed(typed) => Ok(typed.send_binary()),
+                    other => kind
+                        .cast_from(other)
+                        .map(|typed| typed.send_binary())
+                        .map_err(|_| invalid_data(codec.name)),
+                },
+            )
+        }
     }
 }
 
@@ -234,9 +234,9 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         BinaryCodecKind::Uuid => uuid::Uuid::from_slice(parameter)
             .map(|value| Value::String(value.to_string()))
             .map_err(|_| invalid_data(codec.name)),
-        BinaryCodecKind::Date => decode_date(parameter).map(Value::String),
-        BinaryCodecKind::Time => decode_time(parameter).map(Value::String),
-        BinaryCodecKind::Timestamp => decode_timestamp(parameter).map(Value::String),
+        BinaryCodecKind::Date => decode_native(parameter, codec, "date"),
+        BinaryCodecKind::Time => decode_native(parameter, codec, "time"),
+        BinaryCodecKind::Timestamp => decode_native(parameter, codec, "timestamp"),
     }?;
     if parameter.len() != original_parameter.len() {
         return Err(io::Error::new(
@@ -245,6 +245,46 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         ));
     }
     Ok(value)
+}
+
+/// The native carrier of the existing `date`/`time`/`timestamp` codecs.
+const fn native_temporal(kind: BinaryCodecKind) -> Option<crate::types::extended::ExtendedType> {
+    use crate::types::extended::ExtendedType;
+    match kind {
+        BinaryCodecKind::Date => Some(ExtendedType::Date),
+        BinaryCodecKind::Time => Some(ExtendedType::Time { precision: None }),
+        BinaryCodecKind::Timestamp => Some(ExtendedType::Timestamp { precision: None }),
+        _ => None,
+    }
+}
+
+/// `date_recv`/`time_recv`/`timestamp_recv`, range-checked like PostgreSQL.
+fn decode_native(
+    parameter: &[u8],
+    codec: &BinaryCodec,
+    type_name: &'static str,
+) -> io::Result<Value> {
+    use crate::types::typed::TypedValue;
+    let kind = native_temporal(codec.kind).ok_or_else(|| invalid_data(codec.name))?;
+    let value = kind
+        .receive_binary(parameter)
+        .map_err(|_| invalid_data(codec.name))?;
+    let valid = match &value {
+        TypedValue::Date(date) => {
+            matches!(*date, i32::MIN | i32::MAX)
+                || crate::types::extended::temporal::calendar::is_valid_date(i64::from(*date))
+        }
+        TypedValue::Time(time) => (0..=86_400_000_000).contains(time),
+        TypedValue::Timestamp(value) => {
+            matches!(*value, i64::MIN | i64::MAX)
+                || crate::types::extended::temporal::calendar::is_valid_timestamp(*value)
+        }
+        _ => true,
+    };
+    if !valid {
+        return Err(temporal_out_of_range(type_name));
+    }
+    Ok(Value::Typed(value))
 }
 
 fn encode_array(value: &Value, type_oid: i64) -> io::Result<Vec<u8>> {
@@ -631,39 +671,6 @@ fn encode_timestamp(value: &str) -> io::Result<i64> {
         .ok_or_else(|| invalid_data("timestamp"))
 }
 
-fn decode_date(bytes: &[u8]) -> io::Result<String> {
-    let days = i32::from_be_bytes(fixed_bytes(bytes, "date")?);
-    let julian_day = POSTGRES_EPOCH_JULIAN_DAY
-        .checked_add(days)
-        .ok_or_else(|| temporal_out_of_range("date"))?;
-    let date = Date::from_julian_day(julian_day).map_err(|_| temporal_out_of_range("date"))?;
-    Ok(format_date(date))
-}
-
-fn decode_time(bytes: &[u8]) -> io::Result<String> {
-    let micros = i64::from_be_bytes(fixed_bytes(bytes, "time")?);
-    if !(0..MICROSECONDS_PER_DAY).contains(&micros) {
-        return Err(temporal_out_of_range("time"));
-    }
-    let time = time_from_microseconds(micros)?;
-    Ok(format_time(time))
-}
-
-fn decode_timestamp(bytes: &[u8]) -> io::Result<String> {
-    let micros = i64::from_be_bytes(fixed_bytes(bytes, "timestamp")?);
-    let days = micros.div_euclid(MICROSECONDS_PER_DAY);
-    let remainder = micros.rem_euclid(MICROSECONDS_PER_DAY);
-    let days = i32::try_from(days).map_err(|_| temporal_out_of_range("timestamp"))?;
-    let julian_day = POSTGRES_EPOCH_JULIAN_DAY
-        .checked_add(days)
-        .ok_or_else(|| temporal_out_of_range("timestamp"))?;
-    let date = Date::from_julian_day(julian_day).map_err(|_| temporal_out_of_range("timestamp"))?;
-    let time = time_from_microseconds(remainder)?;
-    Ok(crate::types::temporal::format_timestamp(
-        PrimitiveDateTime::new(date, time),
-    ))
-}
-
 // DATE/TIME/TIMESTAMP parsing and canonical formatting are shared with
 // storage and casts via `crate::types::temporal`; these just adapt that
 // shared parser's `Result<_, String>` to this module's `io::Result`.
@@ -677,21 +684,6 @@ fn parse_time(value: &str) -> io::Result<Time> {
 
 fn parse_timestamp(value: &str) -> io::Result<PrimitiveDateTime> {
     crate::types::temporal::parse_timestamp(value).map_err(|_| invalid_data("timestamp"))
-}
-
-fn time_from_microseconds(micros: i64) -> io::Result<Time> {
-    let hour = u8::try_from(micros / 3_600_000_000).map_err(|_| invalid_data("time"))?;
-    let remainder = micros.rem_euclid(3_600_000_000);
-    let minute = u8::try_from(remainder / 60_000_000).map_err(|_| invalid_data("time"))?;
-    let remainder = remainder.rem_euclid(60_000_000);
-    let second = u8::try_from(remainder / 1_000_000).map_err(|_| invalid_data("time"))?;
-    let microsecond =
-        u32::try_from(remainder.rem_euclid(1_000_000)).map_err(|_| invalid_data("time"))?;
-    Time::from_hms_micro(hour, minute, second, microsecond).map_err(|_| invalid_data("time"))
-}
-
-fn format_date(date: Date) -> String {
-    crate::types::temporal::format_date(date)
 }
 
 fn format_time(time: Time) -> String {

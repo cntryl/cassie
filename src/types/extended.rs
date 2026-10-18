@@ -30,6 +30,15 @@ pub mod network_ops;
 pub mod operations;
 #[path = "extended/pg_lsn.rs"]
 pub mod pg_lsn;
+#[path = "extended/temporal.rs"]
+pub mod temporal;
+#[path = "extended/temporal_types.rs"]
+mod temporal_types;
+pub use temporal_types::{
+    column_value as temporal_column_value, convert as convert_temporal,
+    display_name as temporal_display_name, legacy_text as temporal_legacy_text,
+    parameter_from_text as temporal_parameter_from_text, parse_type_name as temporal_type_name,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -50,6 +59,28 @@ pub enum ExtendedType {
     /// `bit varying(n)`; `None` has no maximum length.
     VarBit {
         length: Option<u32>,
+    },
+    /// `date`, natively carried; schema columns keep `DataType::Date`.
+    Date,
+    /// `time(p)`; schema columns without a precision keep `DataType::Time`.
+    Time {
+        precision: Option<u8>,
+    },
+    /// `time(p) with time zone`.
+    TimeTz {
+        precision: Option<u8>,
+    },
+    /// `timestamp(p)`; without a precision columns keep `DataType::Timestamp`.
+    Timestamp {
+        precision: Option<u8>,
+    },
+    /// `timestamp(p) with time zone`.
+    TimestampTz {
+        precision: Option<u8>,
+    },
+    /// `interval` with PostgreSQL's packed field/precision typmod (`-1`: none).
+    Interval {
+        typmod: i32,
     },
 }
 
@@ -101,11 +132,13 @@ pub enum ExtendedFamily {
     MacAddress,
     BitString,
     Lsn,
+    Temporal,
+    Timespan,
 }
 
 impl ExtendedType {
     /// Every extended type, for name and OID lookups.
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 15] = [
         Self::Real,
         Self::Numeric(None),
         Self::Inet,
@@ -115,6 +148,12 @@ impl ExtendedType {
         Self::PgLsn,
         Self::Bit { length: None },
         Self::VarBit { length: None },
+        Self::Date,
+        Self::Time { precision: None },
+        Self::TimeTz { precision: None },
+        Self::Timestamp { precision: None },
+        Self::TimestampTz { precision: None },
+        Self::Interval { typmod: -1 },
     ];
 
     /// The SQL spelling Cassie prints in `type_name` and catalog columns.
@@ -130,6 +169,12 @@ impl ExtendedType {
             Self::PgLsn => "pg_lsn",
             Self::Bit { .. } => "bit",
             Self::VarBit { .. } => "bit varying",
+            Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => temporal_types::name(self),
         }
     }
 
@@ -146,6 +191,12 @@ impl ExtendedType {
             Self::PgLsn => "pg_lsn",
             Self::Bit { .. } => "bit",
             Self::VarBit { .. } => "varbit",
+            Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => temporal_types::typname(self),
         }
     }
 
@@ -162,6 +213,12 @@ impl ExtendedType {
             Self::PgLsn => 3220,
             Self::Bit { .. } => 1560,
             Self::VarBit { .. } => 1562,
+            Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => temporal_types::type_oid(self),
         }
     }
 
@@ -174,6 +231,12 @@ impl ExtendedType {
             Self::Numeric(_) | Self::Inet | Self::Cidr | Self::Bit { .. } | Self::VarBit { .. } => {
                 -1
             }
+            Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => temporal_types::typlen(self),
         }
     }
 
@@ -185,6 +248,12 @@ impl ExtendedType {
             Self::Inet | Self::Cidr => 'I',
             Self::Macaddr | Self::Macaddr8 | Self::PgLsn => 'U',
             Self::Bit { .. } | Self::VarBit { .. } => 'V',
+            Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => temporal_types::category(self),
         }
     }
 
@@ -196,6 +265,12 @@ impl ExtendedType {
             Self::Macaddr | Self::Macaddr8 => ExtendedFamily::MacAddress,
             Self::Bit { .. } | Self::VarBit { .. } => ExtendedFamily::BitString,
             Self::PgLsn => ExtendedFamily::Lsn,
+            Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => temporal_types::family(self),
         }
     }
 
@@ -213,7 +288,13 @@ impl ExtendedType {
             | Self::Macaddr8
             | Self::PgLsn
             | Self::Bit { .. }
-            | Self::VarBit { .. } => true,
+            | Self::VarBit { .. }
+            | Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => true,
         }
     }
 
@@ -224,6 +305,12 @@ impl ExtendedType {
             Self::Bit { .. } => Self::Bit { length: None },
             Self::VarBit { .. } => Self::VarBit { length: None },
             Self::Numeric(_) => Self::Numeric(None),
+            Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => temporal_types::base(self),
             other => other,
         }
     }
@@ -239,6 +326,12 @@ impl ExtendedType {
                 length: Some(length),
             } => i32::try_from(length).unwrap_or(-1),
             Self::Numeric(Some(typmod)) => typmod.atttypmod(),
+            Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => temporal_types::typmod(self),
             _ => -1,
         }
     }
@@ -273,7 +366,7 @@ impl ExtendedType {
             "pg_lsn" => Some(Self::PgLsn),
             "bit" => Some(Self::Bit { length: Some(1) }),
             "varbit" | "bit varying" => Some(Self::VarBit { length: None }),
-            _ => None,
+            name => temporal_types::from_sql_name(name),
         }
     }
 
@@ -287,7 +380,25 @@ impl ExtendedType {
     /// # Errors
     /// Returns PostgreSQL's input error for malformed or out-of-range text.
     pub fn parse_text(self, text: &str) -> Result<TypedValue, TypeInputError> {
+        self.parse_text_in(text, temporal::default_session())
+    }
+
+    /// `typinput` under a session's `TimeZone`, `DateStyle` and clocks.
+    ///
+    /// # Errors
+    /// Returns PostgreSQL's input error for malformed or out-of-range text.
+    pub fn parse_text_in(
+        self,
+        text: &str,
+        session: &temporal::TemporalSession,
+    ) -> Result<TypedValue, TypeInputError> {
         match self {
+            Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => temporal_types::parse_text(self, text, session),
             Self::Real => real::parse_text(text).map(TypedValue::Real),
             Self::Numeric(typmod) => {
                 numeric::parse_with_typmod(text, typmod).map(TypedValue::Numeric)
@@ -307,6 +418,21 @@ impl ExtendedType {
     /// # Errors
     /// Returns PostgreSQL's input or range error.
     pub fn cast_from(self, value: &super::Value) -> Result<TypedValue, TypeInputError> {
+        self.cast_from_in(value, temporal::default_session())
+    }
+
+    /// `CAST` under a session's `TimeZone`, `DateStyle` and clocks.
+    ///
+    /// # Errors
+    /// Returns PostgreSQL's input or range error.
+    pub fn cast_from_in(
+        self,
+        value: &super::Value,
+        session: &temporal::TemporalSession,
+    ) -> Result<TypedValue, TypeInputError> {
+        if let Some(result) = temporal_types::cast_from(self, value, session) {
+            return result;
+        }
         if let Self::Numeric(typmod) = self {
             return numeric_cast(value)?
                 .apply_typmod(typmod)
@@ -374,6 +500,12 @@ impl ExtendedType {
             | Self::PgLsn
             | Self::Bit { .. }
             | Self::VarBit { .. } => network_bit_casts::receive_binary(self, bytes),
+            Self::Date
+            | Self::Time { .. }
+            | Self::TimeTz { .. }
+            | Self::Timestamp { .. }
+            | Self::TimestampTz { .. }
+            | Self::Interval { .. } => temporal_types::receive_binary(self, bytes),
         }
     }
 }

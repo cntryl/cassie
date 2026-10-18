@@ -469,6 +469,9 @@ pub struct SetStatement {
     pub value: Option<String>,
     #[serde(default)]
     pub action: SettingAction,
+    /// `SET LOCAL`: the value lasts until the end of the transaction.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub local: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

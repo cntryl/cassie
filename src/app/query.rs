@@ -37,6 +37,7 @@ impl Cassie {
         !["current_user", "session_user", "current_role"]
             .iter()
             .any(|function| encoded.contains(function))
+            && !crate::sql::functions::temporal_clock_dependent(&encoded)
     }
 
     pub(super) fn plan_cache_key_from_fingerprint(

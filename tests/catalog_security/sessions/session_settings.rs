@@ -105,7 +105,7 @@ fn should_reject_invalid_settings_with_22023() {
     let (cassie, session, path) = cassie_and_session("invalid_values");
 
     // Act
-    let fixed = cassie.execute_sql(&session, "SET TimeZone='America/New_York'", vec![]);
+    let fixed = cassie.execute_sql(&session, "SET TimeZone='Mars/Olympus_Mons'", vec![]);
     let unknown = cassie.execute_sql(&session, "SET made_up_setting='yes'", vec![]);
 
     // Assert

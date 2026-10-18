@@ -23,6 +23,9 @@ pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<bool, QueryError> +
 
 #[path = "filter/binary.rs"]
 mod binary;
+#[path = "filter/vector_distance.rs"]
+mod vector_distance;
+use vector_distance::vector_distance;
 #[path = "filter/bytea_casts.rs"]
 mod bytea_casts;
 #[path = "filter/coalesce.rs"]
@@ -48,8 +51,16 @@ pub(crate) use numeric_comparison::comparison_key_value;
 mod functions;
 #[path = "filter/like.rs"]
 mod like;
+#[path = "filter/number_format.rs"]
+mod number_format;
 #[path = "filter/search.rs"]
 mod search;
+#[path = "filter/temporal.rs"]
+pub(crate) mod temporal;
+#[path = "filter/temporal_format.rs"]
+mod temporal_format;
+#[path = "filter/temporal_functions.rs"]
+mod temporal_functions;
 #[path = "filter/unary_numeric.rs"]
 mod unary_numeric;
 
@@ -407,7 +418,8 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
         } => eval_between_expr(row, expr, low, high, *negated, context),
         Expr::Not { expr } => eval_not_expr(row, expr, context),
         Expr::UnaryNumeric { expr, op } => {
-            unary_numeric::evaluate(&eval_scalar_with_context(row, expr, context)?, *op)
+            let value = eval_scalar_with_context(row, expr, context)?;
+            temporal::negate(&value).unwrap_or_else(|| unary_numeric::evaluate(&value, *op))
         }
         Expr::IntegerNegate { expr, width } => {
             integers::negate(&eval_scalar_with_context(row, expr, context)?, *width)
@@ -461,6 +473,9 @@ fn cast_scalar(
 ) -> Result<ScalarValue, QueryError> {
     if matches!(value, ScalarValue::Null) {
         return Ok(ScalarValue::Null);
+    }
+    if let Some(result) = temporal::cast(value, data_type, controls) {
+        return result;
     }
 
     match data_type {
@@ -628,6 +643,9 @@ fn ordered_cmp(
     right: &ScalarValue,
     cmp: impl Fn(std::cmp::Ordering) -> bool,
 ) -> Option<bool> {
+    if let Some(ordering) = temporal::compare_scalars(left, right) {
+        return Some(cmp(ordering));
+    }
     if let Some(ordering) = extended_ops::compare(left, right) {
         return Some(cmp(ordering));
     }
@@ -664,43 +682,12 @@ fn binary_math(
         .map(|(left, right)| op(left, right))
 }
 
-fn vector_distance(
-    op: &BinaryOp,
-    left: &ScalarValue,
-    right: &ScalarValue,
-) -> Result<f64, QueryError> {
-    let left = left
-        .as_str()
-        .and_then(parse_vector_text)
-        .ok_or_else(|| QueryError::General("invalid vector distance operand".to_string()))?;
-    let right = right
-        .as_str()
-        .and_then(parse_vector_text)
-        .ok_or_else(|| QueryError::General("invalid vector distance operand".to_string()))?;
-    if left.is_empty() || right.is_empty() {
-        return Err(QueryError::General(
-            "vector distance operand cannot be empty".to_string(),
-        ));
-    }
-    if left.len() != right.len() {
-        return Err(QueryError::General(format!(
-            "vector distance dimension mismatch: {} != {}",
-            left.len(),
-            right.len()
-        )));
-    }
-
-    Ok(match op {
-        BinaryOp::PgvectorCosine => crate::vector::cosine_distance(&left, &right),
-        BinaryOp::PgvectorL2 => crate::vector::l2_distance(&left, &right),
-        BinaryOp::PgvectorDot => -crate::vector::dot_score(&left, &right),
-        _ => 0.0,
-    })
-}
-
 fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
     if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
         return None;
+    }
+    if let Some(ordering) = temporal::compare_scalars(left, right) {
+        return Some(ordering.is_eq());
     }
     if let Some(ordering) = numeric_ops::compare(left, right) {
         return Some(ordering.is_eq());
@@ -812,6 +799,9 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
     }
     let left_value = eval_scalar_with_context(row, left, context)?;
     let right_value = eval_scalar_with_context(row, right, context)?;
+    if let Some(result) = temporal::binary(&left_value, op, &right_value, context) {
+        return result;
+    }
     if matches!(
         op,
         BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte

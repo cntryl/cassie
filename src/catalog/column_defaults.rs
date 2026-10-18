@@ -60,7 +60,15 @@ impl VolatileDefault {
         let textual = matches!(data_type, DataType::Text | DataType::Varchar { .. });
         match self {
             Self::Now | Self::CurrentTimestamp | Self::LocalTimestamp => {
-                textual || matches!(data_type, DataType::Timestamp)
+                textual
+                    || matches!(
+                        data_type,
+                        DataType::Timestamp
+                            | DataType::Extended(
+                                crate::types::extended::ExtendedType::Timestamp { .. }
+                                    | crate::types::extended::ExtendedType::TimestampTz { .. }
+                            )
+                    )
             }
             Self::CurrentDate => textual || matches!(data_type, DataType::Date),
             Self::RandomUuid => textual || matches!(data_type, DataType::Uuid),

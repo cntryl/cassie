@@ -166,14 +166,8 @@ fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
         assert_eq!(
             indexed,
             vec![
-                vec![
-                    Value::String("2024-03-10T05:30:00.000000Z".into()),
-                    Value::Int64(1),
-                ],
-                vec![
-                    Value::String("2024-03-11T03:30:00.000000Z".into()),
-                    Value::Int64(2),
-                ],
+                vec![Value::String("2024-03-10 05:30:00".into()), Value::Int64(1),],
+                vec![Value::String("2024-03-11 03:30:00".into()), Value::Int64(2),],
             ]
         );
         assert_eq!(

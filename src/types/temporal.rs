@@ -20,7 +20,9 @@ use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
 ///
 /// Returns an error when `value` is not a valid `YYYY-MM-DD` date.
 pub fn canonical_date(value: &str) -> Result<String, String> {
-    parse_date(value).map(format_date)
+    parse_date(value).map(format_date).or_else(|error| {
+        postgres_input::text(value, crate::types::extended::ExtendedType::Date).ok_or(error)
+    })
 }
 
 /// Parses and re-serializes a TIME string into its canonical
@@ -30,7 +32,13 @@ pub fn canonical_date(value: &str) -> Result<String, String> {
 ///
 /// Returns an error when `value` is not a valid `HH:MM:SS[.ffffff]` time.
 pub fn canonical_time(value: &str) -> Result<String, String> {
-    parse_time(value).map(format_time)
+    parse_time(value).map(format_time).or_else(|error| {
+        postgres_input::text(
+            value,
+            crate::types::extended::ExtendedType::Time { precision: None },
+        )
+        .ok_or(error)
+    })
 }
 
 /// Parses a TIMESTAMP string, converting any explicit offset to UTC, and
@@ -46,7 +54,15 @@ pub fn canonical_time(value: &str) -> Result<String, String> {
 /// Returns an error when `value` is not a valid RFC3339 or
 /// `YYYY-MM-DD[T ]HH:MM:SS[.ffffff]` timestamp.
 pub fn canonical_timestamp(value: &str) -> Result<String, String> {
-    parse_timestamp(value).map(format_timestamp)
+    parse_timestamp(value)
+        .map(format_timestamp)
+        .or_else(|error| {
+            postgres_input::text(
+                value,
+                crate::types::extended::ExtendedType::Timestamp { precision: None },
+            )
+            .ok_or(error)
+        })
 }
 
 /// Formats an offset-free timestamp in the canonical fixed-width
@@ -156,6 +172,10 @@ fn canonical_timestamp_fraction(value: &str) -> Option<&str> {
 ///
 /// Returns an error when `value` is not a valid `YYYY-MM-DD` date.
 pub fn parse_date(value: &str) -> Result<Date, String> {
+    parse_iso_date(value).or_else(|error| postgres_input::date(value).ok_or(error))
+}
+
+fn parse_iso_date(value: &str) -> Result<Date, String> {
     let mut parts = value.split('-');
     let year = parts
         .next()
@@ -183,6 +203,10 @@ pub fn parse_date(value: &str) -> Result<Date, String> {
 ///
 /// Returns an error when `value` is not a valid `HH:MM:SS[.ffffff]` time.
 pub fn parse_time(value: &str) -> Result<Time, String> {
+    parse_iso_time(value).or_else(|error| postgres_input::time(value).ok_or(error))
+}
+
+fn parse_iso_time(value: &str) -> Result<Time, String> {
     let (clock, fraction) = value.split_once('.').unwrap_or((value, ""));
     let mut parts = clock.split(':');
     let hour = parts
@@ -230,10 +254,70 @@ pub fn parse_timestamp(value: &str) -> Result<PrimitiveDateTime, String> {
     }
 
     let normalized = value.replace(' ', "T");
-    let (date, time) = normalized
+    let iso = normalized
         .split_once('T')
-        .ok_or_else(|| invalid("timestamp"))?;
-    Ok(PrimitiveDateTime::new(parse_date(date)?, parse_time(time)?))
+        .ok_or_else(|| invalid("timestamp"))
+        .and_then(|(date, time)| {
+            Ok(PrimitiveDateTime::new(
+                parse_iso_date(date)?,
+                parse_iso_time(time)?,
+            ))
+        });
+    iso.or_else(|error| postgres_input::timestamp(value).ok_or(error))
+}
+
+/// PostgreSQL's date/time input grammar for spellings the fixed-width ISO
+/// forms above do not cover (`January 8, 1999`, `epoch`, `2024-01-01`
+/// as a timestamp, ...), within the range the `time` crate represents.
+mod postgres_input {
+    use time::{Date, PrimitiveDateTime, Time};
+
+    use crate::types::extended::temporal::calendar::{
+        time_fields, POSTGRES_EPOCH_JDATE, USECS_PER_DAY,
+    };
+    use crate::types::extended::temporal::{self, default_session};
+
+    /// PostgreSQL text output for input outside the `time` crate's range
+    /// (infinities, BC and large years, `24:00:00`).
+    pub(super) fn text(value: &str, kind: crate::types::extended::ExtendedType) -> Option<String> {
+        kind.parse_text(value).ok().map(|typed| typed.text())
+    }
+
+    pub(super) fn date(value: &str) -> Option<Date> {
+        let days = temporal::parse_date(value, default_session()).ok()?;
+        if matches!(days, i32::MIN | i32::MAX) {
+            return None;
+        }
+        Date::from_julian_day(days.checked_add(POSTGRES_EPOCH_JDATE)?).ok()
+    }
+
+    fn clock(micros: i64) -> Option<Time> {
+        let (hour, minute, second, micros) = time_fields(micros);
+        Time::from_hms_micro(
+            u8::try_from(hour).ok()?,
+            u8::try_from(minute).ok()?,
+            u8::try_from(second).ok()?,
+            u32::try_from(micros).ok()?,
+        )
+        .ok()
+    }
+
+    pub(super) fn time(value: &str) -> Option<Time> {
+        clock(temporal::parse_time(value, default_session(), None).ok()?)
+    }
+
+    pub(super) fn timestamp(value: &str) -> Option<PrimitiveDateTime> {
+        let micros = temporal::parse_timestamp(value, default_session(), None).ok()?;
+        if matches!(micros, i64::MIN | i64::MAX) {
+            return None;
+        }
+        let days = i32::try_from(micros.div_euclid(USECS_PER_DAY)).ok()?;
+        let date = Date::from_julian_day(days.checked_add(POSTGRES_EPOCH_JDATE)?).ok()?;
+        Some(PrimitiveDateTime::new(
+            date,
+            clock(micros.rem_euclid(USECS_PER_DAY))?,
+        ))
+    }
 }
 
 /// Parses a TIMESTAMP string with [`parse_timestamp`] and returns it as a UTC

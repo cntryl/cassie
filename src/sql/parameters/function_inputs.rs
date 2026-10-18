@@ -242,7 +242,7 @@ fn argument_type(
             }
             u32::try_from(oid)
                 .ok()
-                .and_then(crate::types::builtin::builtin_for_oid)
+                .and_then(crate::types::builtin::parameter_builtin_for_oid)
                 .and_then(|metadata| primitive_type(&metadata.kind.data_type()))
         }
         Expr::Null => return Ok(ArgumentType::Unknown),

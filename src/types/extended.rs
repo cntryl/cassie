@@ -90,6 +90,16 @@ impl ExtendedType {
         }
     }
 
+    /// Whether a parameter declared with this type's OID binds as this type.
+    /// A family whose operators and aggregates are not complete keeps its
+    /// parameters on the untyped numeric adapter path until they are.
+    #[must_use]
+    pub const fn binds_parameters(self) -> bool {
+        match self {
+            Self::Real => false,
+        }
+    }
+
     /// Resolves a lower-cased SQL type name (without typmod) to a type.
     #[must_use]
     pub fn from_sql_name(name: &str) -> Option<Self> {

@@ -938,11 +938,9 @@ pub(super) fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
 }
 
 fn scalar_data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
-    let metadata = u32::try_from(oid)
+    if let Some(metadata) = u32::try_from(oid)
         .ok()
-        .and_then(crate::types::builtin::builtin_for_oid);
-    if let Some(metadata) =
-        metadata.filter(|metadata| metadata.kind != crate::types::builtin::BuiltinKind::Unknown)
+        .and_then(crate::types::builtin::parameter_builtin_for_oid)
     {
         return Some(metadata.kind.data_type());
     }

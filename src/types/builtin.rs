@@ -92,6 +92,16 @@ pub(crate) fn builtin_for_oid(oid: u32) -> Option<&'static BuiltinType> {
     BUILTIN_TYPES.iter().find(|metadata| metadata.oid == oid)
 }
 
+/// The type a declared parameter OID binds as. An extended family whose
+/// operators are incomplete keeps its parameters on the numeric adapter path.
+pub(crate) fn parameter_builtin_for_oid(oid: u32) -> Option<&'static BuiltinType> {
+    builtin_for_oid(oid).filter(|metadata| match metadata.kind {
+        BuiltinKind::Unknown => false,
+        BuiltinKind::Extended(kind) => kind.binds_parameters(),
+        _ => true,
+    })
+}
+
 impl BuiltinKind {
     pub(crate) fn metadata(self) -> &'static BuiltinType {
         BUILTIN_TYPES

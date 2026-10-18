@@ -159,7 +159,7 @@ fn should_execute_bitwise_operator_forms_with_postgres_values() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![1560; 7]
+        vec![1562, 1560, 1560, 1560, 1560, 1560, 1560]
     );
 }
 

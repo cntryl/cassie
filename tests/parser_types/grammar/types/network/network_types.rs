@@ -117,7 +117,7 @@ fn should_add_an_integer_to_inet_address() {
     let result = result.expect("inet address addition executes");
     assert_eq!(
         result.rows(),
-        &[vec![Value::String("192.168.1.31/32".to_string())]]
+        &[vec![Value::String("192.168.1.31".to_string())]]
     );
     assert_eq!(result.columns()[0].type_oid, 869);
 }

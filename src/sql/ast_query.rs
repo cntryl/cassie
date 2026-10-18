@@ -400,6 +400,37 @@ pub enum BinaryOp {
     PgvectorCosine,
     PgvectorL2,
     PgvectorDot,
+    /// A family operator with no scalar meaning (`<<=`, `>>=`, `&&`).
+    Typed {
+        operator: crate::types::extended::TypedOperator,
+    },
+}
+
+impl BinaryOp {
+    /// The family operator this operator names, if it has one.
+    #[must_use]
+    pub const fn typed_operator(&self) -> Option<crate::types::extended::TypedOperator> {
+        use crate::types::extended::TypedOperator;
+        use crate::types::IntegerOperation;
+        let operation = match self {
+            Self::Typed { operator } => return Some(*operator),
+            Self::Add => return Some(TypedOperator::Add),
+            Self::Sub => return Some(TypedOperator::Sub),
+            Self::Concat | Self::ByteaConcat => return Some(TypedOperator::Concat),
+            Self::Bitwise { operation } | Self::Integer { operation, .. } => *operation,
+            _ => return None,
+        };
+        match operation {
+            IntegerOperation::Add => Some(TypedOperator::Add),
+            IntegerOperation::Sub => Some(TypedOperator::Sub),
+            IntegerOperation::And => Some(TypedOperator::And),
+            IntegerOperation::Or => Some(TypedOperator::Or),
+            IntegerOperation::Xor => Some(TypedOperator::Xor),
+            IntegerOperation::Shl => Some(TypedOperator::ShiftLeft),
+            IntegerOperation::Shr => Some(TypedOperator::ShiftRight),
+            IntegerOperation::Mul | IntegerOperation::Div | IntegerOperation::Rem => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

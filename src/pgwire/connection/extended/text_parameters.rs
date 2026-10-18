@@ -47,7 +47,11 @@ pub(super) fn decode_text_parameter(
         ),
         Some(BuiltinKind::Uuid) => uuid::Uuid::parse_str(text.trim())
             .map(|uuid| Value::String(uuid.to_string()))
-            .map_err(|_| ExtendedQueryError::protocol("invalid uuid bind parameter")),
+            .map_err(|_| ExtendedQueryError::invalid_input_syntax("uuid", text)),
+        Some(BuiltinKind::Extended(kind)) if kind.binds_parameters() => kind
+            .parse_text(text)
+            .map(Value::Typed)
+            .map_err(|error| ExtendedQueryError::cassie(&error.into())),
         Some(BuiltinKind::Bytea) => crate::types::bytea_input::canonical(text)
             .map(Value::String)
             .map_err(|error| ExtendedQueryError::cassie(&error.into())),

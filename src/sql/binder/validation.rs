@@ -17,6 +17,8 @@ pub(super) enum OperandFamily {
     Temporal,
     Vector,
     Json,
+    /// An extended family with its own operators.
+    Typed(crate::types::extended::ExtendedFamily),
     Other,
 }
 
@@ -29,6 +31,7 @@ impl OperandFamily {
             Self::Temporal => "temporal",
             Self::Vector => "vector",
             Self::Json => "json",
+            Self::Typed(_) => "typed",
             Self::Other => "other",
         }
     }
@@ -136,8 +139,10 @@ fn expression_operand_family(
             Ok(Some(OperandFamily::Boolean))
         }
         Expr::UnaryNumeric { expr, .. } | Expr::IntegerNegate { expr, .. } => {
-            validate_expression_operand_families(expr, field_types)?;
-            Ok(Some(OperandFamily::Numeric))
+            match expression_operand_family(expr, field_types)? {
+                Some(family @ OperandFamily::Typed(_)) => Ok(Some(family)),
+                _ => Ok(Some(OperandFamily::Numeric)),
+            }
         }
         Expr::Cast {
             expr, data_type, ..
@@ -203,6 +208,9 @@ fn binary_operand_family(
 ) -> Result<Option<OperandFamily>, CassieError> {
     let left_family = expression_operand_family(left, field_types)?;
     let right_family = expression_operand_family(right, field_types)?;
+    if selects_typed_operator(op, left_family, right_family) {
+        return Ok(None);
+    }
     match op {
         BinaryOp::ByteaConcat => Ok(Some(OperandFamily::Other)),
         BinaryOp::Concat => {
@@ -238,7 +246,7 @@ fn binary_operand_family(
             }
             Ok(Some(OperandFamily::Text))
         }
-        BinaryOp::And | BinaryOp::Or => Ok(Some(OperandFamily::Boolean)),
+        BinaryOp::And | BinaryOp::Or | BinaryOp::Typed { .. } => Ok(Some(OperandFamily::Boolean)),
         BinaryOp::Eq
         | BinaryOp::NotEq
         | BinaryOp::IsDistinctFrom
@@ -392,6 +400,32 @@ fn require_family(
     )))
 }
 
+/// Operators over extended families are selected by operand types at
+/// binding and evaluation; comparisons keep the shared family checks.
+fn selects_typed_operator(
+    op: &BinaryOp,
+    left: Option<OperandFamily>,
+    right: Option<OperandFamily>,
+) -> bool {
+    let typed = |family: Option<OperandFamily>| matches!(family, Some(OperandFamily::Typed(_)));
+    if !typed(left) && !typed(right) {
+        return false;
+    }
+    !matches!(
+        op,
+        BinaryOp::Eq
+            | BinaryOp::NotEq
+            | BinaryOp::IsDistinctFrom
+            | BinaryOp::IsNotDistinctFrom
+            | BinaryOp::Lt
+            | BinaryOp::Lte
+            | BinaryOp::Gt
+            | BinaryOp::Gte
+            | BinaryOp::And
+            | BinaryOp::Or
+    )
+}
+
 fn families_compatible(left: OperandFamily, right: OperandFamily) -> bool {
     left == right
         || matches!(
@@ -410,6 +444,7 @@ pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
         | DataType::ObjectId(_) => OperandFamily::Numeric,
         DataType::Extended(kind) => match kind.family() {
             crate::types::extended::ExtendedFamily::Numeric => OperandFamily::Numeric,
+            family => OperandFamily::Typed(family),
         },
         DataType::Boolean => OperandFamily::Boolean,
         DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => OperandFamily::Text,

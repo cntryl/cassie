@@ -15,6 +15,7 @@ mod table;
 pub(crate) use runtime::{is_loaded_modules, is_runtime_helper, loaded_modules_columns};
 pub(crate) use table::{catalog_table_columns, is_catalog_table, is_options_table};
 mod bytea;
+pub(crate) mod hashing;
 mod inputs;
 pub(crate) use bytea::{
     bit_input_selection, has_distinct_builtin_arity, is_bytea_function, BitInputSelection,

@@ -81,7 +81,7 @@ impl DataType {
             Self::Json => "json".to_string(),
             Self::Array(inner) => format!("{}[]", inner.type_name()),
             Self::ObjectId(kind) => kind.name().to_string(),
-            Self::Extended(kind) => kind.name().to_string(),
+            Self::Extended(kind) => kind.type_name(),
         }
     }
 
@@ -127,6 +127,7 @@ impl DataType {
                 .and_then(|length| length.checked_add(4))
                 .and_then(|length| i32::try_from(length).ok())
                 .unwrap_or(-1),
+            Self::Extended(kind) => kind.typmod(),
             _ => -1,
         }
     }
@@ -187,6 +188,9 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
     };
     if let Some(canonical) = canonical {
         return parse_sql_type(&format!("{canonical}{modifier}"));
+    }
+    if let Some(bit) = super::extended::bit_string::parse_type_name(base, modifier) {
+        return bit.map(DataType::Extended);
     }
     if let Some(temporal) = lower.strip_suffix(" without time zone") {
         if temporal.starts_with("timestamp") || temporal.starts_with("time") {

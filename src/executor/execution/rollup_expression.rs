@@ -179,6 +179,11 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
         BinaryOp::PgvectorCosine => "<=>",
         BinaryOp::PgvectorL2 => "<->",
         BinaryOp::PgvectorDot => "<#>",
+        BinaryOp::Typed { operator } => match operator {
+            crate::types::extended::TypedOperator::ContainedOrEqual => "<<=",
+            crate::types::extended::TypedOperator::ContainsOrEqual => ">>=",
+            _ => "&&",
+        },
     }
 }
 

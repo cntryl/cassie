@@ -37,3 +37,19 @@ does; inside the engine values stay native so comparison never re-parses text.
 
 Operators, functions and aggregates over the family are added in the evaluator
 and binder by the family's owning issue.
+
+## Families with their own operators
+
+`inet`/`cidr`, `macaddr`/`macaddr8`, `pg_lsn` and `bit`/`bit varying`
+select operators by operand type. The parser keeps PostgreSQL's spellings
+(`<<`, `>>`, `&`, `|`, `#`, `||`, and `BinaryOp::Typed` for `<<=`, `>>=`,
+`&&`); `BinaryOp::typed_operator` names the family operator and
+`types::extended::operations` evaluates it and reports its result type for
+binding. Comparisons use each family's `TypedKey` order: `inet` and `cidr`
+share `network_cmp`, `bit` and `bit varying` share `bit_cmp`.
+
+`bit(n)` and `bit varying(n)` carry their length in the type
+(`ExtendedType::Bit { length }`); `None` is the unconstrained type of a
+`B'...'`/`X'...'` constant. Storage and parameter input apply the length as
+an assignment (`22026` on mismatch); `CAST` pads or truncates.
+

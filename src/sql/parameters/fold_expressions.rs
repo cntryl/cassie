@@ -105,6 +105,49 @@ impl Fold<'_, '_> {
         }
     }
 
+    /// Operators over network, bit-string and `pg_lsn` operands select their
+    /// result by operand type; an unknown operand takes the other's type.
+    fn extended_binary(
+        &mut self,
+        op: &ast::BinaryOp,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        use crate::types::extended::operations;
+        let Some(operator) = op.typed_operator() else {
+            return Ok(None);
+        };
+        let kind = |oid: i32| {
+            u32::try_from(oid)
+                .ok()
+                .and_then(crate::types::builtin::parameter_builtin_for_oid)
+                .map(|metadata| metadata.kind.data_type())
+        };
+        let (left_oid, right_oid) = (
+            self.summaries.values[frame.start].oid,
+            self.summaries.values[frame.start + 1].oid,
+        );
+        let (left, right) = (kind(left_oid), kind(right_oid));
+        let owned =
+            |kind: &Option<crate::types::DataType>| kind.as_ref().is_some_and(operations::handles);
+        if !owned(&left) && !owned(&right) {
+            return Ok(None);
+        }
+        let (left, right) = match (left, right) {
+            (Some(left), Some(right)) => (left, right),
+            (Some(known), None) | (None, Some(known)) => {
+                let index = usize::from(!matches!(left_oid, 0 | 705));
+                let oid = i32::try_from(known.type_oid()).unwrap_or(0);
+                let summary = &mut self.summaries.values[frame.start + index];
+                self.occurrences.coerce(summary, oid, true)?;
+                (known.clone(), known)
+            }
+            (None, None) => return Ok(None),
+        };
+        Ok(operations::operator_type(operator, &left, &right)
+            .and_then(|result| i32::try_from(result.type_oid()).ok())
+            .map(Summary::known))
+    }
+
     fn binary(
         &mut self,
         op: &ast::BinaryOp,
@@ -112,6 +155,9 @@ impl Fold<'_, '_> {
     ) -> Result<Summary, ParameterAdmissionError> {
         if matches!(op, ast::BinaryOp::And | ast::BinaryOp::Or) {
             return Ok(Summary::known(16));
+        }
+        if let Some(summary) = self.extended_binary(op, frame)? {
+            return Ok(summary);
         }
         if matches!(op, ast::BinaryOp::Concat | ast::BinaryOp::ByteaConcat) {
             let args = &mut self.summaries.values[frame.start..];
@@ -189,6 +235,7 @@ impl Fold<'_, '_> {
             | ast::BinaryOp::PgvectorL2
             | ast::BinaryOp::PgvectorDot => Summary::known(701),
             ast::BinaryOp::Eq
+            | ast::BinaryOp::Typed { .. }
             | ast::BinaryOp::NotEq
             | ast::BinaryOp::IsDistinctFrom
             | ast::BinaryOp::IsNotDistinctFrom

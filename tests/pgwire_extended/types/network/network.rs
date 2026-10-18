@@ -284,8 +284,8 @@ fn should_preserve_maximum_network_address_ordering() {
     assert_eq!(
         wire::data_rows(&batches[0]),
         vec![vec![
-            Some("255.255.255.255/32".to_owned()),
-            Some("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128".to_owned()),
+            Some("255.255.255.255".to_owned()),
+            Some("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff".to_owned()),
             Some("255.255.255.255/32".to_owned()),
             Some("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128".to_owned()),
             Some("t".to_owned()),

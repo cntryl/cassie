@@ -29,6 +29,10 @@ mod bytea_casts;
 mod coalesce;
 #[path = "filter/conditional.rs"]
 mod conditional;
+#[path = "filter/extended_ops.rs"]
+pub(crate) mod extended_ops;
+#[path = "filter/hash_functions.rs"]
+pub(crate) mod hash_functions;
 use binary::binary_scalar;
 #[path = "filter/numeric_comparison.rs"]
 mod numeric_comparison;
@@ -617,6 +621,9 @@ fn ordered_cmp(
     right: &ScalarValue,
     cmp: impl Fn(std::cmp::Ordering) -> bool,
 ) -> Option<bool> {
+    if let Some(ordering) = extended_ops::compare(left, right) {
+        return Some(cmp(ordering));
+    }
     if let Some(ordering) = compare_numeric_values(&left.to_value(), &right.to_value()) {
         return Some(cmp(ordering));
     }
@@ -687,6 +694,11 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
     }
 
     match (left, right) {
+        (ScalarValue::Typed(typed), _) | (_, ScalarValue::Typed(typed))
+            if crate::types::extended::operations::handles_value(typed) =>
+        {
+            extended_ops::compare(left, right).map(std::cmp::Ordering::is_eq)
+        }
         (ScalarValue::Bool(left), ScalarValue::Bool(right)) => Some(left == right),
         (
             ScalarValue::Int(_) | ScalarValue::Float(_),

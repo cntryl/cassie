@@ -14,7 +14,7 @@ pub(super) fn parse_field_definition_for_table(
     raw: &str,
     table: Option<&str>,
 ) -> Result<FieldDefinition, SqlError> {
-    let mut parts = tokenize_schema_field(raw).into_iter();
+    let mut parts = tokenize_schema_field(raw).into_iter().peekable();
     let name = parse_field_name(&mut parts)?;
     let type_token = parse_field_type_token(&mut parts, &name)?;
     let (data_type, serial_sequence) = parse_field_data_type(&type_token, table, &name)?;
@@ -75,14 +75,25 @@ fn parse_field_name(parts: &mut impl Iterator<Item = String>) -> Result<String, 
 }
 
 fn parse_field_type_token(
-    parts: &mut impl Iterator<Item = String>,
+    parts: &mut std::iter::Peekable<impl Iterator<Item = String>>,
     name: &str,
 ) -> Result<String, SqlError> {
-    let type_token = parts
+    let mut type_token = parts
         .next()
         .ok_or_else(|| SqlError::new(format!("missing data type for column '{name}'")))?
         .trim()
         .to_string();
+    // `BIT VARYING[(n)]` spells one type across two tokens.
+    if type_token.eq_ignore_ascii_case("bit")
+        && parts.peek().is_some_and(|next| {
+            next.get(..7)
+                .is_some_and(|word| word.eq_ignore_ascii_case("varying"))
+        })
+    {
+        if let Some(varying) = parts.next() {
+            type_token = format!("{type_token} {varying}");
+        }
+    }
     if type_token.is_empty() {
         return Err(SqlError::new(format!(
             "missing data type for column '{name}'"

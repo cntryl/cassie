@@ -191,9 +191,11 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
     parse_prefix_expression(raw)
 }
 
-fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
+/// The "any other operator" tokens split at the prefix-expression level.
+fn prefix_operators() -> [(&'static str, Option<BinaryOp>); 10] {
+    use crate::types::extended::TypedOperator;
     use crate::types::IntegerOperation;
-    let operators = [
+    [
         ("||", Some(BinaryOp::Concat)),
         (
             "|",
@@ -226,9 +228,33 @@ fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
             }),
         ),
         ("^@", None),
-    ];
+        (
+            "<<=",
+            Some(BinaryOp::Typed {
+                operator: TypedOperator::ContainedOrEqual,
+            }),
+        ),
+        (
+            ">>=",
+            Some(BinaryOp::Typed {
+                operator: TypedOperator::ContainsOrEqual,
+            }),
+        ),
+        (
+            "&&",
+            Some(BinaryOp::Typed {
+                operator: TypedOperator::Overlap,
+            }),
+        ),
+    ]
+}
+
+fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
+    let operators = prefix_operators();
     let selected = operators
         .into_iter()
+        // A cheap substring test skips the top-level scan for absent tokens.
+        .filter(|(token, _)| raw.contains(token))
         .filter_map(|(token, op)| {
             super::operators::split_operator(raw, token, true)
                 .map(|(left, right)| (left, right, op))
@@ -600,6 +626,9 @@ fn parse_typed_string_literal(raw: &str) -> Result<Option<Expr>, SqlError> {
     let Some(quote) = raw.find('\'') else {
         return Ok(None);
     };
+    if let Some(literal) = bit_string_literal(raw, quote)? {
+        return Ok(Some(literal));
+    }
     let Ok(data_type) = parse_data_type(raw[..quote].trim()) else {
         return Ok(None);
     };
@@ -611,6 +640,32 @@ fn parse_typed_string_literal(raw: &str) -> Result<Option<Expr>, SqlError> {
         data_type,
         source_type: None,
         identity: cast_identity(raw[..quote].trim()),
+    }))
+}
+
+/// `B'1010'` and `X'1F'` bit-string constants, typed as unconstrained `bit`.
+fn bit_string_literal(raw: &str, quote: usize) -> Result<Option<Expr>, SqlError> {
+    let prefix = &raw[..quote];
+    if !(prefix.eq_ignore_ascii_case("b") || prefix.eq_ignore_ascii_case("x")) {
+        return Ok(None);
+    }
+    let Some(digits) = string_literals::parse(&raw[quote..])? else {
+        return Ok(None);
+    };
+    let text = if prefix.eq_ignore_ascii_case("x") {
+        format!("x{digits}")
+    } else {
+        digits
+    };
+    crate::types::extended::bit_string::parse_text(&text)
+        .map_err(|error| SqlError::new(error.message))?;
+    Ok(Some(Expr::Cast {
+        expr: Box::new(Expr::StringLiteral(text)),
+        data_type: crate::types::DataType::Extended(crate::types::extended::ExtendedType::Bit {
+            length: None,
+        }),
+        source_type: None,
+        identity: crate::sql::ast::CastIdentity::Scalar,
     }))
 }
 

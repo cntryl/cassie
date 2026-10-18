@@ -55,8 +55,10 @@ fn should_reject_two_argument_float8_log_with_postgresql_sqlstate() {
     // Assert
     let unary_description = &baseline[1];
     let unary_result = &baseline[2];
-    let describe = &rejected[1];
-    assert_eq!(rejected[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    // PostgreSQL 18.6 resolves the undefined overload during Parse analysis,
+    // so the ErrorResponse answers Parse itself (oracle-corrections.md).
+    let describe = &rejected[0];
+    assert_eq!(rejected[0].first().map(|(tag, _)| *tag), Some(b'E'));
     assert_eq!(
         [
             wire::error_code(unary_description),

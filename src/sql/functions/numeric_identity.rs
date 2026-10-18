@@ -24,7 +24,7 @@ fn uncast_literal(expression: &Expr) -> bool {
     ) {
         return false;
     }
-    if matches!(expression, Expr::NumericLiteral(_) | Expr::NumberLiteral(_)) {
+    if matches!(expression, Expr::NumberLiteral(_)) {
         return true;
     }
     let mut pending = false;

@@ -30,6 +30,11 @@ pub(super) fn cast(
                 .map(ScalarValue::Int)
                 .map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)));
         }
+        // `numeric` rounds half away from zero (`numeric_int8`).
+        ScalarValue::Typed(crate::types::typed::TypedValue::Numeric(numeric)) => numeric
+            .to_i64_rounded()
+            .map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))?
+            .ok_or_else(|| range(width))?,
         ScalarValue::Typed(typed) => {
             return match typed.as_f64() {
                 Some(float) => cast(&ScalarValue::Float(float), width, controls),

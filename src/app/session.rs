@@ -3,6 +3,9 @@ mod statement_text;
 pub(crate) use statement_read::{SessionReadScope, StatementOverlay};
 
 mod owned_setting;
+#[path = "session/random_state.rs"]
+mod random_state;
+pub(crate) use random_state::SessionRandom;
 mod setting_control;
 mod transaction_control;
 #[path = "session/transaction_origin.rs"]
@@ -37,6 +40,8 @@ pub struct CassieSession {
     procedure_calls: Arc<Mutex<Vec<String>>>,
     #[serde(skip)]
     pub(super) sequence_values: Arc<Mutex<super::session_sequences::SessionSequenceValues>>,
+    #[serde(skip)]
+    random: Arc<Mutex<SessionRandom>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -206,7 +211,13 @@ impl CassieSession {
                 session_state: None,
             })),
             procedure_calls: Arc::new(Mutex::new(Vec::new())),
+            random: Arc::new(Mutex::new(SessionRandom::default())),
         }
+    }
+
+    /// Runs `operation` against this session's `random()` sequence.
+    pub(crate) fn with_random<T>(&self, operation: impl FnOnce(&mut SessionRandom) -> T) -> T {
+        operation(&mut self.random.lock())
     }
 
     pub(crate) fn fork_statement_batch(&self) -> Result<StatementMutationBatch, CassieError> {
@@ -265,6 +276,7 @@ impl CassieSession {
                 session_state: None,
             })),
             procedure_calls: Arc::new(Mutex::new(self.procedure_calls.lock().clone())),
+            random: Arc::clone(&self.random),
         };
 
         Ok(StatementMutationBatch {

@@ -622,7 +622,11 @@ fn should_preserve_native_nonfinite_conditional_float_values() {
     let fixture = sql_fixture("conditional_native_nonfinite", &[]);
 
     // Act
-    let result = fixture.execute("SELECT GREATEST(1e308 * 10, 0), LEAST(-1e308 * 10, 0)");
+    // `1e308 * 10` is an exact numeric in PostgreSQL 18.6, so the float
+    // infinities are spelled as float8 input (oracle-corrections.md).
+    let result = fixture.execute(
+        "SELECT GREATEST(CAST('Infinity' AS FLOAT8), 0), LEAST(CAST('-Infinity' AS FLOAT8), 0)",
+    );
 
     // Assert
     assert_eq!(
@@ -655,7 +659,7 @@ fn should_normalize_conditional_operands_once_in_nested_cte_scopes() {
     let fixture = sql_fixture("conditional_nested_cte_nonfinite", &[]);
 
     // Act
-    let result = fixture.execute("WITH first_scope AS (SELECT GREATEST(1e308 * 10, 0) AS value), second_scope AS (SELECT LEAST(value, value) AS value FROM first_scope) SELECT NULLIF(value, 0) FROM (SELECT value FROM second_scope) AS derived");
+    let result = fixture.execute("WITH first_scope AS (SELECT GREATEST(CAST('Infinity' AS FLOAT8), 0) AS value), second_scope AS (SELECT LEAST(value, value) AS value FROM first_scope) SELECT NULLIF(value, 0) FROM (SELECT value FROM second_scope) AS derived");
 
     // Assert
     assert_eq!(

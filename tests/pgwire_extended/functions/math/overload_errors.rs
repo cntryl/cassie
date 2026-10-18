@@ -24,8 +24,10 @@ fn error_response_fields(frames: &[(u8, Vec<u8>)]) -> Vec<(char, String)> {
 }
 
 fn assert_overload_case(batches: &[Frames], offset: usize, case: &OverloadCase) {
-    assert_eq!(batches[offset + 3].first().map(|(tag, _)| *tag), Some(b'1'));
-    let rejected = &batches[offset + 4];
+    // PostgreSQL 18.6 resolves the undefined overload during Parse analysis,
+    // so the ErrorResponse answers Parse itself (oracle-corrections.md).
+    assert_eq!(batches[offset + 3].first().map(|(tag, _)| *tag), Some(b'E'));
+    let rejected = &batches[offset + 3];
     assert_eq!(wire::error_code(rejected).as_deref(), Some("42883"));
     assert!(error_response_fields(rejected)
         .iter()

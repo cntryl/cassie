@@ -14,7 +14,8 @@ fn should_round_numeric_values_at_declared_scale() {
 
     // Assert
     let result = result.expect("NUMERIC precision and scale cast");
-    assert_eq!(result.rows(), &[vec![Value::Float64(12.35)]]);
+    // Native NUMERIC results publish PostgreSQL's text output.
+    assert_eq!(result.rows(), &[vec![Value::String("12.35".to_owned())]]);
     assert_eq!(result.columns()[0].type_oid, 1700);
 }
 
@@ -28,6 +29,7 @@ fn should_round_decimal_values_at_negative_scale() {
 
     // Assert
     let result = result.expect("DECIMAL negative-scale cast");
-    assert_eq!(result.rows(), &[vec![Value::Float64(13_000.0)]]);
+    // Native NUMERIC results publish PostgreSQL's text output.
+    assert_eq!(result.rows(), &[vec![Value::String("13000".to_owned())]]);
     assert_eq!(result.columns()[0].type_oid, 1700);
 }

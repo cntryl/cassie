@@ -124,7 +124,11 @@ fn should_reject_incompatible_coalesce_types_before_execution() {
     );
     assert_eq!(
         fixture.rows("SELECT COALESCE(NULL, score, 1.5) FROM coalesce_types ORDER BY id"),
-        vec![vec![Value::Float64(5.0)], vec![Value::Float64(0.0)]]
+        // COALESCE over integer and the numeric literal 1.5 is numeric.
+        vec![
+            vec![Value::String("5".to_owned())],
+            vec![Value::String("0".to_owned())]
+        ]
     );
 }
 #[test]

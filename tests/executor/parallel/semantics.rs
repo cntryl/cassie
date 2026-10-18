@@ -288,7 +288,8 @@ fn should_preserve_row_order_for_parallel_aggregate_queries_with_average() {
                 Value::Int64(parallel_row_count_i64()),
                 Value::Int64(usize_to_i64(non_null_rows)),
                 Value::Int64(usize_to_i64(non_null_rows)),
-                Value::Float64(1.0),
+                // avg(integer) is numeric in PostgreSQL 18.6.
+                Value::String("1.00000000000000000000".to_owned()),
                 Value::Int64(1),
                 Value::Int64(1),
             ]]
@@ -464,7 +465,7 @@ fn should_fold_float_aggregates_in_row_order_at_every_worker_count() {
 }
 
 #[test]
-fn should_fold_integer_avg_in_row_order_beyond_exact_float_range() {
+fn should_average_bigint_exactly_beyond_the_float_range_at_every_worker_count() {
     // Arrange
     let mut values = vec![serde_json::json!(1); 1025];
     values[0] = serde_json::json!(1_i64 << 60);
@@ -481,12 +482,12 @@ fn should_fold_integer_avg_in_row_order_beyond_exact_float_range() {
     });
 
     // Assert
-    let row_order_avg = (1..1025).fold(2.0_f64.powi(60), |sum, _| sum + 1.0) / 1025.0;
+    // avg(bigint) is an exact numeric quotient in PostgreSQL 18.6.
     for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
         assert_eq!(
             outcome.expect("integer average should execute"),
             vec![vec![
-                Value::Float64(row_order_avg),
+                Value::String("1124801467909120.0000".to_owned()),
                 Value::Int64((1_i64 << 60) + 1024)
             ]],
             "workers={workers}"

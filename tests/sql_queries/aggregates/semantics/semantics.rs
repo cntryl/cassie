@@ -107,7 +107,8 @@ fn should_execute_basic_numeric_aggregates_query() {
             selected.rows(),
             vec![vec![
                 Value::Int64(15),
-                Value::Float64(5.0),
+                // avg(integer) is numeric in PostgreSQL 18.6.
+                Value::String("5.0000000000000000".to_owned()),
                 Value::Int64(3),
                 Value::Int64(7)
             ]]

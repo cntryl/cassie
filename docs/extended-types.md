@@ -1,7 +1,7 @@
 # Extended types
 
 Natively represented PostgreSQL types beyond Cassie's original scalar set
-(`real` today; numeric, temporal, network, bit-string and the other families
+(`real` and `numeric`; temporal, network, bit-string and the other families
 follow) share one extension point so each family is added without touching
 the engine's shared `match` statements.
 
@@ -53,3 +53,14 @@ share `network_cmp`, `bit` and `bit varying` share `bit_cmp`.
 `B'...'`/`X'...'` constant. Storage and parameter input apply the length as
 an assignment (`22026` on mismatch); `CAST` pads or truncates.
 
+## NUMERIC
+
+`ExtendedType::Numeric(Option<NumericTypmod>)` carries the declared
+`(precision, scale)`; values are `mantissa * 10^-scale` big integers with
+PostgreSQL's display scale (`src/types/extended/numeric.rs`). Arithmetic and
+result scales follow `numeric.c` (`numeric_math.rs`); result types of
+operators, `sum`/`avg` and CASE/UNION branches come from `numeric_types.rs`.
+Decimal literals are `numeric`; the binder folds a decimal literal compared
+with a `double precision` operand to float8. Integral `numeric` values share
+the integer semantic key so int/numeric joins, grouping and set operations
+agree.

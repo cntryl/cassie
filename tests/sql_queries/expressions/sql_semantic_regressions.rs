@@ -96,7 +96,11 @@ fn should_evaluate_division_chains_left_to_right() {
         .expect("execute division chain");
 
     // Assert
-    assert_eq!(result.rows(), vec![vec![Value::Float64(5.0)]]);
+    // 100.0 is numeric, so the chain divides with numeric result scales.
+    assert_eq!(
+        result.rows(),
+        vec![vec![Value::String("5.0000000000000000".to_owned())]]
+    );
     let _ = std::fs::remove_dir_all(path);
 }
 
@@ -139,7 +143,8 @@ fn should_preserve_bigint_scalar_arithmetic_precision() {
             Value::Int64(18_014_398_509_481_986),
             Value::Int64(2),
             Value::Int64(9_007_199_254_740_993),
-            Value::Float64(2.5),
+            // 1 + 1.5 is numeric in PostgreSQL 18.6.
+            Value::String("2.5".to_owned()),
         ]]
     );
     assert_eq!(
@@ -148,7 +153,7 @@ fn should_preserve_bigint_scalar_arithmetic_precision() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![20, 20, 20, 701]
+        vec![20, 20, 20, 1700]
     );
     let _ = std::fs::remove_dir_all(path);
 }

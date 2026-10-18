@@ -36,6 +36,8 @@ pub(crate) mod hash_functions;
 use binary::binary_scalar;
 #[path = "filter/numeric_comparison.rs"]
 mod numeric_comparison;
+#[path = "filter/numeric_ops.rs"]
+mod numeric_ops;
 #[path = "filter/object_ids.rs"]
 mod object_ids;
 #[path = "filter/sequence_functions.rs"]
@@ -173,6 +175,11 @@ impl ScalarValue {
             ScalarValue::Typed(v) => Value::Typed(v.clone()),
         }
     }
+}
+
+/// Casts a value to `target` with the evaluator's `CAST` semantics.
+pub(crate) fn cast_value(value: &Value, target: &DataType) -> Result<Value, QueryError> {
+    cast_scalar(&scalar_from_value(value), target, None).map(|value| value.to_value())
 }
 
 pub(crate) fn filter_rows<R>(
@@ -350,9 +357,9 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),
         Expr::IntegerLiteral(value) => Ok(ScalarValue::Int(*value)),
-        Expr::NumericLiteral(_) => Err(QueryError::General(
-            "unmaterialized NUMERIC literal requires an explicit primitive cast".into(),
-        )),
+        Expr::NumericLiteral(text) => crate::types::extended::numeric::parse_text(text)
+            .map(|value| ScalarValue::Typed(crate::types::typed::TypedValue::Numeric(value)))
+            .map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error))),
         Expr::BoolLiteral(value) => Ok(ScalarValue::Bool(*value)),
         Expr::Null => Ok(ScalarValue::Null),
         Expr::Case {
@@ -624,6 +631,9 @@ fn ordered_cmp(
     if let Some(ordering) = extended_ops::compare(left, right) {
         return Some(cmp(ordering));
     }
+    if let Some(ordering) = numeric_ops::compare(left, right) {
+        return Some(cmp(ordering));
+    }
     if let Some(ordering) = compare_numeric_values(&left.to_value(), &right.to_value()) {
         return Some(cmp(ordering));
     }
@@ -691,6 +701,9 @@ fn vector_distance(
 fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
     if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
         return None;
+    }
+    if let Some(ordering) = numeric_ops::compare(left, right) {
+        return Some(ordering.is_eq());
     }
 
     match (left, right) {

@@ -46,22 +46,28 @@ fn sum_at_split(values: &[Value], data_type: &DataType, split: usize) -> Result<
     state.finish()
 }
 
+fn exact_numeric(text: &str) -> Value {
+    Value::Typed(crate::types::typed::TypedValue::Numeric(
+        crate::types::extended::numeric::parse_text(text).expect("numeric literal"),
+    ))
+}
+
+// `sum(int8)` is numeric in PostgreSQL 18.6: a prefix beyond i64 is exact.
 #[test]
-fn should_retain_integer_prefix_overflow_across_every_typed_batch_split() {
+fn should_sum_integer_prefixes_beyond_int64_exactly_across_every_typed_batch_split() {
     // Arrange
-    let overflow = [Value::Int64(i64::MAX), Value::Int64(1), Value::Int64(-1)];
+    let beyond = [Value::Int64(i64::MAX), Value::Int64(1), Value::Int64(-1)];
     let valid = [
         Value::Int64(-i64::MAX),
         Value::Int64(i64::MAX),
         Value::Int64(i64::MAX),
     ];
     // Act
-    for split in 0..=overflow.len() {
-        let failure =
-            sum_at_split(&overflow, &DataType::BigInt, split).expect_err("prefix overflow");
+    for split in 0..=beyond.len() {
+        let exact = sum_at_split(&beyond, &DataType::BigInt, split).expect("exact prefix fold");
         let sum = sum_at_split(&valid, &DataType::BigInt, split).expect("global row-order fold");
         // Assert
-        assert!(failure.to_string().contains("aggregate integer overflow"));
+        assert_eq!(exact, Value::Int64(i64::MAX));
         assert_eq!(sum, Value::Int64(i64::MAX));
     }
 }
@@ -150,7 +156,8 @@ fn should_release_numeric_aggregate_stream_owners() {
             ("rows".to_owned(), Value::Int64(3)),
             ("nonnull".to_owned(), Value::Int64(2)),
             ("total".to_owned(), Value::Int64(1)),
-            ("mean".to_owned(), Value::Float64(0.0)),
+            // avg(bigint) is an exact numeric quotient in PostgreSQL 18.6.
+            ("mean".to_owned(), exact_numeric("0.50000000000000000000")),
             ("low".to_owned(), Value::Int64(-9_007_199_254_740_992)),
             ("high".to_owned(), Value::Int64(9_007_199_254_740_993))
         ]
@@ -345,6 +352,8 @@ fn should_fold_selected_numeric_view_representations() {
                 // Assert
                 let expected = match name {
                     "count" => Value::Int64(4),
+                    // avg(bigint) is an exact numeric quotient in PostgreSQL 18.6.
+                    "avg" if data_type == DataType::BigInt => exact_numeric("7.0000000000000000"),
                     "avg" => Value::Float64(7.0),
                     "sum" if data_type == DataType::BigInt => Value::Int64(28),
                     "sum" => Value::Float64(28.0),
@@ -371,16 +380,16 @@ fn merged_integer_sum(values: &[i64], split: usize) -> Result<Value, QueryError>
 }
 
 #[test]
-fn should_preserve_serial_prefix_overflow_when_merging_typed_worker_partials() {
+fn should_keep_serial_prefixes_beyond_int64_exact_when_merging_typed_worker_partials() {
     // Arrange
-    let failures = [[i64::MAX, 1, -1], [i64::MIN, -1, 1]];
+    let beyond = [([i64::MAX, 1, -1], i64::MAX), ([i64::MIN, -1, 1], i64::MIN)];
     let valid = [-i64::MAX, i64::MAX, i64::MAX];
     // Act
     for split in 0..=3 {
-        for values in failures {
-            let error = merged_integer_sum(&values, split).expect_err("serial prefix overflow");
+        for (values, total) in beyond {
+            let sum = merged_integer_sum(&values, split).expect("exact serial prefix merge");
             // Assert
-            assert!(error.to_string().contains("aggregate integer overflow"));
+            assert_eq!(sum, Value::Int64(total));
         }
         assert_eq!(
             merged_integer_sum(&valid, split).expect("globally legal prefixes"),
@@ -488,7 +497,7 @@ fn should_publish_only_completed_bounded_typed_aggregation() {
 }
 
 #[test]
-fn should_release_typed_worker_owners_without_success_diagnostics_after_prefix_overflow() {
+fn should_release_typed_worker_owners_after_exact_prefixes_beyond_int64() {
     // Arrange
     let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     let path = std::env::temp_dir().join(format!(
@@ -530,22 +539,18 @@ fn should_release_typed_worker_owners_without_success_diagnostics_after_prefix_o
         super::super::super::build_logical_plan_in_session(&cassie, Some(&session), &statement)
             .expect("plan");
     let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
-    let before = cassie.metrics();
     // Act
-    let failure = try_execute(&cassie, Some(&session), &plan, &controls)
-        .expect_err("serial prefix overflow survives worker merge");
+    let output = try_execute(&cassie, Some(&session), &plan, &controls)
+        .expect("an int8 prefix beyond i64 stays exact across the worker merge")
+        .expect("native aggregate path");
     let after = cassie.metrics();
     // Assert
-    assert!(failure.to_string().contains("aggregate integer overflow"));
     assert_eq!(
-        after["parallel_aggregation"]["aggregations"],
-        before["parallel_aggregation"]["aggregations"]
-    );
-    assert_eq!(
-        after["parallel_aggregation"]["fallback_aggregations"],
-        before["parallel_aggregation"]["fallback_aggregations"]
+        output[0].entries(),
+        &[("total".to_owned(), Value::Int64(i64::MAX))]
     );
     assert_eq!(after["runtime"]["active_operator_workers"], 0);
+    drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
     drop((session, cassie));
     std::fs::remove_dir_all(path).expect("cleanup");

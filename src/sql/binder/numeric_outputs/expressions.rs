@@ -52,11 +52,9 @@ impl Analyzer<'_> {
                 OutputType::common_result(&values)?
             }
             Expr::Function(function) => self.function(function, lookup)?,
-            Expr::NumericLiteral(_) => {
-                return Err(CassieError::Unsupported(
-                    "unmaterialized NUMERIC literal requires an explicit primitive cast".into(),
-                ))
-            }
+            Expr::NumericLiteral(_) => OutputType::fixed(DataType::Extended(
+                crate::types::extended::ExtendedType::Numeric(None),
+            )),
             Expr::StringLiteral(_) => OutputType::fixed(DataType::Text),
             Expr::NumberLiteral(_) => {
                 let mut output = OutputType::fixed(DataType::Float);
@@ -129,7 +127,16 @@ impl Analyzer<'_> {
             BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                 OutputType::fixed(DataType::Float)
             }
-            BinaryOp::Power => OutputType::fixed(DataType::Float),
+            BinaryOp::Power => {
+                let left = self.expression(left, lookup)?;
+                let right = self.expression(right, lookup)?;
+                crate::types::extended::numeric_types::arithmetic(
+                    &left.data_type,
+                    &right.data_type,
+                    true,
+                )
+                .map_or_else(|| OutputType::fixed(DataType::Float), OutputType::fixed)
+            }
             BinaryOp::Concat => OutputType::fixed(DataType::Text),
             BinaryOp::ByteaConcat => OutputType::fixed(DataType::Bytea),
             BinaryOp::Bitwise { operation } if operation.is_shift() => {
@@ -141,10 +148,16 @@ impl Analyzer<'_> {
             | BinaryOp::Mul
             | BinaryOp::Div
             | BinaryOp::Modulo
-            | BinaryOp::Bitwise { .. } => arithmetic(
-                &self.expression(left, lookup)?,
-                &self.expression(right, lookup)?,
-            ),
+            | BinaryOp::Bitwise { .. } => {
+                let left = self.expression(left, lookup)?;
+                let right = self.expression(right, lookup)?;
+                crate::types::extended::numeric_types::arithmetic(
+                    &left.data_type,
+                    &right.data_type,
+                    matches!(op, BinaryOp::Modulo),
+                )
+                .map_or_else(|| arithmetic(&left, &right), OutputType::fixed)
+            }
         })
     }
 
@@ -184,6 +197,9 @@ impl Analyzer<'_> {
         // COUNT(*) and other fixed-return policies do not export argument
         // values. Ordinary validation checks their arguments separately;
         // this output analyzer must not resolve the `*` pseudo-column.
+        if let Some(output) = self.numeric_function(function, metadata.id, lookup)? {
+            return Ok(output);
+        }
         if let Some(data_type) = fixed_function_type(metadata.return_type) {
             let mut output = OutputType::fixed(data_type);
             if output.data_type == DataType::Float {
@@ -230,6 +246,20 @@ impl Analyzer<'_> {
             FunctionReturnType::NumericArgument | FunctionReturnType::SumArgument => {
                 numeric_argument(arguments.first(), metadata.return_type)
             }
+            FunctionReturnType::Math => {
+                let crate::sql::functions::FunctionId::Math(math) = metadata.id else {
+                    unreachable!("math return policies belong to math functions")
+                };
+                let types = arguments
+                    .iter()
+                    .map(|argument| argument.data_type.clone())
+                    .collect::<Vec<_>>();
+                let mut output =
+                    OutputType::fixed(crate::sql::functions::math::result_type(math, &types));
+                output.unresolved_numeric = arguments.iter().any(|arg| arg.unresolved_numeric)
+                    && output.data_type != DataType::Float;
+                output
+            }
             FunctionReturnType::Unknown => {
                 let mut output = OutputType::fixed(DataType::Text);
                 output.unresolved_numeric = arguments.iter().any(|arg| arg.unresolved_numeric);
@@ -237,6 +267,41 @@ impl Analyzer<'_> {
             }
             _ => unreachable!("fixed function return policies return before argument analysis"),
         })
+    }
+
+    /// `power` and `avg` result types that depend on a `numeric` argument.
+    fn numeric_function(
+        &self,
+        function: &FunctionCall,
+        id: crate::sql::functions::FunctionId,
+        lookup: &[OutputField],
+    ) -> Result<Option<OutputType>, CassieError> {
+        if id == crate::sql::functions::FunctionId::Power && function.args.len() == 2 {
+            let left = self.expression(&function.args[0], lookup)?;
+            let right = self.expression(&function.args[1], lookup)?;
+            if let Some(data_type) = crate::types::extended::numeric_types::arithmetic(
+                &left.data_type,
+                &right.data_type,
+                true,
+            ) {
+                return Ok(Some(OutputType::fixed(data_type)));
+            }
+        }
+        if id == crate::sql::functions::FunctionId::Avg {
+            if let Some(argument) = function
+                .args
+                .first()
+                .map(|argument| self.expression(argument, lookup))
+                .transpose()?
+                .filter(|argument| !argument.unresolved_numeric)
+            {
+                let data_type = crate::types::extended::numeric_types::avg(&argument.data_type);
+                let mut output = OutputType::fixed(data_type);
+                output.proven_float8 = argument.proven_float8;
+                return Ok(Some(output));
+            }
+        }
+        Ok(None)
     }
 
     fn function_arguments(
@@ -266,6 +331,7 @@ fn fixed_function_type(policy: FunctionReturnType) -> Option<DataType> {
         | FunctionReturnType::FirstComparedArgument
         | FunctionReturnType::NumericArgument
         | FunctionReturnType::SumArgument
+        | FunctionReturnType::Math
         | FunctionReturnType::Unknown => None,
     }
 }
@@ -307,9 +373,9 @@ fn numeric_argument(argument: Option<&OutputType>, policy: FunctionReturnType) -
     };
     let mut candidates = Vec::new();
     for kind in &argument.candidates {
-        let data_type = if policy == FunctionReturnType::SumArgument && integer(kind) {
-            DataType::BigInt
-        } else if integer(kind) {
+        let data_type = if policy == FunctionReturnType::SumArgument {
+            crate::types::extended::numeric_types::sum(kind)
+        } else if matches!(kind, DataType::Extended(_)) || integer(kind) {
             kind.clone()
         } else {
             DataType::Float

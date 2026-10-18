@@ -135,10 +135,19 @@ pub(super) fn numeric_literal(
     identity: crate::sql::ast::CastIdentity,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
-    if identity != crate::sql::ast::CastIdentity::Scalar {
-        return Err(QueryError::Cassie(crate::app::CassieError::Unsupported(
-            "exact NUMERIC literal conversion is not yet supported".into(),
-        )));
+    if identity != crate::sql::ast::CastIdentity::Scalar
+        || matches!(
+            target,
+            DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
+        )
+    {
+        let value = crate::types::extended::numeric::parse_text(input)
+            .map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))?;
+        return super::cast_scalar(
+            &ScalarValue::Typed(crate::types::typed::TypedValue::Numeric(value)),
+            target,
+            controls,
+        );
     }
     if let Some(width) = crate::types::IntegerWidth::from_data_type(target) {
         return super::integers::controlled_input(input, width, controls);
@@ -164,9 +173,13 @@ pub(super) fn numeric_literal(
         }
         _ => {}
     }
-    Err(QueryError::General(
-        "NUMERIC literal conversion requires a supported primitive target".into(),
-    ))
+    let value = crate::types::extended::numeric::parse_text(input)
+        .map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))?;
+    super::cast_scalar(
+        &ScalarValue::Typed(crate::types::typed::TypedValue::Numeric(value)),
+        target,
+        controls,
+    )
 }
 
 /// SQL explicit character casts apply a character-counted typmod. An absent

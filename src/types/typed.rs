@@ -7,11 +7,12 @@ use serde::{Deserialize, Serialize};
 
 use super::extended::bit_string::{self, BitString};
 use super::extended::network::{self, NetAddr, NetworkKey};
-use super::extended::{pg_lsn, real, ExtendedType};
+use super::extended::{numeric, pg_lsn, real, ExtendedType};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TypedValue {
     Real(f32),
+    Numeric(numeric::Numeric),
     Inet(NetAddr),
     Cidr(NetAddr),
     Macaddr([u8; 6]),
@@ -26,6 +27,8 @@ pub enum TypedValue {
 pub enum TypedKey {
     /// `float4` with PostgreSQL's total order (NaN sorts last, -0 = 0).
     Real(u32),
+    /// `numeric` with PostgreSQL order (NaN last, `1.0` = `1.00`).
+    Numeric(numeric::NumericKey),
     /// `inet` and `cidr` share PostgreSQL's `network_cmp` order.
     Network(NetworkKey),
     Macaddr([u8; 6]),
@@ -40,6 +43,7 @@ impl TypedValue {
     pub const fn kind(&self) -> ExtendedType {
         match self {
             Self::Real(_) => ExtendedType::Real,
+            Self::Numeric(_) => ExtendedType::Numeric(None),
             Self::Inet(_) => ExtendedType::Inet,
             Self::Cidr(_) => ExtendedType::Cidr,
             Self::Macaddr(_) => ExtendedType::Macaddr,
@@ -55,6 +59,7 @@ impl TypedValue {
     pub fn text(&self) -> String {
         match self {
             Self::Real(value) => real::format_text(*value),
+            Self::Numeric(value) => value.to_string(),
             Self::Inet(value) => network::format_network(*value, false),
             Self::Cidr(value) => network::format_network(*value, true),
             Self::Macaddr(value) => network::format_mac(value),
@@ -74,6 +79,7 @@ impl TypedValue {
     pub fn key(&self) -> TypedKey {
         match self {
             Self::Real(value) => TypedKey::Real(real::order_key(*value)),
+            Self::Numeric(value) => TypedKey::Numeric(value.order_key()),
             Self::Inet(value) | Self::Cidr(value) => TypedKey::Network(value.order_key()),
             Self::Macaddr(value) => TypedKey::Macaddr(*value),
             Self::Macaddr8(value) => TypedKey::Macaddr8(*value),
@@ -87,10 +93,14 @@ impl TypedValue {
 
     /// Heap bytes a clone retains, for query memory accounting.
     #[must_use]
-    pub const fn heap_bytes(&self) -> usize {
+    pub fn heap_bytes(&self) -> usize {
         match self {
             Self::Bit(value) | Self::VarBit(value) => value.heap_bytes(),
+            Self::Numeric(numeric::Numeric::Finite { mantissa, .. }) => {
+                usize::try_from(mantissa.bits().div_ceil(8)).unwrap_or(usize::MAX)
+            }
             Self::Real(_)
+            | Self::Numeric(_)
             | Self::Inet(_)
             | Self::Cidr(_)
             | Self::Macaddr(_)
@@ -104,6 +114,7 @@ impl TypedValue {
     pub fn send_binary(&self) -> Vec<u8> {
         match self {
             Self::Real(value) => value.to_be_bytes().to_vec(),
+            Self::Numeric(value) => value.send_binary(),
             Self::Inet(value) => network::send_network(*value, false),
             Self::Cidr(value) => network::send_network(*value, true),
             Self::Macaddr(value) => value.to_vec(),
@@ -118,6 +129,7 @@ impl TypedValue {
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Self::Real(value) => Some(f64::from(*value)),
+            Self::Numeric(value) => Some(value.to_f64()),
             Self::Inet(_)
             | Self::Cidr(_)
             | Self::Macaddr(_)

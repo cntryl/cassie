@@ -52,6 +52,17 @@ pub(super) fn resolve(
     Ok(())
 }
 
+/// `numeric` and `real` have their own sign and absolute-value operators.
+fn is_numeric_family(data_type: &DataType) -> bool {
+    matches!(
+        data_type,
+        DataType::Extended(
+            crate::types::extended::ExtendedType::Numeric(_)
+                | crate::types::extended::ExtendedType::Real
+        )
+    )
+}
+
 /// Raw unknown constants select FLOAT8 for unary plus; unary minus is ambiguous.
 pub(crate) fn is_unknown_operand(expression: &Expr) -> bool {
     matches!(expression, Expr::StringLiteral(_) | Expr::Null)
@@ -115,6 +126,7 @@ pub(crate) fn validate_signature(
         }
         if IntegerWidth::from_data_type(data_type).is_none()
             && !matches!(data_type, DataType::Float | DataType::Null)
+            && !is_numeric_family(data_type)
         {
             return Err(CassieError::Execution(format!(
                 "operator does not exist: {op:?} {data_type:?}"

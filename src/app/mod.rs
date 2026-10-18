@@ -87,7 +87,7 @@ pub(crate) use error::unsupported_sql_error;
 pub use error::{CassieError, CatalogObjectKind, RetryableStorageError, StorageRetryKind};
 pub use session::CassieSession;
 pub(crate) use session::{
-    SessionReadScope, StagedWriteSnapshot, StatementMutationBatch, StatementOverlay,
+    SessionRandom, SessionReadScope, StagedWriteSnapshot, StatementMutationBatch, StatementOverlay,
     TransactionConflictIntent, TransactionRowChange,
 };
 pub(crate) use session_settings::all as all_session_settings;

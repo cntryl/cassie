@@ -706,11 +706,14 @@ fn should_preserve_decoded_numeric_oid_boolean_validation() {
             !rejected.iter().any(|(tag, _)| *tag == b't'),
             "rejected cycle omits Describe"
         );
+        // PostgreSQL 18.6 defines no real/numeric to boolean cast (42846).
         let cast = &pair[1];
-        assert_eq!(support::error_code(cast), None, "numeric OID {oid}");
-        assert_eq!(parameter_oids(cast), vec![oid]);
-        assert_eq!(result_oids(cast), vec![16]);
-        assert_eq!(support::data_rows(cast), vec![vec![Some("t".to_owned())]]);
+        assert_eq!(
+            support::error_code(cast).as_deref(),
+            Some("42846"),
+            "numeric OID {oid}"
+        );
+        assert!(!cast.iter().any(|(tag, _)| matches!(*tag, b'T' | b'D')));
     }
 }
 

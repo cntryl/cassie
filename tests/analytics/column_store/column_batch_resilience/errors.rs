@@ -1,5 +1,7 @@
+// PostgreSQL 18.6 types sum(bigint) as numeric: a total beyond int8 is exact
+// (oracle-corrections.md); the summary path still declines to publish it.
 #[test]
-fn should_report_checked_integer_overflow_without_publishing_acceleration() {
+fn should_sum_bigint_beyond_int64_exactly_without_publishing_acceleration() {
     // Arrange
     let fixture = amount_fixture(
         "column_batch_integer_overflow",
@@ -8,18 +10,21 @@ fn should_report_checked_integer_overflow_without_publishing_acceleration() {
     );
 
     // Act
-    let accelerated_error = sum_amount(&fixture, "column_batch_integer_overflow")
-        .expect_err("accelerated SUM must report overflow");
+    let accelerated = sum_amount(&fixture, "column_batch_integer_overflow")
+        .expect("bigint SUM beyond int8 is an exact numeric total");
     let (key, mut metadata) = metadata_entry(&fixture);
     metadata.built_generation = metadata.built_generation.saturating_add(1);
     write_metadata(&fixture, key, &metadata);
-    let exact_error = sum_amount(&fixture, "column_batch_integer_overflow")
-        .expect_err("exact SUM must report overflow");
+    let exact = sum_amount(&fixture, "column_batch_integer_overflow")
+        .expect("row-fold SUM beyond int8 is exact");
     let metrics = fixture.cassie.metrics();
 
     // Assert
-    assert!(accelerated_error.contains("aggregate integer overflow"));
-    assert_eq!(exact_error, accelerated_error);
+    assert_eq!(
+        accelerated,
+        vec![vec![Value::String("9223372036854775808".to_owned())]]
+    );
+    assert_eq!(exact, accelerated);
     assert_eq!(metrics["aggregate_acceleration"]["scans"], 0);
     assert_eq!(metrics["aggregate_acceleration"]["row_blob_fallbacks"], 1);
 
@@ -27,7 +32,7 @@ fn should_report_checked_integer_overflow_without_publishing_acceleration() {
 }
 
 #[test]
-fn should_detect_checked_integer_overflow_across_segment_boundaries() {
+fn should_sum_bigint_prefixes_beyond_int64_exactly_across_segment_boundaries() {
     // Arrange
     let fixture = ordered_numeric_fixture(
         "column_batch_cross_segment_overflow",
@@ -44,7 +49,7 @@ fn should_detect_checked_integer_overflow_across_segment_boundaries() {
 
     // Act
     let accelerated = sum_amount(&fixture, "column_batch_cross_segment_overflow")
-        .expect_err("summary fold must detect row-order overflow");
+        .expect("summary fold keeps an int8 prefix beyond i64 exact");
     let metrics = fixture.cassie.metrics();
     fixture
         .cassie
@@ -59,11 +64,15 @@ fn should_detect_checked_integer_overflow_across_segment_boundaries() {
         "column_batch_cross_segment_overflow",
         "exact_total",
     )
-    .expect_err("row fold must detect overflow");
+    .expect("row fold keeps an int8 prefix beyond i64 exact");
 
     // Assert
-    assert_eq!(accelerated, exact);
-    assert!(accelerated.contains("aggregate integer overflow"));
+    assert_eq!(accelerated, vec![vec![Value::Int64(i64::MAX)]]);
+    assert_eq!(
+        exact,
+        vec![vec![Value::Int64(i64::MAX)]],
+        "the exact_total alias carries the same value"
+    );
     assert_eq!(metrics["aggregate_acceleration"]["scans"], 0);
 
     let _ = std::fs::remove_dir_all(&fixture.path);

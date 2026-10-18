@@ -68,14 +68,31 @@ fn unify_case_results(expr: &Expr, schema: &Schema) -> Expr {
     let has_float = results().any(|result| result_type(result) == Some(DataType::Float));
     let has_integer =
         results().any(|result| result_type(result).is_some_and(|data_type| is_integer(&data_type)));
-    if !(has_float && has_integer) {
+    let has_numeric = results().any(|result| {
+        matches!(
+            result_type(result),
+            Some(DataType::Extended(
+                crate::types::extended::ExtendedType::Numeric(_)
+            ))
+        )
+    });
+    // An integer branch beside a `numeric` one yields `numeric` values.
+    let numeric = has_numeric && has_integer && !has_float;
+    if !(numeric || has_float && has_integer) {
         return expr;
     }
     let widen = |result: &Expr| {
-        if result_type(result).is_some_and(|data_type| is_integer(&data_type)) {
-            super::result_coercion::float(result.clone())
-        } else {
+        if !result_type(result).is_some_and(|data_type| is_integer(&data_type)) {
             result.clone()
+        } else if numeric {
+            Expr::Cast {
+                expr: Box::new(result.clone()),
+                data_type: DataType::Extended(crate::types::extended::ExtendedType::Numeric(None)),
+                source_type: None,
+                identity: crate::sql::ast::CastIdentity::Scalar,
+            }
+        } else {
+            super::result_coercion::float(result.clone())
         }
     };
     Expr::Case {

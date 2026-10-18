@@ -3,6 +3,9 @@ use super::{QueryError, ScalarValue};
 use crate::sql::ast::UnaryNumericOp;
 
 pub(super) fn evaluate(value: &ScalarValue, op: UnaryNumericOp) -> Result<ScalarValue, QueryError> {
+    if let Some(result) = super::numeric_ops::unary(value, op) {
+        return Ok(result);
+    }
     if matches!(op, UnaryNumericOp::SquareRoot | UnaryNumericOp::CubeRoot) {
         if matches!(value, ScalarValue::Null) {
             return Ok(ScalarValue::Null);

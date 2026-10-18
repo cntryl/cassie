@@ -7,6 +7,8 @@ license-file = "LICENSE"
 
 [dependencies]
 num-traits = "0.2.19"
+num-bigint = "0.4.8"
+num-integer = "0.1.47"
 bytes = "1.12"
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["tokio"] }

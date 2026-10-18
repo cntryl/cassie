@@ -80,8 +80,10 @@ fn should_distinguish_float8_round_scale_from_numeric_round() {
 
     // Assert
     let baseline_result = &baseline[0];
-    let describe = &rejected[1];
-    assert_eq!(rejected[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    // PostgreSQL 18.6 resolves the undefined overload during Parse analysis,
+    // so the ErrorResponse answers Parse itself (oracle-corrections.md).
+    let describe = &rejected[0];
+    assert_eq!(rejected[0].first().map(|(tag, _)| *tag), Some(b'E'));
     assert_eq!(
         [
             wire::error_code(baseline_result),
@@ -153,8 +155,10 @@ fn should_distinguish_float8_trunc_scale_from_numeric_trunc() {
 
     // Assert
     let baseline_result = &baseline[0];
-    let describe = &rejected[1];
-    assert_eq!(rejected[0].first().map(|(tag, _)| *tag), Some(b'1'));
+    // PostgreSQL 18.6 resolves the undefined overload during Parse analysis,
+    // so the ErrorResponse answers Parse itself (oracle-corrections.md).
+    let describe = &rejected[0];
+    assert_eq!(rejected[0].first().map(|(tag, _)| *tag), Some(b'E'));
     assert_eq!(
         [
             wire::error_code(baseline_result),

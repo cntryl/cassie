@@ -21,6 +21,10 @@ impl OutputType {
     }
 
     pub(super) fn parameter(oid: i32) -> Self {
+        if let Some(data_type @ DataType::Extended(_)) = inference::data_type_for_parameter_oid(oid)
+        {
+            return Self::fixed(data_type);
+        }
         match oid {
             700 => Self {
                 data_type: DataType::Float,
@@ -45,6 +49,16 @@ impl OutputType {
     /// values (UNION both, EXCEPT/INTERSECT left only).
     pub(super) fn join(&mut self, other: &Self) {
         self.proven_float8 &= other.proven_float8;
+        // A `numeric`/`real` branch resolves the set result type the way
+        // PostgreSQL's UNION/CASE resolution does.
+        if let Some(common) =
+            crate::types::extended::numeric_types::common(&self.data_type, &other.data_type)
+        {
+            self.candidates = vec![common.clone()];
+            self.data_type = common;
+            self.unresolved_numeric = false;
+            return;
+        }
         // Ordinary set coercion remains outside #752. Broaden a domain only
         // when a decoder-only output origin is actually involved.
         if !(self.unresolved_numeric || other.unresolved_numeric) {

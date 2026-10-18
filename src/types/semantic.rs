@@ -115,7 +115,20 @@ impl SemanticValue {
             Value::Json(value) => {
                 Self::Json(serde_json::to_string(value).unwrap_or_else(|_| String::from("null")))
             }
-            Value::Typed(value) => Self::Typed(value.key()),
+            // A `real` keys as the equal double, so real/integer/float
+            // joins and set operations compare by value.
+            Value::Typed(crate::types::typed::TypedValue::Real(value)) => {
+                Self::Number(SemanticNumber::from_float(f64::from(*value)))
+            }
+            Value::Typed(value) => {
+                let key = value.key();
+                // An integral `numeric` keys like the equal integer, so
+                // int/numeric joins, set operations and grouping agree.
+                match integral_numeric(&key) {
+                    Some(integer) => Self::Number(SemanticNumber::from_integer(integer)),
+                    None => Self::Typed(key),
+                }
+            }
         }
     }
 
@@ -168,6 +181,12 @@ impl Ord for SemanticValue {
             }
             (Self::Vector(left), Self::Vector(right)) => left.cmp(right),
             (Self::Typed(left), Self::Typed(right)) => left.cmp(right),
+            (Self::Number(number), Self::Typed(crate::types::typed::TypedKey::Numeric(key))) => {
+                compare_number_numeric(number, key)
+            }
+            (Self::Typed(crate::types::typed::TypedKey::Numeric(key)), Self::Number(number)) => {
+                compare_number_numeric(number, key).reverse()
+            }
             (Self::Array(left), Self::Array(right)) => {
                 compare_array_parts(left, right, |left, right| {
                     match (left.is_null(), right.is_null()) {
@@ -266,6 +285,47 @@ pub(crate) fn compare_numeric_values(left: &Value, right: &Value) -> Option<Orde
         _ => return None,
     };
     Some(left.cmp(&right))
+}
+
+/// The `i64` an integral `numeric` key equals, if any.
+fn integral_numeric(key: &crate::types::typed::TypedKey) -> Option<i64> {
+    use crate::types::extended::numeric::{pow10, NumericKey};
+    let crate::types::typed::TypedKey::Numeric(NumericKey::Finite { mantissa, exponent }) = key
+    else {
+        return None;
+    };
+    let exponent = u32::try_from(*exponent)
+        .ok()
+        .filter(|exponent| *exponent <= 19)?;
+    num_traits::ToPrimitive::to_i64(&(mantissa * pow10(exponent)))
+}
+
+/// Orders an integer or float against a non-integral or out-of-range
+/// `numeric`. Ties between a float and a `numeric` keep the number first so
+/// the order stays consistent with equality across the two key families.
+fn compare_number_numeric(
+    number: &SemanticNumber,
+    key: &crate::types::extended::numeric::NumericKey,
+) -> Ordering {
+    use crate::types::extended::numeric::{Numeric, NumericKey};
+    match &number.0 {
+        SemanticNumberRepr::Integer(integer) => Numeric::from_i64(*integer).order_key().cmp(key),
+        SemanticNumberRepr::Float(bits) => {
+            let float = SemanticNumber::as_float(*bits);
+            let numeric = match key {
+                NumericKey::NegInfinity => f64::NEG_INFINITY,
+                NumericKey::Infinity => f64::INFINITY,
+                NumericKey::NaN => f64::NAN,
+                NumericKey::Finite { mantissa, exponent } => format!("{mantissa}e{exponent}")
+                    .parse::<f64>()
+                    .unwrap_or(f64::NAN),
+            };
+            match float.total_cmp(&numeric) {
+                Ordering::Equal => Ordering::Less,
+                ordering => ordering,
+            }
+        }
+    }
 }
 
 fn exact_float_integer(value: f64) -> Option<i64> {

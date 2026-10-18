@@ -281,6 +281,10 @@ impl Fold<'_, '_> {
                 })
         {
             Some(FunctionInputSignature::Positional(&[25, 25, 25]))
+        } else if let Some(functions::FunctionId::Math(math)) = metadata.map(|metadata| metadata.id)
+        {
+            functions::math::input_oids(math, function.args.len())
+                .map(FunctionInputSignature::Positional)
         } else {
             metadata.and_then(|metadata| functions::input_signature(metadata.id))
         }
@@ -293,13 +297,25 @@ impl Fold<'_, '_> {
         oids: &[i32],
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
+        // `power(numeric, numeric)` is its own overload.
+        if metadata.id == functions::FunctionId::Power
+            && self.summaries.values[frame.start..]
+                .iter()
+                .take(function.args.len())
+                .any(|summary| summary.oid == 1700)
+        {
+            return Ok(Summary::known(1700));
+        }
         for (summary, oid) in self.summaries.values[frame.start..].iter_mut().zip(oids) {
             check_controls(self.controls)?;
             let accepted = match *oid {
                 17 => matches!(summary.oid, 0 | 17 | 705),
                 25 => matches!(summary.oid, 0 | 25 | 1042 | 1043 | 705),
                 20 => matches!(summary.oid, 0 | 20 | 21 | 23 | 705),
-                701 => matches!(summary.oid, 0 | 20 | 21 | 23 | 701 | 705),
+                701 => matches!(summary.oid, 0 | 20 | 21 | 23 | 700 | 701 | 705 | 1700),
+                // Float arguments reach the binder, which names the full
+                // undefined `numeric` overload signature.
+                1700 => matches!(summary.oid, 0 | 20 | 21 | 23 | 700 | 701 | 705 | 1700),
                 _ => {
                     matches!(summary.oid, 0 | 21 | 23 | 705)
                         || summary.oid == 20 && self.occurrences.embedded_int4_carrier(*summary)
@@ -313,6 +329,22 @@ impl Fold<'_, '_> {
                 )?;
             }
             self.occurrences.coerce(summary, *oid, true)?;
+        }
+        if let functions::FunctionId::Math(math) = metadata.id {
+            let arguments = self.summaries.values[frame.start..]
+                .iter()
+                .take(function.args.len())
+                .map(|summary| {
+                    u32::try_from(summary.oid)
+                        .ok()
+                        .and_then(crate::types::builtin::parameter_builtin_for_oid)
+                        .map_or(DataType::Null, |metadata| metadata.kind.data_type())
+                })
+                .collect::<Vec<_>>();
+            let result = functions::math::result_type(math, &arguments);
+            return Ok(Summary::known(
+                i32::try_from(result.type_oid()).unwrap_or_default(),
+            ));
         }
         Ok(Summary::known(match metadata.return_type {
             functions::FunctionReturnType::Float => 701,

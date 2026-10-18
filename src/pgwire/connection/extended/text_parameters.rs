@@ -29,6 +29,11 @@ pub(super) fn decode_text_parameter(
         Some(BuiltinKind::Int4) => parse_integer(text, crate::types::IntegerWidth::I32),
         Some(BuiltinKind::Int8) => parse_integer(text, crate::types::IntegerWidth::I64),
         Some(BuiltinKind::Float8) => parse_float(text).map(Value::Float64),
+        Some(BuiltinKind::Extended(kind)) if kind.binds_parameters() => {
+            kind.parse_text(text).map(Value::Typed).map_err(|error| {
+                ExtendedQueryError::cassie(&crate::app::CassieError::TypeInput(error))
+            })
+        }
         _ if oid == OID_NUMERIC => parse_numeric(text),
         _ if oid == OID_FLOAT4 => parse_float(text).map(Value::Float64),
         Some(BuiltinKind::Json) => serde_json::from_str(text)

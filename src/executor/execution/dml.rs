@@ -71,7 +71,30 @@ fn value_to_json_for_field(
         return vector_literal_to_json(field, text, *dimensions);
     }
 
+    if let Some(assigned) = numeric_assignment(value, data_type)? {
+        return value_to_json(&assigned);
+    }
+
     value_to_json(value)
+}
+
+/// The assignment cast of a native `numeric` or `real` value into a
+/// `double precision` or integer column.
+fn numeric_assignment(value: &Value, data_type: &DataType) -> Result<Option<Value>, QueryError> {
+    let Value::Typed(typed) = value else {
+        return Ok(None);
+    };
+    if !matches!(
+        typed,
+        crate::types::typed::TypedValue::Numeric(_) | crate::types::typed::TypedValue::Real(_)
+    ) {
+        return Ok(None);
+    }
+    let target = match data_type {
+        DataType::Float | DataType::SmallInt | DataType::Int | DataType::BigInt => data_type,
+        _ => return Ok(None),
+    };
+    crate::executor::filter::cast_value(value, target).map(Some)
 }
 
 /// Coerces a pgvector-style text literal such as `'[1,2,3]'` into a JSON array.

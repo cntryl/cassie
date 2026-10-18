@@ -4,7 +4,9 @@ use crate::planner::physical::PhysicalPlan;
 use crate::sql::ast::{Expr, SelectItem};
 use crate::types::Value;
 
-const SQL: &str = "SELECT COALESCE(9007199254740993, 0.0) - 9007199254740992 AS value";
+// The decimal literal `0.0` is numeric, so the float8 domain is spelled as a cast.
+const SQL: &str =
+    "SELECT COALESCE(9007199254740993, CAST(0.0 AS FLOAT8)) - 9007199254740992 AS value";
 
 #[derive(Clone, Copy, Debug)]
 enum Layer {

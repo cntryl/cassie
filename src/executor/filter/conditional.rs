@@ -69,9 +69,14 @@ fn extreme(name: &str, args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn promote(value: &Value, float: bool) -> Value {
-    if let Value::Int64(integer) = value {
-        if float {
+    if float {
+        if let Value::Int64(integer) = value {
             return Value::Float64(crate::types::numeric::i64_to_f64(*integer));
+        }
+        if let Value::Typed(typed) = value {
+            if let Some(number) = typed.as_f64() {
+                return Value::Float64(number);
+            }
         }
     }
     value.clone()
@@ -84,6 +89,12 @@ fn compare(left: &Value, right: &Value, float: bool) -> Result<Ordering, QueryEr
         super::compare_numeric_values(left, right)
     };
     if let Some(ordering) = numeric {
+        return Ok(ordering);
+    }
+    if let Some(ordering) = super::numeric_ops::compare(
+        &super::scalar_from_value(left),
+        &super::scalar_from_value(right),
+    ) {
         return Ok(ordering);
     }
     match (left, right) {

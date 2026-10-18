@@ -18,6 +18,10 @@ mod datum_size;
 mod encoding;
 #[path = "math.rs"]
 pub(super) mod math;
+#[path = "math_functions.rs"]
+mod math_functions;
+#[path = "math_random.rs"]
+mod math_random;
 #[path = "runtime_information.rs"]
 mod runtime_information;
 #[path = "text_scalar.rs"]
@@ -87,6 +91,8 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
             let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
             super::hash_functions::evaluate(local, args)
                 .or_else(|| bytea_functions::evaluate(local, args, controls))
+                .or_else(|| math_random::evaluate(local, args, session))
+                .or_else(|| math_functions::evaluate(local, args))
                 .or_else(|| math::evaluate(local, args))
                 .or_else(|| catalog_sizes::evaluate(local, args))
                 .or_else(|| text_selection::evaluate(local, args))
@@ -789,6 +795,14 @@ fn evaluate_abs(name: &str, args: &[Value]) -> Result<Value, QueryError> {
             .map(Value::Int64)
             .ok_or_else(|| QueryError::General(super::BIGINT_OUT_OF_RANGE.to_string())),
         Value::Float64(v) => Ok(Value::Float64(v.abs())),
+        Value::Typed(crate::types::typed::TypedValue::Numeric(value)) => {
+            Ok(Value::Typed(crate::types::typed::TypedValue::Numeric(
+                crate::types::extended::numeric::math::abs(value),
+            )))
+        }
+        Value::Typed(crate::types::typed::TypedValue::Real(value)) => Ok(Value::Typed(
+            crate::types::typed::TypedValue::Real(value.abs()),
+        )),
         _ => Err(QueryError::General(format!(
             "function '{name}' expects a numeric input"
         ))),

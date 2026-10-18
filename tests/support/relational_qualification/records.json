@@ -1762,7 +1762,7 @@
           15,
           -2,
           7,
-          3.0
+          "3.0000000000000000"
         ]
       ],
       "ordered": false,
@@ -1781,8 +1781,8 @@
         },
         {
           "name": "total",
-          "oid": 20,
-          "typlen": 8,
+          "oid": 1700,
+          "typlen": -1,
           "typmod": -1
         },
         {
@@ -1799,8 +1799,8 @@
         },
         {
           "name": "mean",
-          "oid": 701,
-          "typlen": 8,
+          "oid": 1700,
+          "typlen": -1,
           "typmod": -1
         }
       ],
@@ -1825,8 +1825,8 @@
         },
         {
           "name": "total",
-          "oid": 20,
-          "typlen": 8,
+          "oid": 1700,
+          "typlen": -1,
           "typmod": -1
         }
       ],
@@ -3279,7 +3279,7 @@
           null
         ]
       ],
-      "descriptors": "20,20,20,20,20,701",
+      "descriptors": "20,20,1700,20,20,1700",
       "pg_class": "rows only SUM/AVG metadata separate",
       "comparison": "ordered unless singleton/empty",
       "executed": false,
@@ -3298,8 +3298,8 @@
         },
         {
           "name": "total",
-          "oid": 20,
-          "typlen": 8,
+          "oid": 1700,
+          "typlen": -1,
           "typmod": -1
         },
         {
@@ -3316,8 +3316,8 @@
         },
         {
           "name": "mean",
-          "oid": 701,
-          "typlen": 8,
+          "oid": 1700,
+          "typlen": -1,
           "typmod": -1
         }
       ],
@@ -3342,8 +3342,8 @@
             },
             {
               "name": "total",
-              "oid": 20,
-              "typlen": 8,
+              "oid": 1700,
+              "typlen": -1,
               "typmod": -1,
               "format": 0
             },
@@ -3363,8 +3363,8 @@
             },
             {
               "name": "mean",
-              "oid": 701,
-              "typlen": 8,
+              "oid": 1700,
+              "typlen": -1,
               "typmod": -1,
               "format": 0
             }
@@ -3394,8 +3394,8 @@
               },
               {
                 "name": "total",
-                "oid": 20,
-                "typlen": 8,
+                "oid": 1700,
+                "typlen": -1,
                 "typmod": -1,
                 "format": 0
               },
@@ -3415,8 +3415,8 @@
               },
               {
                 "name": "mean",
-                "oid": 701,
-                "typlen": 8,
+                "oid": 1700,
+                "typlen": -1,
                 "typmod": -1,
                 "format": 0
               }
@@ -3445,8 +3445,8 @@
               },
               {
                 "name": "total",
-                "oid": 20,
-                "typlen": 8,
+                "oid": 1700,
+                "typlen": -1,
                 "typmod": -1,
                 "format": 1
               },
@@ -3466,8 +3466,8 @@
               },
               {
                 "name": "mean",
-                "oid": 701,
-                "typlen": 8,
+                "oid": 1700,
+                "typlen": -1,
                 "typmod": -1,
                 "format": 1
               }
@@ -3493,8 +3493,8 @@
         },
         {
           "name": "total",
-          "oid": 20,
-          "typlen": 8,
+          "oid": 1700,
+          "typlen": -1,
           "typmod": -1
         }
       ],
@@ -3512,8 +3512,8 @@
             },
             {
               "name": "total",
-              "oid": 20,
-              "typlen": 8,
+              "oid": 1700,
+              "typlen": -1,
               "typmod": -1,
               "format": 0
             }
@@ -3536,8 +3536,8 @@
               },
               {
                 "name": "total",
-                "oid": 20,
-                "typlen": 8,
+                "oid": 1700,
+                "typlen": -1,
                 "typmod": -1,
                 "format": 0
               }
@@ -3559,8 +3559,8 @@
               },
               {
                 "name": "total",
-                "oid": 20,
-                "typlen": 8,
+                "oid": 1700,
+                "typlen": -1,
                 "typmod": -1,
                 "format": 1
               }

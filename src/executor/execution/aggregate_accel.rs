@@ -369,22 +369,32 @@ fn sum_value(
         .as_ref()
         .ok_or_else(|| QueryError::General("SUM requires a field".to_string()))?;
     let summaries = field_summaries(metadata, field)?;
+    // Native `numeric`/`real` values are not summarized; fold their rows.
+    if summaries
+        .iter()
+        .any(|summary| summary.non_null_count != summary.numeric_count)
+    {
+        return Ok(None);
+    }
     if summaries.iter().all(|summary| summary.numeric_count == 0) {
         return Ok(Some(Value::Null));
     }
-    if let Some(sum) = fold_checked_integer_summaries(&summaries)? {
-        return i64::try_from(sum)
-            .map(Value::Int64)
-            .map(Some)
-            .map_err(|_| QueryError::General("aggregate integer overflow".to_string()));
+    // `sum(int8)` is numeric: a total or prefix beyond i64 is folded exactly
+    // from rows instead of being reported as an overflow.
+    let Ok(integer_sum) = fold_checked_integer_summaries(&summaries) else {
+        return Ok(None);
+    };
+    if let Some(sum) = integer_sum {
+        return Ok(i64::try_from(sum).ok().map(Value::Int64));
     }
     if !floating_summary_fold_is_exact(&summaries) {
         return Ok(None);
     }
     // A float fold that reaches an infinity must be re-derived from rows so
     // the row path decides between an overflow error and an infinite input.
-    merge_float_capable_summaries(&summaries)
-        .map(|value| (!matches!(value, Value::Float64(sum) if sum.is_infinite())).then_some(value))
+    Ok(merge_float_capable_summaries(&summaries)
+        .ok()
+        .filter(|value| !matches!(value, Value::Float64(sum) if sum.is_infinite())))
 }
 
 fn merge_numeric_sums(
@@ -420,6 +430,12 @@ fn avg_value(
         .as_ref()
         .ok_or_else(|| QueryError::General("AVG requires a field".to_string()))?;
     let summaries = field_summaries(metadata, field)?;
+    if summaries
+        .iter()
+        .any(|summary| summary.non_null_count != summary.numeric_count)
+    {
+        return Ok(None);
+    }
     let mut count = 0usize;
     for summary in &summaries {
         count = count
@@ -430,7 +446,14 @@ fn avg_value(
         return Ok(Some(Value::Null));
     }
     if let Some(sum) = fold_exact_f64_integer_summaries(&summaries) {
-        return Ok(Some(Value::Float64(i128_to_f64(sum) / usize_to_f64(count))));
+        // `avg` of integers is an exact `numeric` quotient.
+        let total = crate::types::extended::numeric::Numeric::from_i128(sum);
+        let count = crate::types::extended::numeric::Numeric::from_i128(
+            i128::try_from(count).unwrap_or(i128::MAX),
+        );
+        return crate::types::extended::numeric::math::divide(&total, &count)
+            .map(|mean| Some(Value::Typed(crate::types::typed::TypedValue::Numeric(mean))))
+            .map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)));
     }
     if !floating_summary_fold_is_exact(&summaries) {
         return Ok(None);
@@ -586,11 +609,4 @@ fn merge_float_capable_summaries(
             "aggregate integer overflow".to_string(),
         )),
     }
-}
-
-fn i128_to_f64(value: i128) -> f64 {
-    value
-        .to_string()
-        .parse::<f64>()
-        .expect("bounded i128 should convert to finite f64")
 }

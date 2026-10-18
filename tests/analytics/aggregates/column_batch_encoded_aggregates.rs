@@ -1,4 +1,4 @@
-use cassie::app::{Cassie, CassieError};
+use cassie::app::Cassie;
 use cassie::types::Value;
 
 use super::support_sql as support;
@@ -72,7 +72,7 @@ fn should_accelerate_filtered_numeric_aggregates_over_encoded_selection() {
                 Value::Int64(3),
                 Value::Int64(2),
                 Value::Int64(10),
-                Value::Float64(5.0),
+                Value::String("5.0000000000000000".to_owned()),
                 Value::Int64(3),
                 Value::Int64(7),
             ]]
@@ -177,7 +177,9 @@ fn should_preserve_empty_filtered_aggregate_semantics() {
 }
 
 #[test]
-fn should_classify_filtered_direct_aggregate_overflow_as_execution_error() {
+// PostgreSQL 18.6 types sum(bigint) as numeric, so every direct, filtered and
+// unfiltered column-batch path returns the exact total (oracle-corrections.md).
+fn should_sum_filtered_direct_bigint_aggregates_beyond_int64_exactly() {
     // Arrange
     use_local_storage();
     let path = data_dir("column_batch_filtered_overflow_class");
@@ -193,7 +195,7 @@ fn should_classify_filtered_direct_aggregate_overflow_as_execution_error() {
     }
 
     // Act
-    let errors = [
+    let totals = [
         "SELECT SUM(amount) AS s FROM ovf WHERE id > 0",
         "SELECT SUM(amount) AS s FROM ovf WHERE id > 0 LIMIT 1",
         "SELECT SUM(amount) AS s FROM ovf",
@@ -201,14 +203,16 @@ fn should_classify_filtered_direct_aggregate_overflow_as_execution_error() {
     .map(|sql| {
         cassie
             .execute_sql(&session, sql, vec![])
-            .expect_err("overflowing SUM must fail")
+            .expect("bigint SUM beyond int8 is an exact numeric total")
+            .rows()
+            .to_vec()
     });
 
     // Assert
-    for error in &errors {
-        assert!(
-            matches!(error, CassieError::Execution(message) if message == "aggregate integer overflow"),
-            "overflow must be an execution error, got: {error}"
+    for rows in &totals {
+        assert_eq!(
+            rows,
+            &[vec![Value::String("18446744073709551614".to_owned())]]
         );
     }
     let _ = std::fs::remove_dir_all(&path);

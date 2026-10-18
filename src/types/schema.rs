@@ -227,6 +227,11 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         return Ok(DataType::Time);
     }
 
+    if let Some(numeric) = super::extended::numeric::parse_type_name(&lower) {
+        return numeric
+            .map(|typmod| DataType::Extended(super::extended::ExtendedType::Numeric(typmod)));
+    }
+
     named_type(&lower, raw)
 }
 
@@ -237,7 +242,7 @@ fn named_type(lower: &str, raw: &str) -> Result<DataType, String> {
         "smallint" | "int2" => Ok(DataType::SmallInt),
         "int" | "integer" | "int4" => Ok(DataType::Int),
         "bigint" | "int8" => Ok(DataType::BigInt),
-        "float" | "float8" | "double" | "numeric" | "decimal" => Ok(DataType::Float),
+        "float" | "float8" | "double" => Ok(DataType::Float),
         "boolean" | "bool" => Ok(DataType::Boolean),
         "text" | "string" => Ok(DataType::Text),
         "uuid" => Ok(DataType::Uuid),

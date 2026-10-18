@@ -41,10 +41,12 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
     let value = normalized
         .parse::<f64>()
         .map_err(|_| invalid_literal(raw))?;
-    if !value.is_finite() {
-        return Err(unsupported_numeric(raw));
-    }
-    Ok(Some(Expr::NumberLiteral(value)))
+    // PostgreSQL types a decimal or exponent literal as `numeric`; the
+    // binder narrows it to `double precision` where a float peer selects it.
+    let _ = value;
+    crate::types::extended::numeric::parse_text(&normalized)
+        .map_err(|error| SqlError::numeric_range(error.message))?;
+    Ok(Some(Expr::NumericLiteral(normalized.into_owned())))
 }
 
 fn parse_radix(raw: &str, digits: &str, radix: u32) -> Result<Expr, SqlError> {

@@ -158,7 +158,8 @@ fn should_preserve_pg_lsn_operator_outputs() {
         &[vec![
             Value::Bool(true),
             Value::String("16/B374D850".to_string()),
-            Value::Float64(8.0),
+            // pg_lsn - pg_lsn is an exact numeric in PostgreSQL 18.6.
+            Value::String("8".to_string()),
         ]]
     );
     assert_eq!(
@@ -186,7 +187,11 @@ fn should_evaluate_pg_lsn_functions_with_postgres_result_types() {
     let result = result.expect("pg_lsn functions execute");
     assert_eq!(
         result.rows(),
-        &[vec![Value::Float64(8.0), Value::String("0/10".to_string()),]]
+        // pg_wal_lsn_diff is an exact numeric in PostgreSQL 18.6.
+        &[vec![
+            Value::String("8".to_string()),
+            Value::String("0/10".to_string()),
+        ]]
     );
     assert_eq!(
         result
@@ -220,8 +225,12 @@ fn should_preserve_pg_lsn_constructor_argument_cast_ast() {
     else {
         panic!("expected generic cast argument");
     };
-    assert_eq!(data_type, &DataType::Float);
-    assert_eq!(*identity, cassie::sql::ast::CastIdentity::Numeric);
+    // NUMERIC is a native type: the cast keeps scalar identity.
+    assert_eq!(
+        data_type,
+        &DataType::Extended(cassie::types::extended::ExtendedType::Numeric(None))
+    );
+    assert_eq!(*identity, cassie::sql::ast::CastIdentity::Scalar);
     let Expr::StringLiteral(literal) = expr.as_ref() else {
         panic!("expected string input literal");
     };

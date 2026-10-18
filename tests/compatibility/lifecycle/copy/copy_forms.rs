@@ -25,8 +25,6 @@ mod postgresql18_from_stdin_residuals;
 mod query_to;
 #[path = "text_format.rs"]
 mod text_format;
-#[path = "trigger_interactions.rs"]
-mod trigger_interactions;
 #[path = "missing_forms.rs"]
 mod wave4_missing_forms;
 

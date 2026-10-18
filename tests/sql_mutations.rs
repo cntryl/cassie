@@ -46,9 +46,6 @@ mod postgresql18_transactional_ddl;
 #[path = "sql_mutations/transactions/transaction_isolation.rs"]
 mod postgresql18_transaction_isolation;
 
-#[path = "sql_mutations/large_objects/large_objects.rs"]
-mod postgresql18_large_objects;
-
 #[path = "sql_mutations/mutations/statement_atomicity.rs"]
 mod postgresql18_mutation_inventory_wave4;
 

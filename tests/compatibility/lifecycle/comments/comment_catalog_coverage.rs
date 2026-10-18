@@ -5,8 +5,6 @@ mod index_comment_clear;
 #[path = "null_clear_residuals.rs"]
 mod null_clear_residuals;
 
-include!("../triggers/comment_catalog_coverage.rs");
-
 #[test]
 fn should_roundtrip_materialized_view_comments_through_relation_metadata() {
     // Arrange
@@ -454,115 +452,6 @@ fn should_roundtrip_extension_comments_through_extension_metadata() {
 
         // Assert
         assert_eq!(before_clear.as_deref(), Some("procedural language runtime"));
-        assert_eq!(after_clear, None);
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-#[test]
-fn should_roundtrip_text_search_dictionary_comments_through_catalog() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("text_search_dictionary_comments").await;
-        let (client, connection) = server.connect().await;
-
-        // Act
-        client
-            .batch_execute(
-                "COMMENT ON TEXT SEARCH DICTIONARY pg_catalog.simple \
-                   IS 'simple dictionary metadata'",
-            )
-            .await
-            .expect("store a comment on the built-in simple dictionary");
-        let before_clear: Option<String> = client
-            .query_one(
-                "SELECT obj_description(dictionary.oid, 'pg_ts_dict') \
-                 FROM pg_catalog.pg_ts_dict AS dictionary \
-                 WHERE dictionary.dictname = 'simple' \
-                   AND dictionary.dictnamespace = 'pg_catalog'::regnamespace",
-                &[],
-            )
-            .await
-            .expect("read the dictionary comment from pg_ts_dict")
-            .try_get(0)
-            .expect("dictionary comment");
-        client
-            .batch_execute("COMMENT ON TEXT SEARCH DICTIONARY pg_catalog.simple IS NULL")
-            .await
-            .expect("clear the text-search dictionary comment");
-        let after_clear: Option<String> = client
-            .query_one(
-                "SELECT obj_description(dictionary.oid, 'pg_ts_dict') \
-                 FROM pg_catalog.pg_ts_dict AS dictionary \
-                 WHERE dictionary.dictname = 'simple' \
-                   AND dictionary.dictnamespace = 'pg_catalog'::regnamespace",
-                &[],
-            )
-            .await
-            .expect("read the cleared dictionary comment")
-            .try_get(0)
-            .expect("cleared dictionary comment");
-
-        // Assert
-        assert_eq!(before_clear.as_deref(), Some("simple dictionary metadata"));
-        assert_eq!(after_clear, None);
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-#[test]
-fn should_roundtrip_text_search_configuration_comments_through_catalog() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("text_search_configuration_comments").await;
-        let (client, connection) = server.connect().await;
-
-        // Act
-        client
-            .batch_execute(
-                "COMMENT ON TEXT SEARCH CONFIGURATION pg_catalog.simple \
-                   IS 'simple configuration metadata'",
-            )
-            .await
-            .expect("store a comment on the built-in simple configuration");
-        let before_clear: Option<String> = client
-            .query_one(
-                "SELECT obj_description(configuration.oid, 'pg_ts_config') \
-                 FROM pg_catalog.pg_ts_config AS configuration \
-                 WHERE configuration.cfgname = 'simple' \
-                   AND configuration.cfgnamespace = 'pg_catalog'::regnamespace",
-                &[],
-            )
-            .await
-            .expect("read the configuration comment from pg_ts_config")
-            .try_get(0)
-            .expect("configuration comment");
-        client
-            .batch_execute("COMMENT ON TEXT SEARCH CONFIGURATION pg_catalog.simple IS NULL")
-            .await
-            .expect("clear the text-search configuration comment");
-        let after_clear: Option<String> = client
-            .query_one(
-                "SELECT obj_description(configuration.oid, 'pg_ts_config') \
-                 FROM pg_catalog.pg_ts_config AS configuration \
-                 WHERE configuration.cfgname = 'simple' \
-                   AND configuration.cfgnamespace = 'pg_catalog'::regnamespace",
-                &[],
-            )
-            .await
-            .expect("read the cleared configuration comment")
-            .try_get(0)
-            .expect("cleared configuration comment");
-
-        // Assert
-        assert_eq!(
-            before_clear.as_deref(),
-            Some("simple configuration metadata")
-        );
         assert_eq!(after_clear, None);
 
         drop(client);

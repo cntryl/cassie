@@ -3,9 +3,6 @@
 use crate::support_sql_fixture::sql_fixture;
 use cassie::types::Value;
 
-#[path = "../inheritance/truncate_only_inheritance.rs"]
-mod truncate_only_inheritance;
-
 #[test]
 fn should_assign_multiple_update_columns_from_a_scalar_subquery() {
     // Arrange

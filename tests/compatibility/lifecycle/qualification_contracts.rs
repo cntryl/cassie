@@ -11,6 +11,4 @@ include!("comments/lifecycle/transactions.rs");
 
 include!("extensions/lifecycle/semantics.rs");
 
-include!("large_objects/lifecycle/resources.rs");
-
 include!("security/privileges/lifecycle/semantics.rs");

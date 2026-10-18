@@ -6,8 +6,6 @@ use cassie::types::Value;
 
 use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
 
-#[path = "data_modifying_operations.rs"]
-mod data_modifying_operations;
 #[path = "insert_snapshot_descriptor.rs"]
 mod insert_snapshot_descriptor;
 #[path = "search_cycle_edge_cases.rs"]
@@ -551,68 +549,6 @@ fn should_feed_deleted_returning_rows_into_a_following_cte_statement() {
 }
 
 #[test]
-fn should_keep_sibling_reads_on_the_data_modifying_cte_statement_snapshot() {
-    // PostgreSQL 18.6 runs the sibling SELECT on the original statement
-    // snapshot, while DELETE RETURNING exposes the removed row. Cassie's
-    // planner currently accepts only SELECT CTE bodies, so this is #834
-    // snapshot-visibility acceptance coverage whose value assertions are
-    // masked until data-modifying CTE bodies are supported.
-    // Arrange
-    let fixture = sql_fixture(
-        "issue-834-modifying-cte-snapshot",
-        &[
-            "CREATE TABLE issue_834_snapshot_source (id INT PRIMARY KEY, payload TEXT)",
-            "INSERT INTO issue_834_snapshot_source VALUES (1, 'one'), (2, 'two')",
-        ],
-    );
-
-    // Act
-    let observed = fixture.execute(
-        "WITH removed AS ( \
-             DELETE FROM issue_834_snapshot_source WHERE id = 1 RETURNING id, payload \
-         ), snapshot AS ( \
-             SELECT id, payload FROM issue_834_snapshot_source \
-         ) \
-         SELECT 'deleted' AS source, id, payload FROM removed \
-         UNION ALL \
-         SELECT 'snapshot', id, payload FROM snapshot \
-         ORDER BY source, id",
-    );
-    let remaining =
-        fixture.execute("SELECT id, payload FROM issue_834_snapshot_source ORDER BY id");
-
-    // Assert
-    assert_eq!(
-        observed
-            .expect("data-modifying CTE and sibling SELECT statement snapshot")
-            .rows(),
-        &[
-            vec![
-                Value::String("deleted".to_owned()),
-                Value::Int64(1),
-                Value::String("one".to_owned()),
-            ],
-            vec![
-                Value::String("snapshot".to_owned()),
-                Value::Int64(1),
-                Value::String("one".to_owned()),
-            ],
-            vec![
-                Value::String("snapshot".to_owned()),
-                Value::Int64(2),
-                Value::String("two".to_owned()),
-            ],
-        ]
-    );
-    assert_eq!(
-        remaining
-            .expect("base table after the data-modifying CTE statement")
-            .rows(),
-        &[vec![Value::Int64(2), Value::String("two".to_owned())]]
-    );
-}
-
-#[test]
 fn should_attach_a_non_modifying_cte_to_insert() {
     // Arrange
     let fixture = sql_fixture(
@@ -698,42 +634,6 @@ fn should_attach_a_non_modifying_cte_to_delete() {
     assert_eq!(
         remaining.expect("remaining DELETE target rows").rows(),
         &[vec![Value::Int64(2), Value::String("two".to_owned())]]
-    );
-}
-
-#[test]
-fn should_roll_back_data_modifying_ctes_when_the_outer_insert_fails() {
-    // Arrange
-    let fixture = sql_fixture(
-        "issue-834-modifying-cte-atomic-failure",
-        &[
-            "CREATE TABLE issue_834_atomic_source (id INT PRIMARY KEY)",
-            "CREATE TABLE issue_834_atomic_target (id INT PRIMARY KEY)",
-            "INSERT INTO issue_834_atomic_source VALUES (1)",
-            "INSERT INTO issue_834_atomic_target VALUES (1)",
-        ],
-    );
-
-    // Act
-    let failed = fixture.execute(
-        "WITH removed AS (DELETE FROM issue_834_atomic_source WHERE id = 1 RETURNING id) \
-         INSERT INTO issue_834_atomic_target SELECT id FROM removed",
-    );
-    let source_rows = fixture.execute("SELECT id FROM issue_834_atomic_source ORDER BY id");
-    let target_rows = fixture.execute("SELECT id FROM issue_834_atomic_target ORDER BY id");
-
-    // Assert
-    assert!(
-        matches!(failed, Err(CassieError::UniqueViolation { .. })),
-        "the outer INSERT must report its duplicate key: {failed:?}"
-    );
-    assert_eq!(
-        source_rows.expect("source after failed statement").rows(),
-        &[vec![Value::Int64(1)]]
-    );
-    assert_eq!(
-        target_rows.expect("target after failed statement").rows(),
-        &[vec![Value::Int64(1)]]
     );
 }
 

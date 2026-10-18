@@ -1,12 +1,16 @@
 # PostgreSQL 18 SQL dialect profile
 
-This is the selected delivery contract for [#792](https://github.com/cntryl/cassie/issues/792)
-under [#791](https://github.com/cntryl/cassie/issues/791), refreshed from main
-`769d4db8fb7e60f0a29fade73137433a20e5a817` on 2026-10-10.
-Complete **PostgreSQL 18.6 core SQL and full PL/pgSQL compatibility** is the
-top-priority target. Publication records intent and dependencies; it does not
-establish implementation, conformance or readiness. [Feature Support](feature-support.md)
+This is the SQL dialect contract for Cassie as a query engine for event-sourced
+read models. The [Product Roadmap](product-roadmap.md#product-scope-a-query-engine-for-read-models)
+owns the scope and milestones; this profile records how the PostgreSQL 18.6
+dialect is applied within it. Publication records intent and dependencies; it
+does not establish implementation, conformance or readiness. [Feature Support](feature-support.md)
 and [Production Readiness](production-readiness.md) remain the current-status authorities.
+
+The earlier target of complete PostgreSQL 18.6 core SQL and full PL/pgSQL
+(#791–#793) was superseded on 2026-10-18. Sections below that cite those
+issues or the closed owners listed under the out-of-scope boundary are
+historical; they remain only where they constrain in-scope behavior.
 
 ## Selected scope
 
@@ -16,23 +20,33 @@ and administrative. Centralize lexical handling, precedence, type resolution
 and catalog lookup in focused modules. Extend the public AST and value types
 through the owning modules rather than introducing another storage abstraction.
 
-The final boundary includes every PostgreSQL core SQL form and full PL/pgSQL,
-including XML, geometry, money, pg_lsn, ranges/multiranges, TABLESAMPLE,
-exclusion/temporal constraints, inheritance, SQL-defined aggregates/casts/
-conversions/operators/operator families, rewrite rules, event triggers,
-extended statistics, local two-phase transactions, large objects and real
-Midge-backed SQL maintenance. Earlier 38-digit decimals, one-dimensional
-arrays, fixed-offset temporal behavior and procedural subsets are **intermediate
-delivery slices**, never final acceptance limits.
+In scope with PostgreSQL 18.6 semantics: projection writes (`INSERT`,
+`ON CONFLICT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE`, `COPY`, `RETURNING`,
+transactions and isolation), read-model DDL (tables, indexes, views,
+materialized views, sequences, identity, enums, schemas, temporary tables,
+transactional DDL and rename-swap), complete `SELECT` semantics, and every
+PostgreSQL data type with its functions and operators, including XML, geometry,
+money, `pg_lsn`, ranges/multiranges, network, bytea, composite and domain
+types. Earlier 38-digit decimals, one-dimensional arrays and fixed-offset
+temporal behavior are intermediate delivery slices, not final limits.
 
-Only these architectural exceptions may be excluded: native C/plugin ABIs,
-other procedural-language runtimes, foreign storage/federation, replication and
-PostgreSQL-specific physical server management such as tablespaces and
-ALTER SYSTEM. Native plugin access-method/language handlers and provider-specific
-server management fall under those exceptions; equivalent SQL-level behavior
-within direct Midge remains in scope. Unsupported in-scope forms remain open
-corpus obligations; accepting syntax or returning empty catalogs does not
-complete their semantics. The former closed-scope restriction is superseded.
+At a documented compatibility level, because drivers, ORMs, migration tools
+and admin clients issue them automatically: advisory locks (real single-node
+locks), `COMMENT ON`, roles/`GRANT`/`REVOKE`/`OWNER TO` without privilege
+enforcement beyond `root`, `FOR UPDATE`/`SKIP LOCKED`/`LOCK TABLE`,
+`ANALYZE`/`VACUUM`/storage options, `CREATE EXTENSION` for the built-in
+profiles, and size and activity functions. The owning issue records each exact
+behavior before implementation.
+
+Out of scope, rejected with a deterministic unsupported-feature error:
+PL/pgSQL, `DO` blocks and SQL-language routines; triggers and event triggers;
+rewrite rules; row-level security; LISTEN/NOTIFY; large objects; table
+inheritance; declarative partitioning; user-defined operators, operator
+families, casts, conversions and aggregates; extended statistics; two-phase
+transactions; exclusion and temporal constraints; data-modifying CTEs;
+text-search configuration DDL; native C/plugin ABIs, foreign storage,
+replication and physical server management such as tablespaces and
+`ALTER SYSTEM`.
 
 ## Shared contracts and delivery
 

@@ -131,9 +131,6 @@ mod search_path_resolution;
 #[path = "catalog_security/catalogs/foreign_keys.rs"]
 mod catalogs_foreign_keys;
 
-#[path = "catalog_security/catalogs/partitions.rs"]
-mod catalogs_partitions;
-
 #[path = "catalog_security/catalogs/runtime_capabilities.rs"]
 mod catalogs_runtime_capabilities;
 

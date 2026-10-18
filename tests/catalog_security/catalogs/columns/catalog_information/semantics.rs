@@ -65,17 +65,3 @@ fn should_list_the_default_tablespace_in_pg_tablespace() {
     );
 }
 
-#[test]
-fn should_list_default_text_search_configuration_mappings() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-text-search-map-catalog", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let selected = fixture
-        .execute("SELECT count(*) > 0 FROM pg_catalog.pg_ts_config_map")
-        .expect("query the text search configuration mappings");
-
-    // Assert
-    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
-}

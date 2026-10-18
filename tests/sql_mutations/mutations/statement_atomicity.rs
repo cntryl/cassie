@@ -10,8 +10,6 @@ use tokio_postgres::{Client, NoTls};
 
 use super::support_sql_fixture::sql_fixture;
 
-#[path = "data_modifying_cte_wire_atomicity/semantics.rs"]
-mod data_modifying_cte_wire_atomicity;
 #[path = "../merge/merge_cardinality_atomicity/restart.rs"]
 mod merge_cardinality_atomicity;
 #[path = "../conflicts/returning_error_order/semantics.rs"]

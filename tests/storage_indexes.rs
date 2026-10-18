@@ -117,12 +117,6 @@ mod scalar_read_equivalence;
 #[path = "storage_indexes/types/temporal/instant_equality.rs"]
 mod types_temporal_instant_equality;
 
-#[path = "storage_indexes/operators/family_laws.rs"]
-mod operators_family_laws;
-
-#[path = "storage_indexes/text_search/configuration_changes.rs"]
-mod text_search_configuration_changes;
-
 #[path = "storage_indexes/types/ranges/operators.rs"]
 mod types_ranges_operators;
 

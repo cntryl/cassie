@@ -4,23 +4,60 @@ This document contains future work only. Current behavior and status live in [Fe
 
 Work is dependency-ordered. A later item does not begin while an earlier correctness or format dependency remains open.
 
-## Top priority: PostgreSQL 18 SQL parity
+## Product scope: a query engine for read models
 
-Complete PostgreSQL 18.6 core SQL and full PL/pgSQL compatibility under the
-[selected dialect profile](sql-dialect-profile.md) and
-[delivery stages/owners](postgresql18-delivery.md), tracked by #791 in the
-Postgres SQL feature parity milestone. Bootstrap the differential corpus now
-and grow it with every bundle; #848 remains final conformance and #849 the
-resource/restart gate. Earlier finite decimal/array/temporal/procedural limits
-are intermediate slices, never final acceptance boundaries.
+Cassie powers read models of event-sourced and CQRS systems. The event stream
+is the source of truth; projector processes write read-model tables over the
+PostgreSQL wire protocol with plain SQL, and applications query them through
+standard drivers, ORMs, psql and pgAdmin. Every issue and test is judged by
+whether it serves one of these five areas:
 
-Preserve completed query-engine foundations below. Their remaining prerequisite
-acceptance shares this priority while retaining existing milestones. Finish
-RETURNING/relational, codec/mutation, isolation/catalog and shared type/runtime
-dependencies before later runtime; record completed commits/tests for staged
-prerequisites. Only the profile's architectural exceptions may be excluded.
-Close #791 last after all in-scope corpus cells and owner/prerequisite criteria
-pass and #849 evidence is accepted.
+1. **Projection writes**: idempotent `INSERT ... ON CONFLICT`, `UPDATE` and
+   `DELETE`; an event batch and its checkpoint row committed in one
+   transaction; `COPY` and `TRUNCATE` for rebuilds. There is no separate
+   checkpoint or rebuild API.
+2. **Read-model lifecycle**: create, alter and drop tables, indexes, views and
+   materialized views; rebuild into a staging table and rename-swap; restart
+   and recovery.
+3. **Queries**: complete PostgreSQL `SELECT` semantics over every PostgreSQL
+   data type a read model can store (numeric, temporal, UUID, JSON, arrays,
+   enums, geometry, money, XML, ranges, network, bytea, composite and domain)
+   and their functions and operators.
+4. **Retrieval**: full-text, pgvector-syntax vector and hybrid search.
+5. **Client surface**: pgwire, prepared statements, session settings and the
+   catalog queries that drivers, ORMs, migration tools and admin clients issue.
+
+The rule is: data types and query semantics are in scope; server
+programmability and administration are not. Statements that migration tools
+and clients issue automatically (advisory locks, `COMMENT ON`, `GRANT`/roles,
+`FOR UPDATE`, `ANALYZE`/`VACUUM`, `CREATE EXTENSION`, size and activity
+functions, temporary tables) are supported at the documented compatibility
+level recorded on their owning issue, without full server semantics.
+
+Out of scope, rejected with a deterministic unsupported-feature error:
+PL/pgSQL, `DO` blocks and SQL-language routines; triggers and event triggers;
+rewrite rules; row-level security and privilege enforcement beyond `root`;
+LISTEN/NOTIFY; large objects; table inheritance; declarative partitioning;
+user-defined operators, operator families, casts, conversions and aggregates;
+extended statistics; two-phase transactions; exclusion and temporal
+constraints; data-modifying CTEs; text-search configuration DDL. The prior
+"complete PostgreSQL 18.6 core SQL and full PL/pgSQL" target (#791–#793) is
+superseded.
+
+## Milestones
+
+Each milestone is a shippable release; a green backend CI run and a passing
+full test suite on the release commit block every release.
+
+| Milestone | Ships |
+| --- | --- |
+| [v0.3 Projection store](https://github.com/cntryl/cassie/milestone/7) | A projector maintains read models through any PostgreSQL driver: projection writes, read-model types, table/index/view lifecycle, rebuild via `TRUNCATE`/`COPY`/rename-swap, and driver/ORM/migration-tool/psql connectivity. |
+| [v0.4 Query and retrieval](https://github.com/cntryl/cassie/milestone/8) | The read side: subqueries, CTEs, aggregates, windows, pattern matching, JSON, arrays, temporal, numeric and the remaining data-type families, plus full-text, pgvector and hybrid retrieval. |
+| [v1.0 Production release](https://github.com/cntryl/cassie/milestone/9) | The projection store and query surface qualified for production: storage and retrieval qualification, cross-path invariants, restart/recovery and rebuild evidence, operational thresholds and a release ledger. |
+
+Failing tests are the implementation backlog: implement the behavior; never
+ignore, skip or weaken a test. A test for an out-of-scope capability is
+removed, not implemented.
 
 ## Production Evidence
 

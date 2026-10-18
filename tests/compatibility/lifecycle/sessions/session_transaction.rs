@@ -8,8 +8,6 @@ mod cursor_sensitivity;
 mod discard_all_state;
 #[path = "../transactions/isolation_commands.rs"]
 mod isolation_commands;
-#[path = "../transactions/prepared_transaction_error.rs"]
-mod prepared_transaction_error_contracts;
 #[path = "role_setting_defaults.rs"]
 mod role_setting_defaults;
 #[path = "../transactions/row_lock_dml.rs"]
@@ -34,16 +32,10 @@ mod timezone_settings;
 mod transaction_aliases;
 #[path = "../transactions/transaction_chaining.rs"]
 mod transaction_chaining;
-#[path = "../transactions/two_phase_transaction_locks.rs"]
-mod two_phase_transaction_locks;
 #[path = "../transactions/unique_conflict_commit.rs"]
 mod unique_conflict_commit;
 #[path = "../transactions/unique_conflict_rollback.rs"]
 mod unique_conflict_rollback;
-#[path = "../coordination/unlisten_all_active.rs"]
-mod unlisten_all_active;
-
-include!("../coordination/session_transaction/metadata.rs");
 
 include!("../coordination/session_transaction/semantics.rs");
 

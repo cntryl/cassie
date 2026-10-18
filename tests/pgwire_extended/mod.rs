@@ -18,8 +18,6 @@ mod postgresql18_explain_options;
 mod postgresql18_geometry_compat;
 #[path = "grammar.rs"]
 mod postgresql18_grammar;
-#[path = "inheritance/inheritance_conflicts.rs"]
-mod postgresql18_inheritance_conflicts;
 #[path = "functions/math/math.rs"]
 mod postgresql18_math_compat;
 #[path = "aggregates/money/money.rs"]
@@ -34,12 +32,8 @@ mod postgresql18_query_inventory_wave2;
 mod postgresql18_range_compat;
 #[path = "ctes/recursive_cte_cancellation.rs"]
 mod postgresql18_recursive_cte_cancellation;
-#[path = "ctes/recursive_dml_cte.rs"]
-mod postgresql18_recursive_dml_cte;
 #[path = "subqueries/row_subquery_wire_semantics.rs"]
 mod postgresql18_row_subquery_wire_semantics_wave_h;
-#[path = "rule_semantics.rs"]
-mod postgresql18_rule_semantics_wave_g;
 #[path = "ctes/scalar_types/binary.rs"]
 mod postgresql18_scalar_types_inventory_wave3;
 #[path = "set_returning/errors.rs"]
@@ -95,17 +89,8 @@ mod grammar_join_using_errors;
 #[path = "grammar/values_errors.rs"]
 mod grammar_values_errors;
 
-#[path = "mutations/ctes/binary_returning.rs"]
-mod mutations_ctes_binary_returning;
-
-#[path = "mutations/ctes/cancellation.rs"]
-mod mutations_ctes_cancellation;
-
 #[path = "mutations/merge_cancellation.rs"]
 mod mutations_merge_cancellation;
-
-#[path = "mutations/rule_cancellation.rs"]
-mod mutations_rule_cancellation;
 
 #[path = "patterns/escape_errors.rs"]
 mod patterns_escape_errors;

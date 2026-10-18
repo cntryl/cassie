@@ -46,9 +46,6 @@ mod postgresql18_transactional_ddl;
 #[path = "sql_mutations/transactions/transaction_isolation.rs"]
 mod postgresql18_transaction_isolation;
 
-#[path = "sql_mutations/large_objects/large_objects.rs"]
-mod postgresql18_large_objects;
-
 #[path = "sql_mutations/mutations/statement_atomicity.rs"]
 mod postgresql18_mutation_inventory_wave4;
 
@@ -177,9 +174,6 @@ mod char_unique_trailing_blanks;
 mod alter_column_declared_case;
 #[path = "sql_mutations/types/arrays/array_input_copy.rs"]
 mod type_array_input_copy;
-
-#[path = "sql_mutations/rules/returning.rs"]
-mod rules_returning;
 
 #[path = "sql_mutations/types/numeric/domain_restart.rs"]
 mod types_numeric_domain_restart;

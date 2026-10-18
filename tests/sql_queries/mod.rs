@@ -8,10 +8,6 @@ mod postgresql18_binary_bytea;
 mod postgresql18_ctes;
 #[path = "types/geometry/geometry.rs"]
 mod postgresql18_geometry;
-#[path = "expressions/inheritance_dml/semantics.rs"]
-mod postgresql18_inheritance_dml_wave_g;
-#[path = "inheritance/query_metadata.rs"]
-mod postgresql18_inheritance_query_wave_h;
 #[path = "aggregates/grouping/math_functions.rs"]
 mod postgresql18_math_functions;
 #[path = "aggregates/money/money.rs"]
@@ -30,16 +26,10 @@ mod postgresql18_query_inventory_wave3;
 mod postgresql18_ranges;
 #[path = "relations/relations.rs"]
 mod postgresql18_relations;
-#[path = "expressions/rules.rs"]
-mod postgresql18_rules;
 #[path = "set_operations/set_operations.rs"]
 mod postgresql18_set_operations;
-#[path = "aggregates/sql_defined/sql_aggregates.rs"]
-mod postgresql18_sql_aggregates;
 #[path = "casts/sql_casts.rs"]
 mod postgresql18_sql_casts;
-#[path = "operators/sql_operators.rs"]
-mod postgresql18_sql_operators;
 #[path = "functions/string/string_functions.rs"]
 mod postgresql18_string_functions;
 #[path = "table_sampling/tablesample.rs"]
@@ -58,12 +48,6 @@ mod postgresql18_values_aggregate_inventory_wave2;
 mod postgresql18_values_rows;
 #[path = "aggregates/xml/xml.rs"]
 mod postgresql18_xml;
-
-#[path = "aggregates/sql_defined/ordered_set.rs"]
-mod aggregates_sql_defined_ordered_set;
-
-#[path = "aggregates/sql_defined/serialized_state.rs"]
-mod aggregates_sql_defined_serialized_state;
 
 #[path = "set_returning/array_subscripts.rs"]
 mod set_returning_array_subscripts;

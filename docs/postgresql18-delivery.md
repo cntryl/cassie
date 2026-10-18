@@ -1,14 +1,17 @@
 # PostgreSQL 18 Delivery
 
-This is the top-priority, dependency-ordered delivery record for
-[#791](https://github.com/cntryl/cassie/issues/791) and the
-[Postgres SQL feature parity milestone](https://github.com/cntryl/cassie/milestone/6).
-The [selected dialect profile](sql-dialect-profile.md) defines full PostgreSQL
-18.6 core SQL and PL/pgSQL scope and the only architectural exceptions.
-The baseline is `769d4db8fb7e60f0a29fade73137433a20e5a817` (2026-10-10).
-The initial inventory was 57 open and 12 closed; thirteen new owners #904–#916
-extend it to 70 open and 12 closed before subsequent work. These are timestamped
-planning counts, not completion evidence; refresh GitHub before later claims.
+**Superseded 2026-10-18.** Cassie's scope is the read-model query engine in the
+[Product Roadmap](product-roadmap.md#product-scope-a-query-engine-for-read-models),
+delivered through the v0.3 Projection store, v0.4 Query and retrieval and v1.0
+Production release milestones. The stage table and owner records below are
+historical planning for the former full-parity target (#791 and milestone 6,
+both closed). These owners were closed as out of scope: #824, #830, #832,
+#834–#837, #840 and #909–#916. Use the milestones, not these stages, to order
+work.
+
+This was the dependency-ordered delivery record for
+[#791](https://github.com/cntryl/cassie/issues/791). The baseline is
+`769d4db8fb7e60f0a29fade73137433a20e5a817` (2026-10-10).
 
 ## Delivery stages
 

@@ -49,10 +49,6 @@ fn should_expose_postgresql_system_columns_with_declared_identities() {
     );
 }
 
-include!("../../partitions/catalog/metadata.rs");
-
-include!("../../routines/catalog/semantics.rs");
-
 include!("../../sequences/catalog/metadata.rs");
 
 include!("../../types/catalog/metadata.rs");

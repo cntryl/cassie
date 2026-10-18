@@ -93,65 +93,6 @@ fn should_keep_session_advisory_locks_until_explicit_unlock() {
     });
 }
 #[test]
-fn should_deliver_listen_notifications_to_the_subscribed_connection() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("listen_notify_delivery").await;
-        let mut config = tokio_postgres::Config::new();
-        config
-            .host("127.0.0.1")
-            .port(server.addr.port())
-            .user("root")
-            .password("postgres")
-            .dbname("postgres");
-        let (listener, mut listener_connection) = config
-            .connect(NoTls)
-            .await
-            .expect("connect dedicated notification listener");
-        let notifications = tokio::spawn(async move {
-            loop {
-                match std::future::poll_fn(|context| listener_connection.poll_message(context))
-                    .await
-                {
-                    Some(Ok(tokio_postgres::AsyncMessage::Notification(notification))) => {
-                        return Some((
-                            notification.channel().to_string(),
-                            notification.payload().to_string(),
-                        ));
-                    }
-                    Some(Ok(_)) => {}
-                    Some(Err(_)) | None => return None,
-                }
-            }
-        });
-        listener
-            .batch_execute("LISTEN compat_event_channel")
-            .await
-            .expect("subscribe before notification");
-        let (sender, sender_connection) = server.connect().await;
-
-        // Act
-        sender
-            .batch_execute("NOTIFY compat_event_channel, 'payload-42'")
-            .await
-            .expect("publish notification");
-        let delivered = tokio::time::timeout(Duration::from_secs(2), notifications)
-            .await
-            .expect("notification should arrive within the bound")
-            .expect("notification receiver task should finish");
-
-        // Assert
-        assert_eq!(
-            delivered,
-            Some(("compat_event_channel".to_string(), "payload-42".to_string()))
-        );
-
-        drop((listener, sender));
-        server.shutdown(sender_connection).await;
-    });
-}
-#[test]
 fn should_block_exclusive_advisory_locks_while_shared_locks_are_held() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -215,53 +156,5 @@ fn should_block_exclusive_advisory_locks_while_shared_locks_are_held() {
         server.shutdown(owner_connection).await;
         contender_connection.abort();
         let _ = contender_connection.await;
-    });
-}
-#[test]
-fn should_accept_unlisten_all_when_the_session_has_no_subscriptions() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("unlisten_all_without_channels").await;
-        let (client, connection) = server.connect().await;
-
-        // Act
-        client
-            .batch_execute("UNLISTEN *")
-            .await
-            .expect("UNLISTEN all is valid when no channels are registered");
-        let value: i32 = client
-            .query_one("SELECT 1", &[])
-            .await
-            .expect("the session should remain usable after UNLISTEN")
-            .try_get(0)
-            .expect("probe value");
-
-        // Assert
-        assert_eq!(value, 1);
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-#[test]
-fn should_return_no_listening_channels_for_an_unsubscribed_session() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("listening_channel_catalog").await;
-        let (client, connection) = server.connect().await;
-
-        // Act
-        let channels = client
-            .query("SELECT pg_listening_channels() ORDER BY 1", &[])
-            .await;
-
-        // Assert
-        let channels = channels.expect("query pg_listening_channels for this session");
-        assert!(channels.is_empty());
-
-        drop(client);
-        server.shutdown(connection).await;
     });
 }

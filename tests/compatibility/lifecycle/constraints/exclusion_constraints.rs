@@ -1,114 +1,15 @@
 use super::*;
 
-#[path = "concurrent_conflict.rs"]
-mod concurrent_conflict;
 #[path = "constraint_control.rs"]
 mod constraint_control;
 #[path = "constraint_lifecycle.rs"]
 mod constraint_lifecycle;
-#[path = "deferred_partial_exclusion_set_constraints.rs"]
-mod deferred_partial_exclusion_set_constraints;
 #[path = "foreign_key_actions.rs"]
 mod foreign_key_actions;
-#[path = "no_inherit_check.rs"]
-mod no_inherit_check;
 #[path = "constraint.rs"]
 mod postgresql18_constraint_contract_wave;
 #[path = "temporal_period_catalog.rs"]
 mod temporal_period_catalog;
-
-#[test]
-fn should_enforce_exclusion_predicate_report_sqlstate() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("partial_exclusion_constraint").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_exclusion_slots (slot INT NOT NULL, active BOOL NOT NULL, \
-                   CONSTRAINT compat_active_slot_excl EXCLUDE USING btree (slot WITH =) WHERE (active))",
-                "INSERT INTO compat_exclusion_slots VALUES (1, true), (1, false)",
-            ],
-        )
-        .await
-        .expect("create partial exclusion constraint and rows outside its predicate");
-
-        // Act
-        let conflict = client
-            .execute("INSERT INTO compat_exclusion_slots VALUES (1, true)", &[])
-            .await
-            .expect_err("an active row must conflict with the existing active key");
-        let rows = client
-            .query(
-                "SELECT active FROM compat_exclusion_slots ORDER BY active DESC",
-                &[],
-            )
-            .await
-            .expect("read rows after rejected exclusion conflict");
-
-        // Assert
-        assert_eq!(db_error(&conflict).code().code(), "23P01");
-        assert_eq!(rows.len(), 2);
-        assert!(rows[0].get::<_, bool>(0));
-        assert!(!rows[1].get::<_, bool>(0));
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
-fn should_check_deferred_exclusion_conflicts_at_commit_rollback() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("deferred_exclusion_constraint").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_deferred_slots (slot INT NOT NULL, \
-                   CONSTRAINT compat_deferred_slot_excl EXCLUDE USING btree (slot WITH =) \
-                   DEFERRABLE INITIALLY DEFERRED)",
-                "INSERT INTO compat_deferred_slots VALUES (1)",
-            ],
-        )
-        .await
-        .expect("create deferred exclusion constraint and initial row");
-        client
-            .batch_execute("BEGIN")
-            .await
-            .expect("begin deferred exclusion transaction");
-
-        // Act
-        client
-            .execute("INSERT INTO compat_deferred_slots VALUES (1)", &[])
-            .await
-            .expect("deferred conflict should wait until transaction completion");
-        let commit = client
-            .batch_execute("COMMIT")
-            .await
-            .expect_err("commit must reject the deferred exclusion conflict");
-        client
-            .batch_execute("ROLLBACK")
-            .await
-            .expect("clear transaction state after rejected commit");
-        let rows = client
-            .query("SELECT slot FROM compat_deferred_slots", &[])
-            .await
-            .expect("read rows after rejected commit");
-
-        // Assert
-        assert_eq!(db_error(&commit).code().code(), "23P01");
-        assert_eq!(rows.len(), 1, "the rejected transaction must be atomic");
-        assert_eq!(rows[0].get::<_, i32>(0), 1);
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
 
 #[test]
 fn should_enforce_not_valid_check_on_new_rows_then_validate_existing_rows() {

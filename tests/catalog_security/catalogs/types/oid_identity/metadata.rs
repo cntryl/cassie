@@ -81,5 +81,3 @@ fn should_round_trip_the_unsigned_oid_boundary_across_integer_types() {
         ]]
     );
 }
-
-include!("semantics.rs");

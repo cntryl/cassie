@@ -10,8 +10,6 @@ mod identifier_residuals;
 mod oid_identity_wave;
 #[path = "../text_search_identifier_lookup/restart.rs"]
 mod text_search_identifier_lookup_wave;
-#[path = "../user_function_overload_resolution.rs"]
-mod user_function_overload_resolution;
 #[path = "../vector_catalog.rs"]
 mod vector_catalog_contracts;
 

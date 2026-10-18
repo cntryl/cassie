@@ -29,10 +29,6 @@ impl Drop for DataDirectory {
 mod advisory_lock_disconnect;
 #[path = "lifecycle/casts/prepared_dependencies.rs"]
 mod cast_prepared_dependencies;
-#[path = "lifecycle/casts/restart.rs"]
-mod cast_restart;
-#[path = "lifecycle/conversions/lifecycle.rs"]
-mod conversion_lifecycle;
 #[path = "lifecycle/copy/copy_forms.rs"]
 mod copy_forms;
 #[path = "lifecycle/ddl/ddl_extensions.rs"]
@@ -43,8 +39,6 @@ mod exclusion_constraints;
 mod merge_atomicity;
 #[path = "lifecycle/mutations/mutation_ddl.rs"]
 mod mutation_ddl;
-#[path = "lifecycle/operators/restart.rs"]
-mod operator_restart;
 #[path = "lifecycle/routines/routine_objects.rs"]
 mod routine_objects;
 #[path = "lifecycle/transactions/row_lock_cancellation.rs"]

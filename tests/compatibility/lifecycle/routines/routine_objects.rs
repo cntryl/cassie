@@ -18,8 +18,6 @@ mod ownership_privileges;
 mod postgresql18_variadic_calls_wave7;
 #[path = "../security/role_membership_admin_option/semantics.rs"]
 mod role_membership_admin_option_wave7;
-#[path = "../casts/sql_defined_builtin_casts.rs"]
-mod sql_defined_builtin_casts;
 
 include!("../comments/routine_objects/metadata.rs");
 

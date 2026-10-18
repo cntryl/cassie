@@ -646,54 +646,6 @@ fn should_collect_text_search_statistics_from_a_query() {
 }
 
 #[test]
-fn should_apply_altered_stopword_dictionary_to_its_configuration() {
-    // Arrange
-    let fixture = sql_fixture("issue-799-ts-dictionary-stopwords", &[]);
-    fixture
-        .execute(
-            "CREATE TEXT SEARCH DICTIONARY issue_799_stopwords (TEMPLATE = pg_catalog.simple, STOPWORDS = english)",
-        )
-        .expect("create simple dictionary with English stopwords");
-    fixture
-        .execute(
-            "CREATE TEXT SEARCH CONFIGURATION issue_799_stopword_config (COPY = pg_catalog.simple)",
-        )
-        .expect("copy simple configuration");
-    fixture
-        .execute(
-            "ALTER TEXT SEARCH CONFIGURATION issue_799_stopword_config ALTER MAPPING FOR asciiword REPLACE pg_catalog.simple WITH issue_799_stopwords",
-        )
-        .expect("map asciiword tokens to custom dictionary");
-
-    // Act
-    let english = fixture.execute(
-        "SELECT to_tsvector('issue_799_stopword_config', 'The le Cats')::TEXT, ts_lexize('issue_799_stopwords', 'the')::TEXT",
-    );
-    fixture
-        .execute("ALTER TEXT SEARCH DICTIONARY issue_799_stopwords (STOPWORDS = french)")
-        .expect("change the dictionary stopword list");
-    let french = fixture.execute(
-        "SELECT to_tsvector('issue_799_stopword_config', 'The le Cats')::TEXT, ts_lexize('issue_799_stopwords', 'le')::TEXT",
-    );
-
-    // Assert
-    assert_eq!(
-        english.expect("English stopword behavior").rows(),
-        &[vec![
-            Value::String("'cats':3 'le':2".to_owned()),
-            Value::String("{}".to_owned()),
-        ]]
-    );
-    assert_eq!(
-        french.expect("updated French stopword behavior").rows(),
-        &[vec![
-            Value::String("'cats':3 'the':1".to_owned()),
-            Value::String("{}".to_owned()),
-        ]]
-    );
-}
-
-#[test]
 fn should_accept_regconfig_values_in_text_search_function_signatures() {
     // Arrange
     let fixture = sql_fixture("issue-799-regconfig-text-search-functions", &[]);

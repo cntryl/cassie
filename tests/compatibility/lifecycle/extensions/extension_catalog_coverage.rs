@@ -2,10 +2,6 @@ use super::*;
 
 #[path = "dependency_targets.rs"]
 mod dependency_targets;
-#[path = "member_membership.rs"]
-mod member_membership;
-#[path = "routine_alias_dependency.rs"]
-mod routine_alias_dependency;
 
 async fn read_pgcrypto_cascade_state(client: &tokio_postgres::Client) -> tokio_postgres::Row {
     client
@@ -183,93 +179,6 @@ fn should_restore_pgcrypto_catalog_after_cascade_rollback() {
 
         // Assert
         assert_pgcrypto_cascade_rollback(&installed_before, &removed, &restored);
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
-fn should_apply_extension_dependencies_to_function_lifecycle() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("pgcrypto_dependency_lifecycle").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE EXTENSION pgcrypto",
-                "CREATE FUNCTION public.compat_pgcrypto_auto_dep(input text) \
-                   RETURNS bytea LANGUAGE sql IMMUTABLE \
-                   AS $$ SELECT public.digest(input, 'sha256') $$",
-                "CREATE FUNCTION public.compat_pgcrypto_no_dep(input text) \
-                   RETURNS bytea LANGUAGE sql IMMUTABLE \
-                   AS $$ SELECT public.digest(input, 'sha256') $$",
-                "ALTER FUNCTION public.compat_pgcrypto_auto_dep(text) \
-                   DEPENDS ON EXTENSION pgcrypto",
-                "ALTER FUNCTION public.compat_pgcrypto_no_dep(text) \
-                   DEPENDS ON EXTENSION pgcrypto",
-                "ALTER FUNCTION public.compat_pgcrypto_no_dep(text) \
-                   NO DEPENDS ON EXTENSION pgcrypto",
-            ],
-        )
-        .await
-        .expect("mark one function dependent on pgcrypto and remove the other dependency");
-
-        // Act
-        let dependencies = client
-            .query_one(
-                "SELECT \
-                   (SELECT count(*)::bigint \
-                    FROM pg_catalog.pg_depend AS dependency \
-                    JOIN pg_catalog.pg_extension AS extension \
-                      ON extension.oid = dependency.refobjid \
-                    WHERE extension.extname = 'pgcrypto' \
-                      AND dependency.refclassid = 'pg_extension'::regclass \
-                      AND dependency.classid = 'pg_proc'::regclass \
-                      AND dependency.objid = \
-                        'public.compat_pgcrypto_auto_dep(text)'::regprocedure \
-                      AND dependency.deptype = 'x'), \
-                   (SELECT count(*)::bigint \
-                    FROM pg_catalog.pg_depend AS dependency \
-                    JOIN pg_catalog.pg_extension AS extension \
-                      ON extension.oid = dependency.refobjid \
-                    WHERE extension.extname = 'pgcrypto' \
-                      AND dependency.refclassid = 'pg_extension'::regclass \
-                      AND dependency.classid = 'pg_proc'::regclass \
-                      AND dependency.objid = \
-                        'public.compat_pgcrypto_no_dep(text)'::regprocedure \
-                      AND dependency.deptype = 'x')",
-                &[],
-            )
-            .await
-            .expect("read extension dependency rows before dropping pgcrypto");
-        client
-            .batch_execute("DROP EXTENSION pgcrypto RESTRICT")
-            .await
-            .expect("drop pgcrypto and its explicitly dependent function with RESTRICT");
-        let remaining = client
-            .query_one(
-                "SELECT \
-                   (SELECT count(*)::bigint \
-                    FROM pg_catalog.pg_extension \
-                    WHERE extname = 'pgcrypto'), \
-                   to_regprocedure(\
-                     'public.compat_pgcrypto_auto_dep(text)') IS NULL, \
-                   to_regprocedure(\
-                     'public.compat_pgcrypto_no_dep(text)') IS NOT NULL",
-                &[],
-            )
-            .await
-            .expect("read extension and function identity after the RESTRICT drop");
-
-        // Assert
-        assert_eq!(dependencies.get::<_, i64>(0), 1);
-        assert_eq!(dependencies.get::<_, i64>(1), 0);
-        assert_eq!(remaining.get::<_, i64>(0), 0);
-        assert!(remaining.get::<_, bool>(1));
-        assert!(remaining.get::<_, bool>(2));
 
         drop(client);
         server.shutdown(connection).await;

@@ -31,21 +31,23 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
+    /// Returns the relation's stable storage identity, which also derives its
+    /// PostgreSQL object identifier.
     pub fn create_collection_with_meta(
         &self,
         name: &str,
         schema: &Schema,
         metadata: &CollectionMeta,
-    ) -> Result<(), CassieError> {
+    ) -> Result<u64, CassieError> {
         self.create_collection_with_meta_inner(name, schema, metadata, false)
-            .map(|_| ())
+            .map(|(_, storage_id)| storage_id)
     }
 
     /// Creates a collection only when no case-insensitive storage relation with
     /// the same name exists.
     ///
-    /// Returns `true` when this call created the collection and `false` when an
-    /// existing relation owns the name.
+    /// Returns the new storage identity when this call created the collection
+    /// and `None` when an existing relation owns the name.
     ///
     /// # Errors
     ///
@@ -55,8 +57,9 @@ impl Midge {
         name: &str,
         schema: &Schema,
         metadata: &CollectionMeta,
-    ) -> Result<bool, CassieError> {
+    ) -> Result<Option<u64>, CassieError> {
         self.create_collection_with_meta_inner(name, schema, metadata, true)
+            .map(|(created, storage_id)| created.then_some(storage_id))
     }
 
     fn create_collection_with_meta_inner(
@@ -65,7 +68,7 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
         require_absent: bool,
-    ) -> Result<bool, CassieError> {
+    ) -> Result<(bool, u64), CassieError> {
         let name = self.canonical_collection_name(name);
         let write_gate = self.collection_write_gate(&name);
         let _write_guard = write_gate.lock();
@@ -81,7 +84,7 @@ impl Midge {
         let existing_metadata = Self::load_collection_metadata_from_tx(&tx, &name)?;
         let storage_name_exists = Self::storage_relation_exists_case_insensitively(&tx, &name)?;
         if require_absent && (schema_exists || existing_metadata.is_some() || storage_name_exists) {
-            return Ok(false);
+            return Ok((false, 0));
         }
 
         if !schema_exists {
@@ -142,7 +145,7 @@ impl Midge {
         );
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
-        Ok(!schema_exists && existing_metadata.is_none())
+        Ok((!schema_exists && existing_metadata.is_none(), storage_id))
     }
 
     fn storage_relation_exists_case_insensitively(

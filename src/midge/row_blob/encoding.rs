@@ -27,6 +27,12 @@ pub(super) fn encode_value(
             let value = json_i64(value, "bigint field expects i64")?;
             Ok((TYPE_I64, value.to_be_bytes().to_vec()))
         }
+        DataType::ObjectId(_) => encode_signed_integer(
+            value,
+            "oid field expects an unsigned 32-bit integer",
+            0,
+            crate::types::object_id::MAX_OID,
+        ),
         DataType::Float => {
             let value = value
                 .as_f64()

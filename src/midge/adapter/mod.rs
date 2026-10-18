@@ -338,6 +338,7 @@ mod scalar_indexes;
 pub(crate) use scalar_indexes::canonical_field_value;
 mod storage_config;
 pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
+mod namespaces;
 mod scan_types;
 mod schema_cleanup;
 mod schema_ops;

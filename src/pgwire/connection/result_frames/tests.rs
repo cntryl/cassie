@@ -123,7 +123,7 @@ fn should_encode_mixed_result_frames_without_growing_the_admitted_frame_buffer()
                 .expect("description");
             let description = (frames.bytes()[0], frames.bytes.capacity());
             frames
-                .row(&result.rows()[0], result.columns(), &[format])
+                .row(0, &result.rows()[0], result.columns(), &[format])
                 .expect("row");
             let row = (frames.bytes()[0], frames.bytes.capacity());
             frames.completion(false).expect("completion");

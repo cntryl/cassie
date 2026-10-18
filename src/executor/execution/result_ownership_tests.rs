@@ -340,3 +340,40 @@ fn should_preserve_source_at_the_metadata_replacement_overlap_budget_frontier() 
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
+
+#[test]
+fn should_keep_object_identifier_oids_when_only_column_metadata_is_rebuilt() {
+    // Arrange
+    let controls = controls(1_048_576);
+    let mut builder = QueryResult::try_builder(&controls).expect("admitted builder");
+    builder
+        .try_push_column(&ColumnMeta::from_data_type(
+            "relation",
+            &crate::types::DataType::ObjectId(crate::types::ObjectIdKind::RegClass),
+        ))
+        .expect("column");
+    builder
+        .try_push_row(&[Value::String("item".to_owned())])
+        .expect("row");
+    builder
+        .try_set_object_oids(0, vec![Some(16_385)])
+        .expect("object identities");
+    builder.try_set_command("SELECT").expect("command");
+    let result = builder.finish().expect("admitted result");
+    let renamed = vec![ColumnMeta::from_data_type(
+        "renamed",
+        &crate::types::DataType::ObjectId(crate::types::ObjectIdKind::RegClass),
+    )];
+
+    // Act
+    let rebuilt = result
+        .try_with_columns(&controls, &renamed)
+        .expect("rebuilt columns");
+    let replaced_rows = result
+        .try_with_rows(&controls, &[vec![Value::String("other".to_owned())]])
+        .expect("rebuilt rows");
+
+    // Assert
+    assert_eq!(rebuilt.object_oid(0, 0), Some(16_385));
+    assert_eq!(replaced_rows.object_oid(0, 0), None);
+}

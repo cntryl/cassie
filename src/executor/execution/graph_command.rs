@@ -24,8 +24,8 @@ pub(super) fn create_graph_collection(
     let schema = Schema {
         fields: schema_fields,
     };
-    let metadata = catalog::CollectionMeta::new(&storage_collection, None);
-    cassie
+    let mut metadata = catalog::CollectionMeta::new(&storage_collection, None);
+    metadata.storage_id = cassie
         .midge
         .create_collection_with_meta(&storage_collection, &schema, &metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;

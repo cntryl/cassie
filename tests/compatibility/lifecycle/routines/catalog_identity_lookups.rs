@@ -336,7 +336,7 @@ fn should_resolve_regtype_by_search_path() {
 }
 async fn read_relation_oid(client: &tokio_postgres::Client, relation: &str) -> i64 {
     client
-        .query_one("SELECT $1::regclass::oid::bigint", &[&relation])
+        .query_one("SELECT $1::text::regclass::oid::bigint", &[&relation])
         .await
         .expect("resolve the qualified relation identity")
         .get(0)

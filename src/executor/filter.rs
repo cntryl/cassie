@@ -32,6 +32,8 @@ mod conditional;
 use binary::binary_scalar;
 #[path = "filter/numeric_comparison.rs"]
 mod numeric_comparison;
+#[path = "filter/object_ids.rs"]
+mod object_ids;
 pub(crate) use casts::cast_scratch_bytes;
 pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]
@@ -449,6 +451,7 @@ fn cast_scalar(
         DataType::SmallInt => integers::cast(value, crate::types::IntegerWidth::I16, controls),
         DataType::Int => integers::cast(value, crate::types::IntegerWidth::I32, controls),
         DataType::BigInt => integers::cast(value, crate::types::IntegerWidth::I64, controls),
+        DataType::ObjectId(_) => object_ids::cast(value),
         DataType::Float => value
             .to_f64()
             .filter(|value| value.is_finite())
@@ -905,6 +908,9 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
         );
     }
     let value = eval_scalar_with_context(row, expr, context)?;
+    if let Some(cast) = object_ids::catalog_cast(&value, data_type, source_type, context.session)? {
+        return Ok(cast);
+    }
     if identity == crate::sql::ast::CastIdentity::Scalar
         && *data_type == DataType::Float
         && crate::sql::binder::generated_float_coercion_case_operand(expr).is_some()

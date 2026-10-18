@@ -151,6 +151,7 @@ impl Cassie {
 
         let mut role = RoleMeta::new(normalized, login, false, password_hash);
         role.grant_database(database);
+        role.object_id = self.midge.allocate_object_id()?;
         self.midge
             .put_role(&role)
             .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;

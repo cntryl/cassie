@@ -346,12 +346,20 @@ fn pg_constraint_row(
         string("conrelid", local_name(collection)),
         int_value(
             "conrelid_oid",
-            super::virtual_views_pg::relation_oid(collection),
+            super::virtual_views_pg::relation_oid(catalog, collection),
         ),
         string("contype", constraint_type),
         int_value(
             "connamespace_oid",
-            super::virtual_views_pg::namespace_oid(&schema_name),
+            super::virtual_views_pg::namespace_oid(
+                catalog,
+                &crate::catalog::RelationId::parse_canonical(collection).map_or_else(
+                    || schema_name.clone(),
+                    |relation| {
+                        crate::catalog::canonical_schema_name(&relation.database, &relation.schema)
+                    },
+                ),
+            ),
         ),
         string("conkey", field_number(catalog, collection, field)),
         string("confrelid", local_name(referenced_table)),
@@ -360,7 +368,7 @@ fn pg_constraint_row(
             if referenced_table.is_empty() {
                 0
             } else {
-                super::virtual_views_pg::relation_oid(referenced_table)
+                super::virtual_views_pg::relation_oid(catalog, referenced_table)
             },
         ),
         string(

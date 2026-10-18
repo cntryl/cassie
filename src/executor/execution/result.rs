@@ -7,6 +7,7 @@ use crate::executor::semantic::{compare_values, SemanticKey};
 
 pub(super) fn build_select_result(
     cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
     plan: &PhysicalPlan,
     rows: Vec<BatchRow>,
     user_functions: &HashMap<String, FunctionMeta>,
@@ -98,18 +99,100 @@ pub(super) fn build_select_result(
     for column in &columns {
         result.try_push_column(column)?;
     }
+    let object_labels = ObjectLabels::for_columns(cassie, session, &columns);
+    let mut object_oids = object_labels
+        .as_ref()
+        .map(|labels| labels.oid_columns(rows.len()))
+        .unwrap_or_default();
     for row in &rows {
-        result.try_push_values(row.entries().iter().filter_map(|(name, value)| {
+        let values = row.entries().iter().filter_map(|(name, value)| {
             (keep_internal_identity_as_id
                 || !crate::types::row_identity::is_row_identity_column(name))
             .then_some(value)
-        }))?;
+        });
+        match &object_labels {
+            Some(labels) => {
+                let labelled = labels.apply(values, &mut object_oids);
+                result.try_push_values(labelled.iter())?;
+            }
+            None => result.try_push_values(values)?,
+        }
+    }
+    for (column, oids) in object_oids {
+        result.try_set_object_oids(column, oids)?;
     }
     result.try_set_command("SELECT")?;
     let output = result.finish()?;
     // Retire the source rows only after the complete managed output is admitted.
     drop(rows);
     Ok(output)
+}
+
+/// `reg*` output: a result column of an object identifier alias type prints
+/// the object's name, resolved against the session's search path.
+struct ObjectLabels {
+    catalog: crate::catalog::Catalog,
+    context: crate::sql::binder::BindingContext,
+    kinds: Vec<Option<crate::types::ObjectIdKind>>,
+}
+
+impl ObjectLabels {
+    fn for_columns(
+        cassie: &Cassie,
+        session: Option<&crate::app::CassieSession>,
+        columns: &[crate::executor::ColumnMeta],
+    ) -> Option<Self> {
+        let kinds = columns
+            .iter()
+            .map(|column| {
+                crate::types::ObjectIdKind::ALL
+                    .into_iter()
+                    .find(|kind| kind.is_alias() && i64::from(kind.type_oid()) == column.type_oid)
+            })
+            .collect::<Vec<_>>();
+        kinds.iter().any(Option::is_some).then(|| Self {
+            catalog: cassie.catalog.clone(),
+            context: cassie.binding_context_for_session(session),
+            kinds,
+        })
+    }
+
+    fn oid_columns(&self, rows: usize) -> Vec<(usize, Vec<Option<u32>>)> {
+        self.kinds
+            .iter()
+            .enumerate()
+            .filter(|(_, kind)| kind.is_some())
+            .map(|(column, _)| (column, Vec::with_capacity(rows)))
+            .collect()
+    }
+
+    /// Renders one row, recording each rendered value's OID for binary output.
+    fn apply<'v>(
+        &self,
+        values: impl Iterator<Item = &'v Value>,
+        oids: &mut [(usize, Vec<Option<u32>>)],
+    ) -> Vec<Value> {
+        let scope = crate::catalog::object_identity::ObjectScope::new(&self.catalog, &self.context);
+        values
+            .enumerate()
+            .map(|(index, value)| {
+                let Some(kind) = self.kinds.get(index).copied().flatten() else {
+                    return value.clone();
+                };
+                let oid = match value {
+                    Value::Int64(oid) => u32::try_from(*oid).ok(),
+                    _ => None,
+                };
+                if let Some((_, column)) = oids.iter_mut().find(|(column, _)| *column == index) {
+                    column.push(oid);
+                }
+                oid.map_or_else(
+                    || value.clone(),
+                    |oid| Value::String(scope.label(kind, oid)),
+                )
+            })
+            .collect()
+    }
 }
 
 fn materialized_projection_schema(

@@ -38,6 +38,23 @@ impl CassieSession {
         });
     }
 
+    /// The catalog and binding context `reg*` lookups resolve names in.
+    pub(crate) fn object_lookup_context(
+        &self,
+    ) -> Option<(Catalog, crate::sql::binder::BindingContext)> {
+        let context = self.schema_context.lock();
+        let scope = context.as_ref()?;
+        let database = self
+            .current_database()
+            .unwrap_or(&scope.default_database)
+            .to_string();
+        let search_path = resolved_search_path(&scope.catalog, &database, self);
+        Some((
+            scope.catalog.clone(),
+            crate::sql::binder::BindingContext::scoped(database, search_path),
+        ))
+    }
+
     pub(crate) fn current_existing_schema(&self) -> Option<String> {
         let context = self.schema_context.lock();
         context.as_ref().map_or_else(

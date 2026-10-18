@@ -42,6 +42,7 @@ pub enum DataType {
     Vector(usize),
     Json,
     Array(Box<DataType>),
+    ObjectId(super::ObjectIdKind),
 }
 
 impl DataType {
@@ -78,6 +79,7 @@ impl DataType {
             Self::Vector(dimensions) => format!("vector({dimensions})"),
             Self::Json => "json".to_string(),
             Self::Array(inner) => format!("{}[]", inner.type_name()),
+            Self::ObjectId(kind) => kind.name().to_string(),
         }
     }
 
@@ -233,7 +235,9 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         "time" => Ok(DataType::Time),
         "timestamp" => Ok(DataType::Timestamp),
         "json" | "jsonb" => Ok(DataType::Json),
-        _ => Err(format!("unsupported data type '{raw}'")),
+        name => super::ObjectIdKind::from_name(name)
+            .map(DataType::ObjectId)
+            .ok_or_else(|| format!("unsupported data type '{raw}'")),
     }
 }
 

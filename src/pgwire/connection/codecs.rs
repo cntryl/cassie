@@ -72,6 +72,7 @@ pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8
         BinaryCodecKind::Int2 => encode_integer(value, codec.name, encode_i16_binary),
         BinaryCodecKind::Int4 => encode_integer(value, codec.name, encode_i32_binary),
         BinaryCodecKind::Int8 => encode_int8(value, codec.name),
+        BinaryCodecKind::ObjectId(_) => encode_integer(value, codec.name, encode_oid_binary),
         BinaryCodecKind::Float8 => encode_float8(value, codec.name),
         BinaryCodecKind::Text
         | BinaryCodecKind::Bpchar
@@ -187,6 +188,10 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
             .map(Value::Int64),
         BinaryCodecKind::Int8 => fixed_bytes::<8>(parameter, codec.name)
             .map(i64::from_be_bytes)
+            .map(Value::Int64),
+        BinaryCodecKind::ObjectId(_) => fixed_bytes::<4>(parameter, codec.name)
+            .map(u32::from_be_bytes)
+            .map(i64::from)
             .map(Value::Int64),
         BinaryCodecKind::Float8 => fixed_bytes::<8>(parameter, codec.name)
             .map(f64::from_be_bytes)
@@ -381,6 +386,7 @@ fn encode_array_string(value: &str, codec: &BinaryCodec) -> io::Result<Vec<u8>> 
         BinaryCodecKind::Int2 => parse_i64_binary(value).and_then(encode_i16_binary),
         BinaryCodecKind::Int4 => parse_i64_binary(value).and_then(encode_i32_binary),
         BinaryCodecKind::Int8 => parse_i64_binary(value).map(|value| value.to_be_bytes().to_vec()),
+        BinaryCodecKind::ObjectId(_) => parse_i64_binary(value).and_then(encode_oid_binary),
         BinaryCodecKind::Float8 => {
             parse_f64_binary(value).map(|value| value.to_be_bytes().to_vec())
         }
@@ -495,6 +501,12 @@ fn encode_i32_binary(value: i64) -> io::Result<Vec<u8>> {
     i32::try_from(value)
         .map(|value| value.to_be_bytes().to_vec())
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "int4 out of range"))
+}
+
+fn encode_oid_binary(value: i64) -> io::Result<Vec<u8>> {
+    u32::try_from(value)
+        .map(|value| value.to_be_bytes().to_vec())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "oid out of range"))
 }
 
 fn encode_f64_as_i64_binary(value: f64) -> io::Result<Vec<u8>> {

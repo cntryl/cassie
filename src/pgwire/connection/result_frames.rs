@@ -24,6 +24,7 @@ mod tests;
 pub(super) struct QueryResultFrames<'a> {
     bytes: Vec<u8>,
     command: Cow<'a, str>,
+    result: Option<&'a QueryResult>,
     _memory: QueryMemoryReservation,
 }
 
@@ -41,6 +42,7 @@ impl<'a> QueryResultFrames<'a> {
         Ok(Self {
             bytes,
             command,
+            result: Some(result),
             _memory: memory,
         })
     }
@@ -57,6 +59,7 @@ impl<'a> QueryResultFrames<'a> {
         let bytes = frame_buffer(capacity)?;
         Ok(Self {
             bytes,
+            result: None,
             command: Cow::Borrowed(command),
             _memory: memory,
         })
@@ -71,14 +74,36 @@ impl<'a> QueryResultFrames<'a> {
         append_row_description_frame(&mut self.bytes, columns, formats)
     }
 
+    /// Writes the `DataRow` for result row `row_index`. A binary `reg*` column
+    /// sends the OID its rendered name stands for.
     pub(super) fn row(
         &mut self,
+        row_index: usize,
         row: &[Value],
         columns: &[ColumnMeta],
         formats: &[i16],
     ) -> io::Result<()> {
         self.bytes.clear();
-        append_data_row_frame(&mut self.bytes, row, columns, formats)
+        let binary_object_columns = self.result.map(|result| {
+            (0..row.len())
+                .filter(|column| super::writers::result_format_for_index(formats, *column) == 1)
+                .filter_map(|column| {
+                    result
+                        .object_oid(row_index, column)
+                        .map(|oid| (column, Value::Int64(i64::from(oid))))
+                })
+                .collect::<Vec<_>>()
+        });
+        match binary_object_columns {
+            Some(replacements) if !replacements.is_empty() => {
+                let mut row = row.to_vec();
+                for (column, value) in replacements {
+                    row[column] = value;
+                }
+                append_data_row_frame(&mut self.bytes, &row, columns, formats)
+            }
+            _ => append_data_row_frame(&mut self.bytes, row, columns, formats),
+        }
     }
 
     pub(super) fn completion(&mut self, suspended: bool) -> io::Result<()> {

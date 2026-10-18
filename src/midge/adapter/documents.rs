@@ -75,7 +75,7 @@ impl Midge {
         payload: serde_json::Value,
     ) -> Result<String, CassieError> {
         let storage_collection = self.canonical_collection_name(collection);
-        let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+        let doc_id = id.unwrap_or_else(|| Uuid::now_v7().to_string());
         let mut options = DocumentWriteBatchOptions::sync(self.write_options_sync());
         options.normalized_vector_collection = Some(collection.to_string());
         self.apply_document_write_batch_with_options(
@@ -101,7 +101,7 @@ impl Midge {
         let ops = documents
             .into_iter()
             .map(|(id, payload)| DocumentWriteOp::Put {
-                id: id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+                id: id.unwrap_or_else(|| Uuid::now_v7().to_string()),
                 payload,
             })
             .collect::<Vec<_>>();
@@ -178,7 +178,7 @@ impl Midge {
         options: &DocumentWriteBatchOptions,
     ) -> Result<(String, crate::runtime::ProjectionWriteStats, i64), CassieError> {
         let storage_collection = self.canonical_collection_name(collection);
-        let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+        let doc_id = id.unwrap_or_else(|| Uuid::now_v7().to_string());
         let mut options = options.clone();
         options.normalized_vector_collection = Some(collection.to_string());
         let report = self.apply_document_write_batch_with_options(

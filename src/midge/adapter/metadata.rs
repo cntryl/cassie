@@ -36,6 +36,19 @@ impl Midge {
         Ok(next)
     }
 
+    /// Allocates one stable catalog object identity from the persistent counter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the counter cannot be read or committed.
+    pub fn allocate_object_id(&self) -> Result<u64, CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let id = Self::allocate_object_id_to_tx(&mut tx)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        Ok(id)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.

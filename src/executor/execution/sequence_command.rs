@@ -18,8 +18,13 @@ pub(super) fn create_sequence(
         )));
     }
 
-    let metadata = crate::catalog::SequenceMeta::new(&statement.name, statement.data_type.clone());
+    let mut metadata =
+        crate::catalog::SequenceMeta::new(&statement.name, statement.data_type.clone());
     let output = empty_command("CREATE SEQUENCE", controls)?;
+    metadata.object_id = cassie
+        .midge
+        .allocate_object_id()
+        .map_err(QueryError::from)?;
     cassie
         .midge
         .put_sequence(&metadata)
@@ -115,7 +120,11 @@ pub(super) fn persist_created_sequences(
     cassie: &Cassie,
     sequences: Vec<crate::catalog::SequenceMeta>,
 ) -> Result<(), QueryError> {
-    for sequence in sequences {
+    for mut sequence in sequences {
+        sequence.object_id = cassie
+            .midge
+            .allocate_object_id()
+            .map_err(QueryError::from)?;
         cassie
             .midge
             .put_sequence(&sequence)

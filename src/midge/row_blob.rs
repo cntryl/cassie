@@ -581,7 +581,7 @@ fn decode_directory_value(type_tag: u8, bytes: &[u8]) -> Result<serde_json::Valu
 fn expected_type_tag(data_type: &DataType) -> u8 {
     match data_type {
         DataType::Null => TYPE_NULL,
-        DataType::SmallInt | DataType::Int | DataType::BigInt => TYPE_I64,
+        DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::ObjectId(_) => TYPE_I64,
         DataType::Float => TYPE_F64,
         DataType::Boolean => TYPE_BOOL,
         DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => TYPE_STRING,

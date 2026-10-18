@@ -47,6 +47,9 @@ pub struct ViewMeta {
     pub name: String,
     pub query: String,
     pub schema: Schema,
+    /// Stable relation identity allocated at creation; renames keep it.
+    #[serde(default)]
+    pub object_id: u64,
 }
 
 impl ViewMeta {
@@ -55,6 +58,7 @@ impl ViewMeta {
             name: name.into(),
             query: query.into(),
             schema,
+            object_id: 0,
         }
     }
 }

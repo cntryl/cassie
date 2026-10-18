@@ -2,7 +2,7 @@
 //!
 //! Legacy vector/array identities remain in schema's v2 adapter. This registry
 //! does not admit new named types or change the durable representation.
-use super::DataType;
+use super::{DataType, ObjectIdKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BuiltinKind {
@@ -21,6 +21,7 @@ pub(crate) enum BuiltinKind {
     Time,
     Timestamp,
     Json,
+    ObjectId(super::ObjectIdKind),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -58,7 +59,23 @@ pub(crate) const BUILTIN_TYPES: &[BuiltinType] = &[
     BuiltinType::new(BuiltinKind::Time, 1083, "time", 8),
     BuiltinType::new(BuiltinKind::Timestamp, 1114, "timestamp", 8),
     BuiltinType::new(BuiltinKind::Json, 114, "json", -1),
+    object_id_type(ObjectIdKind::Oid),
+    object_id_type(ObjectIdKind::RegProc),
+    object_id_type(ObjectIdKind::RegProcedure),
+    object_id_type(ObjectIdKind::RegOper),
+    object_id_type(ObjectIdKind::RegOperator),
+    object_id_type(ObjectIdKind::RegClass),
+    object_id_type(ObjectIdKind::RegType),
+    object_id_type(ObjectIdKind::RegConfig),
+    object_id_type(ObjectIdKind::RegDictionary),
+    object_id_type(ObjectIdKind::RegNamespace),
+    object_id_type(ObjectIdKind::RegRole),
+    object_id_type(ObjectIdKind::RegCollation),
 ];
+
+const fn object_id_type(kind: ObjectIdKind) -> BuiltinType {
+    BuiltinType::new(BuiltinKind::ObjectId(kind), kind.type_oid(), kind.name(), 4)
+}
 
 pub(crate) fn builtin_for_oid(oid: u32) -> Option<&'static BuiltinType> {
     BUILTIN_TYPES.iter().find(|metadata| metadata.oid == oid)
@@ -89,6 +106,7 @@ impl BuiltinKind {
             Self::Time => DataType::Time,
             Self::Timestamp => DataType::Timestamp,
             Self::Json => DataType::Json,
+            Self::ObjectId(kind) => DataType::ObjectId(kind),
         }
     }
 }
@@ -117,6 +135,7 @@ pub(crate) fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
         DataType::Time => BuiltinKind::Time,
         DataType::Timestamp => BuiltinKind::Timestamp,
         DataType::Json => BuiltinKind::Json,
+        DataType::ObjectId(kind) => BuiltinKind::ObjectId(*kind),
         DataType::Vector(dimensions) => return TypeMetadata::Vector(*dimensions),
         DataType::Array(inner) => return TypeMetadata::Array(inner),
     };

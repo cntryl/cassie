@@ -55,43 +55,12 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn create_collection(&self, name: &str, schema: Schema) -> Result<(), CassieError> {
-        let result =
-            self.create_collection_with_meta(name, &schema, &CollectionMeta::new(name, None));
+        let result = self
+            .create_collection_with_meta(name, &schema, &CollectionMeta::new(name, None))
+            .map(|_| ());
         let Schema { fields } = schema;
         let _ = fields;
         result
-    }
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn create_namespace(&self, namespace: &str) -> Result<(), CassieError> {
-        if let Some(database) = crate::catalog::schema_database_name(namespace) {
-            let _ = self.database_family(&database)?;
-        }
-        let mut tx = self.begin_schema_rw_tx()?;
-        let namespace_key = Self::namespace_key(namespace);
-        if tx.get(&namespace_key).map_err(CassieError::from)?.is_none() {
-            let metadata = NamespaceMeta::new(namespace, None);
-            let serialized = serde_json::to_vec(&metadata)
-                .map_err(|error| CassieError::Parse(error.to_string()))?;
-            tx.put(namespace_key, serialized, None)
-                .map_err(CassieError::from)?;
-        }
-
-        let mut namespaces = Self::load_namespaces(&tx)?;
-        let canonical = self.canonical_namespace_name(namespace);
-        if !namespaces
-            .iter()
-            .any(|entry| self.canonical_namespace_name(entry) == canonical)
-        {
-            namespaces.push(namespace.to_string());
-            namespaces.sort();
-            Self::save_namespaces(&mut tx, &namespaces)?;
-        }
-
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)?;
-        Ok(())
     }
     pub fn list_namespaces(&self) -> Vec<String> {
         self.list_namespaces_raw()

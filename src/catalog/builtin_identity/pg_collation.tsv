@@ -1,0 +1,7 @@
+100	default
+811	pg_c_utf8
+950	C
+951	POSIX
+962	ucs_basic
+963	unicode
+6411	pg_unicode_fast

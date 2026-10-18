@@ -16,6 +16,9 @@ struct QueryResultPayload {
     columns: Vec<ColumnMeta>,
     rows: Vec<Vec<Value>>,
     command: String,
+    /// The OIDs behind `reg*` columns, whose rows hold rendered names.
+    #[serde(skip)]
+    object_oids: Vec<(usize, Vec<Option<u32>>)>,
     #[serde(skip)]
     memory: QueryMemoryReservation,
 }
@@ -50,6 +53,15 @@ impl QueryResult {
         &self.payload.rows
     }
 
+    /// The OID a rendered `reg*` value in `row`/`column` names, for binary output.
+    pub(crate) fn object_oid(&self, row: usize, column: usize) -> Option<u32> {
+        self.payload
+            .object_oids
+            .iter()
+            .find(|(index, _)| *index == column)
+            .and_then(|(_, oids)| oids.get(row).copied().flatten())
+    }
+
     #[must_use]
     pub fn command(&self) -> &str {
         &self.payload.command
@@ -74,6 +86,7 @@ impl QueryResult {
             columns: Vec::new(),
             rows: Vec::new(),
             command: String::new(),
+            object_oids: Vec::new(),
             memory,
             controls,
         })
@@ -116,7 +129,13 @@ impl QueryResult {
         if columns == self.columns() {
             return self.try_clone_for_query(controls);
         }
-        Self::try_rebuild(controls, columns, self.rows(), self.command())
+        Self::try_rebuild(
+            controls,
+            columns,
+            self.rows(),
+            self.command(),
+            &self.payload.object_oids,
+        )
     }
 
     /// # Errors
@@ -126,7 +145,7 @@ impl QueryResult {
         controls: &QueryExecutionControls,
         rows: &[Vec<Value>],
     ) -> Result<Self, CassieError> {
-        Self::try_rebuild(controls, self.columns(), rows, self.command())
+        Self::try_rebuild(controls, self.columns(), rows, self.command(), &[])
     }
 
     /// # Errors
@@ -139,7 +158,13 @@ impl QueryResult {
         if command == self.command() {
             return self.try_clone_for_query(controls);
         }
-        Self::try_rebuild(controls, self.columns(), self.rows(), command)
+        Self::try_rebuild(
+            controls,
+            self.columns(),
+            self.rows(),
+            command,
+            &self.payload.object_oids,
+        )
     }
 
     /// Transfers rows without detaching their physical or requesting-query owners.
@@ -179,11 +204,14 @@ impl QueryResult {
         size_of::<QueryMemoryReservation>() + 2 * size_of::<usize>()
     }
 
+    /// Rebuilds the result; `object_oids` carries `reg*` identities only when
+    /// the rows are unchanged.
     fn try_rebuild(
         controls: &QueryExecutionControls,
         columns: &[ColumnMeta],
         rows: &[Vec<Value>],
         command: &str,
+        object_oids: &[(usize, Vec<Option<u32>>)],
     ) -> Result<Self, CassieError> {
         let mut builder = Self::try_builder(controls)?;
         for column in columns {
@@ -191,6 +219,9 @@ impl QueryResult {
         }
         for row in rows {
             builder.try_push_row(row)?;
+        }
+        for (column, oids) in object_oids {
+            builder.try_set_object_oids(*column, oids.clone())?;
         }
         builder.try_set_command(command)?;
         builder.finish()
@@ -203,6 +234,7 @@ pub struct QueryResultBuilder<'a> {
     columns: Vec<ColumnMeta>,
     rows: Vec<Vec<Value>>,
     command: String,
+    object_oids: Vec<(usize, Vec<Option<u32>>)>,
     memory: QueryMemoryReservation,
     controls: &'a QueryExecutionControls,
 }
@@ -283,6 +315,25 @@ impl QueryResultBuilder<'_> {
         Ok(())
     }
 
+    /// Records the OIDs behind a rendered `reg*` column, one per row.
+    ///
+    /// # Errors
+    /// Returns a resource error when the identities cannot be admitted.
+    pub(crate) fn try_set_object_oids(
+        &mut self,
+        column: usize,
+        oids: Vec<Option<u32>>,
+    ) -> Result<(), CassieError> {
+        let bytes = add(
+            size_of::<(usize, Vec<Option<u32>>)>(),
+            oids.capacity().saturating_mul(size_of::<Option<u32>>()),
+        )?;
+        let memory = self.memory.try_sibling(bytes)?;
+        self.object_oids.push((column, oids));
+        self.memory.absorb(memory);
+        Ok(())
+    }
+
     /// # Errors
     /// Returns cancellation or a deadline error without publishing a result.
     pub fn finish(self) -> Result<QueryResult, CassieError> {
@@ -292,6 +343,7 @@ impl QueryResultBuilder<'_> {
                 columns: self.columns,
                 rows: self.rows,
                 command: self.command,
+                object_oids: self.object_oids,
                 memory: self.memory,
             }),
             exposure: None,

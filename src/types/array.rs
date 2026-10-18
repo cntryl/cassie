@@ -205,6 +205,9 @@ fn parse_element(value: String, data_type: &DataType) -> Result<JsonValue, Strin
             .parse::<i64>()
             .map(JsonValue::from)
             .map_err(|_| format!("invalid integer array element '{value}'")),
+        DataType::ObjectId(_) => crate::types::object_id::parse_oid_text(&value)
+            .map(JsonValue::from)
+            .map_err(|error| error.to_string()),
         DataType::Float => {
             let parsed = value
                 .parse::<f64>()

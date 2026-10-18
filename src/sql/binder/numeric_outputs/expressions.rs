@@ -104,6 +104,15 @@ impl Analyzer<'_> {
         right: &Expr,
         lookup: &[OutputField],
     ) -> Result<OutputType, CassieError> {
+        if let Some(operator) = op.typed_operator() {
+            let left_type = self.expression(left, lookup)?.data_type;
+            let right_type = self.expression(right, lookup)?.data_type;
+            if let Some(kind) =
+                crate::types::extended::operations::operator_type(operator, &left_type, &right_type)
+            {
+                return Ok(OutputType::fixed(kind));
+            }
+        }
         Ok(match op {
             BinaryOp::And
             | BinaryOp::Or
@@ -115,6 +124,7 @@ impl Analyzer<'_> {
             | BinaryOp::Lte
             | BinaryOp::Gt
             | BinaryOp::Gte
+            | BinaryOp::Typed { .. }
             | BinaryOp::Like => OutputType::fixed(DataType::Boolean),
             BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                 OutputType::fixed(DataType::Float)
@@ -156,6 +166,15 @@ impl Analyzer<'_> {
         }
         let Some(metadata) = crate::sql::functions::function(&name) else {
             let arguments = self.function_arguments(function, lookup)?;
+            let argument_types: Vec<DataType> = arguments
+                .iter()
+                .map(|argument| argument.data_type.clone())
+                .collect();
+            if let Some(kind) = crate::sql::functions::hashing::return_type(&name).or_else(|| {
+                crate::types::extended::operations::function_type(&name, &argument_types)
+            }) {
+                return Ok(OutputType::fixed(kind));
+            }
             // Matches the existing fallback type but never loses numeric
             // origin through a function whose result policy is unavailable.
             let mut output = OutputType::fixed(DataType::Text);

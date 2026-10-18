@@ -620,6 +620,14 @@ pub(crate) fn infer_function_return_type(
     parameter_types: &[i32],
 ) -> Option<DataType> {
     let name = function.name.to_ascii_lowercase();
+    if let Some(kind) = super::extended_inference::function_type(
+        function,
+        source_schema,
+        user_functions,
+        parameter_types,
+    ) {
+        return Some(kind);
+    }
     if let Some(target) = crate::sql::functions::primitive_casts::candidate(function) {
         let source = infer_expr_type(
             &function.args[0],
@@ -767,54 +775,75 @@ pub(crate) fn infer_expr_type(
             .copied()
             .and_then(data_type_for_parameter_oid)
             .or(Some(DataType::Null)),
-        Expr::Binary { left, op, right } => match op {
-            BinaryOp::And
-            | BinaryOp::Or
-            | BinaryOp::Eq
-            | BinaryOp::NotEq
-            | BinaryOp::IsDistinctFrom
-            | BinaryOp::IsNotDistinctFrom
-            | BinaryOp::Lt
-            | BinaryOp::Lte
-            | BinaryOp::Gt
-            | BinaryOp::Gte
-            | BinaryOp::Like => Some(DataType::Boolean),
-            BinaryOp::Power => Some(DataType::Float),
-            BinaryOp::Concat => infer_concatenation_type(
-                left,
-                right,
-                source_schema,
-                user_functions,
-                parameter_types,
-            ),
-            BinaryOp::ByteaConcat => Some(DataType::Bytea),
-            BinaryOp::Bitwise { operation } if operation.is_shift() => {
-                infer_expr_type(left, source_schema, user_functions, parameter_types)
-            }
-            BinaryOp::Integer { width, .. } => Some(width.data_type()),
-            BinaryOp::Add
-            | BinaryOp::Sub
-            | BinaryOp::Mul
-            | BinaryOp::Div
-            | BinaryOp::Modulo
-            | BinaryOp::Bitwise { .. } => {
-                let left_type =
-                    infer_expr_type(left, source_schema, user_functions, parameter_types);
-                let right_type =
-                    infer_expr_type(right, source_schema, user_functions, parameter_types);
-                if left_type.as_ref().is_some_and(is_integer_type)
-                    && right_type.as_ref().is_some_and(is_integer_type)
-                {
-                    Some(DataType::BigInt)
-                } else {
-                    Some(DataType::Float)
-                }
-            }
-            BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
+        Expr::Binary { left, op, right } => infer_binary_type(
+            left,
+            op,
+            right,
+            source_schema,
+            user_functions,
+            parameter_types,
+        ),
+    }
+}
+
+fn infer_binary_type(
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
+    super::extended_inference::binary_type(
+        left,
+        op,
+        right,
+        source_schema,
+        user_functions,
+        parameter_types,
+    )
+    .or_else(|| match op {
+        BinaryOp::Typed { .. }
+        | BinaryOp::And
+        | BinaryOp::Or
+        | BinaryOp::Eq
+        | BinaryOp::NotEq
+        | BinaryOp::IsDistinctFrom
+        | BinaryOp::IsNotDistinctFrom
+        | BinaryOp::Lt
+        | BinaryOp::Lte
+        | BinaryOp::Gt
+        | BinaryOp::Gte
+        | BinaryOp::Like => Some(DataType::Boolean),
+        BinaryOp::Power => Some(DataType::Float),
+        BinaryOp::Concat => {
+            infer_concatenation_type(left, right, source_schema, user_functions, parameter_types)
+        }
+        BinaryOp::ByteaConcat => Some(DataType::Bytea),
+        BinaryOp::Bitwise { operation } if operation.is_shift() => {
+            infer_expr_type(left, source_schema, user_functions, parameter_types)
+        }
+        BinaryOp::Integer { width, .. } => Some(width.data_type()),
+        BinaryOp::Add
+        | BinaryOp::Sub
+        | BinaryOp::Mul
+        | BinaryOp::Div
+        | BinaryOp::Modulo
+        | BinaryOp::Bitwise { .. } => {
+            let left_type = infer_expr_type(left, source_schema, user_functions, parameter_types);
+            let right_type = infer_expr_type(right, source_schema, user_functions, parameter_types);
+            if left_type.as_ref().is_some_and(is_integer_type)
+                && right_type.as_ref().is_some_and(is_integer_type)
+            {
+                Some(DataType::BigInt)
+            } else {
                 Some(DataType::Float)
             }
-        },
-    }
+        }
+        BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
+            Some(DataType::Float)
+        }
+    })
 }
 
 fn infer_concatenation_type(

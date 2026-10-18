@@ -241,7 +241,8 @@ fn should_canonicalize_text_uuid_bytea_parameters_like_binary_ones() {
     assert_eq!(first_column(&batches[0]), keys(&["1"]));
     assert_eq!(first_column(&batches[1]), keys(&["1"]));
     assert_eq!(first_column(&batches[2]), keys(&["1"]));
-    assert_eq!(support::error_code(&batches[3]).as_deref(), Some("08P01"));
+    // PostgreSQL uuid_in reports malformed text as invalid input syntax.
+    assert_eq!(support::error_code(&batches[3]).as_deref(), Some("22P02"));
     // PostgreSQL byteain reports odd hex data as a semantic input error.
     assert_eq!(support::error_code(&batches[4]).as_deref(), Some("22023"));
     let fields = support::parse_error_fields(

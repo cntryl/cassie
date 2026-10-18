@@ -201,10 +201,21 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
             .map(u32::from_be_bytes)
             .map(i64::from)
             .map(Value::Int64),
-        BinaryCodecKind::Extended(kind) => kind
-            .receive_binary(parameter)
-            .map(Value::Typed)
-            .map_err(|_| invalid_data(codec.name)),
+        BinaryCodecKind::Extended(kind) => {
+            kind.receive_binary(parameter)
+                .map(Value::Typed)
+                .map_err(|message| {
+                    // A short frame is a protocol violation (08P01); a
+                    // complete frame with invalid content is 22P03.
+                    if kind == crate::types::extended::ExtendedType::Real
+                        || message == crate::types::extended::network::INSUFFICIENT_DATA
+                    {
+                        invalid_data(codec.name)
+                    } else {
+                        io::Error::new(io::ErrorKind::InvalidData, ExcessBinaryData(codec.name))
+                    }
+                })
+        }
         BinaryCodecKind::Float8 => fixed_bytes::<8>(parameter, codec.name)
             .map(f64::from_be_bytes)
             .map(Value::Float64),

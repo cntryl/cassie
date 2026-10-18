@@ -705,7 +705,11 @@ fn udt_name(data_type: &DataType) -> String {
 fn character_length(data_type: &DataType) -> Option<i64> {
     match data_type {
         DataType::Char { length } => Some(i64::from(length.unwrap_or(1))),
-        DataType::Varchar { length } => length.map(i64::from),
+        DataType::Varchar { length }
+        | DataType::Extended(
+            crate::types::extended::ExtendedType::Bit { length }
+            | crate::types::extended::ExtendedType::VarBit { length },
+        ) => length.map(i64::from),
         _ => None,
     }
 }

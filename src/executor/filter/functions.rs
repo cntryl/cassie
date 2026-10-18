@@ -74,13 +74,18 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     session: Option<&CassieSession>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Option<Result<Value, QueryError>> {
-    runtime_information::evaluate(name, args, session)
+    crate::types::extended::operations::function(name, args)
+        .map(|result| {
+            result.map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))
+        })
+        .or_else(|| runtime_information::evaluate(name, args, session))
         .or_else(|| super::object_ids::evaluate_lookup(name, args, session))
         .or_else(|| evaluate_system_function(name, row, args, session))
         .or_else(|| super::conditional::evaluate(name, args))
         .or_else(|| {
             let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
-            bytea_functions::evaluate(local, args, controls)
+            super::hash_functions::evaluate(local, args)
+                .or_else(|| bytea_functions::evaluate(local, args, controls))
                 .or_else(|| math::evaluate(local, args))
                 .or_else(|| catalog_sizes::evaluate(local, args))
                 .or_else(|| text_selection::evaluate(local, args))

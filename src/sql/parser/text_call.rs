@@ -16,6 +16,10 @@ pub(super) fn arguments(name: &str, body: &str) -> Result<Option<(String, Vec<Ex
             vec![parse_expression(text)?, parse_expression(needle)?],
         )));
     }
+    if name.eq_ignore_ascii_case("overlay") {
+        return overlay(body)
+            .map(|arguments| arguments.map(|arguments| (name.to_owned(), arguments)));
+    }
     if name.eq_ignore_ascii_case("substring") {
         return substring(body)
             .map(|arguments| arguments.map(|arguments| (name.to_owned(), arguments)));
@@ -78,6 +82,23 @@ fn substring(body: &str) -> Result<Option<Vec<Expr>>, SqlError> {
         args.push(parse_expression(rest)?);
     }
     Ok(Some(args))
+}
+
+/// `overlay(string PLACING replacement FROM start [FOR count])`.
+fn overlay(body: &str) -> Result<Option<Vec<Expr>>, SqlError> {
+    let Some((text, rest)) = split(body, "placing") else {
+        return Ok(None);
+    };
+    let (replacement, bounds) = split(rest, "from")
+        .ok_or_else(|| SqlError::syntax("OVERLAY requires PLACING ... FROM".into()))?;
+    let mut arguments = vec![parse_expression(text)?, parse_expression(replacement)?];
+    if let Some((start, count)) = split(bounds, "for") {
+        arguments.push(parse_expression(start)?);
+        arguments.push(parse_expression(count)?);
+    } else {
+        arguments.push(parse_expression(bounds)?);
+    }
+    Ok(Some(arguments))
 }
 
 fn split<'a>(body: &'a str, keyword: &str) -> Option<(&'a str, &'a str)> {

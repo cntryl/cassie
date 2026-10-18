@@ -68,6 +68,9 @@ pub(super) fn result_type(
     }
     if is_unknown_operand(operand) {
         (op == UnaryNumericOp::Plus).then_some(DataType::Float)
+    } else if op == UnaryNumericOp::Complement {
+        inferred
+            .map(|kind| crate::types::extended::operations::complement_type(&kind).unwrap_or(kind))
     } else {
         inferred
     }
@@ -97,6 +100,11 @@ pub(crate) fn validate_signature(
         );
     }
     if let Some(data_type) = data_type {
+        if op == UnaryNumericOp::Complement
+            && crate::types::extended::operations::complement_type(data_type).is_some()
+        {
+            return Ok(());
+        }
         if op == UnaryNumericOp::Complement
             && IntegerWidth::from_data_type(data_type).is_none()
             && *data_type != DataType::Null

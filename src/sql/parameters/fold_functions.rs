@@ -15,6 +15,11 @@ impl Fold<'_, '_> {
         function: &ast::FunctionCall,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
+        if let Some(oid) = functions::hashing::return_type(&function.name)
+            .and_then(|kind| i32::try_from(kind.type_oid()).ok())
+        {
+            return Ok(Summary::known(oid));
+        }
         if functions::function(&function.name).is_some_and(|metadata| {
             functions::is_bytea_function(metadata.id) || metadata.id == functions::FunctionId::Lower
         }) {

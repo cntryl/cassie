@@ -33,6 +33,11 @@ pub(super) fn evaluate(value: &ScalarValue, op: UnaryNumericOp) -> Result<Scalar
     if op == UnaryNumericOp::Complement {
         return match value {
             ScalarValue::Int(value) => Ok(ScalarValue::Int(!value)),
+            ScalarValue::Typed(typed) => crate::types::extended::operations::complement(typed)
+                .map(ScalarValue::Typed)
+                .ok_or_else(|| {
+                    QueryError::General("operator does not exist: ~ non-integer".into())
+                }),
             ScalarValue::Null => Ok(ScalarValue::Null),
             _ => Err(QueryError::General(
                 "operator does not exist: ~ non-integer".into(),

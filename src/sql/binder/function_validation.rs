@@ -57,7 +57,10 @@ pub(super) fn validate_function_calls(
             }
             continue;
         }
-        if crate::sql::functions::primitive_casts::candidate(&function).is_some() {
+        if crate::sql::functions::primitive_casts::candidate(&function).is_some()
+            || crate::types::extended::operations::is_function_name(&function.name)
+            || crate::sql::functions::hashing::is_hash_function(&function.name)
+        {
             continue;
         }
         let lookup = function.name.to_ascii_lowercase();

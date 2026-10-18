@@ -9,7 +9,16 @@ pub(super) fn binary_scalar(
     op: &BinaryOp,
     right: &ScalarValue,
 ) -> Result<ScalarValue, QueryError> {
+    if let Some(result) = super::extended_ops::binary(left, op, right) {
+        return result;
+    }
     let result = match op {
+        BinaryOp::Typed { .. } => {
+            return Err(crate::app::CassieError::Execution(
+                "operator does not exist for these operand types".into(),
+            )
+            .into())
+        }
         BinaryOp::ByteaConcat => super::bytea_casts::concatenate(left, right)?,
         BinaryOp::Concat => match (cast_to_text(left), cast_to_text(right)) {
             (Some(mut left), Some(right)) => {
@@ -60,6 +69,11 @@ pub(super) fn binary_scalar(
                 let right = right.to_f64().ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
                 ScalarValue::Float(super::functions::math::power(left, right)?)
             }
+        }
+        BinaryOp::Bitwise { .. }
+            if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) =>
+        {
+            ScalarValue::Null
         }
         BinaryOp::Bitwise { .. } => return Err(crate::app::CassieError::Unsupported("bitwise operator requires resolved existing integer operands".into()).into()),
         BinaryOp::Modulo => return Err(crate::app::CassieError::Unsupported("remainder requires selected existing integer operands; NUMERIC remains pending under #793/#812".into()).into()),

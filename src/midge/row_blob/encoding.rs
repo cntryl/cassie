@@ -19,9 +19,7 @@ pub(super) fn encode_value(
     match data_type {
         DataType::Null => Ok((TYPE_NULL, Vec::new())),
         DataType::Extended(kind) => {
-            let typed = kind
-                .from_json(value)
-                .map_err(|error| CassieError::InvalidVector(error.to_string()))?;
+            let typed = kind.from_json(value).map_err(CassieError::TypeInput)?;
             let mut bytes = kind.type_oid().to_be_bytes().to_vec();
             bytes.extend_from_slice(&typed.send_binary());
             Ok((TYPE_EXTENDED, bytes))

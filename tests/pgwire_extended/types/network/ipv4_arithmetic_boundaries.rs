@@ -33,8 +33,8 @@ fn should_preserve_ipv4_arithmetic_boundaries_over_pgwire() {
     assert_eq!(
         wire::data_rows(text_result),
         vec![vec![
-            Some("255.255.255.255/32".to_owned()),
-            Some("0.0.0.0/32".to_owned()),
+            Some("255.255.255.255".to_owned()),
+            Some("0.0.0.0".to_owned()),
             Some("4294967295".to_owned()),
         ]]
     );

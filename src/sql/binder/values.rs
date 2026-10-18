@@ -173,7 +173,7 @@ fn validate(
                     | DataType::Date
                     | DataType::Time
                     | DataType::Timestamp
-            ) =>
+            ) && !crate::types::extended::operations::handles(data_type) =>
         {
             return Err(CassieError::Unsupported(
                 "VALUES casts to this type are not yet supported".into(),

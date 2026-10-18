@@ -18,6 +18,23 @@ pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Resul
     {
         return Ok(());
     }
+    if function.name.eq_ignore_ascii_case("md5")
+        && function.args.len() == 1
+        && types.expression_type(&function.args[0]) == Some(DataType::Bytea)
+    {
+        // Select the binary overload over the shared string carrier.
+        function.args.push(Expr::BoolLiteral(
+            crate::executor::filter::hash_functions::MD5_BYTEA_MARKER,
+        ));
+        return Ok(());
+    }
+    if function.args.iter().any(|argument| {
+        types
+            .expression_type(argument)
+            .is_some_and(|kind| crate::types::extended::operations::handles(&kind))
+    }) {
+        return Ok(());
+    }
     let Some(metadata) = functions::function(&function.name).filter(|metadata| {
         functions::is_bytea_function(metadata.id) || metadata.id == functions::FunctionId::Lower
     }) else {

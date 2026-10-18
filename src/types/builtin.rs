@@ -73,6 +73,13 @@ pub(crate) const BUILTIN_TYPES: &[BuiltinType] = &[
     object_id_type(ObjectIdKind::RegRole),
     object_id_type(ObjectIdKind::RegCollation),
     extended_type(super::extended::ExtendedType::Real),
+    extended_type(super::extended::ExtendedType::Inet),
+    extended_type(super::extended::ExtendedType::Cidr),
+    extended_type(super::extended::ExtendedType::Macaddr),
+    extended_type(super::extended::ExtendedType::Macaddr8),
+    extended_type(super::extended::ExtendedType::PgLsn),
+    extended_type(super::extended::ExtendedType::Bit { length: None }),
+    extended_type(super::extended::ExtendedType::VarBit { length: None }),
 ];
 
 const fn extended_type(kind: super::extended::ExtendedType) -> BuiltinType {
@@ -158,7 +165,7 @@ pub(crate) fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
         DataType::Timestamp => BuiltinKind::Timestamp,
         DataType::Json => BuiltinKind::Json,
         DataType::ObjectId(kind) => BuiltinKind::ObjectId(*kind),
-        DataType::Extended(kind) => BuiltinKind::Extended(*kind),
+        DataType::Extended(kind) => BuiltinKind::Extended(kind.base()),
         DataType::Vector(dimensions) => return TypeMetadata::Vector(*dimensions),
         DataType::Array(inner) => return TypeMetadata::Array(inner),
     };

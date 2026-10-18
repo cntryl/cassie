@@ -16,6 +16,20 @@ pub(super) fn cast(
             .parse::<i64>()
             .map_err(|_| range(width))?,
         ScalarValue::Str(text) => return controlled_input(text, width, controls),
+        ScalarValue::Typed(
+            crate::types::typed::TypedValue::Bit(bits)
+            | crate::types::typed::TypedValue::VarBit(bits),
+        ) => {
+            let bits_width = if width == crate::types::IntegerWidth::I64 {
+                64
+            } else {
+                32
+            };
+            return bits
+                .to_integer(bits_width)
+                .map(ScalarValue::Int)
+                .map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)));
+        }
         ScalarValue::Typed(typed) => {
             return match typed.as_f64() {
                 Some(float) => cast(&ScalarValue::Float(float), width, controls),

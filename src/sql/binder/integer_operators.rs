@@ -8,6 +8,13 @@ pub(super) fn resolve(
     left: Option<&DataType>,
     right: Option<&DataType>,
 ) -> Result<bool, CassieError> {
+    if [left, right]
+        .into_iter()
+        .flatten()
+        .any(crate::types::extended::operations::handles)
+    {
+        return Ok(true);
+    }
     if matches!(op, BinaryOp::Concat | BinaryOp::ByteaConcat) {
         return super::string_operators::resolve(op, left, right).map(|()| true);
     }

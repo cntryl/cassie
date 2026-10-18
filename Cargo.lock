@@ -217,6 +217,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "md-5",
  "num-traits",
  "parking_lot",
  "rcgen",

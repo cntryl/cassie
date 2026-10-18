@@ -3441,3 +3441,63 @@ Raw commands, source hashes, red/green logs, native SQL/results, Jev requests/
 responses and target comparisons are retained under ignored
 `target/error-order/`. Broad PostgreSQL and PL/pgSQL obligations remain tracked
 by #791 and their existing subsystem owners.
+
+## 2026-10-18 — UI sanitizer dependency and runtime qualification (#957)
+
+Baseline is merged #956 (`5513831f4fa71074770ff2bb64b50426b0980e3c`).
+The production npm audit was red on DOMPurify 3.4.8, with five published
+advisories affecting the Monaco dependency chain. A scoped root override to
+3.4.17 repairs the installed dependency graph without changing the current
+Askr 0.4 / Monaco 0.56 peer contract. The lockfile changes only DOMPurify.
+
+An audit-only repair was insufficient: Monaco imports its own vendored
+DOMPurify 3.4.8 module. The first actual production bundle and bundle regression
+remained red after the override. A small resolver now redirects only that
+installed Monaco caller's sanitizer import to its audited npm dependency.
+It is registered in production, dependency optimization and worker graphs.
+Removing the optimizer and worker registrations independently reproduced the
+unpatched module in those graphs. No dependency files are patched in place.
+
+Five repository regressions inspect the actual resolved module graph and
+emitted sanitizer version, preserve an application-owned mirrored path, and
+reject a build whose patched dependency cannot resolve. All five pass. Jev's
+importer-isolation concern (0.38) triggered the mirrored-path probe; after
+executing it, the remaining concern was 0.17. Its missing-dependency concern
+was also probed; the subsequent unsafe-fallback estimate was 0.08. These
+judgments guide investigation; executed assertions determine acceptance.
+
+UI validation uses Node 26.0.0 and the declared npm 12.0.1 through
+`npx --yes npm@12.0.1`. Fresh `npm ci` and `npm audit --omit=dev --json` pass;
+the latter reports zero vulnerabilities. Installed and emitted production
+sanitizers are 3.4.17. The following npm scripts run from `ui/` in order:
+`gen:adapters:check`, `test:unit -- --run`, `type-check`, `lint`, `fmt:check`,
+`build`, `test:e2e:mock`, and `test:e2e`. All eight scripts pass: **121 unit tests, 26 mock-browser cases and two
+real-Cassie production-browser cases**. After tightening the missing-dependency
+assertion to require its resolution error, all 121 unit tests and types/lint/format
+checks pass again. Production code is unchanged. The real browser fixture uses
+the validated #956 backend with the current UI distribution.
+
+Raw baseline/green audits, dependency graph, red/green module probes, actual
+bundle version receipts, Jev requests/responses and command logs are retained
+under ignored `target/ui-sanitizer/`. This is a dependency/runtime repair,
+not a complete application security assessment or deployed-image claim.
+
+Ordered backend results, with unchanged Rust/build inputs:
+
+| Command | Actual result |
+| --- | --- |
+| `cargo build --locked` | Passed |
+| `cargo test --locked` | Library 1,114/0; analytics 179/0; backend 2/0; benchmark operations 16/0; catalog 241/170, exact baseline failure identities, zero additions/resolutions; later targets not run |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed |
+| `cargo fmt --all -- --check` | Passed |
+| `cntryl-tools validate-tests -f ui/tests/monaco-sanitizer-bundle.test.ts` | Exited zero but found no tests: the Rust policy analyzer does not qualify TypeScript; executed Vitest/type/lint/format gates above cover this file |
+| `cntryl-tools validate-docs --config .cntryl/repository.toml` | Passed |
+| `cntryl-tools validate-benchmarks --config .cntryl/repository.toml` | Existing blocker: missing `.github/workflows/bench.yml`; no CI edit |
+| `cntryl-tools check-module-sizes --config .cntryl/repository.toml` | Passed |
+| `tools/test_inventory.py --check` using the repository's Python 3.12 environment | Passed |
+| `git diff --check` | Passed |
+
+Backend commands used `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4` and the shared
+Cargo target cache. The only source changes during that gate were UI test
+refinements and documentation; Rust/build inputs remained unchanged. No complete
+repository-green or production-readiness claim follows from this bounded slice.

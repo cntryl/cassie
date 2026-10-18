@@ -3,6 +3,7 @@ import autoprefixer from "autoprefixer";
 import { defineConfig } from "vite-plus";
 
 import { mockAdminQueryApiPlugin } from "./dev/mock-admin-query-api.js";
+import { monacoSanitizerPlugin } from "./dev/monaco-sanitizer.js";
 
 const useMockApi = process.env.VITE_MOCK_API === "true";
 
@@ -31,11 +32,20 @@ const config = {
     },
   },
   plugins: [
+    monacoSanitizerPlugin(),
     askr({
       optimizeTemplates: true,
     }),
     ...(useMockApi ? [mockAdminQueryApiPlugin()] : []),
   ],
+  optimizeDeps: {
+    rolldownOptions: {
+      plugins: [monacoSanitizerPlugin()],
+    },
+  },
+  worker: {
+    plugins: () => [monacoSanitizerPlugin()],
+  },
   css: {
     transformer: "postcss" as const,
     postcss: {

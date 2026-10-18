@@ -5,7 +5,7 @@ use super::{
     virtual_views, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
     AlterTableStatement, BindingContext, CassieError, Catalog, CatalogObjectKind, CollectionSchema,
     CreateViewStatement, DataType, DistanceMetric, DropIndexStatement, DropSchemaStatement,
-    DropViewStatement, Expr, HashMap, HashSet, QueryStatement,
+    DropViewStatement, Expr, HashSet, QueryStatement,
 };
 
 #[path = "schema_alter_constraints.rs"]
@@ -278,7 +278,7 @@ pub(super) fn bind_create_view(
         ));
     };
 
-    let bound = bind_select(*select, catalog, &HashMap::new(), context)?;
+    let bound = bind_select(*select, catalog, &super::CteScope::default(), context)?;
     if select_contains_parameters(&bound) {
         return Err(CassieError::Planner(
             "CREATE VIEW cannot contain bind parameters".into(),

@@ -10,6 +10,7 @@ use crate::sql::ast::{
     CteQuery, Expr, FunctionCall, ParsedStatement, QuerySource, QueryStatement, SelectItem,
     SelectStatement,
 };
+use std::cell::Cell;
 
 #[path = "parse_analysis/type_functions.rs"]
 mod type_functions;
@@ -58,17 +59,50 @@ fn is_select(
     }
 }
 
+/// Analyze a known rejected nested input at its ordered binding position.
+/// The temporary tree retires inside `validate` before its lease is released.
+pub(super) fn validate_rejected_copy(
+    parsed: &ParsedStatement,
+    controls: Option<&QueryExecutionControls>,
+    validate: impl FnOnce(ParsedStatement) -> Result<(), CassieError>,
+) -> Result<(), CassieError> {
+    let footprint = Footprint::optional(controls, true);
+    let bytes = footprint.statement(parsed, 0)?;
+    if !footprint.rejected_cast.get() {
+        return Ok(());
+    }
+    let _analysis_memory = controls
+        .map(|controls| controls.reserve_query_memory(bytes))
+        .transpose()?;
+    if let Some(controls) = controls {
+        controls.check_interruption()?;
+    }
+    validate(parsed.clone())
+}
+
 struct Footprint<'a> {
-    controls: &'a QueryExecutionControls,
+    controls: Option<&'a QueryExecutionControls>,
+    rejected_cast: Cell<bool>,
+    detect_rejected: bool,
 }
 
 impl<'a> Footprint<'a> {
     const fn new(controls: &'a QueryExecutionControls) -> Self {
-        Self { controls }
+        Self::optional(Some(controls), false)
+    }
+
+    const fn optional(controls: Option<&'a QueryExecutionControls>, detect_rejected: bool) -> Self {
+        Self {
+            controls,
+            rejected_cast: Cell::new(false),
+            detect_rejected,
+        }
     }
 
     fn check(&self, depth: usize) -> Result<(), CassieError> {
-        self.controls.check_interruption()?;
+        if let Some(controls) = self.controls {
+            controls.check_interruption()?;
+        }
         if depth > 128 {
             return Err(CassieError::ResourceLimit(
                 "Parse analysis nesting exceeds 128 levels".into(),
@@ -122,6 +156,9 @@ impl<'a> Footprint<'a> {
 
     fn expression(&self, expr: &Expr, depth: usize) -> Result<usize, CassieError> {
         self.check(depth)?;
+        if self.detect_rejected && super::literal_inputs::rejects_cast(expr) {
+            self.rejected_cast.set(true);
+        }
         let mut bytes = size_of::<Expr>();
         match expr {
             Expr::Column(text) | Expr::StringLiteral(text) | Expr::NumericLiteral(text) => {

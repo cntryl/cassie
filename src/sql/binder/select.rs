@@ -2,7 +2,7 @@ use super::table_functions::bind as bind_table_function;
 pub(super) use super::table_functions::columns as table_function_columns;
 use super::{
     bind_recursive_cte_query, bind_statement, collect_projection_aliases, mem, qualified_fields,
-    resolve_relation_path, validate_distinct_on_order_prefix, validate_expression,
+    resolve_relation_path, validate_distinct_on_order_prefix, validate_expression_in_scope,
     validate_expression_operand_families, validate_expression_references, validate_functions,
     validate_order_by_references, validate_projection_references, validate_select_operand_families,
     virtual_views, BindingContext, CassieError, Catalog, CteQuery, CteScope, DataType, Expr,
@@ -21,7 +21,7 @@ use cte_columns::cte_column_aliases;
 pub(super) fn bind_select(
     select: SelectStatement,
     catalog: &Catalog,
-    outer_scope: &CteScope,
+    outer_scope: &CteScope<'_>,
     context: &BindingContext,
 ) -> Result<SelectStatement, CassieError> {
     bind_select_with_lateral_fields(select, catalog, outer_scope, &HashSet::new(), context)
@@ -30,7 +30,7 @@ pub(super) fn bind_select(
 pub(super) fn bind_select_with_lateral_fields(
     select: SelectStatement,
     catalog: &Catalog,
-    outer_scope: &CteScope,
+    outer_scope: &CteScope<'_>,
     lateral_fields: &HashSet<String>,
     context: &BindingContext,
 ) -> Result<SelectStatement, CassieError> {
@@ -117,7 +117,12 @@ pub(super) fn bind_select_with_lateral_fields(
     super::boolean_contexts::qualify_declared_boolean_functions(&mut select, catalog, context)?;
 
     let projection_aliases = collect_projection_aliases(&select);
-    validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
+    validate_bound_select_references(
+        &select,
+        &known_fields,
+        &projection_aliases,
+        super::references::ReferenceScope::new(&scope, catalog, context),
+    )?;
     super::boolean_contexts::validate_select(&mut select, catalog, context, outer_scope)?;
     validate_select_operand_families(&select, catalog)?;
     super::coalesce_results::validate_select(&select, catalog, context)?;
@@ -268,29 +273,38 @@ fn validate_bound_select_references(
     select: &SelectStatement,
     known_fields: &HashSet<String>,
     projection_aliases: &HashSet<String>,
+    scope: super::references::ReferenceScope<'_, '_>,
 ) -> Result<(), CassieError> {
-    validate_projection_references(&select.projection, known_fields)?;
+    validate_projection_references(&select.projection, known_fields, scope)?;
     validate_grouped_projection(select, projection_aliases)?;
     validate_expression_references(
         select.filter.as_ref(),
         known_fields,
         projection_aliases,
         false,
+        scope,
     )?;
     for group_expr in &select.group_by {
-        validate_expression(group_expr, known_fields, projection_aliases, false)?;
+        validate_expression_in_scope(group_expr, known_fields, projection_aliases, false, scope)?;
     }
     for distinct_expr in &select.distinct_on {
-        validate_expression(distinct_expr, known_fields, projection_aliases, false)?;
+        validate_expression_in_scope(
+            distinct_expr,
+            known_fields,
+            projection_aliases,
+            false,
+            scope,
+        )?;
     }
     validate_expression_references(
         select.having.as_ref(),
         known_fields,
         projection_aliases,
         false,
+        scope,
     )?;
     super::pagination_references::validate(select, known_fields, projection_aliases)?;
-    validate_order_by_references(&select.order, known_fields, projection_aliases)?;
+    validate_order_by_references(&select.order, known_fields, projection_aliases, scope)?;
     validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
     Ok(())
 }
@@ -402,7 +416,7 @@ pub(super) fn validate_recursive_cte_shape(
     base: &crate::sql::ast::ParsedStatement,
     recursive: &crate::sql::ast::ParsedStatement,
     catalog: &Catalog,
-    outer_scope: &CteScope,
+    outer_scope: &CteScope<'_>,
     cte_name: &str,
     aliases: &[String],
     context: &BindingContext,
@@ -573,13 +587,13 @@ pub(super) fn matches_wildcard(item: &SelectItem) -> bool {
 pub(super) fn bind_query_source_with_lateral_fields(
     source: QuerySource,
     catalog: &Catalog,
-    scope: &CteScope,
+    scope: &CteScope<'_>,
     lateral_fields: &HashSet<String>,
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
     match source {
         QuerySource::Values { mut rows } => {
-            super::values::coerce(&mut rows, &HashMap::new(), &[])?;
+            super::values::coerce_with_controls(&mut rows, &HashMap::new(), &[], scope.controls())?;
             Ok(QuerySource::Values { rows })
         }
 
@@ -661,29 +675,43 @@ pub(super) fn bind_query_source_with_lateral_fields(
                 on: on.clone(),
             };
             super::aliases::lower_join_on(&mut joined, catalog, scope)?;
-            let known_fields = source_fields(catalog, &joined, scope)?;
-            if let QuerySource::Join { on, .. } = &joined {
-                validate_expression(on, &known_fields, &HashSet::new(), false)?;
-            }
-            let field_types = crate::sql::source_field_type_map(&joined, catalog);
-            let types =
-                super::coalesce_results::ResultTypes::for_source(&joined, &[], catalog, context)?;
-            if let QuerySource::Join { on, .. } = &mut joined {
-                super::boolean_contexts::validate_predicate(
-                    on, &types, "JOIN ON", catalog, context,
-                )?;
-                validate_expression_operand_families(on, &field_types)?;
-                super::json_predicates::rewrite(on, &field_types);
-            }
+            validate_join_source(&mut joined, catalog, scope, context)?;
             Ok(joined)
         }
     }
 }
 
+fn validate_join_source(
+    joined: &mut QuerySource,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let known_fields = source_fields(catalog, joined, scope)?;
+    if let QuerySource::Join { on, .. } = joined {
+        validate_expression_in_scope(
+            on,
+            &known_fields,
+            &HashSet::new(),
+            false,
+            super::references::ReferenceScope::new(scope, catalog, context),
+        )?;
+    }
+    let field_types = crate::sql::source_field_type_map(joined, catalog);
+    let types = super::coalesce_results::ResultTypes::for_source(joined, &[], catalog, context)?
+        .with_controls(scope.controls());
+    if let QuerySource::Join { on, .. } = joined {
+        super::boolean_contexts::validate_predicate(on, &types, "JOIN ON", catalog, context)?;
+        validate_expression_operand_families(on, &field_types)?;
+        super::json_predicates::rewrite(on, &field_types);
+    }
+    Ok(())
+}
+
 pub(super) fn source_fields(
     catalog: &Catalog,
     source: &QuerySource,
-    scope: &CteScope,
+    scope: &CteScope<'_>,
 ) -> Result<HashSet<String>, CassieError> {
     match source {
         QuerySource::Values { rows } => Ok(super::values::names(rows).collect()),
@@ -809,7 +837,7 @@ pub(super) fn base_table_fields(
 fn bind_collection_source(
     name: &IdentifierPath,
     catalog: &Catalog,
-    scope: &CteScope,
+    scope: &CteScope<'_>,
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
     let source_name_lc = name.to_ascii_lowercase();

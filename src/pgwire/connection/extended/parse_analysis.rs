@@ -33,6 +33,9 @@ pub(super) fn admit(
         controls,
     )
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    admitted
+        .final_check()
+        .map_err(|error| ExtendedQueryError::parameter_admission(error, controls))?;
     if let Some(oid) = unknown_high_bit_projection_oid(parsed, admitted.types()) {
         return Err(ExtendedQueryError::unknown_type_oid(oid));
     }

@@ -5,7 +5,7 @@ use super::{CassieError, Catalog, CteQuery, HashMap, QuerySource};
 pub(super) fn binding(
     cte: &crate::sql::ast::CommonTableExpression,
     previous: &[crate::sql::ast::CommonTableExpression],
-    scope: &super::super::CteScope,
+    scope: &super::super::CteScope<'_>,
     catalog: &Catalog,
     context: &super::super::BindingContext,
 ) -> Result<super::super::CteBinding, CassieError> {

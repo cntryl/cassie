@@ -87,6 +87,7 @@ pub(super) struct Occurrences<'a> {
     input: PrivateParameterTypeInput<'a>,
     pub(super) diagnostic: Option<ParameterSemanticDiagnostic>,
     stop_on_error: bool,
+    pub(super) binding_required: bool,
 }
 
 impl<'a> Occurrences<'a> {
@@ -265,6 +266,7 @@ impl<'a> Occurrences<'a> {
             input,
             diagnostic: None,
             stop_on_error,
+            binding_required: false,
         })
     }
 

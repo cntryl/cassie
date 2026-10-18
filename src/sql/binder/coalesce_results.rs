@@ -2,6 +2,7 @@ use super::{BindingContext, CassieError, Catalog, Expr, SelectItem, SelectStatem
 use crate::types::{DataType, Schema};
 
 pub(super) struct ResultTypes {
+    controls: Option<crate::runtime::QueryExecutionControls>,
     schema: Schema,
     comparison_types: super::numeric_outputs::ComparisonTypes,
     cte_schemas: std::collections::HashMap<String, Schema>,
@@ -12,6 +13,17 @@ pub(super) struct ResultTypes {
 }
 
 impl ResultTypes {
+    pub(super) fn with_controls(
+        mut self,
+        controls: Option<&crate::runtime::QueryExecutionControls>,
+    ) -> Self {
+        self.controls = controls.cloned();
+        self
+    }
+    pub(super) fn controls(&self) -> Option<&crate::runtime::QueryExecutionControls> {
+        self.controls.as_ref()
+    }
+
     pub(super) fn with_resolved_coalesce_domains(mut self, resolved: bool) -> Self {
         self.resolved_coalesce_domains = resolved;
         self
@@ -197,6 +209,7 @@ impl ResultTypes {
             parameter_types,
             Some(&outer.comparison_types),
         )
+        .map(|types| types.with_controls(outer.controls()))
     }
 
     fn for_scope_with_origins(
@@ -261,6 +274,7 @@ impl ResultTypes {
         )
         .unwrap_or_default();
         Ok(Self {
+            controls: None,
             schema,
             comparison_types,
             cte_schemas: schemas,

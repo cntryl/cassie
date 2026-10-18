@@ -123,7 +123,8 @@ pub(super) fn validate_select(
             )
         })
         .collect();
-    let types = ResultTypes::for_scope(&select.source, &select.ctes, catalog, context, &schemas)?;
+    let types = ResultTypes::for_scope(&select.source, &select.ctes, catalog, context, &schemas)?
+        .with_controls(outer.controls());
     validate_select_with_types(select, &types, catalog, context)
 }
 
@@ -213,10 +214,11 @@ fn validate_source_predicates(
 ) -> Result<(), CassieError> {
     match source {
         QuerySource::Values { rows } => {
-            super::values::coerce(
+            super::values::coerce_with_controls(
                 rows,
                 &std::collections::HashMap::new(),
                 types.parameter_types(),
+                types.controls(),
             )?;
             for expr in rows.iter_mut().flatten() {
                 validate_expression(expr, types, catalog, context)?;
@@ -576,7 +578,12 @@ fn validate_cast(
     else {
         unreachable!("only casts reach cast validation");
     };
-    crate::sql::literal_inputs::validate(expr, data_type, *identity)?;
+    crate::sql::literal_inputs::validate_with_controls(
+        expr,
+        data_type,
+        *identity,
+        types.controls(),
+    )?;
     if matches!(expr.as_ref(), Expr::NumericLiteral(_)) {
         validate_numeric_literal_cast(data_type, *identity)?;
     } else {

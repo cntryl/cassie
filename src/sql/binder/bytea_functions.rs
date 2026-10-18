@@ -65,7 +65,12 @@ pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Resul
             _ => DataType::Text,
         };
         if matches!(argument, Expr::StringLiteral(_)) {
-            crate::sql::literal_inputs::validate(argument, &target, CastIdentity::Scalar)?;
+            crate::sql::literal_inputs::validate_with_controls(
+                argument,
+                &target,
+                CastIdentity::Scalar,
+                types.controls(),
+            )?;
             *argument = Expr::Cast {
                 expr: Box::new(std::mem::replace(argument, Expr::Null)),
                 data_type: target,

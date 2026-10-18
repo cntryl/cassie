@@ -293,18 +293,21 @@ fn checked_parameter_types_in_scope_with_wire_contract(
     }
     let result =
         fold::Fold::new(count, input, catalog, controls, scope, true)?.run(&statement.statement)?;
-    if let Some(message) =
-        declared_conflict_for_demands(occurrences::input_oids(input), &result.demands.values)
+    let binding_required = result.binding_required;
+    if let Some(message) = (!binding_required)
+        .then(|| {
+            declared_conflict_for_demands(occurrences::input_oids(input), &result.demands.values)
+        })
+        .flatten()
     {
         return Err(ParameterAdmissionError::LegacyConflict(message));
     }
     let slots = result.into_slots();
     check_controls(controls)?;
-    Ok(AdmittedParameterTypes::new(
-        slots.values,
-        slots.reservation,
-        controls,
-    ))
+    Ok(
+        AdmittedParameterTypes::new(slots.values, slots.reservation, controls)
+            .with_binding_boundary(binding_required),
+    )
 }
 
 fn checked_legacy_parameter_types(

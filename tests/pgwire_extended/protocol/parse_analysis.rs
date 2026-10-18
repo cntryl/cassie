@@ -5,12 +5,18 @@ use crate::support_primitive_literal_inputs::INVALID;
 use crate::support_type_metadata_contract as fixture;
 
 fn reject(label: &str, cases: &[(String, &'static str)]) -> Vec<fixture::Frames> {
+    reject_with_types(label, cases, &[23, 20])
+}
+
+fn reject_with_types(
+    label: &str,
+    cases: &[(String, &'static str)],
+    types: &[i32],
+) -> Vec<fixture::Frames> {
     let mut steps = Vec::new();
     for (sql, _) in cases {
         steps.push(Step::ParseFlush(wire::parse_frame_with_types(
-            "p",
-            sql,
-            &[23, 20],
+            "p", sql, types,
         )));
         steps.push(Step::ThroughReady(vec![
             wire::describe_statement_frame("p"),
@@ -143,7 +149,22 @@ fn should_reject_explain_inputs_given_parse_flush_when_analysis_does_not_execute
 #[test]
 fn should_report_earlier_columns_given_invalid_inputs_when_parse_analyzes_projection_order() {
     // Arrange
-    let cases = vec![("SELECT missing, 'bad'::INT".into(), "42703")];
+    let cases = [
+        "INT", "SMALLINT", "BIGINT", "FLOAT8", "BOOLEAN", "UUID", "BYTEA",
+    ]
+    .into_iter()
+    .flat_map(|ty| {
+        let input = if ty == "BYTEA" { r"\x0" } else { "bad" };
+        [
+            (format!("SELECT missing, '{input}'::{ty}"), "42703"),
+            (format!("SELECT missing, CAST('{input}' AS {ty})"), "42703"),
+            (
+                format!("SELECT v.missing, '{input}'::{ty} FROM (VALUES (1)) v(n)"),
+                "42703",
+            ),
+        ]
+    })
+    .collect::<Vec<_>>();
     // Act
     let batches = reject("parse-earlier-column", &cases);
     // Assert
@@ -163,7 +184,24 @@ fn should_report_earlier_inputs_given_missing_columns_when_parse_analyzes_projec
 #[test]
 fn should_report_missing_relations_given_invalid_inputs_when_parse_resolves_sources_first() {
     // Arrange
-    let cases = vec![("SELECT 'bad'::INT FROM missing_relation".into(), "42P01")];
+    let cases = [
+        "INT", "SMALLINT", "BIGINT", "FLOAT8", "BOOLEAN", "UUID", "BYTEA",
+    ]
+    .into_iter()
+    .flat_map(|ty| {
+        let input = if ty == "BYTEA" { r"\x0" } else { "bad" };
+        [
+            (
+                format!("SELECT '{input}'::{ty} FROM missing_relation"),
+                "42P01",
+            ),
+            (
+                format!("SELECT CAST('{input}' AS {ty}) FROM missing_relation"),
+                "42P01",
+            ),
+        ]
+    })
+    .collect::<Vec<_>>();
     // Act
     let batches = reject("parse-source-first", &cases);
     // Assert
@@ -483,4 +521,144 @@ fn should_prefer_input_errors_given_unresolved_referenced_slots_when_native_pars
     let batches = run_script("parse-input-before-unresolved-reference", steps);
     // Assert
     assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22P02"));
+}
+
+#[test]
+fn should_preserve_cast_error_order_given_parameters_when_parse_infers_boolean_inputs() {
+    // Arrange
+    let cases = vec![
+        ("SELECT missing, 'bad'::INT, $1::BOOLEAN".into(), "42703"),
+        (
+            "SELECT missing, 'bad'::BOOLEAN, $1::BOOLEAN".into(),
+            "42703",
+        ),
+        (
+            "SELECT $1::BOOLEAN, 'bad'::INT FROM missing_relation".into(),
+            "42P01",
+        ),
+        ("SELECT 'bad'::INT, missing, $1::BOOLEAN".into(), "22P02"),
+        ("SELECT encode('bad'::INT,1), $1::BOOLEAN".into(), "22P02"),
+        ("SELECT missing_fn('bad'::INT), $1::BOOLEAN".into(), "22P02"),
+        ("SELECT abs('bad'::INT,1), $1::BOOLEAN".into(), "22P02"),
+        ("SELECT sum('bad'::INT,1), $1::BOOLEAN".into(), "22P02"),
+        ("SELECT count('bad'::INT,1), $1::BOOLEAN".into(), "22P02"),
+        (
+            "SELECT sum(EXISTS(SELECT 'bad'::INT),1), $1::BOOLEAN".into(),
+            "22P02",
+        ),
+        (
+            "SELECT EXISTS(SELECT 'bad'::INT), missing, $1::BOOLEAN".into(),
+            "22P02",
+        ),
+        (
+            "SELECT missing, EXISTS(SELECT 'bad'::INT), $1::BOOLEAN".into(),
+            "42703",
+        ),
+        (
+            "SELECT EXISTS(SELECT 'bad'::INT FROM missing_relation), $1::BOOLEAN".into(),
+            "42P01",
+        ),
+        (
+            "WITH c(n) AS(VALUES(1)) SELECT EXISTS(SELECT 'bad'::INT FROM c), missing, $1::BOOLEAN"
+                .into(),
+            "22P02",
+        ),
+        (
+            "SELECT missing, missing_fn('bad'::INT), $1::BOOLEAN".into(),
+            "42703",
+        ),
+    ];
+    // Act
+    let batches = reject_with_types("parse-ordered-cast-parameters", &cases, &[0, 20]);
+    // Assert
+    assert_rejected(&batches, &cases);
+}
+
+#[test]
+fn should_infer_boolean_cast_input_given_unknown_oid_when_parse_publishes_parameter_metadata() {
+    // Arrange
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "p",
+            "SELECT $1::BOOLEAN, '42'::INT, '1.25'::FLOAT8, '1.25'::NUMERIC",
+            &[0],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("p"),
+            wire::bind_frame_with_formats("", "p", &[], &[Some(b"t")], &[]),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]),
+    ];
+    // Act
+    let batches = run_script("parse-boolean-cast-input", steps);
+    // Assert
+    assert_eq!(
+        batches[0].iter().map(|f| f.0).collect::<Vec<_>>(),
+        vec![b'1']
+    );
+    fixture::assert_success(&batches[1]);
+    let parameters = batches[1]
+        .iter()
+        .find(|f| f.0 == b't')
+        .expect("ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), vec![16]);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![
+            Some("t".into()),
+            Some("42".into()),
+            Some("1.25".into()),
+            Some("1.25".into()),
+        ]]
+    );
+    let description = batches[1]
+        .iter()
+        .find(|f| f.0 == b'T')
+        .expect("RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|field| field.type_oid)
+            .collect::<Vec<_>>(),
+        vec![16, 23, 701, 701]
+    );
+}
+
+#[test]
+fn should_preserve_legacy_quoted_numeric_adapter_when_cast_binding_is_ordered() {
+    // Arrange
+    let queries = [
+        "SELECT '1.25'::NUMERIC",
+        "SELECT '1.25'::DECIMAL",
+        "SELECT 'bad'::NUMERIC",
+        "SELECT 'bad'::DECIMAL",
+        "SELECT missing, 'bad'::NUMERIC",
+        "SELECT 'bad'::DECIMAL FROM missing_relation",
+    ];
+    let steps = queries
+        .iter()
+        .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+        .collect();
+    // Act
+    let batches = run_script("parse-legacy-numeric-boundary", steps);
+    // Assert
+    for (index, batch) in batches.iter().enumerate() {
+        let code = wire::error_code(batch);
+        if index < 2 {
+            fixture::assert_success(batch);
+            assert_eq!(wire::data_rows(batch), vec![vec![Some("1.25".into())]]);
+            let description = batch.iter().find(|f| f.0 == b'T').expect("RowDescription");
+            assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 701);
+        } else {
+            let expected = match index {
+                4 => "42703",
+                5 => "42P01",
+                _ => "22P02",
+            };
+            assert_eq!(code.as_deref(), Some(expected), "{}", queries[index]);
+            assert!(!batch.iter().any(|f| matches!(f.0, b'T' | b'D' | b'C')));
+        }
+        assert_eq!(batch.last(), Some(&(b'Z', vec![b'I'])));
+    }
 }

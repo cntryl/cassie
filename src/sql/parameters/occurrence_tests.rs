@@ -611,3 +611,20 @@ fn should_copy_scalar_literal_error_given_budget_when_type_function_is_admitted(
     assert_eq!(generous.current_query_memory_bytes(), 0);
     assert_eq!(baseline.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_require_binding_before_publishing_types_given_a_rejected_cast_argument() {
+    // Arrange
+    let catalog = Catalog::new();
+    let parsed = parse_statement("SELECT encode('bad'::INT,1), $1::BOOLEAN").expect("parse");
+    let controls = controls(1_048_576);
+    // Act
+    let prefix = checked_parse_parameter_types(&parsed, &[0, 20], &catalog, &controls)
+        .expect("binding boundary");
+    let publication = prefix.final_check();
+    // Assert
+    assert!(prefix.requires_binding());
+    assert!(publication.is_err());
+    drop(prefix);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

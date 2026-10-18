@@ -43,6 +43,11 @@
     "typescript": "^7.0.2",
     "vite-plus": "^1.1.0"
   },
+  "overrides": {
+    "monaco-editor": {
+      "dompurify": "3.4.17"
+    }
+  },
   "engines": {
     "node": ">=24.0.0"
   },

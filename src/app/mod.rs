@@ -72,6 +72,7 @@ mod cache;
 mod error;
 mod session;
 mod session_schema;
+mod session_sequences;
 mod session_settings;
 mod state;
 mod vector_backfill;

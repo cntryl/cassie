@@ -35,6 +35,8 @@ pub struct CassieSession {
     transaction: Arc<Mutex<SessionTransactionState>>,
     #[serde(skip)]
     procedure_calls: Arc<Mutex<Vec<String>>>,
+    #[serde(skip)]
+    pub(super) sequence_values: Arc<Mutex<super::session_sequences::SessionSequenceValues>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,6 +192,7 @@ impl CassieSession {
             search_path: Arc::new(Mutex::new(vec![DEFAULT_SCHEMA.to_string()])),
             settings: Arc::new(Mutex::new(SessionSettings::default())),
             backend_pid: Arc::new(AtomicI32::new(0)),
+            sequence_values: Arc::default(),
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::Idle,
                 implicit: false,
@@ -248,6 +251,7 @@ impl CassieSession {
             search_path: Arc::new(Mutex::new(self.search_path())),
             settings: Arc::new(Mutex::new(self.settings.lock().clone())),
             backend_pid: Arc::clone(&self.backend_pid),
+            sequence_values: Arc::clone(&self.sequence_values),
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::InTransaction,
                 implicit: false,

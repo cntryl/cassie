@@ -51,13 +51,10 @@ fn sequence_row(sequence: &SequenceMeta) -> VirtualRow {
         int_value("numeric_precision_radix", 2),
         int_value("numeric_scale", 0),
         string("start_value", sequence.start_value.to_string()),
-        string("minimum_value", "1"),
-        string(
-            "maximum_value",
-            maximum_value(&sequence.data_type).to_string(),
-        ),
+        string("minimum_value", sequence.min_value.to_string()),
+        string("maximum_value", sequence.max_value.to_string()),
         string("increment", sequence.increment_by.to_string()),
-        string("cycle_option", "NO"),
+        string("cycle_option", if sequence.cycle { "YES" } else { "NO" }),
     ]
 }
 
@@ -75,14 +72,6 @@ fn numeric_precision(data_type: &DataType) -> i64 {
         DataType::SmallInt => 16,
         DataType::Int => 32,
         _ => 64,
-    }
-}
-
-fn maximum_value(data_type: &DataType) -> i64 {
-    match data_type {
-        DataType::SmallInt => i16::MAX.into(),
-        DataType::Int => i32::MAX.into(),
-        _ => i64::MAX,
     }
 }
 

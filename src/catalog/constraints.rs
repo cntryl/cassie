@@ -131,6 +131,31 @@ pub struct FieldConstraint {
     pub references_table: Option<String>,
     #[serde(default)]
     pub references_field: Option<String>,
+    /// `GENERATED { ALWAYS | BY DEFAULT } AS IDENTITY`.
+    #[serde(default)]
+    pub identity: Option<IdentityGeneration>,
+    /// Sequence options from the identity clause, applied when it is created.
+    #[serde(default)]
+    pub identity_options: Option<crate::catalog::SequenceOptions>,
+}
+
+/// How an identity column treats explicit values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IdentityGeneration {
+    Always,
+    ByDefault,
+}
+
+impl IdentityGeneration {
+    /// `information_schema.columns.identity_generation`.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Always => "ALWAYS",
+            Self::ByDefault => "BY DEFAULT",
+        }
+    }
 }
 
 impl FieldConstraint {
@@ -157,6 +182,8 @@ impl FieldConstraint {
             check: None,
             references_table: None,
             references_field: None,
+            identity: None,
+            identity_options: None,
         }
     }
 

@@ -526,6 +526,18 @@ impl Cassie {
         ) {
             return Some("connection_dependent_function");
         }
+        if crate::sql::functions::SEQUENCE_FUNCTION_NAMES
+            .iter()
+            .any(|name| {
+                crate::executor::plan_uses_function_including_views(
+                    &physical.logical,
+                    name,
+                    &self.catalog,
+                )
+            })
+        {
+            return Some("sequence_function");
+        }
         if crate::executor::plan_needs_user_functions(&physical.logical) {
             let has_non_immutable = self.catalog.list_functions().iter().any(|metadata| {
                 metadata.volatility != crate::catalog::Volatility::Immutable

@@ -43,6 +43,11 @@ pub(super) fn parse_field_definition_for_table(
         }
     }
 
+    if constraint.identity.is_some() {
+        let table = table.ok_or_else(|| SqlError::new("IDENTITY requires a table name".into()))?;
+        super::schema_identity::attach_identity_sequence(&mut constraint, table, &name);
+    }
+
     if !saw_constraint {
         return Ok(FieldDefinition {
             name: name.clone(),
@@ -172,6 +177,15 @@ fn apply_field_constraint(
             constraint.foreign_key_ordinal = Some(1);
             constraint.foreign_key_on_delete = Some("NO ACTION".to_string());
             constraint.foreign_key_on_update = Some("NO ACTION".to_string());
+        }
+        "generated" => {
+            *saw_constraint = true;
+            let (generation, _) = super::schema_identity::parse_identity_clause(parts)?;
+            constraint.identity = Some(generation);
+        }
+        token if token.starts_with('(') && constraint.identity.is_some() => {
+            constraint.identity_options =
+                Some(super::schema_identity::parse_identity_options(token)?);
         }
         other => return Err(SqlError::new(format!("unsupported constraint '{other}'"))),
     }

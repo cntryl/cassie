@@ -220,6 +220,17 @@ impl<'a> ObjectScope<'a> {
         })
     }
 
+    /// The canonical catalog name of the user relation with `oid`.
+    #[must_use]
+    pub fn relation_canonical_name(&self, oid: u32) -> Option<String> {
+        let relation = self.relation_by_oid(oid)?;
+        Some(canonical_relation_name(
+            &self.context.database,
+            &relation.schema,
+            &relation.name,
+        ))
+    }
+
     fn relation_label(&self, oid: u32) -> Option<String> {
         let relation = self.relation_by_oid(oid)?;
         let visible = self

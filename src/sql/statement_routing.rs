@@ -2,13 +2,13 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     AlterMaterializedProjectionStatement, AlterRetentionPolicyStatement, AlterRoleStatement,
-    AlterSchemaStatement, AlterTableStatement, CallProcedureStatement, CompareProjectionStatement,
-    CopyStatement, CreateDatabaseStatement, CreateFunctionStatement, CreateGraphStatement,
-    CreateIndexStatement, CreateMaterializedProjectionStatement, CreateProcedureStatement,
-    CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
-    CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement, CreateViewStatement,
-    DatabaseConnectPrivilegeStatement, DeleteStatement, DiffProjectionStatement,
-    DropDatabaseStatement, DropFunctionStatement, DropIndexStatement,
+    AlterSchemaStatement, AlterSequenceStatement, AlterTableStatement, CallProcedureStatement,
+    CompareProjectionStatement, CopyStatement, CreateDatabaseStatement, CreateFunctionStatement,
+    CreateGraphStatement, CreateIndexStatement, CreateMaterializedProjectionStatement,
+    CreateProcedureStatement, CreateRetentionPolicyStatement, CreateRoleStatement,
+    CreateRollupStatement, CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,
+    CreateViewStatement, DatabaseConnectPrivilegeStatement, DeleteStatement,
+    DiffProjectionStatement, DropDatabaseStatement, DropFunctionStatement, DropIndexStatement,
     DropMaterializedProjectionStatement, DropMaterializedProjectionVersionStatement,
     DropProcedureStatement, DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement,
     DropSchemaStatement, DropSequenceStatement, DropTableStatement, DropViewStatement,
@@ -54,6 +54,7 @@ pub enum CatalogStatementRef<'a> {
     DropTable(&'a DropTableStatement),
     AlterTable(&'a AlterTableStatement),
     CreateSequence(&'a CreateSequenceStatement),
+    AlterSequence(&'a AlterSequenceStatement),
     DropSequence(&'a DropSequenceStatement),
     CreateDatabase(&'a CreateDatabaseStatement),
     DropDatabase(&'a DropDatabaseStatement),
@@ -126,6 +127,7 @@ pub enum CatalogStatement {
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateSequence(CreateSequenceStatement),
+    AlterSequence(AlterSequenceStatement),
     DropSequence(DropSequenceStatement),
     CreateDatabase(CreateDatabaseStatement),
     DropDatabase(DropDatabaseStatement),
@@ -189,6 +191,7 @@ impl QueryStatement {
             | Self::DropTable(_)
             | Self::AlterTable(_)
             | Self::CreateSequence(_)
+            | Self::AlterSequence(_)
             | Self::DropSequence(_)
             | Self::CreateDatabase(_)
             | Self::DropDatabase(_)
@@ -273,6 +276,7 @@ impl QueryStatement {
             Self::DropTable(statement) => CatalogStatementRef::DropTable(statement),
             Self::AlterTable(statement) => CatalogStatementRef::AlterTable(statement),
             Self::CreateSequence(statement) => CatalogStatementRef::CreateSequence(statement),
+            Self::AlterSequence(statement) => CatalogStatementRef::AlterSequence(statement),
             Self::DropSequence(statement) => CatalogStatementRef::DropSequence(statement),
             Self::CreateDatabase(statement) => CatalogStatementRef::CreateDatabase(statement),
             Self::DropDatabase(statement) => CatalogStatementRef::DropDatabase(statement),
@@ -378,6 +382,7 @@ impl QueryStatement {
             Self::DropTable(statement) => CatalogStatement::DropTable(statement),
             Self::AlterTable(statement) => CatalogStatement::AlterTable(statement),
             Self::CreateSequence(statement) => CatalogStatement::CreateSequence(statement),
+            Self::AlterSequence(statement) => CatalogStatement::AlterSequence(statement),
             Self::DropSequence(statement) => CatalogStatement::DropSequence(statement),
             Self::CreateDatabase(statement) => CatalogStatement::CreateDatabase(statement),
             Self::DropDatabase(statement) => CatalogStatement::DropDatabase(statement),

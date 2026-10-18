@@ -14,7 +14,7 @@ struct SequenceRestartState {
     sequences: Vec<Vec<Value>>,
     sequence_class: Vec<Vec<Value>>,
     dropped_sequence: Vec<Vec<Value>>,
-    unsupported_error: String,
+    invalid_option_error: String,
 }
 
 fn execute_statement(cassie: &Cassie, session: &CassieSession, sql: &str) {
@@ -81,13 +81,13 @@ fn restart_and_collect_sequence_state(path: &Path) -> SequenceRestartState {
     execute_statement(&restarted, &session, "CREATE SEQUENCE temp_ids");
     execute_statement(&restarted, &session, "DROP SEQUENCE temp_ids");
 
-    let unsupported = restarted
+    let invalid_option = restarted
         .execute_sql(
             &session,
-            "CREATE SEQUENCE unsupported_ids START WITH 5",
+            "CREATE SEQUENCE invalid_ids START WITH 5 MINVALUE 10",
             vec![],
         )
-        .expect_err("unsupported sequence option should fail")
+        .expect_err("a start below the minimum should fail")
         .to_string();
 
     SequenceRestartState {
@@ -117,7 +117,7 @@ fn restart_and_collect_sequence_state(path: &Path) -> SequenceRestartState {
             &session,
             "SELECT sequence_name FROM information_schema.sequences WHERE sequence_name = 'temp_ids'",
         ),
-        unsupported_error: unsupported,
+        invalid_option_error: invalid_option,
     }
 }
 
@@ -133,8 +133,8 @@ fn assert_sequence_default_state(before_restart: &[Vec<Value>], state: &Sequence
         [] as [std::vec::Vec<cassie::types::Value>; 0]
     );
     assert!(state
-        .unsupported_error
-        .contains("unsupported CREATE SEQUENCE option"));
+        .invalid_option_error
+        .contains("START value (5) cannot be less than MINVALUE (10)"));
 }
 
 fn expected_orders_before_restart() -> Vec<Vec<Value>> {
@@ -180,7 +180,7 @@ fn expected_attrdef_rows() -> Vec<Vec<Value>> {
 fn expected_sequence_rows() -> Vec<Vec<Value>> {
     vec![vec![
         Value::String("order_ids".to_string()),
-        Value::String("integer".to_string()),
+        Value::String("bigint".to_string()),
         Value::String("1".to_string()),
         Value::String("1".to_string()),
     ]]

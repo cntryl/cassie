@@ -36,6 +36,16 @@ pub(super) fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             bigint("cache_size"),
             bigint("last_value"),
         ],
+        "pg_catalog.pg_sequence" => vec![
+            oid("seqrelid", crate::types::ObjectIdKind::Oid),
+            oid("seqtypid", crate::types::ObjectIdKind::Oid),
+            bigint("seqstart"),
+            bigint("seqincrement"),
+            bigint("seqmax"),
+            bigint("seqmin"),
+            bigint("seqcache"),
+            boolean("seqcycle"),
+        ],
         _ => return None,
     })
 }
@@ -85,6 +95,30 @@ pub(super) fn rows(
             .filter(|sequence| visible(&sequence.name, database))
             .map(|sequence| sequence_row(&sequence))
             .collect(),
+        "pg_catalog.pg_sequence" => catalog
+            .list_sequences()
+            .into_iter()
+            .filter(|sequence| visible(&sequence.name, database))
+            .map(|sequence| {
+                vec![
+                    number(
+                        "seqrelid",
+                        crate::catalog::object_identity::stored_relation_oid(
+                            catalog,
+                            &sequence.name,
+                        )
+                        .map_or(0, i64::from),
+                    ),
+                    number("seqtypid", sequence.data_type.type_oid()),
+                    number("seqstart", sequence.start_value),
+                    number("seqincrement", sequence.increment_by),
+                    number("seqmax", sequence.max_value),
+                    number("seqmin", sequence.min_value),
+                    number("seqcache", sequence.cache),
+                    flag("seqcycle", sequence.cycle),
+                ]
+            })
+            .collect(),
         _ => return None,
     };
     rows.sort_by(|left, right| {
@@ -98,11 +132,6 @@ pub(super) fn rows(
 }
 
 fn sequence_row(sequence: &SequenceMeta) -> VirtualRow {
-    let maximum = match sequence.data_type {
-        DataType::SmallInt => i64::from(i16::MAX),
-        DataType::Int => i64::from(i32::MAX),
-        _ => i64::MAX,
-    };
     vec![
         string("schemaname", relation_schema_name(&sequence.name)),
         string("sequencename", local_name(&sequence.name)),
@@ -117,17 +146,17 @@ fn sequence_row(sequence: &SequenceMeta) -> VirtualRow {
             },
         ),
         number("start_value", sequence.start_value),
-        number("min_value", 1),
-        number("max_value", maximum),
+        number("min_value", sequence.min_value),
+        number("max_value", sequence.max_value),
         number("increment_by", sequence.increment_by),
-        flag("cycle", false),
-        number("cache_size", 1),
+        flag("cycle", sequence.cycle),
+        number("cache_size", sequence.cache),
         (
             "last_value".to_owned(),
-            if sequence.current_value == 0 {
-                Value::Null
-            } else {
+            if sequence.is_called {
                 Value::Int64(sequence.current_value)
+            } else {
+                Value::Null
             },
         ),
     ]
@@ -136,6 +165,10 @@ fn sequence_row(sequence: &SequenceMeta) -> VirtualRow {
 fn visible(name: &str, database: Option<&str>) -> bool {
     database.is_none_or(|database| relation_belongs_to_database(name, database))
 }
+fn oid(name: &str, kind: crate::types::ObjectIdKind) -> (String, DataType) {
+    (name.to_owned(), DataType::ObjectId(kind))
+}
+
 fn text(name: &str) -> (String, DataType) {
     (name.to_owned(), DataType::Text)
 }

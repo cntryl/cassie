@@ -19,6 +19,8 @@ mod dml_returning;
 mod dml_returning_tests;
 #[path = "dml_update.rs"]
 mod dml_update;
+#[path = "identity_insert.rs"]
+mod identity_insert;
 
 pub(super) use dml_delete::execute_delete;
 pub(super) use dml_insert::execute_insert;

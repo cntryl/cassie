@@ -34,6 +34,8 @@ use binary::binary_scalar;
 mod numeric_comparison;
 #[path = "filter/object_ids.rs"]
 mod object_ids;
+#[path = "filter/sequence_functions.rs"]
+mod sequence_functions;
 pub(crate) use casts::cast_scratch_bytes;
 pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]

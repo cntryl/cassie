@@ -209,6 +209,9 @@ fn execute_retention_sequence_group(
         LogicalCommand::CreateSequence(statement) => Some(CommandExecution::invalidating(
             super::sequence_command::create_sequence(cassie, statement, controls),
         )),
+        LogicalCommand::AlterSequence(statement) => Some(CommandExecution::invalidating(
+            super::sequence_command::alter_sequence(cassie, statement, controls),
+        )),
         LogicalCommand::DropSequence(statement) => Some(CommandExecution::invalidating(
             super::sequence_command::drop_sequence(cassie, statement, controls),
         )),

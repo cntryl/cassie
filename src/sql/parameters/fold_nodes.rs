@@ -127,6 +127,7 @@ fn query_child(query: &QueryStatement) -> Option<Node<'_>> {
         | QueryStatement::DropTable(_)
         | QueryStatement::AlterTable(_)
         | QueryStatement::CreateSequence(_)
+        | QueryStatement::AlterSequence(_)
         | QueryStatement::DropSequence(_)
         | QueryStatement::CreateDatabase(_)
         | QueryStatement::DropDatabase(_)

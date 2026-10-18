@@ -15,6 +15,20 @@ pub(super) fn drop_owned_table_sequences(cassie: &Cassie, table: &str) -> Result
             cassie.catalog.unregister_sequence(sequence);
         }
     }
+    for sequence in cassie
+        .catalog
+        .list_sequences()
+        .into_iter()
+        .filter(|sequence| {
+            sequence
+                .owned_by
+                .as_ref()
+                .is_some_and(|owner| crate::catalog::name_matches(&owner.table, table))
+        })
+    {
+        cassie.midge.delete_sequence(&sequence.name)?;
+        cassie.catalog.unregister_sequence(&sequence.name);
+    }
     Ok(())
 }
 

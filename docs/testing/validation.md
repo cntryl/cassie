@@ -3357,3 +3357,87 @@ security clearance is claimed. Live main rules were inactive; enforcement, CI,
 release and version configuration were not changed. Final pushed-head and
 merge readback belong to the PR record. Local receipts are retained under
 `target/merge951/` and `target/finish-line/`.
+
+## Issue #955: Ordered quoted-cast input analysis (2026-10-18 UTC)
+
+Runtime repair against merged main `97ebed365986ca111915081d76a25aacebfdd424`.
+Explicit quoted casts now reach source/projection binding in native order.
+Parameter inference returns a private, nonpublishable prefix for a known rejected
+cast so an enclosing function signature cannot overtake the input error. App
+admission binds that prefix before cache lookup; wire Parse binds before final
+admission and prepared-statement publication.
+
+Red evidence: the three unchanged ordering tests failed at the merged baseline.
+Additional probes reproduced aggregate arity overtaking a rejected argument,
+EXISTS input errors overtaken by later columns, and lost diagnostic admission
+inside a join predicate. Their focused Rust regressions failed before repair.
+Refined green evidence: all 27 Parse-analysis tests and six diagnostic/order/
+publication guards pass. Full library: **1,114 passed / zero failed**.
+
+Nested known rejected casts reuse the existing binder with current CTE and
+correlated-field scope. The existing footprint walker detects rejection while
+borrowing the tree; temporary analysis memory is reserved before cloning and
+remains leased until the nested bound tree retires. Aggregate arguments bind
+before arity checks, followed by FILTER and aggregate ORDER BY. Query-memory
+boundary and cancellation probes use small inputs and deterministic controls.
+Quoted NUMERIC/DECIMAL retains the existing Float adapter and OID 701; exact
+NUMERIC remains under #793/#812.
+
+| Ordered command | Result |
+| --- | --- |
+| `cargo build --locked` | Passed |
+| `cargo test --locked` | Failed at catalog/security: 241 passed / 170 failed; exact baseline failure identities, zero additions |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed |
+| `cargo fmt --all -- --check` | Passed |
+| `cntryl-tools validate-tests -f tests/pgwire_extended/protocol/parse_analysis.rs` | Passed |
+| `cntryl-tools validate-tests -f src/sql/literal_inputs_tests.rs` | Passed |
+| `cntryl-tools validate-tests -f src/sql/parameters/occurrence_tests.rs` | Passed |
+
+Commands used `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4` and the shared target
+cache. The first complete gate found a function-length lint and a test-name
+policy finding; both were repaired and the ordered sequence was repeated.
+The complete remaining-target comparison reconciled **10,102 cases across 33
+targets: 7,647 passed / 2,446 failed / 9 ignored / zero incomplete**.
+Extended wire is 2,952 passed / 812 failed; its only resolved baseline identities
+are the three original #955 regressions, with zero new failures.
+
+The raw full comparison also observed one newly failing upsert waiter and one
+newly passing CASE/RETURNING witness. The upsert case fails on clean merged main
+at the initial isolated run and all three repeats (and 3/3 on the repair), proving
+an existing wait-authority gap under #819/#825/#769. Its earlier full-suite pass
+does not qualify blocking at the conflict boundary. The RETURNING witness's
+baseline failure contains the correct rows in reverse order; its unordered
+assertion varies and is retained as a test-qualification follow-up under
+#796/#848, without attributing a runtime fix. After this triage, no introduced
+failure was identified. The repository remains red on its broader obligations.
+
+Baseline countercheck used a separate clean worktree at
+97ebed365986ca111915081d76a25aacebfdd424 and a separate cloned build cache:
+
+    cargo test --locked --test compatibility compatibility::lifecycle::upsert_concurrency::should_insert_the_waiting_row_given_an_upsert_waiter_when_the_owner_rolls_back -- --exact --test-threads=1 --nocapture
+
+Its one registered case failed at the owner-rollback ordering assertion. The
+compiler artifact records the baseline worktree source path; independent binary
+repeats also failed. Current runtime source hashes remained frozen throughout
+the ordered gate and complete inventory; subsequent changes are documentation.
+
+Native witness: PostgreSQL 18.6 Homebrew on aarch64-apple-darwin25.6.0,
+server binary SHA-256
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+Thirty-five source/projection priority inputs matched in SELECT and SQL PREPARE
+(70 cells). Twenty-five additional live-server cells matched native SQLSTATEs
+across seven primitive families, CTE shadowing, correlated names and nested
+sources. Odd-length BYTEA hex input correctly retains 22023. Full pinned oracle
+qualification remains owned by #848.
+
+Jev selected binder control propagation (0.79) and conditional admitted nested
+binding (0.98). Its parameter, nested-budget, adapter and parent-function concerns
+triggered focused probes; confirmed findings became regressions and repairs.
+The later nested-order concern (0.54) triggered the 25-cell native comparison,
+which found no additional mismatch. Jev is triage evidence; source, executed
+assertions and current GitHub state determine acceptance.
+
+Raw commands, source hashes, red/green logs, native SQL/results, Jev requests/
+responses and target comparisons are retained under ignored
+`target/error-order/`. Broad PostgreSQL and PL/pgSQL obligations remain tracked
+by #791 and their existing subsystem owners.

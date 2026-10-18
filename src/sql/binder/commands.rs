@@ -74,7 +74,7 @@ pub(super) fn bind_insert(
     )?;
 
     if let InsertSource::Select(select) = statement.source {
-        let source = bind_select(*select, catalog, &HashMap::new(), context)?;
+        let source = bind_select(*select, catalog, &super::CteScope::default(), context)?;
         statement.source = InsertSource::Select(Box::new(source));
     }
 

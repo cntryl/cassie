@@ -53,6 +53,7 @@ pub(crate) struct AdmittedParameterTypes {
     oids: Vec<i32>,
     _reservation: QueryMemoryReservation,
     controls: QueryExecutionControls,
+    binding_required: bool,
 }
 
 impl AdmittedParameterTypes {
@@ -65,7 +66,17 @@ impl AdmittedParameterTypes {
             oids,
             _reservation: reservation,
             controls: controls.clone(),
+            binding_required: false,
         }
+    }
+
+    pub(super) fn with_binding_boundary(mut self, required: bool) -> Self {
+        self.binding_required = required;
+        self
+    }
+
+    pub(crate) fn requires_binding(&self) -> bool {
+        self.binding_required
     }
 
     pub(crate) fn types(&self) -> &[i32] {
@@ -73,6 +84,11 @@ impl AdmittedParameterTypes {
     }
 
     pub(crate) fn final_check(&self) -> Result<(), ParameterAdmissionError> {
+        if self.binding_required {
+            return Err(ParameterAdmissionError::InvalidParam(
+                "invalid scalar input during binding".into(),
+            ));
+        }
         check_controls(&self.controls)
     }
 

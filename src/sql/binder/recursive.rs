@@ -8,7 +8,7 @@ pub(super) fn bind_recursive_cte_query(
     query: CteQuery,
     declared_aliases: &[String],
     catalog: &Catalog,
-    outer_scope: &CteScope,
+    outer_scope: &CteScope<'_>,
     cte_name: &str,
     context: &super::context::BindingContext,
 ) -> Result<CteQuery, CassieError> {
@@ -88,7 +88,7 @@ pub(super) fn bind_recursive_cte_query(
 
 fn anchor_fields(
     base: &crate::sql::ast::ParsedStatement,
-    outer_scope: &CteScope,
+    outer_scope: &CteScope<'_>,
     catalog: &Catalog,
     context: &super::context::BindingContext,
     aliases: &[String],

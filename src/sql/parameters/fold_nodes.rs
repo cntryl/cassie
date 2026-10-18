@@ -375,7 +375,13 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
         }) => child.expected = Expected::Boolean(BooleanConstruct::Or),
         Node::Expr(ast::Expr::Cast { data_type, .. }) => {
             let oid = i32::try_from(data_type.type_oid()).unwrap_or(i32::MAX);
-            child.expected = Expected::Type(oid, false);
+            // Explicit constants are converted by the ordered binder. Parameter
+            // occurrences still receive the cast's concrete input identity here.
+            child.expected = if matches!(child.node, Node::Expr(ast::Expr::StringLiteral(_))) {
+                Expected::None
+            } else {
+                Expected::Type(oid, false)
+            };
             child.qualified &= super::super::occurrences::primitive_oid(oid);
         }
         Node::Expr(ast::Expr::Case {

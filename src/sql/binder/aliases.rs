@@ -25,7 +25,7 @@ pub(super) fn columns(
     source: &QuerySource,
     aliases: &[String],
     catalog: &Catalog,
-    scope: &CteScope,
+    scope: &CteScope<'_>,
 ) -> Result<Vec<(String, String)>, CassieError> {
     let (names, implicit_identity) = match source {
         QuerySource::Values { rows } => (super::values::names(rows).collect(), false),
@@ -122,7 +122,7 @@ struct Namespace {
 fn namespaces(
     source: &QuerySource,
     catalog: &Catalog,
-    scope: &CteScope,
+    scope: &CteScope<'_>,
     result: &mut Vec<Namespace>,
 ) -> Result<(), CassieError> {
     match source {
@@ -345,7 +345,7 @@ fn rewrite_with_outer(
 pub(super) fn lower_join_on(
     source: &mut QuerySource,
     catalog: &Catalog,
-    scope: &CteScope,
+    scope: &CteScope<'_>,
 ) -> Result<(), CassieError> {
     if !has_alias(source) {
         return Ok(());
@@ -364,7 +364,7 @@ pub(super) fn lower_join_on(
 pub(super) fn lower_select(
     select: &mut SelectStatement,
     catalog: &Catalog,
-    scope: &CteScope,
+    scope: &CteScope<'_>,
     lateral_fields: &std::collections::HashSet<String>,
     set_result: bool,
 ) -> Result<(), CassieError> {
@@ -534,7 +534,7 @@ pub(super) fn lower_lateral(
     left: &QuerySource,
     right: &mut QuerySource,
     catalog: &Catalog,
-    scope: &CteScope,
+    scope: &CteScope<'_>,
 ) -> Result<(), CassieError> {
     if !has_alias(left) {
         return Ok(());
@@ -608,7 +608,7 @@ fn expand_wildcard(
 fn subquery_names(
     select: &SelectStatement,
     catalog: &Catalog,
-    scope: &CteScope,
+    scope: &CteScope<'_>,
 ) -> Result<Vec<String>, CassieError> {
     let schemas = scope
         .iter()

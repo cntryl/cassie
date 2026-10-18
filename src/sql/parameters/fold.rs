@@ -118,6 +118,12 @@ impl<'a, 'c> Fold<'a, 'c> {
                 )?;
             } else {
                 let frame = self.frames.values.pop().expect("nonempty fold stack");
+                if self.occurrences.stops_on_error() && rejected_cast(frame.node) {
+                    // This statement cannot be published. Return only prefix types
+                    // so ordered binding rejects the input before parent resolution.
+                    self.occurrences.binding_required = true;
+                    return Ok(self.occurrences);
+                }
                 self.finish(&frame)?;
             }
         }
@@ -257,4 +263,8 @@ impl<'a, 'c> Fold<'a, 'c> {
     fn fields(&self, context: usize) -> &FieldTypeMap {
         &self.contexts.values[context].fields
     }
+}
+
+fn rejected_cast(node: Node<'_>) -> bool {
+    matches!(node, Node::Expr(expression) if crate::sql::literal_inputs::rejects_cast(expression))
 }

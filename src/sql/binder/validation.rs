@@ -614,77 +614,6 @@ pub(super) fn validate_functions(
 
 pub(super) use super::function_validation::validate_function_calls;
 
-pub(super) fn validate_projection_references(
-    projection: &[SelectItem],
-    known_fields: &HashSet<String>,
-) -> Result<(), CassieError> {
-    for item in projection {
-        match item {
-            SelectItem::Wildcard => {}
-            SelectItem::Column { name, .. } => {
-                validate_expression(
-                    &Expr::Column(name.clone()),
-                    known_fields,
-                    &HashSet::new(),
-                    false,
-                )?;
-            }
-            SelectItem::Function { function, .. } => {
-                if crate::sql::functions::is_aggregate_function(&function.name) {
-                    validate_aggregate_function_args(function, known_fields)?;
-                    continue;
-                }
-                for arg in function.expressions() {
-                    validate_expression(arg, known_fields, &HashSet::new(), false)?;
-                }
-            }
-            SelectItem::Expr { expr, .. } => {
-                validate_expression(expr, known_fields, &HashSet::new(), false)?;
-            }
-            SelectItem::WindowFunction { function, .. } => {
-                for arg in &function.args {
-                    validate_expression(arg, known_fields, &HashSet::new(), false)?;
-                }
-                for expr in &function.partition_by {
-                    validate_expression(expr, known_fields, &HashSet::new(), false)?;
-                }
-                for order in &function.order_by {
-                    validate_expression(&order.expr, known_fields, &HashSet::new(), false)?;
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn validate_expression_references(
-    expression: Option<&Expr>,
-    known_fields: &HashSet<String>,
-    projection_aliases: &HashSet<String>,
-    allow_projection_alias: bool,
-) -> Result<(), CassieError> {
-    let Some(expression) = expression else {
-        return Ok(());
-    };
-    validate_expression(
-        expression,
-        known_fields,
-        projection_aliases,
-        allow_projection_alias,
-    )
-}
-
-pub(super) fn validate_order_by_references(
-    order: &[crate::sql::ast::OrderExpr],
-    known_fields: &HashSet<String>,
-    projection_aliases: &HashSet<String>,
-) -> Result<(), CassieError> {
-    for item in order {
-        validate_expression(&item.expr, known_fields, projection_aliases, true)?;
-    }
-    Ok(())
-}
-
 pub(super) fn validate_distinct_on_order_prefix(
     distinct_on: &[Expr],
     order: &[OrderExpr],
@@ -712,104 +641,6 @@ pub(super) fn distinct_on_expr_matches_order(left: &Expr, right: &Expr) -> bool 
         (Expr::Column(left), Expr::Column(right)) => left == right,
         _ => format!("{left:?}") == format!("{right:?}"),
     }
-}
-
-fn validate_column_reference(
-    name: &str,
-    known_fields: &HashSet<String>,
-    projection_aliases: &HashSet<String>,
-    allow_projection_alias: bool,
-) -> Result<(), CassieError> {
-    if known_fields.contains(&format!("__cassie_ambiguous__.{name}")) {
-        return Err(CassieError::AmbiguousColumn(name.to_string()));
-    }
-    if known_fields.contains("*") || known_fields.contains(name) {
-        return Ok(());
-    }
-    if allow_projection_alias
-        && projection_aliases.contains(&crate::sql::ColumnIdentifierPath::reference_field_key(name))
-    {
-        return Ok(());
-    }
-    Err(CassieError::UndefinedColumn(name.into()))
-}
-
-pub(super) fn validate_expression(
-    expr: &Expr,
-    known_fields: &HashSet<String>,
-    projection_aliases: &HashSet<String>,
-    allow_projection_alias: bool,
-) -> Result<(), CassieError> {
-    match expr {
-        Expr::Column(name) => {
-            return validate_column_reference(
-                name,
-                known_fields,
-                projection_aliases,
-                allow_projection_alias,
-            )
-        }
-        Expr::Function(function)
-            if crate::sql::functions::is_aggregate_function(&function.name) =>
-        {
-            return validate_aggregate_function_args(function, known_fields)
-        }
-        Expr::Exists(_) => return Ok(()),
-        _ => {}
-    }
-    expr.try_visit_children(|child| {
-        validate_expression(
-            child,
-            known_fields,
-            projection_aliases,
-            allow_projection_alias,
-        )
-    })?;
-    if let Expr::Cast {
-        expr,
-        data_type,
-        identity,
-        ..
-    } = expr
-    {
-        crate::sql::literal_inputs::validate(expr, data_type, *identity)?;
-    }
-    Ok(())
-}
-
-pub(super) fn validate_aggregate_function_args(
-    function: &FunctionCall,
-    known_fields: &HashSet<String>,
-) -> Result<(), CassieError> {
-    let Some(arity) = crate::sql::functions::aggregate_arity(&function.name) else {
-        return Ok(());
-    };
-    if function.args.len() != arity {
-        return Err(CassieError::Planner(format!(
-            "aggregate function '{}' expects {} args, got {}",
-            function.name,
-            arity,
-            function.args.len()
-        )));
-    }
-    for arg in &function.args {
-        if crate::sql::functions::function(&function.name)
-            .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::Count)
-            && matches!(arg, Expr::Column(name) if name == "*")
-        {
-            continue;
-        }
-        validate_expression(arg, known_fields, &HashSet::new(), false)?;
-    }
-    for arg in function
-        .filter
-        .iter()
-        .map(Box::as_ref)
-        .chain(function.order_by.iter().map(|order| &order.expr))
-    {
-        validate_expression(arg, known_fields, &HashSet::new(), false)?;
-    }
-    Ok(())
 }
 
 pub(super) fn collect_functions(statement: &SelectStatement, out: &mut Vec<FunctionCall>) {
@@ -987,3 +818,8 @@ fn source_cte_reference_count(source: &QuerySource, cte_name: &str) -> usize {
         }
     }
 }
+
+pub(super) use super::references::{
+    validate_expression, validate_expression_in_scope, validate_expression_references,
+    validate_order_by_references, validate_projection_references,
+};

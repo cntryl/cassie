@@ -68,13 +68,14 @@ pub(super) fn pg_name(data_type: &DataType) -> String {
     }
 }
 
-pub(super) fn coerce(
+pub(super) fn coerce_with_controls(
     rows: &mut [Vec<Expr>],
     functions: &HashMap<String, FunctionMeta>,
     params: &[i32],
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<(), CassieError> {
     for expression in rows.iter_mut().flatten() {
-        validate(expression, false)?;
+        validate(expression, false, controls)?;
         arithmetic::bind(expression, functions, params, 0)?;
     }
     let schema = schema(rows, functions, params)?;
@@ -112,7 +113,11 @@ pub(crate) fn bind_input_types(
 ) -> Result<(), CassieError> {
     parameters::bind(statement, oids)
 }
-fn validate(expression: &Expr, float_context: bool) -> Result<(), CassieError> {
+fn validate(
+    expression: &Expr,
+    float_context: bool,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<(), CassieError> {
     if let Expr::Cast {
         expr,
         data_type,
@@ -120,7 +125,7 @@ fn validate(expression: &Expr, float_context: bool) -> Result<(), CassieError> {
         ..
     } = expression
     {
-        crate::sql::literal_inputs::validate(expr, data_type, *identity)?;
+        crate::sql::literal_inputs::validate_with_controls(expr, data_type, *identity, controls)?;
     }
     match expression {
         Expr::Function(_) | Expr::Exists(_) => {
@@ -178,10 +183,10 @@ fn validate(expression: &Expr, float_context: bool) -> Result<(), CassieError> {
             data_type: DataType::Float,
             expr,
             ..
-        } => return validate(expr, true),
+        } => return validate(expr, true, controls),
         _ => {}
     }
-    expression.try_visit_children(|child| validate(child, float_context))
+    expression.try_visit_children(|child| validate(child, float_context, controls))
 }
 
 pub(super) fn validate_aliases(source: &super::QuerySource) -> Result<(), CassieError> {

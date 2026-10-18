@@ -957,7 +957,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/pgwire_extended/protocol/pagination_planning.rs` | test_module | 111 | 8 | pgwire_extended | keep | `tests/pgwire_extended/protocol/pagination_planning.rs` |
 | `tests/pgwire_extended/protocol/pagination_unary.rs` | test_module | 910 | 88 | pgwire_extended | split_by_contract | `tests/pgwire_extended/aggregates/core/pagination_unary.rs`; `tests/pgwire_extended/protocol/pagination_unary.rs` |
 | `tests/pgwire_extended/protocol/parameter_occurrences/errors.rs` | test_module | 105 | 3 | pgwire_extended | keep | `tests/pgwire_extended/protocol/parameter_occurrences/errors.rs` |
-| `tests/pgwire_extended/protocol/parse_analysis.rs` | test_module | 486 | 24 | pgwire_extended | keep | `tests/pgwire_extended/protocol/parse_analysis.rs` |
+| `tests/pgwire_extended/protocol/parse_analysis.rs` | test_module | 664 | 27 | pgwire_extended | keep | `tests/pgwire_extended/protocol/parse_analysis.rs` |
 | `tests/pgwire_extended/protocol/primitive_literal_inputs.rs` | test_module | 319 | 12 | pgwire_extended | move_with_module_alias | `tests/pgwire_extended/grammar/primitive_literal_inputs.rs` |
 | `tests/pgwire_extended/protocol/query/errors.rs` | test_module | 53 | 1 | pgwire_extended | keep | `tests/pgwire_extended/protocol/query/errors.rs` |
 | `tests/pgwire_extended/protocol/rule_semantics/semantics.rs` | test_module | 75 | 1 | pgwire_extended | keep | `tests/pgwire_extended/protocol/rule_semantics/semantics.rs` |

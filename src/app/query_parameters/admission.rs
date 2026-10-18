@@ -91,7 +91,19 @@ pub(in crate::app) fn admit_parameter_types(
         }),
         None => checked_parameter_types_in_scope(statement, input, &cassie.catalog, controls, None),
     };
-    result.map(Some).map_err(project_error)
+    let admitted = result.map_err(project_error)?;
+    if admitted.requires_binding() {
+        // A rejected literal must reach ordered binding before any cache lookup.
+        crate::sql::parse_analysis::validate(
+            statement,
+            admitted.types(),
+            &cassie.catalog,
+            &cassie.binding_context_for_session(session),
+            controls,
+        )?;
+        admitted.final_check().map_err(project_error)?;
+    }
+    Ok(Some(admitted))
 }
 
 fn project_error(error: ParameterAdmissionError) -> CassieError {

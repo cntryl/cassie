@@ -387,6 +387,20 @@ analysis tree, retains the original raw tree for subsequent catalog/session
 rebinding, and does not invoke physical planning or constant folding. Shared
 parameter occurrence/type admission precedes semantic binding; final trailing-slot
 checks follow it.
+Explicit quoted primitive casts now report input conversion failures in the
+ordered binder: source lookup precedes projection binding, and projection items
+are visited in order. Parameter inference still determines valid parameter OIDs;
+a known rejected cast returns a private, nonpublishable inference prefix so a
+parent function signature cannot overtake its child's conversion failure. That
+prefix must reach binding before cache lookup and cannot pass final admission.
+Known rejected casts inside EXISTS reuse ordered binding at the expression's
+position, with the current CTE and correlated-field scope. Controlled query
+analysis admits the temporary copy before cloning; it retires before its lease
+releases.
+Diagnostic allocation retains query-memory and interruption controls through
+nested SELECT, CTE, VALUES and derived sources. Quoted NUMERIC/DECIMAL casts
+preserve their existing Float adapter (OID 701), including its input diagnostics;
+this does not qualify native NUMERIC identity, exact storage or codecs (#793/#812).
 Selected native phase/order and recovery witnesses pass; broader mixed-error
 precedence and parameter-dependent planning remain under #794/#796/#821. Clone
 admission covers the new temporary raw tree; legacy binder catalog/type/name

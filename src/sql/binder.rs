@@ -59,7 +59,11 @@ struct CteBinding {
     row_fields: Vec<FieldSchema>,
 }
 
-type CteScope = HashMap<String, CteBinding>;
+#[path = "binder/references.rs"]
+mod references;
+#[path = "binder/scope.rs"]
+mod scope;
+use scope::CteScope;
 
 #[path = "binder/case_unify.rs"]
 mod case_unify;
@@ -152,9 +156,10 @@ pub(crate) use source_schema::{
 use validation::{
     collect_expr, collect_item, collect_projection_aliases, qualified_fields,
     recursive_cte_reference_count, recursive_cte_references_self, select_contains_parameters,
-    validate_distinct_on_order_prefix, validate_expression, validate_expression_operand_families,
-    validate_expression_references, validate_function_calls, validate_functions,
-    validate_order_by_references, validate_projection_references, validate_select_operand_families,
+    validate_distinct_on_order_prefix, validate_expression, validate_expression_in_scope,
+    validate_expression_operand_families, validate_expression_references, validate_function_calls,
+    validate_functions, validate_order_by_references, validate_projection_references,
+    validate_select_operand_families,
 };
 pub(crate) use wildcard::{
     cte_row_fields, source_row_fields, wildcard_output_fields_and_identity,
@@ -196,7 +201,7 @@ pub(crate) fn bind_initial_with_controls(
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<BoundStatement, CassieError> {
     alias_admission::validate(&statement, controls)?;
-    let mut statement = bind_statement(statement, catalog, &HashMap::new(), context)?;
+    let mut statement = bind_statement(statement, catalog, &CteScope::new(controls), context)?;
     if crate::sql::parameter_count(&statement) == 0 {
         // Parameter-free view/projection callers also consume this bound AST.
         // Parameterized statements wait for their concrete OID-aware pass.
@@ -305,7 +310,7 @@ pub(crate) fn bind_with_outer_ctes(
 fn bind_statement(
     statement: ParsedStatement,
     catalog: &Catalog,
-    outer_scope: &CteScope,
+    outer_scope: &CteScope<'_>,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let raw_sql = statement.raw_sql.clone();
@@ -328,7 +333,7 @@ fn bind_statement(
 fn bind_runtime_route(
     statement: RuntimeStatement,
     catalog: &Catalog,
-    outer_scope: &CteScope,
+    outer_scope: &CteScope<'_>,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
@@ -693,7 +698,7 @@ fn bind_retention_route(
 fn bind_select_statement(
     select: SelectStatement,
     catalog: &Catalog,
-    outer_scope: &CteScope,
+    outer_scope: &CteScope<'_>,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
@@ -707,7 +712,7 @@ fn bind_select_statement(
 fn bind_explain_statement(
     statement: crate::sql::ast::ExplainStatement,
     catalog: &Catalog,
-    outer_scope: &CteScope,
+    outer_scope: &CteScope<'_>,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {

@@ -1,9 +1,21 @@
 use super::{CassieSession, Catalog};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(super) struct SessionSchemaContext {
     catalog: Catalog,
     default_database: String,
+    /// Weak so a session that outlives its `Cassie` does not keep the
+    /// storage (and its writer lease) open.
+    midge: std::sync::Weak<crate::midge::Midge>,
+}
+
+impl std::fmt::Debug for SessionSchemaContext {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SessionSchemaContext")
+            .field("default_database", &self.default_database)
+            .finish_non_exhaustive()
+    }
 }
 
 pub(crate) fn resolved_search_path(
@@ -31,11 +43,32 @@ pub(crate) fn resolved_search_path(
 }
 
 impl CassieSession {
-    pub(crate) fn attach_schema_catalog(&self, catalog: &Catalog, default_database: &str) {
+    /// Attaches the catalog and storage that session-evaluated functions such
+    /// as `nextval` act on.
+    pub(crate) fn attach_schema_context(
+        &self,
+        catalog: &Catalog,
+        default_database: &str,
+        midge: &std::sync::Arc<crate::midge::Midge>,
+    ) {
         *self.schema_context.lock() = Some(SessionSchemaContext {
             catalog: catalog.clone(),
             default_database: default_database.to_string(),
+            midge: std::sync::Arc::downgrade(midge),
         });
+    }
+
+    /// The catalog, binding context and storage for session sequence functions.
+    pub(crate) fn sequence_context(
+        &self,
+    ) -> Option<(
+        Catalog,
+        crate::sql::binder::BindingContext,
+        std::sync::Arc<crate::midge::Midge>,
+    )> {
+        let midge = self.schema_context.lock().as_ref()?.midge.upgrade()?;
+        let (catalog, context) = self.object_lookup_context()?;
+        Some((catalog, context, midge))
     }
 
     /// The catalog and binding context `reg*` lookups resolve names in.

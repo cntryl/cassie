@@ -503,6 +503,7 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::DropTable(_) => "DROP TABLE",
         QueryStatement::AlterTable(_) => "ALTER TABLE",
         QueryStatement::CreateSequence(_) => "CREATE SEQUENCE",
+        QueryStatement::AlterSequence(_) => "ALTER SEQUENCE",
         QueryStatement::DropSequence(_) => "DROP SEQUENCE",
         QueryStatement::CreateDatabase(_) => "CREATE DATABASE",
         QueryStatement::DropDatabase(_) => "DROP DATABASE",

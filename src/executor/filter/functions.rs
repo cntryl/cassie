@@ -76,6 +76,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
 ) -> Option<Result<Value, QueryError>> {
     runtime_information::evaluate(name, args, session)
         .or_else(|| super::object_ids::evaluate_lookup(name, args, session))
+        .or_else(|| super::sequence_functions::evaluate(name, args, session))
         .or_else(|| evaluate_system_function(name, row, args, session))
         .or_else(|| super::conditional::evaluate(name, args))
         .or_else(|| {

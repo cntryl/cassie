@@ -50,4 +50,25 @@ pub enum AlterTableOperation {
     AlterColumnDropNotNull {
         field: String,
     },
+    /// `ADD GENERATED ... AS IDENTITY`, `SET GENERATED`/sequence options, or
+    /// `DROP IDENTITY`.
+    AlterColumnIdentity {
+        field: String,
+        action: IdentityAlteration,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum IdentityAlteration {
+    Add {
+        generation: crate::catalog::IdentityGeneration,
+        options: crate::catalog::SequenceOptions,
+    },
+    Set {
+        generation: Option<crate::catalog::IdentityGeneration>,
+        options: crate::catalog::SequenceOptions,
+    },
+    Drop {
+        if_exists: bool,
+    },
 }

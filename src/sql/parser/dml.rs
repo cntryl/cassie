@@ -18,8 +18,12 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             "INSERT requires VALUES or SELECT source".into(),
         ));
     }
-    let (table, columns, source) = parse_insert_target(statement_source)?;
+    let (table, columns, source, modifiers) = parse_insert_target(statement_source)?;
     let table = table.clone();
+    let overriding = modifiers.overriding;
+    if modifiers.default_values {
+        return default_values_insert(trimmed, table, source, on_conflict, returning, overriding);
+    }
 
     let values_pos = find_top_level_keyword(source, 0, "values");
     if let Some(values_pos) = values_pos {
@@ -61,6 +65,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
                 source: InsertSource::Values(values),
                 on_conflict,
                 returning,
+                overriding,
             }),
         });
     }
@@ -82,6 +87,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
                 source: InsertSource::Select(select),
                 on_conflict,
                 returning: Vec::new(),
+                overriding,
             }),
         });
     }
@@ -101,6 +107,32 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             source: InsertSource::Select(select),
             on_conflict,
             returning,
+            overriding,
+        }),
+    })
+}
+
+/// `INSERT INTO t DEFAULT VALUES`: one row of column defaults.
+fn default_values_insert(
+    trimmed: &str,
+    table: crate::sql::ast::IdentifierPath,
+    source: &str,
+    on_conflict: Option<crate::sql::ast::InsertConflictClause>,
+    returning: Vec<crate::sql::ast::SelectItem>,
+    overriding: Option<crate::sql::ast::InsertOverriding>,
+) -> Result<ParsedStatement, SqlError> {
+    if !source.trim().eq_ignore_ascii_case("values") {
+        return Err(SqlError::new("DEFAULT VALUES takes no value list".into()));
+    }
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
+            table,
+            columns: Vec::new(),
+            source: InsertSource::Values(vec![Vec::new()]),
+            on_conflict,
+            returning,
+            overriding,
         }),
     })
 }
@@ -259,9 +291,55 @@ pub(super) fn parse_values_rows(
     Ok(rows)
 }
 
+/// Clauses between the column list and the source.
+#[derive(Debug, Default)]
+pub(super) struct InsertTargetModifiers {
+    pub(super) overriding: Option<crate::sql::ast::InsertOverriding>,
+    pub(super) default_values: bool,
+}
+
+/// Strips a trailing `OVERRIDING { SYSTEM | USER } VALUE` or `DEFAULT`.
+fn strip_target_modifiers(target: &str) -> Result<(&str, InsertTargetModifiers), SqlError> {
+    let mut modifiers = InsertTargetModifiers::default();
+    let trimmed = target.trim_end();
+    let lower = trimmed.to_ascii_lowercase();
+    if let Some(head) = lower.strip_suffix("default") {
+        if head.ends_with(|character: char| character.is_whitespace() || character == ')') {
+            modifiers.default_values = true;
+            return Ok((trimmed[..head.len()].trim_end(), modifiers));
+        }
+    }
+    for (suffix, overriding) in [
+        ("system value", crate::sql::ast::InsertOverriding::System),
+        ("user value", crate::sql::ast::InsertOverriding::User),
+    ] {
+        let Some(head) = lower.strip_suffix(suffix) else {
+            continue;
+        };
+        let head = head.trim_end();
+        let Some(head) = head.strip_suffix("overriding") else {
+            return Err(SqlError::new(format!(
+                "{} requires OVERRIDING",
+                suffix.to_uppercase()
+            )));
+        };
+        modifiers.overriding = Some(overriding);
+        return Ok((trimmed[..head.len()].trim_end(), modifiers));
+    }
+    Ok((trimmed, modifiers))
+}
+
 pub(super) fn parse_insert_target(
     raw: &str,
-) -> Result<(crate::sql::ast::IdentifierPath, Vec<String>, &str), SqlError> {
+) -> Result<
+    (
+        crate::sql::ast::IdentifierPath,
+        Vec<String>,
+        &str,
+        InsertTargetModifiers,
+    ),
+    SqlError,
+> {
     let raw = raw.trim();
     if raw.is_empty() {
         return Err(SqlError::new("INSERT INTO requires a table name".into()));
@@ -279,7 +357,8 @@ pub(super) fn parse_insert_target(
     let source_pos = source_pos
         .ok_or_else(|| SqlError::new("INSERT requires VALUES or SELECT source".to_string()))?;
 
-    let target = super::lexical::trim_separators(&raw[..source_pos]);
+    let (target, modifiers) =
+        strip_target_modifiers(super::lexical::trim_separators(&raw[..source_pos]))?;
     let source = raw[source_pos..].trim();
     if source.is_empty() {
         return Err(SqlError::new(
@@ -298,7 +377,7 @@ pub(super) fn parse_insert_target(
         if !extra.is_empty() {
             return Err(SqlError::new("INSERT INTO requires a table name".into()));
         }
-        return Ok((table, Vec::new(), source));
+        return Ok((table, Vec::new(), source, modifiers));
     };
 
     let close = find_matching_paren(target, open_paren)
@@ -336,6 +415,7 @@ pub(super) fn parse_insert_target(
         crate::sql::ast::IdentifierPath::parse(table).map_err(SqlError::new)?,
         columns,
         source,
+        modifiers,
     ))
 }
 

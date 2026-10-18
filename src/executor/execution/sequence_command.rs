@@ -18,8 +18,12 @@ pub(super) fn create_sequence(
         )));
     }
 
-    let mut metadata =
-        crate::catalog::SequenceMeta::new(&statement.name, statement.data_type.clone());
+    let parameters =
+        crate::catalog::SequenceParameters::resolve(None, &statement.options, &statement.data_type)
+            .map_err(|error| QueryError::Cassie(error.into()))?;
+    let mut metadata = crate::catalog::SequenceMeta::with_parameters(&statement.name, parameters);
+    metadata.persistence = statement.persistence;
+    metadata.owned_by = sequence_owner(statement.owned_by.as_ref());
     let output = empty_command("CREATE SEQUENCE", controls)?;
     metadata.object_id = cassie
         .midge
@@ -33,27 +37,99 @@ pub(super) fn create_sequence(
     Ok(output)
 }
 
+/// `ALTER SEQUENCE`: re-resolves the options over the current parameters,
+/// applies `RESTART`, ownership and persistence, and persists atomically.
+pub(super) fn alter_sequence(
+    cassie: &Cassie,
+    statement: &crate::sql::ast::AlterSequenceStatement,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    if statement.if_exists && !cassie.catalog.sequence_exists(&statement.name) {
+        return empty_command("ALTER SEQUENCE", controls);
+    }
+    let output = empty_command("ALTER SEQUENCE", controls)?;
+    let ((), updated) = cassie
+        .midge
+        .update_sequence(&statement.name, |metadata| {
+            let current = metadata.parameters();
+            let parameters = crate::catalog::SequenceParameters::resolve(
+                Some(&current),
+                &statement.options,
+                &current.data_type,
+            )?;
+            let mut cursor = metadata.cursor();
+            if let Some(restart) = statement.options.restart {
+                cursor.restart(&parameters, restart)?;
+            }
+            metadata.set_parameters(parameters);
+            metadata.set_cursor(cursor);
+            if let Some(owned_by) = statement.owned_by.as_ref() {
+                metadata.owned_by = sequence_owner(Some(owned_by));
+            }
+            if let Some(persistence) = statement.persistence {
+                metadata.persistence = persistence;
+            }
+            Ok(())
+        })
+        .map_err(QueryError::from)?;
+    cassie.catalog.register_sequence(updated);
+    Ok(output)
+}
+
+/// An owned column sequence: identity options apply over the column type.
+fn identity_sequence(
+    name: &str,
+    data_type: &crate::types::DataType,
+    constraint: &crate::catalog::FieldConstraint,
+) -> Result<crate::catalog::SequenceMeta, QueryError> {
+    let options = constraint.identity_options.clone().unwrap_or_default();
+    let parameters = crate::catalog::SequenceParameters::resolve(None, &options, data_type)
+        .map_err(|error| QueryError::Cassie(error.into()))?;
+    Ok(crate::catalog::SequenceMeta::with_parameters(
+        name, parameters,
+    ))
+}
+
+fn sequence_owner(
+    owned_by: Option<&crate::sql::ast::SequenceOwnedBy>,
+) -> Option<crate::catalog::SequenceOwner> {
+    match owned_by {
+        Some(crate::sql::ast::SequenceOwnedBy::Column { table, column }) => {
+            Some(crate::catalog::SequenceOwner {
+                table: table.clone(),
+                column: column.clone(),
+            })
+        }
+        Some(crate::sql::ast::SequenceOwnedBy::None) | None => None,
+    }
+}
+
 pub(super) fn drop_sequence(
     cassie: &Cassie,
     statement: &crate::sql::ast::DropSequenceStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    if statement.if_exists && !cassie.catalog.sequence_exists(&statement.name) {
-        return empty_command("DROP SEQUENCE", controls);
-    }
-    if !cassie.catalog.sequence_exists(&statement.name) {
+    let names = std::iter::once(&statement.name)
+        .chain(&statement.additional_names)
+        .filter(|name| !statement.if_exists || cassie.catalog.sequence_exists(name))
+        .collect::<Vec<_>>();
+    if let Some(missing) = names
+        .iter()
+        .find(|name| !cassie.catalog.sequence_exists(name))
+    {
         return Err(QueryError::General(format!(
-            "sequence '{}' does not exist",
-            statement.name
+            "sequence '{missing}' does not exist"
         )));
     }
 
     let output = empty_command("DROP SEQUENCE", controls)?;
-    cassie
-        .midge
-        .delete_sequence(&statement.name)
-        .map_err(QueryError::from)?;
-    cassie.catalog.unregister_sequence(&statement.name);
+    for name in names {
+        cassie
+            .midge
+            .delete_sequence(name)
+            .map_err(QueryError::from)?;
+        cassie.catalog.unregister_sequence(name);
+    }
     Ok(output)
 }
 
@@ -73,10 +149,12 @@ pub(super) fn prepare_create_table_sequences(
                         "sequence '{sequence}' already exists"
                     )));
                 }
-                created.push(crate::catalog::SequenceMeta::new(
-                    sequence,
-                    field.data_type.clone(),
-                ));
+                let mut metadata = identity_sequence(sequence, &field.data_type, constraint)?;
+                metadata.owned_by = Some(crate::catalog::SequenceOwner {
+                    table: statement.table.to_string(),
+                    column: field.name.clone(),
+                });
+                created.push(metadata);
             } else if !cassie.catalog.sequence_exists(sequence) {
                 return Err(QueryError::General(format!(
                     "sequence '{sequence}' does not exist"
@@ -212,7 +290,7 @@ pub(super) fn alter_column_drop_not_null(
     })
 }
 
-fn mutate_field_constraint(
+pub(super) fn mutate_field_constraint(
     cassie: &Cassie,
     table: &str,
     field: &str,
@@ -255,4 +333,5 @@ fn constraint_is_populated(constraint: &crate::catalog::FieldConstraint) -> bool
         || constraint.default_sequence.is_some()
         || constraint.check.is_some()
         || constraint.references_table.is_some()
+        || constraint.identity.is_some()
 }

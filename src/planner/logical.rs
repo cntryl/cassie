@@ -63,6 +63,7 @@ pub enum LogicalCommand {
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateSequence(crate::sql::ast::CreateSequenceStatement),
+    AlterSequence(crate::sql::ast::AlterSequenceStatement),
     DropSequence(crate::sql::ast::DropSequenceStatement),
     CreateDatabase(CreateDatabaseStatement),
     DropDatabase(DropDatabaseStatement),
@@ -176,6 +177,11 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
             &statement.name,
             "CREATE SEQUENCE requires a name",
             LogicalCommand::CreateSequence(statement.clone()),
+        ),
+        CatalogStatementRef::AlterSequence(statement) => plan_named_command(
+            &statement.name,
+            "ALTER SEQUENCE requires a name",
+            LogicalCommand::AlterSequence(statement.clone()),
         ),
         CatalogStatementRef::DropSequence(statement) => plan_named_command(
             &statement.name,
@@ -618,7 +624,8 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
         AlterTableOperation::AlterColumnSetDefault { field, .. }
         | AlterTableOperation::AlterColumnDropDefault { field }
         | AlterTableOperation::AlterColumnSetNotNull { field }
-        | AlterTableOperation::AlterColumnDropNotNull { field } => {
+        | AlterTableOperation::AlterColumnDropNotNull { field }
+        | AlterTableOperation::AlterColumnIdentity { field, .. } => {
             if field.trim().is_empty() {
                 return Err(CassieError::Planner(
                     "ALTER TABLE ALTER COLUMN requires a field".into(),

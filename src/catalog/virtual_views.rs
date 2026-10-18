@@ -659,7 +659,10 @@ fn information_schema_column_row(
         ),
         optional_string(
             "column_default",
-            constraint.and_then(virtual_views_pg::constraint_default_expression),
+            // Identity columns report their generation, not a default.
+            constraint
+                .filter(|constraint| constraint.identity.is_none())
+                .and_then(virtual_views_pg::constraint_default_expression),
         ),
         string(
             "udt_catalog",
@@ -672,8 +675,23 @@ fn information_schema_column_row(
         optional_i64("numeric_precision", numeric_precision(data_type)),
         optional_i64("numeric_scale", numeric_scale(data_type)),
         optional_i64("datetime_precision", datetime_precision(data_type)),
-        string("is_identity", "NO"),
-        ("identity_generation".to_owned(), Value::Null),
+        string(
+            "is_identity",
+            if constraint
+                .and_then(|constraint| constraint.identity)
+                .is_some()
+            {
+                "YES"
+            } else {
+                "NO"
+            },
+        ),
+        optional_string(
+            "identity_generation",
+            constraint
+                .and_then(|constraint| constraint.identity)
+                .map(|generation| generation.label().to_string()),
+        ),
         string("is_generated", "NEVER"),
     ]
 }

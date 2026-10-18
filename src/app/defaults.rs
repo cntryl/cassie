@@ -16,8 +16,10 @@ pub(super) fn apply_default_values(
         }
 
         if let Some(sequence) = constraint.default_sequence.as_deref() {
-            let value = app.midge.next_sequence_value(sequence)?;
-            app.catalog.set_sequence_current_value(sequence, value);
+            let (value, updated) = app.midge.update_sequence_retrying(sequence, |metadata| {
+                metadata.advance().map_err(Into::into)
+            })?;
+            app.catalog.register_sequence(updated);
             object.insert(
                 constraint.field.clone(),
                 serde_json::Value::Number(value.into()),

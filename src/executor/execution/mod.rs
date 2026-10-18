@@ -109,6 +109,7 @@ pub(crate) fn delete_document_with_referential_actions(
     )
 }
 mod graph_command;
+mod identity_alter;
 mod materialized_projection;
 mod materialized_projection_maintenance;
 mod materialized_projection_versions;

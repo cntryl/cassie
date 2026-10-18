@@ -365,6 +365,9 @@ fn execute_alter_table_operation(
         AlterTableOperation::AlterColumnDropNotNull { field } => {
             super::sequence_command::alter_column_drop_not_null(cassie, &statement.table, field)
         }
+        AlterTableOperation::AlterColumnIdentity { field, action } => {
+            super::identity_alter::alter_column_identity(cassie, &statement.table, field, action)
+        }
     }
 }
 

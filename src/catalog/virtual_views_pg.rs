@@ -359,7 +359,16 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str) -> VirtualRow {
         ),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
-        string("relpersistence", "p"),
+        string(
+            "relpersistence",
+            if kind == "S" {
+                catalog
+                    .get_sequence(name)
+                    .map_or("p", |sequence| sequence.persistence.code())
+            } else {
+                "p"
+            },
+        ),
         int_value("reltuples", 0),
         string("relacl", ""),
     ]

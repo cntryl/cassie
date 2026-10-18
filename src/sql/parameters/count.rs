@@ -20,6 +20,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         | QueryStatement::DropTable(_)
         | QueryStatement::AlterTable(_)
         | QueryStatement::CreateSequence(_)
+        | QueryStatement::AlterSequence(_)
         | QueryStatement::DropSequence(_)
         | QueryStatement::CreateDatabase(_)
         | QueryStatement::DropDatabase(_)

@@ -72,10 +72,51 @@ impl Midge {
         Ok(())
     }
 
+    /// `nextval`: advances the stored sequence atomically.
+    ///
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn next_sequence_value(&self, name: &str) -> Result<i64, CassieError> {
+        self.update_sequence(name, |metadata| {
+            metadata.advance().map_err(CassieError::from)
+        })
+        .map(|(value, _)| value)
+    }
+
+    /// Like [`Self::update_sequence`], but retries when a concurrent update to
+    /// the same sequence wins the commit, so SQL callers never observe the
+    /// storage write conflict that PostgreSQL's `nextval` cannot raise.
+    ///
+    /// # Errors
+    ///
+    /// Returns the update's error, or a non-retryable storage error.
+    pub fn update_sequence_retrying<T>(
+        &self,
+        name: &str,
+        mut update: impl FnMut(&mut crate::catalog::SequenceMeta) -> Result<T, CassieError>,
+    ) -> Result<(T, crate::catalog::SequenceMeta), CassieError> {
+        const MAX_ATTEMPTS: usize = 64;
+        let mut attempt = 1;
+        loop {
+            match self.update_sequence(name, &mut update) {
+                Err(CassieError::StorageRetryable(_)) if attempt < MAX_ATTEMPTS => attempt += 1,
+                outcome => return outcome,
+            }
+        }
+    }
+
+    /// Applies `update` to the stored sequence in one schema transaction and
+    /// returns its result with the updated metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns the update's error, or a storage error.
+    pub fn update_sequence<T>(
+        &self,
+        name: &str,
+        update: impl FnOnce(&mut crate::catalog::SequenceMeta) -> Result<T, CassieError>,
+    ) -> Result<(T, crate::catalog::SequenceMeta), CassieError> {
         let stored_name = self
             .get_sequence(name)?
             .ok_or_else(|| CassieError::CatalogObjectNotFound {
@@ -95,11 +136,7 @@ impl Midge {
             serde_json::from_slice(&raw).map_err(|error| {
                 CassieError::Parse(format!("invalid sequence metadata for '{name}': {error}"))
             })?;
-        let next = metadata
-            .current_value
-            .checked_add(metadata.increment_by)
-            .ok_or_else(|| CassieError::Execution(format!("sequence '{name}' overflow")))?;
-        metadata.current_value = next;
+        let result = update(&mut metadata)?;
         let value =
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key_encoding::sequence_key(&stored_name), value, None)
@@ -109,6 +146,6 @@ impl Midge {
         );
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
-        Ok(next)
+        Ok((result, metadata))
     }
 }

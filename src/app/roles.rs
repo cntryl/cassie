@@ -6,7 +6,7 @@ impl Cassie {
     pub fn create_session(&self, user: &str, database: Option<String>) -> CassieSession {
         let database = database.or_else(|| Some(self.default_database.clone()));
         let session = CassieSession::new(user.to_string(), database);
-        session.attach_schema_catalog(&self.catalog, &self.default_database);
+        session.attach_schema_context(&self.catalog, &self.default_database, &self.midge);
         session
     }
 
@@ -45,7 +45,7 @@ impl Cassie {
         session: &CassieSession,
     ) -> Result<(), CassieError> {
         self.ensure_session_database_exists(session)?;
-        session.attach_schema_catalog(&self.catalog, &self.default_database);
+        session.attach_schema_context(&self.catalog, &self.default_database, &self.midge);
         if !session.is_network_authenticated() {
             return Ok(());
         }

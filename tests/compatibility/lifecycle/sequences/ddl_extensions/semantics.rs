@@ -76,7 +76,7 @@ fn should_drop_a_sequence_with_its_owned_table_column() {
             &[
                 "CREATE TABLE compat_owned_sequence_rows (id INT)",
                 "CREATE SEQUENCE compat_owned_sequence",
-                "ALTER SEQUENCE compat_owned_sequence \\
+                "ALTER SEQUENCE compat_owned_sequence \
                    OWNED BY compat_owned_sequence_rows.id",
             ],
         )

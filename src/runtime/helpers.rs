@@ -108,7 +108,8 @@ pub fn error_class(error: &CassieError) -> &'static str {
         | CassieError::ByteaIndex { .. }
         | CassieError::ByteaInput(_)
         | CassieError::ObjectIdentifier(_)
-        | CassieError::TypeInput(_) => "execution",
+        | CassieError::TypeInput(_)
+        | CassieError::Sequence(_) => "execution",
         CassieError::Transaction { .. } => "transaction",
         CassieError::DeadlineExceeded => "deadline_exceeded",
         CassieError::QueryCancelled => "query_cancelled",

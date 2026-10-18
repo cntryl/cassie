@@ -19,6 +19,7 @@ pub mod roles;
 pub mod rollups;
 pub mod schemas;
 pub mod scope;
+pub mod sequence_state;
 pub mod sequences;
 pub mod virtual_views;
 
@@ -51,7 +52,7 @@ pub use consistency::{
 };
 pub use constraints::{
     generated_constraint_name, merge_constraint_set, ConstraintCheck, ConstraintOperator,
-    DefaultSequenceOwnership, FieldConstraint, NotNullOwnership,
+    DefaultSequenceOwnership, FieldConstraint, IdentityGeneration, NotNullOwnership,
 };
 pub use graphs::GraphMeta;
 pub use indexes::{
@@ -81,5 +82,6 @@ pub use scope::{
 };
 pub use sequences::{
     canonical_nextval_expression, parse_nextval_default_expression, serial_sequence_name,
-    SequenceMeta,
+    SequenceCursor, SequenceError, SequenceMeta, SequenceOptions, SequenceOwner,
+    SequenceParameters, SequencePersistence,
 };

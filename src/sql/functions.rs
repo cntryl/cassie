@@ -5,8 +5,10 @@ mod catalog;
 mod datum_size;
 mod numeric_identity;
 mod object_identity;
+mod sequences;
 pub(crate) use numeric_identity::has_unselected_numeric;
 pub(crate) use object_identity::lookup_kind as object_lookup_kind;
+pub(crate) use sequences::SEQUENCE_FUNCTION_NAMES;
 mod runtime;
 pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};
 mod table;
@@ -120,6 +122,11 @@ pub enum FunctionId {
     ToRegProcedure,
     ToRegRole,
     ToRegType,
+    Nextval,
+    Currval,
+    Setval,
+    Lastval,
+    PgGetSerialSequence,
 }
 
 #[derive(Debug, Clone)]
@@ -201,6 +208,7 @@ pub fn registry() -> Vec<ScalarFunction> {
         .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
         .chain(object_identity::FUNCTIONS)
+        .chain(sequences::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
         .cloned()
         .collect()
@@ -214,6 +222,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
         .chain(object_identity::FUNCTIONS)
+        .chain(sequences::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
         .or_else(|| {
@@ -230,6 +239,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         || catalog::FUNCTIONS
                             .iter()
                             .chain(object_identity::FUNCTIONS)
+                            .chain(sequences::FUNCTIONS)
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || text::FUNCTIONS
                             .iter()
@@ -245,6 +255,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         .chain(bytea::FUNCTIONS)
                         .chain(catalog::FUNCTIONS)
                         .chain(object_identity::FUNCTIONS)
+                        .chain(sequences::FUNCTIONS)
                         .chain(runtime::FUNCTIONS)
                         .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
                 })

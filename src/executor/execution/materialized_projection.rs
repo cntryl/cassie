@@ -629,6 +629,10 @@ fn reject_nondeterministic_select(
         if matches!(
             name.as_str(),
             "version"
+                | "nextval"
+                | "currval"
+                | "setval"
+                | "lastval"
                 | "current_schema"
                 | "current_database"
                 | "current_user"

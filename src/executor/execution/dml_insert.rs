@@ -45,6 +45,12 @@ pub(in crate::executor::execution) fn execute_insert(
         .map_or_else(|| insert_source_width(statement, &schema), Vec::len);
     let target_fields = insert_target_fields(statement, &schema, source_width)?;
     validate_insert_source_rows(&source_rows, target_fields.len())?;
+    let (target_fields, source_rows) = super::identity_insert::apply_identity_policy(
+        cassie,
+        statement,
+        target_fields,
+        source_rows,
+    )?;
 
     let mut affected_count = 0usize;
     let mut returning_rows = Vec::new();
@@ -859,6 +865,10 @@ fn insert_target_fields(
     value_count: usize,
 ) -> Result<Vec<FieldMeta>, QueryError> {
     if statement.columns.is_empty() {
+        // `DEFAULT VALUES` names no column and supplies no value.
+        if value_count == 0 {
+            return Ok(Vec::new());
+        }
         if schema.fields.len() != value_count {
             return Err(QueryError::General(format!(
                 "INSERT column/value counts mismatch: {} columns, {} values",

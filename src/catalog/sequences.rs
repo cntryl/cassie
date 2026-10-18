@@ -6,7 +6,39 @@ use std::sync::Arc;
 use crate::catalog::{derive_scoped_name, name_matches};
 use crate::types::DataType;
 
+pub use super::sequence_state::{
+    SequenceCursor, SequenceError, SequenceOptions, SequenceParameters,
+};
+
 use super::Catalog;
+
+/// The column that owns a sequence (`OWNED BY table.column`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SequenceOwner {
+    pub table: String,
+    pub column: String,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SequencePersistence {
+    #[default]
+    Permanent,
+    Unlogged,
+    Temporary,
+}
+
+impl SequencePersistence {
+    /// `pg_class.relpersistence`.
+    #[must_use]
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::Permanent => "p",
+            Self::Unlogged => "u",
+            Self::Temporary => "t",
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SequenceMeta {
@@ -14,22 +46,120 @@ pub struct SequenceMeta {
     pub data_type: DataType,
     pub start_value: i64,
     pub increment_by: i64,
+    /// PostgreSQL's `last_value`.
     pub current_value: i64,
+    /// Whether `current_value` has been returned by `nextval`.
+    pub is_called: bool,
+    pub min_value: i64,
+    pub max_value: i64,
+    pub cache: i64,
+    pub cycle: bool,
+    #[serde(default)]
+    pub owned_by: Option<SequenceOwner>,
+    #[serde(default)]
+    pub persistence: SequencePersistence,
     /// Stable relation identity allocated at creation; renames keep it.
     #[serde(default)]
     pub object_id: u64,
 }
 
 impl SequenceMeta {
+    /// A sequence with PostgreSQL's default options for `data_type`.
     pub fn new(name: impl Into<String>, data_type: DataType) -> Self {
+        let parameters = SequenceParameters::resolve(None, &SequenceOptions::default(), &data_type)
+            .unwrap_or(SequenceParameters {
+                data_type,
+                start: 1,
+                increment: 1,
+                min_value: 1,
+                max_value: i64::MAX,
+                cache: 1,
+                cycle: false,
+            });
+        Self::with_parameters(name, parameters)
+    }
+
+    /// A sequence with resolved `parameters`, positioned at its start.
+    pub fn with_parameters(name: impl Into<String>, parameters: SequenceParameters) -> Self {
         Self {
             name: name.into(),
-            data_type,
-            start_value: 1,
-            increment_by: 1,
-            current_value: 0,
+            current_value: parameters.start,
+            is_called: false,
+            data_type: parameters.data_type,
+            start_value: parameters.start,
+            increment_by: parameters.increment,
+            min_value: parameters.min_value,
+            max_value: parameters.max_value,
+            cache: parameters.cache,
+            cycle: parameters.cycle,
+            owned_by: None,
+            persistence: SequencePersistence::Permanent,
             object_id: 0,
         }
+    }
+
+    #[must_use]
+    pub fn parameters(&self) -> SequenceParameters {
+        SequenceParameters {
+            data_type: self.data_type.clone(),
+            start: self.start_value,
+            increment: self.increment_by,
+            min_value: self.min_value,
+            max_value: self.max_value,
+            cache: self.cache,
+            cycle: self.cycle,
+        }
+    }
+
+    #[must_use]
+    pub const fn cursor(&self) -> SequenceCursor {
+        SequenceCursor {
+            last_value: self.current_value,
+            is_called: self.is_called,
+        }
+    }
+
+    pub fn set_parameters(&mut self, parameters: SequenceParameters) {
+        self.data_type = parameters.data_type;
+        self.start_value = parameters.start;
+        self.increment_by = parameters.increment;
+        self.min_value = parameters.min_value;
+        self.max_value = parameters.max_value;
+        self.cache = parameters.cache;
+        self.cycle = parameters.cycle;
+    }
+
+    pub const fn set_cursor(&mut self, cursor: SequenceCursor) {
+        self.current_value = cursor.last_value;
+        self.is_called = cursor.is_called;
+    }
+
+    /// The unqualified relation name.
+    #[must_use]
+    pub fn local_name(&self) -> String {
+        crate::catalog::local_name(&self.name)
+    }
+
+    /// `nextval`, applied in place.
+    ///
+    /// # Errors
+    /// Returns `2200H` when a non-cycling sequence is exhausted.
+    pub fn advance(&mut self) -> Result<i64, SequenceError> {
+        let mut cursor = self.cursor();
+        let value = cursor.next(&self.local_name(), &self.parameters())?;
+        self.set_cursor(cursor);
+        Ok(value)
+    }
+
+    /// `setval`, applied in place.
+    ///
+    /// # Errors
+    /// Returns `22003` when `value` is outside the sequence bounds.
+    pub fn assign(&mut self, value: i64, is_called: bool) -> Result<i64, SequenceError> {
+        let mut cursor = self.cursor();
+        let value = cursor.set(&self.local_name(), &self.parameters(), value, is_called)?;
+        self.set_cursor(cursor);
+        Ok(value)
     }
 }
 
@@ -83,24 +213,6 @@ impl Catalog {
         let mut out = self.sequences.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|sequence| sequence.name.to_ascii_lowercase());
         out
-    }
-
-    pub fn set_sequence_current_value(&self, name: &str, current_value: i64) {
-        let mut sequences = self.sequences.write();
-        let key = name.to_ascii_lowercase();
-        if let Some(sequence) = sequences.get_mut(&key) {
-            sequence.current_value = current_value;
-            self.bump_version();
-            return;
-        }
-
-        if let Some(sequence) = sequences
-            .values_mut()
-            .find(|sequence| name_matches(&sequence.name, name))
-        {
-            sequence.current_value = current_value;
-            self.bump_version();
-        }
     }
 }
 

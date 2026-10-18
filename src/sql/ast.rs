@@ -11,7 +11,7 @@ pub use ast_identifier::{IdentifierComponent, IdentifierPath};
 
 #[path = "ast_schema.rs"]
 mod ast_schema;
-pub use ast_schema::{AlterTableOperation, AlterTableStatement};
+pub use ast_schema::{AlterTableOperation, AlterTableStatement, IdentityAlteration};
 
 #[path = "ast_query.rs"]
 mod ast_query;
@@ -65,6 +65,7 @@ pub enum QueryStatement {
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateSequence(CreateSequenceStatement),
+    AlterSequence(AlterSequenceStatement),
     DropSequence(DropSequenceStatement),
     CreateDatabase(CreateDatabaseStatement),
     DropDatabase(DropDatabaseStatement),
@@ -193,6 +194,17 @@ pub struct InsertStatement {
     pub source: InsertSource,
     pub on_conflict: Option<InsertConflictClause>,
     pub returning: Vec<SelectItem>,
+    /// `OVERRIDING { SYSTEM | USER } VALUE`.
+    #[serde(default)]
+    pub overriding: Option<InsertOverriding>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InsertOverriding {
+    /// Explicit values replace `GENERATED ALWAYS` identity values.
+    System,
+    /// Explicit identity values are discarded in favour of generated ones.
+    User,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -485,13 +497,39 @@ pub struct DropTableStatement {
 pub struct CreateSequenceStatement {
     pub name: String,
     pub if_not_exists: bool,
+    /// The type used when `options` has no `AS` clause.
     pub data_type: DataType,
+    #[serde(default)]
+    pub options: crate::catalog::SequenceOptions,
+    #[serde(default)]
+    pub owned_by: Option<SequenceOwnedBy>,
+    #[serde(default)]
+    pub persistence: crate::catalog::SequencePersistence,
+}
+
+/// `OWNED BY table.column` or `OWNED BY NONE`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SequenceOwnedBy {
+    None,
+    Column { table: String, column: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlterSequenceStatement {
+    pub name: String,
+    pub if_exists: bool,
+    pub options: crate::catalog::SequenceOptions,
+    pub owned_by: Option<SequenceOwnedBy>,
+    pub persistence: Option<crate::catalog::SequencePersistence>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropSequenceStatement {
     pub name: String,
     pub if_exists: bool,
+    /// Further names in `DROP SEQUENCE a, b, ...`.
+    #[serde(default)]
+    pub additional_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

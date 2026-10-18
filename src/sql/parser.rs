@@ -6,9 +6,10 @@ mod aggregate_call;
 use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
 use crate::sql::ast::{
     AlterRetentionPolicyStatement, AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement,
-    AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
-    CommonTableExpression, CreateDatabaseStatement, CreateFunctionStatement, CreateGraphStatement,
-    CreateIndexStatement, CreateMaterializedProjectionStatement, CreateProcedureStatement,
+    AlterSequenceStatement, AlterTableOperation, AlterTableStatement, BinaryOp,
+    CallProcedureStatement, CommonTableExpression, CreateDatabaseStatement,
+    CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
+    CreateMaterializedProjectionStatement, CreateProcedureStatement,
     CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement, CreateViewStatement,
     CteQuery, DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
@@ -170,13 +171,13 @@ use rollups::{
     parse_create_rollup_statement, parse_drop_rollup_statement, parse_refresh_rollup_statement,
 };
 use schema::{
-    parse_alter_role_statement, parse_alter_schema_statement, parse_alter_table_statement,
-    parse_create_database_statement, parse_create_graph_statement, parse_create_index_statement,
-    parse_create_role_statement, parse_create_schema_statement, parse_create_sequence_statement,
-    parse_create_table_statement, parse_database_connect_privilege_statement,
-    parse_drop_database_statement, parse_drop_index_statement, parse_drop_role_statement,
-    parse_drop_schema_statement, parse_drop_sequence_statement, parse_drop_table_statement,
-    parse_index_options,
+    parse_alter_role_statement, parse_alter_schema_statement, parse_alter_sequence_statement,
+    parse_alter_table_statement, parse_create_database_statement, parse_create_graph_statement,
+    parse_create_index_statement, parse_create_role_statement, parse_create_schema_statement,
+    parse_create_sequence_statement, parse_create_table_statement,
+    parse_database_connect_privilege_statement, parse_drop_database_statement,
+    parse_drop_index_statement, parse_drop_role_statement, parse_drop_schema_statement,
+    parse_drop_sequence_statement, parse_drop_table_statement, parse_index_options,
 };
 use statements::{
     is_transaction_control_statement, is_unsupported_transaction_control_statement,
@@ -387,8 +388,14 @@ fn parse_table_or_schema_statement(
         Ok(Some(parse_create_table_statement(trimmed)?))
     } else if starts_statement(lower, "create graph") {
         Ok(Some(parse_create_graph_statement(trimmed)?))
-    } else if starts_statement(lower, "create sequence") {
+    } else if starts_statement(lower, "create sequence")
+        || starts_statement(lower, "create temporary sequence")
+        || starts_statement(lower, "create temp sequence")
+        || starts_statement(lower, "create unlogged sequence")
+    {
         Ok(Some(parse_create_sequence_statement(trimmed)?))
+    } else if starts_statement(lower, "alter sequence") {
+        Ok(Some(parse_alter_sequence_statement(trimmed)?))
     } else if starts_statement(lower, "create database") {
         Ok(Some(parse_create_database_statement(trimmed)?))
     } else if starts_statement(lower, "drop table") {

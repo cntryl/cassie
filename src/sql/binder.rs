@@ -41,9 +41,9 @@ use crate::catalog::{
 use crate::embeddings::DistanceMetric;
 use crate::search::bm25;
 use crate::sql::ast::{
-    AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement, BinaryOp,
-    CallProcedureStatement, CatalogStatement, CommonTableExpression, CopyStatement,
-    CreateDatabaseStatement, CreateFunctionStatement, CreateProcedureStatement,
+    AlterSchemaOperation, AlterSchemaStatement, AlterSequenceStatement, AlterTableOperation,
+    AlterTableStatement, BinaryOp, CallProcedureStatement, CatalogStatement, CommonTableExpression,
+    CopyStatement, CreateDatabaseStatement, CreateFunctionStatement, CreateProcedureStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateViewStatement, CteQuery,
     DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
     DropIndexStatement, DropProcedureStatement, DropSchemaStatement, DropSequenceStatement,
@@ -441,6 +441,11 @@ fn bind_catalog_definition_route(
             raw_sql,
             bind_drop_sequence(statement, catalog, context),
             QueryStatement::DropSequence,
+        ),
+        CatalogStatement::AlterSequence(statement) => bind_catalog_statement(
+            raw_sql,
+            schema_sequences::bind_alter_sequence(statement, catalog, context),
+            QueryStatement::AlterSequence,
         ),
         CatalogStatement::CreateDatabase(statement) => {
             bind_create_database_statement(statement, catalog, raw_sql)

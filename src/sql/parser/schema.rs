@@ -2,19 +2,21 @@ use super::expr::split_csv;
 use super::{
     find_matching_paren, find_top_level_keyword, parse_enclosed_parenthesized,
     parse_optional_role_password, split_keyword, strip_parentheses, AlterRoleStatement,
-    AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
-    ConstraintCheck, ConstraintOperator, CreateDatabaseStatement, CreateGraphStatement,
-    CreateIndexStatement, CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement,
-    CreateTableStatement, DataType, DatabaseConnectPrivilegeStatement, DropDatabaseStatement,
-    DropIndexStatement, DropRoleStatement, DropSchemaStatement, DropSequenceStatement,
-    DropTableStatement, Expr, FieldConstraint, FieldDefinition, HashSet, IndexKind,
-    ParsedStatement, QueryStatement, SqlError, Value,
+    AlterSchemaOperation, AlterSchemaStatement, AlterSequenceStatement, AlterTableOperation,
+    AlterTableStatement, ConstraintCheck, ConstraintOperator, CreateDatabaseStatement,
+    CreateGraphStatement, CreateIndexStatement, CreateRoleStatement, CreateSchemaStatement,
+    CreateSequenceStatement, CreateTableStatement, DataType, DatabaseConnectPrivilegeStatement,
+    DropDatabaseStatement, DropIndexStatement, DropRoleStatement, DropSchemaStatement,
+    DropSequenceStatement, DropTableStatement, Expr, FieldConstraint, FieldDefinition, HashSet,
+    IndexKind, ParsedStatement, QueryStatement, SqlError, Value,
 };
 
 #[path = "schema_fields.rs"]
 mod schema_fields;
 #[path = "schema_identifiers.rs"]
 mod schema_identifiers;
+#[path = "schema_identity.rs"]
+mod schema_identity;
 #[path = "schema_indexes.rs"]
 mod schema_indexes;
 #[path = "schema_literals.rs"]
@@ -25,6 +27,8 @@ mod schema_references;
 mod schema_sequences;
 #[path = "schema_table_constraints.rs"]
 mod schema_table_constraints;
+#[path = "sequence_options.rs"]
+mod sequence_options;
 use schema_fields::parse_field_definition;
 use schema_fields::parse_field_definition_for_table;
 use schema_identifiers::{
@@ -444,6 +448,10 @@ pub(super) fn parse_create_sequence_statement(sql: &str) -> Result<ParsedStateme
 
 pub(super) fn parse_drop_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     schema_sequences::parse_drop_sequence_statement(sql)
+}
+
+pub(super) fn parse_alter_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    schema_sequences::parse_alter_sequence_statement(sql)
 }
 
 pub(super) fn parse_create_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> {

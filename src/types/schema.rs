@@ -144,6 +144,9 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
     }
 
     let lower = raw.to_lowercase();
+    if let Some(temporal) = super::extended::temporal_type_name(&lower) {
+        return temporal;
+    }
     if let Some(local_name) = lower.strip_prefix("pg_catalog.") {
         let name = local_name
             .split_once('(')

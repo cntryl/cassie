@@ -907,8 +907,8 @@ fn should_preserve_same_second_timestamp_order_across_index_paths() {
             assert_eq!(
                 min_max.rows(),
                 vec![vec![
-                    Value::String("2024-01-01T12:00:00.000000Z".to_string()),
-                    Value::String("2024-01-01T12:00:00.750000Z".to_string()),
+                    Value::String("2024-01-01 12:00:00".to_string()),
+                    Value::String("2024-01-01 12:00:00.75".to_string()),
                 ]]
             );
             let Value::String(plan) = &explain.rows()[0][0] else {

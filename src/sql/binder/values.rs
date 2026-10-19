@@ -128,6 +128,8 @@ fn validate(
         crate::sql::literal_inputs::validate_with_controls(expr, data_type, *identity, controls)?;
     }
     match expression {
+        Expr::Function(function) if crate::sql::functions::is_temporal_function(&function.name) => {
+        }
         Expr::Function(_) | Expr::Exists(_) => {
             return Err(CassieError::Unsupported(
                 "functions and subqueries in VALUES are not yet supported".into(),

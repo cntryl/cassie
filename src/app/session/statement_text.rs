@@ -31,6 +31,7 @@ impl CassieSession {
                 })
                 .ok_or_else(|| CassieError::ResourceLimit("statement text size overflow".into()))?,
         )?;
+        self.install_temporal_session(controls);
         let mut session = self.clone();
         session.statement_text = Some(Arc::new(StatementText {
             sql: sql.to_owned(),

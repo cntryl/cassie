@@ -49,10 +49,9 @@ fn should_cast_values_at_every_documented_type_boundary() {
             Value::String("\\x0a0b".to_string()),
         ),
         (
-            // The wire timestamp-zone contract separately observes offset
-            // handling; this fixture checks the finite internal representation.
+            // PostgreSQL 18.6 renders timestamp output in ISO DateStyle.
             "CAST('2024-01-01T09:00:00' AS TIMESTAMP)",
-            Value::String("2024-01-01T09:00:00.000000Z".to_string()),
+            Value::String("2024-01-01 09:00:00".to_string()),
         ),
         // DATE and TIME appeared only in the rejection matrix, so nothing
         // proved a valid value of either type casts at all.

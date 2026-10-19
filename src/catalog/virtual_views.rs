@@ -25,6 +25,8 @@ mod virtual_views_repair;
 mod virtual_views_sequences;
 #[path = "virtual_views_storage.rs"]
 mod virtual_views_storage;
+#[path = "virtual_views_timezones.rs"]
+mod virtual_views_timezones;
 
 #[must_use]
 pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
@@ -101,6 +103,7 @@ fn pg_catalog_schema(name: &str) -> Option<Vec<(String, DataType)>> {
         .or_else(|| virtual_views_relations::schema(name))
         .or_else(|| virtual_views_projections::schema(name))
         .or_else(|| pg_catalog_runtime_schema(name))
+        .or_else(|| virtual_views_timezones::schema(name))
 }
 
 fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
@@ -269,7 +272,8 @@ fn pg_catalog_rows_for(
 ) -> Option<Vec<VirtualRow>> {
     let rows = pg_catalog_core_rows(catalog, name, current_database)
         .or_else(|| virtual_views_projections::rows(catalog, name))
-        .or_else(|| pg_catalog_runtime_rows(catalog, name))?;
+        .or_else(|| pg_catalog_runtime_rows(catalog, name))
+        .or_else(|| virtual_views_timezones::rows(name))?;
     Some(filter_pg_catalog_rows(
         catalog,
         name,

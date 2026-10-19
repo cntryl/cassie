@@ -106,6 +106,9 @@ pub struct QueryExecutionControls {
     relational_cte_boundary: bool,
     memory: Arc<QueryMemoryTracker>,
     statement_read: Option<Arc<crate::midge::adapter::StatementDataRead>>,
+    /// The statement's `TimeZone`, `DateStyle` and clocks, shared by clones.
+    temporal:
+        Arc<parking_lot::RwLock<Option<Arc<crate::types::extended::temporal::TemporalSession>>>>,
 }
 
 #[derive(Debug)]
@@ -247,12 +250,29 @@ impl QueryExecutionControls {
             cte_recursion_depth: limits.cte_recursion_depth,
             cancellation,
             relational_cte_boundary: false,
+            temporal: Arc::default(),
             memory: Arc::new(QueryMemoryTracker {
                 budget: limits.query_memory_budget_bytes,
                 used: AtomicUsize::new(0),
                 peak: AtomicUsize::new(0),
             }),
         }
+    }
+
+    /// Installs the statement's temporal session for evaluation and output.
+    pub(crate) fn install_temporal_session(
+        &self,
+        session: Arc<crate::types::extended::temporal::TemporalSession>,
+    ) {
+        *self.temporal.write() = Some(session);
+    }
+
+    /// The statement's temporal session, when one was installed.
+    #[must_use]
+    pub(crate) fn temporal_session(
+        &self,
+    ) -> Option<Arc<crate::types::extended::temporal::TemporalSession>> {
+        self.temporal.read().clone()
     }
 
     /// Returns controls for an input relation that must be fully

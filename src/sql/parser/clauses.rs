@@ -75,6 +75,10 @@ pub(super) fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
     ] {
         let mut cursor = 0;
         while let Some((position, end)) = find_top_level_keyword_span(rest, cursor, token.0) {
+            if follows_alias_keyword(&rest[..position]) {
+                cursor = position + 1;
+                continue;
+            }
             matches.push(ClauseMatch {
                 position,
                 end,
@@ -105,6 +109,21 @@ pub(super) fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
     }
 
     Ok(ordered)
+}
+
+/// A clause keyword directly after `AS` is a column alias (`AS offset`).
+fn follows_alias_keyword(before: &str) -> bool {
+    let trimmed = before.trim_end();
+    let Some(split) = trimmed.len().checked_sub(2) else {
+        return false;
+    };
+    trimmed
+        .get(split..)
+        .is_some_and(|keyword| keyword.eq_ignore_ascii_case("as"))
+        && trimmed[..split]
+            .chars()
+            .next_back()
+            .is_none_or(char::is_whitespace)
 }
 
 pub(super) fn find_top_level_keyword(rest: &str, start: usize, token: &str) -> Option<usize> {

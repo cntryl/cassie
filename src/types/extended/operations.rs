@@ -27,6 +27,7 @@ pub const fn handles(kind: &DataType) -> bool {
 #[must_use]
 pub const fn handles_value(value: &TypedValue) -> bool {
     !matches!(value, TypedValue::Real(_) | TypedValue::Numeric(_))
+        && !super::temporal::ops::is_temporal(value)
 }
 
 /// The result type of `left op right`, or `None` when no extended

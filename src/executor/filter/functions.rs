@@ -89,7 +89,8 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
         .or_else(|| super::conditional::evaluate(name, args))
         .or_else(|| {
             let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
-            super::hash_functions::evaluate(local, args)
+            super::temporal_functions::evaluate(local, args, controls)
+                .or_else(|| super::hash_functions::evaluate(local, args))
                 .or_else(|| bytea_functions::evaluate(local, args, controls))
                 .or_else(|| math_random::evaluate(local, args, session))
                 .or_else(|| math_functions::evaluate(local, args))
@@ -664,6 +665,11 @@ fn parse_duration_parts(raw: &str) -> Result<(i128, String), QueryError> {
 }
 
 fn timestamp_arg_ns(name: &str, value: &Value) -> Result<i128, QueryError> {
+    if let Value::Typed(typed) = value {
+        if let Some(raw) = crate::types::extended::temporal_legacy_text(typed) {
+            return parse_timestamp_utc(&raw);
+        }
+    }
     let Value::String(raw) = value else {
         return Err(QueryError::General(format!(
             "function '{name}' expects timestamp input"

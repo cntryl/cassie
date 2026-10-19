@@ -99,7 +99,9 @@ fn should_reject_invalid_string_backed_array_elements() {
         (DataType::Uuid, r#"["bad"]"#),
         (DataType::Bytea, r#"["\\xgg"]"#),
         (DataType::Date, r#"["2000-13-01"]"#),
-        (DataType::Time, r#"["24:00:00"]"#),
+        // PostgreSQL 18.6 accepts the 24:00:00 endpoint; 25:00:00 is out of
+        // range (docs/testing/oracle-corrections.md, ORACLE-T09).
+        (DataType::Time, r#"["25:00:00"]"#),
         (DataType::Timestamp, r#"["bad"]"#),
     ];
 

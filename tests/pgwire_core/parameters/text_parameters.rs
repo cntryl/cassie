@@ -153,8 +153,8 @@ fn should_reject_malformed_text_temporal_parameters() {
     let batches = run_against_seeded("text-temporal-rejects", &queries);
 
     // Assert
-    for frames in &batches {
-        assert_eq!(support::error_code(frames).as_deref(), Some("08P01"));
+    for (frames, expected) in batches.iter().zip(["22007", "22008", "22008"]) {
+        assert_eq!(support::error_code(frames).as_deref(), Some(expected));
         assert_eq!(
             support::data_rows(frames),
             [] as [std::vec::Vec<std::option::Option<std::string::String>>; 0]

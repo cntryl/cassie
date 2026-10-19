@@ -89,6 +89,18 @@ fn cast_constant<R: RowAccess + ?Sized>(
         .transpose()
 }
 
+fn controls_of(context: ConstantContext<'_>) -> Option<&crate::runtime::QueryExecutionControls> {
+    context
+        .controls
+        .or(context.evaluation.controls)
+        .or_else(|| {
+            context
+                .evaluation
+                .session
+                .and_then(crate::app::CassieSession::statement_execution_controls)
+        })
+}
+
 fn resolve<R: RowAccess + ?Sized>(
     expr: &Expr,
     row: &R,
@@ -130,13 +142,19 @@ fn resolve<R: RowAccess + ?Sized>(
         } => resolved_logical(left, op, right, row, context),
         Expr::Binary { left, op, right } => {
             match (resolve(left, row, context)?, resolve(right, row, context)?) {
-                (Some(left), Some(right)) => binary_scalar(&left, op, &right).map(Some),
+                (Some(left), Some(right)) => {
+                    super::temporal::binary_or_scalar(&left, op, &right, controls_of(context))
+                        .map(Some)
+                }
                 _ => Ok(None),
             }
         }
         Expr::Cast { .. } => cast_constant(expr, row, context),
         Expr::UnaryNumeric { expr, op } => resolve(expr, row, context)?
-            .map(|value| super::unary_numeric::evaluate(&value, *op))
+            .map(|value| {
+                super::temporal::negate(&value)
+                    .unwrap_or_else(|| super::unary_numeric::evaluate(&value, *op))
+            })
             .transpose(),
         Expr::IntegerNegate { expr, width } => resolve(expr, row, context)?
             .map(|value| super::integers::negate(&value, *width))
@@ -218,7 +236,9 @@ fn resolved_logical<R: RowAccess + ?Sized>(
         return Ok(right);
     }
     match (left, right) {
-        (Some(left), Some(right)) => binary_scalar(&left, op, &right).map(Some),
+        (Some(left), Some(right)) => {
+            super::temporal::binary_or_scalar(&left, op, &right, controls_of(context)).map(Some)
+        }
         _ => Ok(None),
     }
 }

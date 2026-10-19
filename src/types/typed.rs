@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::extended::bit_string::{self, BitString};
 use super::extended::network::{self, NetAddr, NetworkKey};
+use super::extended::temporal::{self, Interval, TemporalSession, TimeTz};
 use super::extended::{numeric, pg_lsn, real, ExtendedType};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -20,6 +21,16 @@ pub enum TypedValue {
     PgLsn(u64),
     Bit(BitString),
     VarBit(BitString),
+    /// Days since 2000-01-01 (`i32::MIN`/`MAX` are `-infinity`/`infinity`).
+    Date(i32),
+    /// Microseconds since midnight.
+    Time(i64),
+    TimeTz(TimeTz),
+    /// Microseconds since 2000-01-01 00:00 (wall clock).
+    Timestamp(i64),
+    /// Microseconds since 2000-01-01 00:00 UTC.
+    TimestampTz(i64),
+    Interval(Interval),
 }
 
 /// A totally ordered, hashable key with PostgreSQL ordering semantics.
@@ -36,6 +47,13 @@ pub enum TypedKey {
     PgLsn(u64),
     /// `bit` and `bit varying` share `bit_cmp`: bytes, then bit length.
     Bits(Vec<u8>, usize),
+    Date(i32),
+    Time(i64),
+    TimeTz(i64, i32),
+    Timestamp(i64),
+    TimestampTz(i64),
+    /// 30-day months and 24-hour days, as `interval_cmp` orders them.
+    Interval(i128),
 }
 
 impl TypedValue {
@@ -51,13 +69,45 @@ impl TypedValue {
             Self::PgLsn(_) => ExtendedType::PgLsn,
             Self::Bit(_) => ExtendedType::Bit { length: None },
             Self::VarBit(_) => ExtendedType::VarBit { length: None },
+            Self::Date(_) => ExtendedType::Date,
+            Self::Time(_) => ExtendedType::Time { precision: None },
+            Self::TimeTz(_) => ExtendedType::TimeTz { precision: None },
+            Self::Timestamp(_) => ExtendedType::Timestamp { precision: None },
+            Self::TimestampTz(_) => ExtendedType::TimestampTz { precision: None },
+            Self::Interval(_) => ExtendedType::Interval { typmod: -1 },
         }
     }
 
     /// `typoutput`: the canonical PostgreSQL text form.
     #[must_use]
     pub fn text(&self) -> String {
+        self.text_in(temporal::default_session())
+    }
+
+    /// The schema type this value belongs to; the natively carried
+    /// `date`/`time`/`timestamp` map back to their existing schema types.
+    #[must_use]
+    pub const fn data_type(&self) -> super::DataType {
         match self {
+            Self::Date(_) => super::DataType::Date,
+            Self::Time(_) => super::DataType::Time,
+            Self::Timestamp(_) => super::DataType::Timestamp,
+            other => super::DataType::Extended(other.kind()),
+        }
+    }
+
+    /// The text output under a session's `TimeZone`, `DateStyle` and
+    /// `IntervalStyle`.
+    #[must_use]
+    pub fn text_in(&self, session: &TemporalSession) -> String {
+        use temporal::encode;
+        match self {
+            Self::Date(value) => encode::format_date(*value, session),
+            Self::Time(value) => encode::format_time(*value),
+            Self::TimeTz(value) => encode::format_timetz(value.time, value.zone),
+            Self::Timestamp(value) => encode::format_timestamp(*value, session),
+            Self::TimestampTz(value) => encode::format_timestamptz(*value, session),
+            Self::Interval(value) => value.format(session.interval_style),
             Self::Real(value) => real::format_text(*value),
             Self::Numeric(value) => value.to_string(),
             Self::Inet(value) => network::format_network(*value, false),
@@ -88,6 +138,15 @@ impl TypedValue {
                 let (bytes, len) = value.order_key();
                 TypedKey::Bits(bytes, len)
             }
+            Self::Date(value) => TypedKey::Date(*value),
+            Self::Time(value) => TypedKey::Time(*value),
+            Self::TimeTz(value) => {
+                let (time, zone) = value.order_key();
+                TypedKey::TimeTz(time, zone)
+            }
+            Self::Timestamp(value) => TypedKey::Timestamp(*value),
+            Self::TimestampTz(value) => TypedKey::TimestampTz(*value),
+            Self::Interval(value) => TypedKey::Interval(value.order_key()),
         }
     }
 
@@ -105,7 +164,13 @@ impl TypedValue {
             | Self::Cidr(_)
             | Self::Macaddr(_)
             | Self::Macaddr8(_)
-            | Self::PgLsn(_) => 0,
+            | Self::PgLsn(_)
+            | Self::Date(_)
+            | Self::Time(_)
+            | Self::TimeTz(_)
+            | Self::Timestamp(_)
+            | Self::TimestampTz(_)
+            | Self::Interval(_) => 0,
         }
     }
 
@@ -121,6 +186,12 @@ impl TypedValue {
             Self::Macaddr8(value) => value.to_vec(),
             Self::PgLsn(value) => value.to_be_bytes().to_vec(),
             Self::Bit(value) | Self::VarBit(value) => bit_string::send_binary(value),
+            Self::Date(value) => value.to_be_bytes().to_vec(),
+            Self::Time(value) | Self::Timestamp(value) | Self::TimestampTz(value) => {
+                value.to_be_bytes().to_vec()
+            }
+            Self::TimeTz(value) => temporal::send_timetz(value),
+            Self::Interval(value) => temporal::send_interval(value),
         }
     }
 
@@ -136,7 +207,13 @@ impl TypedValue {
             | Self::Macaddr8(_)
             | Self::PgLsn(_)
             | Self::Bit(_)
-            | Self::VarBit(_) => None,
+            | Self::VarBit(_)
+            | Self::Date(_)
+            | Self::Time(_)
+            | Self::TimeTz(_)
+            | Self::Timestamp(_)
+            | Self::TimestampTz(_)
+            | Self::Interval(_) => None,
         }
     }
 }

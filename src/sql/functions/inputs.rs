@@ -5,6 +5,9 @@ use crate::types::extended::ExtendedType;
 use crate::types::DataType;
 
 pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> bool {
+    if super::temporal::aggregate_input(id, data_type) {
+        return true;
+    }
     match id {
         FunctionId::Sum | FunctionId::Avg => matches!(
             data_type,

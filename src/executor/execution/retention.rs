@@ -180,7 +180,11 @@ fn enforce_with_held_referential_gates(
             skipped += 1;
             continue;
         };
-        let Some(timestamp) = value.as_str().and_then(|raw| parse_timestamp(raw).ok()) else {
+        let raw = match value {
+            Value::Typed(typed) => crate::types::extended::temporal_legacy_text(typed),
+            other => other.as_str().map(str::to_owned),
+        };
+        let Some(timestamp) = raw.and_then(|raw| parse_timestamp(&raw).ok()) else {
             skipped += 1;
             continue;
         };

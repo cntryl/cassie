@@ -64,3 +64,36 @@ Decimal literals are `numeric`; the binder folds a decimal literal compared
 with a `double precision` operand to float8. Integral `numeric` values share
 the integer semantic key so int/numeric joins, grouping and set operations
 agree.
+## Temporal family
+
+`date`, `time`, `timetz`, `timestamp`, `timestamptz` and `interval` are
+carried natively (`TypedValue::Date(i32)` days since 2000-01-01,
+`Time(i64)`/`Timestamp(i64)`/`TimestampTz(i64)` microseconds,
+`TimeTz { time, zone }` with PostgreSQL's seconds-west zone, and
+`Interval { months, days, micros }`), with `i32::MIN`/`MAX` and
+`i64::MIN`/`MAX` as `-infinity`/`infinity`. The port of PostgreSQL's
+`datetime.c`, `timestamp.c` and `formatting.c` lives in
+`src/types/extended/temporal/`:
+
+| Module | Responsibility |
+| --- | --- |
+| `calendar` | Julian-day calendar, ISO weeks, typmod rounding |
+| `tokens`, `decode`, `time_input` | `ParseDateTime`, `DecodeDateTime`, `DecodeTimeOnly` |
+| `interval`, `interval_input` | interval output styles, ordering, arithmetic, `DecodeInterval`, ISO 8601 |
+| `encode` | `DateStyle` output (ISO, SQL, Postgres, German) |
+| `zone` | IANA zones from the bundled tz database (`jiff`), POSIX rules, fixed offsets, abbreviations; DST gaps take the earlier offset and folds the later one |
+| `ops` | `+ - * /` overloads and cross-type comparison |
+| `functions`, `format` | `date_trunc`, `date_part`, `date_bin`, `age`, `make_*`, `to_char`, `to_date`, `to_timestamp` |
+| `session` | the statement's `TimeZone`, `DateStyle`, `IntervalStyle`, `timezone_abbreviations` and clocks |
+
+Columns declared `date`, `time` or `timestamp` without a precision keep their
+existing schema types and storage; their values are read natively. A
+precision (`timestamp(3)`) or `with time zone` selects the extended type, whose
+typmod is reported as `atttypmod`.
+
+Each statement installs a `TemporalSession` into its
+`QueryExecutionControls` (`CassieSession::with_statement_text`): input without
+an explicit zone, `timestamptz` output, calendar arithmetic and `now()` use
+it. `now()`/`transaction_timestamp()` are fixed for an explicit transaction,
+`statement_timestamp()` per statement and `clock_timestamp()` per call;
+statements that read the clock bypass the result cache.

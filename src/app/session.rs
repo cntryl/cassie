@@ -7,6 +7,8 @@ mod owned_setting;
 mod random_state;
 pub(crate) use random_state::SessionRandom;
 mod setting_control;
+mod temporal_context;
+pub(crate) use temporal_context::setting_zone;
 mod transaction_control;
 #[path = "session/transaction_origin.rs"]
 mod transaction_origin;
@@ -42,6 +44,9 @@ pub struct CassieSession {
     pub(super) sequence_values: Arc<Mutex<super::session_sequences::SessionSequenceValues>>,
     #[serde(skip)]
     random: Arc<Mutex<SessionRandom>>,
+    /// The transaction generation and its `transaction_timestamp()`.
+    #[serde(skip)]
+    transaction_clock: Arc<Mutex<Option<(u64, i64)>>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,6 +68,8 @@ struct SessionTransactionState {
     conflict_intents: Vec<TransactionConflictIntent>,
     savepoints: Vec<SessionSavepoint>,
     session_state: Option<SessionStateSnapshot>,
+    /// Settings changed by `SET LOCAL`, restored when the transaction ends.
+    local_settings: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -209,9 +216,11 @@ impl CassieSession {
                 conflict_intents: Vec::new(),
                 savepoints: Vec::new(),
                 session_state: None,
+                local_settings: Vec::new(),
             })),
             procedure_calls: Arc::new(Mutex::new(Vec::new())),
             random: Arc::new(Mutex::new(SessionRandom::default())),
+            transaction_clock: Arc::default(),
         }
     }
 
@@ -274,9 +283,11 @@ impl CassieSession {
                 conflict_intents,
                 savepoints: Vec::new(),
                 session_state: None,
+                local_settings: Vec::new(),
             })),
             procedure_calls: Arc::new(Mutex::new(self.procedure_calls.lock().clone())),
             random: Arc::clone(&self.random),
+            transaction_clock: Arc::clone(&self.transaction_clock),
         };
 
         Ok(StatementMutationBatch {

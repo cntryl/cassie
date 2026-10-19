@@ -264,11 +264,12 @@ impl QueryResultBuilder<'_> {
         I: Iterator<Item = &'v Value> + Clone,
     {
         self.controls.check_interruption()?;
+        let temporal = crate::executor::filter::temporal::session_of(Some(self.controls));
         let (count, variable_bytes) =
             values.clone().try_fold((0, 0), |(count, bytes), value| {
                 self.controls.check_interruption()?;
                 let value_bytes = match value {
-                    Value::Typed(typed) => typed.text().len(),
+                    Value::Typed(typed) => typed.text_in(&temporal).len(),
                     other => value_clone_bytes(other)?,
                 };
                 Ok::<_, CassieError>((add(count, 1)?, add(bytes, value_bytes)?))
@@ -285,7 +286,7 @@ impl QueryResultBuilder<'_> {
             self.controls.check_interruption()?;
             // Natively represented types publish their PostgreSQL text output.
             pending.values.push(match value {
-                Value::Typed(typed) => Value::String(typed.text()),
+                Value::Typed(typed) => Value::String(typed.text_in(&temporal)),
                 other => other.clone(),
             });
         }

@@ -7,12 +7,24 @@
 
 use super::ExtendedQueryError;
 use crate::types::builtin::{builtin_for_oid, BuiltinKind};
-use crate::types::temporal::{canonical_date, canonical_time, canonical_timestamp};
+use crate::types::extended::ExtendedType;
 use crate::types::{DataType, Value};
 
 // Text-only historical numeric adapters; their complete types/codecs remain staged.
 const OID_FLOAT4: i32 = 700;
 const OID_NUMERIC: i32 = 1700;
+
+/// Temporal text parameters decode natively; zone-free `timestamptz`
+/// text stays text for the statement's `TimeZone`.
+fn temporal_parameter(text: &str, kind: ExtendedType) -> Result<Value, ExtendedQueryError> {
+    match crate::types::extended::temporal_parameter_from_text(kind, text) {
+        Some(Ok(value)) => Ok(Value::Typed(value)),
+        Some(Err(error)) => Err(ExtendedQueryError::cassie(
+            &crate::app::CassieError::TypeInput(error),
+        )),
+        None => Ok(Value::String(text.to_string())),
+    }
+}
 
 pub(super) fn decode_text_parameter(
     parameter: &[u8],
@@ -39,17 +51,16 @@ pub(super) fn decode_text_parameter(
         Some(BuiltinKind::Json) => serde_json::from_str(text)
             .map(Value::Json)
             .map_err(|_| ExtendedQueryError::protocol("invalid JSON bind parameter")),
-        Some(BuiltinKind::Date) => {
-            canonical_text(text, canonical_date, "invalid date bind parameter")
+        Some(BuiltinKind::Date) => temporal_parameter(text, ExtendedType::Date),
+        Some(BuiltinKind::Time) => temporal_parameter(text, ExtendedType::Time { precision: None }),
+        Some(BuiltinKind::Timestamp) => {
+            temporal_parameter(text, ExtendedType::Timestamp { precision: None })
         }
-        Some(BuiltinKind::Time) => {
-            canonical_text(text, canonical_time, "invalid time bind parameter")
-        }
-        Some(BuiltinKind::Timestamp) => canonical_text(
-            text,
-            canonical_timestamp,
-            "invalid timestamp bind parameter",
-        ),
+        Some(BuiltinKind::Extended(
+            kind @ (ExtendedType::TimeTz { .. }
+            | ExtendedType::TimestampTz { .. }
+            | ExtendedType::Interval { .. }),
+        )) => temporal_parameter(text, kind),
         Some(BuiltinKind::Uuid) => uuid::Uuid::parse_str(text.trim())
             .map(|uuid| Value::String(uuid.to_string()))
             .map_err(|_| ExtendedQueryError::invalid_input_syntax("uuid", text)),
@@ -125,16 +136,6 @@ fn parse_numeric(text: &str) -> Result<Value, ExtendedQueryError> {
     text.parse::<f64>()
         .map(Value::Float64)
         .map_err(|_| ExtendedQueryError::protocol("invalid numeric bind parameter"))
-}
-
-fn canonical_text(
-    text: &str,
-    canonicalize: fn(&str) -> Result<String, String>,
-    error: &str,
-) -> Result<Value, ExtendedQueryError> {
-    canonicalize(text.trim())
-        .map(Value::String)
-        .map_err(|_| ExtendedQueryError::protocol(error))
 }
 
 #[path = "text_encoding.rs"]

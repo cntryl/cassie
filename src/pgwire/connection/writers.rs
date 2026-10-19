@@ -36,13 +36,18 @@ pub(super) async fn write_parameter_statuses(
     for spec in crate::app::all_session_settings() {
         if matches!(
             spec.name,
-            "search_path" | "client_min_messages" | "bytea_output" | "extra_float_digits"
+            "search_path"
+                | "client_min_messages"
+                | "bytea_output"
+                | "extra_float_digits"
+                | "timezone_abbreviations"
         ) {
             continue;
         }
         let key = match spec.name {
             "datestyle" => "DateStyle",
             "timezone" => "TimeZone",
+            "intervalstyle" => "IntervalStyle",
             name => name,
         };
         let value = session.setting(spec.name).map_err(io::Error::other)?;

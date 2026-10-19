@@ -27,6 +27,8 @@ mod qualified_operators;
 mod row_predicates;
 #[path = "string_literals.rs"]
 mod string_literals;
+#[path = "temporal_syntax.rs"]
+mod temporal_syntax;
 #[path = "truth_predicates.rs"]
 mod truth_predicates;
 #[path = "unary_numeric.rs"]
@@ -105,6 +107,9 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
 
     if let Some(truth) = truth_predicates::parse(raw)? {
         return Ok(truth);
+    }
+    if let Some(overlaps) = temporal_syntax::overlaps(raw)? {
+        return Ok(overlaps);
     }
     for (suffix, negated) in [(" isnull", false), (" notnull", true)] {
         if let Some(operand) = super::lexical::strip_keyword_suffix(raw, suffix) {
@@ -350,6 +355,9 @@ fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
             op: BinaryOp::Power,
         });
     }
+    if let Some(expression) = temporal_syntax::at_time_zone(raw)? {
+        return Ok(expression);
+    }
     unary_numeric::parse(raw)
 }
 
@@ -577,6 +585,9 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     }
     if raw.eq_ignore_ascii_case("false") {
         return Ok(Expr::BoolLiteral(false));
+    }
+    if let Some(expression) = temporal_syntax::token(raw)? {
+        return Ok(expression);
     }
     if let Some(column) = parse_quoted_identifier_chain(raw)? {
         return Ok(Expr::Column(if column.is_qualified() {

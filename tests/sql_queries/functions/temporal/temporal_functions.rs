@@ -21,9 +21,13 @@ fn assert_true(label: &str, sql: &str) {
 fn assert_millisecond_precision(label: &str, sql: &str) {
     let fixture = sql_fixture(label, &[]);
     let result = fixture.execute(sql).expect("temporal precision expression");
-    let microseconds = result.rows()[0][0]
-        .as_f64()
-        .expect("EXTRACT returns a numeric microsecond field");
+    // EXTRACT returns numeric, published as its PostgreSQL text
+    // (docs/testing/oracle-corrections.md, ORACLE-T11).
+    let microseconds = match &result.rows()[0][0] {
+        Value::String(text) => text.parse::<f64>().ok(),
+        other => other.as_f64(),
+    }
+    .expect("EXTRACT returns a numeric microsecond field");
     assert_eq!(
         microseconds % 1_000.0,
         0.0,

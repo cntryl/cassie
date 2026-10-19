@@ -130,7 +130,7 @@ fn expression_operand_family(
                 validate_expression_operand_families(argument, field_types)?;
             }
             vector::validate_vector_function_query(function, field_types)?;
-            Ok(None)
+            Ok(temporal_function_family(function, field_types))
         }
         Expr::RowCompare(comparison) => {
             for (left, right) in comparison.left.iter().zip(&comparison.right) {
@@ -140,7 +140,9 @@ fn expression_operand_family(
         }
         Expr::UnaryNumeric { expr, .. } | Expr::IntegerNegate { expr, .. } => {
             match expression_operand_family(expr, field_types)? {
-                Some(family @ OperandFamily::Typed(_)) => Ok(Some(family)),
+                Some(family @ (OperandFamily::Typed(_) | OperandFamily::Temporal)) => {
+                    Ok(Some(family))
+                }
                 _ => Ok(Some(OperandFamily::Numeric)),
             }
         }
@@ -198,6 +200,25 @@ fn expression_operand_family(
             Ok(Some(OperandFamily::Boolean))
         }
     }
+}
+
+/// The family of a date/time builtin's result, when its type is known.
+fn temporal_function_family(
+    function: &crate::sql::ast::FunctionCall,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Option<OperandFamily> {
+    let argument_type = |index: usize| {
+        function
+            .args
+            .get(index)
+            .and_then(|argument| super::known_expr_type(argument, field_types))
+    };
+    crate::sql::functions::temporal_return_type(
+        &function.name.to_ascii_lowercase(),
+        &function.args,
+        &argument_type,
+    )
+    .map(|data_type| data_type_family(&data_type))
 }
 
 fn binary_operand_family(
@@ -287,6 +308,10 @@ fn binary_operand_family(
         | BinaryOp::Div
         | BinaryOp::Modulo
         | BinaryOp::Bitwise { .. } => {
+            // Date/time arithmetic types are resolved by the temporal operators.
+            if [left_family, right_family].contains(&Some(OperandFamily::Temporal)) {
+                return Ok(None);
+            }
             require_family(left_family, OperandFamily::Numeric, "arithmetic")?;
             require_family(right_family, OperandFamily::Numeric, "arithmetic")?;
             Ok(Some(OperandFamily::Numeric))
@@ -444,6 +469,8 @@ pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
         | DataType::ObjectId(_) => OperandFamily::Numeric,
         DataType::Extended(kind) => match kind.family() {
             crate::types::extended::ExtendedFamily::Numeric => OperandFamily::Numeric,
+            crate::types::extended::ExtendedFamily::Temporal
+            | crate::types::extended::ExtendedFamily::Timespan => OperandFamily::Temporal,
             family => OperandFamily::Typed(family),
         },
         DataType::Boolean => OperandFamily::Boolean,

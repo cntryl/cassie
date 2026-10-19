@@ -87,6 +87,7 @@ impl CassieSession {
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
         transaction.session_state = Some(session_state);
+        transaction.local_settings.clear();
         Ok(())
     }
 
@@ -209,7 +210,30 @@ impl CassieSession {
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
-        transaction.session_state = None;
+        let session_state = transaction.session_state.take();
+        let locals = std::mem::take(&mut transaction.local_settings);
+        drop(transaction);
+        if let Some(state) = session_state {
+            let mut settings = self.settings.lock();
+            for name in locals {
+                settings.restore_from(&name, &state.settings);
+            }
+        }
+    }
+
+    /// `SET LOCAL`: applies a setting until the transaction ends. Outside a
+    /// transaction block it has no effect, as in PostgreSQL.
+    pub(crate) fn set_local_setting(&self, name: &str, value: &str) -> Result<(), CassieError> {
+        let mut transaction = self.transaction.lock();
+        if transaction.status != SessionTransactionStatus::InTransaction {
+            return Ok(());
+        }
+        let name = name.to_ascii_lowercase();
+        if !transaction.local_settings.contains(&name) {
+            transaction.local_settings.push(name.clone());
+        }
+        drop(transaction);
+        self.settings.lock().set(&name, value).map(|_| ())
     }
 
     pub(crate) fn rollback_transaction(&self) {
@@ -223,6 +247,7 @@ impl CassieSession {
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
+        transaction.local_settings.clear();
         if let Some(session_state) = session_state {
             self.restore_session_state(session_state);
         }

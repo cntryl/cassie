@@ -180,8 +180,12 @@ fn inserted_row_to_batch_row(
                 && crate::types::json::requires_document_carrier(value)
             {
                 Value::Json(value.clone())
+            } else if let DataType::Extended(kind) = &field.data_type {
+                kind.from_json(value)
+                    .map_or_else(|_| json_to_value(value), Value::Typed)
             } else {
-                json_to_value(value)
+                crate::types::extended::temporal_column_value(value, &field.data_type)
+                    .map_or_else(|| json_to_value(value), Value::Typed)
             }
         });
         row.push((field.name.clone(), value));

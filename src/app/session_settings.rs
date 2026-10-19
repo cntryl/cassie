@@ -4,6 +4,9 @@ use serde::Serialize;
 
 use super::CassieError;
 
+#[path = "session_settings/temporal.rs"]
+mod temporal;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SettingKind {
     Mutable,
@@ -41,7 +44,7 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
     SettingSpec {
         name: "datestyle",
         default: "ISO, MDY",
-        kind: SettingKind::Fixed,
+        kind: SettingKind::Mutable,
     },
     SettingSpec {
         name: "default_transaction_read_only",
@@ -62,6 +65,11 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
         name: "integer_datetimes",
         default: "on",
         kind: SettingKind::Fixed,
+    },
+    SettingSpec {
+        name: "intervalstyle",
+        default: "postgres",
+        kind: SettingKind::Mutable,
     },
     SettingSpec {
         name: "search_path",
@@ -86,7 +94,12 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
     SettingSpec {
         name: "timezone",
         default: "UTC",
-        kind: SettingKind::Fixed,
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
+        name: "timezone_abbreviations",
+        default: "Default",
+        kind: SettingKind::Mutable,
     },
 ];
 
@@ -128,13 +141,35 @@ impl SessionSettings {
         Ok(value)
     }
 
+    /// Restores one setting's value from an earlier snapshot.
+    pub(crate) fn restore_from(&mut self, name: &str, snapshot: &Self) {
+        let Ok(spec) = find(name) else {
+            return;
+        };
+        match snapshot.mutable.get(spec.name) {
+            Some(value) => {
+                self.mutable.insert(spec.name.to_string(), value.clone());
+            }
+            None => {
+                self.mutable.remove(spec.name);
+            }
+        }
+    }
+
     pub(crate) fn reset_all(&mut self) {
         self.mutable.clone_from(&self.startup);
     }
 
     pub(crate) fn set(&mut self, name: &str, value: &str) -> Result<String, CassieError> {
         let spec = find(name)?;
-        let canonical = validate_value(spec, value)?;
+        let current = self
+            .mutable
+            .get(spec.name)
+            .map_or(spec.default, String::as_str);
+        let canonical = match temporal::canonical(spec.name, value, current) {
+            Some(canonical) => canonical?,
+            None => validate_value(spec, value)?,
+        };
         if spec.kind == SettingKind::Mutable {
             self.mutable
                 .insert(spec.name.to_string(), canonical.clone());
@@ -177,7 +212,6 @@ fn validate_value(spec: &SettingSpec, value: &str) -> Result<String, CassieError
                 | "warning"
                 | "error"
         ),
-        "datestyle" => matches!(trimmed.to_ascii_lowercase().as_str(), "iso" | "iso, mdy"),
         "client_encoding" | "server_encoding" => {
             matches!(trimmed.to_ascii_lowercase().as_str(), "utf8" | "utf-8")
         }
@@ -190,7 +224,6 @@ fn validate_value(spec: &SettingSpec, value: &str) -> Result<String, CassieError
         )));
     }
     Ok(match spec.name {
-        "datestyle" => "ISO, MDY".to_string(),
         "client_encoding" | "server_encoding" => "UTF8".to_string(),
         "client_min_messages" => trimmed.to_ascii_lowercase(),
         "default_transaction_read_only" | "default_transaction_deferrable" => {

@@ -1372,16 +1372,23 @@
     {
       "invariant": "SQL-002",
       "sql": "SELECT n FROM r GROUP BY GROUPING SETS (n)",
-      "expected_rows": null,
+      "expected_rows": [
+        [-2],
+        [0],
+        [5],
+        [7],
+        [null]
+      ],
       "ordered": false,
-      "columns": null,
-      "error": {
-        "message": "ErrorResponse",
-        "sqlstate": "0A000",
-        "message_fragment": "unsupported GROUP BY syntax",
-        "RowDescription_expected": false,
-        "not_successful_zero_column_result": true
-      }
+      "columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
     },
     {
       "invariant": "SQL-003",

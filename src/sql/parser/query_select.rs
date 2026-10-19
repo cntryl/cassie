@@ -9,6 +9,8 @@ use crate::sql::parser::clauses::{
 use crate::sql::parser::expr::{parse_expression, parse_order_by, split_csv};
 use crate::sql::parser::order_ordinals::resolve_order_ordinals;
 
+#[path = "query_select/grouping_sets.rs"]
+mod grouping_sets;
 #[path = "pagination.rs"]
 mod pagination;
 #[path = "values.rs"]
@@ -617,14 +619,13 @@ fn parse_select_clauses(
                     if !seen.insert("group by") {
                         return Err(SqlError::new("duplicate GROUP BY clause".into()));
                     }
-                    let lower = raw_value.to_ascii_lowercase();
-                    if lower.contains("grouping sets")
-                        || lower.contains("rollup")
-                        || lower.contains("cube")
-                    {
+                    if let Some(expression) = grouping_sets::single_expression(raw_value)? {
+                        parsed.group_sql = Some(expression.to_string());
+                    } else if grouping_sets::contains_unsupported_syntax(raw_value) {
                         return Err(SqlError::new("unsupported GROUP BY syntax".into()));
+                    } else {
+                        parsed.group_sql = Some(raw_value.to_string());
                     }
-                    parsed.group_sql = Some(raw_value.to_string());
                 }
                 Clause::Having => assign_clause(
                     &mut seen,

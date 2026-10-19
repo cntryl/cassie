@@ -59,7 +59,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | GROUP BY, HAVING, DISTINCT, DISTINCT ON | Supported | — |
 | GROUP BY output aliases and ordinals outside grouping sets | Supported for explicit select-list expressions, with input-column name precedence and PostgreSQL's invalid-position state. [Executed tests](../tests/sql_queries/aggregates/grouping/group_by_alias_ordinal/semantics.rs) cover aliases, ordinals, expression aliases, precedence and invalid positions. Grouped `SELECT *` remains pending because wildcard projection is not supported with grouping. | #804 |
 | GROUP BY primary-key functional dependency | Partial: single-column primary keys on direct base tables; aliased and joined forms pass focused local tests. Composite primary-key DDL remains unsupported. | #804 |
-| GROUPING SETS, ROLLUP, CUBE, `GROUPING()`, `GROUP BY DISTINCT` | Absent | #804 |
+| GROUPING SETS, ROLLUP, CUBE, `GROUPING()`, `GROUP BY DISTINCT` | Partial: single-expression `GROUPING SETS (expression)` is supported and matches `GROUP BY expression`; the focused test covers duplicate and NULL keys. Multiple/empty sets, ROLLUP, CUBE, `GROUPING()`, and `GROUP BY DISTINCT` remain absent. PostgreSQL 18.6 returns `-2, 0, 5, 7, NULL` for the SQL-002 corpus values; [Cassie test](../tests/sql_queries/aggregates/grouping/single_grouping_set/semantics.rs). | #804 |
 | ORDER BY NULLS FIRST/LAST, LIMIT/OFFSET with parameters | Supported | — |
 | `FETCH FIRST … WITH TIES`, `OFFSET … ROWS` | Absent | #800 |
 | FOR UPDATE/SHARE, NOWAIT, SKIP LOCKED | Absent | #820 |

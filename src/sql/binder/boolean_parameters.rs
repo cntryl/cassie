@@ -275,6 +275,7 @@ impl ParameterValidation<'_> {
                     if let InsertConflictAction::DoUpdate {
                         assignments,
                         filter,
+                        ..
                     } = &conflict.action
                     {
                         let schema =
@@ -296,7 +297,7 @@ impl ParameterValidation<'_> {
                 }
                 self.items(&statement.returning, &types)?;
             }
-            LogicalCommand::Update(statement) => {
+            LogicalCommand::Update(statement) if !crate::executor::update_is_joined(statement) => {
                 let types = self.scope(
                     &QuerySource::Collection(statement.table.clone()),
                     &[],
@@ -308,7 +309,7 @@ impl ParameterValidation<'_> {
                 }
                 self.items(&statement.returning, &types)?;
             }
-            LogicalCommand::Delete(statement) => {
+            LogicalCommand::Delete(statement) if !crate::executor::delete_is_joined(statement) => {
                 let types = self.scope(
                     &QuerySource::Collection(statement.table.clone()),
                     &[],

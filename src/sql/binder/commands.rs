@@ -6,8 +6,16 @@ use super::{
 };
 use crate::sql::ast::IdentifierPath;
 
+#[path = "commands/conflict.rs"]
+mod conflict;
 #[path = "commands/insert_boolean.rs"]
 mod insert_boolean;
+#[path = "commands/joined.rs"]
+mod joined;
+#[path = "commands/mutations.rs"]
+mod mutations;
+use mutations::infer_row_image_aliases;
+pub(super) use mutations::{bind_merge, bind_truncate};
 
 pub(super) fn bind_insert(
     mut statement: crate::sql::ast::InsertStatement,
@@ -36,6 +44,15 @@ pub(super) fn bind_insert(
     let schema = catalog
         .get_schema(&table)
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
+    let qualifier = mutations::target_qualifier(&table, statement.alias.as_deref());
+    infer_row_image_aliases(
+        &statement.returning,
+        &mut statement.returning_aliases,
+        &qualifier,
+    );
+    if let Some(alias) = statement.alias.clone() {
+        super::own_qualifier::strip_insert_qualifiers(&mut statement, &[alias]);
+    }
 
     let mut seen_columns = HashSet::new();
     for column in &mut statement.columns {
@@ -65,7 +82,7 @@ pub(super) fn bind_insert(
         *column = resolved_name;
     }
 
-    bind_on_conflict(
+    conflict::bind_on_conflict(
         statement.on_conflict.as_mut(),
         &schema,
         &table,
@@ -109,183 +126,6 @@ pub(super) fn bind_insert_boolean_parameters(
     insert_boolean::validate_with_parameters(statement, &schema, catalog, context, parameter_types)
 }
 
-fn bind_on_conflict(
-    on_conflict: Option<&mut crate::sql::ast::InsertConflictClause>,
-    schema: &CollectionSchema,
-    table: &str,
-    catalog: &Catalog,
-    context: &BindingContext,
-) -> Result<(), CassieError> {
-    if let Some(on_conflict) = on_conflict {
-        let mut normalized_target = Vec::with_capacity(on_conflict.target_fields.len());
-        for field in &on_conflict.target_fields {
-            let field_name = field.trim();
-            if field_name.is_empty() {
-                return Err(CassieError::Planner(
-                    "ON CONFLICT target fields cannot be empty".into(),
-                ));
-            }
-            let Some(declared) = schema.fields.iter().find(|candidate| {
-                crate::sql::ColumnIdentifierPath::parse(field_name)
-                    .is_ok_and(|reference| reference.matches_field_name(&candidate.name))
-            }) else {
-                return Err(CassieError::Planner(format!(
-                    "ON CONFLICT target column '{field_name}' does not exist in '{table}'"
-                )));
-            };
-            normalized_target.push(declared.name.clone());
-        }
-        on_conflict.target_fields = normalized_target;
-
-        if matches!(
-            on_conflict.action,
-            crate::sql::ast::InsertConflictAction::DoUpdate { .. }
-        ) && on_conflict.target_fields.is_empty()
-        {
-            return Err(CassieError::Planner(
-                "ON CONFLICT DO UPDATE requires an explicit conflict target".into(),
-            ));
-        }
-
-        if !on_conflict.target_fields.is_empty()
-            && !conflict_target_supported(catalog, table, &on_conflict.target_fields)
-        {
-            return Err(CassieError::Planner(format!(
-                "ON CONFLICT target {:?} does not match a unique or primary key on '{table}'",
-                on_conflict.target_fields
-            )));
-        }
-
-        if let crate::sql::ast::InsertConflictAction::DoUpdate {
-            assignments,
-            filter,
-        } = &mut on_conflict.action
-        {
-            validate_conflict_update(
-                assignments,
-                filter.as_mut(),
-                schema,
-                table,
-                catalog,
-                context,
-            )?;
-        }
-    }
-    Ok(())
-}
-
-fn validate_conflict_update(
-    assignments: &mut [(String, Expr)],
-    filter: Option<&mut Expr>,
-    schema: &CollectionSchema,
-    table: &str,
-    catalog: &Catalog,
-    context: &BindingContext,
-) -> Result<(), CassieError> {
-    let mut known_fields = schema
-        .fields
-        .iter()
-        .flat_map(|field| {
-            let name = crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
-            [name.clone(), format!("excluded.{name}")]
-        })
-        .collect::<HashSet<_>>();
-    let local_table = crate::catalog::local_name(table);
-    known_fields.extend(super::select::base_table_fields(table, schema));
-    known_fields.extend(super::select::base_table_fields(&local_table, schema));
-    for field in &schema.fields {
-        let field = crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
-        known_fields.insert(format!("{table}.{field}"));
-        known_fields.insert(format!("{local_table}.{field}"));
-    }
-
-    let result_types = super::coalesce_results::ResultTypes::for_source(
-        &crate::sql::ast::QuerySource::Collection(
-            IdentifierPath::parse(table).map_err(CassieError::Planner)?,
-        ),
-        &[],
-        catalog,
-        context,
-    )?
-    .with_excluded_fields(schema);
-    let mut seen = HashSet::new();
-    let mut functions = Vec::new();
-    for (target, expression) in assignments {
-        let requested = target.trim();
-        let Some(declared) = schema.fields.iter().find(|field| {
-            crate::sql::ColumnIdentifierPath::parse(requested)
-                .is_ok_and(|reference| reference.matches_field_name(&field.name))
-        }) else {
-            return Err(CassieError::Planner(format!(
-                "ON CONFLICT assignment target '{requested}' does not exist in '{table}'"
-            )));
-        };
-        let normalized = declared.name.clone();
-        if !seen.insert(normalized.clone()) {
-            return Err(CassieError::Planner(format!(
-                "ON CONFLICT assignment target '{normalized}' is duplicated"
-            )));
-        }
-        validate_expression(expression, &known_fields, &HashSet::new(), false)?;
-        super::boolean_contexts::validate_value(
-            expression,
-            &result_types,
-            Some(&declared.data_type),
-            catalog,
-            context,
-        )?;
-        super::collect_expr(expression, &mut functions);
-        *target = normalized;
-    }
-    if let Some(filter) = filter.as_deref() {
-        validate_expression(filter, &known_fields, &HashSet::new(), false)?;
-        super::collect_expr(filter, &mut functions);
-    }
-    validate_function_calls(functions, catalog, context)?;
-    if let Some(filter) = filter {
-        super::boolean_contexts::validate_predicate(
-            filter,
-            &result_types,
-            "ON CONFLICT WHERE",
-            catalog,
-            context,
-        )?;
-    }
-    Ok(())
-}
-
-fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[String]) -> bool {
-    if target_fields.is_empty() {
-        return true;
-    }
-
-    // PostgreSQL infers the arbiter from the set of target columns, so
-    // `ON CONFLICT (b, a)` matches a key declared on `(a, b)`.
-    let column_set = |fields: &mut dyn Iterator<Item = &String>| {
-        let mut set = fields
-            .map(std::string::ToString::to_string)
-            .collect::<Vec<_>>();
-        set.sort();
-        set.dedup();
-        set
-    };
-    let normalized_target = column_set(&mut target_fields.iter());
-
-    let constraints = catalog.get_constraints(table);
-    if constraints.iter().any(|constraint| {
-        crate::catalog::enforces_single_column_uniqueness(constraint, &constraints)
-            && normalized_target == [constraint.field.clone()]
-    }) {
-        return true;
-    }
-
-    catalog
-        .list_indexes(table)
-        .into_iter()
-        .filter(|index| index.unique && index.kind == crate::catalog::IndexKind::Scalar)
-        .any(|index| column_set(&mut index.normalized_fields().iter()) == normalized_target)
-}
-
 fn bind_boolean_filter(
     filter: Option<&mut Expr>,
     table: &str,
@@ -312,6 +152,18 @@ pub(super) fn bind_update(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::UpdateStatement, CassieError> {
+    let qualifier = mutations::target_qualifier(&statement.table, statement.alias.as_deref());
+    infer_row_image_aliases(
+        &statement.returning,
+        &mut statement.returning_aliases,
+        &qualifier,
+    );
+    if joined::update_needs_joined_binding(&statement) {
+        return joined::bind_joined_update(statement, catalog, context);
+    }
+    if let Some(alias) = statement.alias.take() {
+        super::own_qualifier::strip_update_qualifiers(&mut statement, &[alias]);
+    }
     let table = resolve_relation_path(&statement.table, catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
@@ -411,6 +263,18 @@ pub(super) fn bind_delete(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::DeleteStatement, CassieError> {
+    let qualifier = mutations::target_qualifier(&statement.table, statement.alias.as_deref());
+    infer_row_image_aliases(
+        &statement.returning,
+        &mut statement.returning_aliases,
+        &qualifier,
+    );
+    if joined::delete_needs_joined_binding(&statement) {
+        return joined::bind_joined_delete(statement, catalog, context);
+    }
+    if let Some(alias) = statement.alias.take() {
+        super::own_qualifier::strip_delete_qualifiers(&mut statement, &[alias]);
+    }
     let table = resolve_relation_path(&statement.table, catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(

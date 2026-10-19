@@ -69,6 +69,7 @@ fn check_with_parameters(
             if let Some(InsertConflictAction::DoUpdate {
                 assignments,
                 filter,
+                ..
             }) = insert.on_conflict.as_ref().map(|clause| &clause.action)
             {
                 folder.check_all(assignments.iter().map(|(_, expr)| expr))?;

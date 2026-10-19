@@ -21,8 +21,15 @@ pub use ast_truth::TruthValue;
 #[path = "ast_row.rs"]
 mod ast_row;
 pub use ast_row::{RowComparison, RowComparisonOp};
+#[path = "ast_dml.rs"]
+mod ast_dml;
 #[path = "ast_visit.rs"]
 mod ast_visit;
+pub use ast_dml::{
+    MergeAction, MergeClause, MergeMatch, MergeStatement, MutationSource, MutationSourceField,
+    ReturningAliases, RowSubqueryAssignment, TruncateStatement, DEFAULT_ASSIGNMENT_MARKER,
+    MERGE_ACTION_COLUMN,
+};
 pub use ast_query::{
     AggregateQuantifier, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression,
     CteMaterialization, CteQuery, Expr, FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource,
@@ -59,6 +66,8 @@ pub enum QueryStatement {
     Insert(InsertStatement),
     Update(UpdateStatement),
     Delete(DeleteStatement),
+    Truncate(TruncateStatement),
+    Merge(Box<MergeStatement>),
     Transaction(TransactionStatement),
     CreateTable(CreateTableStatement),
     CreateGraph(CreateGraphStatement),
@@ -176,6 +185,18 @@ pub enum InsertSource {
 pub struct InsertConflictClause {
     pub target_fields: Vec<String>,
     pub action: InsertConflictAction,
+    /// `ON CONFLICT ON CONSTRAINT name`.
+    #[serde(default)]
+    pub constraint: Option<String>,
+    /// Expression inference elements such as `(lower(email))`.
+    #[serde(default)]
+    pub target_expressions: Vec<Expr>,
+    /// The `WHERE` predicate that infers a partial unique index.
+    #[serde(default)]
+    pub target_predicate: Option<Expr>,
+    /// `DO UPDATE SET (a, b) = (SELECT ...)` assignments.
+    #[serde(default)]
+    pub update_row_subqueries: Vec<RowSubqueryAssignment>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,6 +218,11 @@ pub struct InsertStatement {
     /// `OVERRIDING { SYSTEM | USER } VALUE`.
     #[serde(default)]
     pub overriding: Option<InsertOverriding>,
+    /// `INSERT INTO table AS alias`.
+    #[serde(default)]
+    pub alias: Option<String>,
+    #[serde(default)]
+    pub returning_aliases: Option<ReturningAliases>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -213,6 +239,15 @@ pub struct UpdateStatement {
     pub assignments: Vec<(String, Expr)>,
     pub filter: Option<Expr>,
     pub returning: Vec<SelectItem>,
+    #[serde(default)]
+    pub alias: Option<String>,
+    /// `UPDATE ... FROM source`.
+    #[serde(default)]
+    pub from: Option<MutationSource>,
+    #[serde(default)]
+    pub row_subqueries: Vec<RowSubqueryAssignment>,
+    #[serde(default)]
+    pub returning_aliases: Option<ReturningAliases>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -220,6 +255,13 @@ pub struct DeleteStatement {
     pub table: IdentifierPath,
     pub filter: Option<Expr>,
     pub returning: Vec<SelectItem>,
+    #[serde(default)]
+    pub alias: Option<String>,
+    /// `DELETE ... USING source`.
+    #[serde(default)]
+    pub using: Option<MutationSource>,
+    #[serde(default)]
+    pub returning_aliases: Option<ReturningAliases>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

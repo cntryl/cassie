@@ -49,6 +49,7 @@ fn visit_statement_with_controls(
                 if let crate::sql::ast::InsertConflictAction::DoUpdate {
                     assignments,
                     filter,
+                    ..
                 } = &mut conflict.action
                 {
                     for (_, expr) in assignments {

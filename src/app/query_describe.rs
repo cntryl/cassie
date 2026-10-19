@@ -176,6 +176,9 @@ impl Cassie {
         } else {
             HashMap::new()
         };
+        if let Some(columns) = self.describe_joined_command_columns(logical, &user_functions) {
+            return columns;
+        }
         let collection_schema = self.describe_collection_schema(logical, &user_functions);
         if let Some(columns) =
             Self::describe_command_columns(logical, collection_schema.as_ref(), &user_functions)
@@ -194,6 +197,60 @@ impl Cassie {
             &user_functions,
             parameter_type_oids,
         )
+    }
+
+    /// `RETURNING` columns of `UPDATE ... FROM`, `DELETE ... USING` and `MERGE`,
+    /// which resolve against the target joined to its source.
+    fn describe_joined_command_columns(
+        &self,
+        logical: &crate::planner::logical::LogicalPlan,
+        user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    ) -> Option<Vec<crate::executor::ColumnMeta>> {
+        use crate::planner::logical::LogicalCommand;
+        let (table, alias, source, aliases, merge, returning) = match logical.command.as_ref()? {
+            LogicalCommand::Update(statement) if crate::executor::update_is_joined(statement) => (
+                &statement.table,
+                statement.alias.as_deref(),
+                statement.from.as_ref(),
+                statement.returning_aliases.as_ref(),
+                false,
+                &statement.returning,
+            ),
+            LogicalCommand::Delete(statement) if crate::executor::delete_is_joined(statement) => (
+                &statement.table,
+                statement.alias.as_deref(),
+                statement.using.as_ref(),
+                statement.returning_aliases.as_ref(),
+                false,
+                &statement.returning,
+            ),
+            LogicalCommand::Merge(statement) => (
+                &statement.table,
+                statement.alias.as_deref(),
+                Some(&statement.source),
+                statement.returning_aliases.as_ref(),
+                true,
+                &statement.returning,
+            ),
+            _ => return None,
+        };
+        if returning.is_empty() {
+            return Some(Vec::new());
+        }
+        let schema = self.catalog.get_schema(table.as_str())?;
+        let qualifier = alias.map_or_else(|| crate::catalog::local_name(table), str::to_string);
+        let joined = crate::executor::joined_returning_schema(
+            &schema,
+            &qualifier,
+            source.map_or(&[][..], |source| source.fields.as_slice()),
+            aliases,
+            merge,
+        );
+        Some(crate::executor::columns_from_projection(
+            returning,
+            Some(&joined),
+            user_functions,
+        ))
     }
 
     fn describe_command_columns(

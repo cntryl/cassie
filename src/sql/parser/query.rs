@@ -39,8 +39,16 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
     let select_pos = ["select", "values"]
         .iter()
         .filter_map(|keyword| find_top_level_keyword(after_recursive, 0, keyword))
-        .min()
-        .ok_or_else(|| SqlError::new("missing SELECT after WITH clause".into()))?;
+        .min();
+    if let Some(merge_pos) = find_top_level_keyword(after_recursive, 0, "merge")
+        .filter(|merge_pos| select_pos.is_none_or(|select_pos| *merge_pos < select_pos))
+    {
+        let cte_sql = after_recursive[..merge_pos].trim();
+        let cte_defs = parse_cte_definitions(cte_sql, recursive)?;
+        return super::merge::parse_merge_statement(&after_recursive[merge_pos..], cte_defs);
+    }
+    let select_pos =
+        select_pos.ok_or_else(|| SqlError::new("missing SELECT after WITH clause".into()))?;
 
     let cte_sql = after_recursive[..select_pos].trim();
     if cte_sql.is_empty() {

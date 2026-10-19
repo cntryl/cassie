@@ -117,6 +117,8 @@ fn query_child(query: &QueryStatement) -> Option<Node<'_>> {
         QueryStatement::Insert(_)
         | QueryStatement::Update(_)
         | QueryStatement::Delete(_)
+        | QueryStatement::Truncate(_)
+        | QueryStatement::Merge(_)
         | QueryStatement::CallProcedure(_)
         | QueryStatement::Show(_)
         | QueryStatement::Set(_)

@@ -77,6 +77,7 @@ impl Normalizer<'_> {
                     if let crate::sql::ast::InsertConflictAction::DoUpdate {
                         assignments,
                         filter,
+                        ..
                     } = &mut conflict.action
                     {
                         for (_, expr) in assignments {

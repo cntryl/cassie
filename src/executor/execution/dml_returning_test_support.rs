@@ -225,6 +225,7 @@ pub(super) fn call_helper(
             command_prefix: "UPDATE",
             controls,
             statement_read_controls: read_controls,
+            returning_schema: None,
         },
         rows.len(),
         rows,

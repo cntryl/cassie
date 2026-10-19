@@ -495,6 +495,7 @@ impl Node<'_> {
                 ast::InsertConflictAction::DoUpdate {
                     assignments,
                     filter,
+                    ..
                 } => match index {
                     0 => Some(Self::Assignments(assignments)),
                     _ => filter.as_ref().map(Self::Expr),
@@ -514,6 +515,8 @@ fn query_children(query: &QueryStatement) -> usize {
         QueryStatement::Show(_)
         | QueryStatement::Set(_)
         | QueryStatement::Copy(_)
+        | QueryStatement::Truncate(_)
+        | QueryStatement::Merge(_)
         | QueryStatement::Transaction(_)
         | QueryStatement::CreateTable(_)
         | QueryStatement::CreateGraph(_)
@@ -586,6 +589,8 @@ fn query_child(query: &QueryStatement, index: usize) -> Option<Node<'_>> {
         QueryStatement::Show(_)
         | QueryStatement::Set(_)
         | QueryStatement::Copy(_)
+        | QueryStatement::Truncate(_)
+        | QueryStatement::Merge(_)
         | QueryStatement::Transaction(_)
         | QueryStatement::CreateTable(_)
         | QueryStatement::CreateGraph(_)

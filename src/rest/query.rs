@@ -497,6 +497,8 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::Insert(_) => "INSERT",
         QueryStatement::Update(_) => "UPDATE",
         QueryStatement::Delete(_) => "DELETE",
+        QueryStatement::Truncate(_) => "TRUNCATE TABLE",
+        QueryStatement::Merge(_) => "MERGE",
         QueryStatement::Transaction(statement) => transaction_command_name(&statement.action),
         QueryStatement::CreateTable(_) => "CREATE TABLE",
         QueryStatement::CreateGraph(_) => "CREATE GRAPH",

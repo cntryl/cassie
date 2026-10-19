@@ -12,10 +12,11 @@ use super::{
     DropMaterializedProjectionStatement, DropMaterializedProjectionVersionStatement,
     DropProcedureStatement, DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement,
     DropSchemaStatement, DropSequenceStatement, DropTableStatement, DropViewStatement,
-    EnforceRetentionPolicyStatement, ExplainStatement, InsertStatement,
+    EnforceRetentionPolicyStatement, ExplainStatement, InsertStatement, MergeStatement,
     PlanRepairProjectionStatement, QueryStatement, RefreshMaterializedProjectionStatement,
     RefreshRollupStatement, RepairProjectionStatement, SelectStatement, SetStatement,
-    ShowStatement, TransactionStatement, UpdateStatement, VerifyProjectionStatement,
+    ShowStatement, TransactionStatement, TruncateStatement, UpdateStatement,
+    VerifyProjectionStatement,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +45,8 @@ pub enum RuntimeStatementRef<'a> {
     Insert(&'a InsertStatement),
     Update(&'a UpdateStatement),
     Delete(&'a DeleteStatement),
+    Truncate(&'a TruncateStatement),
+    Merge(&'a MergeStatement),
     Transaction(&'a TransactionStatement),
 }
 
@@ -118,6 +121,8 @@ pub enum RuntimeStatement {
     Insert(InsertStatement),
     Update(UpdateStatement),
     Delete(DeleteStatement),
+    Truncate(TruncateStatement),
+    Merge(Box<MergeStatement>),
     Transaction(TransactionStatement),
 }
 
@@ -185,6 +190,8 @@ impl QueryStatement {
             | Self::Insert(_)
             | Self::Update(_)
             | Self::Delete(_)
+            | Self::Truncate(_)
+            | Self::Merge(_)
             | Self::Transaction(_) => StatementFamily::Runtime,
             Self::CreateTable(_)
             | Self::CreateGraph(_)
@@ -264,6 +271,8 @@ impl QueryStatement {
             Self::Insert(statement) => RuntimeStatementRef::Insert(statement),
             Self::Update(statement) => RuntimeStatementRef::Update(statement),
             Self::Delete(statement) => RuntimeStatementRef::Delete(statement),
+            Self::Truncate(statement) => RuntimeStatementRef::Truncate(statement),
+            Self::Merge(statement) => RuntimeStatementRef::Merge(statement),
             Self::Transaction(statement) => RuntimeStatementRef::Transaction(statement),
             _ => unreachable!("statement family should match runtime route"),
         }
@@ -370,6 +379,8 @@ impl QueryStatement {
             Self::Insert(statement) => RuntimeStatement::Insert(statement),
             Self::Update(statement) => RuntimeStatement::Update(statement),
             Self::Delete(statement) => RuntimeStatement::Delete(statement),
+            Self::Truncate(statement) => RuntimeStatement::Truncate(statement),
+            Self::Merge(statement) => RuntimeStatement::Merge(statement),
             Self::Transaction(statement) => RuntimeStatement::Transaction(statement),
             _ => unreachable!("statement family should match runtime route"),
         }

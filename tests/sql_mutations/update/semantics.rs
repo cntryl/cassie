@@ -49,12 +49,14 @@ fn should_not_apply_column_defaults_during_update_or_upsert() {
                 .expect("read rows");
 
             // Assert
+            // The conflicting proposal's default still draws a value for
+            // EXCLUDED, as in PostgreSQL 18, so row 3 receives the third.
             assert_eq!(
                 rows.rows(),
                 vec![
                     vec![Value::Int64(1), Value::Int64(3), Value::Null],
                     vec![Value::Int64(2), Value::Int64(2), Value::Int64(1)],
-                    vec![Value::Int64(3), Value::Int64(3), Value::Int64(2)],
+                    vec![Value::Int64(3), Value::Int64(3), Value::Int64(3)],
                 ]
             );
 

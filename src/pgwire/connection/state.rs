@@ -81,6 +81,8 @@ pub(super) struct SessionState {
     pub(super) portal_cursors: HashMap<String, crate::midge::adapter::MidgeRowCursor>,
     pub(super) portal_memory_controls: QueryExecutionControls,
     pub(super) next_prepared_id: u64,
+    /// The session's protocol-statement epoch this connection last applied.
+    pub(super) prepared_wire_epoch: u64,
     pub(super) backend_registration: Option<crate::runtime::PgwireBackendRegistration>,
     pub(super) invalidate_portals_on_sync: bool,
     pub(super) extended_cycle: super::transactions::ExtendedCycle,
@@ -105,6 +107,7 @@ impl SessionState {
             portal_cursors: HashMap::new(),
             portal_memory_controls,
             next_prepared_id: 1,
+            prepared_wire_epoch: 0,
             backend_registration: None,
             invalidate_portals_on_sync: false,
             extended_cycle: super::transactions::ExtendedCycle::default(),
@@ -158,6 +161,35 @@ impl SessionState {
         }
         if self.remove_portal("").is_some() {
             runtime.record_pgwire_portal_delta(-1);
+        }
+    }
+
+    /// Drops named protocol statements that SQL `DEALLOCATE` or
+    /// `DISCARD ALL` removed from the session's shared namespace.
+    pub(super) fn sync_sql_deallocations(
+        &mut self,
+        session: &CassieSession,
+        runtime: &RuntimeState,
+    ) {
+        let epoch = session.prepared_wire_epoch();
+        if epoch == self.prepared_wire_epoch {
+            return;
+        }
+        self.prepared_wire_epoch = epoch;
+        let removed = self
+            .prepared_statements
+            .iter()
+            .filter(|(name, prepared)| {
+                !name.is_empty() && !session.has_wire_prepared(name, prepared.id)
+            })
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>();
+        for name in removed {
+            if let Some(prepared) = self.prepared_statements.remove(&name) {
+                runtime.record_pgwire_prepared_delta(-1);
+                let portals = self.remove_portals_for_prepared_id(prepared.id);
+                record_negative_delta(portals, |delta| runtime.record_pgwire_portal_delta(delta));
+            }
         }
     }
 

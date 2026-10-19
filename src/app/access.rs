@@ -18,7 +18,8 @@ fn read_only_statement(statement: &QueryStatement) -> bool {
         QueryStatement::Select(_)
         | QueryStatement::Show(_)
         | QueryStatement::Set(_)
-        | QueryStatement::Transaction(_) => true,
+        | QueryStatement::Transaction(_)
+        | QueryStatement::SessionObject(_) => true,
         QueryStatement::Explain(explain) => explain_select(&explain.statement.statement),
         _ => false,
     }

@@ -149,6 +149,9 @@ mod materialized_projection;
 mod operators;
 #[path = "parser/order_ordinals.rs"]
 mod order_ordinals;
+#[path = "parser/parameter_text.rs"]
+mod parameter_text;
+pub(crate) use parameter_text::{max_positional_parameter, substitute_positional_parameters};
 #[path = "parser/preflight.rs"]
 mod preflight;
 #[path = "parser/query.rs"]
@@ -449,6 +452,11 @@ fn parse_session_statement(
         Ok(Some(parse_set_statement(trimmed)?))
     } else if starts_statement(lower, "reset") {
         Ok(Some(parse_reset_statement(trimmed)?))
+    } else if statements::SESSION_OBJECT_KEYWORDS
+        .iter()
+        .any(|keyword| starts_statement(lower, keyword))
+    {
+        Ok(Some(statements::parse_session_object_statement(trimmed)?))
     } else {
         Ok(None)
     }

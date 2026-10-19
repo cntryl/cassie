@@ -67,6 +67,12 @@ impl CassieSession {
             })
     }
 
+    /// `DISCARD SEQUENCES`: forgets this session's `currval`/`lastval`
+    /// history without changing any sequence.
+    pub(crate) fn discard_sequence_values(&self) {
+        *self.sequence_values.lock() = SessionSequenceValues::default();
+    }
+
     /// `lastval`.
     ///
     /// # Errors

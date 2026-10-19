@@ -124,6 +124,7 @@ fn query_child(query: &QueryStatement) -> Option<Node<'_>> {
         | QueryStatement::Set(_)
         | QueryStatement::Copy(_)
         | QueryStatement::Transaction(_)
+        | QueryStatement::SessionObject(_)
         | QueryStatement::CreateTable(_)
         | QueryStatement::CreateGraph(_)
         | QueryStatement::DropTable(_)

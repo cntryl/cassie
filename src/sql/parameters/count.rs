@@ -16,6 +16,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         | QueryStatement::Copy(_)
         | QueryStatement::Truncate(_)
         | QueryStatement::Transaction(_)
+        | QueryStatement::SessionObject(_)
         | QueryStatement::CreateTable(_)
         | QueryStatement::CreateGraph(_)
         | QueryStatement::DropTable(_)

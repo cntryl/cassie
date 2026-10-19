@@ -14,8 +14,8 @@ use super::{
     DropSchemaStatement, DropSequenceStatement, DropTableStatement, DropViewStatement,
     EnforceRetentionPolicyStatement, ExplainStatement, InsertStatement, MergeStatement,
     PlanRepairProjectionStatement, QueryStatement, RefreshMaterializedProjectionStatement,
-    RefreshRollupStatement, RepairProjectionStatement, SelectStatement, SetStatement,
-    ShowStatement, TransactionStatement, TruncateStatement, UpdateStatement,
+    RefreshRollupStatement, RepairProjectionStatement, SelectStatement, SessionObjectStatement,
+    SetStatement, ShowStatement, TransactionStatement, TruncateStatement, UpdateStatement,
     VerifyProjectionStatement,
 };
 
@@ -48,6 +48,7 @@ pub enum RuntimeStatementRef<'a> {
     Truncate(&'a TruncateStatement),
     Merge(&'a MergeStatement),
     Transaction(&'a TransactionStatement),
+    SessionObject(&'a SessionObjectStatement),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -124,6 +125,7 @@ pub enum RuntimeStatement {
     Truncate(TruncateStatement),
     Merge(Box<MergeStatement>),
     Transaction(TransactionStatement),
+    SessionObject(SessionObjectStatement),
 }
 
 pub enum CatalogStatement {
@@ -192,7 +194,8 @@ impl QueryStatement {
             | Self::Delete(_)
             | Self::Truncate(_)
             | Self::Merge(_)
-            | Self::Transaction(_) => StatementFamily::Runtime,
+            | Self::Transaction(_)
+            | Self::SessionObject(_) => StatementFamily::Runtime,
             Self::CreateTable(_)
             | Self::CreateGraph(_)
             | Self::DropTable(_)
@@ -274,6 +277,7 @@ impl QueryStatement {
             Self::Truncate(statement) => RuntimeStatementRef::Truncate(statement),
             Self::Merge(statement) => RuntimeStatementRef::Merge(statement),
             Self::Transaction(statement) => RuntimeStatementRef::Transaction(statement),
+            Self::SessionObject(statement) => RuntimeStatementRef::SessionObject(statement),
             _ => unreachable!("statement family should match runtime route"),
         }
     }
@@ -382,6 +386,7 @@ impl QueryStatement {
             Self::Truncate(statement) => RuntimeStatement::Truncate(statement),
             Self::Merge(statement) => RuntimeStatement::Merge(statement),
             Self::Transaction(statement) => RuntimeStatement::Transaction(statement),
+            Self::SessionObject(statement) => RuntimeStatement::SessionObject(statement),
             _ => unreachable!("statement family should match runtime route"),
         }
     }

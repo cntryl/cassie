@@ -23,6 +23,8 @@ mod virtual_views_relations;
 mod virtual_views_repair;
 #[path = "virtual_views_sequences.rs"]
 mod virtual_views_sequences;
+#[path = "virtual_views_session_objects.rs"]
+mod virtual_views_session_objects;
 #[path = "virtual_views_storage.rs"]
 mod virtual_views_storage;
 #[path = "virtual_views_timezones.rs"]
@@ -43,6 +45,9 @@ pub fn rows(
     let name = normalize_name(name);
     if name == "pg_catalog.pg_settings" {
         return Some(pg_settings_rows(session));
+    }
+    if let Some(rows) = virtual_views_session_objects::rows(name.as_str(), session) {
+        return Some(rows);
     }
     let current_database = session.and_then(CassieSession::current_database);
     information_schema_rows_for(catalog, name.as_str(), current_database)
@@ -104,6 +109,7 @@ fn pg_catalog_schema(name: &str) -> Option<Vec<(String, DataType)>> {
         .or_else(|| virtual_views_projections::schema(name))
         .or_else(|| pg_catalog_runtime_schema(name))
         .or_else(|| virtual_views_timezones::schema(name))
+        .or_else(|| virtual_views_session_objects::schema(name))
 }
 
 fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {

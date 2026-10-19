@@ -15,6 +15,12 @@ pub use ast_schema::{AlterTableOperation, AlterTableStatement, IdentityAlteratio
 
 #[path = "ast_query.rs"]
 mod ast_query;
+#[path = "ast_session.rs"]
+mod ast_session;
+pub use ast_session::{
+    DeclareCursorStatement, DiscardTarget, ExecuteStatement, FetchDirection, FetchStatement,
+    PrepareStatement, SessionObjectStatement,
+};
 #[path = "ast_truth.rs"]
 mod ast_truth;
 pub use ast_truth::TruthValue;
@@ -69,6 +75,7 @@ pub enum QueryStatement {
     Truncate(TruncateStatement),
     Merge(Box<MergeStatement>),
     Transaction(TransactionStatement),
+    SessionObject(SessionObjectStatement),
     CreateTable(CreateTableStatement),
     CreateGraph(CreateGraphStatement),
     DropTable(DropTableStatement),

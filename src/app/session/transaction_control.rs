@@ -214,6 +214,7 @@ impl CassieSession {
         let session_state = transaction.session_state.take();
         let locals = std::mem::take(&mut transaction.local_settings);
         drop(transaction);
+        self.end_transaction_objects(true);
         if let Some(state) = session_state {
             let mut settings = self.settings.lock();
             for name in locals {
@@ -250,9 +251,11 @@ impl CassieSession {
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
         transaction.local_settings.clear();
+        drop(transaction);
         if let Some(session_state) = session_state {
             self.restore_session_state(session_state);
         }
+        self.end_transaction_objects(false);
     }
 }
 

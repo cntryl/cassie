@@ -46,10 +46,27 @@ and test-fixture-label reconciliation. No runtime source changed.
   passed (36/36).
 
 The GitHub Actions repository setting is disabled by user direction, and no
-workflow run is in progress. No workflow was dispatched for this snapshot.
-Hosted checks are unavailable; this local worktree result is not a release-commit
-gate. Historical workflow artifacts elsewhere in this document are retained
-evidence from earlier runs and do not imply that workflows are enabled now.
+workflow run is queued or in progress. No workflow was dispatched for this
+snapshot. Hosted checks are unavailable; this local worktree result is not a
+release-commit gate. Historical workflow artifacts elsewhere in this document
+are retained evidence from earlier runs and do not imply that workflows are
+enabled now.
+
+## Workflow and Branch-Protection State
+
+GitHub readback on 2026-10-19 confirmed repository Actions permission is
+disabled (`enabled: false`) and no workflow runs are queued or in progress.
+The `Protect main branch` ruleset (`21147564`) is also disabled. Its stored
+pull-request, deletion, non-fast-forward, and `backend` status-check rules are
+not enforced while the ruleset is disabled. There is no current hosted CI
+result; local gates and historical check runs do not supply one.
+
+Historical coverage recorded on 2026-10-12 is retained as context only: backend
+CI filtered out `ui/**`, frontend CI ran for frontend-related paths, and PRs
+[#940](https://github.com/cntryl/cassie/pull/940) and
+[#941](https://github.com/cntryl/cassie/pull/941) had successful backend checks.
+Those path filters and results do not describe current hosted coverage or
+active branch protection.
 
 ## Evidence Present
 

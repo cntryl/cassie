@@ -669,6 +669,11 @@ fn cast_source_type(
     types: &ResultTypes,
     catalog: &Catalog,
 ) -> Option<DataType> {
+    if matches!(target, DataType::Array(_)) {
+        return types
+            .expression_type(expr)
+            .filter(|source| source == target);
+    }
     if *target == DataType::Date {
         return types
             .expression_type(expr)

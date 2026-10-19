@@ -7,15 +7,9 @@ use cassie::midge::adapter::{
 use cassie::types::{DataType, FieldSchema, Value};
 use support::{canonical_test_collection, canonical_test_index, data_dir, use_local_storage};
 
-use super::support_failpoints as failpoints;
-use failpoints::COLUMN_BATCH_FAILPOINT_GUARD;
-
 #[test]
 fn should_recover_column_batch_debt_without_serving_stale_rows() {
     // Arrange
-    let _failpoint_guard = COLUMN_BATCH_FAILPOINT_GUARD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
     use_local_storage();
     let path = data_dir("derived_state_column_batch_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -112,9 +106,6 @@ fn should_recover_column_batch_debt_without_serving_stale_rows() {
 #[test]
 fn should_recover_add_column_column_batch_debt_after_restart() {
     // Arrange
-    let _failpoint_guard = COLUMN_BATCH_FAILPOINT_GUARD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
     use_local_storage();
     let path = data_dir("derived_state_add_column_batch_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -198,9 +189,6 @@ fn should_recover_add_column_column_batch_debt_after_restart() {
 #[test]
 fn should_recover_add_column_projection_hash_debt_after_restart() {
     // Arrange
-    let _failpoint_guard = COLUMN_BATCH_FAILPOINT_GUARD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
     use_local_storage();
     let path = data_dir("derived_state_add_column_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");

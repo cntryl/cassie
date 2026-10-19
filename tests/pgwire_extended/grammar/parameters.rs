@@ -42,6 +42,134 @@ fn should_describe_postgres_cast_parameter_oid_through_extended_protocol() {
 }
 
 #[test]
+fn should_bind_the_selected_four_type_cast_fixture_through_extended_protocol() {
+    // Arrange
+    let sql = "SELECT $1::uuid AS uuid_value, $2::jsonb AS document, \
+        $3::numeric(18,2) AS amount, $4::uuid[] AS ids";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "selected_type_casts",
+            sql,
+            &[0, 0, 0, 0],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("selected_type_casts"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(
+                "selected_type_casts_values",
+                "selected_type_casts",
+                &[
+                    "550E8400-E29B-41D4-A716-446655440000",
+                    r#"{"answer":42}"#,
+                    "12.345",
+                    "{550E8400-E29B-41D4-A716-446655440001,NULL}",
+                ],
+            ),
+            wire::describe_portal_frame("selected_type_casts_values"),
+            wire::execute_frame("selected_type_casts_values"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "selected_type_casts_nulls",
+                "selected_type_casts",
+                &[0],
+                &[None, None, None, None],
+                &[],
+            ),
+            wire::describe_portal_frame("selected_type_casts_nulls"),
+            wire::execute_frame("selected_type_casts_nulls"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-796-four-type-cast-parameters", steps);
+    let described = &batches[1];
+    let values = &batches[2];
+    let nulls = &batches[3];
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_selected_cast_statement_description(described);
+    assert_selected_cast_bound_values(values);
+    assert_selected_cast_null_values(nulls);
+}
+
+fn assert_selected_cast_statement_description(frames: &[(u8, Vec<u8>)]) {
+    assert_eq!(wire::error_code(frames), None);
+    let parameters = frames
+        .iter()
+        .find(|frame| frame.0 == b't')
+        .expect("inferred ParameterDescription");
+    assert_eq!(
+        wire::parse_parameter_description(&parameters.1),
+        [2950, 114, 1700, 36_950]
+    );
+
+    let statement_description = frames
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("cast statement RowDescription");
+    let statement_columns = wire::parse_row_description(&statement_description.1);
+    assert_eq!(
+        statement_columns
+            .iter()
+            .map(|column| (column.name.as_str(), column.type_oid, column.type_mod))
+            .collect::<Vec<_>>(),
+        [
+            ("uuid_value", 2950, -1),
+            ("document", 114, -1),
+            ("amount", 1700, 1_179_654),
+            ("ids", 36_950, -1),
+        ]
+    );
+}
+
+fn assert_selected_cast_bound_values(frames: &[(u8, Vec<u8>)]) {
+    assert_eq!(
+        wire::error_code(frames),
+        None,
+        "bound cast ErrorResponse: {:?}",
+        frames
+            .iter()
+            .filter(|frame| frame.0 == b'E')
+            .map(|frame| wire::parse_error_fields(&frame.1))
+            .collect::<Vec<_>>()
+    );
+    let portal_description = frames
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("bound portal RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&portal_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        [2950, 114, 1700, 36_950]
+    );
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some("550e8400-e29b-41d4-a716-446655440000".to_owned()),
+            Some(r#"{"answer":42}"#.to_owned()),
+            Some("12.35".to_owned()),
+            Some("[\"550e8400-e29b-41d4-a716-446655440001\",null]".to_owned()),
+        ]]
+    );
+}
+
+fn assert_selected_cast_null_values(frames: &[(u8, Vec<u8>)]) {
+    assert_eq!(wire::error_code(frames), None);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![None, None, None, None]]
+    );
+}
+
+#[test]
 fn should_bind_double_precision_table_columns_with_postgres_identity() {
     // Arrange
     let batches = run_script(

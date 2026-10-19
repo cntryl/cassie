@@ -7,9 +7,7 @@ pub(super) fn scalar(
     source: Option<&DataType>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
-    if matches!(target,DataType::Array(element) if **element == DataType::Text)
-        && source == Some(target)
-    {
+    if matches!(target, DataType::Array(_)) && source == Some(target) {
         return Ok(value.clone());
     }
     if *target == DataType::Bytea {

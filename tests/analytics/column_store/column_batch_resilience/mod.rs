@@ -11,11 +11,7 @@ use sha2::{Digest, Sha256};
 use super::support_sql as support;
 use support::{canonical_test_collection, canonical_test_index, data_dir, use_local_storage};
 
-use super::support_failpoints as failpoints;
-use failpoints::COLUMN_BATCH_FAILPOINT_GUARD;
-
 struct AmountFixture {
-    test_guard: std::sync::MutexGuard<'static, ()>,
     path: String,
     cassie: Cassie,
     session: CassieSession,
@@ -24,9 +20,6 @@ struct AmountFixture {
 }
 
 fn amount_fixture(label: &str, table: &str, values: &[Value]) -> AmountFixture {
-    let test_guard = COLUMN_BATCH_FAILPOINT_GUARD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
     use_local_storage();
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -60,7 +53,6 @@ fn amount_fixture(label: &str, table: &str, values: &[Value]) -> AmountFixture {
     let collection = canonical_test_collection(&cassie, table);
     let index = canonical_test_index(&cassie, &collection, &index_name);
     AmountFixture {
-        test_guard,
         path,
         cassie,
         session,
@@ -76,9 +68,6 @@ fn ordered_numeric_fixture(
     values: &[serde_json::Value],
     segment_size: usize,
 ) -> AmountFixture {
-    let test_guard = COLUMN_BATCH_FAILPOINT_GUARD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
     use_local_storage();
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -113,7 +102,6 @@ fn ordered_numeric_fixture(
         .expect("create column index");
     let index = canonical_test_index(&cassie, &collection, &index_name);
     AmountFixture {
-        test_guard,
         path,
         cassie,
         session,
@@ -213,7 +201,6 @@ fn sum_amount_as(
 
 fn restart_fixture(fixture: AmountFixture) -> AmountFixture {
     let AmountFixture {
-        test_guard,
         path,
         cassie,
         session,
@@ -226,7 +213,6 @@ fn restart_fixture(fixture: AmountFixture) -> AmountFixture {
     cassie.startup().expect("reconcile column batches");
     let session = cassie.create_session("tester", None);
     AmountFixture {
-        test_guard,
         path,
         cassie,
         session,

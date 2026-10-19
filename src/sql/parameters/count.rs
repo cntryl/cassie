@@ -14,6 +14,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         QueryStatement::Show(_)
         | QueryStatement::Set(_)
         | QueryStatement::Copy(_)
+        | QueryStatement::Truncate(_)
         | QueryStatement::Transaction(_)
         | QueryStatement::CreateTable(_)
         | QueryStatement::CreateGraph(_)
@@ -60,6 +61,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         QueryStatement::Insert(statement) => parameter_count_insert(statement),
         QueryStatement::Update(statement) => parameter_count_update(statement),
         QueryStatement::Delete(statement) => parameter_count_delete(statement),
+        QueryStatement::Merge(statement) => parameter_count_merge(statement),
         QueryStatement::CallProcedure(statement) => statement
             .args
             .iter()
@@ -172,11 +174,13 @@ fn parameter_count_insert(statement: &ast::InsertStatement) -> usize {
         if let ast::InsertConflictAction::DoUpdate {
             assignments,
             filter,
+            ..
         } = &on_conflict.action
         {
-            for (_, expr) in assignments {
-                count = count.max(parameter_count_expr(expr));
-            }
+            count = count.max(parameter_count_assignments(
+                assignments,
+                &on_conflict.update_row_subqueries,
+            ));
             if let Some(filter) = filter {
                 count = count.max(parameter_count_expr(filter));
             }
@@ -188,11 +192,62 @@ fn parameter_count_insert(statement: &ast::InsertStatement) -> usize {
     count
 }
 
-fn parameter_count_update(statement: &ast::UpdateStatement) -> usize {
-    let mut count = 0;
-    for (_, expr) in &statement.assignments {
-        count = count.max(parameter_count_expr(expr));
+fn parameter_count_assignments(
+    assignments: &[(String, ast::Expr)],
+    row_subqueries: &[ast::RowSubqueryAssignment],
+) -> usize {
+    assignments
+        .iter()
+        .map(|(_, expr)| parameter_count_expr(expr))
+        .chain(
+            row_subqueries
+                .iter()
+                .map(|assignment| parameter_count(&assignment.query)),
+        )
+        .max()
+        .unwrap_or(0)
+}
+
+fn parameter_count_mutation_source(source: Option<&ast::MutationSource>) -> usize {
+    source.map_or(0, |source| parameter_count_query_source(&source.source))
+}
+
+fn parameter_count_merge(statement: &ast::MergeStatement) -> usize {
+    let mut count = statement
+        .ctes
+        .iter()
+        .map(|cte| parameter_count_cte_query(&cte.query))
+        .max()
+        .unwrap_or(0)
+        .max(parameter_count_mutation_source(Some(&statement.source)))
+        .max(parameter_count_expr(&statement.on));
+    for clause in &statement.clauses {
+        if let Some(condition) = &clause.condition {
+            count = count.max(parameter_count_expr(condition));
+        }
+        count = count.max(match &clause.action {
+            ast::MergeAction::Update {
+                assignments,
+                row_subqueries,
+            } => parameter_count_assignments(assignments, row_subqueries),
+            ast::MergeAction::Insert {
+                values: Some(values),
+                ..
+            } => values.iter().map(parameter_count_expr).max().unwrap_or(0),
+            ast::MergeAction::Insert { values: None, .. }
+            | ast::MergeAction::Delete
+            | ast::MergeAction::DoNothing => 0,
+        });
     }
+    for item in &statement.returning {
+        count = count.max(parameter_count_select_item(item));
+    }
+    count
+}
+
+fn parameter_count_update(statement: &ast::UpdateStatement) -> usize {
+    let mut count = parameter_count_assignments(&statement.assignments, &statement.row_subqueries)
+        .max(parameter_count_mutation_source(statement.from.as_ref()));
     if let Some(filter) = &statement.filter {
         count = count.max(parameter_count_expr(filter));
     }
@@ -203,7 +258,7 @@ fn parameter_count_update(statement: &ast::UpdateStatement) -> usize {
 }
 
 fn parameter_count_delete(statement: &ast::DeleteStatement) -> usize {
-    let mut count = 0;
+    let mut count = parameter_count_mutation_source(statement.using.as_ref());
     if let Some(filter) = &statement.filter {
         count = count.max(parameter_count_expr(filter));
     }

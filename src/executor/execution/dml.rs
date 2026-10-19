@@ -12,11 +12,21 @@ use crate::types::row_identity::ROW_IDENTITY_COLUMN;
 mod dml_delete;
 #[path = "dml_insert.rs"]
 mod dml_insert;
+#[path = "dml_joined.rs"]
+mod dml_joined;
+#[path = "dml_joined_update.rs"]
+mod dml_joined_update;
+#[path = "dml_merge.rs"]
+mod dml_merge;
 #[path = "dml_returning.rs"]
 mod dml_returning;
 #[cfg(test)]
 #[path = "dml_returning_tests.rs"]
 mod dml_returning_tests;
+#[path = "dml_row_subquery.rs"]
+mod dml_row_subquery;
+#[path = "dml_truncate.rs"]
+mod dml_truncate;
 #[path = "dml_update.rs"]
 mod dml_update;
 #[path = "identity_insert.rs"]
@@ -25,6 +35,10 @@ mod identity_insert;
 pub(super) use dml_delete::execute_delete;
 pub(super) use dml_insert::execute_insert;
 pub(crate) use dml_insert::resolve_transaction_conflict_intents;
+pub(crate) use dml_joined::joined_returning_schema;
+pub(crate) use dml_joined_update::{delete_is_joined, update_is_joined};
+pub(super) use dml_merge::execute_merge;
+pub(super) use dml_truncate::execute_truncate;
 pub(super) use dml_update::execute_update;
 
 const NON_FINITE_WRITE_VALUE_ERROR: &str = "stored float values must be finite";
@@ -247,6 +261,8 @@ struct DmlResultContext<'a> {
     command_prefix: &'a str,
     controls: &'a QueryExecutionControls,
     statement_read_controls: &'a QueryExecutionControls,
+    /// The row shape a joined mutation's `RETURNING` resolves against.
+    returning_schema: Option<&'a CollectionSchema>,
 }
 
 fn build_dml_result(
@@ -272,7 +288,10 @@ fn build_dml_result(
     if super::exists_projection::contains(context.returning) {
         return dml_returning::build(context, affected_count, returning_rows);
     }
-    let column_schema = context.cassie.catalog.get_schema(context.table);
+    let column_schema = context
+        .returning_schema
+        .cloned()
+        .or_else(|| context.cassie.catalog.get_schema(context.table));
     let has_arrays = column_schema.as_ref().is_some_and(|schema| {
         schema
             .fields

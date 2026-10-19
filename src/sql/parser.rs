@@ -129,11 +129,19 @@ mod clauses;
 mod copy;
 #[path = "parser/dml.rs"]
 mod dml;
+#[path = "parser/dml_conflict.rs"]
+mod dml_conflict;
+#[path = "parser/dml_targets.rs"]
+mod dml_targets;
 #[path = "parser/expr.rs"]
 mod expr;
 #[path = "parser/identifiers.rs"]
 mod identifiers;
 mod lexical;
+#[path = "parser/merge.rs"]
+mod merge;
+#[path = "parser/truncate.rs"]
+mod truncate;
 pub(crate) use lexical::{dollar_quoted_content, dollar_quoted_end, escape_string_prefix};
 #[path = "parser/materialized_projection.rs"]
 mod materialized_projection;
@@ -254,6 +262,10 @@ fn parse_query_or_dml_statement(
         Ok(Some(parse_update_statement(trimmed)?))
     } else if starts_statement(lower, "delete") {
         Ok(Some(parse_delete_statement(trimmed)?))
+    } else if starts_statement(lower, "truncate") {
+        Ok(Some(truncate::parse_truncate_statement(trimmed)?))
+    } else if starts_statement(lower, "merge") {
+        Ok(Some(merge::parse_merge_statement(trimmed, Vec::new())?))
     } else if lexical::pattern_end(lower, 0, "select").is_some()
         || lexical::pattern_end(lower, 0, "values").is_some()
         || trimmed.starts_with('(')

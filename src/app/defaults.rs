@@ -37,3 +37,48 @@ pub(super) fn apply_default_values(
 
     Ok(())
 }
+
+impl Cassie {
+    /// The value `column = DEFAULT` assigns to `field`, or `None` when the
+    /// column has no default (SQL NULL).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a sequence default cannot advance.
+    pub(crate) fn column_default_json(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Option<serde_json::Value>, CassieError> {
+        let constraints = self
+            .catalog
+            .get_constraints(collection)
+            .into_iter()
+            .filter(|constraint| constraint.field == field)
+            .collect::<Vec<_>>();
+        let mut payload = serde_json::Value::Object(serde_json::Map::new());
+        apply_default_values(self, &mut payload, &constraints)?;
+        Ok(payload.get(field).cloned())
+    }
+}
+
+impl Cassie {
+    /// `payload` with every missing column default applied, as the proposed
+    /// row `EXCLUDED` names in `INSERT ... ON CONFLICT DO UPDATE`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a sequence default cannot advance.
+    pub(crate) fn payload_with_column_defaults(
+        &self,
+        collection: &str,
+        payload: &serde_json::Value,
+    ) -> Result<serde_json::Value, CassieError> {
+        let constraints = self.catalog.get_constraints(collection);
+        let mut payload = payload.clone();
+        if !constraints.is_empty() {
+            apply_default_values(self, &mut payload, &constraints)?;
+        }
+        Ok(payload)
+    }
+}

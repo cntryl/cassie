@@ -30,6 +30,16 @@ pub(in crate::executor::execution) fn execute_update(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
+    if super::dml_joined_update::update_is_joined(statement) {
+        return super::dml_joined_update::execute_joined_update(
+            cassie,
+            session,
+            statement,
+            params,
+            user_functions,
+            controls,
+        );
+    }
     let returning_read_controls = if super::super::exists_projection::contains(&statement.returning)
     {
         Some(
@@ -92,6 +102,7 @@ pub(in crate::executor::execution) fn execute_update(
             command_prefix: "UPDATE",
             controls,
             statement_read_controls,
+            returning_schema: None,
         },
         updated_count,
         returning_rows,
@@ -152,12 +163,16 @@ fn prepare_update_row(
             ))
         })?;
     let payload = updated_payload_from_row(
+        &AssignmentTarget {
+            cassie: context.cassie,
+            table: &context.statement.table,
+            schema: context.schema,
+        },
         row,
         &context.statement.assignments,
         context.params,
         context.user_functions,
         context.session,
-        context.schema,
         &current.payload,
     )?;
     let mut payload = payload;
@@ -187,21 +202,40 @@ fn prepare_update_row(
     })
 }
 
-fn updated_payload_from_row(
+/// The relation an assignment list writes.
+pub(super) struct AssignmentTarget<'a> {
+    pub(super) cassie: &'a Cassie,
+    pub(super) table: &'a str,
+    pub(super) schema: &'a CollectionSchema,
+}
+
+pub(super) fn updated_payload_from_row(
+    target: &AssignmentTarget<'_>,
     row: &BatchRow,
     assignments: &[(String, Expr)],
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
-    schema: &CollectionSchema,
     current_payload: &serde_json::Value,
 ) -> Result<serde_json::Value, QueryError> {
+    let schema = target.schema;
     let mut payload = current_payload
         .as_object()
         .cloned()
         .ok_or_else(|| QueryError::General("stored row payload must be object".to_string()))?;
     let schema_has_id = schema.declares_id();
     for (field, expr) in assignments {
+        if expr.is_default_assignment() {
+            match target
+                .cassie
+                .column_default_json(target.table, field)
+                .map_err(QueryError::from)?
+            {
+                Some(value) => payload.insert(field.clone(), value),
+                None => payload.remove(field),
+            };
+            continue;
+        }
         let mut expr = expr.clone();
         crate::planner::logical::rewrite_expr_for_schema(&mut expr, schema_has_id);
         let value =

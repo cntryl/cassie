@@ -121,6 +121,14 @@ impl ResultTypes {
         self
     }
 
+    /// Adds fields a mutation row carries beyond its relations, such as
+    /// `merge_action()` and the `OLD`/`NEW` row images.
+    pub(super) fn with_extra_fields(mut self, fields: Vec<crate::types::FieldSchema>) -> Self {
+        self.comparison_types.extend_excluded(&fields);
+        self.schema.fields.extend(fields);
+        self
+    }
+
     pub(super) fn with_excluded_fields(mut self, schema: &super::CollectionSchema) -> Self {
         let excluded = schema
             .fields
@@ -480,10 +488,14 @@ fn validate_plan_in_scope(
             crate::planner::logical::LogicalCommand::Insert(statement) => {
                 (&statement.table, &statement.returning)
             }
-            crate::planner::logical::LogicalCommand::Update(statement) => {
+            crate::planner::logical::LogicalCommand::Update(statement)
+                if !crate::executor::update_is_joined(statement) =>
+            {
                 (&statement.table, &statement.returning)
             }
-            crate::planner::logical::LogicalCommand::Delete(statement) => {
+            crate::planner::logical::LogicalCommand::Delete(statement)
+                if !crate::executor::delete_is_joined(statement) =>
+            {
                 (&statement.table, &statement.returning)
             }
             _ => return Ok(()),

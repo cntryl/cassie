@@ -107,6 +107,8 @@ pub enum LogicalCommand {
     Insert(InsertStatement),
     Update(UpdateStatement),
     Delete(DeleteStatement),
+    Truncate(crate::sql::ast::TruncateStatement),
+    Merge(Box<crate::sql::ast::MergeStatement>),
 }
 
 /// # Errors
@@ -152,6 +154,20 @@ fn plan_runtime_statement(statement: RuntimeStatementRef<'_>) -> Result<LogicalP
             &statement.table,
             "DELETE requires a target table",
             LogicalCommand::Delete(statement.clone()),
+        ),
+        RuntimeStatementRef::Truncate(statement) => plan_table_command(
+            &statement
+                .tables
+                .first()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+            "TRUNCATE requires a target table",
+            LogicalCommand::Truncate(statement.clone()),
+        ),
+        RuntimeStatementRef::Merge(statement) => plan_table_command(
+            &statement.table,
+            "MERGE requires a target table",
+            LogicalCommand::Merge(Box::new(statement.clone())),
         ),
         RuntimeStatementRef::Transaction(_) => Err(CassieError::Planner(
             "transaction control statements are handled by the session runtime".into(),

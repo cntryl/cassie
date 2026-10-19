@@ -36,12 +36,23 @@ pub(super) fn strip_select_own_qualifiers(select: &mut SelectStatement) {
 /// `RETURNING` clauses and assignment values.
 pub(super) fn strip_update_own_qualifiers(statement: &mut UpdateStatement) {
     let qualifiers = crate::catalog::qualifier_variants(&statement.table);
+    strip_update_qualifiers(statement, &qualifiers);
+}
+
+/// Rewrites `UPDATE` references qualified by any of `qualifiers`, such as the
+/// target's alias, to bare names.
+pub(super) fn strip_update_qualifiers(statement: &mut UpdateStatement, qualifiers: &[String]) {
+    let qualifiers = qualifiers
+        .iter()
+        .map(|qualifier| qualifier.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    let qualifiers = qualifiers.as_slice();
     for (_, value) in &mut statement.assignments {
-        *value = strip_expr(value, &qualifiers);
+        *value = strip_expr(value, qualifiers);
     }
-    strip_optional(&mut statement.filter, &qualifiers);
+    strip_optional(&mut statement.filter, qualifiers);
     for item in &mut statement.returning {
-        strip_select_item(item, &qualifiers);
+        strip_select_item(item, qualifiers);
     }
 }
 
@@ -49,7 +60,44 @@ pub(super) fn strip_update_own_qualifiers(statement: &mut UpdateStatement) {
 /// `RETURNING` clauses.
 pub(super) fn strip_delete_own_qualifiers(statement: &mut DeleteStatement) {
     let qualifiers = crate::catalog::qualifier_variants(&statement.table);
+    strip_delete_qualifiers(statement, &qualifiers);
+}
+
+/// Rewrites `DELETE` references qualified by any of `qualifiers` to bare names.
+pub(super) fn strip_delete_qualifiers(statement: &mut DeleteStatement, qualifiers: &[String]) {
+    let qualifiers = qualifiers
+        .iter()
+        .map(|qualifier| qualifier.to_ascii_lowercase())
+        .collect::<Vec<_>>();
     strip_optional(&mut statement.filter, &qualifiers);
+    for item in &mut statement.returning {
+        strip_select_item(item, &qualifiers);
+    }
+}
+
+/// Rewrites `INSERT ... AS alias` references in `ON CONFLICT` and `RETURNING`
+/// to bare names; `EXCLUDED` references keep their qualifier.
+pub(super) fn strip_insert_qualifiers(
+    statement: &mut crate::sql::ast::InsertStatement,
+    qualifiers: &[String],
+) {
+    let qualifiers = qualifiers
+        .iter()
+        .map(|qualifier| qualifier.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    if let Some(on_conflict) = statement.on_conflict.as_mut() {
+        if let crate::sql::ast::InsertConflictAction::DoUpdate {
+            assignments,
+            filter,
+        } = &mut on_conflict.action
+        {
+            for (_, value) in assignments {
+                *value = strip_expr(value, &qualifiers);
+            }
+            strip_optional(filter, &qualifiers);
+        }
+        strip_optional(&mut on_conflict.target_predicate, &qualifiers);
+    }
     for item in &mut statement.returning {
         strip_select_item(item, &qualifiers);
     }

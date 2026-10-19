@@ -52,7 +52,8 @@ pub(super) fn evaluate(
         }
         _ => return None,
     };
-    Some(sleep_until(deadline, controls).map(|()| Value::Null))
+    // `void` is not NULL: it renders as an empty string, as in PostgreSQL.
+    Some(sleep_until(deadline, controls).map(|()| Value::String(String::new())))
 }
 
 fn sleep_until(

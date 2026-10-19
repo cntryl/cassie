@@ -97,6 +97,7 @@ fn infer_insert_parameter_type_oids(
         if let ast::InsertConflictAction::DoUpdate {
             assignments,
             filter,
+            ..
         } = &conflict.action
         {
             infer_assignment_parameter_type_oids(assignments, &schema_fields, catalog, oids);

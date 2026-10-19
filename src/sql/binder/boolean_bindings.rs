@@ -37,6 +37,7 @@ pub(crate) fn bind_boolean_parameters(
                 if let InsertConflictAction::DoUpdate {
                     assignments,
                     filter,
+                    ..
                 } = &mut conflict.action
                 {
                     let schema = catalog

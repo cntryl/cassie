@@ -95,8 +95,12 @@ pub(crate) fn infer_plan_output_contract(
     let fields = if let Some(command) = &logical.command {
         let (table, returning) = match command {
             LogicalCommand::Insert(statement) => (&statement.table, &statement.returning),
-            LogicalCommand::Update(statement) => (&statement.table, &statement.returning),
-            LogicalCommand::Delete(statement) => (&statement.table, &statement.returning),
+            LogicalCommand::Update(statement) if !crate::executor::update_is_joined(statement) => {
+                (&statement.table, &statement.returning)
+            }
+            LogicalCommand::Delete(statement) if !crate::executor::delete_is_joined(statement) => {
+                (&statement.table, &statement.returning)
+            }
             _ => return Ok(None),
         };
         let source = QuerySource::Collection(table.clone());

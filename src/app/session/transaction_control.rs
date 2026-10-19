@@ -201,6 +201,7 @@ impl CassieSession {
     }
 
     pub(crate) fn commit_transaction(&self) {
+        self.discard_sequence_restarts();
         let mut transaction = self.transaction.lock();
         transaction.status = SessionTransactionStatus::Idle;
         transaction.implicit = false;
@@ -237,6 +238,7 @@ impl CassieSession {
     }
 
     pub(crate) fn rollback_transaction(&self) {
+        self.restore_sequence_restarts();
         let mut transaction = self.transaction.lock();
         let session_state = transaction.session_state.take();
         transaction.status = SessionTransactionStatus::Idle;

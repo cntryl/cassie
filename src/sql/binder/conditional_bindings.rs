@@ -50,6 +50,7 @@ pub(super) fn coerce_statement(
                 if let crate::sql::ast::InsertConflictAction::DoUpdate {
                     assignments,
                     filter,
+                    ..
                 } = &mut conflict.action
                 {
                     let schema = catalog

@@ -79,6 +79,7 @@ impl Walk<'_> {
                     if let crate::sql::ast::InsertConflictAction::DoUpdate {
                         assignments,
                         filter,
+                        ..
                     } = &conflict.action
                     {
                         let mut conflict_names = outer.clone();

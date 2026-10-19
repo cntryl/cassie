@@ -73,6 +73,7 @@ mod error;
 mod session;
 mod session_schema;
 mod session_sequences;
+pub(crate) use session_sequences::SequenceRestorer;
 mod session_settings;
 mod state;
 mod vector_backfill;
@@ -84,7 +85,9 @@ use cache::{
     QueryEmbeddingCacheKey, VectorSearchResultCacheKey,
 };
 pub(crate) use error::unsupported_sql_error;
-pub use error::{CassieError, CatalogObjectKind, RetryableStorageError, StorageRetryKind};
+pub use error::{
+    CassieError, CatalogObjectKind, DiagnosticError, RetryableStorageError, StorageRetryKind,
+};
 pub use session::CassieSession;
 pub(crate) use session::{
     SessionRandom, SessionReadScope, StagedWriteSnapshot, StatementMutationBatch, StatementOverlay,

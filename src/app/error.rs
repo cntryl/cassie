@@ -1,7 +1,10 @@
+#[path = "error/diagnostic.rs"]
+mod diagnostic;
 #[path = "error/execution.rs"]
 mod execution;
 use super::{EmbeddingError, QueryError, TransactionErrorKind};
 use crate::catalog::local_name;
+pub use diagnostic::DiagnosticError;
 use execution::execution_descriptor;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -232,6 +235,10 @@ pub enum CassieError {
 
     #[error("temporary storage unavailable: {0}")]
     StorageRetryable(RetryableStorageError),
+
+    /// A diagnostic reported with its own SQLSTATE, `DETAIL` and `HINT`.
+    #[error("{}", .0.message)]
+    Diagnostic(Box<DiagnosticError>),
 }
 
 impl CassieError {
@@ -309,6 +316,9 @@ impl CassieError {
             Self::NotFound(_) => not_found_descriptor(self.to_string()),
             Self::Unsupported(_) => unsupported_descriptor(self.to_string()),
             Self::StorageRetryable(_) => service_unavailable_descriptor("57P03", self.to_string()),
+            Self::Diagnostic(error) => {
+                bad_request_descriptor(error.sql_state, error.message.clone())
+            }
         }
     }
 }

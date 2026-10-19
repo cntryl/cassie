@@ -101,6 +101,10 @@ impl PgWireError {
                 "Input data is missing padding, is truncated, or is otherwise corrupted.".into(),
             );
         }
+        if let CassieError::Diagnostic(diagnostic) = error {
+            pg_error.detail.clone_from(&diagnostic.detail);
+            pg_error.hint.clone_from(&diagnostic.hint);
+        }
         pg_error.table = descriptor.table;
         pg_error.column = descriptor.column;
         pg_error.constraint = descriptor.constraint;

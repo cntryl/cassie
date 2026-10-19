@@ -35,6 +35,16 @@ fn execute_delete_with_held_referential_gates(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
+    if super::dml_joined_update::delete_is_joined(statement) {
+        return super::dml_joined_update::execute_joined_delete(
+            cassie,
+            session,
+            statement,
+            params,
+            user_functions,
+            controls,
+        );
+    }
     let returning_read_controls = if super::super::exists_projection::contains(&statement.returning)
     {
         Some(
@@ -116,6 +126,7 @@ fn execute_delete_with_held_referential_gates(
             command_prefix: "DELETE",
             controls,
             statement_read_controls,
+            returning_schema: None,
         },
         deleted_count,
         returning_rows,

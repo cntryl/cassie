@@ -85,6 +85,17 @@ fn execute_session_or_dml_command(
             user_functions,
             controls,
         )),
+        LogicalCommand::Merge(statement) => Some(execute_merge_command(
+            cassie,
+            session,
+            statement,
+            params,
+            user_functions,
+            controls,
+        )),
+        LogicalCommand::Truncate(statement) => Some(CommandExecution::new(
+            super::dml::execute_truncate(cassie, session, statement, controls),
+        )),
         _ => None,
     }
 }
@@ -576,6 +587,31 @@ fn execute_delete_command(
         super::materialized_projection::reject_write(cassie, &statement.table)?;
         let result = execute_atomic_dml(cassie, session, &statement.table, controls, |working| {
             super::dml::execute_delete(
+                cassie,
+                Some(working),
+                statement,
+                params,
+                user_functions,
+                controls,
+            )
+        })?;
+        apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
+        Ok(result)
+    })())
+}
+
+fn execute_merge_command(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::MergeStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> CommandExecution {
+    CommandExecution::new((|| {
+        super::materialized_projection::reject_write(cassie, &statement.table)?;
+        let result = execute_atomic_dml(cassie, session, &statement.table, controls, |working| {
+            super::dml::execute_merge(
                 cassie,
                 Some(working),
                 statement,

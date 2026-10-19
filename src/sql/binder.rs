@@ -368,6 +368,16 @@ fn bind_runtime_route(
             bind_delete(statement, catalog, context),
             QueryStatement::Delete,
         ),
+        RuntimeStatement::Truncate(statement) => bind_catalog_statement(
+            raw_sql,
+            commands::bind_truncate(statement, catalog, context),
+            QueryStatement::Truncate,
+        ),
+        RuntimeStatement::Merge(statement) => bind_catalog_statement(
+            raw_sql,
+            commands::bind_merge(*statement, catalog, context).map(Box::new),
+            QueryStatement::Merge,
+        ),
         RuntimeStatement::Transaction(statement) => Ok(parsed_statement(
             raw_sql,
             QueryStatement::Transaction(statement),

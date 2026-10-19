@@ -1,18 +1,43 @@
 use super::expr::{parse_expression, split_csv};
 use super::identifiers::{normalize_column_identifier, parse_relation_path_prefix};
-use super::query::parse_projection_items;
 use super::{
-    find_top_level_keyword, parse_statement, strip_parentheses, Expr, InsertSource,
-    ParsedStatement, QueryStatement, SelectItem, SqlError,
+    find_top_level_keyword, parse_statement, Expr, InsertSource, ParsedStatement, QueryStatement,
+    SqlError,
 };
+
+/// The rows of `INSERT ... VALUES`, checked against `column_count` named
+/// target columns (0 when none are named).
+fn parse_values_source(raw: &str, column_count: usize) -> Result<Vec<Vec<Expr>>, SqlError> {
+    let values_part = super::lexical::trim_separators(raw);
+    if values_part.is_empty() {
+        return Err(SqlError::new("INSERT requires VALUES list".into()));
+    }
+    if !values_part.starts_with('(') {
+        return Err(SqlError::new(
+            "INSERT VALUES requires parenthesized list".into(),
+        ));
+    }
+    let values = parse_insert_values_rows(values_part)?;
+    if column_count > 0 {
+        if let Some(row) = values.iter().find(|row| row.len() != column_count) {
+            return Err(SqlError::new(format!(
+                "INSERT column/value counts mismatch: {column_count} columns, {} values",
+                row.len()
+            )));
+        }
+    }
+    Ok(values)
+}
 
 pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let end = super::lexical::pattern_end(trimmed, 0, "insert into")
         .ok_or_else(|| SqlError::new("INSERT requires INTO clause".into()))?;
     let remainder = super::lexical::trim_separators(&trimmed[end..]);
-    let (statement_source, returning) = split_statement_and_returning(remainder)?;
-    let (statement_source, on_conflict) = split_insert_on_conflict(statement_source)?;
+    let (statement_source, returning, returning_aliases) =
+        super::dml_targets::split_returning(remainder)?;
+    let (statement_source, on_conflict) =
+        super::dml_conflict::split_insert_on_conflict(statement_source)?;
     if statement_source.trim().is_empty() {
         return Err(SqlError::new(
             "INSERT requires VALUES or SELECT source".into(),
@@ -21,8 +46,15 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
     let (table, columns, source, modifiers) = parse_insert_target(statement_source)?;
     let table = table.clone();
     let overriding = modifiers.overriding;
+    let alias = modifiers.alias.clone();
     if modifiers.default_values {
-        return default_values_insert(trimmed, table, source, on_conflict, returning, overriding);
+        let mut parsed =
+            default_values_insert(trimmed, table, source, on_conflict, returning, overriding)?;
+        if let QueryStatement::Insert(insert) = &mut parsed.statement {
+            insert.alias = alias;
+            insert.returning_aliases = returning_aliases;
+        }
+        return Ok(parsed);
     }
 
     let values_pos = find_top_level_keyword(source, 0, "values");
@@ -33,29 +65,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             ));
         }
 
-        let values_part = super::lexical::trim_separators(&source[values_pos + 6..]);
-        if values_part.is_empty() {
-            return Err(SqlError::new("INSERT requires VALUES list".into()));
-        }
-        if !values_part.starts_with('(') {
-            return Err(SqlError::new(
-                "INSERT VALUES requires parenthesized list".into(),
-            ));
-        }
-
-        let values = parse_insert_values_rows(values_part)?;
-
-        if !columns.is_empty() {
-            for row in &values {
-                if columns.len() != row.len() {
-                    return Err(SqlError::new(format!(
-                        "INSERT column/value counts mismatch: {} columns, {} values",
-                        columns.len(),
-                        row.len()
-                    )));
-                }
-            }
-        }
+        let values = parse_values_source(&source[values_pos + 6..], columns.len())?;
 
         return Ok(ParsedStatement {
             raw_sql: trimmed.to_string(),
@@ -66,28 +76,8 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
                 on_conflict,
                 returning,
                 overriding,
-            }),
-        });
-    }
-
-    if returning.is_empty() {
-        // Keep parsing behavior consistent for select sources with explicit and implicit `RETURNING`.
-        let parsed = parse_statement(source)?;
-        let QueryStatement::Select(select) = parsed.statement else {
-            return Err(SqlError::new(
-                "INSERT source must be a SELECT statement".into(),
-            ));
-        };
-
-        return Ok(ParsedStatement {
-            raw_sql: trimmed.to_string(),
-            statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
-                table,
-                columns,
-                source: InsertSource::Select(select),
-                on_conflict,
-                returning: Vec::new(),
-                overriding,
+                alias,
+                returning_aliases,
             }),
         });
     }
@@ -108,6 +98,8 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             on_conflict,
             returning,
             overriding,
+            alias,
+            returning_aliases,
         }),
     })
 }
@@ -133,103 +125,10 @@ fn default_values_insert(
             on_conflict,
             returning,
             overriding,
+            alias: None,
+            returning_aliases: None,
         }),
     })
-}
-
-fn split_insert_on_conflict(
-    raw: &str,
-) -> Result<(&str, Option<crate::sql::ast::InsertConflictClause>), SqlError> {
-    let Some(pos) = find_top_level_keyword(raw, 0, "on conflict") else {
-        return Ok((raw, None));
-    };
-    let statement = raw[..pos].trim();
-    let clause = raw[pos..].trim();
-    Ok((statement, Some(parse_on_conflict_clause(clause)?)))
-}
-
-fn parse_on_conflict_clause(raw: &str) -> Result<crate::sql::ast::InsertConflictClause, SqlError> {
-    let end = super::lexical::pattern_end(raw, 0, "on conflict")
-        .ok_or_else(|| SqlError::new("invalid ON CONFLICT clause".into()))?;
-    let remainder = super::lexical::trim_separators(&raw[end..]);
-    let do_pos = find_top_level_keyword(remainder, 0, "do")
-        .ok_or_else(|| SqlError::new("ON CONFLICT requires DO clause".into()))?;
-    let target_raw = super::lexical::trim_separators(&remainder[..do_pos]);
-    let action_raw = remainder[do_pos + 2..].trim();
-
-    let target_fields = if target_raw.is_empty() {
-        Vec::new()
-    } else {
-        let fields = strip_parentheses(target_raw)
-            .ok_or_else(|| SqlError::new("ON CONFLICT target must be parenthesized".into()))?;
-        split_csv(fields)
-            .into_iter()
-            .map(|field| {
-                let field = super::lexical::trim_separators(field);
-                if field.is_empty() {
-                    Err(SqlError::new(
-                        "ON CONFLICT target field cannot be empty".into(),
-                    ))
-                } else {
-                    normalize_column_identifier(field)
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?
-    };
-
-    let action = parse_on_conflict_action(action_raw)?;
-    Ok(crate::sql::ast::InsertConflictClause {
-        target_fields,
-        action,
-    })
-}
-
-fn parse_on_conflict_action(raw: &str) -> Result<crate::sql::ast::InsertConflictAction, SqlError> {
-    let raw = super::lexical::trim_separators(raw);
-    let lower = raw.to_ascii_lowercase();
-    if lower == "nothing" {
-        return Ok(crate::sql::ast::InsertConflictAction::DoNothing);
-    }
-    let end = super::lexical::pattern_end(raw, 0, "update set")
-        .ok_or_else(|| SqlError::new("ON CONFLICT supports DO NOTHING or DO UPDATE SET".into()))?;
-    let after_set = super::lexical::trim_separators(&raw[end..]);
-    let (assignments_raw, trailing) = split_trailing_update_clauses(after_set)?;
-    let assignments = parse_assignment_list(assignments_raw)?;
-    if assignments.is_empty() {
-        return Err(SqlError::new(
-            "ON CONFLICT DO UPDATE SET requires at least one assignment".into(),
-        ));
-    }
-    let filter = if trailing.trim().is_empty() {
-        None
-    } else {
-        let (filter, returning) = parse_filter_and_returning(trailing)?;
-        if !returning.is_empty() {
-            return Err(SqlError::new(
-                "ON CONFLICT DO UPDATE cannot contain RETURNING inside clause".into(),
-            ));
-        }
-        filter
-    };
-
-    Ok(crate::sql::ast::InsertConflictAction::DoUpdate {
-        assignments,
-        filter,
-    })
-}
-
-pub(super) fn split_statement_and_returning(
-    raw: &str,
-) -> Result<(&str, Vec<SelectItem>), SqlError> {
-    let raw = raw.trim();
-    let returning_pos = find_top_level_keyword(raw, 0, "returning");
-    if let Some(pos) = returning_pos {
-        let source = raw[..pos].trim();
-        let returning = parse_projection_items(&raw[pos + 9..])?;
-        Ok((source, returning))
-    } else {
-        Ok((raw, Vec::new()))
-    }
 }
 
 pub(super) fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr>>, SqlError> {
@@ -296,6 +195,7 @@ pub(super) fn parse_values_rows(
 pub(super) struct InsertTargetModifiers {
     pub(super) overriding: Option<crate::sql::ast::InsertOverriding>,
     pub(super) default_values: bool,
+    pub(super) alias: Option<String>,
 }
 
 /// Strips a trailing `OVERRIDING { SYSTEM | USER } VALUE` or `DEFAULT`.
@@ -369,14 +269,17 @@ pub(super) fn parse_insert_target(
         return Err(SqlError::new("INSERT INTO requires a table name".into()));
     }
 
+    let mut modifiers = modifiers;
     let Some(open_paren) = target.find('(') else {
         let (table, extra) = parse_relation_path_prefix(target)?;
         if table.is_empty() {
             return Err(SqlError::new("INSERT INTO requires a table name".into()));
         }
+        let (alias, extra) = super::dml_targets::split_target_alias(extra)?;
         if !extra.is_empty() {
             return Err(SqlError::new("INSERT INTO requires a table name".into()));
         }
+        modifiers.alias = alias;
         return Ok((table, Vec::new(), source, modifiers));
     };
 
@@ -392,6 +295,12 @@ pub(super) fn parse_insert_target(
     if table.is_empty() {
         return Err(SqlError::new("INSERT INTO requires a table name".into()));
     }
+    let (table_path, alias_tail) = parse_relation_path_prefix(table)?;
+    let (alias, alias_tail) = super::dml_targets::split_target_alias(alias_tail)?;
+    if !alias_tail.is_empty() {
+        return Err(SqlError::new("INSERT INTO requires a table name".into()));
+    }
+    modifiers.alias = alias;
 
     if !super::lexical::trim_separators(&target[close + 1..]).is_empty() {
         return Err(SqlError::new("INSERT column list is malformed".into()));
@@ -411,54 +320,64 @@ pub(super) fn parse_insert_target(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok((
-        crate::sql::ast::IdentifierPath::parse(table).map_err(SqlError::new)?,
-        columns,
-        source,
-        modifiers,
-    ))
+    Ok((table_path, columns, source, modifiers))
 }
 
 pub(super) fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    let remainder = super::lexical::trim_separators(&trimmed[6..]);
+    let mut remainder = super::lexical::trim_separators(&trimmed[6..]);
     if remainder.is_empty() {
         return Err(SqlError::new("UPDATE requires a target table".into()));
     }
-
-    let set_pos = find_top_level_keyword(remainder, 0, "set")
-        .ok_or_else(|| SqlError::new("UPDATE requires SET".into()))?;
-    if find_top_level_keyword(remainder, 0, "from").is_some() {
-        return Err(SqlError::new(
-            "UPDATE FROM is not supported in this version".into(),
-        ));
+    if let Some(end) = super::lexical::pattern_end(remainder, 0, "only") {
+        remainder = super::lexical::trim_separators(&remainder[end..]);
     }
-    if find_top_level_keyword(remainder, 0, "where") == Some(0) {
+    if find_top_level_keyword(remainder, 0, "set") == Some(0)
+        || find_top_level_keyword(remainder, 0, "where") == Some(0)
+    {
         return Err(SqlError::new("UPDATE requires a table name".into()));
     }
-
-    let table = super::lexical::trim_separators(&remainder[..set_pos]);
+    let (table, tail) = parse_relation_path_prefix(remainder)?;
     if table.is_empty() {
         return Err(SqlError::new("UPDATE requires a target table".into()));
     }
-
-    let after_set = super::lexical::trim_separators(&remainder[(set_pos + 3)..]);
-    let (set_clause, remaining) = split_trailing_update_clauses(after_set)?;
-    let assignments = parse_assignment_list(set_clause)?;
-    if assignments.is_empty() {
+    let (alias, tail) = super::dml_targets::split_target_alias(tail.trim_start_matches('*'))?;
+    let set_end = super::lexical::pattern_end(tail, 0, "set")
+        .ok_or_else(|| SqlError::new("UPDATE requires SET".into()))?;
+    let after_set = super::lexical::trim_separators(&tail[set_end..]);
+    let (body, returning, returning_aliases) = super::dml_targets::split_returning(after_set)?;
+    let where_pos = find_top_level_keyword(body, 0, "where");
+    let from_pos = find_top_level_keyword(body, 0, "from")
+        .filter(|from| where_pos.is_none_or(|where_pos| *from < where_pos));
+    let set_end = from_pos.or(where_pos).unwrap_or(body.len());
+    let parsed = super::dml_targets::parse_set_list(&body[..set_end])?;
+    if parsed.assignments.is_empty() && parsed.row_subqueries.is_empty() {
         return Err(SqlError::new(
             "UPDATE SET requires at least one assignment".into(),
         ));
     }
-    let (filter, returning) = parse_filter_and_returning(remaining)?;
+    let from = from_pos
+        .map(|from| {
+            let end = where_pos.unwrap_or(body.len());
+            parse_mutation_source(&body[from + 4..end], "FROM")
+        })
+        .transpose()?;
+    let filter = where_pos
+        .map(|position| parse_where(&body[position + 5..]))
+        .transpose()?
+        .flatten();
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Update(crate::sql::ast::UpdateStatement {
-            table: crate::sql::ast::IdentifierPath::parse(table).map_err(SqlError::new)?,
-            assignments,
+            table,
+            assignments: parsed.assignments,
             filter,
             returning,
+            alias,
+            from,
+            row_subqueries: parsed.row_subqueries,
+            returning_aliases,
         }),
     })
 }
@@ -467,7 +386,10 @@ pub(super) fn parse_delete_statement(sql: &str) -> Result<ParsedStatement, SqlEr
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let end = super::lexical::pattern_end(trimmed, 0, "delete from")
         .ok_or_else(|| SqlError::new("DELETE requires FROM clause".into()))?;
-    let remainder = super::lexical::trim_separators(&trimmed[end..]);
+    let mut remainder = super::lexical::trim_separators(&trimmed[end..]);
+    if let Some(end) = super::lexical::pattern_end(remainder, 0, "only") {
+        remainder = super::lexical::trim_separators(&remainder[end..]);
+    }
     if remainder.is_empty() {
         return Err(SqlError::new("DELETE requires a target table".into()));
     }
@@ -476,117 +398,80 @@ pub(super) fn parse_delete_statement(sql: &str) -> Result<ParsedStatement, SqlEr
     if table.is_empty() {
         return Err(SqlError::new("DELETE requires a target table".into()));
     }
-
-    let (filter, returning) = parse_filter_and_returning(tail)?;
+    let (alias, tail) = super::dml_targets::split_target_alias(tail.trim_start_matches('*'))?;
+    let (body, returning, returning_aliases) = super::dml_targets::split_returning(tail)?;
+    let where_pos = find_top_level_keyword(body, 0, "where");
+    let using = if let Some(using_end) = super::lexical::pattern_end(body, 0, "using") {
+        let end = where_pos.unwrap_or(body.len());
+        Some(parse_mutation_source(&body[using_end..end], "USING")?)
+    } else {
+        if where_pos.is_some_and(|position| position != 0)
+            || (where_pos.is_none() && !body.trim().is_empty())
+        {
+            return Err(SqlError::syntax(format!(
+                "syntax error at or near \"{}\"",
+                body.split_whitespace().next().unwrap_or_default()
+            )));
+        }
+        None
+    };
+    let filter = where_pos
+        .map(|position| parse_where(&body[position + 5..]))
+        .transpose()?
+        .flatten();
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Delete(crate::sql::ast::DeleteStatement {
             table,
             filter,
             returning,
+            alias,
+            using,
+            returning_aliases,
         }),
     })
 }
 
-pub(super) fn parse_filter_and_returning(
-    raw: &str,
-) -> Result<(Option<Expr>, Vec<crate::sql::ast::SelectItem>), SqlError> {
+fn parse_where(raw: &str) -> Result<Option<Expr>, SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
-        return Ok((None, Vec::new()));
+        return Ok(None);
     }
-
-    let where_pos = find_top_level_keyword(raw, 0, "where");
-    let returning_pos = find_top_level_keyword(raw, 0, "returning");
-
-    match (where_pos, returning_pos) {
-        (Some(where_pos), Some(returning_pos)) if where_pos > returning_pos => {
-            Err(SqlError::new("unexpected RETURNING order".into()))
-        }
-        (Some(where_pos), Some(returning_pos)) => {
-            let filter_raw = raw[where_pos + 5..returning_pos].trim();
-            let returning_raw = raw[returning_pos + 9..].trim();
-            let filter = if filter_raw.is_empty() {
-                None
-            } else {
-                Some(parse_expression(filter_raw)?)
-            };
-            let returning = parse_projection_items(returning_raw)?;
-            Ok((filter, returning))
-        }
-        (Some(where_pos), None) => {
-            let filter_raw = raw[where_pos + 5..].trim();
-            let filter = if filter_raw.is_empty() {
-                None
-            } else {
-                Some(parse_expression(filter_raw)?)
-            };
-            Ok((filter, Vec::new()))
-        }
-        (None, Some(returning_pos)) => {
-            let filter = None;
-            let returning_raw = raw[returning_pos + 9..].trim();
-            let returning = parse_projection_items(returning_raw)?;
-            Ok((filter, returning))
-        }
-        (None, None) => Ok((None, Vec::new())),
-    }
+    parse_expression(raw).map(Some)
 }
 
-pub(super) fn parse_assignment_list(raw: &str) -> Result<Vec<(String, Expr)>, SqlError> {
-    let mut assignments = Vec::new();
-    if raw.trim().is_empty() {
-        return Ok(assignments);
-    }
-
-    for assignment in split_csv(raw) {
-        let assignment = assignment.trim();
-        if assignment.is_empty() {
-            return Err(SqlError::new(
-                "UPDATE SET cannot include empty assignment".into(),
-            ));
+/// Parses a `FROM`/`USING` list; top-level commas are cross joins.
+pub(super) fn parse_mutation_source(
+    raw: &str,
+    clause: &str,
+) -> Result<crate::sql::ast::MutationSource, SqlError> {
+    let items = split_csv(raw);
+    let mut source: Option<crate::sql::ast::QuerySource> = None;
+    for item in items {
+        let item = super::lexical::trim_separators(item);
+        if item.is_empty() {
+            return Err(SqlError::syntax(format!(
+                "syntax error: {clause} requires a relation"
+            )));
         }
-        assignments.push(parse_assignment(assignment)?);
+        let parsed = super::query::parse_query_source(item)?;
+        source = Some(match source {
+            None => parsed,
+            Some(left) => crate::sql::ast::QuerySource::Join {
+                left: Box::new(left),
+                right: Box::new(parsed),
+                kind: crate::sql::ast::JoinKind::Cross,
+                on: Expr::BoolLiteral(true),
+            },
+        });
     }
-
-    Ok(assignments)
+    source
+        .map(crate::sql::ast::MutationSource::new)
+        .ok_or_else(|| SqlError::syntax(format!("syntax error: {clause} requires a relation")))
 }
 
 pub(super) fn find_matching_paren(raw: &str, open_at: usize) -> Option<usize> {
     super::lexical::matching_paren(raw, open_at)
-}
-
-pub(super) fn split_trailing_update_clauses(raw: &str) -> Result<(&str, &str), SqlError> {
-    let where_pos = find_top_level_keyword(raw, 0, "where");
-    let returning_pos = find_top_level_keyword(raw, 0, "returning");
-
-    match (where_pos, returning_pos) {
-        (None, None) => Ok((raw, "")),
-        (Some(where_pos), Some(returning_pos)) if where_pos < returning_pos => {
-            Ok((&raw[..where_pos], &raw[where_pos..]))
-        }
-        (Some(_), Some(_)) => Err(SqlError::new("unexpected RETURNING order".into())),
-        (Some(pos), None) | (None, Some(pos)) => Ok((&raw[..pos], &raw[pos..])),
-    }
-}
-
-pub(super) fn parse_assignment(raw: &str) -> Result<(String, Expr), SqlError> {
-    let eq_pos = split_top_level_assignment(raw)
-        .ok_or_else(|| SqlError::new("UPDATE SET assignments require '='".into()))?;
-
-    let (left, right) = raw.split_at(eq_pos);
-    let left = super::lexical::trim_separators(left);
-    if left.is_empty() {
-        return Err(SqlError::new(
-            "UPDATE SET assignment missing column name".into(),
-        ));
-    }
-    let right = right[1..].trim();
-    if right.is_empty() {
-        return Err(SqlError::new("UPDATE SET assignment missing value".into()));
-    }
-
-    Ok((normalize_column_identifier(left)?, parse_expression(right)?))
 }
 
 pub(super) fn split_top_level_assignment(raw: &str) -> Option<usize> {

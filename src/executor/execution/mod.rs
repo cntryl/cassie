@@ -90,6 +90,7 @@ use result::{build_select_result, compare_query_values, deduce_text_fields, row_
 
 mod dml;
 pub(crate) use dml::resolve_transaction_conflict_intents;
+pub(crate) use dml::{delete_is_joined, joined_returning_schema, update_is_joined};
 mod dml_command;
 mod dml_referential_actions;
 

@@ -106,6 +106,7 @@ pub(crate) fn statement(query: &ParsedStatement) -> Result<(), CassieError> {
                 if let InsertConflictAction::DoUpdate {
                     assignments,
                     filter,
+                    ..
                 } = &conflict.action
                 {
                     for (_, expr) in assignments {

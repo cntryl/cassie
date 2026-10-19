@@ -122,3 +122,11 @@ mod types_ranges_operators;
 
 #[path = "storage_indexes/storage/midge_release_041.rs"]
 mod midge_release_041;
+
+#[path = "storage_indexes/constraints/namespace_backing.rs"]
+mod constraint_namespace_backing;
+
+#[path = "support/catalog_directory.rs"]
+mod support_catalog_directory;
+#[path = "support/constraint_namespace.rs"]
+mod support_constraint_namespace;

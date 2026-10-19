@@ -480,6 +480,8 @@ impl Midge {
         Ok(out)
     }
 
+    /// Validates newly unique fields and publishes their committed-owner reservations.
+    ///
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
@@ -488,11 +490,20 @@ impl Midge {
         collection: &str,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
+        self.save_constraints_with_unique_reservations(collection, constraints)
+    }
+
+    pub(super) fn save_constraints_metadata(
+        &self,
+        collection: &str,
+        constraints: &[FieldConstraint],
+    ) -> Result<(), CassieError> {
         crate::sql::definition_guard::constraints(constraints)?;
+        let collection = self.canonical_collection_name(collection);
         let mut tx = self.begin_schema_rw_tx()?;
         let value = serde_json::to_vec(constraints)
             .map_err(|error| CassieError::Parse(error.to_string()))?;
-        tx.put(Self::constraints_key(collection), value, None)
+        tx.put(Self::constraints_key(&collection), value, None)
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -503,9 +514,10 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn load_constraints(&self, collection: &str) -> Result<Vec<FieldConstraint>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let tx = self.begin_schema_readonly_tx()?;
         let raw = tx
-            .get(&Self::constraints_key(collection))
+            .get(&Self::constraints_key(&collection))
             .map_err(CassieError::from)?;
         let Some(raw) = raw else {
             return Ok(Vec::new());

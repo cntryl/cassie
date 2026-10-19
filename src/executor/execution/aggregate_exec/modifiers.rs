@@ -20,7 +20,7 @@ use super::state::AggregateAccumulator;
 use super::{check_timeout, AggregateExecutionContext, QueryError};
 
 struct Seen {
-    keys: HashSet<SemanticValue>,
+    keys: HashSet<Vec<SemanticValue>>,
     table_bytes: usize,
     memory: QueryMemoryReservation,
 }
@@ -38,18 +38,23 @@ impl Seen {
         &mut self,
         value: &Value,
         array_key: Option<&SemanticValue>,
+        additional: Option<&Value>,
         controls: &QueryExecutionControls,
     ) -> Result<bool, QueryError> {
         check_timeout(controls)?;
-        let bytes = add(key_bound(value)?, 64)?;
+        let additional_bytes = additional.map(key_bound).transpose()?.unwrap_or_default();
+        let bytes = add(add(key_bound(value)?, additional_bytes)?, 64)?;
         let candidate = controls.reserve_query_memory(bytes)?;
-        let key = array_key.cloned().unwrap_or_else(|| scalar_key(value));
+        let mut key = vec![array_key.cloned().unwrap_or_else(|| scalar_key(value))];
+        if let Some(additional) = additional {
+            key.push(scalar_key(additional));
+        }
         if self.keys.contains(&key) {
             return Ok(false);
         }
         let growing = self.keys.len() == self.keys.capacity();
         let extra = if growing {
-            hash_table_bytes::<SemanticValue>(mul(self.keys.capacity().max(2), 2)?)?
+            hash_table_bytes::<Vec<SemanticValue>>(mul(self.keys.capacity().max(2), 2)?)?
         } else {
             0
         };
@@ -61,7 +66,7 @@ impl Seen {
         }
         self.keys.insert(key);
         self.memory.absorb(candidate);
-        let table = hash_table_bytes::<SemanticValue>(self.keys.capacity())?;
+        let table = hash_table_bytes::<Vec<SemanticValue>>(self.keys.capacity())?;
         self.memory
             .shrink_to(add(self.memory.bytes() - extra - self.table_bytes, table)?);
         self.table_bytes = table;
@@ -97,61 +102,105 @@ fn allocation_error(owner: &str, error: &impl std::fmt::Display) -> QueryError {
 
 struct OrderedInput {
     value: Option<Value>,
+    delimiter: Option<Value>,
     array_key: Option<SemanticValue>,
     keys: Vec<SemanticValue>,
 }
 
-pub(super) fn evaluate(
-    function: &FunctionCall,
-    rows: &[BatchRow],
-    context: &AggregateExecutionContext<'_>,
-) -> Result<Value, QueryError> {
-    let mut seen = Seen::new(context.controls)?;
-    let mut state_memory = context.controls.reserve_query_memory(0)?;
-    let mut accumulator = AggregateAccumulator::new(function);
-    let mut memory = context.controls.reserve_query_memory(0)?;
-    let mut inputs = Vec::<OrderedInput>::new();
-    for row in rows {
-        check_timeout(context.controls)?;
+struct ModifierAccumulator {
+    seen: Seen,
+    state_memory: QueryMemoryReservation,
+    accumulator: AggregateAccumulator,
+    memory: QueryMemoryReservation,
+    inputs: Vec<OrderedInput>,
+}
+
+impl ModifierAccumulator {
+    fn new(
+        function: &FunctionCall,
+        context: &AggregateExecutionContext<'_>,
+    ) -> Result<Self, QueryError> {
+        Ok(Self {
+            seen: Seen::new(context.controls)?,
+            state_memory: context.controls.reserve_query_memory(0)?,
+            accumulator: AggregateAccumulator::new(function),
+            memory: context.controls.reserve_query_memory(0)?,
+            inputs: Vec::new(),
+        })
+    }
+
+    fn push_row(
+        &mut self,
+        function: &FunctionCall,
+        row: &BatchRow,
+        context: &AggregateExecutionContext<'_>,
+    ) -> Result<(), QueryError> {
         if !AggregateAccumulator::row_filter_matches(function, row, context)? {
-            continue;
+            return Ok(());
         }
         let input_memory = context
             .controls
             .reserve_query_memory(input_bound(function, row, context)?)?;
         let value = AggregateAccumulator::selected_row_input(function, row, context)?;
-        let key_memory = context
-            .controls
-            .reserve_query_memory(add(key_bound(&value)?, 64)?)?;
+        let delimiter = crate::sql::functions::function(&function.name)
+            .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg)
+            .then(|| AggregateAccumulator::selected_row_argument(function, 1, row, context))
+            .transpose()?;
+        let key_memory = context.controls.reserve_query_memory(add(
+            add(
+                key_bound(&value)?,
+                delimiter
+                    .as_ref()
+                    .map(key_bound)
+                    .transpose()?
+                    .unwrap_or_default(),
+            )?,
+            64,
+        )?)?;
         let array_key = function
             .args
             .first()
             .map(|argument| semantic_key(row, argument, &value, context))
             .filter(|key| matches!(key, SemanticValue::Array(_)));
-        if function.is_distinct() && !seen.insert(&value, array_key.as_ref(), context.controls)? {
-            continue;
+        if function.is_distinct()
+            && !self.seen.insert(
+                &value,
+                array_key.as_ref(),
+                delimiter.as_ref(),
+                context.controls,
+            )?
+        {
+            return Ok(());
         }
         if function.order_by.is_empty() {
             transition(
-                &mut accumulator,
-                &mut state_memory,
+                &mut self.accumulator,
+                &mut self.state_memory,
                 function,
                 value,
+                delimiter,
                 array_key,
                 context.controls,
             )?;
             #[cfg(test)]
             if let Some(observer) = context.after_partition_row {
-                observer(seen.keys.len());
+                observer(self.seen.keys.len());
             }
-            continue;
+            return Ok(());
         }
-        memory.try_grow(add(
-            value_clone_bytes(&value)?,
+        self.memory.try_grow(add(
+            add(
+                value_clone_bytes(&value)?,
+                delimiter
+                    .as_ref()
+                    .map(value_clone_bytes)
+                    .transpose()?
+                    .unwrap_or_default(),
+            )?,
             mul(function.order_by.len(), size_of::<SemanticValue>())?,
         )?)?;
         if let Some(key) = &array_key {
-            memory.try_grow(key.estimated_bytes())?;
+            self.memory.try_grow(key.estimated_bytes())?;
         }
         let keys = ordered_keys(
             function,
@@ -159,46 +208,64 @@ pub(super) fn evaluate(
             &value,
             array_key.as_ref(),
             context,
-            &mut memory,
+            &mut self.memory,
         )?;
-        grow_ordered_inputs(&mut inputs, &mut memory)?;
-        inputs.push(OrderedInput {
+        grow_ordered_inputs(&mut self.inputs, &mut self.memory)?;
+        self.inputs.push(OrderedInput {
             value: Some(value),
+            delimiter,
             array_key,
             keys,
         });
-        memory.absorb(input_memory);
-        memory.absorb(key_memory);
+        self.memory.absorb(input_memory);
+        self.memory.absorb(key_memory);
         #[cfg(test)]
         if let Some(observer) = context.after_partition_row {
-            observer(inputs.len());
+            observer(self.inputs.len());
         }
+        Ok(())
     }
-    if !inputs.is_empty() {
-        let (indices, _sort_memory) = sorted_indices(&inputs, function, context.controls)?;
-        for index in indices {
-            check_timeout(context.controls)?;
-            let input = &mut inputs[index];
-            transition(
-                &mut accumulator,
-                &mut state_memory,
-                function,
-                input
-                    .value
-                    .take()
-                    .expect("each sorted input is visited once"),
-                input.array_key.take(),
-                context.controls,
-            )?;
+
+    fn finish(
+        mut self,
+        function: &FunctionCall,
+        context: &AggregateExecutionContext<'_>,
+    ) -> Result<Value, QueryError> {
+        if !self.inputs.is_empty() {
+            let (indices, _sort_memory) = sorted_indices(&self.inputs, function, context.controls)?;
+            for index in indices {
+                check_timeout(context.controls)?;
+                let input = &mut self.inputs[index];
+                transition(
+                    &mut self.accumulator,
+                    &mut self.state_memory,
+                    function,
+                    input
+                        .value
+                        .take()
+                        .expect("each sorted input is visited once"),
+                    input.delimiter.take(),
+                    input.array_key.take(),
+                    context.controls,
+                )?;
+            }
         }
+        check_timeout(context.controls)?;
+        self.accumulator.finish()
     }
-    check_timeout(context.controls)?;
-    let result = accumulator.finish();
-    drop(inputs);
-    drop(memory);
-    drop(seen);
-    drop(state_memory);
-    result
+}
+
+pub(super) fn evaluate(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    context: &AggregateExecutionContext<'_>,
+) -> Result<Value, QueryError> {
+    let mut accumulator = ModifierAccumulator::new(function, context)?;
+    for row in rows {
+        check_timeout(context.controls)?;
+        accumulator.push_row(function, row, context)?;
+    }
+    accumulator.finish(function, context)
 }
 
 fn ordered_keys(
@@ -272,9 +339,9 @@ fn input_bound(
     row: &BatchRow,
     context: &AggregateExecutionContext<'_>,
 ) -> Result<usize, QueryError> {
-    function.args.first().map_or(Ok(0), |expression| {
-        expression_bound(expression, row, context)
-    })
+    Ok(function.args.iter().try_fold(0, |bytes, expression| {
+        add(bytes, expression_bound(expression, row, context)?)
+    })?)
 }
 
 fn expression_bound(
@@ -364,14 +431,19 @@ fn transition(
     memory: &mut QueryMemoryReservation,
     function: &FunctionCall,
     value: Value,
+    delimiter: Option<Value>,
     key: Option<SemanticValue>,
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    let mut retained_bytes = value_clone_bytes(&value)?;
+    if let Some(delimiter) = &delimiter {
+        retained_bytes = add(retained_bytes, value_clone_bytes(delimiter)?)?;
+    }
     let candidate = controls.reserve_query_memory(add(
-        value_clone_bytes(&value)?,
+        retained_bytes,
         key.as_ref().map_or(0, SemanticValue::estimated_bytes),
     )?)?;
-    accumulator.update_value(function, value, key)?;
+    accumulator.update_values(function, value, key, delimiter)?;
     memory.absorb(candidate);
     memory.shrink_to(accumulator.retained_heap_bytes()?);
     Ok(())

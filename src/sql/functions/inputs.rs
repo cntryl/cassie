@@ -40,6 +40,10 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
         FunctionId::BoolAnd | FunctionId::BoolOr => {
             matches!(data_type, DataType::Null | DataType::Boolean)
         }
+        FunctionId::StringAgg => matches!(
+            data_type,
+            DataType::Null | DataType::Text | DataType::Char { .. } | DataType::Varchar { .. }
+        ),
         _ => true,
     }
 }
@@ -81,7 +85,8 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::BoolAnd | FunctionId::BoolOr => Some(FunctionInputSignature::Boolean),
         FunctionId::Coalesce => Some(FunctionInputSignature::CommonArguments),
         FunctionId::Substring => Some(FunctionInputSignature::Positional(&[25, 23, 23])),
-        FunctionId::Decode
+        FunctionId::StringAgg
+        | FunctionId::Decode
         | FunctionId::StartsWith
         | FunctionId::Trim
         | FunctionId::Ltrim

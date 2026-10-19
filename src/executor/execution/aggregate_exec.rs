@@ -498,7 +498,10 @@ fn evaluate_aggregate(
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
+    let is_string_aggregate = crate::sql::functions::function(&function.name)
+        .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg);
     if matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
+        || is_string_aggregate
         || boolean::BooleanState::new(&function.name).is_some()
     {
         AggregateAccumulator::evaluate(function, rows, context)

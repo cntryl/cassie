@@ -1,8 +1,9 @@
 # Selected integer pagination
 
-Issue [#797](https://github.com/cntryl/cassie/issues/797) implements the approved
-[D2 contract](sql-dialect-profile.md#d2-parameterized-pagination-797) over current
-integer types. The broader #792/#793 programs remain open.
+Issue [#797](https://github.com/cntryl/cassie/issues/797) implements the selected
+D2 contract over current integer types. The former broad #792/#793 programs were
+closed as superseded; additional syntax and type work requires a current
+roadmap milestone and issue.
 
 `SelectStatement` and `LogicalPlan` carry `Option<Expr>` limit/offset expressions.
 Literal bounds use `Expr::IntegerLiteral`; parameters remain zero based;

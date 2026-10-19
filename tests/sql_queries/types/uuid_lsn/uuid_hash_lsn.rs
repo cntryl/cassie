@@ -299,7 +299,7 @@ fn should_return_the_postgresql_sha512_binary_string_vector() {
 #[test]
 fn should_encode_digest_results_as_hex_or_base64() {
     // Arrange
-    let fixture = sql_fixture("issue-816-digest-encodings", &["CREATE EXTENSION pgcrypto"]);
+    let fixture = sql_fixture("issue-843-digest-encodings", &["CREATE EXTENSION pgcrypto"]);
 
     // Act
     let result = fixture.rows(
@@ -322,7 +322,7 @@ fn should_encode_digest_results_as_hex_or_base64() {
 fn should_reject_an_unsupported_digest_algorithm() {
     // Arrange
     let fixture = sql_fixture(
-        "issue-816-digest-invalid-algorithm",
+        "issue-843-digest-invalid-algorithm",
         &["CREATE EXTENSION pgcrypto"],
     );
 
@@ -339,7 +339,7 @@ fn should_reject_an_unsupported_digest_algorithm() {
 #[test]
 fn should_propagate_null_through_strict_hash_functions() {
     // Arrange
-    let fixture = sql_fixture("issue-816-hash-null-inputs", &["CREATE EXTENSION pgcrypto"]);
+    let fixture = sql_fixture("issue-843-hash-null-inputs", &["CREATE EXTENSION pgcrypto"]);
 
     // Act
     let result = fixture.rows(

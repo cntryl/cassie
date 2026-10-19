@@ -1,4 +1,9 @@
-# Selected v3 type identity and durable-value contract
+# Selected v3 type identity and durable-value contract (historical proposal)
+
+> **Historical proposal, not an implemented or current storage contract.** The
+> CRB3 and export/recreate/reimport design was recorded under the retired
+> full-parity program. Current stored values and compatibility requirements are
+> owned by the runtime and [Storage Recovery Qualification](storage-recovery-qualification.md).
 
 Status: common direction explicitly approved by the user on 2026-10-10 for
 [#793](https://github.com/cntryl/cassie/issues/793); not implemented or qualified.

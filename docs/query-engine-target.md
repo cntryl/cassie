@@ -1,4 +1,6 @@
-# Query Engine Target 1
+# Query Engine Target 1: Bounded Qualification Record
+
+This document is a technical qualification target under the [Product Roadmap](product-roadmap.md#product-goal-and-scope), not a separate product or PostgreSQL parity goal. The target supports selected correctness and resource guarantees for Cassie's documented read-model SQL contract. Its baseline inventory is historical; live issue state and dependencies come from GitHub.
 
 This is a finite delivery target for the single-node Cassie query engine. It does
 not promote a feature, adopt a public batch API or select a persistent encoding.
@@ -39,12 +41,10 @@ records include completed validation, review, hosted checks and merge/closure
 readback. These finite prerequisites do not complete wider relational, wire,
 isolation or transactional-catalog acceptance.
 
-The top-priority [#791 program](postgresql18-delivery.md) now selects complete
-PostgreSQL 18.6 core SQL and full PL/pgSQL under [the dialect profile](sql-dialect-profile.md).
-Earlier finite exclusions in this Target 1 record are intermediate boundaries;
-only the profile's architectural exceptions may be excluded from final parity.
-#793/#904 retain actual type/runtime and v3 upgrade acceptance; #819/#833 retain
-isolation/catalog publication; #848/#849 retain complete corpus/resource/restart gates.
+The former #791–#793 full PostgreSQL 18.6 core-SQL/PLpgSQL program was closed as
+superseded. This target does not expand the supported SQL profile. PostgreSQL
+18.6 remains a semantic oracle for selected in-scope cases; #848 and #849 are
+v1.0 qualification owners bounded by the current roadmap and live issue criteria.
 
 Vectorized relational execution means operators carrying batches of typed column
 values, with validity, selection, row identity, ownership and bounded state.
@@ -59,8 +59,9 @@ specialized CBM2 acceleration do not by themselves establish that execution mode
   administrative. This target does not create an alternate query/storage service.
 - The accepted on-disk layout remains cassie-midge-layout-v2. No legacy reader,
   migration or compatibility support is introduced by this target.
-- PostgreSQL 18 supplies a version-pinned semantic/protocol comparison, not a new
-  server/client certification. Only selected documented workflows are claimed.
+- PostgreSQL 18 supplies a version-pinned semantic/protocol comparison for
+  selected documented workflows, not a new server/client certification or
+  promise of complete SQL parity.
 - Full PostgreSQL syntax/server/catalog/extension/isolation parity, pgvector ABI,
   trigger/business-procedure platforms, distributed SQL and fleet coordination
   remain unclaimed. Remote provider availability and quotas remain operator-owned.
@@ -85,7 +86,7 @@ selected boundaries. These specifications do not qualify unimplemented runtime p
 | Table/predicate/lateral/correlated subqueries and CTEs | Experimental documented forms, including EXISTS and nonrecursive/recursive WITH. | Qualify only implemented grammar/scope/recursive forms; deterministic unsupported errors. | [#761](https://github.com/cntryl/cassie/issues/761) | Exact supported semantics, types/NULLs/errors and empty/recursive boundary cases. |
 | Scalar expression subqueries | Planned; SELECT (SELECT 1) fails 42601 at the baseline. | Selected zero/one/many-row, width/type/correlation/expression/resource contract precedes bounded implementation. | [#754](https://github.com/cntryl/cassie/issues/754) documentation; [#762](https://github.com/cntryl/cassie/issues/762) implementation after [#761](https://github.com/cntryl/cassie/issues/761) | Independent cardinality/scope fixtures and Describe/Execute metadata; no claim while absent. |
 | Windows | Experimental ranking/offset/value functions and documented row frames. | Finite typed/frame subset with exact stage/peer/order/NULL semantics and bounded state. | [#760](https://github.com/cntryl/cassie/issues/760); [#761](https://github.com/cntryl/cassie/issues/761) | Existing scalar window/frame fixtures; retain explicit frame/syntax exclusions. |
-| Logical types and codecs | Experimental types/casts; current declared universe listed below. | Shared logical/physical/codec identity, exact known deviations and selected kernel capability authority. | [#752](https://github.com/cntryl/cassie/issues/752); [#753](https://github.com/cntryl/cassie/issues/753); [#776](https://github.com/cntryl/cassie/issues/776) | Exact text/binary/metadata fixtures, large integer and malformed-input boundaries. No new persistent type/ABI. |
+| Logical types and codecs | Experimental types/casts across original scalar and container carriers, object identifiers, and the native extended families in the current Type Contract. | Preserve each selected logical identity, codec, semantic key and admitted typed-kernel boundary; extend only from an explicit current contract. | [#752](https://github.com/cntryl/cassie/issues/752); [#753](https://github.com/cntryl/cassie/issues/753); [#776](https://github.com/cntryl/cassie/issues/776) | Exact text/binary/metadata fixtures, large-value and malformed-input boundaries. This target does not authorize a new persistent type, wire ABI or migration. |
 | Physical ColumnStore | Experimental field-key tables; separate from Midge families and CBM2 sidecars. | Controlled selected-field reconstruction, row/field atomicity, schema/lifecycle and typed-reader qualification. | [#749](https://github.com/cntryl/cassie/issues/749); [#756](https://github.com/cntryl/cassie/issues/756); [#768](https://github.com/cntryl/cassie/issues/768) | Authoritative rows plus pre-decode reservations, corruption/generation and restart cases. No broad column-store promotion here. |
 | CBM2 column-batch acceleration | Stable current plain/constant/RLE/dictionary/frame-of-reference/ALP/FSST codecs, pruning, selected projection and aggregate paths. | Preserve current latest-only framing/generation/fallback rules; hand off eligible typed views without forced JSON conversion. | [#756](https://github.com/cntryl/cassie/issues/756); [#758](https://github.com/cntryl/cassie/issues/758); [#768](https://github.com/cntryl/cassie/issues/768) | Existing golden codecs, complete validation and authoritative row comparison; existing paired codec benchmark objectives. |
 | Common typed-column execution | Planned for the complete relational target; the first private typed scan/filter/projection slice is implemented and qualified with [finite fallback and ownership boundaries](typed-pipeline-acceptance.md). | One private batch/view contract; scan/filter/projection, then aggregates/joins, then ordering/sets/windows. Every current supported logical value must survive declared output/fallback boundaries. | [#753](https://github.com/cntryl/cassie/issues/753); [#756](https://github.com/cntryl/cassie/issues/756); [#758](https://github.com/cntryl/cassie/issues/758)–[#760](https://github.com/cntryl/cassie/issues/760) | Constructor/ownership laws, scalar results and selected type/kernel matrix. No public API or disk format chosen here. |
@@ -107,22 +108,23 @@ selected boundaries. These specifications do not qualify unimplemented runtime p
 
 ## Current finite logical type universe
 
-The metadata carrier Null is distinguished from declared SQL types. Current
-logical types are SMALLINT, INT, BIGINT, FLOAT/DOUBLE (float8; NUMERIC/DECIMAL are
-aliases with documented loss of exact-decimal behavior), BOOLEAN, TEXT, CHAR(n),
-VARCHAR(n), UUID, BYTEA, DATE, TIME, one normalized TIMESTAMP type, JSON, VECTOR(n),
-and one-dimensional ARRAY of a permitted non-ARRAY element. Current bounds and
-wire identities are derived from src/types/schema.rs, not imported from an
-extension. The [finite SQL type and wire contract](type-contract.md) records the
-selected input/output/type-name/OID/typlen/typmod and storage representations
-under [#752](https://github.com/cntryl/cassie/issues/752), before
-[#753](https://github.com/cntryl/cassie/issues/753) selects private lane representations.
+The metadata carrier Null is distinct from declared SQL types. Cassie's current
+inventory includes the original integer, float8, Boolean, text/character, UUID,
+BYTEA, date/time/timestamp, JSON, vector and bounded array carriers; registered
+`oid`/`reg*` identities; and the native extended families REAL, exact NUMERIC,
+network and hardware addresses, `pg_lsn`, bit strings and temporal types. Exact
+OIDs, lengths, typmods, carriers and row-blob behavior are listed in the
+[finite SQL type and wire contract](type-contract.md), with family details in
+[Extended Types](extended-types.md). These are current source mappings, not a
+claim that every cast, operator, array or client workflow is qualified.
 
-Preserve exact integer comparison/hash behavior, declared temporal units, SQL NULL
-versus JSON null, finite f32 vector dimensions and current array bounds/private
-OIDs. Exact NUMERIC, separate TIMESTAMPTZ, padded CHAR, multidimensional/custom-bound
-arrays and pgvector types/OIDs are not newly selected capabilities. A new type,
-public identity, durable encoding or migration requires a concrete contract first.
+Preserve exact integer and NUMERIC behavior, declared temporal identity, SQL
+NULL versus JSON null, finite f32 vector dimensions and each selected array
+boundary. JSONB remains an alias. Full pgvector type/OID ABI parity remains
+unclaimed; the selected pgvector client profile is tracked separately by [#844](https://github.com/cntryl/cassie/issues/844).
+Multidimensional/custom-bound arrays are outside the documented profile. Any
+additional type family, wire identity, durable encoding or migration requires a
+concrete current contract and a selected read-model use case first.
 
 ## Selected client/workflow boundary
 

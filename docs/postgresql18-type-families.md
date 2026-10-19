@@ -1,10 +1,12 @@
-# PostgreSQL 18 type family records
+# PostgreSQL 18 type family records (historical)
 
-These are #793's implementation contracts for the full selected PostgreSQL
-18.6 target, not evidence that Cassie implements them. Earlier 38-digit,
-one-dimensional, fixed-offset and finite-only scalar selections are intermediate
-slices. PostgreSQL's admissible domains, errors and missing operations define
-the final boundary. The source archive SHA256 is
+> **Historical records for the retired full-parity target.** These proposed
+> type definitions do not mean the types are implemented, supported, or active
+> roadmap requirements. Consult [Product Roadmap](product-roadmap.md) and
+> [Type Contract](type-contract.md) for current scope.
+
+These records were drafted for the former PostgreSQL 18.6 full-parity target,
+not as current implementation contracts. The source archive SHA256 is
 `555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f`.
 
 Each record has the required eight fields. Built-in OIDs, array OIDs, typlen,

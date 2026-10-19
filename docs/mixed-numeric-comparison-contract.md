@@ -1,8 +1,9 @@
 # Primitive mixed numeric SQL comparison contract
 
-This defines the selected finite [#904](https://github.com/cntryl/cassie/issues/904)
-bundle on accepted #936, including its private implementation and required
-qualification. Retained PostgreSQL 18.6 baselines, behavioral RED evidence,
+This records the selected finite comparison law originally tracked under
+[#904](https://github.com/cntryl/cassie/issues/904), a closed historical parent,
+and qualified in the #936 implementation line. Retained PostgreSQL 18.6
+baselines, behavioral RED evidence,
 native comparisons, adversarial probes and the complete ordered local gate
 govern acceptance. This finite contract does not establish full type-registry
 or PostgreSQL parity support.
@@ -11,8 +12,9 @@ or PostgreSQL parity support.
 
 For existing declared SMALLINT, INT, BIGINT and FLOAT (float8/OID701), resolve the
 actual built-in comparison signature and its implicit casts before evaluating
-`=`, `<>`, `<`, `<=`, `>` or `>=`. Use the pinned #793/#904 PostgreSQL cast and
-operator inputs, rather than a generic common-result numeric ladder. Two integer
+`=`, `<>`, `<`, `<=`, `>` or `>=`. Use the pinned PostgreSQL 18.6 cast and
+operator observations retained with this contract, rather than a generic
+common-result numeric ladder. Two integer
 operands retain exact integer comparison. An integer/FLOAT pair uses the selected
 float8/float8 operator input domain, in both operand orders; its temporary integer
 to float8 conversion may round. Stored integers and output payloads stay exact.
@@ -27,8 +29,9 @@ change their other type-family laws or approve persisted null-safe operators.
 Known parameter input identities remain their declared OIDs even when the
 selected operator converts an input expression. Typed NULL retains that identity.
 Resolve from declared/scoped types, not a sampled runtime carrier or first
-nonNULL row. Unknown/polymorphic overload resolution, user-defined operators,
-NUMERIC and new FLOAT4 behavior are separate obligations.
+nonNULL row. Unknown/polymorphic overload resolution and user-defined operators
+are separate obligations. Exact NUMERIC and native REAL operators use their own
+family contracts; this comparison law concerns float8 input resolution.
 
 ## Joins and access paths
 
@@ -56,8 +59,9 @@ AST with the same wrapper shape must still decline an integer-field index.
 
 Existing transient query/DML positions follow the selected operator law. This
 finite operator acceptance does not qualify stored-definition compatibility,
-unique/FK equality, exclusion constraints or concurrent enforcement. #769 CON-05
-and the full #798/#904 criteria remain open for their actual remaining matrices.
+unique/FK equality, exclusion constraints or concurrent enforcement. #769 CON-05,
+the remaining #798 null-safe cases and #761 cross-path qualification retain
+their own acceptance matrices. The closed #904 parent is not an active owner.
 
 ## Preserved boundaries
 
@@ -173,4 +177,5 @@ does not complete #769 CON-05 or authorize persisted null-safe operators.
 Follow the complete ordered local gate, independent adversarial review and every
 Jev gap probe at or above 0.30. Record actual required GitHub rules, squash and
 read back the merged commit/issues. A successful finite bundle cannot close
-#904/#761/#798/#769/#793/#791/#848/#849 without each owner's full acceptance.
+#761/#798/#769/#848/#849 without each owner's full acceptance. The former
+#791–#793 program is closed as superseded.

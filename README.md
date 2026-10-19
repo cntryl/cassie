@@ -4,7 +4,7 @@
 
 # Cassie
 
-Cassie is a single-node query engine for read models in CQRS and event-sourced systems. The event stream is the source of truth; Cassie materializes and serves projection data through PostgreSQL wire protocol, with a secondary administrative REST API.
+Cassie is a single-node read-model database for CQRS and event-sourced systems. Projectors maintain durable projections from the event stream, which remains the source of truth; applications query those projections through Cassie's PostgreSQL wire interface and documented SQL/client contract. REST is secondary and administrative.
 
 Cassie uses `cntryl-midge` directly as its only storage layer. Midge provides persistence, durability, and recovery mechanics. Cassie provides SQL semantics, planning, execution, logical query layouts, indexes, search, analytics, resource controls, and query-visible errors.
 
@@ -16,7 +16,7 @@ Cassie uses `cntryl-midge` directly as its only storage layer. Midge provides pe
 - [PostgreSQL wire and client contract](docs/postgres-compatibility.md)
 - [Performance contracts](docs/performance-contracts.md)
 - [Production-readiness evidence](docs/production-readiness.md)
-- [Future roadmap](docs/product-roadmap.md)
+- [Product scope and roadmap](docs/product-roadmap.md)
 - [POC quickstart](docs/poc-quickstart.md)
 
 Midge 0.4.1 requires a fresh FORMAT 8 store. Existing pre-0.4 stores require
@@ -49,7 +49,14 @@ The Tier 1-6 ownership, timing, fixture, evidence, and full-suite acceptance rul
 
 ## Container
 
-The `Publish` workflow releases `ghcr.io/cntryl/cassie` from `main`. Its called
+The repository has `Publish` and `Containers` workflows configured for
+`ghcr.io/cntryl/cassie`, but GitHub Actions are disabled by current user
+direction. Do not enable or dispatch them until the user explicitly changes
+that direction. The configured release flow is documented here for reference;
+hosted publishing is currently blocked.
+
+When authorized, the `Publish` workflow releases `ghcr.io/cntryl/cassie` from
+`main`. Its called
 `Containers` workflow publishes the immutable `:<semver>` manifest plus
 `:main` and `:latest`, then `Publish` creates the matching annotated `v<semver>` source
 tag only after the container succeeds. The standalone `Containers` workflow publishes
@@ -91,6 +98,6 @@ When a trusted proxy terminates HTTPS, set `CASSIE_REST_EXTERNAL_HTTPS=1` so Cas
 
 ## Product Boundaries
 
-Cassie targets predictable read-model queries: relational reads, indexes, full-text and vector retrieval, hybrid scoring, analytical projections, time-series access, and graph traversal. PostgreSQL compatibility exists to support familiar clients and SQL workflows; it is not a promise of full PostgreSQL parity.
+Cassie targets predictable, resource-bounded read-model writes, relational queries, indexes, full-text and vector retrieval, hybrid scoring, analytics, time-series access, and graph traversal. PostgreSQL wire and SQL compatibility make familiar drivers and tools usable for the documented Cassie contract; PostgreSQL 18 is a semantic comparison reference for selected behavior, not a full-server compatibility target. The [roadmap](docs/product-roadmap.md) defines product scope and release order; [feature support](docs/feature-support.md) defines current behavior.
 
 Cassie's single-node boundary is permanent, not a pre-release omission. Cassie does not pursue distributed SQL, cluster management, membership, replication, consensus, sharding or rebalancing, cross-node transactions, multi-node query planning, remote query forwarding, OLTP optimization, trigger-based business logic, or a second storage abstraction. Deployments may run independent Cassie nodes, but external systems own routing, placement, failover, data movement, and fleet coordination.

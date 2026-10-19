@@ -1,7 +1,13 @@
-# PostgreSQL 18 Delivery
+# PostgreSQL 18 Delivery (historical)
 
-**Superseded 2026-10-18.** Cassie's scope is the read-model query engine in the
-[Product Roadmap](product-roadmap.md#product-scope-a-query-engine-for-read-models),
+> **Historical plan, not an active delivery contract.** The full PostgreSQL
+> parity program was closed as superseded on 2026-10-18. The stages, priorities,
+> and acceptance requirements below are retained for provenance only. Follow
+> [Product Roadmap](product-roadmap.md) and live GitHub milestones for current
+> goals and dependencies.
+
+Cassie's scope is the read-model database in the
+[Product Roadmap](product-roadmap.md#product-goal-and-scope),
 delivered through the v0.3 Projection store, v0.4 Query and retrieval and v1.0
 Production release milestones. The stage table and owner records below are
 historical planning for the former full-parity target (#791 and milestone 6,
@@ -306,11 +312,10 @@ local gate, clean review, mandatory probes and required GitHub rules/checks must
 pass; pending nonrequired hosted checks need not delay merge. Disclose those
 pending checks and never report them as passed. Guard squash merge to the reviewed
 head, then read back the merged commit/tree and issue state.
-The milestone closes only after every in-scope corpus cell passes, every owner
-and prerequisite acceptance criterion is complete and #849 resource/restart
-evidence is accepted. Failed, skipped, unavailable, pending or unsupported
-in-scope cells keep it open. Update support/readiness claims from that evidence
-and close #791 last.
+The former milestone plan required every selected corpus cell, owner and
+prerequisite to pass, with #849 resource/restart evidence accepted before #791
+closed last. That program was closed as superseded. This ordering is retained as
+historical context and does not define the active scope or release gates.
 
 ## Consolidated local delivery batch
 

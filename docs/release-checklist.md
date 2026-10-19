@@ -2,10 +2,18 @@
 
 Use this checklist before approving a Cassie release.
 
+> **Current operations constraint:** GitHub Actions are disabled in repository
+> settings by user direction. Do not enable or dispatch workflows until the user
+> explicitly changes that direction. The Publish and Containers steps below are
+> blocked while Actions is disabled; do not treat absent hosted evidence as a
+> pass.
+
 ## Build and Test
 
-1. All CI checks are green on the exact release commit.
-2. Required unit, integration, compatibility, browser, and benchmark suites completed.
+1. Required local unit, integration, compatibility, browser, and benchmark suites completed
+   against the exact release commit.
+2. Hosted checks are required when Actions are enabled. While Actions remain disabled, record
+   hosted evidence as blocked and do not claim a release-ready hosted result.
 3. No unresolved critical or high-severity regressions remain.
 
 ## Documentation
@@ -29,6 +37,9 @@ Use this checklist before approving a Cassie release.
 3. Security sign-off for authentication, authorization, TLS, or policy changes.
 
 ## Publish
+
+These steps are blocked while GitHub Actions are disabled. Use them only after the user
+explicitly reauthorizes workflow execution and the repository settings show Actions enabled.
 
 1. Dispatch the `Publish` workflow from `main` only. Its called `Containers` workflow uses
    `version.yml` to calculate the release SemVer and refuses to continue if the corresponding

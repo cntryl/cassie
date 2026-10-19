@@ -1,11 +1,16 @@
-# PostgreSQL 18 type and durable-format decisions
+# PostgreSQL 18 type and durable-format decisions (historical)
 
-[#793](https://github.com/cntryl/cassie/issues/793) owns the contracts needed by
-the [selected PostgreSQL 18.6 delivery program](postgresql18-delivery.md).
-Full PostgreSQL semantics are the final target. Earlier 38-digit decimals,
-one-dimensional arrays and fixed-offset time selections remain intermediate
-slices. The [current finite type contract](type-contract.md) describes existing
-runtime support; these new records do not promote that support.
+> **Historical design record, not a current storage migration requirement.**
+> These decisions were made under the former full-parity program. The related
+> #791–#793 issues were closed as superseded, and the CRB3 proposal was not
+> implemented in the current runtime. Current type support is defined by
+> [Type Contract](type-contract.md); current storage compatibility is defined
+> by [Storage Recovery Qualification](storage-recovery-qualification.md).
+
+The text below preserves the approved proposal and its historical acceptance
+record. It is not an active feature target or authority to change persistent
+formats. Any future format change requires an explicit current roadmap issue and
+the repository's format-decision process.
 
 ## Selected direction and remaining acceptance
 
@@ -98,10 +103,10 @@ The existing vector profile remains supported according to its current contract;
 extension matrix. Internal/pseudo-types retain real context/error behavior;
 an I/O catalog entry does not invent an externally constructible stored value.
 
-#793 remains open: remaining staged owner records, runtime qualification and
-actual upgrade verification are incomplete. The common and catalog/export
-decisions are selected. #848 owns complete differential
-qualification, #849 accepts resource/restart evidence, and #791 closes last.
-Failed, skipped, unavailable, pending and unsupported in-scope cells keep the
-program open. The full ordered local gate, adversarial probes, exact-head hosted
-checks and checked squash/readback remain required for each delivery bundle.
+At the time of this proposal, #793, #848, #849, and #791 were described as
+remaining gates for the former full-parity program. Those issues were later
+closed as superseded. The staged type-family and export plans above remain
+historical design material; they do not select new runtime or persistent-format
+work. Current acceptance follows the [Product Roadmap](product-roadmap.md),
+[Type Contract](type-contract.md), and any live issue that names a bounded
+read-model use case.

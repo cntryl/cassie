@@ -1,10 +1,16 @@
-# PostgreSQL 18 type resolution and resource contract
+# PostgreSQL 18 type resolution and resource contract (historical)
 
-This is a selected semantic contract and part of #793's v3
-records, not current implementation/support evidence. It applies to every family
-record and the shared #904 type/catalog runtime. PostgreSQL 18.6 source archive
+> **Historical contract proposal for the retired full-parity target.** It is
+> not the current runtime type registry or resource contract. Current behavior
+> is documented in [Feature Support](feature-support.md),
+> [Type Contract](type-contract.md), and
+> [Performance Contracts](performance-contracts.md).
+
+This record describes the former proposed shared type registry. It is not
+current implementation/support evidence. PostgreSQL 18.6 source archive
 `555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f`
-is the immutable authority; source-file hashes accompany the registry inputs.
+was the immutable reference for that proposal; source-file hashes accompany the
+registry inputs.
 
 The exact [catalog/export schemas](postgresql18-catalog-export-proposal.md)
 were explicitly selected separately on 2026-10-10. Their retained approval
@@ -200,6 +206,6 @@ random and physical-plan assertions are explicit semantic assertions.
 
 Reference fixtures and durable goldens start the corpus; they do not establish
 implemented runtime, complete statement/overload/context coverage or final
-compatibility. Failed/skipped/unavailable/pending/unsupported in-scope cells keep
-their owners and #848 open. #849 accepts actual resource/restart evidence and
-#791 closes last after the entire selected program passes.
+compatibility. Failed/skipped/unavailable/pending/unsupported in-scope cells kept
+their owners open under the former program. That program was later closed as
+superseded; #791 is not a current release gate. See the active roadmap for scope.

@@ -1,5 +1,10 @@
 # PostgreSQL Compatibility
 
+> **Current operations constraint:** GitHub Actions are disabled by user direction. Do not
+> enable or dispatch archived client workflows until the user explicitly changes that direction.
+> The workflow descriptions below record historical interfaces; they do not authorize a live run
+> or establish current certification.
+
 This document is the canonical contract for PostgreSQL wire protocol and client interoperability. SQL feature behavior and status live in [Feature Support](feature-support.md).
 
 ## Compatibility Goal
@@ -57,7 +62,7 @@ Cassie does not currently expose a named database-image capability or a non-admi
 | --- | --- |
 | Simple query | Up to 256 supported SQL statements with row descriptions, incrementally emitted data rows, command completion, and ready state |
 | Extended query | Parse, bind, describe, execute, close, flush, and sync |
-| Parameters | Text and supported binary encodings with deterministic type validation; a parameter decodes to the same value in either format (text `DATE`/`TIME`/`TIMESTAMP`, `UUID` and `BYTEA` are canonicalized, `float4`/`numeric` decode as numbers, and `bool`/integer text accepts the PostgreSQL input spellings) |
+| Parameters | Type-specific text and supported binary encodings with deterministic validation; original scalar identities retain their codecs, while registered native extended types (including `real`, exact `numeric`, temporal, network and bit-string families) use their selected family codecs. See the [type contract](type-contract.md); registration does not imply support for every cast or array form. |
 | Prepared statements | Named and unnamed statements scoped to the connection |
 | Portals | Named and unnamed portals with per-execute `max_rows`, suspension, resume, cumulative result and retained-memory limits, and cleanup |
 | Cancellation | Backend key data plus PostgreSQL cancel requests using process ID and secret |
@@ -87,8 +92,7 @@ Cassie does not currently expose a named database-image capability or a non-admi
 - Searched `CASE WHEN condition THEN value` and simple `CASE operand WHEN value THEN result` are supported, including nested expressions. Searched conditions must be Boolean; only `TRUE` selects a branch. Simple matching uses SQL equality, so `NULL` never matches. Only the selected result branch is evaluated, and an unmatched expression without `ELSE` returns `NULL`. Result types ignore `NULL` branches, widen compatible numeric branches, normalize compatible text branches, and reject incompatible families.
 - `LIKE` follows PostgreSQL matching: it is case-sensitive, `%` matches any sequence of zero or more characters anywhere in the pattern, and `_` matches exactly one character. A backslash escapes the next pattern character, so `'a\%c'` matches the literal text `a%c`; a pattern that ends with an unpaired backslash is an error. The same rules apply to `LIKE` in `CHECK` constraints, where a malformed pattern is reported as a pattern error rather than treated as a failed check. The `ESCAPE` clause, `ILIKE`, and `NOT LIKE` are not supported; use `NOT (expr LIKE pattern)` for negation. `LIKE ... ESCAPE` is rejected with a feature-not-supported error rather than read as part of the pattern.
 - The `||` concatenation operator is not supported and is rejected with a feature-not-supported error; use `concat()`. Note that `concat()` skips `NULL` arguments, whereas PostgreSQL's `||` returns `NULL` when either operand is `NULL`. A single-quoted string literal ends at its closing quote, so an expression such as `'a' || 'b'` or two adjacent literals is never collapsed into one string.
-- `DATE`, `TIME`, and `TIMESTAMP` string input is validated and canonicalized by one shared parser (`crate::types::temporal`) used on write (so `RETURNING` reports the stored form), on `CAST`, by the pgwire text and binary parameter codecs, by `time_bucket`, by time-series index maintenance and reads, and by retention policy validation and enforcement. An unparseable string is rejected rather than stored as-is. The canonical stored `TIMESTAMP` form is fixed-width UTC with a trailing `Z` and six fractional digits (for example `2024-01-01T07:00:00.000000Z`), so plain text comparison and scalar-index key order are chronological. Rows written before the fixed-width form keep their variable-width text (for example `2024-01-01T07:00:00Z`) and are not rewritten; executor comparisons (`ORDER BY`, `WHERE` comparisons, equality, `MIN`/`MAX`, grouping, and joins) widen any string of the canonical `YYYY-MM-DDTHH:MM:SS[.f{1,6}]Z` shape to the fixed-width form first, so old and new rows compare by instant. That widening is applied by value shape, so a `TEXT` column holding strings of exactly that shape compares them the same way. Scalar indexes built before the fixed-width form keep their variable-width keys; rebuild them (`DROP INDEX` then `CREATE INDEX`) so index range scans and index-ordered reads match full scans for whole-second values written before the change. Rows written before temporal validation existed keep whatever string they already had.
-- **Deviation:** Cassie has a single `TIMESTAMP` type and no separate `TIMESTAMP WITH TIME ZONE`/`timestamptz`. PostgreSQL's `timestamp` (without time zone) silently discards an explicit offset in its input (`'2024-01-01T09:00:00+02:00'::timestamp` is `2024-01-01 09:00:00`); Cassie instead converts the offset to UTC (`2024-01-01T07:00:00.000000Z`), which matches `timestamptz` semantics. Offset-free input is treated as already UTC.
+- Date/time values use native temporal parsing and carriers. `timestamp` is a timezone-free calendar value; `timestamptz` is a separate OID and instant value. Offset-free `timestamptz` input uses the session `TimeZone`, and its text output follows that setting. `time with time zone` and `interval` are also distinct native types. Precision-qualified temporal types retain their declared precision. [Extended Types](extended-types.md) owns the selected calendar, timezone, formatting, binary and clock-function boundaries; the earlier single-UTC-timestamp deviation is historical.
 
 ## Boolean Typing
 
@@ -127,8 +131,8 @@ including zero; wire Parse normalizes zero before inference. This compatibility
 control does not qualify invalid overloads or argument types. A generic UNKNOWN
 finalizer, complete callable/operator coercion, occurrence-order inference and
 the remaining Boolean error-phase/descriptor-name differences were unqualified
-at that accepted foundation and remain open under
-[#904](https://github.com/cntryl/cassie/issues/904).
+at that accepted foundation. Issue #904 is a closed historical parent; active
+ownership and release scope follow the current roadmap and live issue criteria.
 The accepted [PR #935](https://github.com/cntryl/cassie/pull/935) evidence covers
 156 selected text/binary function paths; at that merged revision the 14
 known-Boolean controls retain ten differences and four matches. That foundation does not qualify every
@@ -136,10 +140,12 @@ callable, overload, operator, or error phase.
 
 ## Primitive SELECT occurrence resolution
 
-The [selected occurrence contract](https://github.com/cntryl/cassie/issues/904#issuecomment-6115604094)
-covers the following finite primitive SELECT behavior. Its PR acceptance record
-binds focused, native and complete-gate evidence to the tested revision. The
-complete shared-registry and PostgreSQL parity owners remain open.
+The [selected occurrence contract](https://github.com/cntryl/cassie/issues/904#issuecomment-6115604094),
+recorded under the now-closed #904 parent, covers the following finite primitive
+SELECT behavior. Its PR acceptance record
+binds focused, native and complete-gate evidence to the tested revision. It does
+not qualify unlisted callables, overloads, operators, or error phases; those
+require current roadmap scope and issue criteria.
 
 The private fold gives each actual parameter use a stable ordinal and creation
 type. Coercion changes that use and the shared slot without retagging earlier
@@ -176,49 +182,34 @@ open.
 No unused-slot `42P18` policy or statement-wide UNKNOWN finalizer is selected.
 Wider callable/operator metadata, nonselected DML/RETURNING transformations,
 descriptor-name differences and full resource/restart obligations remain open.
-The original .85/.72 acceptance records and full #904/#793/#791/#848/#849 owners
-remain open until their separate criteria pass.
+The original .85/.72 acceptance records are historical. This increment does not
+qualify unrelated behavior or complete the selected SQL-profile and workload
+readiness owners #848 and #849. Issue #904 is closed; its historical acceptance
+record does not define current backlog status. Issues #791–#793 were closed as
+superseded.
 
-## Numeric Typing
+## Numeric and temporal type boundaries
 
-The [finite SQL type and wire contract](type-contract.md) lists every current
-logical type, its metadata, storage representation, supported codecs and
-explicit ABI exclusions. Unknown result/catalog metadata uses OID 705, typlen
-−2 and typmod −1; SQL NULL fields retain wire length −1.
+`REAL` (OID 700) is a native float4 family. `NUMERIC`/`DECIMAL` (OID 1700) is
+an exact decimal family with native text/binary codecs, declared precision and
+scale, arithmetic and selected aggregate/result-type rules. It is not a text
+input adapter or an alias for float8. `FLOAT`/`DOUBLE PRECISION` retain float8
+identity (OID 701). Exact current identities and row-blob behavior are listed
+in the [Type Contract](type-contract.md); family semantics and limits live in
+[Extended Types](extended-types.md) and [Feature Support](feature-support.md).
 
-Text OIDs 700 and 1700 are numeric input adapters. Unconstrained output whose
-type remains ambiguous requires an explicit cast to a current type and otherwise
-fails with `0A000` before result descriptors or rows. Supported constrained
-assignments, predicates and independently fixed result types retain their numeric
-input behavior. Binary codecs for these two input OIDs remain unsupported.
+Integer/float and integer/numeric comparison behavior follows the selected
+operator or aggregate contract for that position. The
+[mixed numeric comparison contract](mixed-numeric-comparison-contract.md)
+records its finite operator-input rules and historical #904 provenance; issue
+#904 is closed and is not a current delivery dependency. Remaining query, wire
+and workload qualification is owned by current milestone issues. Integer,
+NUMERIC and FLOAT8 result types must not be inferred from one another's carriers.
 
-Scalar arrays use Cassie's private identities and bounded one-dimensional
-framing. ARRAY(VECTOR) wire identities and distinct JSON document-null scalar
-elements inside ARRAY(JSON) are excluded with `0A000`; SQL-null elements and
-nonNULL nested JSON documents containing null remain supported. These boundaries
-do not change stored types or introduce PostgreSQL standard-array or pgvector ABI.
-
-Cassie has no `numeric`/`decimal` type, so exact arithmetic is carried in `int8` and everything
-else in `float8`. The rules below are stable and deliberately chosen to stay close to PostgreSQL.
-
-- An integer literal is an integer, not a float: `1` is `int4` (`int8` when it does not fit `int4`), while a literal with a decimal point or exponent such as `1.0` is `float8`. `int_column + 1.0` is therefore `float8`; PostgreSQL would yield `numeric`, which Cassie does not have.
-- Integer arithmetic (`+`, `-`, `*`, `/`) over integer operands is exact and reported as `int8`, where PostgreSQL reports `int4` for `int4` operands. Mixing an integer with a float produces `float8`.
-- `/` over two integers truncates toward zero, as in PostgreSQL: `7 / 2` is `3` and `-7 / 2` is `-3`. Division by zero is `22012`. There is no `%` modulo operator.
-- An overflowing `int8` result raises `bigint out of range` with SQLSTATE `22003` instead of silently widening to a float. PostgreSQL promotes overflowing `int4` arithmetic to `bigint`; Cassie already computes in `int8`, so only `int8` overflow is reachable.
-- `COUNT` returns `int8` in every position: on its own, nested in `COALESCE` or `CASE`, in a view's output schema, and through a CTE.
-- `COALESCE` requires compatible result types, using the same common-type rules as `CASE`; incompatible boolean/text or boolean/numeric combinations fail before result rows are sent. Bound parameter types are checked at description and execution, including DML RETURNING. A FLOAT common result promotes its selected integer carrier before downstream arithmetic, including through supported CASE, CTE and derived scopes. Only demanded operands execute; existing FLOAT carriers retain nonfinite values and signed zero, and explicit user casts retain their errors. See [COALESCE promotion evidence](coalesce-promotion-evidence.md).
-- UUID and BYTEA casts return canonical spelling. SELECT, UPDATE, and DELETE predicates canonicalize typed string literals consistently, including IN and BETWEEN.
-- `SUM` over an integer argument returns `int8` and errors on overflow rather than falling back to an inexact float; PostgreSQL returns `numeric` for `SUM(bigint)`. `SUM` over a float argument returns `float8`.
-- `AVG` always returns `float8`, including for integer arguments, where PostgreSQL returns `numeric`.
-- `MIN`/`MAX` keep their argument's declared type.
-- `CASE` unifies its result branches like PostgreSQL: integer branches stay integer, an integer branch beside a float branch widens the whole expression (and its values) to `float8`, and mixing text with a numeric branch is an error.
-
-Mixed integer/FLOAT SQL comparison remains an open #904 correction. Its next
-[finite contract](mixed-numeric-comparison-contract.md) requires PostgreSQL
-operator-signature coercion before scalar/join/null-safe comparison, while
-preserving exact integer carriers and general semantic keys. The historical
-BIGINT/FLOAT blocker has not been rerun or fixed by this documentation. Existing
-IN/BETWEEN/simple CASE and full constraint acceptance remain separate.
+Scalar arrays retain Cassie's private identities and bounded framing. Element
+families, typmods and text/binary behavior are finite; `ARRAY(VECTOR)` and
+unlisted array forms are not implied by scalar type support. SQL NULL and JSON
+document null retain their documented distinct meaning.
 
 A CTE reports the types of the query that defines it, in both `SELECT` results and a pre-execution
 `Describe`. Column aliases on the CTE (`WITH totals (name, seen) AS ...`) rename the columns while
@@ -260,7 +251,7 @@ The planned versioned certification targets are pgAdmin 9.16 and DBeaver 26.1.3 
 
 Certification requires normalized, secret-free traces and deterministic replay for startup, initialization, navigator expansion, properties, query actions, plans, and grid edits. Each trace records the client and driver version, upstream source revision, workflow step, SQL, protocol mode, expected columns, and expected row shape. A passing trace certifies only that recorded workflow.
 
-PostgreSQL replication, extensions, foreign-data wrappers, triggers, dashboards, maintenance, debugger, and backup tooling are explicitly unsupported. GUI create/alter dialogs are outside this contract; supported DDL remains available through query tools. Cassie does not claim full PostgreSQL, pgAdmin, or DBeaver parity.
+PostgreSQL replication, foreign-data wrappers, triggers, dashboards, maintenance, debugger, and backup tooling are explicitly unsupported. Cassie does not load native PostgreSQL extension libraries or claim extension ABI parity; the only planned bounded extension shims are the `vector` and `pgcrypto` behaviors in [#843](https://github.com/cntryl/cassie/issues/843), with vector SQL behavior owned by [#844](https://github.com/cntryl/cassie/issues/844). GUI create/alter dialogs are outside this contract; supported DDL remains available through query tools. Cassie does not claim full PostgreSQL, pgAdmin, or DBeaver parity.
 
 The Stable procedure subset is defined separately in [Limited Procedures and CALL](procedure-support.md). It covers one persisted Cassie SQL statement and a named `tokio-postgres` workflow, not PostgreSQL procedural languages or trigger behavior.
 

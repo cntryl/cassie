@@ -1,4 +1,10 @@
-# PostgreSQL 18 compatibility test inventory
+# PostgreSQL 18 compatibility test inventory (historical snapshot)
+
+> **Historical snapshot, not an active product or backlog specification.** The
+> counts and owner states below were recorded on 2026-10-15 for the former
+> full-parity program. The current product uses PostgreSQL 18.6 as a comparison
+> oracle only for selected behaviors. See [Product Roadmap](product-roadmap.md)
+> and the [current testing guide](testing/README.md).
 
 Refreshed **2026-10-15**. This is the compatibility owner index. The consolidated [test inventory](testing/README.md) contains every existing test and its physical owner; the [backfill ledger](testing/planned-tests.md) maps all **138 identified remaining items** to registered assertions. There are no unwritten items in that reconciled list. An authored assertion does not establish that Cassie reaches its intended path or passes it.
 
@@ -14,15 +20,19 @@ The inventory snapshot contains **69 open and 20 closed milestone issues**. The 
 | [Oracle corrections](testing/oracle-corrections.md) | 28 historical corrections and 54 strengthened parse-only checks |
 | [Owner assertion anchors](testing/owner-assertions.md) | Finite assertion links and prerequisite limits for all 69 open owners |
 | [Validation](testing/validation.md) | Commands, observed results, identity changes and prerequisite limits |
-| [Delivery dependencies](postgresql18-delivery.md) | Runtime implementation and qualification order |
+| [Former delivery dependencies](postgresql18-delivery.md) | Historical runtime implementation and qualification order; not current sequencing |
 
-## Delivery order
+The delivery order below is the former full-parity sequence. It is retained as
+history only and does not define current work order. Use the live roadmap and
+milestones.
 
-1. Establish #819 isolation and #833 transactional catalog foundations.
-2. Complete #796 before #800 row grammar and #762 row subqueries. #762 also depends on #761, #777 and #780.
-3. Establish #905 ranges before #824 constraints, then #826 table forms and #828 named row types.
-4. Satisfy routine/catalog dependencies before #910–#916.
-5. Complete #847 and #848 qualification before #849; close #791 last.
+## Delivery order (historical)
+
+1. The former program placed #819 isolation and #833 transactional catalog foundations first.
+2. It placed #796 before #800 row grammar and #762 row subqueries; #762 also depended on #761, #777 and #780.
+3. It placed #905 ranges before #824 constraints, then #826 table forms and #828 named row types.
+4. It required routine/catalog dependencies before #910–#916.
+5. It required #847 and #848 qualification before #849, with #791 to close last.
 
 Test authoring can proceed in parallel across exclusive files. Integration, Cargo validation and later runtime delivery stay serialized. Tests whose positive controls fail at an earlier dependency remain prerequisite failures, even when the final assertion has the right PostgreSQL expectation.
 

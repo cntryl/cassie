@@ -1,6 +1,14 @@
-# PostgreSQL 18 milestone owner assertion map
+# PostgreSQL 18 milestone owner assertion map (historical snapshot)
 
-This is a finite traceability map for the 69 open issue owners in milestone 6 as inventoried on 2026-10-15. Each link names one or more exact Rust test functions and the distinguishing assertion they encode. The links are anchors, not a claim that the assertions passed, that every acceptance item is covered, or that a whole feature family is qualified.
+> **Historical test map, not a live issue or product-scope record.** This
+> snapshot covers the former PostgreSQL 18 parity milestone as inventoried on
+> 2026-10-15. Issues #791–#793 were later closed as superseded. Keep these test
+> anchors as provenance only; current scope is in the [Product Roadmap](../product-roadmap.md).
+
+Each link names one or more exact Rust test functions and the distinguishing
+assertion they encode. The links are anchors, not a claim that the assertions
+passed, that every acceptance item is covered, or that a whole feature family is
+qualified.
 
 For the qualification owners (#791–#793, #847–#849, and #927), the listed fixture or runner assertions are only the current evidence hooks. The complete client, corpus, workload, resource, restart, or native-artifact runs remain separate qualification obligations.
 
@@ -78,7 +86,7 @@ For the qualification owners (#791–#793, #847–#849, and #927), the listed fi
 
 ## Traceability limits
 
-- All 69 open milestone owners have at least one exact assertion anchor above, but this map intentionally records only representative assertions. It does not replace the acceptance checklist in the issue ledger or imply a complete feature-family backfill.
-- The qualification gates #791–#793, #847–#849, and #927 are not closed by unit/integration fixture presence. Their named runners and artifact assertions still need the applicable full runs and review of their outputs.
+- The original 69-owner milestone snapshot has at least one exact assertion anchor above, but this map records only representative assertions. It does not replace live issue criteria or imply a complete feature-family qualification.
+- The former qualification gates #791–#793 were closed as superseded. Current v1.0 issues #847–#849 and #927 retain their own bounded criteria; fixture presence does not close them.
 - Known execution blockers are recorded with the relevant rows: #813's function controls currently fail at an earlier 42601 path; #847's broad Prisma fixture has not reached generated ORM SQL; #914 ACL behavior depends on #831 role/grant support; #915 stops at PREPARE TRANSACTION; #916's restart path stops at `lo_from_bytea`; and #844 lacks a supplied pinned PostgreSQL/pgvector oracle run. These are not represented as successful parity evidence.
 - No new unrepresented open owner was found in this pass. The concrete remaining gaps are the unexecuted or prerequisite-blocked acceptance obligations called out above, plus the non-exhaustive behavior families omitted by this finite anchor map.

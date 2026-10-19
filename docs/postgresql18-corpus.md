@@ -1,9 +1,11 @@
 # PostgreSQL 18 Differential Corpus
 
-[#848](https://github.com/cntryl/cassie/issues/848) owns complete qualification.
-This stage-0 bootstrap supplies executable comparisons and a pending inventory;
-it does not complete that gate or claim dialect support. The
-[delivery contract](postgresql18-delivery.md) defines scope and closure.
+This harness supplies executable PostgreSQL 18.6 comparisons for selected
+read-model behavior. It does not define product scope, establish full PostgreSQL
+parity, or make every upstream test a Cassie requirement. The
+[SQL compatibility profile](sql-dialect-profile.md) and live issue criteria
+select which cases are in scope. Issue #848 owns the v1.0 qualification evidence
+for that bounded profile.
 
 ## Immutable inputs
 

@@ -1,7 +1,8 @@
 # Finite null-safe query predicates
 
-The user selected this finite #798 query/DML slice on 2026-10-08. It resolves
-#792 only for this slice. PR [#867](https://github.com/cntryl/cassie/pull/867)
+The user selected this finite #798 query/DML slice on 2026-10-08 under the
+former #792 planning program. That broad program was later closed as superseded.
+PR [#867](https://github.com/cntryl/cassie/pull/867)
 merged its finite implementation at `ad0a001a65fae23726cd184fedf1f973d649e60c`.
 #798 remains open for persisted-definition compatibility and native null-safe
 kernels. The earlier iteration records below remain historical evidence.
@@ -28,15 +29,16 @@ invented Boolean. Existing cast/division/overflow/codec errors remain visible,
 including a right-operand error when the left operand is NULL.
 
 Preserve exact integer/integer equality, scalar/temporal carriers, recursive
-JSON equality and finite VECTOR input/dimension rules. The next #904
+JSON equality and finite VECTOR input/dimension rules. The current
 [mixed numeric SQL comparison contract](mixed-numeric-comparison-contract.md)
-supersedes only the earlier exact integer/FLOAT predicate law: nonNULL null-safe
-numeric operands use the same resolved operator input domain as ordinary `=`.
-This is a planned correction, not completed support. Signed zero and admitted
-nonfinite FLOAT inputs require explicit operator oracle controls; general key
-semantics do not prove their SQL behavior. Existing compatible one-dimensional
-scalar ARRAY equality distinguishes a SQL NULL array, an empty array and NULL
-element slots. ARRAY(VECTOR) wire output and array-of-array grammar remain
+records the selected integer/FLOAT operator input domain used by ordinary and
+null-safe equality; the old #904 parent is closed and is historical provenance.
+This null-safe surface remains Experimental while #798 and #761 retain broader
+acceptance matrices. Signed zero and admitted nonfinite FLOAT inputs require
+explicit operator oracle controls; general key semantics do not prove their SQL
+behavior. Existing compatible one-dimensional scalar ARRAY equality
+distinguishes a SQL NULL array, an empty array and NULL element slots.
+ARRAY(VECTOR) wire output and array-of-array grammar remain
 excluded. Declared ARRAY metadata is not inferred from an arbitrary JSON shape.
 No other equality law or persisted-operator admission changes.
 

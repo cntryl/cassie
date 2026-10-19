@@ -1,4 +1,10 @@
-# Concrete v3 catalog and logical export schemas
+# Concrete v3 catalog and logical export schemas (historical proposal)
+
+> **Historical proposal, not an implemented or current storage contract.** The
+> schemas below were selected under the retired full-parity program. They do not
+> authorize a migration or change to the current Midge/Cassie store format.
+> Consult [Storage Recovery Qualification](storage-recovery-qualification.md)
+> for current storage behavior.
 
 Status: explicitly selected by the user on 2026-10-10 after reviewing this
 concrete proposal. The exact approved bytes are
@@ -312,14 +318,13 @@ Switch clients only after verification, with new connections/prepared statements
 Rollback reconnects to the preserved original pair; post-switch writes need a
 separately verified reverse-export procedure, not an old writer on v3 bytes.
 
-## Approval and remaining acceptance boundary
+## Historical approval and acceptance boundary
 
-The user approved this concrete catalog/export envelope, key namespace and
-identity extension within the selected v3 direction. This authorizes the affected
-contract records and their implementation after their recorded prerequisites;
-no runtime or migration is implemented by approval. Each exact per-family
-semantic/codec/resource record, independent golden/negative witness and owner dependency remains required. Later SQL-object,
-prepared-transaction and large-object schemas stay gated by their named owners.
-The complete ordered gate, adversarial probes, exact-head hosted checks and
-checked integration still apply. #793 and #849 remain open until their actual
-acceptance criteria are satisfied.
+At the time this proposal was written, the user approved this catalog/export
+envelope, key namespace and identity extension as a direction for a proposed v3
+format. No runtime or migration was implemented by that approval. The broader
+PostgreSQL 18 parity program was later closed as superseded, and #793 is closed.
+This proposal does not authorize a storage-format migration or expand the active
+product goal. Any future durable-format work requires a current roadmap entry and
+an explicit format decision before implementation. The active product scope is in
+the [roadmap](product-roadmap.md).

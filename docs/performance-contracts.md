@@ -123,7 +123,7 @@ Timestamp-shaped expression-index probes also use SQL filtering. Character expre
 ordering declines byte-order shortcuts when its output may have that timestamp shape;
 `lower(...)` output cannot have the required uppercase T/Z markers and retains its bounded path. Full-text scalar prefilters
 require an unpredicated index and the same exact probe comparison. These fallbacks preserve
-query results without changing stored index formats. The next #904
+query results without changing stored index formats. The current
 [mixed numeric SQL comparison contract](mixed-numeric-comparison-contract.md)
 does not make a rounded FLOAT-domain comparison into one exact BIGINT-key
 lookup: adjacent integer keys may both match. Keep the guard or prove a complete
@@ -505,6 +505,10 @@ cargo bench --locked --bench '*'
 ```
 
 Run the artifact-manifest integration test against the artifacts produced by the final wildcard run. That final run is intentionally long because it includes both default one-hour Tier 6 scenarios.
+
+> **Current operations constraint:** GitHub Actions are disabled by user direction. Do not
+> enable or dispatch this archived workflow until the user explicitly changes that direction.
+> The topology below is historical and describes the prior evidence pipeline.
 
 The archived [Bench workflow at the frozen baseline](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/.github/workflows/bench.yml) records the CI topology below. Its scheduled lane exercises Tiers 1-4 and retains its
 stress artifacts using the shared Fitz workflow topology. A complete manual dispatch executes the

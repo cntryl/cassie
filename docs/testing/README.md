@@ -2,7 +2,12 @@
 
 Every test under `tests/` belongs to an existing Cargo suite and a focused behavior module. Use the observable contract to choose its directory. Keep issue numbers, PostgreSQL versions, authoring waves and completion status in inventory metadata and test comments.
 
-This inventory covers the entire current `tests/` tree, including untracked backfill files, shared support, external-client fixtures, corpus data and the Python parity harness. Unit tests in `src/` and benchmark definitions in `benches/` are outside this inventory.
+This inventory covers the committed `tests/` tree, shared support, external-client fixtures, corpus data and the Python differential harness. PostgreSQL 18.6 is a comparison oracle for selected in-scope behavior; the harness and test names do not imply a full PostgreSQL parity goal. Unit tests in `src/` and benchmark definitions in `benches/` are outside this inventory.
+
+The owner counts and issue mappings below were last reconciled on 2026-10-15
+under the former full-parity program. They are test-traceability snapshots, not
+the live backlog or current release scope. Read current issue state from GitHub
+and current product scope from the [Product Roadmap](../product-roadmap.md).
 
 ## Start here
 
@@ -13,7 +18,7 @@ This inventory covers the entire current `tests/` tree, including untracked back
 | [Reconciled backfill tests](planned-tests.md) | Each inventory `should_…_given_…_when_…` name, issue, actual assertion and authoring/execution status |
 | [Machine-readable inventory](inventory.json) | Every existing declaration, source location, full registered test identities and selected placement, plus every reconciled backfill item |
 | [Editable backfill list](planned-tests.json) | The editable issue-to-assertion ledger |
-| [Owner assertion anchors](owner-assertions.md) | Exact finite test links for all 69 open owners |
+| [Owner assertion anchors](owner-assertions.md) | Representative test links from the 2026-10-15 owner snapshot |
 | [Organization validation](validation.md) | Checks run for this pass, observed prerequisite failures and incomplete gates |
 
 The per-owner pages linked from the summary contain a row for every existing test. Each row names both its current file and its selected destination file. The file inventory also accounts for files without test bodies.
@@ -106,7 +111,7 @@ The organization pass extracted tests from every Cargo root and moved existing l
 - Preserved 5,380 of the 5,387 baseline registered identities exactly. Seven deliberate replacements or deduplications are listed in [validation](validation.md).
 - Added scalar cast, catalog, aggregate resource, text-search, range/index and lifecycle tests. No runtime, Cargo or CI changes were made.
 
-Authored coverage, an observed failing test and complete feature qualification are separate states. The [validation record](validation.md) reports the full run and prerequisite failures. Named-client, complete corpus and immutable workload gates remain tracked in [the compatibility inventory](../postgresql18-test-inventory.md).
+Authored coverage, an observed failing test and complete feature qualification are separate states. The [validation record](validation.md) is a dated evidence archive. Current named-client and v1.0 qualification requirements are defined by the roadmap and live issues #847–#849; the former [compatibility inventory](../postgresql18-test-inventory.md) is historical.
 
 ## Regenerate or check the inventory
 

@@ -1,4 +1,9 @@
-# Query-engine delivery tracks
+# Query-engine delivery tracks (historical)
+
+> **Superseded.** This 2026-10-09 assignment snapshot was written for the former
+> PostgreSQL 18 full-parity program. It is retained for delivery provenance only;
+> it does not define current goals, owners, dependencies, or parallel-work policy.
+> Follow the [Product Roadmap](product-roadmap.md) and live GitHub milestones.
 
 These ownership tracks organize the dependency-ordered backlog under
 [#747](https://github.com/cntryl/cassie/issues/747) and

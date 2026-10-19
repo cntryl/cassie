@@ -1,15 +1,21 @@
-# Finite typed join implementation plan
+# Finite typed join implementation record
+
+> **Historical implementation plan.** Issue #759 is complete. Its initial
+> exact-key plan is superseded by the selected mixed numeric comparison rules
+> in [Mixed Numeric Comparison](mixed-numeric-comparison-contract.md). Current
+> support status belongs to [Feature Support](feature-support.md); cross-path
+> qualification remains with [#761](https://github.com/cntryl/cassie/issues/761).
 
 Issue [#759](https://github.com/cntryl/cassie/issues/759) follows completed #756.
 The coherent bundle selects INNER and LEFT, one pure column equality, numeric
 SMALLINT/INT/BIGINT/FLOAT (including mixed widths) and BOOLEAN keys. NULL keys
 never match. The original finite implementation used the existing exact numeric
-semantic keys. The next #904 [mixed numeric SQL comparison contract](mixed-numeric-comparison-contract.md)
-supersedes only mixed integer/FLOAT SQL join-key equivalence: resolve one
-operator input domain for both sides while retaining original integer payloads
-and general semantic keys. Signed zero and admitted nonfinite values require
-explicit SQL oracle controls, including NaN ordering; current key behavior alone
-is insufficient. This is a planned correction, not qualified new dispatch.
+semantic keys. The selected mixed integer/FLOAT SQL comparison domain resolves
+one operator input domain for both sides while retaining original integer
+payloads and general semantic keys. Signed zero and admitted nonfinite values
+require explicit SQL oracle controls, including NaN ordering; current key
+behavior alone is insufficient. This record does not promote the broader join
+surface.
 
 Build/probe consume complete common TypedBatch inputs, retaining all payload
 columns. Hash values are row positions with a preallocated duplicate chain;

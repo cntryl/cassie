@@ -54,13 +54,14 @@ merged-tree/issue-closure readback. Milestones 1 and 2 closed on 2026-10-11;
 this closeout does not replace or refresh the historical census above.
 
 Full relational acceptance #761, column/mutation qualification #768/#769,
-client/wire qualification #777/#780, isolation #819, transactional catalogs #833
-and the #793/#904 type/runtime and upgrade obligations remain open under
-[#791](https://github.com/cntryl/cassie/issues/791) and the
-[expanded PostgreSQL 18.6 profile](sql-dialect-profile.md). Earlier finite type
-and syntax exclusions are intermediate delivery boundaries, not exclusions
-from final parity. #848/#849 retain complete corpus and resource/restart gates;
-no broader feature or production-readiness promotion follows from these merges.
+client/wire qualification #777/#780, isolation #819 and transactional catalogs
+#833 retain their current issue criteria. The #793 type/runtime and upgrade
+obligations were recorded under the former full-parity program. #791–#793 are
+closed as superseded; the v3 upgrade proposal is not an active runtime
+requirement. Current behavior and remaining qualification are governed by
+[Feature Support](feature-support.md), live milestone issues, and #848/#849's
+bounded v1.0 corpus and resource/restart criteria. No broader feature or
+production-readiness promotion follows from these merges.
 
 [Finite target and gates](query-engine-target.md) govern selection.
 [Feature Support](feature-support.md) owns current status and [Production Readiness](production-readiness.md)
@@ -674,7 +675,7 @@ field, including completed repairs and still-open probes.
 | F-SQL-SCALAR-SUBQUERY-CLAIM | confirmed_execution_and_source | [#754](https://github.com/cntryl/cassie/issues/754), [#762](https://github.com/cntryl/cassie/issues/762) | [#754](https://github.com/cntryl/cassie/issues/754) corrects scalar-expression claims to Planned; implementation/cardinality/type contract remains [#762](https://github.com/cntryl/cassie/issues/762) after [#761](https://github.com/cntryl/cassie/issues/761). |
 | F-WIRE-UNNAMED-RESET | source_gap_partial_probe | [#755](https://github.com/cntryl/cassie/issues/755) | [#755](https://github.com/cntryl/cassie/issues/755)/[#780](https://github.com/cntryl/cassie/issues/780) direct unnamed statement Describe/portal Execute and accepted Query reset cases are executed; joined handoff is probed. The baseline named-portal observation alone was not a conformance defect; broader packet qualification remains #780. |
 | G-WIRE-SYNC-IMPLICIT-TRANSACTION | source_review_unverified | [#755](https://github.com/cntryl/cassie/issues/755) | The finite #755 private-until-Sync, failed-cycle rollback, joined handoff and same-Sync commit-failure acceptance is complete through [#790](https://github.com/cntryl/cassie/pull/790). Selected portal and statement-view qualification is separately accepted through [#851](https://github.com/cntryl/cassie/pull/851)/[#871](https://github.com/cntryl/cassie/pull/871); full #780/#819/#833 obligations remain open. |
-| G-FULL-POSTGRES-SCOPE | documented_boundaries | [#751](https://github.com/cntryl/cassie/issues/751), [#752](https://github.com/cntryl/cassie/issues/752), [#777](https://github.com/cntryl/cassie/issues/777) | Historical Target 1 boundaries remain recorded. The [selected profile](sql-dialect-profile.md) and [#791](https://github.com/cntryl/cassie/issues/791) now require full PostgreSQL 18.6 core SQL and PL/pgSQL; earlier finite exclusions are intermediate. #793/#904/#819/#833/#848/#849 retain their remaining implementation and qualification obligations. |
+| G-FULL-POSTGRES-SCOPE | documented_boundaries | [#751](https://github.com/cntryl/cassie/issues/751), [#752](https://github.com/cntryl/cassie/issues/752), [#777](https://github.com/cntryl/cassie/issues/777) | The [Product Roadmap](product-roadmap.md) and [selected profile](sql-dialect-profile.md) define a finite Cassie read-model contract. PostgreSQL 18.6 is a comparison oracle for selected behavior only. Full PostgreSQL/PLpgSQL parity was removed from scope; #791–#793 are closed as superseded. Current qualification owners follow their live milestone criteria. |
 | COLUMN-F1 | confirmed_focused_probe | [#749](https://github.com/cntryl/cassie/issues/749) | The selected #749 admission/resource repair is complete through [#783](https://github.com/cntryl/cassie/pull/783). The first private typed transport slice is separately accepted through [#851](https://github.com/cntryl/cassie/pull/851); complete column layout/generation/lifecycle qualification remains with #768. |
 | COLUMN-B1 | source_backed_capability_boundary | [#753](https://github.com/cntryl/cassie/issues/753), [#756](https://github.com/cntryl/cassie/issues/756) | The first private typed scan/filter/projection and portal ownership slice is implemented and qualified through [#851](https://github.com/cntryl/cassie/pull/851). The complete common relational target remains Planned pending its full integration/qualification owners, including #761/#768/#779. Correct scalar fallback is not a defect. |
 | vector-finding-1 | confirmed_production_probe | [#748](https://github.com/cntryl/cassie/issues/748) | [#748](https://github.com/cntryl/cassie/issues/748) closed by merged [#783](https://github.com/cntryl/cassie/pull/783): validated indexed-vector cardinality, OFFSET sufficiency and exact fallback/resource rejection prevent silent underfill; approximate recall remains separate. |

@@ -1,4 +1,10 @@
-# PostgreSQL SQL Feature Parity Gap Analysis
+# PostgreSQL SQL Feature Parity Gap Analysis (historical)
+
+> **Superseded survey.** This document records the former proposal to pursue
+> broad PostgreSQL feature parity. That target was closed as superseded. It is
+> retained as historical input only; it does not define current Cassie scope.
+> Use [Product Roadmap](product-roadmap.md) and
+> [Feature Support](feature-support.md) for current product and behavior.
 
 Baseline: `main` at `55b52e26`, PostgreSQL 18 reference dialect, 2026-10-10.
 Milestone: [Postgres SQL feature parity](https://github.com/cntryl/cassie/milestone/6). Tracker: #791.
@@ -11,7 +17,9 @@ remains the canonical status of shipped behavior, and #848 owns differential con
 
 The [PostgreSQL 18 delivery contract](postgresql18-delivery.md) supersedes the
 prior closed-scope rule and permanent exclusions below. Complete PostgreSQL
-18.6 core SQL and full PL/pgSQL is the top priority. The survey baseline remains
+At the time of this 2026-10-10 survey, PostgreSQL 18.6 core SQL and full PL/pgSQL
+were listed as the top priority. That goal was later closed as superseded. The
+survey baseline remains
 historical; the owner mappings below are updated for the expanded scope.
 Current Feature Support remains the authority for implemented behavior; these
 survey labels are narrower historical observations, not whole-family parity.

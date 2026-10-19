@@ -316,7 +316,8 @@ Keep accepted #933 context, publication/restart, transaction/savepoint, persiste
 key and authority evidence. This selected bundle adds no SQL type, AST, durable
 format, transaction-error API or permission model. Schema/validate/admin DTOs
 outside execution-result-cache payloads retain their separate wider resource
-obligations. #766 stays open until the complete current-surface contract passes
-actual tests, the ordered gate, adversarial review/probes, required GitHub rules,
-squash and merged source/issue readback. Full #904/#793/#791/#848/#849 remain open;
-the original parameter occurrence/coercion gaps are outside this bundle.
+obligations. Issue #766 was closed through PR #934 after its selected
+ownership acceptance. Its criteria do not replace the current SQL-profile and
+workload-readiness owners #848/#849. Issue #904 is closed and retained only as
+historical provenance; the former #791–#793 issues are also closed as superseded.
+The original parameter occurrence/coercion gaps are outside this bundle.

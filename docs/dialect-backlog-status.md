@@ -1,8 +1,15 @@
-# PostgreSQL 18 parity backlog status
+# PostgreSQL 18 parity backlog status (historical snapshot)
 
-Live GitHub snapshot: 2026-10-10T20:27:48.005802+00:00. This ledger belongs to [#791](https://github.com/cntryl/cassie/issues/791) and records ownership/disposition, not implementation or compatibility proof. [Delivery](postgresql18-delivery.md) and the [dialect profile](sql-dialect-profile.md) define the expanded target and dependency policy.
+> **Historical snapshot, not current backlog state.** Captured on 2026-10-10 for
+> the former full PostgreSQL parity program. Issues #791–#793 were later closed
+> as superseded. Do not use this file for active goals, issue states, or delivery
+> order; read the [Product Roadmap](product-roadmap.md) and live GitHub milestones.
 
-The [Postgres SQL feature parity milestone](https://github.com/cntryl/cassie/milestone/6) has **70 open and 12 closed issues** in this snapshot. The original user-plan inventory was 57 open/12 closed; thirteen new owners #904–#916 explain the expansion. Earlier decimal/array/temporal/procedural slices remain intermediate. Only the recorded architectural exceptions may be excluded.
+This ledger records ownership/disposition from that snapshot, not implementation
+or compatibility proof. The former [delivery plan](postgresql18-delivery.md)
+is retired.
+
+The [Postgres SQL feature parity milestone](https://github.com/cntryl/cassie/milestone/6) had **70 open and 12 closed issues** in this snapshot. The original user-plan inventory was 57 open/12 closed; thirteen new owners #904–#916 explain the expansion. Earlier decimal/array/temporal/procedural slices were intermediate. Under that retired plan, only recorded architectural exceptions could be excluded.
 
 ## Milestone inventory
 
@@ -117,9 +124,12 @@ These owners share this program's top priority and retain their original milesto
 
 ## Dependency and integration boundary
 
-Follow stages 0–6 and the owner dependencies in [Delivery](postgresql18-delivery.md). #869 precedes #761; row grammar #800 precedes row-subquery acceptance #762; #762 → #777 → #780 qualifies existing catalog/client/wire foundations. #904 consumes complete #793 records, with oversized catalog extraction before extension. Built-in ranges #905 precede exclusion/temporal constraints #824, then table foundation #826 and composite/domain #828. Custom range routine/index integration remains a later obligation. A closed issue alone is insufficient: record the completed commit, exact tests, result and remaining integration obligations before consuming a staged prerequisite.
+The retired plan used stages 0–6 and the owner dependencies in [Delivery](postgresql18-delivery.md). Its recorded ordering placed #869 before #761, #800 before #762, and #762 → #777 → #780 for catalog/client/wire qualification. It also placed #904 after #793 records, and ranges #905 before #824, #826 and #828. These historical dependencies do not define the active backlog. A closed issue alone was not treated as proof of its former acceptance criteria.
 
-Final #848 qualification includes every old owner and #904–#916. Every failed, skipped, unavailable, pending or unsupported in-scope cell remains open. #847 clients, #779 cross-path acceptance, #8 → #29 → #781 operational/release acceptance and #849 resource/restart evidence remain final obligations. Preserve external milestones and completed foundations. #791 closes last.
+The former final #848 qualification included every prior owner and #904–#916,
+with #847 client, #779 cross-path, #8 → #29 → #781 operational/release, and #849
+resource/restart evidence before closing #791 last. That full-parity program is
+historical and does not define current backlog order or release obligations.
 
 PostgreSQL reference probes during #869 qualification added stage-2 owners
 [#922](https://github.com/cntryl/cassie/issues/922) for planning-time constant
@@ -147,7 +157,7 @@ These merged commits were read back through GitHub and verified as ancestors of 
 | #875 | [`cd6e3783a0b270a10b8c1379084bd27ad0826447`](https://github.com/cntryl/cassie/pull/891) | Four INSERT destination-tail controls passed; exact-head `cargo test --locked`: 3,797 passed, 0 failed, 9 ignored |
 | #881 | [`059bc453c4dd8650f21b57b482b2f52433e8ecdc`](https://github.com/cntryl/cassie/pull/888) | Three exact-head skipped-conflict RETURNING wire witnesses passed; full `cargo test --locked`: 3,797 passed, 0 failed, 9 ignored |
 
-Remaining integration obligations include #761/#762/#768/#769/#777/#779/#780/#781 and every expanded dialect/type/catalog/client/operational cell; completed foundation rows do not close those owners.
+At this snapshot, the former plan still had #761/#762/#768/#769/#777/#779/#780/#781 and expanded dialect/type/catalog/client/operational cells open. Completed foundation rows did not close those owners; this historical list is not current release acceptance.
 
 ## Existing work to reuse
 
@@ -155,7 +165,7 @@ Remaining integration obligations include #761/#762/#768/#769/#777/#779/#780/#78
 | --- | --- | --- |
 | [#877](https://github.com/cntryl/cassie/pull/877) | `0e8bcce46c2be9452d7bc707850032c4c663a818` | Merged by checked squash at `2345e9025d937b6479ee5bdd6e13091537292e5f`; merged tree equals the validated head. Final full local gate and fourteen hosted checks passed; no parent owner closed. |
 | [#878](https://github.com/cntryl/cassie/pull/878) | `5bf186c64740b8d3f8fc56ad8a7a1accc2537585` | Reused historical ledger foundation for this expanded snapshot; the revised head requires its own complete local/hosted validation and checked integration. |
-| [#885](https://github.com/cntryl/cassie/pull/885) | `699341fba52c3898582e2dcd1c46dd158fb25f54` | Earlier recommendations are staged directions. The user approved the common CRB3/identity/codec/lossless-export v3 contract on 2026-10-10 (proposal SHA256 `26c43b1718f94160be6031d9bfc32ae301575df63ab71367498394e77f04ecc6`, recorded on #793). Complete per-family records and verification still gate runtime; #793 stays open. |
+| [#885](https://github.com/cntryl/cassie/pull/885) | `699341fba52c3898582e2dcd1c46dd158fb25f54` | At the time, the user approved the proposed CRB3/identity/codec/lossless-export v3 direction (proposal SHA256 `26c43b1718f94160be6031d9bfc32ae301575df63ab71367498394e77f04ecc6`, recorded on #793). #793 was later closed when the full-parity program was superseded. The proposal was not implemented and is not current storage-format authority. |
 
 These are immutable source witnesses, not current or inherited check results. Read live heads/reviews/checks before publication, merge or closure. Integrate one coherent bundle at a time.
 

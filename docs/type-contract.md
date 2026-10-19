@@ -1,547 +1,122 @@
-# Finite SQL type and wire contract
-
-This is the selected current-type contract for [#752](https://github.com/cntryl/cassie/issues/752), under [Query Engine Target 1](query-engine-target.md). It preserves the existing logical types and Midge row/field encodings. The selection is recorded in [the type-contract decision](https://github.com/cntryl/cassie/issues/752#issuecomment-5994420099). Qualification is in progress; a selected outcome or source mapping is not an executed acceptance result.
-
-## Metadata and input boundaries
-
-The private `src/types/builtin.rs` registry owns the fifteen existing scalar
-identities, lengths and codec kinds. Schema/executor descriptors, reverse
-binder/prepared lookup, pgwire text/binary codecs and builtin catalog enumeration
-consume it. Column modifiers, legacy vector/array identities, numeric text
-adapters and existing catalog names/categories/by-value flags retain their
-current adapters. This is a staged [#928](https://github.com/cntryl/cassie/issues/928)
-increment; full named identities, coercions, catalog publication and the approved
-v3 export/recreate/reimport transition remain under #904/#793.
-
-| Topic | Contract |
-| --- | --- |
-| Unknown carrier | Result and catalog descriptors use OID 705, typlen −2 and typmod −1. Cassie's logical `null` name is a metadata alias. SQL NULL Bind/DataRow field length remains −1. The descriptor convention does not introduce C-string storage. |
-| Numeric text adapters | OID 700 decodes to f64. OID 1700 preserves an exactly parseable i64; other valid numeric text decodes to f64. These are input adapters, without binary codecs or new logical FLOAT4/NUMERIC types. |
-| Numeric result metadata | An existing-type CAST is required for metadata-ambiguous unconstrained output. Direct `SELECT $1` under 700/1700 rejects 0A000 before RowDescription/DataRow for NULL and nonNULL. Contextual DML, predicates, independently fixed result types and explicit Boolean casts remain supported. ParameterDescription retains the declared OID. Numeric NULL retains adapter provenance at Boolean sinks. |
-| Vector arrays | SQL/storage declarations and the durable array OID formula remain unchanged. ARRAY(VECTOR(n)) pgwire identity/codecs are excluded and reject 0A000 before statement/portal RowDescription or DataRow, including text, empty and NULL-only output. BOOL[] 34016 and scalar VECTOR remain supported. |
-| Finite type discovery | `pg_catalog.pg_type` has one row per supported wire OID: existing scalar families, their 14 nonNull/nonVector scalar-array families, and supported scalar vector dimensions referenced directly by current-database collection/view schema fields. A helper without a session database retains its existing unfiltered scope. ARRAY(VECTOR) contributes neither an array registry row nor nested scalar dimension discovery. CHAR/VARCHAR family rows are unparameterized; column typmod retains length. Wider PostgreSQL catalog/extension discovery is excluded. |
-| Stored output identifiers | Finite output qualification preserves stored fields' delimited final spelling and output presentation names. Own source qualifiers are matched as parsed components; dots inside quoted fields do not create qualifiers. The selected stored-field and derived-alias cases compare descriptors and values in both formats. This private prerequisite retains existing identifier semantics; the wider relational matrix remains owned by #761. |
-| Row identity in output | A base table always exposes physical `_id` for explicit lookup. Only a base table without declared `id` supplies its legacy `id` alias. Derived/CTE explicit `_id` exports do not invent `id` aliases that shadow another source's declared field. SELECT wildcard retains its existing `id` presentation and full row width through derived sources; DML RETURNING wildcard retains its existing `_id` presentation in Describe and Execute. These corrections change no stored identity or schema format. |
-
-## Current logical types
-
-The table covers all 17 current DataType variants, including parameterized VECTOR and ARRAY. OIDs are Cassie's finite supported identities. A selected descriptor is a contract; fresh qualification remains recorded separately. Character registry names omit column modifiers, which remain in declared schemas.
-
-| Logical type | Name | Result OID | typlen | typmod |
-| --- | --- | --- | --- | --- |
-| Null | null | 705 | -2 | -1 |
-| SmallInt | smallint | 21 | 2 | -1 |
-| Int | int | 23 | 4 | -1 |
-| BigInt | bigint | 20 | 8 | -1 |
-| Float | float | 701 | 8 | -1 |
-| Boolean | boolean | 16 | 1 | -1 |
-| Text | text | 25 | -1 | -1 |
-| Char | char(n); internal None is char, parsed bare CHAR is char(1) | 1042 | -1 | n+4; bare/default n=1 |
-| Varchar | varchar(n); no length is varchar | 1043 | -1 | n+4 when representable, otherwise -1; bare unlimited |
-| Uuid | uuid | 2950 | 16 | -1 |
-| Bytea | bytea | 17 | -1 | -1 |
-| Date | date | 1082 | 4 | -1 |
-| Time | time | 1083 | 8 | -1 |
-| Timestamp | timestamp | 1114 | 8 | -1 |
-| Vector(n) | vector(n) | 100000+n | -1 | -1 |
-| Json | json | 114 | -1 | -1 |
-| Array(T) | T.type_name() followed by [] | 34000 + element_OID % 10000; vector element uses 33000+n residue | -1 | -1 |
-
-For ARRAY, the listed formula is the existing durable identity calculation. Pgwire accepts only the following 14 scalar element families; VECTOR arrays remain excluded even where their residue collides with a supported scalar-array OID.
-
-| Element family | Element OID | Array OID |
-| --- | --- | --- |
-| Boolean | 16 | 34016 |
-| SmallInt | 21 | 34021 |
-| Int | 23 | 34023 |
-| BigInt | 20 | 34020 |
-| Float | 701 | 34701 |
-| Text | 25 | 34025 |
-| Char | 1042 | 35042 |
-| Varchar | 1043 | 35043 |
-| Uuid | 2950 | 36950 |
-| Bytea | 17 | 34017 |
-| Date | 1082 | 35082 |
-| Time | 1083 | 35083 |
-| Timestamp | 1114 | 35114 |
-| Json | 114 | 34114 |
-
-ARRAY typmod remains −1, including ARRAY(CHAR(n)) and ARRAY(VARCHAR(n)). The complete inner logical DataType retains n for validation. This introduces no new array modifier ABI.
-
-Both brace and JSON-bracket text array inputs validate the declared scalar
-element family before Bind completes or COPY stages the row. Integer elements
-must fit their declared i16/i32/i64 domain; JSON-bracket numeric/Boolean/string
-families do not accept values from another family. Declared FLOAT input selects
-finite f64 values, including the same decimal rounding as scalar text FLOAT;
-BIGINT input retains exact i64 integers. UUID, BYTEA and temporal elements use
-their existing scalar canonicalizers. SQL NULL slots and the selected JSON
-document/origin rules remain unchanged. A wire array OID carries no character
-length: CHAR with an unknown modifier retains raw input until a target supplies
-its bound; known CHAR(n)/VARCHAR(n) bounds still apply. Missing VARCHAR length
-means unlimited scalar and array storage, while explicit bounds and bare
-CHAR(1) remain enforced. These corrections preserve stored type tags and the
-encoding layout.
-
-Declared numeric JSON-bracket array inputs retain original numeric tokens:
-FLOAT uses the scalar std f64 parser, including finite endpoints, subnormals
-and signed zero; integer families use exact i64 parsing before declared-width
-validation. Lexical integer `-0` normalizes to zero, while fractional and
-exponent-shaped integer inputs remain excluded. Complete JSON grammar is
-validated before element normalization. Document JSON parsing is unchanged.
-
-## Value and storage representations
-
-These existing carriers and encodings remain the recovery authority; physical typed buffers introduced later must preserve their logical values and declared restrictions.
-
-| Logical type | SQL spellings | Value carrier | Existing storage |
-| --- | --- | --- | --- |
-| Null | null | Value::Null | TYPE_NULL / absent JSON field |
-| SmallInt | smallint, int2 | Value::Int64 constrained to i16 | TYPE_I64, 8-byte network-endian payload |
-| Int | int, integer, int4 | Value::Int64 constrained to i32 | TYPE_I64, 8-byte payload |
-| BigInt | bigint, int8 | Value::Int64; preserve beyond 2^53 | TYPE_I64, 8-byte payload |
-| Float | float, double, numeric, decimal | Value::Float64; IEEE f64, not exact decimal | TYPE_F64, 8-byte payload; writes reject non-finite JSON-backed values |
-| Boolean | boolean, bool | Value::Bool | TYPE_BOOL, one byte |
-| Text | text, string | Value::String UTF-8 | TYPE_STRING UTF-8 |
-| Char | char, char(n) | Value::String, character count bounded; trailing ASCII blanks removed | TYPE_STRING canonical unpadded UTF-8 |
-| Varchar | varchar, varchar(n) | Value::String, optional character bound | TYPE_STRING UTF-8 |
-| Uuid | uuid | Value::String canonical lower-case UUID | TYPE_UUID, exact 16 bytes |
-| Bytea | bytea | Value::String canonical lower-case hex with \x prefix | TYPE_BYTEA raw bytes |
-| Date | date | Value::String canonical YYYY-MM-DD | TYPE_DATE canonical UTF-8 |
-| Time | time, time(p), 0 <= p <= 6 | Value::String canonical HH:MM:SS[.ffffff] | TYPE_TIME canonical UTF-8 |
-| Timestamp | timestamp, timestamp(p), 0 <= p <= 6 | Value::String canonical UTC instant YYYY-MM-DDTHH:MM:SS.ffffffZ | TYPE_TIMESTAMP canonical UTC UTF-8 |
-| Vector(n) | vector(n), positive n | Value::Vector(Vec<f32>), n fixed, finite components | TYPE_VECTOR_F32, u32 dimension prefix then exact finite f32 elements |
-| Json | json, jsonb | Value::Json for document-only null/string/container/unsigned-overflow values; existing primitive carriers for signed numbers, f64 and booleans; keep SQL Null distinct | TYPE_JSON canonical JSON bytes; absent key/TYPE_NULL is SQL NULL |
-| Array(T) | T[]; parser rejects array-of-array declarations | Value::Json(Array), logical element type retained separately | TYPE_ARRAY count then per-element tag/payload; same row encoding, no new layout |
-
-## Scalar and array codecs
-
-Text and binary support below describe the selected finite current profile. Numeric input adapters do not imply matching result or binary ABIs. SQL NULL framing is independent of the nonNULL codec. JSON array elements use the JSON document codec; known document-null scalar elements have the explicit exclusion described below.
-
-| Logical type | Text codec | Binary codec |
-| --- | --- | --- |
-| Null | NULL framing; binary unknown codec is UTF-8 only for non-NULL payloads | Null field -1; unknown 705 registry maps Text |
-| SmallInt | trim + exact i64 parse + i16 range; decimal output | exact 2-byte network-endian signed integer |
-| Int | trim + exact i64 parse + i32 range; decimal output | exact 4-byte network-endian signed integer |
-| BigInt | trim + exact i64 parse; decimal output | exact 8-byte network-endian signed integer; float-backed output requires finite integral in-range value |
-| Float | OID 700/701 -> f64; OID 1700 -> i64 if integral/in-range otherwise f64; text output Infinity/-Infinity/NaN where query values exist | OID 701: exact 8-byte network-endian f64; inexact i64-to-f64 output rejected; OID 700 and 1700 unsupported |
-| Boolean | Native unique prefixes and ASCII whitespace through shared parser; invalid text input 22P02; result t/f | receive exactly one byte, nonzero means true; send canonical 0/1; empty input 08P01, excess bytes 22P03 |
-| Text | raw UTF-8 | raw UTF-8, invalid UTF-8 rejected |
-| Char | raw input -> write validation; raw unpadded output | UTF-8 text payload |
-| Varchar | raw input -> write validation; raw output | UTF-8 text payload |
-| Uuid | parse and canonicalize UUID spelling | exact 16 UUID bytes |
-| Bytea | hex \x... only, even hex digits; canonical text | raw bytes |
-| Date | shared validated date parser; canonical output | exact 4 signed bytes: days from 2000-01-01 |
-| Time | shared validated clock parser, max six fractional digits | exact 8 signed bytes: microseconds from midnight; 0 <= value < 86,400,000,000 |
-| Timestamp | shared parser normalizes explicit offsets and treats offset-free input as UTC | exact 8 signed bytes: microseconds from 2000-01-01; Euclidean division for negative timestamps |
-| Vector(n) | text input remains a string until selected expression/write normalization; output [x,y,...] | private OID family n=1..32767; int16 dimensions + zero reserved + exact n network-endian f32 values |
-| Json | OID 114 parse JSON; output JSON text preserves quoted strings and literal null | OID 114 JSON text bytes, no JSONB version prefix |
-| Array(T) | private known scalar-array OIDs parse brace literals or JSON arrays; output JSON brackets | private known scalar-array OIDs: ndim 0/1; has_null 0/1; exact element OID; lower bound 1; bounded lengths and complete payload; element codec from scalar registry |
-
-Vector text output retains its existing carrier spellings: native stored reads use f32 display, while JSON-backed RETURNING uses JSON number spelling. For example, `[1.5,-2]` and `[1.5,-2.0]` have the same selected vector meaning. The independent binary golden is identical across those paths; no canonical text-format migration is selected.
-
-Registered scalar VECTOR binary output accepts native vectors, JSON-array RETURNING values and valid declared vector text parameters. Text encoding validates the exact declared component count and finite f32 conversion before allocating output; it does not reparse arbitrary scalar strings or alter other scalar codecs. Nullable vector writes retain SQL NULL under the existing row encoding. A nonnullable storage field and SQL NOT NULL constraints continue to reject NULL.
-
-Selected declared-vector text output and write normalization borrow validated
-JSON numeric tokens and parse them with the standard f64 parser before the
-existing finite-f32 range check. This preserves the exact f32 endpoint spellings
-that the default JSON number parser can round outside that range. A shared
-private visitor validates count, grammar and component range before allocating
-the output buffer; replay fills only the validated declared width. The default
-JSON parser, vector range, wire OIDs and durable vector representation remain
-unchanged. Invalid write shapes retain their existing schema-validation path;
-out-of-range components retain their existing range error.
-
-## Comparison and semantic keys
-
-Value-expression forwarding preserves a parameter or column's existing typed
-Value carrier through supported COALESCE and function arguments, including
-vectors, JSON documents and scalar arrays. Local function arguments retain
-their existing precedence over row fields using the same identifier lookup.
-Scalar arithmetic, predicate typing and casts retain their existing scalar
-evaluation policy. This corrects a lossy bridge; it introduces no typed batch
-representation or new stored value.
-Value-preserving window arguments retain the same rich carriers, including
-ARRAY values, rather than returning their former incidental string spelling.
-
-Directly forwarded JSON document values retain their JSON identity when a
-numeric aggregate rejects them. A mixed JSON column containing a string document
-therefore reports `function sum(json) does not exist` or
-`function avg(json) does not exist` (SQLSTATE 42883), using the existing aggregate
-error classifier. This changes the former incidental `text` qualifier, not
-numeric aggregate acceptance. Ordinary numeric carriers remain supported;
-TEXT and BOOLEAN retain their existing rejection diagnostics. Cast expressions
-continue through scalar evaluation and do not promise the direct-forwarding
-JSON qualifier.
-
-Direct vector MIN/MAX inputs now retain their native result carrier, matching
-the declared VECTOR descriptor. They use the existing whole-vector f32-bit
-semantic key instead of incidental string ordering from the former lossy
-bridge. Column summaries continue to require row fallback for vector extrema;
-this correction does not enable summary acceleration or change distance metrics.
-
-SMALLINT/INT/BIGINT carriers and integer/integer comparisons retain exact i64
-values. General numeric semantic keys keep their existing exact integer/float
-and NaN policy. The next #904 [mixed numeric SQL comparison contract](mixed-numeric-comparison-contract.md)
-selects operator-local float8 input conversion for mixed integer/FLOAT SQL
-comparisons; it does not change those general keys or stored payloads. Explicit
-nonfinite SQL oracle controls remain required. Integer-to-float output rejects
-inexact conversion under its existing codec law; a selected temporary operator
-input conversion is a separate boundary. BOOLEAN predicate/type semantics reuse
-merged #432 qualification; NULL retains SQL three-valued predicate rules and
-null-key join exclusion, with the existing grouping/distinct null key.
-
-String-backed types retain canonical UTF-8 value keys and existing ordering. Declared UUID, BYTEA and temporal canonicalization establishes their stored spelling. Timestamp normalization/order is by the canonical UTC instant; the existing timestamp-shaped TEXT value rule is retained. No PostgreSQL collation parity is claimed. CHAR removes trailing ASCII blanks. ARRAY uses declared elementwise semantic keys/order, compares the first unequal element and then equal-prefix length, and places NULL elements last. Generic JSON keys do not replace the declared array element type.
-
-JSON document predicates compare documents/numeric values recursively. Current primitive signed/f64/Boolean scalar carriers retain their numeric/Boolean keys; document carriers use serialized JSON text keys. Unsigned JSON document numbers beyond i64 preserve their exact document carrier. These policies do not imply universal JSON predicate/hash equivalence. Later typed kernels must retain the selected logical behavior or record a separate scoped correction. Whole-vector value keys use f32 component bits; cosine/dot/L2 retrieval metrics are a separate contract.
-
-## JSON and array element meaning
-
-Top-level SQL NULL and JSON document null remain distinct. SQL NULL uses field length −1. An OID 114 JSON document null uses four document bytes, `null`. JSON string documents retain their quotes; numbers, booleans, objects and nested documents retain JSON meaning in text and binary JSON codecs.
-
-Schema-aware scan, RETURNING and conflict-update conversion preserve unsigned
-JSON numbers beyond i64 as document values. This avoids loss through f64 while
-retaining ordinary signed/f64/Boolean scalar carriers and their existing keys.
-Preserving all JSON scalars as document carriers would change those comparison
-and grouping paths; changing only the output codec cannot restore bits lost
-earlier. The selected narrow correction uses existing JSON storage and introduces
-no unsigned SQL arithmetic type or recovery format.
-
-The existing SQL ARRAY(JSON) container represents direct null elements as SQL NULL. Distinct JSON document-null scalars inside that SQL array are excluded: known document-null input must reject explicitly before it collapses into SQL NULL. This selects no new element tag, validity bitmap or storage encoding. A nonNULL JSON document containing null, such as one array element whose document is `[null]`, remains supported.
-
-Supported binary scalar arrays retain their private OIDs, zero-dimensional empty framing or one dimension with lower bound 1, declared scalar element OID, NULL flags and checked element lengths/counts. A nested JSON document inside one ARRAY(JSON) element is not a multidimensional SQL array. Standard PostgreSQL array OIDs and arbitrary dimensions/lower bounds are excluded.
-
-## Exactness and future typed columns
-
-Declared integer widths remain range constrained while the current Value carrier
-uses i64; stored and integer-domain values beyond 2^53 retain their exact bits.
-The selected mixed SQL comparison domain may temporarily convert an integer
-operand to float8 without rewriting its original carrier or output payload.
-This exception does not choose a universal f64 physical representation. FLOAT
-remains f64. VECTOR components remain finite f32 with their declared dimension. Temporal binary codecs use PostgreSQL's 2000-01-01 epoch, days for DATE and microseconds for TIME/TIMESTAMP; TIMESTAMP retains Cassie's documented UTC normalization. Character length, UUID/BYTEA canonicalization, JSON document meaning and declared array element identity remain part of each logical type.
-
-The dependent [#753](https://github.com/cntryl/cassie/issues/753) contract must preserve these logical identities, exactness, units and SQL validity when choosing private typed-column representations. This document does not introduce the common batch API or claim that future typed kernels exist.
-
-| Current logical type | Future column requirement |
-| --- | --- |
-| Null | Carry SQL validity separately from a nonNULL value. Logical Null is the existing metadata carrier, not a new declared SQL type or a JSON document-null representation. |
-| SmallInt | Signed integer family with exact i16 domain. An i64 buffer is permitted only while declared range checks remain authoritative; never pass through f64. |
-| Int | Signed integer family with exact i32 domain. An i64 buffer must retain the declared i32 range; never pass through f64. |
-| BigInt | Exact signed i64 values, including both endpoints and integers beyond 2^53. No universal f64 physical carrier. |
-| Float | IEEE f64 value family with the existing equality/key/codec policy. Preserve permitted query non-finite values and existing storage-write rejection; do not introduce exact decimal or f32 rounding. |
-| Boolean | Boolean/validated one-byte value family. Keep SQL three-valued logic in validity, and reject nonBoolean typed inputs under the merged Boolean contract. |
-| Text | UTF-8 string or UTF-8 offset/view family retaining exact text, including a literal `NULL` string. |
-| Char | UTF-8 family retaining declared n and current character-count validation and unpadded canonical value. Do not replace n with byte length. |
-| Varchar | UTF-8 family retaining optional declared n and current character-count validation. |
-| Uuid | Exact 16-byte UUID or canonical UTF-8 fallback, with lossless conversion to the same canonical UUID value. |
-| Bytea | Exact byte view or canonical hex UTF-8 fallback, with lossless conversion to the existing raw-byte wire/storage value. |
-| Date | Exact calendar-date family or existing canonical UTF-8 fallback. An epoch representation must use whole days relative to 2000-01-01 and preserve the current supported date domain. |
-| Time | Exact microsecond-of-day family or canonical UTF-8 fallback; integer units, 0 <= value < 86,400,000,000. |
-| Timestamp | Exact microseconds relative to 2000-01-01 or canonical UTC UTF-8 fallback; preserve instant equality/order and offset normalization, including negative epoch values. |
-| Vector(n) | Fixed-dimension finite f32 family or exact existing vector fallback. Preserve declared n and f32 components; do not introduce an additional storage dimension cap or ARRAY(VECTOR) wire identity. |
-| Json | Rich document family or lossless existing typed fallback retaining document numbers, booleans, quoted strings, objects, arrays and JSON document null, distinct from SQL NULL. Preserve the documented current predicate/group/key policies rather than silently replacing them with one universal numeric or serialized key rule. |
-| Array(T) | Rich typed-array family or existing typed fallback retaining the complete inner DataType, order and SQLNULL slots. Preserve CHAR/VARCHAR inner n even though array wire typmod is −1. Retain the selected direct JSON document-null element and VECTOR-array wire exclusions. |
-
-Each family must support a bounded, explicitly owned fallback when a first kernel cannot consume it. A view's lifetime, selection/row identity and memory reservation must preserve the value and validity laws; their concrete indices/offsets/buffers remain #753 decisions. No type may be dropped or coerced merely to fit the first primitive kernel.
-
-## Persistent and recovery contract
-
-SELECT and DML exports use the compiled finite output authority. DML without
-RETURNING has zero result columns: Describe emits NoData and successful
-execution emits CommandComplete. Other command families retain their existing
-execution-result metadata owner; this contract does not replace their command
-Describe/capability surface with a new administrative catalog profile.
-
-Pgwire validates exported result types from the already compiled plan before a result-cache hit or any execution side effect. Describe and Execute use the existing metadata owner when there are no parameters and the private parameter-aware output contract when the prepared OID list is nonempty. The latter includes ordinary supported parameter types, because their exported ARRAY and CTE types also require propagation. Both paths apply the same logical VECTOR-array exclusion and execution controls. This preserves ordinary metadata and avoids repeating parameter analysis for queries without parameters; paired source-shape probes qualify the additional parameter path. Fresh, cached and fixed-schema suspended type cases retain their descriptors. Numeric input provenance follows exported positions through CTEs, derived tables and value-contributing set branches. An outer existing-type CAST consumes that provenance. Predicates, constrained assignments and independently fixed result expressions do not require a CAST merely because they use a numeric input adapter.
-
-Compiled-plan and execution-result cache identity includes the complete ordered
-effective parameter OID signature. Describe, Bind and Execute use that same
-signature: equal decoded values do not permit reuse across integer widths or
-BYTEA and TEXT inputs. Repeated statements with the same signature retain cache
-reuse. Rebuildable compiled entries from older binding epochs are discarded.
-
-Transaction-scoped portal lifetime and schema/snapshot changes remain owned by
-[#755](https://github.com/cntryl/cassie/issues/755)/[#757](https://github.com/cntryl/cassie/issues/757).
-A diagnostic that resumes a named wildcard cursor after Sync and column addition
-reproduces descriptor drift in the current protocol path. The approved lifecycle
-ends that portal at Sync; its dependent acceptance must reject the resumed name
-with 26000 and qualify cleanup. This type slice does not claim that lifecycle
-fix or broader catalog-mutation snapshot correctness.
-
-This private validation runs under execution's existing admission, cancellation and deadline controls. It preserves statement authorization and failed-transaction checks before output validation. REST and embedded execution retain their existing interface profiles. It adds no public portal field or durable representation.
-
-No persistent format, layout migration or new stored type is selected here. Stored rows and field values retain their existing Midge encodings and recovery authority. The metadata/codec corrections must preserve existing durable values. Unsupported wire identities or element classes fail before misleading descriptors, result rows or writes; they do not publish a replacement storage representation.
-
-Exact decimal storage, FLOAT4/TIMESTAMPTZ/JSONB result ABIs, pgvector extension ABI, standard array OIDs, a new vector storage dimension cap and a persistent array document-null representation remain excluded. Every selected acceptance case must pass before #752 closes; the finite per-type table and acceptance record will distinguish fresh probes from reused qualification and explicit exclusions.
-
-## Finite acceptance ownership
-
-These test owners qualify the selected contract. Focused red/green evidence is
-retained separately from the required full gate and exact published revision.
-The active #752 PR record must include that final qualification, review and
-merge/closure readback. Named existing tests are reused owners, not evidence
-that later typed kernels or every operator/type combination have shipped.
-
-| Owned invariant | Acceptance owners and explicit boundary |
-| --- | --- |
-| TYPE-001 | `type_catalog_discovery`, `type_unknown_metadata`, `type_scalar_matrix`, `type_scalar_array_matrix`, `type_declared_null_matrix`, `type_output_identifier_identity` and `type_output_source_seams`: independent names/OIDs/lengths/modifiers and exact rows across the 17 logical variants and 29 codec families. Catalog VECTOR membership depends on the current schema. Wider catalog and relational qualification remains #761/#776. |
-| TYPE-002 | Scalar/array empty and NULL matrices, `type_json_array_nulls`, `type_json_array_copy` and existing `json_writes` owners: field length −1, literal text NULL, document null, storage and restart. Known direct document-null ARRAY(JSON) elements have the selected 0A000 exclusion. |
-| TYPE-003 | `type_codec_boundaries`, `boolean_binary`, scalar matrix and near-code exact-float8 rejection owners: integer endpoints, integers beyond 2^53, literal network bytes, scalar widths and all 256 Boolean receive bytes. Boolean sends canonical 0/1; excess input is 22P03 and insufficient input is 08P01. Named rebinding, inferred parameters, zero-row Bind, savepoint recovery, indexed predicates, legacy arrays and restart have focused witnesses. Existing integer SUM/arithmetic owners remain part of the full suite. No exact-decimal or FLOAT4 result type. |
-| TYPE-005 | `type_numeric_metadata` and source-seam owners: original 700/1700 OIDs, NULL origin, fixed/constrained outputs, required casts, cache validation, recursive output positions and existing failed-transaction error priority. Unsupported binary adapters remain explicit. |
-| TYPE-006 | Scalar/array temporal packets and `type_codec_boundaries`: pre-2000 dates, negative timestamp microseconds, fractional units, TIME endpoints and range rejection. Existing temporal text/binary owners supply the remaining finite parser cases. BC/infinity/24:00 extensions remain excluded. |
-| TYPE-007 | Temporal wire/storage matrices and existing canonical-instant comparison/order owners retain UTC timestamp semantics and the documented timezone deviation. Later cross-operator and typed-kernel matrices remain #776 and the dependent operator owners. |
-| TYPE-008 | `type_json_scalar_documents`, JSON-array origin/COPY owners and near-code parameter/column carrier owners: exact unsigned document numbers, strings/objects/nested null, SQL NULL, conflict updates, predicates, grouping, forwarding and restart. Ordinary numeric/Boolean carriers retain their current policies. No JSONB ABI or universal JSON predicate/hash equivalence. |
-| TYPE-009 | Fourteen-family array matrices, malformed codec boundaries, text-parser and existing row-array owners: dimensions, lower bound, element OID, NULL flags, complete framing and checked count before allocation. Standard array OIDs, arbitrary dimensions, VECTOR-array wire identity and direct document-null elements remain excluded. |
-| TYPE-010 | `type_vector_carriers`, codec boundaries and near-code vector owners: finite f32 bits, declared width/header/reserved bytes, maximum binary width 32767, text/binary parameter and stored/RETURNING paths, exact component endpoints and preserved error priority. The width-32768 probe rejects binary output before writes while retaining text NULL output; no storage dimension cap is added. |
-
-The scalar, scalar-array and original declared-OID NULL matrices contain 548
-finite exchanges: 150, 224 and 174 respectively. The additional integer/TIME/
-array-length boundary owners contain 50 exchanges. `boolean_binary` adds 548
-focused wire exchanges, including both output formats for every receive byte.
-Exchange counts
-describe fixture coverage and are separate from test counts or proof of a
-complete SQL/operator/physical-path cross-product.
-
-## Staged primitive receive error classes
-
-The [#930 bundle](https://github.com/cntryl/cassie/issues/930), defined before
-coding, extends the existing scalar receiver without admitting new values.
-After obtaining a complete fixed-width prefix from the shared registry, decode
-and validate it before checking trailing bytes. Short input is `08P01`; excess
-bytes after a valid scalar are `22P03`. Confirmed invalid temporal values use
-`22008`, including when trailing bytes follow the invalid prefix. Private typed
-errors carry these classes into Bind; message-string matching is unnecessary.
-
-The exact admitted temporal set, stored canonical strings, vector and legacy
-array identities, public signatures and both approved v3 contracts remain
-unchanged. Existing legacy-array elements use the same receiver and propagate
-its typed errors; their legacy descriptors remain separately qualified without
-claiming standard PostgreSQL array identities or complete array framing.
-Current temporal rejection guards do not qualify PostgreSQL-valid
-infinity, 24:00 or large-year forms. Those forms and TIMESTAMP text presentation
-remain failed/pending under #814/#904/#848 until their full owner qualifies them.
-This finite input-error increment cannot complete those owners or #791.
-
-`scalar_receive_errors` adds 338 wire exchanges: named fixed-width recovery,
-temporal error priority, existing array-element delegation and indexed scalar
-mutations across savepoint recovery and restart. Independent packet/value
-fixtures retain the current adapters. Whole PostgreSQL comparisons, including
-still-pending temporal and standard-array forms, remain in the default corpus.
-
-
-Row-constructor predicates use transient expression metadata and produce the
-existing Boolean identity (OID 16). Their primitive implementation adds no
-DataType variant, stored record representation, row codec or migration. Integer
-field operations retain INT2/INT4/INT8 signatures before common comparison
-coercion. Executed row/null/parameter/restart evidence and pending whole-record,
-extended-family and broader source-constant obligations are recorded in
-[validation.md](testing/validation.md). Existing persisted-null-safe-definition
-admission continues to follow the separate null-safe predicate contract.
-
-Eligible single-row VALUES sources propagate their bound typed expressions
-into the consuming SELECT before planning-time constant checks. This preserves
-primitive widths, output names and parameter analysis while pruning unused
-cells. Propagation retains row-ordering expression structure; multi-field row
-ordering does not become a scalar constant merely because its fields do.
-Clone storage is admitted before substitution. Parameter/function/CHAR source
-cells and nested scope, window and set boundaries remain outside this increment.
-
-
-Scalar text output uses the existing declared identities. Default FLOAT8 output
-uses PostgreSQL's scientific thresholds, ties to even and strict midpoint
-selection; transient cast metadata retains proven FLOAT8 source identity for
-SQL text output without relabeling unresolved NUMERIC proxies. TIME and
-TIMESTAMP use ISO text with compact fractions for wire output and bound
-TEXT/VARCHAR casts. Their existing persisted normalization is unchanged.
-`Expr::Cast::source_type` is optional bound metadata, preserved through AST
-mapping, structural equality, expression keys and EXISTS reconstruction.
-`CastIdentity` retains requested NUMERIC/DECIMAL cast origin while the legacy
-parser still shares their carrier with FLOAT8. Those casts cannot become proven
-FLOAT8 sources. Exact NUMERIC storage, codecs and legacy schema aliases remain
-unqualified under #793/#812; preserving cast origin does not implement them.
-Current binding populates it for the selected primitive output conversions;
-unbound and unrelated casts leave it absent. Catalog definitions persist SQL
-and rebind against the schema. Full DateStyle, extra_float_digits, extended
-temporal families and native literal-input phase qualification remain pending.
-Executed evidence and the explicit pending probes remain in the validation log.
-
-`Expr::NumericLiteral` preserves normalized decimal integer magnitudes outside
-INT8 as transient syntax, distinct from quoted unknown strings. Explicit
-INT2/INT4/INT8, FLOAT8, TEXT and VARCHAR casts materialize existing primitive
-identities; numeric conversion errors remain eligible for native constant
-pruning. Integer tokens obey PostgreSQL's 131,072 significant decimal digit
-limit before pruning. Radix conversion currently extends through u64 only.
-Bare exact NUMERIC outputs and legacy NUMERIC/DECIMAL casts of these new leaves
-are explicitly unsupported, rather than publishing rounded FLOAT8 values.
-This AST addition introduces no stored NUMERIC carrier or persistent layout.
-
-
-Selected quoted unknown INT2/INT4/INT8, FLOAT8 and BOOLEAN inputs are validated
-while binding before expression pruning and VALUES coercion. Explicitly typed
-TEXT conversions retain their later folding/runtime phase. Exact NumericLiteral
-syntax and legacy NUMERIC/DECIMAL cast identities remain separate from unknown
-string input. BooleanInput and UndefinedColumn typed public errors retain
-22P02 and 42703 respectively. BOOLEAN binary receive rules are unchanged.
-Standalone wire Parse now binds SELECT and EXPLAIN SELECT semantics before
-publishing ParseComplete or storing a prepared statement. It admits a temporary
-analysis tree, retains the original raw tree for subsequent catalog/session
-rebinding, and does not invoke physical planning or constant folding. Shared
-parameter occurrence/type admission precedes semantic binding; final trailing-slot
-checks follow it.
-Explicit quoted primitive casts now report input conversion failures in the
-ordered binder: source lookup precedes projection binding, and projection items
-are visited in order. Parameter inference still determines valid parameter OIDs;
-a known rejected cast returns a private, nonpublishable inference prefix so a
-parent function signature cannot overtake its child's conversion failure. That
-prefix must reach binding before cache lookup and cannot pass final admission.
-Known rejected casts inside EXISTS reuse ordered binding at the expression's
-position, with the current CTE and correlated-field scope. Controlled query
-analysis admits the temporary copy before cloning; it retires before its lease
-releases.
-Diagnostic allocation retains query-memory and interruption controls through
-nested SELECT, CTE, VALUES and derived sources. Quoted NUMERIC/DECIMAL casts
-preserve their existing Float adapter (OID 701), including its input diagnostics;
-this does not qualify native NUMERIC identity, exact storage or codecs (#793/#812).
-Selected native phase/order and recovery witnesses pass; broader mixed-error
-precedence and parameter-dependent planning remain under #794/#796/#821. Clone
-admission covers the new temporary raw tree; legacy binder catalog/type/name
-allocation and expansion are separate resource qualification boundaries.
-
-
-Wire Bind now checks independently constant planning errors for SELECT and DML
-before portal storage or BindComplete, after parameter count/format/receiver
-validation. It compiles under registered cancellation and query controls and
-reuses the executor's constant checker without executing query rows or writes.
-EXPLAIN remains a utility at Bind and checks its contained plan at Execute.
-Concrete parameter-free integer arithmetic selects existing checked integer
-signatures; referenced-parameter/custom-plan folding remains unqualified.
-Rebuildable compiled-plan epoch 5 separates earlier fallback arithmetic plans,
-including persisted L2 entries; it changes no stored data format. Missing
-portals report 34000, while missing prepared statements retain 26000. Wider
-portal/prepared lifecycle parity remains with #821.
-
-Numeric prefix syntax uses the additive public `Expr::UnaryNumeric` node and
-`UnaryNumericOp::{Plus, Minus}`. The parser preserves signs outside postfix
-casts, folds signs on direct numeric constants and bounds combined prefix/tree
-nesting before wrapping an operand. Concrete integer minus binds to the existing
-`IntegerNegate` signature for SMALLINT, INT or BIGINT. Concrete numeric plus
-retains its operand identity. FLOAT8 minus preserves IEEE signed zero and
-infinity; an unresolved integer unary node never guesses a BIGINT signature.
-Raw unknown text/NULL select FLOAT8 for unary plus, while unary minus reports
-42725. The selected type participates in Boolean context and CASE/parameter
-inference before the temporary unary node is rewritten. Explicit typed text
-and Boolean operands report 42883. These contracts use PostgreSQL 18.6 probes.
-
-Rebuildable compiled-plan epoch 6 separates the earlier literal-specific unary
-parser from the new binding law, including persisted derived L2 plans. Stored
-Value types/layouts remain unchanged. Explicitly cast parameter operands are
-covered; bare-parameter overload defaults, parameter-dependent Bind planning,
-full NUMERIC and interval/geometric/extension unary families remain pending
-under #793/#794/#796/#821. This finite primitive increment does not close them.
-
-Pagination parses expression syntax before semantic integer-domain admission.
-Its borrowed prefix-signature check shares the binder's operator-selection law,
-so unknown minus and nonnumeric literal/cast operands retain native Parse SQLSTATEs
-42725 and 42883. Typed NULL and integer-width evaluation retain the existing
-integer-only bound contract. General FLOAT8/NUMERIC bound coercions and unknown
-parameter overload defaults remain pending under #793/#796/#821.
-
-Planning checks reached integer-bound constant subtrees for overflow without
-applying negative LIMIT/OFFSET values, which remain execution-time 2201W/2201X
-errors. Execution resolves bounds only in reached CTE definitions using the
-same scope-aware mask as planning/materialization; all definitions still receive
-semantic validation. Rebuildable compiled-plan epoch 7 isolates the earlier
-pagination planning law, including derived L2 plans, without changing stored
-Value layouts.
-
-
-SQL-standard FETCH FIRST/NEXT ROW/ROWS ONLY and OFFSET ROW/ROWS reuse the
-existing integer bound AST, including default count 1. Parenthesized set
-operands retain local bounds through existing derived-source nodes. Ordinary
-UNION CTE bodies remain simple CTEs. Concrete integer siblings select arithmetic
-signatures for otherwise unknown bound parameters; unknown-plus-unknown stays
-ambiguous even below an outer cast. Bound names use the source namespace before
-row-variable rejection (42P10). The additive public
-`CassieError::AmbiguousColumn(String)` carries SQLSTATE 42702 and telemetry kind
-`ambiguous_column`; unknown columns retain 42703. Private compiled-plan epoch 8
-isolates the new parsing/binding law without changing stored Value layouts.
-WITH TIES, general FLOAT8/NUMERIC bounds and complete owner qualification remain
-pending; see [validation.md](testing/validation.md) for executed evidence.
-
-
-Selected typed VALUES casts now retain DATE/TIME/TIMESTAMP/UUID/BYTEA and
-character source identity through common-column coercion and text output.
-Internal `DataType::Char { length: None }` is unbounded bpchar (OID 1042, typmod
--1); SQL CHAR's default remains `length: Some(1)` (typmod 5). Padded cast
-results retain their bytes while character comparison and DISTINCT keys ignore
-trailing ASCII blanks according to the selected native signature. Declared
-character metadata survives projection and CTE materialization with admitted
-ownership. Unknown VALUES parameters infer the selected existing scalar OIDs.
-Compiled-plan epoch 10 invalidates older binding laws; storage encoding and AST
-variants do not change. Full family, collation and resource qualification
-remain pending; see [validation.md](testing/validation.md).
-
-Explicit scalar `VARCHAR(n)` casts truncate by Unicode character count after
-source-aware text conversion. NULL stays NULL; short input is not padded;
-CHAR blanks and temporal/FLOAT8 output use their existing source identities
-before truncation. Assignment and function coercion keep their existing bounded
-validation path. Compiled plans rebuild at epoch 11; persisted Value layouts
-and public AST variants are unchanged. This does not qualify assignment error
-SQLSTATEs, trailing-blank assignment coercion or general INSERT VALUES expressions.
-
-Selected PostgreSQL 18 integer/BYTEA casts reuse the
-existing INT2/INT4/INT8 and canonical hex BYTEA identities. Integer-to-BYTEA
-retains the declared source width and emits big-endian two's complement;
-BYTEA-to-integer zero-pads short inputs, interprets full-width inputs as signed,
-and rejects excess bytes (including leading zeroes) with 22003. Empty BYTEA
-converts to zero and NULL remains NULL. Native receipts establish these laws.
-
-This cast-only slice needs no function resolution, comparison operator or new
-storage type: #803 and the wider #796/#793/#816 obligations remain open. Existing
-integer/parameter/cast foundations and typed VALUES at `a5be39d5`, followed by
-`b181036f`, supply its implementation prerequisites. It retains source
-identity in the existing Cast AST field and invalidates rebuildable plans at
-epoch 12.
-The additive public `IntegerByteaError` exposes the target width and rejected
-byte count; transparent `CassieError::IntegerBytea` reports native 22003 range
-messages. Stored Value/AST layouts do not change.
-
-The integer/BYTEA phase probes also require Bind-time folding with decoded
-parameters and propagation of pure single-row VALUES CTE sources. Reuse the
-existing constant planner and accounted VALUES propagation, moving decoded
-parameter ownership through Bind validation without cloning it. Cached physical
-plans remain independent of values. The CTE optimization is limited to direct,
-nonrecursive, scope-free, parameter-free one-row VALUES bodies with identity column output and no
-filter, grouping, ordering, set operation or bounds. Wider CTE planning remains
-an open obligation; preserve reached/dead-definition behavior.
-
-Bound constant checks admit only reached primitive parameter copies through
-the existing lazy semantic evaluator. Decoded values move through Bind
-validation into the portal without entering cached physical plans. Execute
-uses the same bound-value law. Fixed integer/BYTEA output scratch is admitted
-before constant allocation. JSON/Vector parameters remain variable; complete
-family, CTE and resource qualification is still pending. Executed evidence is
-recorded in [validation.md](testing/validation.md).
-
-Selected BYTEA input checkpoint: SQL casts and typed text Bind now share
-borrowed hex/escape validation. Ordinary UTF-8 bytes, doubled backslashes and
-three-digit octal escapes (000–377) canonicalize to the existing lower-case
-hex Value::String. Hex input accepts space/tab/CR/LF between complete pairs;
-whitespace within a pair, form feed and vertical tab reject. Native error
-precedence is retained: malformed escape input is 22P02; invalid hex digits
-and odd input lengths are 22023. ByteaInputError is an additive typed public
-error; selected ASCII diagnostic messages match the native oracle.
-
-Quoted invalid BYTEA inputs fail analysis even in dead CASE arms. Explicit
-TEXT conversions and typed parameters fail at Bind when constant, or at row
-execution for stored TEXT. A failed Bind preserves the prepared statement for
-valid reuse. Text and binary inputs produce the same OID 17 and canonical
-text/raw-byte binary results, including the full 256-byte octal domain.
-
-Reached direct literal/cast-chain constant expansion is admitted before
-allocation through the existing lazy evaluator. The focused dead CASE probe
-caught structural overcharging and now passes through reached-cast admission.
-Bound primitive copies retain their existing admission law. Per-portal decoded
-parameter retention and complete transport/resource qualification remain under
-#849; this checkpoint does not establish them. Compiled plans rebuild at epoch
-13. No persistent type or layout is changed. Fixed encode/decode signatures,
-session BYTEA output selection and wider #803/#816 functions remain open.
+# Finite SQL Type and Wire Contract
+
+This document inventories Cassie's current SQL type identities, metadata and
+storage boundaries. [Feature Support](feature-support.md) owns behavior and
+support status; the [Product Roadmap](product-roadmap.md) owns product scope.
+PostgreSQL 18.6 is a semantic reference for selected behavior, not a promise of
+complete type, cast, array, catalog or server parity.
+
+The runtime has two type lanes: the original scalar/container carriers and
+native families represented by `DataType::Extended`. Object-identifier types
+have their own typed identity. A declared scalar's presence here does not imply
+that every cast, operator, function or corresponding array form is supported.
+See [Extended Types](extended-types.md) for family implementation details and
+the [historical #752 checkpoint](type-contract-history.md) for superseded
+qualification snapshots. Its old pending statements do not describe current
+type support.
+
+## Original scalar and container identities
+
+These entries use the existing `DataType` adapters. Character typmods are
+reported from the declared column length. `FLOAT` is Cassie's float8 identity;
+`REAL` and exact `NUMERIC` are separate native families below.
+
+| SQL type | OID | `typlen` | Notes |
+| --- | ---: | ---: | --- |
+| `smallint` | 21 | 2 | Signed 16-bit value |
+| `integer` | 23 | 4 | Signed 32-bit value |
+| `bigint` | 20 | 8 | Signed 64-bit value |
+| `float` / `double precision` | 701 | 8 | IEEE float8 |
+| `boolean` | 16 | 1 | |
+| `text` | 25 | -1 | UTF-8 |
+| `char(n)` / `character(n)` | 1042 | -1 | `atttypmod` is `n + 4`; bare `CHAR` is `char(1)` |
+| `varchar(n)` / `character varying(n)` | 1043 | -1 | `atttypmod` is `n + 4` when representable |
+| `uuid` | 2950 | 16 | |
+| `bytea` | 17 | -1 | Raw bytes; hex text output |
+| `date` | 1082 | 4 | |
+| `time` | 1083 | 8 | |
+| `timestamp` | 1114 | 8 | Without time zone |
+| `json` | 114 | -1 | `jsonb` is not a distinct supported type |
+| `vector(n)` | `100000 + n` | -1 | Private identity; finite positive dimension |
+| `T[]` | `34000 + (element identity mod 10000)` | -1 | Private identity; vector elements use a legacy residue and their wire arrays are excluded |
+
+`NULL` uses the unknown result identity (OID 705, `typlen` -2, typmod -1);
+SQL NULL on the wire is still a field length of -1. `oid` and the supported
+`reg*` aliases use their distinct registered PostgreSQL identities; their
+finite behavior is described under [Feature Support](feature-support.md#planning-execution-and-interfaces).
+
+The array formula is Cassie's existing identity adapter. For VECTOR elements,
+the adapter uses the legacy `33000 + n` element residue before applying the
+array formula. Neither formula defines the complete element-family, dimension,
+lower-bound or document-null behavior, and neither is the PostgreSQL standard
+array ABI. In particular, scalar support does not imply matching array support.
+ARRAY(VECTOR) remains excluded from pgwire.
+
+## Native extended identities
+
+The following names, OIDs and lengths are registered by `ExtendedType`. A
+typmod is shown where a declaration can carry one. Temporal precision is
+0 through 6; `numeric(p,s)` retains its declared precision and scale.
+
+| Type family | SQL spelling | OID | `typlen` | Typmod |
+| --- | --- | ---: | ---: | --- |
+| REAL | `real`, `float4` | 700 | 4 | -1 |
+| NUMERIC | `numeric`, `decimal` | 1700 | -1 | precision/scale when declared |
+| Network | `inet` | 869 | -1 | -1 |
+| Network | `cidr` | 650 | -1 | -1 |
+| Hardware address | `macaddr` | 829 | 6 | -1 |
+| Hardware address | `macaddr8` | 774 | 8 | -1 |
+| WAL position | `pg_lsn` | 3220 | 8 | -1 |
+| Bit string | `bit(n)` | 1560 | -1 | declared length |
+| Bit string | `bit varying(n)` / `varbit` | 1562 | -1 | declared maximum length |
+| Temporal | `date` | 1082 | 4 | -1 |
+| Temporal | `time(p)` | 1083 | 8 | precision when declared |
+| Temporal | `time(p) with time zone` / `timetz` | 1266 | 12 | precision when declared |
+| Temporal | `timestamp(p)` | 1114 | 8 | precision when declared |
+| Temporal | `timestamp(p) with time zone` / `timestamptz` | 1184 | 8 | precision when declared |
+| Temporal | `interval` | 1186 | 16 | field/precision typmod when declared |
+
+The `date`, `time` and `timestamp` entries are natively carried during
+execution. Their unmodified schema declarations retain the existing base OIDs
+and row-blob tags; precision-qualified forms and the timezone-bearing temporal
+types use their extended identities. `REAL` is float4, and `NUMERIC` is exact
+decimal; neither is an alias for Cassie's float8 carrier.
+
+## Carriers, codecs and persistence
+
+Extended values remain native in the evaluator and use family-specific ordering
+keys for comparisons, grouping, joins and indexes. Their canonical PostgreSQL
+text output is used at the text-result boundary; supported binary results use
+the family's PostgreSQL send format. Input and binary behavior are specific to
+each registered family.
+
+For schema fields declared with an extended identity, the row-blob encoder uses
+the existing `TYPE_EXTENDED` tag (`0x0e`), followed by a length-prefixed payload
+containing the type OID and that type's binary value. The decoder resolves the
+OID and invokes the matching family receiver. Existing base scalar, vector and
+array row-blob tags remain in place. This inventory does not select a second
+storage abstraction, a new migration policy, or a PostgreSQL on-disk format.
+Midge remains the only storage layer and owns persistence and recovery mechanics.
+
+NUMERIC carries a base-10 integer mantissa and scale, with native text and
+binary codecs, typmod handling, arithmetic and selected aggregate/result-type
+rules. Temporal families carry calendar/time values natively and use statement
+session settings for timezone, date style, interval style and clock functions.
+Network, bit-string, `macaddr`, and `pg_lsn` families have their own values,
+binary codecs, ordering and selected operators. The detailed boundaries and
+known exclusions live in [Extended Types](extended-types.md) and the canonical
+[Feature Support](feature-support.md) matrix.
+
+## Qualification boundary
+
+Type registration and a passing case do not promote a capability. Support
+status remains Experimental until the feature owner has the required semantic,
+wire, resource, restart and client evidence. PostgreSQL-shaped behavior is
+selected per documented use case; unlisted casts, overloads, catalog rows,
+array families and extensions remain unsupported or unqualified according to
+Feature Support and their live issue criteria.
+
+The former #791–#793 full PostgreSQL parity and CRB3 export/recreate/reimport
+program is closed as superseded. Its approval snapshots and staged acceptance
+records are retained as history only; they do not authorize a storage migration
+or expand this type contract.

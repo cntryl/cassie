@@ -5,6 +5,12 @@ not PostgreSQL system catalogs, and PostgreSQL-internal catalog parity is not cl
 views below are Stable. Every other `information_schema` or `pg_catalog` view remains Experimental
 and may add or change columns before 1.0.
 
+Several dated checkpoints below preserve issue references from the former
+PostgreSQL 18 full-parity program. #791–#793 are closed as superseded; those
+references are historical provenance, not current dependencies. Current product
+scope comes from the [roadmap](product-roadmap.md), and live issue status belongs
+to GitHub.
+
 Consumers must use an explicit `ORDER BY` when multi-row order matters. Cassie currently emits
 these virtual rows deterministically, but implicit relation order is not part of SQL semantics or
 the compatibility contract. An unavailable virtual view is an undefined relation and pgwire returns
@@ -77,8 +83,9 @@ foreign/replication/security-label/transform, membership/default-ACL, large-obje
 enum/partition/trigger/policy/event-trigger and parameter-ACL registries. Empty
 rows describe the absence of these objects in Cassie's current catalog; they do
 not implement their DDL or advertise the corresponding capability. Keep native
-catalog/domain result OIDs and opaque type codecs as unfinished #793/#817 work;
-existing logical carriers remain explicit experimental descriptors. Do not
+catalog/domain result OIDs and opaque type codecs outside this selected #817
+read-model batch; #793 was a superseded parent specification. Existing logical
+carriers remain explicit experimental descriptors. Do not
 weaken retained tests that require native type identities.
 
 Table/view/sequence discovery reads real current-database catalog objects.
@@ -103,7 +110,8 @@ claiming PostgreSQL's pretty-print rendering.
 
 This checkpoint does not promote a catalog to Stable or complete #817. Native
 catalog-domain OIDs/codecs, ownership, pretty-printed definitions, system-object
-rows, OID/reg* lifecycle and wider DDL remain open under #793/#817/#831/#841.
+rows, OID/reg* lifecycle and wider DDL remain unqualified; current issue criteria
+define any active follow-up.
 Native column names and selected values are independent pinned observations;
 logical-carrier descriptors do not establish PostgreSQL descriptor ABI parity.
 Executed counts and remaining failures are recorded in
@@ -123,14 +131,15 @@ bytes/B/kB/MB/GB/TB/PB units, using exact decimal multiplication and halfway
 rounding away from zero. Numeric input bounds precede unit validation; the
 final result must fit bigint. NULL remains NULL. `pg_size_pretty(bigint)` uses
 PostgreSQL's unit thresholds and symmetric rounding, including both bigint
-limits. The NUMERIC overload remains pending under #793/#817; this checkpoint
-does not approximate it through floating point or implement physical size APIs.
+limits. This helper does not implement a `pg_size_pretty(numeric)` overload. It
+does not
+approximate it through floating point or implement physical size APIs.
 
 `pg_char_to_encoding` resolves the pinned PostgreSQL 18.6 alias table for
 literal, stored TEXT and explicitly typed TEXT parameters. It applies native
 NAME's 63-byte UTF-8 truncation before lookup. Lookup does not enable another
 client/database encoding. Native NAME parameter identity (OID 19) remains
-pending under #793: an untyped direct parameter rejects with 0A000, rather than
+unsupported in this checkpoint: an untyped direct parameter rejects with 0A000, rather than
 advertising TEXT as its native inferred identity. An explicit `$1::TEXT` uses
 OID 25 and the selected name coercion. Non-ASCII lookup observations are pinned
 to the recorded Darwin oracle; broader locale/encoding qualification remains
@@ -168,7 +177,7 @@ retain their declared identities. Unknown literals and NULL are accepted.
 three TEXT columns, with no rows because Cassie has no PostgreSQL native-module
 loader. Aliases, derived tables, CTEs, aggregation and outer joins use the normal
 table-function path. Scalar target-list RECORD projection remains explicitly
-unsupported (0A000) under #793/#817; the FROM shape does not establish RECORD
+unsupported (0A000); the FROM shape does not establish RECORD
 ABI support. Compiled plans rebuild at epoch 16. No stored format changes.
 These checks leave complete system-information, native catalog ABI and resource
 qualification open. See [validation](testing/validation.md).
@@ -185,7 +194,7 @@ Selected malformed array text raises 22P02.
 The selected input path supports explicit one-dimensional TEXT[] constructors
 with string/NULL literals, PostgreSQL array-literal casts and explicitly typed
 TEXT parameters cast into arrays. Native TEXT[] parameter identity OID 1009
-remains absent under #793: direct array parameters reject with 0A000 instead of
+remains absent in this selected path: direct array parameters reject with 0A000 instead of
 advertising the private logical-array identity as native. Higher dimensions,
 explicit bounds, general dynamic constructors, native array ABI and SQL array
 assignment remain pending. Stored logical arrays are verified through the public
@@ -193,7 +202,8 @@ ingest API followed by SQL reads; this does not qualify SQL array INSERT casts.
 
 Aliases, CTEs, selected explicit/implicit lateral reads and empty outer joins use normal
 relational execution. Scalar target-list RECORD projection remains explicitly
-unsupported under #793/#817. DISTINCT and in-call ORDER BY reject with native 42809.
+unsupported in the selected RECORD path; #817 owns remaining catalog/introspection
+qualification. DISTINCT and in-call ORDER BY reject with native 42809.
 Execution checks controls, admits argument scratch/output ownership and releases
 owners on errors. Compiled plans rebuild at epoch 17; stored formats do not
 change. Full resource/restart and owner qualification remain open. See
@@ -216,7 +226,8 @@ Execution-result caching bypasses this helper, including calls through views;
 compiled plans remain reusable and rebuild at epoch 18. Extra arguments reject
 with native 42883. No persistent representation or native type identity changes.
 This selected primitive helper leaves complete session introspection, native
-NAME/OID/RECORD types and full resource qualification open under #793/#817/#821/#849.
+NAME/OID/RECORD types and full resource qualification unqualified under the
+current feature and v1.0 qualification records.
 
 
 Selected `pg_column_size(any)` support returns INT (OID 23). Explicit existing
@@ -229,6 +240,6 @@ are covered against PostgreSQL 18.6. This describes selected SQL datums, not
 Midge storage sizes. Direct typed parameters require explicit casts to preserve
 identity. Unsupported stored varlena provenance, CHAR, NUMERIC, JSON, arrays,
 vectors and unqualified expressions reject with `0A000` before evaluation;
-these remain pending obligations under #793/#817. Untyped direct parameters
+these remain unsupported in this checkpoint. Untyped direct parameters
 retain `42P18`. Query budget, cancellation and result ownership use existing
 execution controls. Plan-cache cost model epoch is 19.

@@ -1,9 +1,9 @@
 # Extended types
 
-Natively represented PostgreSQL types beyond Cassie's original scalar set
-(`real` and `numeric`; temporal, network, bit-string and the other families
-follow) share one extension point so each family is added without touching
-the engine's shared `match` statements.
+The native `ExtendedType` lane carries families beyond Cassie's original
+float8/document scalar set: `real`, exact `numeric`, network and hardware
+addresses, `pg_lsn`, bit strings, and extended temporal types. Each family has
+its own identity and codec while sharing typed evaluation and storage dispatch.
 
 ## Representation
 
@@ -13,9 +13,15 @@ the engine's shared `match` statements.
 | Rows inside the engine | `Value::Typed(TypedValue)` (native, e.g. `f32`) |
 | Evaluator | `ScalarValue::Typed(TypedValue)` |
 | Ordering, grouping, joins, index keys | `SemanticValue::Typed(TypedKey)` with PostgreSQL order |
-| Storage | row-blob tag `TYPE_EXTENDED`: type OID, then the PostgreSQL binary form |
+| Storage | Extended schema fields use row-blob tag `TYPE_EXTENDED`: type OID, then that type's PostgreSQL binary form |
 | Result rows (embedded API, pgwire text) | `Value::String` with the PostgreSQL text output |
-| pgwire binary | the PostgreSQL `send`/`recv` format |
+| pgwire binary | the family's PostgreSQL `send`/`recv` format |
+
+Plain `date`, `time` and `timestamp` schema columns keep their existing
+identities and row-blob tags even though their values are evaluated natively.
+Precision-qualified forms and timezone-bearing temporal declarations use the
+extended type identity. See [Type Contract](type-contract.md) for the current
+OID, length and storage inventory.
 
 The public result boundary renders text because PostgreSQL's text protocol
 does; inside the engine values stay native so comparison never re-parses text.

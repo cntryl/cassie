@@ -10,29 +10,52 @@ evaluation under their documented limits and may change before 1.0.
 
 Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient to catch correctness and gross resource-bound regressions, but it is not representative-scale evidence for production latency, capacity, cancellation latency, recovery time, or sustained concurrency.
 
-## PostgreSQL 18 parity acceptance
+## Product release boundary
 
-The top-priority [PostgreSQL 18 delivery program](postgresql18-delivery.md)
-targets complete core SQL and full PL/pgSQL. It is incomplete and makes no new
-support/readiness claim. The narrower Stable procedure/type/client evidence
-below remains valid within its historical boundary; those finite limits are
-intermediate delivery slices for this program, not final exclusions.
+The [Product Roadmap](product-roadmap.md) defines v0.3 Projection Store as the
+initial shippable release, v0.4 as the query and retrieval release, and v1.0 as
+the production release. This document defines only the evidence required for
+production readiness; it does not expand the SQL or server compatibility scope.
 
-#848 must pass every in-scope cell against immutable PostgreSQL 18.6 and the
-required Cassie revisions, including declared ordering/multiplicity, NULLs,
-coercion, OIDs/typmods, errors/tags/parameters and all applicable execution/wire/
-codec paths. Pinned clients/generated ORM SQL, pg_dump/restore, isolation,
-privileges, cancellation, notifications, lock release and rollback/savepoints
-are acceptance obligations. #849 additionally requires resource/restart,
-prepared-transaction/large-object recovery, transactional schema publication
-and verified v3 export/recreate/reimport with the original store preserved for
-rollback. Failed, skipped, unavailable, pending or unsupported in-scope cells
-keep the milestone open. Support promotion follows accepted evidence; close
-#791 last.
+PostgreSQL 18.6 comparisons qualify selected behaviors named by current
+roadmap milestones and issue criteria. The former complete-core-SQL/full-PLpgSQL
+program (#791–#793) was closed as superseded. Neither that program nor the size
+of its retained test corpus is a v1.0 parity gate. Current v1.0 acceptance is
+owned by the live milestone, the [release checklist](release-checklist.md), and
+the production evidence below.
+
+## Current Local Check Snapshot
+
+On 2026-10-19, the required local gates were run on `main` at base commit
+`39523c963b744e375070c749ecb56a3897845c9e` with this uncommitted documentation
+and test-fixture-label reconciliation. No runtime source changed.
+
+- `cargo build --locked --bin cassie`: passed.
+- `cargo test --locked`: failed in `tests/catalog_security.rs` with 279 passed
+  and 123 failed. A focused reproduction of
+  `type_catalog_discovery::should_advertise_pgcrypto_in_available_extension_catalog`
+  confirms `pg_catalog.pg_available_extensions` is absent. This is planned
+  #843 behavior. The remaining failures span backend/session statistics,
+  server-control helpers, catalog shapes and size/visibility functions, and type
+  discovery; they have not been individually mapped to source findings or issue
+  owners. Do not attribute them to #843 based on this run alone.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`:
+  passed.
+- `cargo fmt --all -- --check`: passed.
+- `cntryl-tools validate-tests -f tests/sql_queries/types/uuid_lsn/uuid_hash_lsn.rs`:
+  passed (36/36).
+
+The GitHub Actions repository setting is disabled by user direction, and no
+workflow run is in progress. No workflow was dispatched for this snapshot.
+Hosted checks are unavailable; this local worktree result is not a release-commit
+gate. Historical workflow artifacts elsewhere in this document are retained
+evidence from earlier runs and do not imply that workflows are enabled now.
 
 ## Evidence Present
 
-- Locked build, full test, pedantic Clippy, and formatting gates.
+- The repository's locked build, full-test, pedantic Clippy, formatting, and
+  touched-test validation gates are defined; the current local results are
+  recorded above.
 - Integration coverage across SQL, indexes, transactions, pgwire, REST, search, vector, analytics, projection lifecycle, and recovery adapters.
 - The stable named-client catalog subset is limited to the documented columns of
   `information_schema.tables` and `information_schema.columns`, with lifecycle tests plus retained
@@ -61,7 +84,8 @@ keep the milestone open. Support promotion follows accepted evidence; close
   selected service and size retry counts and query deadlines to its published rate-limit policy.
 - Security-boundary coverage for constant-cost authentication failures, bounded login state, atomic REST session quotas, explicit external HTTPS attributes, bounded provider responses, streaming transport deadlines, parser complexity budgets, and live database-access revocation.
 - Health, metrics, EXPLAIN, projection diagnostics, capacity guidance, snapshot/restore guidance, and repair runbooks.
-- Container and supply-chain workflows for supported targets.
+- Retained container and supply-chain evidence for supported targets from
+  earlier runs; no new hosted evidence is available while Actions are disabled.
 - Named evidence boundaries are defined in [Deployment Profiles](deployment-profiles.md); the
   native-Linux profile remains an explicit evidence requirement rather than an implied claim.
 - The release support, upgrade, rollback, and security-response envelope is defined in
@@ -74,7 +98,7 @@ keep the milestone open. Support promotion follows accepted evidence; close
   changing Experimental feature status; each family still requires its named feature-owner and
   operational promotion review.
 - The selected opt-in adaptive surface is limited to feedback-informed scalar read selection and
-  vectorized-to-merge inner/left equi-join switching. Backend CI retains a same-commit
+  vectorized-to-merge inner/left equi-join switching. A retained backend-CI artifact records a same-commit
   `cassie-adaptive-profile-<commit>` artifact with fixed/evaluation results, plans, storage reads,
   candidates, memory, workers, fallback diagnostics, and configuration. Deterministic tests cover
   feedback guards and failure states plus restart rollback. Broader adaptive planning remains
@@ -107,7 +131,7 @@ keep the milestone open. Support promotion follows accepted evidence; close
   import is routed to the audited dependency in production, development
   optimization and worker builds. Upstream dependency
   tracking remains [microsoft/monaco-editor#5352](https://github.com/microsoft/monaco-editor/issues/5352).
-- Production-browser coverage runs the Admin UI from a real temporary Cassie process at desktop and mobile viewports. The current Askr `0.4.4`, Askr UI `0.4.3`, `@askrjs/themes` `0.4.2`, and `@askrjs/monaco` `0.4.0` graph with Monaco `0.56.0` and DOMPurify `3.4.17` passes 121 repository tests, 26 desktop/mobile mock-browser cases, and 2 real-Cassie desktop/mobile production-browser cases together. Five repository tests qualify sanitizer resolution in production, dependency optimization and worker graphs, importer isolation and missing-dependency rejection; dated evidence is recorded in [Validation](testing/validation.md). Mock-browser evidence covers axe scans of login, empty workspace, controlled dialog, populated results, query failure, and mobile-sidebar states plus committed populated desktop light/dark and mobile open/closed screenshots. The production-browser case loads a fresh Monaco editor, immediately filters the schema tree, and rejects the historical `state.set() cannot be called during component render` console failure. Cassie isolates live query-text reactivity from Monaco host reconciliation so editor selection, history, completion, results, and theme changes preserve workspace state. The released packages resolve [askrjs/askr-monaco#22](https://github.com/askrjs/askr-monaco/issues/22) and [askrjs/askr-themes#62](https://github.com/askrjs/askr-themes/issues/62), so their application workarounds are removed. This evidence promotes only the Admin UI support entry to Stable; Cassie's overall Production Candidate classification is unchanged.
+- Retained production-browser evidence records the Admin UI running against a real temporary Cassie process at desktop and mobile viewports. The Askr `0.4.4`, Askr UI `0.4.3`, `@askrjs/themes` `0.4.2`, and `@askrjs/monaco` `0.4.0` graph with Monaco `0.56.0` and DOMPurify `3.4.17` passed 121 repository tests, 26 desktop/mobile mock-browser cases, and 2 real-Cassie desktop/mobile production-browser cases together. Five repository tests qualify sanitizer resolution in production, dependency optimization and worker graphs, importer isolation and missing-dependency rejection; dated evidence is recorded in [Validation](testing/validation.md). Mock-browser evidence covers axe scans of login, empty workspace, controlled dialog, populated results, query failure, and mobile-sidebar states plus committed populated desktop light/dark and mobile open/closed screenshots. The production-browser case loads a fresh Monaco editor, immediately filters the schema tree, and rejects the historical `state.set() cannot be called during component render` console failure. Cassie isolates live query-text reactivity from Monaco host reconciliation so editor selection, history, completion, results, and theme changes preserve workspace state. The released packages resolve [askrjs/askr-monaco#22](https://github.com/askrjs/askr-monaco/issues/22) and [askrjs/askr-themes#62](https://github.com/askrjs/askr-themes/issues/62), so their application workarounds are removed. This evidence promotes only the Admin UI support entry to Stable; Cassie's overall Production Candidate classification is unchanged.
 - Askr does not yet expose a lifecycle-owned dynamic keyed-query collection with bounded prefetch and aggregate state. Cassie therefore retains one narrow `DatabaseCatalogController` for lazy schema loading, three-request search prefetch, retry, aggregate progress, and abort-on-unmount without adding another schema cache. The upstream capability is tracked in [askrjs/askr#327](https://github.com/askrjs/askr/issues/327).
 
 ## Rollup and Retention Operator Contract
@@ -173,9 +197,10 @@ projection lifecycle remain outside this contract.
 - Establish and validate operational thresholds for disk growth, resource admission, backup/restore time, rebuild and repair time, failure injection, cancellation latency, and sustained mixed workloads.
 - Exercise container startup, health, restart, snapshot, restore, and failure-recovery runbooks in each supported release architecture and deployment profile.
 - The cross-architecture rehearsal record is defined in [Cross-Architecture Release Rehearsal](cross-architecture-rehearsal.md); amd64 and arm64 evidence remains pending until separate retained bundles exist.
-- The `Operational readiness` workflow separates a fast native amd64/arm64 shape gate from its
-  scale and endurance mode. A passing shape run validates the automation but does not satisfy the
-  pending retained-evidence blocker.
+- The `Operational readiness` workflow definition separates a fast native amd64/arm64 shape gate
+  from its scale and endurance mode. GitHub Actions are disabled, so it is not currently running;
+  a passing shape run validates the automation but does not satisfy the pending retained-evidence
+  blocker.
 - Validate the support, upgrade compatibility, release rollback, and security response expectations
   in [Support, Release, and Security-Response Policy](support-policy.md) against a tagged release
   artifact and rehearsal evidence.

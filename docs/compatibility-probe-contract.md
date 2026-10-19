@@ -1,5 +1,9 @@
 # Compatibility Probe Contract
 
+> **Current operations constraint:** GitHub Actions are disabled by user direction. Do not
+> enable or dispatch the archived external probe workflow until the user explicitly changes
+> that direction. Local probes remain available, subject to their documented prerequisites.
+
 Compatibility probes are opt-in external gates. They are not part of pull-request CI and a
 successful probe certifies only the recorded workflow, client version, source revision, and
 runtime profile.

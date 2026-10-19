@@ -1,16 +1,31 @@
 # Product Roadmap
 
-This document contains future work only. Current behavior and status live in [Feature Support](feature-support.md); readiness evidence and blockers live in [Production Readiness](production-readiness.md).
+This document owns Cassie's product goal, scope, exclusions, release order, and future work. Current behavior and status live in [Feature Support](feature-support.md); readiness evidence and blockers live in [Production Readiness](production-readiness.md).
 
 Work is dependency-ordered. A later item does not begin while an earlier correctness or format dependency remains open.
 
-## Product scope: a query engine for read models
+## Product goal and scope
 
-Cassie powers read models of event-sourced and CQRS systems. The event stream
-is the source of truth; projector processes write read-model tables over the
-PostgreSQL wire protocol with plain SQL, and applications query them through
-standard drivers, ORMs, psql and pgAdmin. Every issue and test is judged by
-whether it serves one of these five areas:
+Cassie is a single-node read-model database for event-sourced and CQRS systems.
+The event stream remains the source of truth. Projector processes maintain
+durable read models through PostgreSQL wire using the documented Cassie SQL
+contract; applications query those read models through standard drivers, ORMs,
+psql and pgAdmin. PostgreSQL 18.6 is a semantic oracle for selected in-scope
+behavior. Cassie does not target complete PostgreSQL server or SQL parity.
+
+The first shippable release, v0.3 Projection Store, is the initial product
+milestone: it delivers the write and lifecycle path for maintaining read models.
+v0.4 adds the query and retrieval surface. v1.0 qualifies the documented product
+for production. Each milestone has its own acceptance scope; completing a later
+milestone does not expand Cassie's permanent architectural boundaries.
+
+The bounded extension compatibility surface is part of v0.4: #843 owns the
+selected `vector` and `pgcrypto` identities, including the `pgcrypto.digest`
+SHA-256 path and extension catalog/lifecycle behavior. #844 owns vector SQL and
+retrieval semantics. These are finite SQL compatibility shims, not extension
+library loading or a PostgreSQL extension ABI promise.
+
+Every issue and test must serve one of these five product areas:
 
 1. **Projection writes**: idempotent `INSERT ... ON CONFLICT`, `UPDATE` and
    `DELETE`; an event batch and its checkpoint row committed in one
@@ -19,41 +34,50 @@ whether it serves one of these five areas:
 2. **Read-model lifecycle**: create, alter and drop tables, indexes, views and
    materialized views; rebuild into a staging table and rename-swap; restart
    and recovery.
-3. **Queries**: complete PostgreSQL `SELECT` semantics over every PostgreSQL
-   data type a read model can store (numeric, temporal, UUID, JSON, arrays,
-   enums, geometry, money, XML, ranges, network, bytea, composite and domain)
-   and their functions and operators.
+3. **Queries**: the explicitly documented `SELECT` behavior, types, functions
+   and operators needed by read-model workloads. PostgreSQL compatibility is
+   selected per behavior and recorded in the feature-support and compatibility
+   contracts; it does not imply support for every PostgreSQL type or function.
 4. **Retrieval**: full-text, pgvector-syntax vector and hybrid search.
 5. **Client surface**: pgwire, prepared statements, session settings and the
    catalog queries that drivers, ORMs, migration tools and admin clients issue.
 
-The rule is: data types and query semantics are in scope; server
-programmability and administration are not. Statements that migration tools
-and clients issue automatically (advisory locks, `COMMENT ON`, `GRANT`/roles,
-`FOR UPDATE`, `ANALYZE`/`VACUUM`, `CREATE EXTENSION`, size and activity
-functions, temporary tables) are supported at the documented compatibility
-level recorded on their owning issue, without full server semantics.
+The rule is: Cassie implements a documented read-model contract, not PostgreSQL
+server parity. A PostgreSQL statement used by a client or migration tool is in
+scope only when the roadmap, feature-support record and owning issue define its
+behavior. Compatibility shims may accept a client workflow without implementing
+the corresponding PostgreSQL server feature.
 
-Out of scope, rejected with a deterministic unsupported-feature error:
-PL/pgSQL, `DO` blocks and SQL-language routines; triggers and event triggers;
-rewrite rules; row-level security and privilege enforcement beyond `root`;
-LISTEN/NOTIFY; large objects; table inheritance; declarative partitioning;
-user-defined operators, operator families, casts, conversions and aggregates;
-extended statistics; two-phase transactions; exclusion and temporal
-constraints; data-modifying CTEs; text-search configuration DDL. The prior
-"complete PostgreSQL 18.6 core SQL and full PL/pgSQL" target (#791–#793) is
-superseded.
+Permanent exclusions include distributed SQL and cluster coordination, full
+PostgreSQL server/extension parity, PL/pgSQL and other stored-program execution,
+trigger-based business logic, replication, and a second storage abstraction.
+Specific unsupported SQL forms are listed in the feature and compatibility
+contracts and must fail deterministically. The former full PostgreSQL 18.6
+core-SQL/PL/pgSQL program (#791–#793) was closed as superseded; its remaining
+work does not override these product boundaries. Features from that former
+program remain active only when a current milestone issue gives them a bounded
+read-model purpose. Other parity requests stay outside the release plan unless
+a future product decision adds them to the roadmap.
 
 ## Milestones
 
-Each milestone is a shippable release; a green backend CI run and a passing
-full test suite on the release commit block every release.
+Each milestone is a shippable release. Complete the required local validation
+on the exact release commit. GitHub Actions are disabled by user direction, so
+hosted evidence is blocked; do not enable or dispatch workflows or claim a
+hosted pass.
 
 | Milestone | Ships |
 | --- | --- |
-| [v0.3 Projection store](https://github.com/cntryl/cassie/milestone/7) | A projector maintains read models through any PostgreSQL driver: projection writes, read-model types, table/index/view lifecycle, rebuild via `TRUNCATE`/`COPY`/rename-swap, and driver/ORM/migration-tool/psql connectivity. |
-| [v0.4 Query and retrieval](https://github.com/cntryl/cassie/milestone/8) | The read side: subqueries, CTEs, aggregates, windows, pattern matching, JSON, arrays, temporal, numeric and the remaining data-type families, plus full-text, pgvector and hybrid retrieval. |
-| [v1.0 Production release](https://github.com/cntryl/cassie/milestone/9) | The projection store and query surface qualified for production: storage and retrieval qualification, cross-path invariants, restart/recovery and rebuild evidence, operational thresholds and a release ledger. |
+| [v0.3 Projection store](https://github.com/cntryl/cassie/milestone/7) | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract, with event/checkpoint transaction behavior, schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. The release covers the finite Cassie profile and does not require full PostgreSQL parity. |
+| [v0.4 Query and retrieval](https://github.com/cntryl/cassie/milestone/8) | The documented read-side contract for read-model workloads: selected relational SQL, type and function families, bounded extension compatibility in #843, plus full-text, vector and hybrid retrieval. Each capability is bounded by Feature Support and its live issue criteria; “complete SELECT” means the documented Cassie profile, not PostgreSQL-wide syntax or semantics. |
+| [v1.0 Production release](https://github.com/cntryl/cassie/milestone/9) | Production qualification of the projection store and documented query surface: representative single-node resource and concurrency evidence, cross-path invariants, restart/recovery and rebuild, operational thresholds and one release ledger. Qualification does not expand product scope. |
+
+Requests for additional type families enter a release milestone only after the
+current Type Contract selects their logical identity, SQL and wire semantics,
+and durable representation where required. Already implemented native
+families are part of the current type inventory; unselected requests such as
+range, XML, geometric and money types remain proposals outside v0.4 until
+selected for a documented read-model use case.
 
 Failing tests are the implementation backlog: implement the behavior; never
 ignore, skip or weaken a test. A test for an out-of-scope capability is
@@ -96,7 +120,9 @@ relational pipeline; that pipeline remains Planned.
    Retain #763's completed finite Data-family statement-view and immutable-overlay
    prerequisite from [PR #871](https://github.com/cntryl/cassie/pull/871), commit
    `ce72a23f2d0a3cdb9a811107aec7629151fcd319`; full #819/#833 isolation and
-   transactional-catalog acceptance remains with the PostgreSQL parity program.
+   transactional-catalog acceptance remains within the projection-store and
+   production milestones under the owning issue criteria; the former parity
+   program is closed and is not a dependency.
 5. Compatibility and release evidence: [#777](https://github.com/cntryl/cassie/issues/777)–[#780](https://github.com/cntryl/cassie/issues/780) qualify the completed selected
    client/wire/control/cross-path subset; [#8](https://github.com/cntryl/cassie/issues/8) owns native operational objectives
    and repeated evidence, [#29](https://github.com/cntryl/cassie/issues/29) owns local diagnostic promotion after [#8](https://github.com/cntryl/cassie/issues/8), and [#781](https://github.com/cntryl/cassie/issues/781)

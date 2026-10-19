@@ -1,12 +1,19 @@
-# Ordinary aliases and pagination integration plan
+# Ordinary aliases and pagination integration record
 
-This 2026-10-07 plan defines one coherent candidate bundle for
+> **Completed historical integration record.** This 2026-10-07 plan documents
+> the selected alias and pagination slice and its closeout. Issues #791–#793
+> were later closed as superseded; this record does not activate their former
+> full-parity scope. Current support lives in
+> [Feature Support](feature-support.md).
+
+This 2026-10-07 plan defined one coherent candidate bundle for
 [#795](https://github.com/cntryl/cassie/issues/795) and
 [#797](https://github.com/cntryl/cassie/issues/797), under
-[#791](https://github.com/cntryl/cassie/issues/791). It implements the selected
-[D1/D2 contracts](sql-dialect-profile.md), without approving the remaining broad
-#792/#793 proposals. [Feature Support](feature-support.md) owns support status.
-This plan does not close either issue or qualify the candidate implementation.
+[#791](https://github.com/cntryl/cassie/issues/791). It implemented the selected
+D1/D2 contracts recorded in the
+[historical dialect profile](sql-dialect-profile-history.md). It did not approve
+the former broad #792/#793 proposals. [Feature Support](feature-support.md) owns
+current support status.
 
 ## Dependency and implementation boundary
 

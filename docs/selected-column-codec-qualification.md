@@ -267,11 +267,13 @@ nineteen literal records and preserving the binaries actually executed.
 Current integration results, source/log/binary hashes, adversarial probe
 dispositions and exact-head hosted checks are recorded in PR #919 before merge.
 A historical pass or a source-only review cannot satisfy those obligations.
-The final merged commit and #903 closure must be read back; #768, #761 and #791
-retain their remaining acceptance obligations.
+The final merged commit and #903 closure must be read back; #768 and #761
+retain their remaining acceptance obligations. The former #791–#793 full-parity
+program is closed as superseded.
 
-This CBC2 qualification covers the existing stored format. The approved v3
-transition and PostgreSQL 18 type expansion keep their separate #793/#904
-implementation, migration and final integration gates. These three boundary
+This CBC2 qualification covers the existing stored format. The v3 transition
+and broad PostgreSQL 18 type expansion are historical proposals, not current
+implementation or migration gates. Any selected new type must have a current
+milestone issue. These three boundary
 tests make no v3 runtime codec, PostgreSQL support, native performance or
 storage lifecycle claim.

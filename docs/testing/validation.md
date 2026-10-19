@@ -1,5 +1,10 @@
 # Backfill and organization validation
 
+> **Historical validation archive.** The runs and issue counts below describe
+> their recorded revisions and dates. They do not report the current main head,
+> current GitHub issue state, or an active full-parity product goal. PostgreSQL
+> 18.6 observations are reference evidence for selected behaviors only.
+
 This section records the test-only backfill and organization pass on 2026-10-15 on `feature/postgres-18-compat`, from checkpoint `00000118` (which preserved the existing dirty backfill). One branch and one worktree were used. That pass did not change runtime source, Cargo configuration, corpus expectations or CI configuration, and claimed no runtime fixes or issue closures.
 
 The user subsequently authorized runtime implementation on the same branch. The historical counts and commands below describe the backfill checkpoint, not the later working tree. Current implementation checks must name their source revision and scope; focused passes do not establish the full compatibility gate.

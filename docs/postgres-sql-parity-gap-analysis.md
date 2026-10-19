@@ -49,6 +49,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | EXISTS (incl. correlated) | Supported | — |
 | Scalar, IN, ANY/SOME/ALL subqueries | Supported (scalar, row, membership and quantified forms; correlated or uncorrelated; `ARRAY(SELECT ...)` output waits on #807) | #762 |
 | GROUP BY, HAVING, DISTINCT, DISTINCT ON | Supported | — |
+| GROUP BY primary-key functional dependency | Partial: single-column primary keys on direct base tables; aliased and joined forms pass focused local tests. Composite primary-key DDL remains unsupported. | #804 |
 | GROUPING SETS, ROLLUP, CUBE, `GROUPING()`, `GROUP BY DISTINCT` | Absent | #804 |
 | ORDER BY NULLS FIRST/LAST, LIMIT/OFFSET with parameters | Supported | — |
 | `FETCH FIRST … WITH TIES`, `OFFSET … ROWS` | Absent | #800 |

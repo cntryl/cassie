@@ -1,6 +1,8 @@
 mod function_casts;
 #[path = "binder/function_validation.rs"]
 mod function_validation;
+#[path = "binder/grouped_projection.rs"]
+mod grouped_projection;
 #[path = "binder/integer_operators.rs"]
 mod integer_operators;
 mod like_predicates;

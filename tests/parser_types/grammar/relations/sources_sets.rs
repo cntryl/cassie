@@ -485,12 +485,56 @@ fn should_parse_value_window_function_query() {
 }
 
 #[test]
-fn should_reject_unsupported_grouping_sets_query() {
+fn should_reject_unsupported_rollup_query() {
+    // Arrange
+    let sql = "SELECT category, COUNT(*) FROM docs GROUP BY ROLLUP(category)";
+
+    // Act
+    let error = parse_statement(sql).expect_err("ROLLUP should fail");
+
+    // Assert
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
+    assert!(error.message().contains("GROUP BY"));
+}
+
+#[test]
+fn should_parse_a_single_expression_grouping_set() {
     // Arrange
     let sql = "SELECT category, COUNT(*) FROM docs GROUP BY GROUPING SETS (category)";
 
     // Act
-    let error = parse_statement(sql).expect_err("GROUPING SETS should fail");
+    let parsed = parse_statement(sql).expect("single expression grouping set should parse");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.group_by.as_slice(),
+        [Expr::Column(name)] if name == "category"
+    ));
+}
+
+#[test]
+fn should_reject_multiple_grouping_sets_when_only_one_set_is_selected() {
+    // Arrange
+    let sql = "SELECT category, COUNT(*) FROM docs GROUP BY GROUPING SETS ((category), ())";
+
+    // Act
+    let error = parse_statement(sql).expect_err("multiple grouping sets are not selected");
+
+    // Assert
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
+    assert!(error.message().contains("GROUP BY"));
+}
+
+#[test]
+fn should_reject_trailing_tokens_after_a_single_grouping_set() {
+    // Arrange
+    let sql = "SELECT category, COUNT(*) FROM docs GROUP BY GROUPING SETS (category) unexpected";
+
+    // Act
+    let error = parse_statement(sql).expect_err("trailing grouping syntax must be rejected");
 
     // Assert
     assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);

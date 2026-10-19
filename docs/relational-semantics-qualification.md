@@ -160,10 +160,13 @@ all test-fixture allocation. No runtime operator or public API is added.
 Installed PostgreSQL 18.6 runs in an owned UUID cluster, UTF8/C-libc/UTC,
 with a private loopback endpoint. Forty-five preselected row comparisons passed:
 19 compatible primary cases, 20 variants, two homogeneous BIGINT join controls,
-two frames and two quoted-prefix NULL/empty cases. Unsupported Cassie SQL-002
-and original mixed exact-number join cases remain excluded; ARRAY OID and
-SUM/AVG descriptor parity are not inferred. Binary-derived FLOAT seed negative
-zero remains exactly `8000000000000000`. The first metadata-only attempt failed
+two frames and two quoted-prefix NULL/empty cases. SQL-002 was excluded from
+that comparison batch while Cassie rejected grouping sets; its single-expression
+form is now locally qualified against PostgreSQL 18.6, with expected rows in
+`tests/support/relational_qualification/records.json`. Broader grouping-set forms
+and original mixed exact-number joins remain excluded; ARRAY OID and SUM/AVG
+descriptor parity are not inferred. Binary-derived FLOAT seed negative zero
+remains exactly `8000000000000000`. The first metadata-only attempt failed
 before any case because `lc_collate` is database catalog metadata, not a PG18
 SHOW parameter; that failed attempt and both strict cleanup receipts are retained.
 

@@ -371,9 +371,11 @@ registered aggregate projections. Diagnostic capacity probes include dimension
 
 After refinement, the 33-case related batch ran analytics 3/0, SQL aggregate
 semantics 22/4 and selected empty/false-filter wire admission 4/0. All three
-original analytics failures and the new vector/JSON admission probe pass. The
-four remaining SQL failures are string_agg ordering, grouping sets, ordered-set
-rank aggregates and statistical aggregates; they remain pending obligations.
+original analytics failures and the new vector/JSON admission probe pass. At
+that run, the four remaining SQL failures were string_agg ordering, grouping
+sets, ordered-set rank aggregates and statistical aggregates. The #804 slice
+now supports SQL-002's single-expression grouping-set form; broader grouping
+sets remain pending with those other obligations.
 Refined Jev probabilities were 0.21 for bounded vector diagnostics and 0.27 for
 fallback metric scope. Native PostgreSQL 18.6 confirms numeric JSON cast values
 `2.5|0.8333333333333334|-1|2`, four double-precision descriptors and `42883` for

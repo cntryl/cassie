@@ -382,6 +382,10 @@ fn bind_runtime_route(
             raw_sql,
             QueryStatement::Transaction(statement),
         )),
+        RuntimeStatement::SessionObject(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::SessionObject(statement),
+        )),
     }
 }
 

@@ -44,6 +44,7 @@ fn read_only_control(statement: &QueryStatement) -> bool {
         | QueryStatement::Show(_)
         | QueryStatement::Set(_)
         | QueryStatement::Transaction(_)
+        | QueryStatement::SessionObject(_)
         | QueryStatement::CallProcedure(_) => true,
         QueryStatement::Explain(explain) => {
             !explain.analyze || read_only_control(&explain.statement.statement)

@@ -10,7 +10,54 @@ pub(crate) fn show_result_columns(statement: &crate::sql::ast::ShowStatement) ->
     if variable.is_empty() {
         return Vec::new();
     }
+    if variable == "all" {
+        return SHOW_ALL_COLUMNS
+            .iter()
+            .copied()
+            .map(ColumnMeta::text)
+            .collect();
+    }
     vec![ColumnMeta::text(show_column_name(&variable))]
+}
+
+const SHOW_ALL_COLUMNS: [&str; 3] = ["name", "setting", "description"];
+
+/// `SHOW ALL`: every registered setting with its current value, ordered by
+/// name as PostgreSQL orders them.
+fn execute_show_all(
+    session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let fallback = CassieSession::new("root".to_string(), None);
+    let session = session.unwrap_or(&fallback);
+    let mut names = crate::app::all_session_settings()
+        .iter()
+        .map(|spec| spec.name)
+        .chain([
+            "transaction_deferrable",
+            "transaction_isolation",
+            "transaction_read_only",
+        ])
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    let mut result = super::command_output::columns(
+        "SHOW",
+        &SHOW_ALL_COLUMNS.map(|name| (name, crate::types::DataType::Text)),
+        controls,
+    )?;
+    for name in names {
+        let value = session.accounted_setting(name, controls)?;
+        super::command_output::push_row(
+            &mut result,
+            &[
+                super::command_output::Cell::Text(setting_display_name(name)),
+                super::command_output::Cell::Text(value.get()),
+                super::command_output::Cell::Text("Cassie compatibility setting"),
+            ],
+            controls,
+        )?;
+    }
+    Ok(result.finish()?)
 }
 
 fn show_column_name(variable: &str) -> &str {
@@ -29,6 +76,9 @@ pub(super) fn execute_show(
     let variable = statement.variable.trim().to_ascii_lowercase();
     if variable.is_empty() {
         return Err(QueryError::General("SHOW requires a variable".to_string()));
+    }
+    if variable == "all" {
+        return execute_show_all(session, controls);
     }
 
     let value = if variable == "transaction isolation level" && session.is_none() {

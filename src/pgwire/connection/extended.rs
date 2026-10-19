@@ -123,6 +123,7 @@ async fn dispatch_message(
     session: &CassieSession,
     message: FrontendMessage,
 ) -> Result<DispatchOutcome, ExtendedQueryError> {
+    state.sync_sql_deallocations(session, runtime);
     match message {
         FrontendMessage::Parse {
             name,
@@ -174,7 +175,7 @@ async fn dispatch_message(
         }
         FrontendMessage::Close { target, name } => {
             runtime.record_pgwire_message("close");
-            handle_close(runtime, write_half, state, target, name).await?;
+            handle_close(runtime, write_half, (state, session), target, name).await?;
         }
         FrontendMessage::Flush => {
             runtime.record_pgwire_message("flush");
@@ -248,6 +249,11 @@ async fn handle_parse(
     if !name.is_empty() && state.prepared_statements.contains_key(&name) {
         return Err(ExtendedQueryError::protocol(format!(
             "prepared statement '{name}' already exists"
+        )));
+    }
+    if !name.is_empty() && session.has_sql_prepared(&name) {
+        return Err(ExtendedQueryError::cassie(&CassieError::from(
+            crate::app::SessionObjectError::duplicate_prepared(&name),
         )));
     }
     if !state.prepared_statements.contains_key(&name)
@@ -381,6 +387,9 @@ fn store_prepared_statement(
         .map(|statement| statement.id);
     if let Some(prepared_id) = replaced_prepared {
         remove_portals_for_prepared_id(state, runtime, prepared_id);
+    }
+    if let Some(session) = state.session.as_ref() {
+        session.register_wire_prepared(&prepared.name, prepared.id, &prepared.query);
     }
     state
         .prepared_statements
@@ -638,7 +647,7 @@ async fn handle_execute(
 async fn handle_close(
     runtime: &RuntimeState,
     write_half: &mut (impl AsyncWrite + Unpin),
-    state: &mut SessionState,
+    (state, session): (&mut SessionState, &CassieSession),
     target: DescribeTarget,
     name: String,
 ) -> Result<(), ExtendedQueryError> {
@@ -649,6 +658,7 @@ async fn handle_close(
         DescribeTarget::Statement => {
             if let Some(prepared) = state.prepared_statements.remove(&name) {
                 runtime.record_pgwire_prepared_delta(-1);
+                session.forget_wire_prepared(&name, prepared.id);
                 remove_portals_for_prepared_id(state, runtime, prepared.id);
             }
         }

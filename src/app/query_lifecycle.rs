@@ -53,8 +53,9 @@ impl Cassie {
                 "query admission exhausted".to_owned(),
             ));
         };
-        let controls =
+        let mut controls =
             QueryExecutionControls::with_cancellation(&self.runtime.limits(), started, execution.1);
+        session.apply_statement_timeout(&mut controls, started);
         let mut rows = 0;
         let result = self
             .execute_sql_core(session, sql, params, execution.0, &controls)
@@ -82,11 +83,12 @@ impl Cassie {
                 "query admission exhausted".to_owned(),
             ));
         };
-        let controls = QueryExecutionControls::with_cancellation(
+        let mut controls = QueryExecutionControls::with_cancellation(
             &self.runtime.limits(),
             started,
             cancellation.clone(),
         );
+        session.apply_statement_timeout(&mut controls, started);
         let mut rows = 0;
         let result = self
             .explain_sql_core(session, sql, params, &controls)

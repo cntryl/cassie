@@ -7,6 +7,11 @@ mod owned_setting;
 mod random_state;
 pub(crate) use random_state::SessionRandom;
 mod setting_control;
+mod sql_objects;
+pub(crate) use sql_objects::{
+    CursorOptions, SessionCursor, SessionObjects, SessionPrepared, MAX_CURSORS_PER_SESSION,
+    MAX_PREPARED_PER_SESSION,
+};
 mod temporal_context;
 pub(crate) use temporal_context::setting_zone;
 mod transaction_control;
@@ -44,6 +49,9 @@ pub struct CassieSession {
     pub(super) sequence_values: Arc<Mutex<super::session_sequences::SessionSequenceValues>>,
     #[serde(skip)]
     random: Arc<Mutex<SessionRandom>>,
+    /// SQL and protocol prepared statements and open cursors.
+    #[serde(skip)]
+    session_objects: Arc<Mutex<SessionObjects>>,
     /// The transaction generation and its `transaction_timestamp()`.
     #[serde(skip)]
     transaction_clock: Arc<Mutex<Option<(u64, i64)>>>,
@@ -81,6 +89,8 @@ struct SessionStateSnapshot {
 #[derive(Debug, Clone)]
 struct SessionSavepoint {
     name: String,
+    /// Cursors declared after this mark close on rollback to the savepoint.
+    object_mark: u64,
     modes: crate::sql::ast::TransactionModes,
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
@@ -220,6 +230,7 @@ impl CassieSession {
             })),
             procedure_calls: Arc::new(Mutex::new(Vec::new())),
             random: Arc::new(Mutex::new(SessionRandom::default())),
+            session_objects: Arc::default(),
             transaction_clock: Arc::default(),
         }
     }
@@ -287,6 +298,7 @@ impl CassieSession {
             })),
             procedure_calls: Arc::new(Mutex::new(self.procedure_calls.lock().clone())),
             random: Arc::clone(&self.random),
+            session_objects: Arc::clone(&self.session_objects),
             transaction_clock: Arc::clone(&self.transaction_clock),
         };
 
@@ -464,6 +476,7 @@ impl CassieSession {
         let modes = transaction.modes;
         transaction.savepoints.push(SessionSavepoint {
             name: name.to_ascii_lowercase(),
+            object_mark: self.session_objects_mark(),
             modes,
             writes,
             conflict_intents,
@@ -496,10 +509,12 @@ impl CassieSession {
         transaction.writes = transaction.savepoints[index].writes.clone();
         let conflict_intents = transaction.savepoints[index].conflict_intents.clone();
         let session_state = transaction.savepoints[index].session_state.clone();
+        let object_mark = transaction.savepoints[index].object_mark;
         transaction.conflict_intents = conflict_intents;
         transaction.savepoints.truncate(index + 1);
         transaction.status = SessionTransactionStatus::InTransaction;
         self.restore_session_state(session_state);
+        self.rollback_session_objects_to(object_mark);
         Ok(())
     }
 

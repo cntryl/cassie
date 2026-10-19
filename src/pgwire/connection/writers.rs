@@ -41,6 +41,15 @@ pub(super) async fn write_parameter_statuses(
                 | "bytea_output"
                 | "extra_float_digits"
                 | "timezone_abbreviations"
+                | "check_function_bodies"
+                | "default_table_access_method"
+                | "idle_in_transaction_session_timeout"
+                | "idle_session_timeout"
+                | "lock_timeout"
+                | "row_security"
+                | "statement_timeout"
+                | "transaction_timeout"
+                | "xmloption"
         ) {
             continue;
         }

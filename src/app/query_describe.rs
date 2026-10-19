@@ -69,6 +69,9 @@ impl Cassie {
         if let Some(session) = session {
             self.ensure_session_database_access(session)?;
         }
+        if let crate::sql::ast::QueryStatement::SessionObject(statement) = &parsed.statement {
+            return self.describe_session_object(session, statement, wire_output);
+        }
         let controls = self.runtime.query_controls(std::time::Instant::now());
         let admitted = super::query_parameters::admit_parameter_types(
             self,

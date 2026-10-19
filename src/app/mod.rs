@@ -71,6 +71,7 @@ mod access;
 mod cache;
 mod error;
 mod session;
+mod session_objects;
 mod session_schema;
 mod session_sequences;
 pub(crate) use session_sequences::SequenceRestorer;
@@ -90,9 +91,15 @@ pub use error::{
 };
 pub use session::CassieSession;
 pub(crate) use session::{
+    CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,
+    MAX_PREPARED_PER_SESSION,
+};
+pub(crate) use session::{
     SessionRandom, SessionReadScope, StagedWriteSnapshot, StatementMutationBatch, StatementOverlay,
     TransactionConflictIntent, TransactionRowChange,
 };
+pub(crate) use session_objects::parameter_type_display as prepared_parameter_type_display;
+pub(crate) use session_objects::SessionObjectError;
 pub(crate) use session_settings::all as all_session_settings;
 pub(crate) use session_settings::SettingKind;
 pub use state::{Cassie, CassieRuntimeConfigState};

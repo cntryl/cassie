@@ -4,6 +4,9 @@ use serde::Serialize;
 
 use super::CassieError;
 
+#[path = "session_settings/compat.rs"]
+mod compat;
+pub(crate) use compat::milliseconds as parse_milliseconds_setting;
 #[path = "session_settings/temporal.rs"]
 mod temporal;
 
@@ -32,6 +35,11 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
         kind: SettingKind::Fixed,
     },
     SettingSpec {
+        name: "check_function_bodies",
+        default: "on",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
         name: "client_encoding",
         default: "UTF8",
         kind: SettingKind::Fixed,
@@ -44,6 +52,11 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
     SettingSpec {
         name: "datestyle",
         default: "ISO, MDY",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
+        name: "default_table_access_method",
+        default: "heap",
         kind: SettingKind::Mutable,
     },
     SettingSpec {
@@ -62,6 +75,16 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
         kind: SettingKind::Fixed,
     },
     SettingSpec {
+        name: "idle_in_transaction_session_timeout",
+        default: "0",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
+        name: "idle_session_timeout",
+        default: "0",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
         name: "integer_datetimes",
         default: "on",
         kind: SettingKind::Fixed,
@@ -69,6 +92,16 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
     SettingSpec {
         name: "intervalstyle",
         default: "postgres",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
+        name: "lock_timeout",
+        default: "0",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
+        name: "row_security",
+        default: "on",
         kind: SettingKind::Mutable,
     },
     SettingSpec {
@@ -92,6 +125,11 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
         kind: SettingKind::Fixed,
     },
     SettingSpec {
+        name: "statement_timeout",
+        default: "0",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
         name: "timezone",
         default: "UTC",
         kind: SettingKind::Mutable,
@@ -99,6 +137,16 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
     SettingSpec {
         name: "timezone_abbreviations",
         default: "Default",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
+        name: "transaction_timeout",
+        default: "0",
+        kind: SettingKind::Mutable,
+    },
+    SettingSpec {
+        name: "xmloption",
+        default: "content",
         kind: SettingKind::Mutable,
     },
 ];
@@ -166,7 +214,9 @@ impl SessionSettings {
             .mutable
             .get(spec.name)
             .map_or(spec.default, String::as_str);
-        let canonical = match temporal::canonical(spec.name, value, current) {
+        let canonical = match temporal::canonical(spec.name, value, current)
+            .or_else(|| compat::canonical(spec.name, value))
+        {
             Some(canonical) => canonical?,
             None => validate_value(spec, value)?,
         };
@@ -212,7 +262,7 @@ fn validate_value(spec: &SettingSpec, value: &str) -> Result<String, CassieError
                 | "warning"
                 | "error"
         ),
-        "client_encoding" | "server_encoding" => {
+        "server_encoding" => {
             matches!(trimmed.to_ascii_lowercase().as_str(), "utf8" | "utf-8")
         }
         _ => trimmed.eq_ignore_ascii_case(spec.default),
@@ -224,7 +274,7 @@ fn validate_value(spec: &SettingSpec, value: &str) -> Result<String, CassieError
         )));
     }
     Ok(match spec.name {
-        "client_encoding" | "server_encoding" => "UTF8".to_string(),
+        "server_encoding" => "UTF8".to_string(),
         "client_min_messages" => trimmed.to_ascii_lowercase(),
         "default_transaction_read_only" | "default_transaction_deferrable" => {
             if parse_bool(trimmed)? { "on" } else { "off" }.to_string()

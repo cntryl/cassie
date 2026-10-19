@@ -172,6 +172,9 @@ fn plan_runtime_statement(statement: RuntimeStatementRef<'_>) -> Result<LogicalP
         RuntimeStatementRef::Transaction(_) => Err(CassieError::Planner(
             "transaction control statements are handled by the session runtime".into(),
         )),
+        RuntimeStatementRef::SessionObject(_) => Err(CassieError::Planner(
+            "session object statements are handled by the session runtime".into(),
+        )),
     }
 }
 

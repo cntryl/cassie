@@ -81,11 +81,12 @@ impl Cassie {
                 "query admission exhausted".to_string(),
             ));
         };
-        let controls = QueryExecutionControls::with_cancellation(
+        let mut controls = QueryExecutionControls::with_cancellation(
             &self.runtime.limits(),
             query_started,
             cancellation.clone(),
         );
+        session.apply_statement_timeout(&mut controls, query_started);
         let result = execute(&controls);
         let elapsed = query_started.elapsed();
         self.runtime.record_query_memory(&controls);

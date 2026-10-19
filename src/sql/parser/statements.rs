@@ -1,3 +1,8 @@
+#[path = "statements/explain_options.rs"]
+mod explain_options;
+#[path = "statements/session_objects.rs"]
+mod session_objects;
+pub(super) use session_objects::{parse_session_object_statement, SESSION_OBJECT_KEYWORDS};
 #[path = "statements/settings.rs"]
 mod settings;
 #[path = "statements/transaction.rs"]
@@ -23,12 +28,10 @@ pub(super) fn parse_explain_statement(sql: &str) -> Result<ParsedStatement, SqlE
         return Err(SqlError::new("EXPLAIN requires a statement".to_string()));
     }
 
-    let lower = rest.to_ascii_lowercase();
-    let (analyze, inner_sql) = if lower.starts_with("analyze ") {
-        (true, rest[7..].trim())
-    } else {
-        (false, rest)
-    };
+    let explain_options::ExplainPrefix {
+        analyze,
+        statement: inner_sql,
+    } = explain_options::parse_explain_prefix(rest)?;
     if inner_sql.is_empty() {
         return Err(SqlError::new("EXPLAIN requires a statement".to_string()));
     }

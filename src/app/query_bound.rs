@@ -63,10 +63,10 @@ impl Cassie {
         )
     }
 
-    fn execute_bound_statement(
+    pub(super) fn execute_bound_statement(
         &self,
         session: &CassieSession,
-        mut parsed: crate::sql::ast::ParsedStatement,
+        parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
@@ -77,10 +77,31 @@ impl Cassie {
         // commit validation when embedded execution is nested on one thread.
         let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
         let _entry_overlay_scope = super::SessionReadScope::enter(None);
-        let (mut params, declared_oids, wire_output) = parameters;
         self.ensure_session_database_access(session)?;
         Self::ensure_statement_can_execute(session, &parsed, controls)?;
         Self::mark_statement_transaction_query(session, &parsed.statement);
+        if let QueryStatement::SessionObject(statement) = &parsed.statement {
+            let call = super::session_objects::SessionObjectCall {
+                controls,
+                mode,
+                wire_output: parameters.2,
+            };
+            return self.execute_session_object(session, statement, &parsed.raw_sql, call);
+        }
+        self.execute_bound_query(session, parsed, sql_fingerprint, parameters, mode, controls)
+    }
+
+    /// Plans and runs one admitted statement inside the caller's read scopes.
+    fn execute_bound_query(
+        &self,
+        session: &CassieSession,
+        mut parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameters: (Vec<Value>, &[i32], bool),
+        mode: ExecutionMode,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        let (mut params, declared_oids, wire_output) = parameters;
         let (parameter_types, bound_parameters) =
             super::query_parameters::prepare_bound_parameters(
                 self,

@@ -500,6 +500,7 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::Truncate(_) => "TRUNCATE TABLE",
         QueryStatement::Merge(_) => "MERGE",
         QueryStatement::Transaction(statement) => transaction_command_name(&statement.action),
+        QueryStatement::SessionObject(statement) => statement.command_name(),
         QueryStatement::CreateTable(_) => "CREATE TABLE",
         QueryStatement::CreateGraph(_) => "CREATE GRAPH",
         QueryStatement::DropTable(_) => "DROP TABLE",

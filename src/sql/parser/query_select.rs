@@ -619,13 +619,9 @@ fn parse_select_clauses(
                     if !seen.insert("group by") {
                         return Err(SqlError::new("duplicate GROUP BY clause".into()));
                     }
-                    let lower = raw_value.to_ascii_lowercase();
                     if let Some(expression) = grouping_sets::single_expression(raw_value)? {
                         parsed.group_sql = Some(expression.to_string());
-                    } else if lower.contains("grouping sets")
-                        || lower.contains("rollup")
-                        || lower.contains("cube")
-                    {
+                    } else if grouping_sets::contains_unsupported_syntax(raw_value) {
                         return Err(SqlError::new("unsupported GROUP BY syntax".into()));
                     } else {
                         parsed.group_sql = Some(raw_value.to_string());

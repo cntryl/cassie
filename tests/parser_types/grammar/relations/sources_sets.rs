@@ -516,6 +516,60 @@ fn should_parse_a_single_expression_grouping_set() {
 }
 
 #[test]
+fn should_parse_a_single_expression_grouping_set_given_comments_when_separating_keywords() {
+    // Arrange
+    let sql = "SELECT category, COUNT(*) FROM docs GROUP BY /* before */ GROUPING /* between */ SETS (category /* expression */)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("comments should separate grouping set syntax");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.group_by.as_slice(),
+        [Expr::Column(name)] if name == "category"
+    ));
+}
+
+#[test]
+fn should_preserve_grouping_keywords_inside_a_string_literal() {
+    // Arrange
+    let sql = "SELECT 'GROUPING SETS ROLLUP CUBE' FROM docs GROUP BY 'GROUPING SETS ROLLUP CUBE'";
+
+    // Act
+    let parsed = parse_statement(sql).expect("grouping keywords in a literal are ordinary text");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.group_by.as_slice(),
+        [Expr::StringLiteral(value)] if value == "GROUPING SETS ROLLUP CUBE"
+    ));
+}
+
+#[test]
+fn should_preserve_group_by_expression_given_unsupported_keywords_in_a_comment() {
+    // Arrange
+    let sql = "SELECT category FROM docs GROUP BY category /* GROUPING SETS, ROLLUP(category), CUBE(category) */";
+
+    // Act
+    let parsed = parse_statement(sql).expect("grouping syntax in a comment is not executable");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.group_by.as_slice(),
+        [Expr::Column(name)] if name == "category"
+    ));
+}
+
+#[test]
 fn should_reject_multiple_grouping_sets_when_only_one_set_is_selected() {
     // Arrange
     let sql = "SELECT category, COUNT(*) FROM docs GROUP BY GROUPING SETS ((category), ())";

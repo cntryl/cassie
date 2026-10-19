@@ -1,8 +1,8 @@
 use super::table_functions::bind as bind_table_function;
 pub(super) use super::table_functions::columns as table_function_columns;
 use super::{
-    bind_recursive_cte_query, bind_statement, collect_projection_aliases, mem, qualified_fields,
-    resolve_relation_path, validate_distinct_on_order_prefix, validate_expression_in_scope,
+    bind_recursive_cte_query, bind_statement, mem, qualified_fields, resolve_relation_path,
+    validate_distinct_on_order_prefix, validate_expression_in_scope,
     validate_expression_operand_families, validate_expression_references, validate_functions,
     validate_order_by_references, validate_projection_references, validate_select_operand_families,
     virtual_views, BindingContext, CassieError, Catalog, CteQuery, CteScope, DataType, Expr,
@@ -116,7 +116,7 @@ pub(super) fn bind_select_with_lateral_fields(
     super::case_unify::unify_select_case_results(&mut select, &field_types);
     super::boolean_contexts::qualify_declared_boolean_functions(&mut select, catalog, context)?;
 
-    let projection_aliases = collect_projection_aliases(&select);
+    let projection_aliases = super::grouped_projection::prepare(&mut select, catalog, &scope)?;
     validate_bound_select_references(
         &select,
         &known_fields,
@@ -282,7 +282,7 @@ fn validate_bound_select_references(
     scope: super::references::ReferenceScope<'_, '_>,
 ) -> Result<(), CassieError> {
     validate_projection_references(&select.projection, known_fields, scope)?;
-    validate_grouped_projection(select, projection_aliases)?;
+    super::grouped_projection::validate(select, projection_aliases)?;
     validate_expression_references(
         select.filter.as_ref(),
         known_fields,
@@ -313,109 +313,6 @@ fn validate_bound_select_references(
     validate_order_by_references(&select.order, known_fields, projection_aliases, scope)?;
     validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
     Ok(())
-}
-
-/// Rejects a column that is neither grouped nor inside an aggregate, in the
-/// projection and in ORDER BY, whenever the query aggregates: with a GROUP
-/// BY clause, a HAVING clause, or an aggregate anywhere in the projection
-/// (an implicit single group).
-fn validate_grouped_projection(
-    select: &SelectStatement,
-    projection_aliases: &HashSet<String>,
-) -> Result<(), CassieError> {
-    let group_by = select.group_by.as_slice();
-    if group_by.is_empty() && select.having.is_none() && !projection_has_aggregate(select) {
-        return Ok(());
-    }
-    for item in &select.projection {
-        let expression = match item {
-            SelectItem::Wildcard => {
-                return Err(CassieError::Planner(
-                    "wildcard projection must appear in the GROUP BY clause".to_string(),
-                ));
-            }
-            SelectItem::Column { name, .. } => Expr::Column(name.clone()),
-            SelectItem::Function { function, .. }
-                if crate::sql::functions::is_aggregate_function(&function.name) =>
-            {
-                continue;
-            }
-            SelectItem::Function { function, .. } => Expr::Function(Box::new(function.clone())),
-            SelectItem::Expr { expr, .. } => expr.clone(),
-            SelectItem::WindowFunction { .. } => continue,
-        };
-        reject_ungrouped_column(&expression, group_by)?;
-    }
-    for order in &select.order {
-        let names_output = matches!(&order.expr, Expr::Column(name)
-            if names_projection_output(select, projection_aliases, name));
-        if !names_output && !matches!(order.expr, Expr::IntegerLiteral(_)) {
-            reject_ungrouped_column(&order.expr, group_by)?;
-        }
-    }
-    Ok(())
-}
-
-fn reject_ungrouped_column(expr: &Expr, group_by: &[Expr]) -> Result<(), CassieError> {
-    match first_ungrouped_column(expr, group_by) {
-        Some(column) => Err(CassieError::Planner(format!(
-            "column '{column}' must appear in the GROUP BY clause or be used in an aggregate function"
-        ))),
-        None => Ok(()),
-    }
-}
-
-/// Whether ORDER BY `name` refers to an output column (an alias or an
-/// unaliased function's name) rather than an input column.
-fn names_projection_output(
-    select: &SelectStatement,
-    projection_aliases: &HashSet<String>,
-    name: &str,
-) -> bool {
-    projection_aliases.contains(&crate::sql::ColumnIdentifierPath::reference_field_key(name))
-        || select.projection.iter().any(|item| {
-            matches!(item, SelectItem::Function { function, alias: None }
-                if crate::sql::ColumnIdentifierPath::stored_field_key(&function.name)
-                    == crate::sql::ColumnIdentifierPath::reference_field_key(name))
-        })
-}
-
-/// Whether a projection item calls an aggregate outside a window function.
-fn projection_has_aggregate(select: &SelectStatement) -> bool {
-    let is_aggregate = |expr: &Expr| {
-        expr.any_descendant_or_self(&mut |expr| {
-            matches!(expr, Expr::Function(function)
-                if crate::sql::functions::is_aggregate_function(&function.name))
-        })
-    };
-    select.projection.iter().any(|item| match item {
-        SelectItem::Function { function, .. } => {
-            crate::sql::functions::is_aggregate_function(&function.name)
-                || function.expressions().any(is_aggregate)
-        }
-        SelectItem::Expr { expr, .. } => is_aggregate(expr),
-        SelectItem::Wildcard | SelectItem::Column { .. } | SelectItem::WindowFunction { .. } => {
-            false
-        }
-    })
-}
-
-/// Returns the first column that is neither grouped nor inside an aggregate.
-/// Sub-expressions that structurally match a `GROUP BY` expression (such as
-/// a grouped CASE) count as grouped.
-fn first_ungrouped_column<'a>(expr: &'a Expr, group_by: &[Expr]) -> Option<&'a str> {
-    if group_by.iter().any(|grouped| grouped.structurally_eq(expr)) {
-        return None;
-    }
-    match expr {
-        Expr::Column(column) => Some(column),
-        Expr::Function(function)
-            if crate::sql::functions::is_aggregate_function(&function.name) =>
-        {
-            None
-        }
-        _ => expr.find_map_child(|child| first_ungrouped_column(child, group_by)),
-    }
 }
 
 pub(super) fn validate_recursive_cte_shape(

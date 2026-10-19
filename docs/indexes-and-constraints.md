@@ -36,6 +36,32 @@ Status is owned by [Feature Support](feature-support.md); this summary follows t
 - Unsupported or unsafe acceleration paths must fall back deterministically.
 - User-visible planner choices should appear in EXPLAIN or metrics when they affect performance.
 
+## Constraint metadata and reservation identity
+
+Constraint metadata, unique-owner publication and cleanup use the canonical
+relation identity: unqualified names resolve in the configured default database's
+`public` schema; schema-qualified names use that database; database-qualified
+names retain their explicit database and schema. Equivalent spellings address
+one constraint set and one reservation owner namespace.
+
+Both `Midge::save_constraints` and
+`Midge::save_constraints_with_unique_reservations` validate existing rows and
+backfill newly single-column UNIQUE/PRIMARY KEY owners before publishing the
+constraint metadata. Invalid existing duplicates reject publication with the
+declared constraint identity. Constraint removal uses
+`save_constraints_and_release_unique_reservations`; its durable cleanup is
+replayed on restart. Publication’s metadata-only branch uses a private writer to terminate public-save
+delegation. Empty cleanup uses the public validation/backfill path; removal
+metadata and cleanup intent are written atomically. The existing gate order and
+recovery machinery remain in use.
+
+Cassie is predeployment. This repair selects canonical keys directly; no legacy
+record migration or compatibility reader is required. The application validation
+fallback remains in place, and broader constraint ingress/integration acceptance
+remains tracked by #769. The namespace/backing repair is tracked by #953;
+executed results are recorded in [Validation](testing/validation.md). Support
+classification remains Experimental.
+
 ## Scalar and Composite Indexes
 
 Scalar and composite indexes support common equality and range filters.

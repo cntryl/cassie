@@ -3501,3 +3501,103 @@ Backend commands used `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4` and the shared
 Cargo target cache. The only source changes during that gate were UI test
 refinements and documentation; Rust/build inputs remained unchanged. No complete
 repository-green or production-readiness claim follows from this bounded slice.
+
+## 2026-10-18 — Constraint namespace/backing checkpoint (#953, unmerged)
+
+The owner confirmed Cassie is predeployment with no users or deployments; no
+legacy-data migration policy is required. The selected repair uses existing
+canonical relation keys directly for constraint metadata, publication and
+cleanup. Public metadata saves validate/backfill newly unique owners through
+the existing publisher. No public signature, key framing, layout marker,
+journal shape or CI/release/versioning configuration changes.
+
+TDD receipts under ignored `target/constraint-backing/`:
+
+- Initial 12 namespace/direct-write/backfill/restart cases: four passed/eight
+  failed, including admitted duplicates and absent canonical metadata. The
+  canonicalization repair made all 12 pass.
+- Four public metadata-save probes were red on missing existing-owner backing
+  or publication over duplicate data. Routing saves through the publisher made
+  all 16 pass. Further named-PK, alias-read, cross-schema/database, cleanup and
+  empty-call guards reached 23 passing cases.
+- A final empty-cleanup probe was red: publishing a new UNIQUE through that API
+  returned `Ok("duplicate")`. Its empty branch now delegates to the public
+  validating/backfilling save; the publisher's empty branch retains its private
+  metadata writer. Existing collection gates are reentrant. Final focused
+  checkpoint result is recorded after completion below.
+
+Pre-refinement ordered validation completed: build passed; locked tests passed
+library1,114/0 and analytics179/0, then reached catalog242passed/169failed.
+There are zero added catalog failures and one resolved existing default-expression
+case. Full strict workspace/all-target/all-feature pedantic Clippy, formatting,
+touched test policy, docs, module sizes, inventory and whitespace passed.
+Benchmark policy retains the existing missing `.github/workflows/bench.yml`
+blocker. Source changes during this attempt were a support-module formatting
+order and the final red regression/generated inventory; runtime inputs stayed
+unchanged until the caller refinement after the attempt completed.
+
+Complete affected suites before that refinement:
+
+| Target | Result | Baseline comparison |
+| --- | --- | --- |
+| `storage_indexes` | 185 passed / 7 failed / 1 ignored | Six original failures plus the new empty-cleanup red probe |
+| `sql_mutations` | 293 passed / 35 failed | Exact original failure identities; zero additions/resolutions |
+| `pgwire_extended transaction_errors` | 5 passed / 1 failed | Existing late-unique-conflict RETURNING failure; zero additions |
+
+Commands used `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4` and the shared Cargo
+cache. The user requested a stopping point before final integration. The complete
+ordered gate and affected-suite comparisons must be rerun on the refined source
+before opening/reviewing/merging the #953 PR. #953 remains open; broader
+#769/#819/#833/#791 qualification and the application UNIQUE fallback remain.
+No repository-green, hosted-green, merge or deployment claim is made here.
+
+Final checkpoint: **24 focused namespace/backing regressions passed, zero
+failed**, on the refined caller path. The empty-cleanup red probe now rejects
+the duplicate through the public validating/backfilling save. Full final-head
+ordered validation and affected-suite comparisons remain pending; the earlier
+attempt is retained under `target/constraint-backing/initial-gate/`.
+
+## 2026-10-19 — Final #953 validation on current main
+
+The patch was reapplied to current main `ed61fbb4bc7a8de0b8ed304c4704022bada6c988`.
+It retains the owner-approved canonical identity policy and adds no migration,
+key-format, layout, public API or CI changes. The final focused suite passes
+**25/25**. A prepared-publication recovery unit probe passes **1/1** after a
+canonical pending record is replayed during startup; the existing row is
+backfilled, the named duplicate is rejected, and the pending record is retired.
+
+Jev review selected two bounded probes. The concurrent public-save/direct-write
+case failed on clean main because a duplicate direct write returned `Ok`, and
+passes on the patch; it is retained as a barrier-synchronized regression. The
+prepared-publication restart probe passes. The final review selected ready
+(0.73 probability; focused-probe option 0.23). These judgments guided probes;
+the source and executed tests establish the behavior. Requests and responses are
+retained under the worktree's ignored `target/jev/` directory.
+
+Ordered validation on the patch: `cargo build --locked` passed; `cargo test
+--locked` passed 1,223 library tests and 179 analytics tests before stopping at
+`catalog_security` with 279 passed/123 failed. The exact clean-main suite has
+the same 279/123 result. The prepared-publication unit probe was added after
+that full run and passed separately (1/1); it adds coverage without changing
+runtime behavior. Strict workspace/all-target/all-feature pedantic Clippy,
+formatting, test-policy, module-size, regenerated inventory and whitespace
+checks passed. The inventory reports 8,614 Rust test declarations
+and 8,742 registered Rust instances, with no orphan tests, duplicate
+registrations, unresolved paths, unsharded targets or oversized files.
+
+Affected-target readback:
+
+| Target | Result | Clean-main comparison |
+| --- | --- | --- |
+| Focused namespace/backing | 25 passed | Includes the clean-main-red concurrency probe |
+| `storage_indexes` | 188 passed / 2 failed / 1 ignored | Both `int4range` failures reproduce on clean main under #905 |
+| `sql_mutations` | 303 passed / 14 failed | All 14 failing test identities reproduce on clean main |
+| `pgwire_extended transaction_errors` | 5 passed / 1 failed | Same issue-823 RETURNING-order failure on clean main |
+
+Documentation validation reports 74 pre-existing broken-link diagnostics,
+with zero new diagnostics against clean main and 499 baseline diagnostics
+removed by refreshing generated inventory pages. Benchmark validation remains
+blocked because `.github/workflows/bench.yml` is absent; CI changes are outside
+this slice's authorization. The failures above are repository baseline gaps,
+not issue-953 acceptance failures. No repository-green or hosted-green claim is
+made; the patch is ready for PR review and remains unmerged.

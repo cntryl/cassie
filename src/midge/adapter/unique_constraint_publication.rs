@@ -23,7 +23,7 @@ impl Midge {
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
         crate::sql::definition_guard::constraints(constraints)?;
-        let collection = collection.to_string();
+        let collection = self.canonical_collection_name(collection);
         self.with_collection_write_gates(std::slice::from_ref(&collection), || {
             self.prepare_unique_constraint_publication(&collection, constraints)
         })
@@ -84,7 +84,7 @@ impl Midge {
             .cloned()
             .collect::<Vec<_>>();
         if fields.is_empty() {
-            return self.save_constraints(collection, constraints);
+            return self.save_constraints_metadata(collection, constraints);
         }
 
         let publication = PendingUniqueConstraintPublication {
@@ -192,5 +192,96 @@ impl Midge {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PendingUniqueConstraintPublication;
+    use crate::app::{Cassie, CassieError};
+    use crate::catalog::FieldConstraint;
+    use crate::config::CassieRuntimeConfig;
+    use crate::midge::adapter::{key_encoding, StorageFamily};
+    use crate::types::{DataType, FieldSchema, Schema};
+
+    const CANONICAL: &str = "postgres.public.unique_publication_recovery";
+
+    #[test]
+    fn should_replay_canonical_unique_publication_given_a_prepared_record_after_restart() {
+        // Arrange
+        let path = std::env::temp_dir().join(format!(
+            "cassie-unique-publication-recovery-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let cassie =
+            Cassie::new_with_data_dir_and_config(&path, CassieRuntimeConfig::default()).unwrap();
+        cassie.startup().unwrap();
+        cassie.midge.create_collection(CANONICAL, schema()).unwrap();
+        cassie
+            .midge
+            .put_document(
+                CANONICAL,
+                Some("existing".into()),
+                serde_json::json!({"value":"same"}),
+            )
+            .unwrap();
+        let mut constraint = FieldConstraint::new("value");
+        constraint.unique = true;
+        constraint.unique_name = Some("recovered_unique".into());
+        let publication = PendingUniqueConstraintPublication {
+            collection: CANONICAL.into(),
+            constraints: vec![constraint.clone()],
+            fields: vec![constraint.clone()],
+        };
+        cassie
+            .midge
+            .raw_put(
+                StorageFamily::Schema,
+                &key_encoding::unique_constraint_publication_key(CANONICAL),
+                &serde_json::to_vec(&publication).unwrap(),
+            )
+            .unwrap();
+        drop(cassie);
+
+        // Act
+        let restarted =
+            Cassie::new_with_data_dir_and_config(&path, CassieRuntimeConfig::default()).unwrap();
+        restarted.startup().unwrap();
+        let metadata = restarted.midge.load_constraints(CANONICAL).unwrap();
+        let duplicate = restarted.midge.put_document(
+            CANONICAL,
+            Some("duplicate".into()),
+            serde_json::json!({"value":"same"}),
+        );
+        let pending = restarted
+            .midge
+            .raw_scan_prefix(
+                StorageFamily::Schema,
+                &key_encoding::unique_constraint_publication_prefix(),
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(metadata, vec![constraint]);
+        assert!(
+            matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "recovered_unique"),
+            "replayed publication must reject the duplicate: {duplicate:?}"
+        );
+        assert!(
+            pending.is_empty(),
+            "startup must retire the prepared record"
+        );
+        drop(restarted);
+        std::fs::remove_dir_all(path).unwrap();
+    }
+
+    fn schema() -> Schema {
+        Schema {
+            fields: vec![FieldSchema {
+                name: "value".into(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        }
     }
 }

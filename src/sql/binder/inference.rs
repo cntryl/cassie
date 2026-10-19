@@ -4,8 +4,7 @@ pub(crate) use types::common_case_type;
 
 use super::{
     virtual_views, BinaryOp, CassieError, Catalog, CommonTableExpression, CteQuery, DataType, Expr,
-    FieldSchema, FunctionCall, HashMap, QuerySource, QueryStatement, Schema, SelectItem,
-    SelectStatement,
+    FieldSchema, FunctionCall, HashMap, QuerySource, Schema, SelectItem, SelectStatement,
 };
 
 /// # Errors
@@ -77,7 +76,7 @@ pub(super) fn infer_select_schema_with_parameters(
     )
 }
 
-fn infer_select_schema_with_outer(
+pub(super) fn infer_select_schema_with_outer(
     select: &SelectStatement,
     catalog: &Catalog,
     outer_ctes: &HashMap<String, Schema>,
@@ -242,14 +241,14 @@ pub(super) fn infer_cte_schema_with_parameters(
         CteQuery::Recursive { base, .. } => base,
     };
 
-    let QueryStatement::Select(select) = &query.statement else {
+    let Some(select) = super::cte_bodies::select_view(query) else {
         return Err(CassieError::Planner(
             "CTE body must be a SELECT statement".into(),
         ));
     };
 
     let mut schema = infer_select_schema_with_parameters(
-        select,
+        &select,
         catalog,
         cte_schemas,
         user_functions,
@@ -782,6 +781,7 @@ pub(crate) fn infer_expr_type(
         | Expr::Like { .. }
         | Expr::Not { .. } => Some(DataType::Boolean),
         Expr::Null => Some(DataType::Null),
+        Expr::Subquery(subquery) => subquery.result_type(),
         Expr::Param(index) => parameter_types
             .get(*index)
             .copied()
@@ -816,6 +816,7 @@ fn infer_binary_type(
     )
     .or_else(|| match op {
         BinaryOp::Typed { .. }
+        | BinaryOp::Quantified { .. }
         | BinaryOp::And
         | BinaryOp::Or
         | BinaryOp::Eq

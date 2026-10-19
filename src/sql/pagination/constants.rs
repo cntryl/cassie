@@ -10,7 +10,7 @@ pub(crate) fn check(
     controls.check_interruption()?;
     // Semantic admission owns unsupported forms. It also supplies the finite
     // depth envelope before the integer evaluator or parameter walk recurses.
-    if !super::is_admitted(expression) {
+    if !super::is_admitted(expression) || expression.contains_subquery() {
         return Ok(());
     }
     check_admitted(expression, controls)

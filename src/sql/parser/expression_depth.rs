@@ -23,7 +23,7 @@ fn guard(depth: usize) -> Result<(), SqlError> {
 
 pub(super) fn validate(expr: &Expr, depth: usize) -> Result<(), SqlError> {
     guard(depth)?;
-    if let Expr::Exists(query) = expr {
+    if let Some(query) = expr.subquery_statement() {
         statement(query, depth + 1)?;
     }
     expr.try_visit_children(|child| validate(child, depth + 1))

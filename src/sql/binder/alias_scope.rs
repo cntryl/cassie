@@ -205,7 +205,7 @@ fn expression_names(expr: &Expr, names: &mut HashSet<String>) {
     if let Expr::Column(name) = expr {
         reference_names(name, names);
     }
-    if let Expr::Exists(statement) = expr {
+    if let Some(statement) = expr.subquery_statement() {
         statement_names(statement, names);
     }
     expr.for_each_child(|child| expression_names(child, names));

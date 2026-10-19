@@ -115,6 +115,10 @@ fn expression_operand_family(
         }
         Expr::BoolLiteral(_) => Ok(Some(OperandFamily::Boolean)),
         Expr::Null | Expr::Param(_) | Expr::Exists(_) => Ok(None),
+        Expr::Subquery(subquery) => Ok(subquery
+            .result_type()
+            .filter(|data_type| !matches!(data_type, DataType::Null))
+            .map(|data_type| data_type_family(&data_type))),
         Expr::Case {
             operand,
             branches,
@@ -267,7 +271,9 @@ fn binary_operand_family(
             }
             Ok(Some(OperandFamily::Text))
         }
-        BinaryOp::And | BinaryOp::Or | BinaryOp::Typed { .. } => Ok(Some(OperandFamily::Boolean)),
+        BinaryOp::And | BinaryOp::Or | BinaryOp::Typed { .. } | BinaryOp::Quantified { .. } => {
+            Ok(Some(OperandFamily::Boolean))
+        }
         BinaryOp::Eq
         | BinaryOp::NotEq
         | BinaryOp::IsDistinctFrom
@@ -623,6 +629,7 @@ pub(super) fn expr_contains_parameters(expr: &Expr) -> bool {
     match expr {
         Expr::Param(_) => true,
         Expr::Exists(statement) => parsed_statement_contains_parameters(statement),
+        Expr::Subquery(subquery) if parsed_statement_contains_parameters(&subquery.query) => true,
         _ => expr.any_child(expr_contains_parameters),
     }
 }

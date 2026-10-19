@@ -42,7 +42,7 @@ pub(crate) fn expression(expr: &Expr) -> Result<(), CassieError> {
     ) {
         return Err(CassieError::Unsupported(DIAGNOSTIC.into()));
     }
-    if let Expr::Exists(query) = expr {
+    if let Some(query) = expr.subquery_statement() {
         statement(query)?;
     }
     expr.try_visit_children(expression)

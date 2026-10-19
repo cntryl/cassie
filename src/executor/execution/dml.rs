@@ -25,6 +25,8 @@ mod dml_returning;
 mod dml_returning_tests;
 #[path = "dml_row_subquery.rs"]
 mod dml_row_subquery;
+#[path = "dml_subqueries.rs"]
+mod dml_subqueries;
 #[path = "dml_truncate.rs"]
 mod dml_truncate;
 #[path = "dml_update.rs"]

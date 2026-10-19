@@ -35,6 +35,10 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
     } else {
         remainder
     };
+    if let Some((cte_sql, main)) = super::with_statement::split_dml(after_recursive) {
+        let ctes = parse_cte_definitions(cte_sql, recursive)?;
+        return super::with_statement::parse(ctes, main);
+    }
 
     let select_pos = ["select", "values"]
         .iter()
@@ -126,6 +130,10 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
         | Expr::Like { .. }
         | Expr::Not { .. }
         | Expr::Exists(_) => SelectItem::Expr { expr, alias },
+        Expr::Subquery(ref subquery) => SelectItem::Expr {
+            alias: alias.or_else(|| super::expr::subquery_output_name(subquery)),
+            expr,
+        },
         Expr::Column(name) => SelectItem::Column { name, alias },
     })
 }

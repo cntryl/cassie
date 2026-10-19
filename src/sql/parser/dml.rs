@@ -78,6 +78,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
                 overriding,
                 alias,
                 returning_aliases,
+                ctes: Vec::new(),
             }),
         });
     }
@@ -100,6 +101,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             overriding,
             alias,
             returning_aliases,
+            ctes: Vec::new(),
         }),
     })
 }
@@ -127,6 +129,7 @@ fn default_values_insert(
             overriding,
             alias: None,
             returning_aliases: None,
+            ctes: Vec::new(),
         }),
     })
 }
@@ -378,6 +381,7 @@ pub(super) fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             from,
             row_subqueries: parsed.row_subqueries,
             returning_aliases,
+            ctes: Vec::new(),
         }),
     })
 }
@@ -428,6 +432,7 @@ pub(super) fn parse_delete_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             alias,
             using,
             returning_aliases,
+            ctes: Vec::new(),
         }),
     })
 }

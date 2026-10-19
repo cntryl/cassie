@@ -5,6 +5,9 @@ use super::{BinaryOp, Expr, SqlError};
 use crate::sql::ast::{RowComparison, RowComparisonOp};
 
 pub(super) fn comparison(left: &str, op: BinaryOp, right: &str) -> Result<Expr, SqlError> {
+    if let Some(subquery) = super::subquery_syntax::comparison(left, &op, right)? {
+        return Ok(subquery);
+    }
     let constructors = (constructor(left)?, constructor(right)?);
     if let (Some(left), Some(right)) = constructors {
         let op = RowComparisonOp::from_binary(&op).ok_or_else(|| {
@@ -31,9 +34,12 @@ pub(super) fn comparison(left: &str, op: BinaryOp, right: &str) -> Result<Expr, 
     })
 }
 
-fn constructor(mut raw: &str) -> Result<Option<Vec<Expr>>, SqlError> {
+pub(super) fn constructor(mut raw: &str) -> Result<Option<Vec<Expr>>, SqlError> {
     loop {
         raw = lexical::trim_separators(raw);
+        if super::subquery_syntax::body(raw).is_some() {
+            return Ok(None);
+        }
         if schema::starts_with_keyword(raw, "row") {
             let Some(inner) = strip_parentheses(lexical::trim_separators(&raw[3..])) else {
                 return Ok(None);

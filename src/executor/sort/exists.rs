@@ -31,8 +31,7 @@ pub(crate) fn sort_batches_resolving(
 
 /// Inspect the same borrowed alias selection used by key construction.
 pub(crate) fn requires_resolver(eval: &EvalInput<'_>) -> bool {
-    let contains =
-        |expr: &Expr| expr.any_descendant_or_self(&mut |child| matches!(child, Expr::Exists(_)));
+    let contains = |expr: &Expr| expr.any_descendant_or_self(&mut Expr::is_subquery_node);
     if eval.order.iter().any(|order| contains(&order.expr)) {
         return true;
     }

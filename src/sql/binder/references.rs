@@ -187,6 +187,7 @@ pub(super) fn validate_expression_in_scope(
         Expr::Exists(statement) => {
             return scope.validate_nested(statement, known_fields);
         }
+        Expr::Subquery(subquery) => scope.validate_nested(&subquery.query, known_fields)?,
         _ => {}
     }
     expr.try_visit_children(|child| {

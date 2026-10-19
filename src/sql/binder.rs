@@ -91,6 +91,10 @@ mod json_predicates;
 #[path = "binder/own_qualifier.rs"]
 mod own_qualifier;
 pub(crate) use aliases::qualifier as alias_row_qualifier;
+#[path = "binder/cte_bodies.rs"]
+pub(crate) mod cte_bodies;
+#[path = "binder/nested_qualifiers.rs"]
+mod nested_qualifiers;
 #[path = "binder/projections.rs"]
 mod projections;
 #[path = "binder/recursive.rs"]
@@ -109,6 +113,8 @@ mod select;
 mod set_width;
 #[path = "binder/source_schema.rs"]
 mod source_schema;
+#[path = "binder/subquery_types.rs"]
+mod subquery_types;
 #[path = "binder/validation.rs"]
 mod validation;
 #[path = "binder/wildcard.rs"]
@@ -203,7 +209,10 @@ pub(crate) fn bind_initial_with_controls(
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<BoundStatement, CassieError> {
     alias_admission::validate(&statement, controls)?;
+    let mut statement = statement;
+    subquery_types::annotate_unbound(&mut statement, catalog, context);
     let mut statement = bind_statement(statement, catalog, &CteScope::new(controls), context)?;
+    subquery_types::annotate(&mut statement, catalog, context)?;
     if crate::sql::parameter_count(&statement) == 0 {
         // Parameter-free view/projection callers also consume this bound AST.
         // Parameterized statements wait for their concrete OID-aware pass.
@@ -355,17 +364,17 @@ fn bind_runtime_route(
         ),
         RuntimeStatement::Insert(statement) => bind_catalog_statement(
             raw_sql,
-            bind_insert(statement, catalog, context),
+            cte_bodies::insert(statement, catalog, context),
             QueryStatement::Insert,
         ),
         RuntimeStatement::Update(statement) => bind_catalog_statement(
             raw_sql,
-            bind_update(statement, catalog, context),
+            cte_bodies::update(statement, catalog, context),
             QueryStatement::Update,
         ),
         RuntimeStatement::Delete(statement) => bind_catalog_statement(
             raw_sql,
-            bind_delete(statement, catalog, context),
+            cte_bodies::delete(statement, catalog, context),
             QueryStatement::Delete,
         ),
         RuntimeStatement::Truncate(statement) => bind_catalog_statement(

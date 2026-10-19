@@ -274,6 +274,16 @@ fn expr_uses_view_function(
         Expr::Exists(statement) => {
             parsed_statement_uses_view_function(statement, function_name, catalog, visited_views)
         }
+        Expr::Subquery(subquery)
+            if parsed_statement_uses_view_function(
+                &subquery.query,
+                function_name,
+                catalog,
+                visited_views,
+            ) =>
+        {
+            true
+        }
         _ => expr.any_child(|child| {
             expr_uses_view_function(child, function_name, catalog, visited_views)
         }),
@@ -377,6 +387,7 @@ fn select_item_needs_user_functions(item: &SelectItem) -> bool {
 fn expr_needs_user_functions(expr: &Expr) -> bool {
     match expr {
         Expr::Exists(statement) => parsed_statement_needs_user_functions(statement),
+        Expr::Subquery(subquery) if parsed_statement_needs_user_functions(&subquery.query) => true,
         Expr::Function(function) => function_needs_user_functions(function),
         _ => expr.any_child(expr_needs_user_functions),
     }
@@ -673,6 +684,11 @@ fn expr_uses_function(expr: &crate::sql::ast::Expr, function_name: &str) -> bool
         }
         crate::sql::ast::Expr::Exists(statement) => {
             parsed_statement_uses_function(statement, function_name)
+        }
+        crate::sql::ast::Expr::Subquery(subquery)
+            if parsed_statement_uses_function(&subquery.query, function_name) =>
+        {
+            true
         }
         _ => expr.any_child(|child| expr_uses_function(child, function_name)),
     }

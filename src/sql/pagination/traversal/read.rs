@@ -204,6 +204,12 @@ impl Reader<'_> {
         self.guard(depth)?;
         match expr {
             Expr::Exists(statement) => self.statement(statement, depth + 1)?,
+            Expr::Subquery(subquery) => {
+                for operand in subquery.operands() {
+                    self.expr(operand, depth + 1)?;
+                }
+                self.statement(&subquery.query, depth + 1)?;
+            }
             Expr::RowCompare(comparison) => {
                 for field in comparison.left.iter().chain(&comparison.right) {
                     self.expr(field, depth + 1)?;

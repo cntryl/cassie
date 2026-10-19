@@ -34,12 +34,7 @@ pub(in crate::executor::execution) fn project(
                 controls: env.controls,
                 outer_row: Some(&outer),
             };
-            let resolve = |expr: &Expr| match super::super::resolve_exists_expr(&context, expr)? {
-                Expr::BoolLiteral(value) => Ok(value),
-                _ => Err(QueryError::General(
-                    "EXISTS resolver did not return BOOLEAN".into(),
-                )),
-            };
+            let resolve = |expr: &Expr| super::super::resolve_exists_expr(&context, expr);
             let result = crate::executor::projection::project_batches_resolving_exists(
                 vec![vec![row]],
                 projection,

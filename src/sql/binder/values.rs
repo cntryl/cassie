@@ -130,7 +130,8 @@ fn validate(
     match expression {
         Expr::Function(function) if crate::sql::functions::is_temporal_function(&function.name) => {
         }
-        Expr::Function(_) | Expr::Exists(_) => {
+        Expr::Exists(_) | Expr::Subquery(_) => return Ok(()),
+        Expr::Function(_) => {
             return Err(CassieError::Unsupported(
                 "functions and subqueries in VALUES are not yet supported".into(),
             ))

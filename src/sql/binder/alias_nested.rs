@@ -46,6 +46,9 @@ fn expression(
     if let Expr::Exists(statement) = expr {
         return rewrite(statement, outer);
     }
+    if let Expr::Subquery(subquery) = expr {
+        rewrite(&mut subquery.query, outer)?;
+    }
     let mut failure = None;
     *expr = expr.map_children(|child| {
         let mut child = child.clone();

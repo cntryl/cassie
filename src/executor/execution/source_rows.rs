@@ -682,7 +682,17 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
             expr_key(expr)
         ),
         Expr::Exists(_) => "exists".to_string(),
+        Expr::Subquery(subquery) => subquery_key(subquery),
     }
+}
+
+fn subquery_key(subquery: &crate::sql::ast::SubqueryExpr) -> String {
+    format!(
+        "subquery:{:?}:{}:{:?}",
+        subquery.kind,
+        subquery.query.raw_sql,
+        subquery.operands().iter().map(expr_key).collect::<Vec<_>>()
+    )
 }
 
 #[cfg(test)]

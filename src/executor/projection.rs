@@ -483,7 +483,7 @@ fn projection_expr_key(expr: &Expr) -> String {
             projection_expr_key(high)
         ),
         Expr::Not { expr } => format!("not {}", projection_expr_key(expr)),
-        Expr::RowCompare(_) => crate::executor::execution::expr_key(expr),
+        Expr::RowCompare(_) | Expr::Subquery(_) => crate::executor::execution::expr_key(expr),
         Expr::UnaryNumeric { expr, op } => format!("unary:{op:?}({})", projection_expr_key(expr)),
         Expr::IntegerNegate { expr, width } => {
             format!("negate:{width:?}({})", projection_expr_key(expr))

@@ -25,7 +25,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | MERGE (incl. `BY SOURCE`, `RETURNING`, `merge_action()`) | Absent | #823 |
 | TRUNCATE | Absent | #823 |
 | UPDATE FROM, DELETE USING, `INSERT DEFAULT VALUES`, `RETURNING OLD/NEW` | Absent | #823 |
-| Data-modifying CTEs | Absent | #834 |
+| Data-modifying CTEs | Supported (top-level `WITH`; once per statement, one snapshot, atomic) | #834 |
 | COPY FROM STDIN csv | Supported | — |
 | COPY text format, COPY TO, binary, query source, options | Absent | #846 |
 | EXPLAIN [ANALYZE] | Supported | — |
@@ -47,7 +47,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | WITH [RECURSIVE] | Supported | — |
 | CTE `[NOT] MATERIALIZED`, `SEARCH`, `CYCLE` | Absent | #801 |
 | EXISTS (incl. correlated) | Supported | — |
-| Scalar, IN, ANY/SOME/ALL subqueries | Absent | #762 |
+| Scalar, IN, ANY/SOME/ALL subqueries | Supported (scalar, row, membership and quantified forms; correlated or uncorrelated; `ARRAY(SELECT ...)` output waits on #807) | #762 |
 | GROUP BY, HAVING, DISTINCT, DISTINCT ON | Supported | — |
 | GROUPING SETS, ROLLUP, CUBE, `GROUPING()`, `GROUP BY DISTINCT` | Absent | #804 |
 | ORDER BY NULLS FIRST/LAST, LIMIT/OFFSET with parameters | Supported | — |

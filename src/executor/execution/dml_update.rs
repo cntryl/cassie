@@ -19,6 +19,7 @@ struct PrepareUpdateContext<'a> {
     user_functions: &'a HashMap<String, FunctionMeta>,
     schema: &'a CollectionSchema,
     controls: &'a QueryExecutionControls,
+    subqueries: &'a super::dml_subqueries::RowSubqueries<'a>,
 }
 
 pub(in crate::executor::execution) fn execute_update(
@@ -41,6 +42,12 @@ pub(in crate::executor::execution) fn execute_update(
         );
     }
     let returning_read_controls = if super::super::exists_projection::contains(&statement.returning)
+        || statement
+            .assignments
+            .iter()
+            .map(|(_, expr)| expr)
+            .chain(&statement.filter)
+            .any(Expr::contains_subquery)
     {
         Some(
             crate::executor::execution::entrypoints::statement_read_controls(
@@ -54,15 +61,28 @@ pub(in crate::executor::execution) fn execute_update(
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
+    let subqueries = super::dml_subqueries::RowSubqueries {
+        cassie,
+        session,
+        user_functions,
+        params,
+        controls: statement_read_controls,
+        table: &statement.table,
+        alias: statement.alias.as_deref(),
+    };
     let matched_rows = matched_dml_rows(
         cassie,
         session,
         &statement.table,
         statement.filter.as_ref(),
-        params,
-        user_functions,
+        &subqueries,
         statement_read_controls,
     )?;
+    let mut folded = statement.clone();
+    for (_, expr) in &mut folded.assignments {
+        *expr = subqueries.fold(expr)?;
+    }
+    let statement = &folded;
     let mut returning_rows = Vec::new();
     let prepare_context = PrepareUpdateContext {
         cassie,
@@ -72,6 +92,7 @@ pub(in crate::executor::execution) fn execute_update(
         user_functions,
         schema: &schema,
         controls,
+        subqueries: &subqueries,
     };
     for row in &matched_rows {
         check_timeout(controls)?;
@@ -114,8 +135,7 @@ fn matched_dml_rows(
     session: Option<&CassieSession>,
     table: &str,
     filter_expr: Option<&Expr>,
-    params: &[Value],
-    user_functions: &HashMap<String, FunctionMeta>,
+    subqueries: &super::dml_subqueries::RowSubqueries<'_>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, QueryError> {
     let statement_controls = crate::executor::execution::entrypoints::statement_read_controls(
@@ -128,19 +148,7 @@ fn matched_dml_rows(
     ensure_query_memory_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     if let Some(filter_expr) = filter_expr {
-        let mut filter_expr = crate::executor::execution::resolve_statement_exists(
-            cassie,
-            session,
-            filter_expr,
-            user_functions,
-            params,
-            controls,
-        )?;
-        crate::planner::logical::rewrite_expr_for_schema(
-            &mut filter_expr,
-            crate::planner::logical::collection_declares_id(&cassie.catalog, table),
-        );
-        filter::filter_rows(rows, &filter_expr, params, None, user_functions, session)
+        subqueries.filter(rows, filter_expr)
     } else {
         Ok(rows)
     }
@@ -167,6 +175,7 @@ fn prepare_update_row(
             cassie: context.cassie,
             table: &context.statement.table,
             schema: context.schema,
+            subqueries: Some(context.subqueries),
         },
         row,
         &context.statement.assignments,
@@ -207,6 +216,7 @@ pub(super) struct AssignmentTarget<'a> {
     pub(super) cassie: &'a Cassie,
     pub(super) table: &'a str,
     pub(super) schema: &'a CollectionSchema,
+    pub(super) subqueries: Option<&'a super::dml_subqueries::RowSubqueries<'a>>,
 }
 
 pub(super) fn updated_payload_from_row(
@@ -238,8 +248,18 @@ pub(super) fn updated_payload_from_row(
         }
         let mut expr = expr.clone();
         crate::planner::logical::rewrite_expr_for_schema(&mut expr, schema_has_id);
-        let value =
-            filter::evaluate_expr_value(row, &expr, params, None, user_functions, session, None)?;
+        let value = match target.subqueries {
+            Some(subqueries) if expr.contains_subquery() => subqueries.evaluate(row, &expr)?,
+            _ => filter::evaluate_expr_value(
+                row,
+                &expr,
+                params,
+                None,
+                user_functions,
+                session,
+                None,
+            )?,
+        };
         if matches!(value, Value::Null)
             && schema.fields.iter().any(|candidate| {
                 candidate.name == *field && matches!(candidate.data_type, DataType::Json)

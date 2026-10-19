@@ -197,7 +197,7 @@ fn coerce_nested(
     if let Some(error) = error {
         return Err(error);
     }
-    if let Expr::Exists(statement) = expr {
+    if let Some(statement) = expr.subquery_statement_mut() {
         if let QueryStatement::Select(select) = &mut statement.statement {
             coerce_select(select, catalog, context, types.cte_schemas(), Some(types))?;
         }

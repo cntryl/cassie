@@ -108,6 +108,10 @@ fn is_admitted_at_depth(expr: &Expr, depth: usize) -> bool {
     }
     match expr {
         Expr::IntegerLiteral(_) | Expr::Null | Expr::Param(_) => true,
+        // A scalar subquery bound runs once in the executor before planning.
+        Expr::Subquery(subquery) => {
+            matches!(subquery.kind, crate::sql::ast::SubqueryKind::Scalar)
+        }
         Expr::UnaryNumeric { expr, .. } | Expr::IntegerNegate { expr, .. } => {
             is_admitted_at_depth(expr, depth + 1)
         }
@@ -224,6 +228,10 @@ pub(crate) fn resolve_statement(
                 return Err(CassieError::DeadlineExceeded);
             }
             if let Some(expr) = bound.as_ref() {
+                if expr.contains_subquery() {
+                    // The executor folds a subquery bound once it can run it.
+                    return Ok(());
+                }
                 parameter_dependent |= has_parameters(expr);
                 let value = evaluate(expr, params, declared_oids, controls)?.0;
                 if value.is_some_and(|value| value < 0) {

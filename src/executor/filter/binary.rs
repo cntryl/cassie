@@ -16,6 +16,9 @@ pub(super) fn binary_scalar(
         return result;
     }
     let result = match op {
+        BinaryOp::Quantified { comparison, all } => {
+            super::quantified_array::evaluate(left, comparison, *all, right)?
+        }
         BinaryOp::Typed { .. } => {
             return Err(crate::app::CassieError::Execution(
                 "operator does not exist for these operand types".into(),

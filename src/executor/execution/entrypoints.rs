@@ -111,6 +111,16 @@ pub(crate) fn run_with_session_controls(
     check_constants(&plan.logical, controls, &params)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, session, &plan.logical);
+    let inputs = super::modifying_ctes::StatementInputs {
+        cassie,
+        session,
+        params: &params,
+        user_functions: &user_functions,
+        controls,
+    };
+    if let Some(result) = super::modifying_ctes::run(&inputs, plan)? {
+        return Ok(result);
+    }
 
     if let Some(command) = plan.logical.command.as_ref() {
         let controls = controls.with_statement_read(None);

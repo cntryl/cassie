@@ -149,7 +149,7 @@ impl<'a> Input<'a> {
                 )
             });
         }
-        if matches!(expr, Expr::Exists(_)) {
+        if expr.is_subquery_node() {
             return Err(CassieError::Unsupported(
                 "NOT MATERIALIZED correlated consumer expansion remains pending under #801/#800"
                     .into(),

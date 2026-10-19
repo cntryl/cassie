@@ -515,7 +515,7 @@ fn collect_equality_filter_expressions(expr: &Expr, expressions: &mut BTreeSet<S
 
 fn expr_is_constant(expr: &Expr) -> bool {
     match expr {
-        Expr::Column(_) | Expr::Exists(_) => false,
+        Expr::Column(_) | Expr::Exists(_) | Expr::Subquery(_) => false,
         _ => expr.all_children(expr_is_constant),
     }
 }
@@ -677,7 +677,7 @@ fn collect_projected_filter_columns(expr: &Expr, fields: &mut Vec<String>) -> Op
             | BinaryOp::Like => {}
             _ => return None,
         },
-        Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => return None,
+        Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) | Expr::Subquery(_) => return None,
         _ => {}
     }
     expr.try_visit_children(|child| collect_projected_filter_columns(child, fields).ok_or(()))
@@ -812,7 +812,7 @@ fn collect_aggregate_functions<'a>(expr: &'a Expr, functions: &mut Vec<&'a Funct
 
 fn expr_supports_parallel_aggregation(expr: &Expr) -> bool {
     match expr {
-        Expr::Exists(_) => return false,
+        Expr::Exists(_) | Expr::Subquery(_) => return false,
         Expr::Function(function) => {
             let name = function.name.to_ascii_lowercase();
             let supported = if crate::sql::functions::is_aggregate_function(&function.name) {

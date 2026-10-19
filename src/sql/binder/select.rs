@@ -210,6 +210,12 @@ pub(super) fn canonicalize_typed_predicate_literals(
             }
             Ok(())
         }
+        Expr::Subquery(subquery) => {
+            for operand in subquery.operands_mut() {
+                canonicalize_typed_predicate_literals(operand, field_types)?;
+            }
+            Ok(())
+        }
         Expr::Column(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
@@ -539,7 +545,7 @@ pub(super) fn cte_output_fields(cte_query: &CteQuery) -> Result<Vec<String>, Cas
         CteQuery::Recursive { base, .. } => base,
     };
 
-    let QueryStatement::Select(select) = &query.statement else {
+    let Some(select) = super::cte_bodies::select_view(query) else {
         return Err(CassieError::Planner(
             "CTE body must be a SELECT statement".into(),
         ));

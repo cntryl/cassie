@@ -700,7 +700,7 @@ fn expr_children(expr: &ast::Expr) -> usize {
         | ast::Expr::Null => 0,
         ast::Expr::Case { .. } | ast::Expr::Between { .. } | ast::Expr::Like { .. } => 3,
         ast::Expr::RowCompare(comparison) => comparison.left.len() + comparison.right.len(),
-        ast::Expr::Binary { .. } | ast::Expr::InList { .. } => 2,
+        ast::Expr::Binary { .. } | ast::Expr::InList { .. } | ast::Expr::Subquery(_) => 2,
         ast::Expr::IsNull { .. }
         | ast::Expr::TruthTest { .. }
         | ast::Expr::Not { .. }
@@ -759,6 +759,11 @@ fn expr_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
             _ => high,
         })),
         ast::Expr::Exists(statement) => Some(Node::Query(&statement.statement)),
+        ast::Expr::Subquery(subquery) => Some(if index == 0 {
+            Node::Expressions(subquery.operands())
+        } else {
+            Node::Query(&subquery.query.statement)
+        }),
         ast::Expr::Function(function) => Some(Node::Function(function)),
         ast::Expr::Column(_)
         | ast::Expr::Param(_)

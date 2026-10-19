@@ -27,6 +27,8 @@ mod qualified_operators;
 mod row_predicates;
 #[path = "string_literals.rs"]
 mod string_literals;
+#[path = "subquery_syntax.rs"]
+mod subquery_syntax;
 #[path = "temporal_syntax.rs"]
 mod temporal_syntax;
 #[path = "truth_predicates.rs"]
@@ -36,6 +38,7 @@ mod unary_numeric;
 
 pub(super) use numeric_literals::is_numeric_mantissa;
 pub(super) use string_literals::unicode_identifier_prefix;
+pub(super) use subquery_syntax::output_name as subquery_output_name;
 
 pub(super) fn split_csv(s: &str) -> Vec<&str> {
     let mut out = Vec::new();
@@ -99,6 +102,9 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
     let raw = super::lexical::trim_separators(raw);
 
     if raw.starts_with('(') {
+        if let Some(subquery) = subquery_syntax::scalar(raw)? {
+            return Ok(subquery);
+        }
         let inner = strip_parentheses(raw);
         if let Some(inner) = inner {
             return parse_expression(inner);
@@ -495,6 +501,9 @@ pub(super) fn parse_in_list_expression(
     right: &str,
     negated: bool,
 ) -> Result<Expr, SqlError> {
+    if let Some(subquery) = subquery_syntax::membership(left, right, negated)? {
+        return Ok(subquery);
+    }
     let values_raw = strip_parentheses(right.trim())
         .ok_or_else(|| SqlError::new("IN predicate requires a parenthesized value list".into()))?;
     if values_raw.trim().is_empty() {
@@ -553,8 +562,14 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     if raw.is_empty() {
         return Err(SqlError::new("invalid expression token".into()));
     }
+    if let Some(subquery) = subquery_syntax::scalar(raw)? {
+        return Ok(subquery);
+    }
     if let Some(inner) = strip_parentheses(raw) {
         return parse_expression(inner);
+    }
+    if let Some(subquery) = subquery_syntax::array(raw)? {
+        return Ok(subquery);
     }
 
     if let Some(value) = super::lexical::dollar_quoted_content(raw) {

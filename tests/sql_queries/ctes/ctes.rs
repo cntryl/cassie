@@ -8,6 +8,8 @@ use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixtur
 
 #[path = "insert_snapshot_descriptor.rs"]
 mod insert_snapshot_descriptor;
+#[path = "modifying_cte_semantics.rs"]
+mod modifying_cte_semantics;
 #[path = "search_cycle_edge_cases.rs"]
 mod search_cycle_edge_cases;
 

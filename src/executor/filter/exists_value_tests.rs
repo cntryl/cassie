@@ -11,7 +11,7 @@ fn should_skip_unselected_exists_callbacks() {
     let calls = Cell::new(0);
     let resolver = |_: &Expr| {
         calls.set(calls.get() + 1);
-        Ok(true)
+        Ok(Expr::BoolLiteral(true))
     };
     let expressions = [
         "CASE WHEN true THEN false ELSE EXISTS(SELECT 1) END",
@@ -53,7 +53,7 @@ fn should_invoke_reached_exists_callbacks_once() {
     let calls = Cell::new(0);
     let resolver = |_: &Expr| {
         calls.set(calls.get() + 1);
-        Ok(true)
+        Ok(Expr::BoolLiteral(true))
     };
     let expression = crate::sql::parser::parse_expression(
         "CASE WHEN EXISTS(SELECT 1) THEN COALESCE(NULL,EXISTS(SELECT 2),EXISTS(SELECT 3)) ELSE EXISTS(SELECT 4) END"
@@ -88,7 +88,7 @@ fn should_retain_selected_coalesce_parameter_carrier() {
     let calls = Cell::new(0);
     let resolver = |_: &Expr| {
         calls.set(calls.get() + 1);
-        Ok(true)
+        Ok(Expr::BoolLiteral(true))
     };
     let expression = crate::sql::parser::parse_expression("COALESCE($1,EXISTS(SELECT 1))")
         .expect("selected expression");
@@ -132,7 +132,7 @@ fn should_resolve_selected_function_arguments_once() {
     let calls = Cell::new(0);
     let resolver = |_: &Expr| {
         calls.set(calls.get() + 1);
-        Ok(true)
+        Ok(Expr::BoolLiteral(true))
     };
     let expression = crate::sql::parser::parse_expression("gate(EXISTS(SELECT 1))")
         .expect("selected expression");
@@ -175,7 +175,7 @@ fn should_preserve_unclassified_function_body_errors() {
     let calls = Cell::new(0);
     let resolver = |_: &Expr| {
         calls.set(calls.get() + 1);
-        Ok(true)
+        Ok(Expr::BoolLiteral(true))
     };
     let expression =
         crate::sql::parser::parse_expression("gate()").expect("existing function call");

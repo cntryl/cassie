@@ -79,6 +79,9 @@ impl Fold<'_, '_> {
             | ast::Expr::Function(_)
             | ast::Expr::Exists(_)
             | ast::Expr::Case { .. } => None,
+            ast::Expr::Subquery(subquery) => {
+                subquery.result_type().map(|data_type| oid(&data_type))
+            }
         }
     }
 }

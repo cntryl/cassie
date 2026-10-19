@@ -87,7 +87,7 @@ fn expression(
     if let Expr::Function(function) = expr {
         return function_pure(function, catalog, controls);
     }
-    if matches!(expr, Expr::Exists(_)) {
+    if expr.is_subquery_node() {
         return Err(CassieError::Unsupported(
             "NOT MATERIALIZED EXISTS scope expansion remains pending under #801/#800".into(),
         ));

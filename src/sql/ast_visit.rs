@@ -72,6 +72,11 @@ impl Expr {
                     visit(arg)?;
                 }
             }
+            Self::Subquery(subquery) => {
+                for operand in subquery.operands() {
+                    visit(operand)?;
+                }
+            }
             Self::Column(_)
             | Self::Param(_)
             | Self::StringLiteral(_)
@@ -165,6 +170,7 @@ impl Expr {
                     })
                     .collect(),
             })),
+            Self::Subquery(subquery) => Self::Subquery(Box::new(subquery.map_operands(map))),
             Self::Column(_)
             | Self::Param(_)
             | Self::StringLiteral(_)
@@ -269,6 +275,11 @@ impl Expr {
                     visit(argument)?;
                 }
             }
+            Self::Subquery(subquery) => {
+                for operand in subquery.operands_mut() {
+                    visit(operand)?;
+                }
+            }
             Self::Column(_)
             | Self::Param(_)
             | Self::StringLiteral(_)
@@ -346,6 +357,7 @@ impl Expr {
             (Self::Exists(left), Self::Exists(right)) => {
                 format!("{left:?}") == format!("{right:?}")
             }
+            (Self::Subquery(left), Self::Subquery(right)) => left.structurally_eq(right),
             _ => composite_structurally_eq(self, other),
         }
     }

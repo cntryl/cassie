@@ -196,6 +196,12 @@ fn visit_expr(
 ) -> Result<(), CassieError> {
     match expr {
         Expr::Exists(statement) => visit_statement_with_controls(statement, visitor, controls)?,
+        Expr::Subquery(subquery) => {
+            for operand in subquery.operands_mut() {
+                visit_expr(operand, visitor, controls)?;
+            }
+            visit_statement_with_controls(&mut subquery.query, visitor, controls)?;
+        }
         Expr::RowCompare(comparison) => {
             for field in comparison.left.iter_mut().chain(&mut comparison.right) {
                 visit_expr(field, visitor, controls)?;

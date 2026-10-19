@@ -117,6 +117,15 @@ impl<'a> Footprint<'a> {
         let children = match &parsed.statement {
             QueryStatement::Select(select) => self.select(select, depth + 1)?,
             QueryStatement::Explain(explain) => self.statement(&explain.statement, depth + 1)?,
+            QueryStatement::Insert(_)
+            | QueryStatement::Update(_)
+            | QueryStatement::Delete(_)
+            | QueryStatement::Merge(_) => {
+                // A data-modifying CTE body retains its encoded statement.
+                serde_json::to_vec(&parsed.statement)
+                    .map(|encoded| encoded.len())
+                    .map_err(|error| CassieError::ResourceLimit(error.to_string()))?
+            }
             _ => {
                 return Err(CassieError::Unsupported(
                     "non-SELECT CTE Parse analysis is not yet supported".into(),
@@ -182,6 +191,10 @@ impl<'a> Footprint<'a> {
             }
             Expr::Function(function) => return add(bytes, self.function(function, depth + 1)?),
             Expr::Exists(statement) => return add(bytes, self.statement(statement, depth + 1)?),
+            Expr::Subquery(subquery) => {
+                bytes = add(bytes, size_of::<crate::sql::ast::SubqueryExpr>())?;
+                bytes = add(bytes, self.statement(&subquery.query, depth + 1)?)?;
+            }
             _ => {}
         }
         expr.try_visit_children(|child| {

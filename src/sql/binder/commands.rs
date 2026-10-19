@@ -162,6 +162,7 @@ pub(super) fn bind_update(
         return joined::bind_joined_update(statement, catalog, context);
     }
     if let Some(alias) = statement.alias.take() {
+        super::nested_qualifiers::rename_update_alias(&mut statement, &alias);
         super::own_qualifier::strip_update_qualifiers(&mut statement, &[alias]);
     }
     let table = resolve_relation_path(&statement.table, catalog, context)?;
@@ -273,6 +274,7 @@ pub(super) fn bind_delete(
         return joined::bind_joined_delete(statement, catalog, context);
     }
     if let Some(alias) = statement.alias.take() {
+        super::nested_qualifiers::rename_delete_alias(&mut statement, &alias);
         super::own_qualifier::strip_delete_qualifiers(&mut statement, &[alias]);
     }
     let table = resolve_relation_path(&statement.table, catalog, context)?;

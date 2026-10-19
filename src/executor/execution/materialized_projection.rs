@@ -809,6 +809,12 @@ fn collect_functions_in_expr(expr: &Expr, out: &mut Vec<String>) {
                 out.extend(functions_in_select(select));
             }
         }
+        Expr::Subquery(subquery) => {
+            if let QueryStatement::Select(select) = &subquery.query.statement {
+                out.extend(functions_in_select(select));
+            }
+            expr.for_each_child(|child| collect_functions_in_expr(child, out));
+        }
         _ => expr.for_each_child(|child| collect_functions_in_expr(child, out)),
     }
 }

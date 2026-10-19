@@ -58,12 +58,12 @@ impl Analyzer<'_> {
             CteQuery::Simple(statement) => statement,
             CteQuery::Recursive { base, .. } => base,
         };
-        let QueryStatement::Select(base) = &base.statement else {
+        let Some(base) = super::super::cte_bodies::select_view(base) else {
             return Err(CassieError::Planner(
                 "CTE body must be a SELECT statement".to_string(),
             ));
         };
-        let mut fields = self.select(base, outer_ctes, None)?;
+        let mut fields = self.select(&base, outer_ctes, None)?;
         rename_cte_fields(&mut fields, cte)?;
         if let CteQuery::Recursive { recursive, .. } = &cte.query {
             let QueryStatement::Select(recursive) = &recursive.statement else {

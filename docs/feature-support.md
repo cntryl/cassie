@@ -30,6 +30,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | SQL-standard pagination spelling | Selected integer `FETCH FIRST/NEXT … ROW/ROWS ONLY` and `OFFSET … ROW/ROWS`, including omitted FETCH count, checked parameters, and local/global set-query bounds. `WITH TIES` rejects 0A000 and remains pending. | Experimental |
 | Deduplication | `DISTINCT`, `DISTINCT ON` | Stable |
 | Aggregation | `count`, `sum`, `avg`, `min`, `max`, grouping and `HAVING` | Stable |
+| Text `STRING_AGG` | TEXT/CHAR/VARCHAR values and delimiters; skips NULL values, treats a NULL delimiter as empty, and returns SQL NULL for empty or all-NULL input. Aggregate-local `FILTER`, `DISTINCT` over both arguments, and `ORDER BY` use the serial row fallback with query-memory admission; result type is TEXT. BYTEA `STRING_AGG` and ARRAY/JSON collection aggregates remain pending under [#811](https://github.com/cntryl/cassie/issues/811), whose array and JSON prerequisites are still open. | Experimental |
 | Grouping sets | Single-expression `GROUPING SETS (expression)`, equivalent to `GROUP BY expression`; multiple or empty sets, `ROLLUP`, `CUBE`, `GROUPING()`, and `GROUP BY DISTINCT` remain unsupported. | Experimental |
 | Join syntax | Inner, left, right, full outer, cross, lateral, apply, semi, and anti forms with legality-preserving planning | Experimental |
 | Subqueries | Implemented table, predicate (including EXISTS), lateral, and correlated forms. | Experimental |

@@ -118,6 +118,9 @@ pub(super) enum AggregateAccumulator {
     Count {
         count: i64,
     },
+    StringAgg {
+        value: Option<String>,
+    },
     Sum {
         sum: NumericSum,
         seen: bool,
@@ -148,6 +151,7 @@ impl AggregateAccumulator {
             } => inline
                 .saturating_add(value_retained_bytes(value))
                 .saturating_add(key.as_ref().map_or(0, SemanticValue::estimated_bytes)),
+            Self::StringAgg { value: Some(value) } => inline.saturating_add(value.len()),
             _ => inline,
         }
     }
@@ -158,7 +162,8 @@ impl AggregateAccumulator {
         rows: &[BatchRow],
         context: &AggregateExecutionContext<'_>,
     ) -> Result<Value, QueryError> {
-        if function.is_distinct() || !function.order_by.is_empty() {
+        if is_string_aggregate(function) || function.is_distinct() || !function.order_by.is_empty()
+        {
             return super::modifiers::evaluate(function, rows, context);
         }
         let mut accumulator = Self::new(function);
@@ -187,6 +192,9 @@ impl AggregateAccumulator {
     pub(super) fn new(function: &FunctionCall) -> Self {
         if let Some(state) = BooleanState::new(&function.name) {
             return Self::Boolean(state);
+        }
+        if is_string_aggregate(function) {
+            return Self::StringAgg { value: None };
         }
         match function.name.to_ascii_lowercase().as_str() {
             "count" => Self::Count { count: 0 },
@@ -229,6 +237,11 @@ impl AggregateAccumulator {
         let Some(value) = Self::selected_input(function, row, &value_context)? else {
             return Ok(RetainedChange::default());
         };
+        let delimiter = if matches!(self, Self::StringAgg { .. }) {
+            Some(Self::evaluate_argument(function, 1, row, &value_context)?)
+        } else {
+            None
+        };
         let key = if matches!(self, Self::MinMax { .. }) {
             function
                 .args
@@ -238,14 +251,15 @@ impl AggregateAccumulator {
         } else {
             None
         };
-        self.update_value(function, value, key)
+        self.update_values(function, value, key, delimiter)
     }
 
-    pub(super) fn update_value(
+    pub(super) fn update_values(
         &mut self,
         function: &FunctionCall,
         value: Value,
         new_key: Option<SemanticValue>,
+        delimiter: Option<Value>,
     ) -> Result<RetainedChange, QueryError> {
         if let Some(change) = super::interval_aggregate::update(self, &value) {
             return change;
@@ -261,6 +275,9 @@ impl AggregateAccumulator {
                 if !matches!(value, Value::Null) {
                     *count = count.checked_add(1).ok_or_else(integer_overflow)?;
                 }
+            }
+            Self::StringAgg { value: output } => {
+                return update_string_aggregate(output, function, value, delimiter);
             }
             Self::Sum { sum, seen } => match value {
                 Value::Int64(value) => {
@@ -402,6 +419,7 @@ impl AggregateAccumulator {
         Ok(match self {
             Self::Boolean(state) => state.finish(),
             Self::Count { count } => Value::Int64(count),
+            Self::StringAgg { value } => value.map_or(Value::Null, Value::String),
             Self::Sum { sum, seen } => {
                 if seen {
                     sum.finish_value()?
@@ -427,6 +445,7 @@ impl AggregateAccumulator {
         match self {
             Self::Sum { sum, .. } => sum.requires_row_order(),
             Self::Avg { sum, .. } => sum.requires_row_order(),
+            Self::StringAgg { .. } => true,
             Self::Boolean(_) | Self::Count { .. } | Self::MinMax { .. } | Self::Interval(_) => {
                 false
             }
@@ -463,6 +482,7 @@ impl AggregateAccumulator {
                 crate::executor::retained_memory::value_clone_bytes(value)?,
                 key.as_ref().map_or(0, SemanticValue::estimated_bytes),
             )?,
+            Self::StringAgg { value: Some(value) } => value.len(),
             _ => 0,
         })
     }
@@ -474,6 +494,25 @@ impl AggregateAccumulator {
     ) -> Result<Value, QueryError> {
         Self::evaluate_selected_input(
             function,
+            row,
+            &AggregateValueContext {
+                params: context.params,
+                search_context: context.search_context,
+                user_functions: context.user_functions,
+                session: context.session,
+            },
+        )
+    }
+
+    pub(super) fn selected_row_argument(
+        function: &FunctionCall,
+        index: usize,
+        row: &BatchRow,
+        context: &AggregateExecutionContext<'_>,
+    ) -> Result<Value, QueryError> {
+        Self::evaluate_argument(
+            function,
+            index,
             row,
             &AggregateValueContext {
                 params: context.params,
@@ -558,6 +597,85 @@ impl AggregateAccumulator {
         };
         Ok(value)
     }
+
+    fn evaluate_argument(
+        function: &FunctionCall,
+        index: usize,
+        row: &BatchRow,
+        context: &AggregateValueContext<'_>,
+    ) -> Result<Value, QueryError> {
+        let Some(expression) = function.args.get(index) else {
+            return Err(invalid_string_aggregate_input(function));
+        };
+        if index == 0 {
+            return Self::evaluate_selected_input(function, row, context);
+        }
+        filter::evaluate_expr_value(
+            row,
+            expression,
+            context.params,
+            context.search_context,
+            context.user_functions,
+            context.session,
+            None,
+        )
+    }
+}
+
+fn is_string_aggregate(function: &FunctionCall) -> bool {
+    crate::sql::functions::function(&function.name)
+        .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg)
+}
+
+fn invalid_string_aggregate_input(function: &FunctionCall) -> QueryError {
+    QueryError::General(format!(
+        "function {}(text, text) does not exist",
+        function.name.to_ascii_lowercase()
+    ))
+}
+
+fn string_aggregate_size_error() -> QueryError {
+    crate::app::CassieError::ResourceLimit(
+        "STRING_AGG result exceeds the query memory limit".into(),
+    )
+    .into()
+}
+
+fn update_string_aggregate(
+    output: &mut Option<String>,
+    function: &FunctionCall,
+    value: Value,
+    delimiter: Option<Value>,
+) -> Result<RetainedChange, QueryError> {
+    if matches!(value, Value::Null) {
+        return Ok(RetainedChange::default());
+    }
+    let Value::String(value) = value else {
+        return Err(invalid_string_aggregate_input(function));
+    };
+    let delimiter = match delimiter {
+        Some(Value::String(delimiter)) => delimiter,
+        Some(Value::Null) | None => String::new(),
+        Some(_) => return Err(invalid_string_aggregate_input(function)),
+    };
+    let had_value = output.is_some();
+    let separator_bytes = if had_value { delimiter.len() } else { 0 };
+    let additional_bytes = separator_bytes
+        .checked_add(value.len())
+        .ok_or_else(string_aggregate_size_error)?;
+    let output = output.get_or_insert_with(String::new);
+    let before = output.len();
+    output
+        .try_reserve(additional_bytes)
+        .map_err(|_| string_aggregate_size_error())?;
+    if had_value {
+        output.push_str(&delimiter);
+    }
+    output.push_str(&value);
+    Ok(RetainedChange {
+        before,
+        after: output.len(),
+    })
 }
 
 /// The stored value of a bare column reference that holds a JSON value (an

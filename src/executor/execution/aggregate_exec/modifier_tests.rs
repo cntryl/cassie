@@ -233,3 +233,88 @@ fn should_admit_non_input_order_keys_given_wide_text_functions_when_expression_t
         }
     }
 }
+
+#[test]
+fn should_reserve_string_aggregate_peak_growth_through_completion() {
+    // Arrange
+    let plan = aggregate_plan("SELECT STRING_AGG(payload, '') FROM events");
+    let functions = HashMap::new();
+    let rows = ["x", "y"]
+        .map(|value| BatchRow::new(vec![("payload".into(), Value::String(value.repeat(8_192)))]));
+    let ample = controls_with_budget(1_048_576);
+
+    // Act
+    let measured = AggregateAccumulator::evaluate(
+        call(&plan),
+        &rows,
+        &aggregate_context(&plan, &functions, &ample),
+    );
+    let peak = ample.peak_query_memory_bytes();
+    let exact = controls_with_budget(peak);
+    let denied = controls_with_budget(peak - 1);
+    let admitted = AggregateAccumulator::evaluate(
+        call(&plan),
+        &rows,
+        &aggregate_context(&plan, &functions, &exact),
+    );
+    let failure = AggregateAccumulator::evaluate(
+        call(&plan),
+        &rows,
+        &aggregate_context(&plan, &functions, &denied),
+    );
+
+    // Assert
+    assert_eq!(
+        measured.expect("measure string aggregate state growth"),
+        Value::String(format!("{}{}", "x".repeat(8_192), "y".repeat(8_192)))
+    );
+    assert_eq!(
+        admitted.expect("exact string aggregate budget admits the result"),
+        Value::String(format!("{}{}", "x".repeat(8_192), "y".repeat(8_192)))
+    );
+    assert!(failure
+        .expect_err("one byte below peak rejects string aggregate growth")
+        .to_string()
+        .contains("query memory budget exceeded"));
+    for tracker in [&ample, &exact, &denied] {
+        assert_eq!(tracker.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_release_string_aggregate_memory_given_cancellation_after_a_row_transition() {
+    // Arrange
+    let plan = aggregate_plan("SELECT STRING_AGG(payload, '') FROM events");
+    let functions = HashMap::new();
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let mut context = aggregate_context(&plan, &functions, &controls);
+    let transitioned = std::sync::atomic::AtomicBool::new(false);
+    let observer = |_| {
+        if !transitioned.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            assert!(controls.current_query_memory_bytes() > 0);
+            cancellation.cancel();
+        }
+    };
+    context.after_partition_row = Some(&observer);
+    let rows = ["x", "y"]
+        .map(|value| BatchRow::new(vec![("payload".into(), Value::String(value.repeat(8_192)))]));
+
+    // Act
+    let result = AggregateAccumulator::evaluate(call(&plan), &rows, &context);
+
+    // Assert
+    assert!(result
+        .expect_err("cancelled string aggregate cannot finish")
+        .to_string()
+        .contains("query canceled"));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+    let reused = controls
+        .reserve_query_memory(CassieRuntimeLimits::default().query_memory_budget_bytes)
+        .expect("cancelled string aggregate releases its memory reservation");
+    drop(reused);
+}

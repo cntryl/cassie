@@ -50,6 +50,7 @@ pub enum FunctionId {
     Avg,
     Min,
     Max,
+    StringAgg,
     BoolAnd,
     BoolOr,
     Search,
@@ -246,9 +247,16 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                 .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
                 .and_then(|_| name.get(11..))
                 .filter(|local| {
-                    ["pg_show_all_settings", "substring", "trim", "power", "abs"]
-                        .iter()
-                        .any(|candidate| candidate.eq_ignore_ascii_case(local))
+                    [
+                        "pg_show_all_settings",
+                        "substring",
+                        "trim",
+                        "power",
+                        "abs",
+                        "string_agg",
+                    ]
+                    .iter()
+                    .any(|candidate| candidate.eq_ignore_ascii_case(local))
                         || runtime::FUNCTIONS
                             .iter()
                             .chain(temporal::FUNCTIONS)
@@ -328,6 +336,14 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         name: "max",
         arity: FunctionArity::Exact(1),
         return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::StringAgg,
+        name: "string_agg",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::Text,
         is_aggregate: true,
         bypass_arity_validation: false,
     },

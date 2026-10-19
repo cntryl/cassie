@@ -41,7 +41,7 @@ fn should_describe_chained_qualified_array_cast_expression() {
                 .expect("cast ParameterDescription")
                 .1
         ),
-        vec![23, 1007]
+        vec![23, 34_023]
     );
     let statement_description = described
         .iter()
@@ -53,7 +53,7 @@ fn should_describe_chained_qualified_array_cast_expression() {
             .iter()
             .map(|column| (column.name.as_str(), column.type_oid))
             .collect::<Vec<_>>(),
-        [("chained", 25), ("array_value", 1007)]
+        [("chained", 25), ("array_value", 34_023)]
     );
     assert_eq!(wire::error_code(executed), None);
     let portal_description = executed
@@ -65,10 +65,10 @@ fn should_describe_chained_qualified_array_cast_expression() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![25, 1007]
+        vec![25, 34_023]
     );
     assert_eq!(
         wire::data_rows(executed),
-        vec![vec![Some("42".to_owned()), Some("{1,2}".to_owned())]]
+        vec![vec![Some("42".to_owned()), Some("[1,2]".to_owned())]]
     );
 }

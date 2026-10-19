@@ -1,8 +1,6 @@
 // Consolidated integration suite: analytics.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
-#[path = "support/failpoints.rs"]
-mod support_failpoints;
 #[path = "support/sql.rs"]
 mod support_sql;
 #[path = "support/temp_dirs.rs"]

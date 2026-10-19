@@ -49,6 +49,15 @@ types, private wire identities, codec and metadata boundaries, exactness, NULL
 meaning and explicit exclusions. Its qualification does not promote the broader
 types/casts family.
 
+The #796 extended-protocol witness
+[`should_bind_the_selected_four_type_cast_fixture_through_extended_protocol`](../tests/pgwire_extended/grammar/parameters.rs)
+executes inferred `uuid`, `jsonb`, `numeric(18,2)`, and `uuid[]` casts through
+Parse, Describe, Bind, and Execute, including rounded numeric input and
+all-NULL parameters. It records JSONB under the JSON OID and UUID arrays under
+Cassie's private array OID and JSON-array text representation. Matching array
+source and target types preserve the existing array value carrier; this does
+not qualify PostgreSQL array ABI or other array casts.
+
 Operator spelling preserves signed literals, exponent signs, quoted identifiers
 and strings, and nested comment separators. Existing `count(*)` arguments and
 raw nested query text remain unchanged. Regex, JSON, array and concatenation

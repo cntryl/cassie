@@ -31,6 +31,8 @@ mod binary;
 #[path = "filter/vector_distance.rs"]
 mod vector_distance;
 use vector_distance::vector_distance;
+#[path = "filter/array_identity.rs"]
+mod array_identity;
 #[path = "filter/bytea_casts.rs"]
 mod bytea_casts;
 #[path = "filter/coalesce.rs"]
@@ -277,6 +279,9 @@ pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
     expr: &Expr,
     context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
+    if let Some(child) = array_identity::identity_cast_child(expr) {
+        return evaluate_expr_value_with_context(row, child, context);
+    }
     let _statement_scratch = context
         .session
         .map(|session| session.statement_text_scratch(expr))

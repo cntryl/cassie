@@ -1,9 +1,6 @@
 #[test]
 fn should_preserve_integer_sum_above_two_to_the_fifty_third() {
     // Arrange
-    let _test_guard = COLUMN_BATCH_FAILPOINT_GUARD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
     use_local_storage();
     let path = data_dir("column_batch_large_integer_sum");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -54,9 +51,6 @@ fn should_preserve_integer_sum_above_two_to_the_fifty_third() {
 #[test]
 fn should_reconcile_existing_maintenance_debt_when_publishing_column_index() {
     // Arrange
-    let _test_guard = COLUMN_BATCH_FAILPOINT_GUARD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
     use_local_storage();
     let path = data_dir("column_batch_publication_debt");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");

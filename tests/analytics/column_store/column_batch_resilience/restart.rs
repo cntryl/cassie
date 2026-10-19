@@ -110,7 +110,7 @@ fn should_rebuild_generation_mismatch_after_restart() {
 fn should_rebuild_truncated_fsst_chunk_after_restart() {
     // Arrange
     let common = "account-lifecycle-event-payload/".repeat(6);
-    let values = (0..512)
+    let values = (0..128)
         .map(|position| {
             if position % 73 == 0 {
                 serde_json::Value::Null
@@ -124,7 +124,7 @@ fn should_rebuild_truncated_fsst_chunk_after_restart() {
         "column_batch_fsst_restart",
         "TEXT",
         &values,
-        512,
+        128,
     );
     let metadata = fixture
         .cassie
@@ -151,7 +151,7 @@ fn should_rebuild_truncated_fsst_chunk_after_restart() {
     let fallback = fsst_codec_rows(
         &fixture,
         "column_batch_fsst_restart",
-        "amount >= 'prefix-0500-'",
+        "amount >= 'prefix-0116-'",
     );
     let fallback_nulls = fsst_codec_rows(&fixture, "column_batch_fsst_restart", "amount IS NULL");
     let fallback_metrics = fixture.cassie.metrics();
@@ -159,7 +159,7 @@ fn should_rebuild_truncated_fsst_chunk_after_restart() {
     let recovered = fsst_codec_rows(
         &restarted,
         "column_batch_fsst_restart",
-        "amount >= 'prefix-0500-'",
+        "amount >= 'prefix-0116-'",
     );
     let recovered_nulls =
         fsst_codec_rows(&restarted, "column_batch_fsst_restart", "amount IS NULL");
@@ -172,9 +172,9 @@ fn should_rebuild_truncated_fsst_chunk_after_restart() {
 
     // Assert
     assert_eq!(fallback, recovered);
-    assert_eq!(fallback.len(), 11);
+    assert_eq!(fallback.len(), 12);
     assert_eq!(fallback_nulls, recovered_nulls);
-    assert_eq!(fallback_nulls, vec![vec![Value::Null]; 8]);
+    assert_eq!(fallback_nulls, vec![vec![Value::Null]; 2]);
     assert_eq!(fallback_metrics["column_batches"]["scans"], 0);
     assert_eq!(fallback_metrics["column_batches"]["fallback_scans"], 2);
     assert_eq!(

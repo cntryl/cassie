@@ -562,8 +562,17 @@ fn unsupported_descriptor(message: String) -> CassieErrorDescriptor {
 }
 
 fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
-    if message == "relation alias list has more names than source columns" {
+    if message == "relation alias list has more names than source columns"
+        || (message.starts_with("GROUP BY position ")
+            && message.ends_with(" is not in select list"))
+    {
         return bad_request_descriptor("42P10", message.to_string());
+    }
+    if message == "aggregate functions are not allowed in GROUP BY" {
+        return bad_request_descriptor("42803", message.to_string());
+    }
+    if message == "window functions are not allowed in GROUP BY" {
+        return bad_request_descriptor("42P20", message.to_string());
     }
     if message.eq_ignore_ascii_case("query timeout exceeded") {
         return timeout_descriptor();
@@ -853,6 +862,18 @@ mod tests {
         // Assert
         assert_eq!(descriptor.sql_state, "42883");
         assert_eq!(descriptor.message, "function sum(text) does not exist");
+    }
+
+    #[test]
+    fn should_map_invalid_group_by_position_to_invalid_column_reference() {
+        // Arrange
+        let error = CassieError::Planner("GROUP BY position 3 is not in select list".to_string());
+
+        // Act
+        let descriptor = error.descriptor();
+
+        // Assert
+        assert_eq!(descriptor.sql_state, "42P10");
     }
 
     #[test]

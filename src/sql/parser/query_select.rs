@@ -540,11 +540,35 @@ fn parse_group_by_clause(raw: Option<&str>) -> Result<Vec<Expr>, SqlError> {
     raw.map(|raw| {
         split_csv(raw)
             .into_iter()
-            .map(parse_expression)
+            .map(parse_group_by_expression)
             .collect::<Result<Vec<_>, _>>()
     })
     .transpose()
     .map(Option::unwrap_or_default)
+}
+
+fn parse_group_by_expression(raw: &str) -> Result<Expr, SqlError> {
+    let expression = parse_expression(raw)?;
+    if !matches!(expression, Expr::IntegerLiteral(_)) {
+        return Ok(expression);
+    }
+
+    let mut unwrapped = crate::sql::parser::lexical::trim_separators(raw);
+    while let Some(inner) = crate::sql::parser::clauses::strip_parentheses(unwrapped) {
+        unwrapped = inner;
+    }
+    let Some(operand) = unwrapped.strip_prefix('+') else {
+        return Ok(expression);
+    };
+    let operand = parse_expression(operand)?;
+    if matches!(operand, Expr::IntegerLiteral(_)) {
+        Ok(Expr::UnaryNumeric {
+            expr: Box::new(operand),
+            op: crate::sql::ast::UnaryNumericOp::Plus,
+        })
+    } else {
+        Ok(expression)
+    }
 }
 
 struct ParsedSelectClauses {

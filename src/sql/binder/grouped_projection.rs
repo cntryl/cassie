@@ -47,12 +47,125 @@ pub(super) fn validate(
 
 pub(super) fn prepare(
     select: &mut SelectStatement,
+    known_fields: &HashSet<String>,
     catalog: &Catalog,
     scope: &CteScope<'_>,
 ) -> Result<HashSet<String>, CassieError> {
     let projection_aliases = super::collect_projection_aliases(select);
+    resolve_group_by_output_references(select, known_fields)?;
     expand_primary_key_dependent_columns(select, &projection_aliases, catalog, scope)?;
     Ok(projection_aliases)
+}
+
+fn resolve_group_by_output_references(
+    select: &mut SelectStatement,
+    known_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    let group_by = std::mem::take(&mut select.group_by);
+    select.group_by = group_by
+        .into_iter()
+        .map(|expression| resolve_group_by_output_reference(expression, select, known_fields))
+        .collect::<Result<_, _>>()?;
+    Ok(())
+}
+
+fn resolve_group_by_output_reference(
+    expression: Expr,
+    select: &SelectStatement,
+    known_fields: &HashSet<String>,
+) -> Result<Expr, CassieError> {
+    match expression {
+        Expr::IntegerLiteral(position) => group_by_output_at(position, &select.projection),
+        Expr::Column(name)
+            if crate::sql::ColumnIdentifierPath::parse(&name)
+                .is_ok_and(|path| !path.is_qualified()) =>
+        {
+            match super::references::validate_column_reference(
+                &name,
+                known_fields,
+                &HashSet::new(),
+                false,
+            ) {
+                Ok(()) => return Ok(Expr::Column(name)),
+                Err(CassieError::UndefinedColumn(_)) => {}
+                Err(error) => return Err(error),
+            }
+
+            let alias_key = crate::sql::ColumnIdentifierPath::reference_field_key(&name);
+            let mut matching_items = select.projection.iter().filter(|item| {
+                projection_alias(item).is_some_and(|alias| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(alias) == alias_key
+                })
+            });
+            let Some(item) = matching_items.next() else {
+                return Ok(Expr::Column(name));
+            };
+            if matching_items.next().is_some() {
+                return Err(CassieError::AmbiguousColumn(name));
+            }
+            group_by_projection_expression(item)
+        }
+        expression => Ok(expression),
+    }
+}
+
+fn group_by_output_at(position: i64, projection: &[SelectItem]) -> Result<Expr, CassieError> {
+    let invalid_position = || {
+        CassieError::Planner(format!(
+            "GROUP BY position {position} is not in select list"
+        ))
+    };
+    let index = usize::try_from(position)
+        .ok()
+        .and_then(|position| position.checked_sub(1))
+        .ok_or_else(invalid_position)?;
+    if projection
+        .iter()
+        .take(index)
+        .any(|item| matches!(item, SelectItem::Wildcard))
+    {
+        return Err(CassieError::Planner(
+            "GROUP BY position is not supported with SELECT *".to_string(),
+        ));
+    }
+    let item = projection.get(index).ok_or_else(invalid_position)?;
+    group_by_projection_expression(item)
+}
+
+fn group_by_projection_expression(item: &SelectItem) -> Result<Expr, CassieError> {
+    let expression = match item {
+        SelectItem::Column { name, .. } => Expr::Column(name.clone()),
+        SelectItem::Function { function, .. } => Expr::Function(Box::new(function.clone())),
+        SelectItem::Expr { expr, .. } => expr.clone(),
+        SelectItem::WindowFunction { .. } => {
+            return Err(CassieError::Planner(
+                "window functions are not allowed in GROUP BY".to_string(),
+            ));
+        }
+        SelectItem::Wildcard => {
+            return Err(CassieError::Planner(
+                "GROUP BY position is not supported with SELECT *".to_string(),
+            ));
+        }
+    };
+    if expression.any_descendant_or_self(&mut |node| {
+        matches!(node, Expr::Function(function) if crate::sql::functions::is_aggregate_function(&function.name))
+    }) {
+        return Err(CassieError::Planner(
+            "aggregate functions are not allowed in GROUP BY".to_string(),
+        ));
+    }
+    Ok(expression)
+}
+
+fn projection_alias(item: &SelectItem) -> Option<&str> {
+    match item {
+        SelectItem::Column { alias, .. }
+        | SelectItem::Function { alias, .. }
+        | SelectItem::Expr { alias, .. }
+        | SelectItem::WindowFunction { alias, .. } => alias.as_deref(),
+        SelectItem::Wildcard => None,
+    }
 }
 
 fn reject_ungrouped_column(expr: &Expr, group_by: &[Expr]) -> Result<(), CassieError> {

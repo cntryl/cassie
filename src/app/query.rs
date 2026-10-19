@@ -33,6 +33,13 @@ impl Cassie {
         let QueryStatement::Select(select) = statement else {
             return false;
         };
+        if select
+            .ctes
+            .iter()
+            .any(crate::sql::binder::cte_bodies::cte_is_modifying)
+        {
+            return false;
+        }
         let encoded = serde_json::to_string(select).unwrap_or_default();
         !["current_user", "session_user", "current_role"]
             .iter()

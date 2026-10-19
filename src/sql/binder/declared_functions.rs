@@ -143,6 +143,11 @@ fn qualify_expression(expression: &mut Expr, types: &ResultTypes) {
             qualify_expression(low, types);
             qualify_expression(high, types);
         }
+        Expr::Subquery(subquery) => {
+            for operand in subquery.operands_mut() {
+                qualify_expression(operand, types);
+            }
+        }
         Expr::Column(_)
         | Expr::Param(_)
         | Expr::Null

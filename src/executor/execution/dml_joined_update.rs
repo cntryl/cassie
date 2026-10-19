@@ -56,6 +56,7 @@ pub(super) fn update_target_row(
             cassie: scope.cassie,
             table: target.table,
             schema: target.schema,
+            subqueries: None,
         },
         row,
         assignments,

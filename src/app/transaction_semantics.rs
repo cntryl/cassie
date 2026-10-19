@@ -40,8 +40,12 @@ fn reject_active_transaction_statement(
 
 fn read_only_control(statement: &QueryStatement) -> bool {
     match statement {
-        QueryStatement::Select(_)
-        | QueryStatement::Show(_)
+        // A data-modifying WITH query needs a writable transaction.
+        QueryStatement::Select(select) => !select
+            .ctes
+            .iter()
+            .any(crate::sql::binder::cte_bodies::cte_is_modifying),
+        QueryStatement::Show(_)
         | QueryStatement::Set(_)
         | QueryStatement::Transaction(_)
         | QueryStatement::SessionObject(_)

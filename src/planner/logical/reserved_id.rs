@@ -263,6 +263,7 @@ fn rewrite_expr(expr: &mut Expr) {
                 rewrite_expr(arg);
             }
         }
+        Expr::Subquery(subquery) => subquery.operands_mut().iter_mut().for_each(rewrite_expr),
         // A subquery has its own, potentially different, target schema; it
         // is out of scope (see module docs) and left unrewritten.
         Expr::Exists(_)

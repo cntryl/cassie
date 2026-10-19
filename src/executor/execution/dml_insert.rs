@@ -173,9 +173,16 @@ fn insert_source_rows(
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Vec<Value>>, QueryError> {
     match &statement.source {
-        InsertSource::Values(rows) => {
-            scalar_values::evaluate(rows, params, user_functions, session, controls)
-        }
+        InsertSource::Values(rows) => scalar_values::evaluate(
+            rows,
+            &scalar_values::ValuesContext {
+                cassie,
+                params,
+                functions: user_functions,
+                session,
+                controls,
+            },
+        ),
         InsertSource::Select(select) => {
             let statement_controls =
                 crate::executor::execution::entrypoints::statement_read_controls(
@@ -591,6 +598,7 @@ fn insert_expr_to_value(expr: &Expr, params: &[Value]) -> Result<Value, String> 
         | Expr::IntegerNegate { .. }
         | Expr::Cast { .. }
         | Expr::Exists(_)
+        | Expr::Subquery(_)
         | Expr::Binary {
             left: _,
             op: _,

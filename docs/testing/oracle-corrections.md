@@ -213,6 +213,13 @@ Native `date`/`time`/`timestamp`/`timestamptz`/`interval` replaced Cassie's earl
 | ORACLE-T10 | [`tests/domain_models/time_series/qualification.rs`](../../tests/domain_models/time_series/qualification.rs) :: `should_use_fixed_utc_day_buckets_across_spring_dst_transition` | Selecting a `timestamp` column renders ISO DateStyle text (`2024-03-10 05:30:00`); the stored instant is unchanged. |
 | ORACLE-T11 | [`tests/sql_queries/functions/temporal/temporal_functions.rs`](../../tests/sql_queries/functions/temporal/temporal_functions.rs) :: `assert_millisecond_precision` (the four `should_round_*_precision_to_milliseconds` tests) | `pg_typeof(EXTRACT(year FROM DATE '2001-02-16'))` is `numeric` (`date_part` is `double precision`); `EXTRACT(MICROSECONDS FROM ...)` publishes numeric text such as `40123456`, so the helper reads the numeric text. |
 
+## Subquery and data-modifying CTE corrections (#762, #823)
+
+| ID | Current test assertion | PostgreSQL 18.6 observation |
+| --- | --- | --- |
+| ORACLE-S01 | [`tests/pgwire_extended/subqueries/nulls.rs`](../../tests/pgwire_extended/subqueries/nulls.rs) :: `should_preserve_correlated_row_subquery_null_truth_values` | The SQL used Rust line continuations without a separating space, producing `AS iWHERE` and `AS row_not_inFROM`; PostgreSQL rejects that text with `42601` (syntax error at or near "i"). With the intended spaces restored, PostgreSQL returns the test's unchanged expected rows `(1,t,t,f)`, `(2,NULL,NULL,NULL)`, `(3,NULL,f,t)`, `(4,f,f,t)` with OIDs `23,16,16,16`. Only the whitespace was corrected. |
+| ORACLE-S02 | [`tests/pgwire_extended/subqueries/scalar_subqueries.rs`](../../tests/pgwire_extended/subqueries/scalar_subqueries.rs) :: `should_evaluate_an_uncorrelated_volatile_scalar_subquery_once` | After the direct `nextval` control returns `1`, `SELECT id, (SELECT nextval(...)) FROM` the three-row table returns `2` on every row (the uncorrelated subquery runs once) and the following `nextval` returns `3`. The test expected `1` and `2`, which would require the control call not to advance the sequence. |
+
 ## Scope limits
 
 This ledger records expected results, current source references, and assertion shapes. It does not prove that every mapped test has run, that intentional failures occur at the target behavior rather than a prerequisite, or that any issue's broader acceptance criteria are complete. Parse-only rows now mapped to execution tests still need their focused runtime result and issue-level coverage review; AST-only rows remain parser-structure evidence.

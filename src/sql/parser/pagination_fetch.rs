@@ -73,6 +73,7 @@ fn standard_atom(sql: &str, expression: &Expr) -> bool {
             | Expr::Function(_)
             | Expr::Case { .. }
             | Expr::Exists(_)
+            | Expr::Subquery(_)
     )
 }
 

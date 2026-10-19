@@ -66,6 +66,9 @@ impl Walk<'_> {
                 names
                     .folded
                     .extend(crate::catalog::qualifier_variants(&insert.table));
+                names
+                    .folded
+                    .extend(insert.alias.as_deref().map(target_alias));
                 let outer = &names;
                 match &insert.source {
                     super::InsertSource::Select(select) => self.query(select, outer, active)?,
@@ -100,6 +103,9 @@ impl Walk<'_> {
                 names
                     .folded
                     .extend(crate::catalog::qualifier_variants(&update.table));
+                names
+                    .folded
+                    .extend(update.alias.as_deref().map(target_alias));
                 let outer = &names;
                 for (_, expr) in &update.assignments {
                     self.expression(expr, outer, active)?;
@@ -114,6 +120,9 @@ impl Walk<'_> {
                 names
                     .folded
                     .extend(crate::catalog::qualifier_variants(&delete.table));
+                names
+                    .folded
+                    .extend(delete.alias.as_deref().map(target_alias));
                 let outer = &names;
                 if let Some(expr) = &delete.filter {
                     self.expression(expr, outer, active)?;
@@ -287,6 +296,13 @@ impl Walk<'_> {
         match expr {
             Expr::Column(name) => self.column(name, visible, active),
             Expr::Exists(statement) => self.child().statement_names(statement, visible, active),
+            Expr::Subquery(subquery) => {
+                for operand in subquery.operands() {
+                    self.child().expression(operand, visible, active)?;
+                }
+                self.child()
+                    .statement_names(&subquery.query, visible, active)
+            }
             _ => {
                 let mut result = Ok(());
                 expr.for_each_child(|child| {
@@ -324,4 +340,10 @@ impl Walk<'_> {
             )))
         }
     }
+}
+
+/// A mutation target alias is visible to the statement's subqueries.
+fn target_alias(alias: &str) -> String {
+    ColumnIdentifierPath::parse(alias)
+        .map_or_else(|_| alias.to_ascii_lowercase(), |path| path.declared_name())
 }

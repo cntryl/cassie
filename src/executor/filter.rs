@@ -19,7 +19,12 @@ pub(crate) const BIGINT_OUT_OF_RANGE: &str = "bigint out of range";
 #[path = "filter/exists_value.rs"]
 mod exists_value;
 pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
-pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<bool, QueryError> + 'a;
+/// Resolves a reached `EXISTS` or sublink node to its executed form.
+pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<Expr, QueryError> + 'a;
+#[path = "filter/quantified_array.rs"]
+mod quantified_array;
+#[path = "filter/subquery_value.rs"]
+mod subquery_value;
 
 #[path = "filter/binary.rs"]
 mod binary;
@@ -282,6 +287,7 @@ pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
             .cloned()
             .unwrap_or(Value::Null)),
         Expr::Function(function) => evaluate_function(function, row, context),
+        Expr::Subquery(subquery) => subquery_value::value(row, expr, subquery, context),
         _ => Ok(eval_scalar_with_context(row, expr, context)?.to_value()),
     }
 }
@@ -437,14 +443,18 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
             *identity,
             context,
         ),
-        Expr::Exists(_) => context.exists.map_or_else(
-            || {
-                Err(QueryError::General(
-                    "EXISTS predicate was not resolved before filtering".to_string(),
-                ))
+        Expr::Exists(_) => match context.exists {
+            None => Err(QueryError::General(
+                "EXISTS predicate was not resolved before filtering".to_string(),
+            )),
+            Some(resolve) => match resolve(expr)? {
+                Expr::BoolLiteral(value) => Ok(ScalarValue::Bool(value)),
+                _ => Err(QueryError::General(
+                    "EXISTS resolver did not return BOOLEAN".into(),
+                )),
             },
-            |resolve| resolve(expr).map(ScalarValue::Bool),
-        ),
+        },
+        Expr::Subquery(subquery) => subquery_value::evaluate(row, expr, subquery, context),
     }
 }
 

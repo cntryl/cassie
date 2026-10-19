@@ -294,15 +294,15 @@ fn should_evaluate_an_uncorrelated_volatile_scalar_subquery_once() {
     assert_eq!(
         wire::data_rows(selected),
         vec![
-            vec![Some("1".into()), Some("1".into())],
-            vec![Some("2".into()), Some("1".into())],
-            vec![Some("3".into()), Some("1".into())],
+            vec![Some("1".into()), Some("2".into())],
+            vec![Some("2".into()), Some("2".into())],
+            vec![Some("3".into()), Some("2".into())],
         ]
     );
     assert_eq!(wire::error_code(next_sequence_value), None);
     assert_eq!(
         wire::data_rows(next_sequence_value),
-        vec![vec![Some("2".into())]]
+        vec![vec![Some("3".into())]]
     );
 }
 

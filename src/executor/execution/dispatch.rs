@@ -646,6 +646,7 @@ pub(super) fn resolve_exists_expr<'a>(
             identity,
         } => resolve_cast_exists_expr(context, expr, data_type, source_type.as_ref(), *identity),
         Expr::Exists(statement) => exists_predicate::execute(context, statement),
+        Expr::Subquery(subquery) => super::subquery_eval::resolve(context, subquery),
         Expr::Column(_)
         | Expr::Param(_)
         | Expr::StringLiteral(_)
@@ -960,6 +961,7 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
             .saturating_add(expression_expansion_weight(high)),
         Expr::Column(_)
         | Expr::Exists(_)
+        | Expr::Subquery(_)
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)

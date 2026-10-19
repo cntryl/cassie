@@ -27,6 +27,11 @@ pub use ast_truth::TruthValue;
 #[path = "ast_row.rs"]
 mod ast_row;
 pub use ast_row::{RowComparison, RowComparisonOp};
+#[path = "ast_subquery.rs"]
+mod ast_subquery;
+pub use ast_subquery::{
+    SubqueryExpr, SubqueryKind, SubqueryOutcome, SubqueryRows, SUBQUERY_MULTIPLE_ROWS,
+};
 #[path = "ast_dml.rs"]
 mod ast_dml;
 #[path = "ast_visit.rs"]
@@ -230,6 +235,10 @@ pub struct InsertStatement {
     pub alias: Option<String>,
     #[serde(default)]
     pub returning_aliases: Option<ReturningAliases>,
+    /// `WITH` queries attached to the statement. Each nested query also
+    /// carries them; a data-modifying one runs once, from this list.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ctes: Vec<CommonTableExpression>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -255,6 +264,10 @@ pub struct UpdateStatement {
     pub row_subqueries: Vec<RowSubqueryAssignment>,
     #[serde(default)]
     pub returning_aliases: Option<ReturningAliases>,
+    /// `WITH` queries attached to the statement. Each nested query also
+    /// carries them; a data-modifying one runs once, from this list.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ctes: Vec<CommonTableExpression>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -269,6 +282,10 @@ pub struct DeleteStatement {
     pub using: Option<MutationSource>,
     #[serde(default)]
     pub returning_aliases: Option<ReturningAliases>,
+    /// `WITH` queries attached to the statement. Each nested query also
+    /// carries them; a data-modifying one runs once, from this list.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ctes: Vec<CommonTableExpression>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

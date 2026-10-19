@@ -12,6 +12,9 @@ use crate::sql::{
 };
 use crate::types::DataType;
 
+#[path = "subquery_parameters.rs"]
+mod subquery_parameters;
+
 pub(super) fn infer_parameter_type_oids_query(
     statement: &QueryStatement,
     catalog: &crate::catalog::Catalog,
@@ -407,8 +410,8 @@ pub(super) fn infer_parameter_type_oids_expr(
             });
             infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
         }
-        ast::Expr::Exists(statement) => {
-            infer_parameter_type_oids_query(&statement.statement, catalog, oids);
+        ast::Expr::Exists(_) | ast::Expr::Subquery(_) => {
+            subquery_parameters::infer(expr, field_types, catalog, oids);
         }
         ast::Expr::Function(function) => {
             infer_function_parameter_type_oids(function, field_types, catalog, oids);

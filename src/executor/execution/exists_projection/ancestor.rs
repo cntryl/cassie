@@ -168,6 +168,11 @@ fn expression(
     match expr {
         Expr::Column(name) => Ok(column_references(name, fields, scope)),
         Expr::Exists(statement) => statement_references(context, statement, fields, Some(scope)),
+        Expr::Subquery(subquery)
+            if statement_references(context, &subquery.query, fields, Some(scope))? =>
+        {
+            Ok(true)
+        }
         _ => {
             let mut found = false;
             expr.try_visit_children(&mut |child| {
@@ -189,7 +194,7 @@ fn column_references(name: &str, fields: &HashSet<String>, scope: &Namespaces<'_
 /// Ordinary first-level occurrences keep their existing classification admission.
 pub(super) fn contains_nested(statement: &ParsedStatement) -> bool {
     fn expr(value: &Expr) -> bool {
-        value.any_descendant_or_self(&mut |value| matches!(value, Expr::Exists(_)))
+        value.contains_subquery()
     }
     fn source(value: &QuerySource) -> bool {
         match value {

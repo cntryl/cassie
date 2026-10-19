@@ -5,13 +5,13 @@ fn should_preserve_correlated_row_subquery_null_truth_values() {
                        FROM issue_762_row_outer AS o \
                        LEFT JOIN issue_762_row_inner AS i ON i.parent_id = o.id \
                        ORDER BY o.id";
-    let sql = "SELECT o.id,\
-                      ROW(o.a, o.b) = (SELECT i.x, i.y FROM issue_762_row_inner AS i\
-                                       WHERE i.parent_id = o.id) AS row_equal,\
-                      ROW(o.a, o.b) IN (SELECT i.x, i.y FROM issue_762_row_inner AS i\
-                                       WHERE i.parent_id = o.id) AS row_in,\
-                      ROW(o.a, o.b) NOT IN (SELECT i.x, i.y FROM issue_762_row_inner AS i\
-                                           WHERE i.parent_id = o.id) AS row_not_in\
+    let sql = "SELECT o.id, \
+                      ROW(o.a, o.b) = (SELECT i.x, i.y FROM issue_762_row_inner AS i \
+                                       WHERE i.parent_id = o.id) AS row_equal, \
+                      ROW(o.a, o.b) IN (SELECT i.x, i.y FROM issue_762_row_inner AS i \
+                                       WHERE i.parent_id = o.id) AS row_in, \
+                      ROW(o.a, o.b) NOT IN (SELECT i.x, i.y FROM issue_762_row_inner AS i \
+                                           WHERE i.parent_id = o.id) AS row_not_in \
                FROM issue_762_row_outer AS o ORDER BY o.id";
     let batches = run_script(
         "issue-762-correlated-row-subquery-truth-table",

@@ -66,7 +66,13 @@ mod exists_phase;
 mod exists_plan;
 mod exists_projection;
 mod exists_target;
+mod modifying_ctes;
 mod outer_names;
+mod subquery_bounds;
+mod subquery_columns;
+mod subquery_eval;
+mod subquery_values;
+pub(crate) use subquery_eval::MULTIPLE_ROWS as SUBQUERY_MULTIPLE_ROWS;
 mod result;
 
 pub(crate) use entrypoints::{

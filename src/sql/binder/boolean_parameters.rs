@@ -243,6 +243,9 @@ impl ParameterValidation<'_> {
             Expr::Exists(statement) => {
                 self.statement(&statement.statement, types.cte_schemas())?;
             }
+            Expr::Subquery(subquery) => {
+                self.statement(&subquery.query.statement, types.cte_schemas())?;
+            }
             Expr::Function(function) => {
                 if let Some(filter) = &function.filter {
                     require_boolean_parameter(filter, types, "FILTER")?;

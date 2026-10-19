@@ -339,6 +339,11 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
             .max(parameter_count_expr(low))
             .max(parameter_count_expr(high)),
         ast::Expr::Exists(statement) => parameter_count_query(&statement.statement),
+        ast::Expr::Subquery(subquery) => subquery
+            .operands()
+            .iter()
+            .map(parameter_count_expr)
+            .fold(parameter_count_query(&subquery.query.statement), usize::max),
         ast::Expr::Function(function) => parameter_count_function(function),
     }
 }

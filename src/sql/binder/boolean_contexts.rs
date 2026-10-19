@@ -408,6 +408,7 @@ fn validate_expression(
         Expr::Exists(statement) => {
             validate_nested_statement(statement, types, true, catalog, context)?;
         }
+        Expr::Subquery(subquery) => validate_sublink(subquery, types, catalog, context)?,
         Expr::NumericLiteral(_)
         | Expr::Column(_)
         | Expr::Param(_)
@@ -731,6 +732,18 @@ fn canonicalize_boolean_pair(
         require_boolean(left, types, "Boolean comparison")?;
     }
     Ok(())
+}
+
+fn validate_sublink(
+    subquery: &mut crate::sql::ast::SubqueryExpr,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    for operand in subquery.operands_mut() {
+        validate_expression(operand, types, catalog, context)?;
+    }
+    validate_nested_statement(&mut subquery.query, types, true, catalog, context)
 }
 
 fn validate_nested_statement(

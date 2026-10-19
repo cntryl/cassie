@@ -363,7 +363,42 @@ pub enum Expr {
     /// A predicate comparing corresponding row-constructor fields.
     RowCompare(Box<super::RowComparison>),
     Exists(Box<ParsedStatement>),
+    /// A scalar, array, row or quantified (`IN`/`ANY`/`ALL`) subquery.
+    Subquery(Box<super::SubqueryExpr>),
     Function(Box<FunctionCall>),
+}
+
+impl Expr {
+    /// Returns whether this node runs a subquery (`EXISTS` or any sublink).
+    #[must_use]
+    pub const fn is_subquery_node(&self) -> bool {
+        matches!(self, Self::Exists(_) | Self::Subquery(_))
+    }
+
+    /// Returns whether this expression or a descendant runs a subquery.
+    #[must_use]
+    pub fn contains_subquery(&self) -> bool {
+        self.any_descendant_or_self(&mut Self::is_subquery_node)
+    }
+
+    /// The statement a subquery node runs.
+    #[must_use]
+    pub fn subquery_statement(&self) -> Option<&ParsedStatement> {
+        match self {
+            Self::Exists(statement) => Some(statement),
+            Self::Subquery(subquery) => Some(&subquery.query),
+            _ => None,
+        }
+    }
+
+    /// The mutable statement a subquery node runs.
+    pub fn subquery_statement_mut(&mut self) -> Option<&mut ParsedStatement> {
+        match self {
+            Self::Exists(statement) => Some(statement),
+            Self::Subquery(subquery) => Some(&mut subquery.query),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -403,6 +438,11 @@ pub enum BinaryOp {
     /// A family operator with no scalar meaning (`<<=`, `>>=`, `&&`).
     Typed {
         operator: crate::types::extended::TypedOperator,
+    },
+    /// `left op ANY|SOME|ALL (array)`: `comparison` applied to every element.
+    Quantified {
+        comparison: Box<BinaryOp>,
+        all: bool,
     },
 }
 

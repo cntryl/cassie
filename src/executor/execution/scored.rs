@@ -931,7 +931,11 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
                 && vector_prefilter_supported(low, schema)
                 && vector_prefilter_supported(high, schema)
         }
-        Expr::RowCompare(_) | Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => false,
+        Expr::RowCompare(_)
+        | Expr::Case { .. }
+        | Expr::Function(_)
+        | Expr::Exists(_)
+        | Expr::Subquery(_) => false,
     }
 }
 
@@ -953,7 +957,7 @@ fn contains_vector_field(expr: &Expr, schema: &CollectionSchema) -> bool {
                 == crate::sql::ColumnIdentifierPath::reference_field_key(name)
                 && matches!(field.data_type, DataType::Vector(_))
         }),
-        Expr::Exists(_) => true,
+        Expr::Exists(_) | Expr::Subquery(_) => true,
         _ => expr.any_child(|child| contains_vector_field(child, schema)),
     }
 }

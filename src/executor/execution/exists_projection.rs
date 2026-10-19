@@ -66,7 +66,7 @@ pub(super) fn classify(
     scope: &mut Option<Scope>,
 ) -> Result<Expr, QueryError> {
     check_timeout(context.controls)?;
-    if let Expr::Exists(statement) = expr {
+    if let Some(statement) = expr.subquery_statement() {
         let independent = ExistsResolutionContext {
             outer_row: None,
             ..*context

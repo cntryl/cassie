@@ -208,7 +208,10 @@ fn collect_fields(
     fields: &mut Vec<String>,
     memory: &mut crate::runtime::QueryMemoryReservation,
 ) -> Result<bool, QueryError> {
-    if matches!(expr, Expr::Exists(_) | Expr::Function(_)) {
+    if matches!(
+        expr,
+        Expr::Exists(_) | Expr::Subquery(_) | Expr::Function(_)
+    ) {
         return Ok(false);
     }
     if let Expr::Column(name) = expr {

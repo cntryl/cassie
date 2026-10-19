@@ -199,6 +199,9 @@ impl Normalizer<'_> {
         if let Expr::Exists(query) = expression {
             return self.statement(query, depth + 1);
         }
+        if let Expr::Subquery(subquery) = expression {
+            self.statement(&mut subquery.query, depth + 1)?;
+        }
         expression.try_visit_children_mut(|child| self.expression(child, depth + 1))?;
         if let Expr::Function(function) = expression {
             if let Some(Coercion {

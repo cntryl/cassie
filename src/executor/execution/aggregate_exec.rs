@@ -414,7 +414,7 @@ fn expr_supports_parallel_aggregation(
                 return false;
             }
         }
-        Expr::Exists(_) => return false,
+        Expr::Exists(_) | Expr::Subquery(_) => return false,
         _ => {}
     }
     expr.all_children(|child| expr_supports_parallel_aggregation(child, user_functions))

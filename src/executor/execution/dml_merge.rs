@@ -272,6 +272,7 @@ impl<'a> MergeRun<'a> {
             overriding: *overriding,
             alias: None,
             returning_aliases: None,
+            ctes: Vec::new(),
         };
         let row_id = super::dml_insert::insert_evaluated_row(
             self.scope.cassie,

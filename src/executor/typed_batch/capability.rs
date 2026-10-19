@@ -76,7 +76,7 @@ pub(crate) fn expression(
                 _ => Capability::BoundedScalarExpression,
             }
         }
-        Expr::Exists(_) => Capability::ExistingUnsupported,
+        Expr::Exists(_) | Expr::Subquery(_) => Capability::ExistingUnsupported,
         _ => Capability::BoundedScalarExpression,
     }
 }

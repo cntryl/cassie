@@ -557,7 +557,7 @@ impl From<&Expr> for NormalizedExprShape {
             | Expr::NumericLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::Null => Self::Value,
-            Expr::Exists(_) => Self::Exists,
+            Expr::Exists(_) | Expr::Subquery(_) => Self::Exists,
             Expr::Function(function) => Self::Function {
                 name: function.name.to_ascii_lowercase(),
                 args: function.args.iter().map(Self::from).collect(),

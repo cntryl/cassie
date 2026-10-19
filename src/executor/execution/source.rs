@@ -50,6 +50,10 @@ pub(super) fn execute_query_source(
     row_budget: Option<usize>,
 ) -> SourceExecution {
     let (mut batches, text_fields) = match source {
+        QuerySource::Values { rows } if rows.iter().flatten().any(Expr::contains_subquery) => {
+            let rows = super::subquery_values::resolve(env, cte_context, rows, outer_row)?;
+            source_values::execute(env, &rows, row_budget)
+        }
         QuerySource::Values { rows } => source_values::execute(env, rows, row_budget),
         QuerySource::Aliased { source, alias, .. } => {
             let (batches, text_fields) =
@@ -454,6 +458,13 @@ pub(super) fn execute_source_query_with_outer_row(
         env.session,
         env.controls,
     )?;
+    let grouped_subqueries = if plan_uses_aggregate(plan) {
+        let search = search_context.as_ref();
+        super::subquery_columns::materialize(env, cte_context, plan, &mut batches, search)?
+    } else {
+        None
+    };
+    let plan = grouped_subqueries.as_ref().unwrap_or(plan);
     batches = apply_aggregate_phase(&phase_env, batches, plan, cte_context)?;
     batches = phases::window(env, cte_context, batches, plan, search_context.as_ref())?;
     batches = phases::sort(env, cte_context, batches, plan, search_context.as_ref())?;

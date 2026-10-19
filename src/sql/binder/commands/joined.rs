@@ -45,10 +45,9 @@ pub(super) fn bind_joined_update(
 ) -> Result<UpdateStatement, CassieError> {
     let (table, schema) = resolve_target(&statement.table, "UPDATE", catalog, context)?;
     let qualifier = target_qualifier(&table, statement.alias.as_deref());
+    let ctes = statement.ctes.clone();
     let scope = match statement.from.as_mut() {
-        Some(source) => {
-            bind_mutation_source(source, Vec::new(), &table, &qualifier, catalog, context)?
-        }
+        Some(source) => bind_mutation_source(source, ctes, &table, &qualifier, catalog, context)?,
         None => target_only_scope(&table, &qualifier, catalog, context)?,
     };
     let scope = JoinedScope {
@@ -100,10 +99,9 @@ pub(super) fn bind_joined_delete(
 ) -> Result<DeleteStatement, CassieError> {
     let (table, schema) = resolve_target(&statement.table, "DELETE", catalog, context)?;
     let qualifier = target_qualifier(&table, statement.alias.as_deref());
+    let ctes = statement.ctes.clone();
     let scope = match statement.using.as_mut() {
-        Some(source) => {
-            bind_mutation_source(source, Vec::new(), &table, &qualifier, catalog, context)?
-        }
+        Some(source) => bind_mutation_source(source, ctes, &table, &qualifier, catalog, context)?,
         None => target_only_scope(&table, &qualifier, catalog, context)?,
     };
     let scope = JoinedScope {

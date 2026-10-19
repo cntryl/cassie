@@ -113,7 +113,7 @@ fn resolve<R: RowAccess + ?Sized>(
         controls.check_interruption()?;
     }
     match expr {
-        Expr::Column(_) | Expr::Exists(_) => Ok(None),
+        Expr::Column(_) | Expr::Exists(_) | Expr::Subquery(_) => Ok(None),
         Expr::Param(index) => context
             .parameter
             .map_or(Ok(None), |resolve| resolve(*index)),

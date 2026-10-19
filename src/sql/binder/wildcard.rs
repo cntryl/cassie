@@ -16,7 +16,7 @@ use super::inference::{
 use super::select::table_function_columns;
 use super::{
     CassieError, Catalog, CommonTableExpression, CteQuery, FieldSchema, HashMap, QuerySource,
-    QueryStatement, Schema, SelectItem, SelectStatement,
+    Schema, SelectItem, SelectStatement,
 };
 use crate::types::row_identity::{
     is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
@@ -140,13 +140,13 @@ fn cte_scope(
             CteQuery::Simple(statement) => statement,
             CteQuery::Recursive { base, .. } => base,
         };
-        let QueryStatement::Select(select) = &statement.statement else {
+        let Some(select) = super::cte_bodies::select_view(statement) else {
             return Err(CassieError::Planner(
                 "CTE body must be a SELECT statement".into(),
             ));
         };
         let mut fields = select_fields(
-            select,
+            &select,
             &scope,
             catalog,
             user_functions,

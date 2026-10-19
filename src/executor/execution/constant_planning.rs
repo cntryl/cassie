@@ -335,6 +335,13 @@ impl Folder<'_> {
                 self.check_exists(statement)?;
                 Ok(Fold::Variable)
             }
+            Expr::Subquery(subquery) => {
+                self.check_all(subquery.operands())?;
+                if let QueryStatement::Select(select) = &subquery.query.statement {
+                    self.check_statement_select(select)?;
+                }
+                Ok(Fold::Variable)
+            }
             Expr::StringLiteral(_)
             | Expr::NumberLiteral(_)
             | Expr::IntegerLiteral(_)

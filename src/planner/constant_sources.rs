@@ -62,6 +62,7 @@ pub(crate) fn inline(
                     | Expr::Column(_)
                     | Expr::Function(_)
                     | Expr::Exists(_)
+                    | Expr::Subquery(_)
                     | Expr::Cast {
                         data_type: DataType::Char { .. },
                         ..
@@ -268,8 +269,7 @@ fn constant_cte<'a>(
 }
 
 fn has_scope_boundary(plan: &LogicalPlan) -> bool {
-    let exists =
-        |expr: &Expr| expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_)));
+    let exists = |expr: &Expr| expr.any_descendant_or_self(&mut Expr::is_subquery_node);
     plan.projection.iter().any(|item| match item {
         SelectItem::Expr { expr, .. } => exists(expr),
         SelectItem::Function { function, .. } => function.expressions().any(exists),

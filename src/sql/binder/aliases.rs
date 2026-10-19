@@ -327,6 +327,9 @@ fn rewrite_with_outer(
         nested::rewrite(statement, spaces)?;
         return Ok(());
     }
+    if let Expr::Subquery(subquery) = expr {
+        nested::rewrite(&mut subquery.query, spaces)?;
+    }
     if let Expr::Column(name) = expr {
         *name = reference_with_outer(name, spaces, single, lateral_fields)?;
         return Ok(());
@@ -480,8 +483,7 @@ fn rewrite_source_clauses(
 }
 
 fn select_contains_exists(select: &SelectStatement) -> bool {
-    let has_exists =
-        |expr: &Expr| expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_)));
+    let has_exists = |expr: &Expr| expr.any_descendant_or_self(&mut Expr::is_subquery_node);
     select.filter.as_ref().is_some_and(has_exists)
         || select.having.as_ref().is_some_and(has_exists)
         || select.order.iter().any(|order| has_exists(&order.expr))

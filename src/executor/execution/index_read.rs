@@ -584,7 +584,7 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
     };
     match filter {
         Expr::Param(index) => params.get(*index).is_some_and(is_non_finite_float),
-        Expr::Exists(_) => params.iter().any(is_non_finite_float),
+        Expr::Exists(_) | Expr::Subquery(_) => params.iter().any(is_non_finite_float),
         Expr::RowCompare(comparison) => comparison
             .left
             .iter()

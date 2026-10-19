@@ -52,6 +52,7 @@ impl Fold<'_, '_> {
             | ast::Expr::TruthTest { .. }
             | ast::Expr::Not { .. }
             | ast::Expr::Exists(_) => Ok(Summary::known(16)),
+            ast::Expr::Subquery(subquery) => self.sublink(subquery, frame),
             ast::Expr::RowCompare(comparison) => {
                 self.row_inputs(comparison, frame)?;
                 Ok(Summary::known(16))
@@ -105,6 +106,40 @@ impl Fold<'_, '_> {
         }
     }
 
+    /// An unknown operand compared with a subquery takes that column's type,
+    /// as in `$1 IN (SELECT n FROM t)`.
+    fn sublink(
+        &mut self,
+        subquery: &ast::SubqueryExpr,
+        frame: &Frame<'_>,
+    ) -> Result<Summary, ParameterAdmissionError> {
+        let result = subquery
+            .result_type()
+            .map_or_else(Summary::unqualified, |data_type| {
+                Summary::known(oid(&data_type))
+            });
+        let operands = subquery.operands().len();
+        let ast::QueryStatement::Select(select) = &subquery.query.statement else {
+            return Ok(result);
+        };
+        if operands == 0 {
+            return Ok(result);
+        }
+        let Ok(schema) = binder::infer_select_schema(select, self.catalog) else {
+            return Ok(result);
+        };
+        for (index, field) in schema.fields.iter().take(operands).enumerate() {
+            let Some(summary) = self.summaries.values.get_mut(frame.start + index) else {
+                break;
+            };
+            if matches!(summary.oid, 0 | 705) {
+                self.occurrences
+                    .coerce(summary, oid(&field.data_type), true)?;
+            }
+        }
+        Ok(result)
+    }
+
     /// Operators over network, bit-string and `pg_lsn` operands select their
     /// result by operand type; an unknown operand takes the other's type.
     fn extended_binary(
@@ -153,7 +188,10 @@ impl Fold<'_, '_> {
         op: &ast::BinaryOp,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
-        if matches!(op, ast::BinaryOp::And | ast::BinaryOp::Or) {
+        if matches!(
+            op,
+            ast::BinaryOp::And | ast::BinaryOp::Or | ast::BinaryOp::Quantified { .. }
+        ) {
             return Ok(Summary::known(16));
         }
         if let Some(summary) = self.extended_binary(op, frame)? {
@@ -236,6 +274,7 @@ impl Fold<'_, '_> {
             | ast::BinaryOp::PgvectorDot => Summary::known(701),
             ast::BinaryOp::Eq
             | ast::BinaryOp::Typed { .. }
+            | ast::BinaryOp::Quantified { .. }
             | ast::BinaryOp::NotEq
             | ast::BinaryOp::IsDistinctFrom
             | ast::BinaryOp::IsNotDistinctFrom

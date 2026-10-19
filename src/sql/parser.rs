@@ -142,6 +142,8 @@ mod lexical;
 mod merge;
 #[path = "parser/truncate.rs"]
 mod truncate;
+#[path = "parser/with_statement.rs"]
+mod with_statement;
 pub(crate) use lexical::{dollar_quoted_content, dollar_quoted_end, escape_string_prefix};
 #[path = "parser/materialized_projection.rs"]
 mod materialized_projection;
@@ -269,6 +271,12 @@ fn parse_query_or_dml_statement(
         Ok(Some(truncate::parse_truncate_statement(trimmed)?))
     } else if starts_statement(lower, "merge") {
         Ok(Some(merge::parse_merge_statement(trimmed, Vec::new())?))
+    } else if starts_statement(lower, "table") {
+        // `TABLE name` is `SELECT * FROM name`.
+        let select = format!("SELECT * FROM {}", &trimmed["table".len()..]);
+        let mut parsed = parse_select_statement(&select, Vec::new(), false)?;
+        trimmed.clone_into(&mut parsed.raw_sql);
+        Ok(Some(parsed))
     } else if lexical::pattern_end(lower, 0, "select").is_some()
         || lexical::pattern_end(lower, 0, "values").is_some()
         || trimmed.starts_with('(')

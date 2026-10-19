@@ -10,7 +10,7 @@ use super::{ExistsResolutionContext, Expr, LogicalPlan, QueryError};
 use crate::sql::ast::{QuerySource, SelectItem};
 
 fn contains_exists(expr: &Expr) -> bool {
-    expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_)))
+    expr.contains_subquery()
 }
 
 fn item_exprs(item: &SelectItem) -> Vec<&Expr> {
@@ -38,7 +38,8 @@ fn source_has_exists(source: &QuerySource) -> bool {
 
 /// Returns whether `plan` has an `EXISTS` outside its `WHERE` filter.
 pub(super) fn plan_has_unresolved_exists(plan: &LogicalPlan) -> bool {
-    plan.having.as_ref().is_some_and(contains_exists)
+    plan.limit.iter().chain(&plan.offset).any(contains_exists)
+        || plan.having.as_ref().is_some_and(contains_exists)
         || plan
             .projection
             .iter()
@@ -76,6 +77,7 @@ pub(super) fn resolve_plan_exists(
             super::exists_projection::classify(context, &plan.source, &order.expr, &mut scope)?;
     }
     resolve_source(context, &mut plan.source)?;
+    super::subquery_bounds::fold(context, &mut plan)?;
     Ok((plan, memory))
 }
 

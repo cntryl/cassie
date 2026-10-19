@@ -252,6 +252,9 @@ impl<'a> Walk<'a> {
         if let Expr::Exists(statement) = expr {
             return self.statement(statement, depth + 1);
         }
+        if let Expr::Subquery(subquery) = expr {
+            self.statement(&subquery.query, depth + 1)?;
+        }
         match expr.try_for_each_child(|child| match self.expr(child, depth + 1) {
             Ok(()) => ControlFlow::Continue(()),
             Err(e) => ControlFlow::Break(e),

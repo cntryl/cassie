@@ -99,7 +99,9 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
             format_expression(expr)?,
             data_type.type_name()
         )),
-        Expr::Exists(_) => Err("EXISTS expressions cannot be stored in rollup aggregates".into()),
+        Expr::Exists(_) | Expr::Subquery(_) => {
+            Err("subquery expressions cannot be stored in rollup aggregates".into())
+        }
         Expr::Function(function) => format_function(function),
     }
 }
@@ -179,6 +181,7 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
         BinaryOp::PgvectorCosine => "<=>",
         BinaryOp::PgvectorL2 => "<->",
         BinaryOp::PgvectorDot => "<#>",
+        BinaryOp::Quantified { comparison, .. } => format_binary_operator(comparison),
         BinaryOp::Typed { operator } => match operator {
             crate::types::extended::TypedOperator::ContainedOrEqual => "<<=",
             crate::types::extended::TypedOperator::ContainsOrEqual => ">>=",

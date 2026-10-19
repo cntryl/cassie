@@ -88,6 +88,7 @@ fn function(call: &FunctionCall) -> bool {
 fn expression(expr: &Expr) -> bool {
     match expr {
         Expr::Exists(query) => statement(query),
+        Expr::Subquery(subquery) if statement(&subquery.query) => true,
         Expr::Function(call) => function(call),
         _ => expr.any_child(expression),
     }

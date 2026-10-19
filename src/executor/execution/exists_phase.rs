@@ -35,12 +35,7 @@ pub(super) fn evaluate(
         controls: env.controls,
         outer_row: Some(&outer),
     };
-    let resolve = |expr: &Expr| match super::resolve_exists_expr(&context, expr)? {
-        Expr::BoolLiteral(value) => Ok(value),
-        _ => Err(QueryError::General(
-            "EXISTS resolver did not return BOOLEAN".into(),
-        )),
-    };
+    let resolve = |expr: &Expr| super::resolve_exists_expr(&context, expr);
     filter::evaluate_resolving_exists(
         row,
         expr,

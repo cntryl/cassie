@@ -257,6 +257,7 @@ fn expression_children(expr: &ast::Expr) -> usize {
         | ast::Expr::Cast { .. }
         | ast::Expr::Exists(_)
         | ast::Expr::Function(_) => 1,
+        ast::Expr::Subquery(subquery) => subquery.operands().len() + 1,
     }
 }
 
@@ -281,6 +282,12 @@ fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
         | ast::Expr::UnaryNumeric { expr, .. }
         | ast::Expr::IntegerNegate { expr, .. } => Some(Node::Expr(expr)),
         ast::Expr::Exists(statement) => Some(Node::Query(&statement.statement)),
+        ast::Expr::Subquery(subquery) => Some(
+            subquery
+                .operands()
+                .get(index)
+                .map_or(Node::Query(&subquery.query.statement), Node::Expr),
+        ),
         ast::Expr::Function(function) => Some(Node::Function(function)),
         ast::Expr::Between {
             expr, low, high, ..

@@ -164,7 +164,7 @@ pub(super) fn validate_index_expression(
                 "index expressions cannot reference query parameters".into(),
             ))
         }
-        Expr::Exists(_) => {
+        Expr::Exists(_) | Expr::Subquery(_) => {
             return Err(CassieError::Planner(
                 "index expressions cannot contain subqueries".into(),
             ))

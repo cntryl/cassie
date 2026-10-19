@@ -15,8 +15,12 @@ impl CassieSession {
 
 fn read_only_statement(statement: &QueryStatement) -> bool {
     match statement {
-        QueryStatement::Select(_)
-        | QueryStatement::Show(_)
+        // A data-modifying WITH query writes even under a SELECT.
+        QueryStatement::Select(select) => !select
+            .ctes
+            .iter()
+            .any(crate::sql::binder::cte_bodies::cte_is_modifying),
+        QueryStatement::Show(_)
         | QueryStatement::Set(_)
         | QueryStatement::Transaction(_)
         | QueryStatement::SessionObject(_) => true,

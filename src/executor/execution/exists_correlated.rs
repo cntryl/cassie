@@ -14,9 +14,9 @@ use super::{
 
 use super::LogicalPlan;
 
-/// Returns whether `expr` contains an `EXISTS` subquery.
+/// Returns whether `expr` contains an `EXISTS` or other subquery.
 pub(super) fn contains_exists(expr: &Expr) -> bool {
-    expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_)))
+    expr.contains_subquery()
 }
 
 /// Keeps the rows of `batches` for which `filter_expr` holds, evaluating each

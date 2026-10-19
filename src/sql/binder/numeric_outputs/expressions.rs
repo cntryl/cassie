@@ -91,6 +91,9 @@ impl Analyzer<'_> {
             | Expr::Like { .. }
             | Expr::Not { .. } => OutputType::fixed(DataType::Boolean),
             Expr::Null => OutputType::fixed(DataType::Null),
+            Expr::Subquery(subquery) => {
+                OutputType::fixed(subquery.result_type().unwrap_or(DataType::Null))
+            }
             Expr::Binary { left, op, right } => self.binary_output(left, op, right, lookup)?,
         })
     }
@@ -123,6 +126,7 @@ impl Analyzer<'_> {
             | BinaryOp::Gt
             | BinaryOp::Gte
             | BinaryOp::Typed { .. }
+            | BinaryOp::Quantified { .. }
             | BinaryOp::Like => OutputType::fixed(DataType::Boolean),
             BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                 OutputType::fixed(DataType::Float)

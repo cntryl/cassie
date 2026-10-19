@@ -690,6 +690,11 @@ fn expression_contains_coalesce(expr: &Expr) -> bool {
     if let Expr::Exists(statement) = expr {
         return statement_contains_coalesce(statement);
     }
+    if let Expr::Subquery(subquery) = expr {
+        if statement_contains_coalesce(&subquery.query) {
+            return true;
+        }
+    }
     matches!(expr, Expr::Function(function) if function.name.eq_ignore_ascii_case("coalesce") || super::conditional_types::is_conditional(&function.name))
         || expr.any_child(expression_contains_coalesce)
 }

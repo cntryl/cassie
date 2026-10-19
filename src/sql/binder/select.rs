@@ -116,7 +116,8 @@ pub(super) fn bind_select_with_lateral_fields(
     super::case_unify::unify_select_case_results(&mut select, &field_types);
     super::boolean_contexts::qualify_declared_boolean_functions(&mut select, catalog, context)?;
 
-    let projection_aliases = super::grouped_projection::prepare(&mut select, catalog, &scope)?;
+    let projection_aliases =
+        super::grouped_projection::prepare(&mut select, &known_fields, catalog, &scope)?;
     validate_bound_select_references(
         &select,
         &known_fields,

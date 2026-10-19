@@ -14,6 +14,8 @@ mod aggregate_window_oracle_residuals;
 mod array_aggregate_distinct_nested;
 #[path = "numeric/bitwise_bigint_boundaries/semantics.rs"]
 mod bitwise_bigint_boundaries;
+#[path = "grouping/group_by_alias_ordinal/semantics.rs"]
+mod grouping_alias_and_ordinal;
 #[path = "grouping/grouping_expression_keys/semantics.rs"]
 mod grouping_expression_keys;
 #[path = "grouping/grouping_functional_dependency/semantics.rs"]

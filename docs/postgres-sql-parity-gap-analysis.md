@@ -49,6 +49,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | EXISTS (incl. correlated) | Supported | — |
 | Scalar, IN, ANY/SOME/ALL subqueries | Supported (scalar, row, membership and quantified forms; correlated or uncorrelated; `ARRAY(SELECT ...)` output waits on #807) | #762 |
 | GROUP BY, HAVING, DISTINCT, DISTINCT ON | Supported | — |
+| GROUP BY output aliases and ordinals outside grouping sets | Supported for explicit select-list expressions, with input-column name precedence and PostgreSQL's invalid-position state. [Executed tests](../tests/sql_queries/aggregates/grouping/group_by_alias_ordinal/semantics.rs) cover aliases, ordinals, expression aliases, precedence and invalid positions. Grouped `SELECT *` remains pending because wildcard projection is not supported with grouping. | #804 |
 | GROUP BY primary-key functional dependency | Partial: single-column primary keys on direct base tables; aliased and joined forms pass focused local tests. Composite primary-key DDL remains unsupported. | #804 |
 | GROUPING SETS, ROLLUP, CUBE, `GROUPING()`, `GROUP BY DISTINCT` | Absent | #804 |
 | ORDER BY NULLS FIRST/LAST, LIMIT/OFFSET with parameters | Supported | — |

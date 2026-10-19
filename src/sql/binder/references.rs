@@ -143,7 +143,7 @@ pub(super) fn validate_order_by_references(
     Ok(())
 }
 
-fn validate_column_reference(
+pub(super) fn validate_column_reference(
     name: &str,
     known_fields: &HashSet<String>,
     projection_aliases: &HashSet<String>,

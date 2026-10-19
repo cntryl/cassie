@@ -665,6 +665,9 @@ impl From<crate::sql::SqlError> for CassieError {
             crate::sql::SqlErrorKind::ResourceLimit => {
                 CassieError::ResourceLimit(value.to_string())
             }
+            crate::sql::SqlErrorKind::InvalidParameterValue => {
+                CassieError::InvalidParameterValue(value.to_string())
+            }
         }
     }
 }

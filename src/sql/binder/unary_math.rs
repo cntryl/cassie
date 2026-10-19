@@ -16,7 +16,24 @@ pub(super) fn resolve(
         return Ok(false);
     }
     let unknown = matches!(expr.as_ref(), Expr::StringLiteral(_) | Expr::Null);
-    let decimal = root && matches!(expr.as_ref(), Expr::NumberLiteral(_));
+    // `|/` and `||/` are double precision operators; `numeric` and `real`
+    // operands convert implicitly.
+    let decimal = root
+        && (matches!(
+            expr.as_ref(),
+            Expr::NumberLiteral(_) | Expr::NumericLiteral(_)
+        ) || matches!(data_type, Some(DataType::Extended(_))));
+    if !root
+        && matches!(
+            data_type,
+            Some(DataType::Extended(
+                crate::types::extended::ExtendedType::Numeric(_)
+                    | crate::types::extended::ExtendedType::Real
+            ))
+        )
+    {
+        return Ok(true);
+    }
     if !unknown && !decimal && crate::sql::functions::has_unselected_numeric(expr) {
         return Err(CassieError::Unsupported(
             "NUMERIC unary math remains pending under #793/#812; select FLOAT8 explicitly".into(),

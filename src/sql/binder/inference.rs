@@ -613,6 +613,10 @@ pub(super) fn schema_field_type(schema: &Schema, name: &str) -> Option<DataType>
         .map(|field| field.data_type.clone())
 }
 
+#[path = "inference_numeric.rs"]
+mod numeric;
+use numeric::{arithmetic_type, numeric_function_type, power_type};
+
 pub(crate) fn infer_function_return_type(
     function: &FunctionCall,
     source_schema: &Schema,
@@ -625,7 +629,9 @@ pub(crate) fn infer_function_return_type(
         source_schema,
         user_functions,
         parameter_types,
-    ) {
+    )
+    .or_else(|| numeric_function_type(function, source_schema, user_functions, parameter_types))
+    {
         return Some(kind);
     }
     if let Some(target) = crate::sql::functions::primitive_casts::candidate(function) {
@@ -653,7 +659,6 @@ pub(crate) fn infer_function_return_type(
     }) {
         return Some(metadata.return_type.clone());
     }
-
     let metadata = crate::sql::functions::function(&name)?;
     match metadata.return_type {
         crate::sql::functions::FunctionReturnType::Float => Some(DataType::Float),
@@ -709,12 +714,10 @@ pub(crate) fn infer_function_return_type(
             .args
             .first()
             .and_then(|expr| infer_expr_type(expr, source_schema, user_functions, parameter_types))
-            .map(|data_type| match data_type {
-                DataType::Int | DataType::SmallInt | DataType::BigInt => DataType::BigInt,
-                _ => DataType::Float,
-            })
+            .map(|data_type| crate::types::extended::numeric_types::sum(&data_type))
             .or(Some(DataType::Float)),
-        crate::sql::functions::FunctionReturnType::Unknown => None,
+        crate::sql::functions::FunctionReturnType::Math
+        | crate::sql::functions::FunctionReturnType::Unknown => None,
     }
 }
 
@@ -750,7 +753,7 @@ pub(crate) fn infer_expr_type(
         Expr::Function(function) => {
             infer_function_return_type(function, source_schema, user_functions, parameter_types)
         }
-        Expr::NumericLiteral(_) => None,
+        Expr::NumericLiteral(_) => Some(numeric::NUMERIC),
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
         Expr::UnaryNumeric { expr, op } => super::unary_numeric::result_type(
@@ -815,7 +818,13 @@ fn infer_binary_type(
         | BinaryOp::Gt
         | BinaryOp::Gte
         | BinaryOp::Like => Some(DataType::Boolean),
-        BinaryOp::Power => Some(DataType::Float),
+        BinaryOp::Power => Some(power_type(
+            left,
+            right,
+            source_schema,
+            user_functions,
+            parameter_types,
+        )),
         BinaryOp::Concat => {
             infer_concatenation_type(left, right, source_schema, user_functions, parameter_types)
         }
@@ -829,17 +838,14 @@ fn infer_binary_type(
         | BinaryOp::Mul
         | BinaryOp::Div
         | BinaryOp::Modulo
-        | BinaryOp::Bitwise { .. } => {
-            let left_type = infer_expr_type(left, source_schema, user_functions, parameter_types);
-            let right_type = infer_expr_type(right, source_schema, user_functions, parameter_types);
-            if left_type.as_ref().is_some_and(is_integer_type)
-                && right_type.as_ref().is_some_and(is_integer_type)
-            {
-                Some(DataType::BigInt)
-            } else {
-                Some(DataType::Float)
-            }
-        }
+        | BinaryOp::Bitwise { .. } => Some(arithmetic_type(
+            left,
+            right,
+            matches!(op, BinaryOp::Modulo),
+            source_schema,
+            user_functions,
+            parameter_types,
+        )),
         BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
             Some(DataType::Float)
         }
@@ -884,6 +890,9 @@ pub(crate) fn common_case_type(left: DataType, right: DataType) -> Option<DataTy
     }
     if left == right {
         return Some(left);
+    }
+    if let Some(common) = crate::types::extended::numeric_types::common(&left, &right) {
+        return Some(common);
     }
     if matches!(
         left,

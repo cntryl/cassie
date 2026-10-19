@@ -193,29 +193,39 @@ fn should_canonicalize_signs_given_leading_zero_integer_tokens_when_exact_text_c
     }
 }
 
+// PostgreSQL 18.6 materializes integer tokens beyond int8 as exact numeric
+// values (oracle-corrections.md).
 #[test]
-fn should_reject_lossy_numeric_materialization_given_exact_integer_tokens_when_unsupported_carriers_are_requested(
-) {
+fn should_materialize_exact_numeric_values_given_integer_tokens_beyond_int8() {
     // Arrange
     let fixture = sql_fixture("exact-integer-numeric-boundary", &[]);
-    let sql = [
-        "SELECT 9223372036854775809",
-        "SELECT n FROM (VALUES(9223372036854775809)) v(n)",
-        "SELECT 9223372036854775809::NUMERIC",
-        "SELECT 9223372036854775809::DECIMAL::FLOAT8",
-        "SELECT CASE WHEN FALSE THEN 9223372036854775809::NUMERIC ELSE 0 END",
+    let cases = [
+        ("SELECT 9223372036854775809", "9223372036854775809"),
+        (
+            "SELECT n FROM (VALUES(9223372036854775809)) v(n)",
+            "9223372036854775809",
+        ),
+        ("SELECT 9223372036854775809::NUMERIC", "9223372036854775809"),
+        (
+            "SELECT CASE WHEN FALSE THEN 9223372036854775809::NUMERIC ELSE 0 END",
+            "0",
+        ),
     ];
     // Act
-    let outcomes = sql.map(|sql| fixture.execute(sql));
+    let outcomes = cases.map(|(sql, _)| fixture.execute(sql));
+    let narrowed = fixture.execute("SELECT 9223372036854775809::DECIMAL::FLOAT8");
     // Assert
-    // NUMERIC storage/output is not implemented. Never publish a rounded FLOAT8
-    // result under that identity while primitive numeric conversion is enabled.
-    for outcome in outcomes {
-        assert!(
-            matches!(outcome, Err(cassie::CassieError::Unsupported(_))),
-            "{outcome:?}"
+    for (outcome, (sql, expected)) in outcomes.into_iter().zip(cases) {
+        assert_eq!(
+            outcome.expect(sql).rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "{sql}"
         );
     }
+    assert_eq!(
+        narrowed.expect("numeric to float8").rows(),
+        &[vec![Value::Float64(9.223_372_036_854_776e18)]]
+    );
 }
 
 #[test]

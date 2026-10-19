@@ -26,7 +26,7 @@ pub const fn handles(kind: &DataType) -> bool {
 /// Whether `value` belongs to a family this dispatcher handles.
 #[must_use]
 pub const fn handles_value(value: &TypedValue) -> bool {
-    !matches!(value, TypedValue::Real(_))
+    !matches!(value, TypedValue::Real(_) | TypedValue::Numeric(_))
 }
 
 /// The result type of `left op right`, or `None` when no extended

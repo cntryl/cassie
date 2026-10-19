@@ -6,8 +6,12 @@ use super::{
 
 #[path = "boolean_aggregates.rs"]
 mod boolean_aggregates;
+#[path = "decimal_literals.rs"]
+mod decimal_literals;
 #[path = "declared_functions.rs"]
 mod declared_functions;
+#[path = "math_signatures.rs"]
+mod math_signatures;
 #[path = "row_predicates.rs"]
 mod row_predicates;
 
@@ -16,6 +20,7 @@ pub(super) fn validate_boolean_aggregate(
     types: &ResultTypes,
 ) -> Result<(), CassieError> {
     super::bytea_functions::qualify(function, types)?;
+    math_signatures::validate(function, types)?;
     if let Some(metadata) =
         crate::sql::functions::function(&function.name).filter(|metadata| metadata.is_aggregate)
     {
@@ -348,6 +353,7 @@ fn validate_expression(
                     | BinaryOp::Gte
             ) {
                 canonicalize_boolean_pair(left, right, types)?;
+                decimal_literals::narrow_pair(left, right, types);
                 coerce_numeric_pair(left, right, types, catalog);
                 validate_concatenation_comparison(left, right, types)?;
             }
@@ -382,6 +388,7 @@ fn validate_expression(
             validate_expression(expr, types, catalog, context)?;
             for value in values {
                 canonicalize_boolean_pair(expr, value, types)?;
+                decimal_literals::narrow_pair(expr, value, types);
                 validate_expression(value, types, catalog, context)?;
             }
         }
@@ -401,12 +408,8 @@ fn validate_expression(
         Expr::Exists(statement) => {
             validate_nested_statement(statement, types, true, catalog, context)?;
         }
-        Expr::NumericLiteral(_) => {
-            return Err(CassieError::Unsupported(
-                "unmaterialized NUMERIC literal requires an explicit primitive cast".into(),
-            ))
-        }
-        Expr::Column(_)
+        Expr::NumericLiteral(_)
+        | Expr::Column(_)
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
@@ -437,6 +440,8 @@ fn validate_between_expression(
     canonicalize_boolean_pair(expr, low, types)?;
     canonicalize_boolean_pair(expr, high, types)?;
     canonicalize_boolean_pair(low, high, types)?;
+    decimal_literals::narrow_pair(expr, low, types);
+    decimal_literals::narrow_pair(expr, high, types);
     validate_expression(expr, types, catalog, context)?;
     validate_expression(low, types, catalog, context)?;
     validate_expression(high, types, catalog, context)?;
@@ -590,6 +595,20 @@ fn validate_cast(
         validate_expression(expr, types, catalog, context)?;
     }
     *source_type = cast_source_type(expr, data_type, types, catalog);
+    if *data_type == DataType::Boolean {
+        if let Some(DataType::Extended(
+            kind @ (crate::types::extended::ExtendedType::Numeric(_)
+            | crate::types::extended::ExtendedType::Real),
+        )) = types.expression_type(expr)
+        {
+            return Err(CassieError::TypeInput(
+                crate::types::extended::TypeInputError {
+                    sqlstate: "42846",
+                    message: format!("cannot cast type {} to boolean", kind.name()),
+                },
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -606,6 +625,7 @@ pub(super) fn validate_numeric_literal_cast(
                 | DataType::Float
                 | DataType::Text
                 | DataType::Varchar { .. }
+                | DataType::Extended(_)
         )
     {
         return Err(CassieError::Unsupported(

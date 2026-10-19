@@ -80,6 +80,7 @@ pub(crate) const BUILTIN_TYPES: &[BuiltinType] = &[
     extended_type(super::extended::ExtendedType::PgLsn),
     extended_type(super::extended::ExtendedType::Bit { length: None }),
     extended_type(super::extended::ExtendedType::VarBit { length: None }),
+    extended_type(super::extended::ExtendedType::Numeric(None)),
 ];
 
 const fn extended_type(kind: super::extended::ExtendedType) -> BuiltinType {

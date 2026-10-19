@@ -9,6 +9,10 @@ use serde::{Deserialize, Serialize};
 
 use super::typed::TypedValue;
 
+#[path = "extended/numeric.rs"]
+pub mod numeric;
+#[path = "extended/numeric_types.rs"]
+pub mod numeric_types;
 #[path = "extended/real.rs"]
 pub mod real;
 
@@ -32,6 +36,8 @@ pub mod pg_lsn;
 pub enum ExtendedType {
     /// `real` / `float4`.
     Real,
+    /// `numeric` / `decimal`, with its optional `(precision, scale)` typmod.
+    Numeric(Option<numeric::NumericTypmod>),
     Inet,
     Cidr,
     Macaddr,
@@ -99,8 +105,9 @@ pub enum ExtendedFamily {
 
 impl ExtendedType {
     /// Every extended type, for name and OID lookups.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Real,
+        Self::Numeric(None),
         Self::Inet,
         Self::Cidr,
         Self::Macaddr,
@@ -115,6 +122,7 @@ impl ExtendedType {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Real => "real",
+            Self::Numeric(_) => "numeric",
             Self::Inet => "inet",
             Self::Cidr => "cidr",
             Self::Macaddr => "macaddr",
@@ -130,6 +138,7 @@ impl ExtendedType {
     pub const fn typname(self) -> &'static str {
         match self {
             Self::Real => "float4",
+            Self::Numeric(_) => "numeric",
             Self::Inet => "inet",
             Self::Cidr => "cidr",
             Self::Macaddr => "macaddr",
@@ -145,6 +154,7 @@ impl ExtendedType {
     pub const fn type_oid(self) -> u32 {
         match self {
             Self::Real => 700,
+            Self::Numeric(_) => 1700,
             Self::Inet => 869,
             Self::Cidr => 650,
             Self::Macaddr => 829,
@@ -161,7 +171,9 @@ impl ExtendedType {
             Self::Real => 4,
             Self::Macaddr => 6,
             Self::Macaddr8 | Self::PgLsn => 8,
-            Self::Inet | Self::Cidr | Self::Bit { .. } | Self::VarBit { .. } => -1,
+            Self::Numeric(_) | Self::Inet | Self::Cidr | Self::Bit { .. } | Self::VarBit { .. } => {
+                -1
+            }
         }
     }
 
@@ -169,7 +181,7 @@ impl ExtendedType {
     #[must_use]
     pub const fn category(self) -> char {
         match self {
-            Self::Real => 'N',
+            Self::Real | Self::Numeric(_) => 'N',
             Self::Inet | Self::Cidr => 'I',
             Self::Macaddr | Self::Macaddr8 | Self::PgLsn => 'U',
             Self::Bit { .. } | Self::VarBit { .. } => 'V',
@@ -179,7 +191,7 @@ impl ExtendedType {
     #[must_use]
     pub const fn family(self) -> ExtendedFamily {
         match self {
-            Self::Real => ExtendedFamily::Numeric,
+            Self::Real | Self::Numeric(_) => ExtendedFamily::Numeric,
             Self::Inet | Self::Cidr => ExtendedFamily::Network,
             Self::Macaddr | Self::Macaddr8 => ExtendedFamily::MacAddress,
             Self::Bit { .. } | Self::VarBit { .. } => ExtendedFamily::BitString,
@@ -193,8 +205,9 @@ impl ExtendedType {
     #[must_use]
     pub const fn binds_parameters(self) -> bool {
         match self {
-            Self::Real => false,
-            Self::Inet
+            Self::Real
+            | Self::Numeric(_)
+            | Self::Inet
             | Self::Cidr
             | Self::Macaddr
             | Self::Macaddr8
@@ -210,6 +223,7 @@ impl ExtendedType {
         match self {
             Self::Bit { .. } => Self::Bit { length: None },
             Self::VarBit { .. } => Self::VarBit { length: None },
+            Self::Numeric(_) => Self::Numeric(None),
             other => other,
         }
     }
@@ -224,6 +238,7 @@ impl ExtendedType {
             | Self::VarBit {
                 length: Some(length),
             } => i32::try_from(length).unwrap_or(-1),
+            Self::Numeric(Some(typmod)) => typmod.atttypmod(),
             _ => -1,
         }
     }
@@ -238,6 +253,9 @@ impl ExtendedType {
             Self::VarBit {
                 length: Some(length),
             } => format!("bit varying({length})"),
+            Self::Numeric(Some(typmod)) => {
+                format!("numeric({},{})", typmod.precision, typmod.scale)
+            }
             other => other.name().to_string(),
         }
     }
@@ -247,6 +265,7 @@ impl ExtendedType {
     pub fn from_sql_name(name: &str) -> Option<Self> {
         match name {
             "real" | "float4" => Some(Self::Real),
+            "numeric" | "decimal" | "dec" => Some(Self::Numeric(None)),
             "inet" => Some(Self::Inet),
             "cidr" => Some(Self::Cidr),
             "macaddr" => Some(Self::Macaddr),
@@ -270,6 +289,9 @@ impl ExtendedType {
     pub fn parse_text(self, text: &str) -> Result<TypedValue, TypeInputError> {
         match self {
             Self::Real => real::parse_text(text).map(TypedValue::Real),
+            Self::Numeric(typmod) => {
+                numeric::parse_with_typmod(text, typmod).map(TypedValue::Numeric)
+            }
             Self::Inet
             | Self::Cidr
             | Self::Macaddr
@@ -285,6 +307,11 @@ impl ExtendedType {
     /// # Errors
     /// Returns PostgreSQL's input or range error.
     pub fn cast_from(self, value: &super::Value) -> Result<TypedValue, TypeInputError> {
+        if let Self::Numeric(typmod) = self {
+            return numeric_cast(value)?
+                .apply_typmod(typmod)
+                .map(TypedValue::Numeric);
+        }
         match (self, value) {
             (_, super::Value::Typed(typed)) if typed.kind() == self => Ok(typed.clone()),
             (
@@ -336,6 +363,10 @@ impl ExtendedType {
     pub fn receive_binary(self, bytes: &[u8]) -> Result<TypedValue, String> {
         match self {
             Self::Real => real::receive_binary(bytes).map(TypedValue::Real),
+            Self::Numeric(typmod) => numeric::receive_binary(bytes)?
+                .apply_typmod(typmod)
+                .map(TypedValue::Numeric)
+                .map_err(|error| error.message),
             Self::Inet
             | Self::Cidr
             | Self::Macaddr
@@ -344,5 +375,25 @@ impl ExtendedType {
             | Self::Bit { .. }
             | Self::VarBit { .. } => network_bit_casts::receive_binary(self, bytes),
         }
+    }
+}
+
+/// Converts a scalar to `numeric` before any typmod is applied.
+fn numeric_cast(value: &super::Value) -> Result<numeric::Numeric, TypeInputError> {
+    match value {
+        super::Value::Typed(TypedValue::Numeric(value)) => Ok(value.clone()),
+        super::Value::Typed(TypedValue::Real(value)) => numeric::Numeric::from_f32(*value),
+        // `pg_lsn::numeric` is the byte position.
+        super::Value::Typed(TypedValue::PgLsn(position)) => {
+            Ok(numeric::Numeric::from_i128(i128::from(*position)))
+        }
+        super::Value::Int64(value) => Ok(numeric::Numeric::from_i64(*value)),
+        super::Value::Float64(value) => numeric::Numeric::from_f64(*value),
+        super::Value::String(text) => numeric::parse_text(text),
+        super::Value::Typed(typed) => numeric::parse_text(&typed.text()),
+        _ => Err(TypeInputError {
+            sqlstate: "42846",
+            message: "cannot cast value to numeric".to_string(),
+        }),
     }
 }

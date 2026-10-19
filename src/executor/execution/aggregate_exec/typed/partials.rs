@@ -40,7 +40,7 @@ impl State {
                 if sum.requires_row_order() || later.requires_row_order() {
                     return Err(row_order_required());
                 }
-                sum.merge(later);
+                sum.merge(later)?;
                 *seen |= later_seen;
             }
             (state @ Self::MinMax { .. }, Self::MinMax { selected, max }) => {

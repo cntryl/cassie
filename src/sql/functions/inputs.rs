@@ -1,6 +1,7 @@
 //! Qualified input rules are separate from the public return metadata.
 
 use super::FunctionId;
+use crate::types::extended::ExtendedType;
 use crate::types::DataType;
 
 pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> bool {
@@ -12,6 +13,7 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
                 | DataType::Int
                 | DataType::BigInt
                 | DataType::Float
+                | DataType::Extended(ExtendedType::Numeric(_) | ExtendedType::Real)
         ),
         FunctionId::Min | FunctionId::Max => matches!(
             data_type,
@@ -30,6 +32,7 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
                 | DataType::Array(_)
                 // Cassie's established vector extension retains row extrema.
                 | DataType::Vector(_)
+                | DataType::Extended(ExtendedType::Numeric(_) | ExtendedType::Real)
         ),
         FunctionId::BoolAnd | FunctionId::BoolOr => {
             matches!(data_type, DataType::Null | DataType::Boolean)

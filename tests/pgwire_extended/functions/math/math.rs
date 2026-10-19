@@ -401,7 +401,8 @@ fn should_return_positive_zero_for_negative_float8_sign_in_binary_format() {
         vec![701]
     );
     assert_eq!(wire::error_code(&batches[2]), None);
-    fixture::assert_single_column_descriptors(&batches[2], (701, 8, -1), 1, true);
+    // The portal batch carries only its own Describe RowDescription.
+    fixture::assert_single_column_descriptors(&batches[2], (701, 8, -1), 1, false);
     assert_eq!(
         fixture::data_row_payloads(&batches[2]),
         vec![fixture::one_field_row(&[0; 8])]

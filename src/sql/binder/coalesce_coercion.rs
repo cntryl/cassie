@@ -23,6 +23,24 @@ pub(super) fn coerce_function(function: &mut FunctionCall, scope: &ResultTypes) 
             .args
             .push(super::result_coercion::float(Expr::Null));
     }
+    // Integer arguments beside a `numeric` one yield `numeric` values.
+    if let Some(numeric @ DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))) =
+        result_type
+    {
+        for argument in &mut function.args {
+            if matches!(
+                scope.expression_type(argument),
+                Some(DataType::SmallInt | DataType::Int | DataType::BigInt)
+            ) {
+                *argument = Expr::Cast {
+                    expr: Box::new(std::mem::replace(argument, Expr::Null)),
+                    data_type: numeric.clone(),
+                    source_type: None,
+                    identity: crate::sql::ast::CastIdentity::Scalar,
+                };
+            }
+        }
+    }
 }
 
 pub(crate) fn has_float_domain(function: &FunctionCall) -> bool {

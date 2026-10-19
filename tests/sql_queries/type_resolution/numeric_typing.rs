@@ -5,7 +5,7 @@ use cassie::types::Value;
 const OID_INT8: i64 = 20;
 const OID_INT2: i64 = 21;
 const OID_INT4: i64 = 23;
-const OID_FLOAT8: i64 = 701;
+const OID_NUMERIC: i64 = 1700;
 
 fn seeded(label: &str) -> (Cassie, CassieSession, String) {
     use_local_storage();
@@ -63,9 +63,10 @@ fn should_type_coalesce_by_the_common_argument_type() {
     let integers = typed_first_value(&fixture, "SELECT COALESCE(s, i) FROM mix WHERE k = 'one'");
 
     // Assert
+    // The decimal literal 1.5 is numeric, so COALESCE resolves to numeric.
     assert!(widened
         .iter()
-        .all(|typed| *typed == (Value::Float64(1.5), OID_FLOAT8)));
+        .all(|typed| *typed == (Value::String("1.5".to_owned()), OID_NUMERIC)));
     assert_eq!(integers, (Value::Int64(1), OID_INT4));
 }
 
@@ -106,7 +107,8 @@ fn should_type_integer_case_branches_as_integer() {
     // Assert
     assert_eq!(summed, (Value::Int64(7), OID_INT8));
     assert_eq!(literal_branches, (Value::Int64(1), OID_INT4));
-    assert_eq!(mixed, (Value::Float64(7.0), OID_FLOAT8));
+    // An integer branch beside the numeric literal 0.5 yields numeric.
+    assert_eq!(mixed, (Value::String("7".to_owned()), OID_NUMERIC));
     let _ = std::fs::remove_dir_all(path);
 }
 
@@ -125,9 +127,10 @@ fn should_coerce_case_results_in_window_function_arguments() {
             .expect("execute CASE in window argument");
 
     // Assert
-    assert_eq!(result.columns()[0].type_oid, OID_FLOAT8);
+    // CASE over an integer and the numeric literal 0.5 is numeric.
+    assert_eq!(result.columns()[0].type_oid, OID_NUMERIC);
     assert_eq!(result.rows()[0][0], Value::Null);
-    assert_eq!(result.rows()[1][0], Value::Float64(7.0));
+    assert_eq!(result.rows()[1][0], Value::String("7".to_owned()));
     let _ = std::fs::remove_dir_all(path);
 }
 
@@ -213,16 +216,23 @@ fn should_truncate_integer_division_toward_zero() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![OID_INT8, OID_FLOAT8]
+        // PostgreSQL 18.6: int4 / int4 is int4; int4 / 2.0 is numeric.
+        vec![OID_INT4, OID_NUMERIC]
     );
     assert_eq!(
         result.rows(),
         vec![
-            vec![Value::Int64(3), Value::Float64(3.5)],
-            vec![Value::Int64(-3), Value::Float64(-3.5)],
+            vec![
+                Value::Int64(3),
+                Value::String("3.5000000000000000".to_owned())
+            ],
+            vec![
+                Value::Int64(-3),
+                Value::String("-3.5000000000000000".to_owned())
+            ],
         ]
     );
-    assert_eq!(literal, (Value::Int64(3), OID_INT8));
+    assert_eq!(literal, (Value::Int64(3), OID_INT4));
     assert!(
         by_zero.to_string().contains("division by zero"),
         "{by_zero}"
@@ -257,7 +267,7 @@ fn should_reject_bigint_division_overflow() {
 }
 
 #[test]
-fn should_type_integer_column_with_decimal_literal_as_float8() {
+fn should_type_integer_column_with_decimal_literal_as_numeric() {
     // Arrange
     let (cassie, session, path) = seeded("numeric_decimal_literal");
 
@@ -274,8 +284,9 @@ fn should_type_integer_column_with_decimal_literal_as_float8() {
     );
 
     // Assert
-    assert_eq!(decimal, (Value::Float64(8.0), OID_FLOAT8));
-    assert_eq!(integer, (Value::Int64(8), OID_INT8));
+    // PostgreSQL 18.6: int4 + 1.0 is numeric and int4 + 1 is int4.
+    assert_eq!(decimal, (Value::String("8.0".to_owned()), OID_NUMERIC));
+    assert_eq!(integer, (Value::Int64(8), OID_INT4));
     let _ = std::fs::remove_dir_all(path);
 }
 

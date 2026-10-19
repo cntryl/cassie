@@ -50,9 +50,9 @@ fn should_describe_case_result_types_over_pgwire() {
             // Assert
             let description = frames.iter().find(|frame| frame.0 == b'T').expect("row description");
             let fields = support::parse_row_description(&description.1);
-            assert_eq!(fields.iter().map(|field| field.type_oid).collect::<Vec<_>>(), vec![20, 25, 701]);
+            assert_eq!(fields.iter().map(|field| field.type_oid).collect::<Vec<_>>(), vec![20, 25, 1700]);
             let row = frames.iter().find(|frame| frame.0 == b'D').expect("data row");
-            assert_eq!(read_binary_row(&row.1), vec![Some(2_i64.to_be_bytes().to_vec()), Some(b"y".to_vec()), Some(2_f64.to_be_bytes().to_vec())]);
+            assert_eq!(read_binary_row(&row.1), vec![Some(2_i64.to_be_bytes().to_vec()), Some(b"y".to_vec()), Some(vec![0, 1, 0, 0, 0, 0, 0, 0, 0, 2])]);
             server.stop().await;
             let _ = std::fs::remove_dir_all(path);
         });

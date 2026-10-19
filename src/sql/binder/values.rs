@@ -138,11 +138,6 @@ fn validate(
                 "unknown column {name:?} in VALUES"
             )))
         }
-        Expr::NumericLiteral(_) => {
-            return Err(CassieError::Unsupported(
-                "unmaterialized NUMERIC VALUES literals are not yet supported".into(),
-            ));
-        }
         Expr::Cast {
             expr,
             data_type,
@@ -173,6 +168,7 @@ fn validate(
                     | DataType::Date
                     | DataType::Time
                     | DataType::Timestamp
+                    | DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
             ) && !crate::types::extended::operations::handles(data_type) =>
         {
             return Err(CassieError::Unsupported(

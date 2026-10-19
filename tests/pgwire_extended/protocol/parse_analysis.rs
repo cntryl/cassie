@@ -621,12 +621,13 @@ fn should_infer_boolean_cast_input_given_unknown_oid_when_parse_publishes_parame
             .iter()
             .map(|field| field.type_oid)
             .collect::<Vec<_>>(),
-        vec![16, 23, 701, 701]
+        // '1.25'::NUMERIC is numeric (OID 1700) in PostgreSQL 18.6.
+        vec![16, 23, 701, 1700]
     );
 }
 
 #[test]
-fn should_preserve_legacy_quoted_numeric_adapter_when_cast_binding_is_ordered() {
+fn should_type_quoted_numeric_casts_as_numeric_when_cast_binding_is_ordered() {
     // Arrange
     let queries = [
         "SELECT '1.25'::NUMERIC",
@@ -649,7 +650,11 @@ fn should_preserve_legacy_quoted_numeric_adapter_when_cast_binding_is_ordered() 
             fixture::assert_success(batch);
             assert_eq!(wire::data_rows(batch), vec![vec![Some("1.25".into())]]);
             let description = batch.iter().find(|f| f.0 == b'T').expect("RowDescription");
-            assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 701);
+            // NUMERIC and DECIMAL casts are numeric (OID 1700) in PostgreSQL 18.6.
+            assert_eq!(
+                wire::parse_row_description(&description.1)[0].type_oid,
+                1700
+            );
         } else {
             let expected = match index {
                 4 => "42703",

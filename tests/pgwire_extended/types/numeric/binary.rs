@@ -197,7 +197,8 @@ fn should_preserve_wide_numeric_oid_zero_binary_round_trip() {
 
     let result = &batches[2];
     assert_eq!(wire::error_code(result), None);
-    fixture::assert_single_column_descriptors(result, (1700, -1, -1), 1, true);
+    // The portal batch carries only its own Describe RowDescription.
+    fixture::assert_single_column_descriptors(result, (1700, -1, -1), 1, false);
     assert_eq!(
         fixture::data_row_payloads(result),
         vec![fixture::one_field_row(&value)]
@@ -244,7 +245,8 @@ fn should_bind_an_oid_zero_numeric_parameter_in_binary_format() {
     assert_eq!(wire::parse_parameter_description(&parameters.1), vec![1700]);
     let result = &batches[2];
     assert_eq!(wire::error_code(result), None);
-    fixture::assert_single_column_descriptors(result, (1700, -1, -1), 1, true);
+    // The portal batch carries only its own Describe RowDescription.
+    fixture::assert_single_column_descriptors(result, (1700, -1, -1), 1, false);
     assert_eq!(
         fixture::data_row_payloads(result),
         vec![fixture::one_field_row(&value)]
@@ -422,7 +424,8 @@ fn should_decode_numeric_infinity_binary_parameters() {
     for (index, (statement, _, expected)) in cases.into_iter().enumerate() {
         let result = &batches[index * 2 + 1];
         assert_eq!(wire::error_code(result), None, "{statement}");
-        fixture::assert_single_column_descriptors(result, (1_700, -1, -1), 0, true);
+        // The portal batch carries only its own Describe RowDescription.
+        fixture::assert_single_column_descriptors(result, (1_700, -1, -1), 0, false);
         assert_eq!(
             wire::data_rows(result),
             vec![vec![Some(expected.to_owned())]],

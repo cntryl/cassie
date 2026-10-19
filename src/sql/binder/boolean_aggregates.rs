@@ -70,6 +70,7 @@ pub(super) fn type_name(data_type: &DataType) -> String {
         DataType::Char { .. } => "character".to_owned(),
         DataType::Varchar { .. } => "character varying".to_owned(),
         DataType::Array(inner) => format!("{}[]", type_name(inner)),
+        DataType::Extended(kind) => kind.name().to_owned(),
         other => other.type_name(),
     }
 }

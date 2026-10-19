@@ -1,4 +1,8 @@
 //! `pg_lsn`: a 64-bit write-ahead log position.
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
+
+use super::numeric::Numeric;
 use super::TypeInputError;
 
 /// `pg_lsn_in`: two hexadecimal words of one to eight digits.
@@ -47,38 +51,50 @@ fn out_of_range() -> TypeInputError {
     TypeInputError::new("22023", "pg_lsn out of range".to_string())
 }
 
-/// `pg_lsn ± numeric` with a whole-byte offset.
+/// `pg_lsn ± numeric`: the exact sum, rounded half away from zero to a
+/// whole byte (`numeric_pg_lsn`).
 ///
 /// # Errors
 /// Returns `22023` when the result leaves the 64-bit range and `0A000` for
-/// a NaN offset; fractional offsets round half away from zero.
-pub fn offset(value: u64, offset: f64) -> Result<u64, TypeInputError> {
-    if !offset.is_finite() {
-        return Err(TypeInputError::new(
-            "0A000",
-            "cannot add NaN to pg_lsn".to_string(),
-        ));
-    }
-    let offset = format!("{:.0}", offset.round())
-        .parse::<i128>()
-        .map_err(|_| out_of_range())?;
-    let result = i128::from(value)
-        .checked_add(offset)
-        .ok_or_else(out_of_range)?;
-    u64::try_from(result).map_err(|_| out_of_range())
+/// a NaN offset.
+pub fn offset(value: u64, offset: &Numeric) -> Result<u64, TypeInputError> {
+    let Numeric::Finite { mantissa, scale } = offset else {
+        return Err(if offset.is_nan() {
+            TypeInputError::new("0A000", "cannot add NaN to pg_lsn".to_string())
+        } else {
+            out_of_range()
+        });
+    };
+    let Numeric::Finite {
+        mantissa: rounded, ..
+    } = Numeric::finite(
+        mantissa + BigInt::from(value) * super::numeric::pow10(*scale),
+        *scale,
+    )
+    .round_to(0)
+    else {
+        return Err(out_of_range());
+    };
+    rounded.to_u64().ok_or_else(out_of_range)
 }
 
 /// `pg_lsn(numeric)`.
 ///
 /// # Errors
 /// Returns `22023` outside the 64-bit range.
-pub fn from_number(value: f64) -> Result<u64, TypeInputError> {
+pub fn from_number(value: &Numeric) -> Result<u64, TypeInputError> {
     offset(0, value)
+}
+
+/// `pg_lsn - pg_lsn` and `pg_wal_lsn_diff`: the exact byte distance.
+#[must_use]
+pub fn difference(left: u64, right: u64) -> Numeric {
+    Numeric::from_i128(i128::from(left) - i128::from(right))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{format_text, offset, parse_text};
+    use super::{format_text, offset, parse_text, Numeric};
 
     #[test]
     fn should_round_trip_pg_lsn_text_in_upper_case() {
@@ -100,11 +116,11 @@ mod tests {
         let maximum = u64::MAX;
 
         // Act
-        let overflow = offset(maximum, 1.0).map_err(|error| error.sqlstate);
-        let underflow = offset(0, -1.0).map_err(|error| error.sqlstate);
+        let overflow = offset(maximum, &Numeric::from_i64(1)).map_err(|error| error.sqlstate);
+        let underflow = offset(0, &Numeric::from_i64(-1)).map_err(|error| error.sqlstate);
 
         // Assert
         assert_eq!((overflow, underflow), (Err("22023"), Err("22023")));
-        assert_eq!(offset(8, 8.0), Ok(16));
+        assert_eq!(offset(8, &Numeric::from_i64(8)), Ok(16));
     }
 }

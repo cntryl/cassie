@@ -308,19 +308,21 @@ fn should_keep_qualified_same_name_output_types_distinct() {
     let batches = fixture::run_cycles("type-output-qualified-same-name-exports", &[], cycles);
 
     // Assert
-    for ((oid, sql, rejected), frames) in cases.into_iter().zip(batches) {
-        if rejected {
-            fixture::assert_unsupported_before_metadata(&frames);
-        } else {
-            fixture::assert_success(&frames);
-            assert_columns(&frames, &[("chosen", 23, 4, -1)], 0, true);
-            assert_eq!(
-                fixture::data_row_payloads(&frames),
-                vec![fixture::one_field_row(b"1")],
-                "{oid}: {sql}"
-            );
-            assert_parameter_oid(&frames, oid);
-        }
+    // Each qualified side keeps its PostgreSQL 18.6 type (int4/real/numeric).
+    for ((oid, sql, numeric_side), frames) in cases.into_iter().zip(batches) {
+        fixture::assert_success(&frames);
+        let (column, text): ((&str, i32, i16, i32), &[u8]) = match (numeric_side, oid) {
+            (false, _) => (("chosen", 23, 4, -1), b"1"),
+            (true, 700) => (("chosen", 700, 4, -1), b"2.5"),
+            (true, _) => (("chosen", 1700, -1, -1), b"2.5"),
+        };
+        assert_columns(&frames, &[column], 0, true);
+        assert_eq!(
+            fixture::data_row_payloads(&frames),
+            vec![fixture::one_field_row(text)],
+            "{oid}: {sql}"
+        );
+        assert_parameter_oid(&frames, oid);
     }
 }
 
@@ -375,7 +377,7 @@ fn should_accept_an_outer_cast_of_a_whole_set_with_numeric_output_origin() {
 }
 
 #[test]
-fn should_preserve_fixed_left_metadata_for_noncontributing_numeric_inputs() {
+fn should_resolve_numeric_set_metadata_over_noncontributing_inputs() {
     // Arrange
     let inputs: [(Option<&[u8]>, bool); 3] =
         [(None, false), (Some(b"1"), true), (Some(b"2.5"), false)];
@@ -405,17 +407,20 @@ fn should_preserve_fixed_left_metadata_for_noncontributing_numeric_inputs() {
     // Assert
     for ((oid, format, _, _, emits_row), frames) in cases.into_iter().zip(batches) {
         fixture::assert_success(&frames);
-        assert_columns(&frames, &[("v", 23, 4, -1)], format, true);
-        assert_parameter_oid(&frames, oid);
-        let expected = if emits_row {
-            vec![if format == 1 {
-                fixture::one_field_row(&1_i32.to_be_bytes())
-            } else {
-                fixture::one_field_row(b"1")
-            }]
+        // EXCEPT/INTERSECT resolve over both operands (PostgreSQL 18.6).
+        let column = if oid == 700 {
+            ("v", 700, 4, -1)
         } else {
-            Vec::new()
+            ("v", 1700, -1, -1)
         };
+        assert_columns(&frames, &[column], format, true);
+        assert_parameter_oid(&frames, oid);
+        let one: &[u8] = match (format, oid) {
+            (0, _) => b"1",
+            (_, 700) => &[0x3f, 0x80, 0, 0],
+            _ => &[0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+        };
+        let expected = Vec::from_iter(emits_row.then(|| fixture::one_field_row(one)));
         assert_eq!(fixture::data_row_payloads(&frames), expected);
     }
 }

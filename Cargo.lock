@@ -218,6 +218,8 @@ dependencies = [
  "hyper",
  "hyper-util",
  "md-5",
+ "num-bigint",
+ "num-integer",
  "num-traits",
  "parking_lot",
  "rcgen",

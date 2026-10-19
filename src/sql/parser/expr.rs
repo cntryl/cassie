@@ -392,9 +392,13 @@ fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
             cast_positions[index + 1]
         };
         let data_type = super::lexical::trim_separators(&raw[position + 2..type_end]);
+        let target = parse_data_type(data_type)?;
+        if index == 0 {
+            expr = exact_numeric_operand(expr, operand_sql, &target);
+        }
         expr = Expr::Cast {
             expr: Box::new(expr),
-            data_type: parse_data_type(data_type)?,
+            data_type: target,
             source_type: None,
             identity: cast_identity(data_type),
         };
@@ -694,12 +698,15 @@ pub(super) fn parse_cast_expression(raw: &str) -> Result<Option<Expr>, SqlError>
     let (expr_raw, type_raw) = split_top_level(inner, " as ")
         .ok_or_else(|| SqlError::new("CAST requires AS type clause".into()))?;
     let data_type = parse_data_type(super::lexical::trim_separators(type_raw))?;
+    let operand = text_array_literals::parse(expr_raw, &data_type)?
+        .map_or_else(|| parse_expression(expr_raw), Ok)?;
 
     Ok(Some(Expr::Cast {
-        expr: Box::new(
-            text_array_literals::parse(expr_raw, &data_type)?
-                .map_or_else(|| parse_expression(expr_raw), Ok)?,
-        ),
+        expr: Box::new(exact_numeric_operand(
+            operand,
+            super::lexical::trim_separators(expr_raw),
+            &data_type,
+        )),
         data_type,
         source_type: None,
         identity: cast_identity(type_raw),
@@ -719,11 +726,25 @@ pub(super) fn parse_alias(raw: &str) -> (&str, Option<String>) {
     (token, None)
 }
 
-fn cast_identity(raw: &str) -> crate::sql::ast::CastIdentity {
-    let base = raw.split_once('(').map_or(raw, |(base, _)| base).trim();
-    if base.eq_ignore_ascii_case("numeric") || base.eq_ignore_ascii_case("decimal") {
-        crate::sql::ast::CastIdentity::Numeric
-    } else {
-        crate::sql::ast::CastIdentity::Scalar
+/// A decimal literal cast to `numeric` keeps its exact text (`8.4100`)
+/// instead of the double the literal otherwise parses to.
+fn exact_numeric_operand(operand: Expr, raw: &str, target: &crate::types::DataType) -> Expr {
+    if !matches!(
+        target,
+        crate::types::DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
+    ) || !matches!(operand, Expr::NumberLiteral(_))
+    {
+        return operand;
     }
+    let text = raw.replace('_', "");
+    if crate::types::extended::numeric::parse_text(&text).is_ok() {
+        Expr::NumericLiteral(text)
+    } else {
+        operand
+    }
+}
+
+/// `numeric` is a native type, so every cast keeps scalar identity.
+const fn cast_identity(_raw: &str) -> crate::sql::ast::CastIdentity {
+    crate::sql::ast::CastIdentity::Scalar
 }

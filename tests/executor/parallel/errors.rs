@@ -1,5 +1,7 @@
+// PostgreSQL 18.6 types sum(bigint) as numeric, so a total beyond the int8
+// range is an exact result rather than an overflow (oracle-corrections.md).
 #[test]
-fn should_report_parallel_integer_sum_merge_overflow() {
+fn should_sum_parallel_bigint_merges_beyond_int64_as_exact_numeric() {
     // Arrange
     use_local_storage();
     let path = data_dir("parallel_aggregation_sum_overflow");
@@ -22,21 +24,24 @@ fn should_report_parallel_integer_sum_merge_overflow() {
     );
 
     // Act
-    let error = cassie
+    let result = cassie
         .execute_sql(
             &session,
             "SELECT SUM(amount) FROM exec_parallel_aggregation_overflow",
             vec![],
         )
-        .expect_err("parallel aggregate merge should report overflow");
+        .expect("parallel bigint sum merges into an exact numeric total");
 
     // Assert
-    assert!(error.to_string().contains("aggregate integer overflow"));
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("9232379236109515775".to_owned())]]
+    );
     let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
-fn should_report_row_order_integer_sum_overflow_at_every_worker_count() {
+fn should_sum_bigint_prefixes_beyond_int64_exactly_at_every_worker_count() {
     // Arrange
     let mut values = vec![serde_json::json!(0); 2050];
     values[0] = serde_json::json!(5_000_000_000_000_000_000_i64);
@@ -56,10 +61,10 @@ fn should_report_row_order_integer_sum_overflow_at_every_worker_count() {
 
     // Assert
     for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
-        let error = outcome.expect_err("row-order prefix overflows i64 at every worker count");
-        assert!(
-            error.contains("aggregate integer overflow"),
-            "workers={workers}: {error}"
+        assert_eq!(
+            outcome.expect("an int8 prefix beyond i64 stays exact in numeric"),
+            vec![vec![Value::Int64(1_000_000_000_000_000_000)]],
+            "workers={workers}"
         );
     }
 }

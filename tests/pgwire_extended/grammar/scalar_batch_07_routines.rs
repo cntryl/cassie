@@ -99,11 +99,11 @@ fn should_preserve_routine_parameter_inference_given_text_overload_when_type_fun
 #[test]
 fn should_stage_unselected_type_function_inputs_given_pending_types_when_prepared() {
     // Arrange
+    // `text(1.5)` and `float8(0.1+0.2)` take native numeric inputs and are
+    // covered by should_convert_numeric_literal_type_function_inputs.
     let queries = [
         "SELECT date($1) AS output",
         "SELECT pg_catalog.timestamp($1) AS output",
-        "SELECT text(1.5) AS output",
-        "SELECT float8(0.1+0.2) AS output",
         "SELECT text('{1}'::INTEGER[]) AS output",
     ];
     let cycles = queries
@@ -124,6 +124,36 @@ fn should_stage_unselected_type_function_inputs_given_pending_types_when_prepare
     // Assert
     for frames in &batches {
         fixture::assert_unsupported_before_metadata(frames);
+    }
+}
+
+#[test]
+fn should_convert_numeric_literal_type_function_inputs() {
+    // Arrange
+    let cases = [
+        ("SELECT text(1.5) AS output", (25, -1, -1), b"1.5".to_vec()),
+        (
+            "SELECT float8(0.1+0.2) AS output",
+            (701, 8, -1),
+            0.3_f64.to_be_bytes().to_vec(),
+        ),
+    ];
+    let cycles = cases
+        .iter()
+        .map(|(sql, _, _)| fixture::execute_cycle(sql, None, 1, true))
+        .collect();
+    // Act
+    let batches = fixture::run_cycles("type-function-numeric-inputs", &[], cycles);
+    // Assert
+    // PostgreSQL 18.6: text(numeric) is '1.5'; float8(0.1 + 0.2) is 0.3.
+    for ((sql, descriptor, payload), frames) in cases.into_iter().zip(batches) {
+        fixture::assert_success(&frames);
+        fixture::assert_single_column_descriptors(&frames, descriptor, 1, true);
+        assert_eq!(
+            fixture::data_row_payloads(&frames),
+            vec![fixture::one_field_row(&payload)],
+            "{sql}"
+        );
     }
 }
 

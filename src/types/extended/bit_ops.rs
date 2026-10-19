@@ -1,6 +1,7 @@
 //! Operators and functions over `bit` and `bit varying`, and `pg_lsn`
 //! arithmetic.
 use super::bit_string::BitString;
+use super::numeric::Numeric;
 use super::{pg_lsn, ExtendedType, TypeInputError, TypedOperator};
 use crate::types::typed::TypedValue;
 use crate::types::{DataType, Value};
@@ -16,9 +17,12 @@ const fn is_integer(kind: &DataType) -> bool {
     matches!(kind, DataType::SmallInt | DataType::Int | DataType::BigInt)
 }
 
+/// `pg_lsn ± numeric`; integers convert implicitly, floats do not.
 const fn is_offset(kind: &DataType) -> bool {
-    is_integer(kind) || matches!(kind, DataType::Float)
+    is_integer(kind) || matches!(kind, DataType::Extended(ExtendedType::Numeric(_)))
 }
+
+const NUMERIC: DataType = DataType::Extended(ExtendedType::Numeric(None));
 
 const BIT: DataType = DataType::Extended(ExtendedType::Bit { length: None });
 const VARBIT: DataType = DataType::Extended(ExtendedType::VarBit { length: None });
@@ -38,13 +42,16 @@ fn integer(value: &Value) -> Option<i64> {
     }
 }
 
-fn number(value: &Value) -> Option<f64> {
+fn number(value: &Value) -> Option<Numeric> {
     match value {
-        Value::Int64(value) => Some(crate::types::numeric::i64_to_f64(*value)),
-        Value::Float64(value) => Some(*value),
-        Value::Typed(value) => value.as_f64(),
+        Value::Int64(value) => Some(Numeric::from_i64(*value)),
+        Value::Typed(TypedValue::Numeric(value)) => Some(value.clone()),
         _ => None,
     }
+}
+
+fn exact(value: Numeric) -> Value {
+    Value::Typed(TypedValue::Numeric(value))
 }
 
 fn lsn(value: &Value) -> Option<u64> {
@@ -74,7 +81,7 @@ pub fn operator_type(op: TypedOperator, left: &DataType, right: &DataType) -> Op
         {
             Some(BIT)
         }
-        TypedOperator::Sub if lsn(left) && lsn(right) => Some(DataType::Float),
+        TypedOperator::Sub if lsn(left) && lsn(right) => Some(NUMERIC),
         TypedOperator::Add | TypedOperator::Sub if lsn(left) && is_offset(right) => Some(LSN),
         TypedOperator::Add if is_offset(left) && lsn(right) => Some(LSN),
         _ => None,
@@ -117,18 +124,16 @@ fn lsn_operator(
     };
     match (op, lsn(left), lsn(right)) {
         (TypedOperator::Sub, Some(left), Some(right)) => {
-            Some(Ok(Value::Float64(lsn_difference(left, right))))
+            Some(Ok(exact(pg_lsn::difference(left, right))))
         }
-        (TypedOperator::Add, Some(value), None) => wrap(pg_lsn::offset(value, number(right)?)),
-        (TypedOperator::Sub, Some(value), None) => wrap(pg_lsn::offset(value, -number(right)?)),
-        (TypedOperator::Add, None, Some(value)) => wrap(pg_lsn::offset(value, number(left)?)),
+        (TypedOperator::Add, Some(value), None) => wrap(pg_lsn::offset(value, &number(right)?)),
+        (TypedOperator::Sub, Some(value), None) => wrap(pg_lsn::offset(
+            value,
+            &super::numeric::math::negate(&number(right)?),
+        )),
+        (TypedOperator::Add, None, Some(value)) => wrap(pg_lsn::offset(value, &number(left)?)),
         _ => None,
     }
-}
-
-fn lsn_difference(left: u64, right: u64) -> f64 {
-    let difference = i128::from(left) - i128::from(right);
-    format!("{difference}").parse().unwrap_or(f64::NAN)
 }
 
 /// `~` over a bit string.
@@ -150,7 +155,7 @@ pub fn function_type(name: &str, args: &[DataType]) -> Option<DataType> {
         return Some(LSN);
     }
     if name == "pg_wal_lsn_diff" && args.len() == 2 && first == &LSN {
-        return Some(DataType::Float);
+        return Some(NUMERIC);
     }
     if name == "position" && args.len() == 2 && is_bits(first) {
         return Some(DataType::Int);
@@ -172,10 +177,11 @@ pub fn function(name: &str, args: &[Value]) -> Option<Result<Value, TypeInputErr
     let int = |index: usize| args.get(index).and_then(integer);
     match (name, args) {
         ("pg_lsn", [value]) if lsn(value).is_none() => Some(
-            pg_lsn::from_number(number(value)?).map(|value| Value::Typed(TypedValue::PgLsn(value))),
+            pg_lsn::from_number(&number(value)?)
+                .map(|value| Value::Typed(TypedValue::PgLsn(value))),
         ),
         ("pg_wal_lsn_diff", [left, right]) => {
-            Some(Ok(Value::Float64(lsn_difference(lsn(left)?, lsn(right)?))))
+            Some(Ok(exact(pg_lsn::difference(lsn(left)?, lsn(right)?))))
         }
         ("position", [haystack, needle]) => {
             Some(Ok(Value::Int64(bits(haystack)?.position(bits(needle)?))))

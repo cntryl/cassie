@@ -12,6 +12,9 @@ pub(super) fn binary_scalar(
     if let Some(result) = super::extended_ops::binary(left, op, right) {
         return result;
     }
+    if let Some(result) = super::numeric_ops::arithmetic(left, op, right) {
+        return result;
+    }
     let result = match op {
         BinaryOp::Typed { .. } => {
             return Err(crate::app::CassieError::Execution(

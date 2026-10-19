@@ -31,6 +31,8 @@ pub enum SqlErrorKind {
     NumericRange,
     DuplicateColumn,
     ResourceLimit,
+    /// A type modifier outside its documented range (SQLSTATE 22023).
+    InvalidParameterValue,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +60,14 @@ impl SqlError {
     pub fn unsupported(message: String) -> Self {
         Self {
             kind: SqlErrorKind::Unsupported,
+            message,
+        }
+    }
+
+    #[must_use]
+    pub fn invalid_parameter_value(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::InvalidParameterValue,
             message,
         }
     }

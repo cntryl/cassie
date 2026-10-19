@@ -65,7 +65,7 @@ fn should_accelerate_numeric_aggregates_from_column_summaries() {
                 Value::Int64(3),
                 Value::Int64(2),
                 Value::Int64(10),
-                Value::Float64(5.0),
+                Value::String("5.0000000000000000".to_owned()),
                 Value::Int64(3),
                 Value::Int64(7),
             ]]

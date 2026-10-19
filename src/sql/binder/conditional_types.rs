@@ -23,6 +23,10 @@ pub(super) fn result_type(name: &str, arguments: &[DataType]) -> Result<DataType
                 | DataType::Int
                 | DataType::BigInt
                 | DataType::Float
+                | DataType::Extended(
+                    crate::types::extended::ExtendedType::Numeric(_)
+                        | crate::types::extended::ExtendedType::Real
+                )
                 | DataType::Text
                 | DataType::Boolean
         ) {

@@ -115,7 +115,7 @@ impl State {
             Self::Count(count) => Ok(Value::Int64(count)),
             Self::Sum { sum, seen: true } => sum.finish_value(),
             Self::Sum { seen: false, .. } | Self::Avg { count: 0, .. } => Ok(Value::Null),
-            Self::Avg { sum, count } => sum.finish_mean(count).map(Value::Float64),
+            Self::Avg { sum, count } => sum.finish_mean(count),
             Self::MinMax { selected, .. } => Ok(selected.unwrap_or(Value::Null)),
         }
     }

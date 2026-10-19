@@ -20,10 +20,12 @@ mod inputs;
 pub(crate) use bytea::{
     bit_input_selection, has_distinct_builtin_arity, is_bytea_function, BitInputSelection,
 };
+pub(crate) mod math;
 mod text;
 pub(crate) use inputs::{
     aggregate_accepts_input, has_distinct_equality, input_signature, FunctionInputSignature,
 };
+pub(crate) use math::MathFunction;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FunctionId {
@@ -128,6 +130,7 @@ pub enum FunctionId {
     Setval,
     Lastval,
     PgGetSerialSequence,
+    Math(MathFunction),
 }
 
 #[derive(Debug, Clone)]
@@ -154,6 +157,8 @@ pub enum FunctionReturnType {
     SumArgument,
     Timestamp,
     ObjectId(crate::types::ObjectIdKind),
+    /// Resolved from the argument types by [`math::result_type`].
+    Math,
     Unknown,
 }
 
@@ -211,6 +216,7 @@ pub fn registry() -> Vec<ScalarFunction> {
         .chain(object_identity::FUNCTIONS)
         .chain(sequences::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
+        .chain(math::FUNCTIONS)
         .cloned()
         .collect()
 }
@@ -225,6 +231,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(object_identity::FUNCTIONS)
         .chain(sequences::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
+        .chain(math::FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
         .or_else(|| {
             name.get(..11)
@@ -247,6 +254,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || bytea::FUNCTIONS
                             .iter()
+                            .chain(math::FUNCTIONS)
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                 })
                 .and_then(|local| {
@@ -258,6 +266,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         .chain(object_identity::FUNCTIONS)
                         .chain(sequences::FUNCTIONS)
                         .chain(runtime::FUNCTIONS)
+                        .chain(math::FUNCTIONS)
                         .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
                 })
         })

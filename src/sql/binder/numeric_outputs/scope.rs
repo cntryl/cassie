@@ -43,7 +43,7 @@ impl Analyzer<'_> {
                 SetOperator::Intersect
                 | SetOperator::Except
                 | SetOperator::IntersectAll
-                | SetOperator::ExceptAll => {}
+                | SetOperator::ExceptAll => numeric_set_types(&mut output, &right),
             }
         }
         Ok(output)
@@ -84,6 +84,7 @@ impl Analyzer<'_> {
                 let mut next = self.select(recursive, &scope, None)?;
                 rename_cte_fields(&mut next, cte)?;
                 require_width(&fields, &next)?;
+                require_recursive_numeric_types(&cte.name, &fields, &next)?;
                 join_fields(&mut fields, &next);
                 if fields == previous {
                     break;
@@ -362,8 +363,51 @@ fn require_width(left: &[OutputField], right: &[OutputField]) -> Result<(), Cass
     Ok(())
 }
 
+/// EXCEPT/INTERSECT emit left rows, but PostgreSQL still resolves each
+/// column's type over both operands when either is `numeric` or `real`.
+fn numeric_set_types(left: &mut [OutputField], right: &[OutputField]) {
+    for (left, right) in left.iter_mut().zip(right) {
+        if let Some(common) = crate::types::extended::numeric_types::common(
+            &left.value.data_type,
+            &right.value.data_type,
+        ) {
+            left.value = super::OutputType::fixed(common);
+        }
+    }
+}
+
 fn join_fields(left: &mut [OutputField], right: &[OutputField]) {
     for (left, right) in left.iter_mut().zip(right) {
         left.value.join(&right.value);
     }
+}
+
+/// A recursive term may not widen a non-recursive column into `numeric` or
+/// `real`: PostgreSQL rejects the mismatch (SQLSTATE 42804).
+fn require_recursive_numeric_types(
+    name: &str,
+    base: &[OutputField],
+    recursive: &[OutputField],
+) -> Result<(), CassieError> {
+    for (index, (base, recursive)) in base.iter().zip(recursive).enumerate() {
+        let (base_type, recursive_type) = (&base.value.data_type, &recursive.value.data_type);
+        let Some(common) = crate::types::extended::numeric_types::common(base_type, recursive_type)
+        else {
+            continue;
+        };
+        if common != *base_type {
+            return Err(CassieError::TypeInput(
+                crate::types::extended::TypeInputError {
+                    sqlstate: "42804",
+                    message: format!(
+                        "recursive query \"{name}\" column {} has type {} in non-recursive term but type {} overall",
+                        index + 1,
+                        super::super::values::pg_name(base_type),
+                        super::super::values::pg_name(&common)
+                    ),
+                },
+            ));
+        }
+    }
+    Ok(())
 }

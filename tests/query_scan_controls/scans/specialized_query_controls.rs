@@ -631,7 +631,8 @@ fn should_publish_only_deterministic_bounded_final_analytical_paths() {
                 vec![vec![
                     cassie::types::Value::Int64(64),
                     cassie::types::Value::Int64(2016),
-                    cassie::types::Value::Float64(31.5),
+                    // avg(integer) is numeric in PostgreSQL 18.6.
+                    cassie::types::Value::String("31.5000000000000000".to_owned()),
                 ]]
             );
         } else {

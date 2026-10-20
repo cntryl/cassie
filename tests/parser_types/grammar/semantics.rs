@@ -6,21 +6,33 @@ fn should_accept_postgres_float_type_aliases() {
 
     // Act
     let cases = [
-        ("SELECT CAST('1.25' AS float4) AS value", 700),
-        ("SELECT CAST('1.25' AS float8) AS value", 701),
-        ("SELECT CAST('1.25' AS real) AS value", 700),
+        (
+            "SELECT CAST('1.23456789' AS float4) AS value",
+            vec![Value::String("1.2345679".to_owned())],
+            700,
+        ),
+        (
+            "SELECT CAST('1.23456789' AS float8) AS value",
+            vec![Value::Float64(1.234_567_89)],
+            701,
+        ),
+        (
+            "SELECT CAST('1.23456789' AS real) AS value",
+            vec![Value::String("1.2345679".to_owned())],
+            700,
+        ),
     ];
     let failures = cases
         .iter()
-        .filter_map(|(sql, expected_oid)| match fixture.execute(sql) {
+        .filter_map(|(sql, expected_values, expected_oid)| match fixture.execute(sql) {
             Ok(result)
-                if result.rows() == [vec![Value::Float64(1.25)]]
+                if result.rows() == [expected_values.clone()]
                     && result.columns()[0].type_oid == *expected_oid =>
             {
                 None
             }
             Ok(result) => Some(format!(
-                "{sql}: expected oid {expected_oid} and value 1.25, got {:?} / {}",
+                "{sql}: expected oid {expected_oid} and values {expected_values:?}, got {:?} / {}",
                 result.rows(),
                 result.columns()[0].type_oid
             )),

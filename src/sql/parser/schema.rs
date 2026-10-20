@@ -841,6 +841,13 @@ pub(super) fn starts_with_keyword(raw: &str, keyword: &str) -> bool {
 }
 
 pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
+    // SQL requires DOUBLE PRECISION; preserve the shared parser's legacy alias
+    // for non-SQL callers.
+    if raw.trim().eq_ignore_ascii_case("double") {
+        return Err(SqlError::unsupported(
+            "unsupported data type 'double'".to_string(),
+        ));
+    }
     DataType::parse_sql(raw).map_err(|message| {
         if message.starts_with("NUMERIC precision")
             || message.starts_with("NUMERIC scale")

@@ -228,6 +228,7 @@ pub(crate) fn check_projection_activation_failure_point() -> Result<(), crate::a
     }
     Ok(())
 }
+pub(crate) use execution::projection_verification_column_definitions;
 pub(crate) use execution::resolve_transaction_conflict_intents;
 pub(crate) use execution::show_result_columns;
 pub(crate) use execution::{delete_is_joined, joined_returning_schema, update_is_joined};

@@ -8,6 +8,21 @@ use super::{
 use crate::midge::adapter::IntegrityCheckReport;
 use crate::types::DataType;
 
+pub(crate) fn projection_verification_column_definitions() -> [(&'static str, DataType); 10] {
+    [
+        ("state", DataType::Text),
+        ("target_collection", DataType::Text),
+        ("mode", DataType::Text),
+        ("mismatch_count", DataType::BigInt),
+        ("missing_count", DataType::BigInt),
+        ("stale_count", DataType::BigInt),
+        ("repairable", DataType::Boolean),
+        ("checked_components", DataType::Text),
+        ("skipped_components", DataType::Text),
+        ("last_error", DataType::Text),
+    ]
+}
+
 pub(in crate::executor::execution) fn verify_projection(
     cassie: &Cassie,
     statement: &crate::sql::ast::VerifyProjectionStatement,
@@ -16,22 +31,8 @@ pub(in crate::executor::execution) fn verify_projection(
     let verification = prepare_verification(cassie, statement)?;
     let target = &verification.target;
     let report = &verification.report;
-    let mut result = command_output::columns(
-        "VERIFY PROJECTION",
-        &[
-            ("state", DataType::Text),
-            ("target_collection", DataType::Text),
-            ("mode", DataType::Text),
-            ("mismatch_count", DataType::BigInt),
-            ("missing_count", DataType::BigInt),
-            ("stale_count", DataType::BigInt),
-            ("repairable", DataType::Boolean),
-            ("checked_components", DataType::Text),
-            ("skipped_components", DataType::Text),
-            ("last_error", DataType::Text),
-        ],
-        controls,
-    )?;
+    let columns = projection_verification_column_definitions();
+    let mut result = command_output::columns("VERIFY PROJECTION", &columns, controls)?;
     command_output::push_row(
         &mut result,
         &[

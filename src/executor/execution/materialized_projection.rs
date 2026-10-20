@@ -1,5 +1,6 @@
 #[path = "materialized_projection_verification.rs"]
 mod verification;
+pub(crate) use verification::projection_verification_column_definitions;
 pub(super) use verification::{verify_projection, verify_projection_state};
 
 pub(super) use super::command_output::empty as empty_command;

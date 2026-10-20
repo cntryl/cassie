@@ -14,6 +14,37 @@ fn should_bind_double_precision_type_names_in_casts() {
 }
 
 #[test]
+fn should_reject_bare_double_given_postgresql_type_name_rules_when_casting_and_declaring() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-bare-double-type-name", &[]);
+    let statements = [
+        "SELECT CAST('1.5' AS DOUBLE) AS value",
+        "SELECT '1.5'::DOUBLE AS value",
+        "CREATE TABLE issue_796_bare_double_rows (value DOUBLE)",
+    ];
+
+    // Act
+    let results = statements.map(|sql| fixture.execute(sql));
+
+    // Assert
+    for (sql, result) in statements.into_iter().zip(results) {
+        assert!(
+            matches!(
+                &result,
+                Err(cassie::app::CassieError::Unsupported(message))
+                    if message == "unsupported data type 'double'"
+            ),
+            "{sql}: expected deterministic unsupported-type rejection, got {result:?}"
+        );
+    }
+    assert_eq!(
+        cassie::types::DataType::parse_sql("double"),
+        Ok(cassie::types::DataType::Float),
+        "non-SQL DataType callers retain the existing alias"
+    );
+}
+
+#[test]
 fn should_accept_type_keyword_separators_given_double_precision_casts_when_projected() {
     // Arrange
     let fixture = sql_fixture("issue-796-double-precision-separators", &[]);

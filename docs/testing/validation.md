@@ -3235,6 +3235,68 @@ The other collection aggregate fixtures, full repository test baseline, hosted
 backend qualification, and workflow-dependent benchmark validation remain
 separate work.
 
+
+### Autopilot batch 21: Downsize pending collection aggregate cancellation fixtures (2026-10-20)
+
+This partial #954 slice replaces the five remaining 50,000-row collection
+aggregate cancellation fixtures (`array_agg`, `json_agg`, `jsonb_agg`,
+`json_object_agg`, and `jsonb_object_agg`) with three-row inputs. Each test is
+wired to the existing query-scoped pause after aggregate input retention and
+retains the real pgwire CancelRequest, no-partial-output, and session-recovery
+assertions for when its aggregate owner is implemented. Candidate inputs no
+longer add `repeat()`, `length()` or `cardinality()` dependencies outside these
+aggregate owners.
+
+These aggregate forms remain unsupported under #811 (which still depends on
+#804, #807 and #810). On the pre-change `main` run, each test spent about 36
+seconds seeding 50,000 rows and then failed its small aggregate control with
+SQLSTATE 42601. In the final full run, the changed tests reached their
+`count(*)` controls and each failed at the existing five-second retained-input
+pause wait (5.64–5.94 seconds per test). The unsupported candidates did not
+reach the pause, so no CancelRequest, no-partial-output, or recovery assertion
+ran. The test identities remain the same as the baseline, and no active
+cancellation coverage is claimed. Their aggregate owners and this cancellation
+issue remain open.
+
+The implementation uses the existing `pause_next_query_after_aggregate_input`
+test hook already proven by the `string_agg` cancellation slice above. No
+runtime behavior, public setting, storage format, CI configuration or workflow
+state changes.
+
+At the semantic decision gate, Jev selected the supported `count(*)` control
+(probability 0.89, confidence 0.85) over asserting new aggregate serialization
+or retaining unrelated scalar wrappers. Source inspection and the focused run
+confirm the control succeeds while the candidate still does not reach the
+pause; the Jev choice did not convert these pending tests into cancellation
+proof.
+
+The focused review asked whether an edited case could pass without reaching
+the retained-input pause and which concrete failure mode needed a probe. Jev
+assigned 0.75 probability to a false-green path and selected `none` as the first
+review concern (confidence 0.39; candidate-error masking had probability
+0.36). Source inspection shows the helper panics on a missing pause signal
+before it opens the CancelRequest connection, and the exact array case failed
+at that wait in 5.75 seconds. Thus the high false-green signal is contradicted
+by source and execution; no code change was made. The current unsupported
+candidate is reported as a missing-boundary timeout rather than its SQL error,
+but the test remains red and names the boundary it failed to reach.
+
+Final local evidence for this slice:
+
+| Command | Result |
+| --- | --- |
+| `cargo build --locked --bin cassie` | Passed. |
+| `cargo nextest run --locked --workspace --all-features --no-fail-fast --config-file /tmp/cassie-nextest-60s.toml --status-level fail --final-status-level fail --failure-output never` | 10,000 tests: 8,509 passed, 1,491 failed, 9 skipped. The exact failure-name set matches the saved `main` baseline; no test timed out. The slowest test was 30.60s versus 37.21s at baseline. The command remains nonzero because the existing known-red cases remain. |
+| Focused filtered Nextest run for the five edited cancellation tests | 0 passed, 5 failed at the retained-input pause wait in 6.55s each; the real cancellation and recovery assertions remain pending under #811. |
+| Strict workspace Clippy with all targets/features and pedantic warnings denied | Passed. |
+| `cargo fmt --all -- --check` | Passed. |
+| `cntryl-tools validate-tests -f` on the five edited aggregate test files | Passed: 2/2 tests compliant in each file. The touched shared support file contains no tests. |
+| `git diff --check` | Passed. |
+
+Repository Actions remained disabled; this slice changed no workflow or CI
+configuration and started no workflow. Issue #954 stays open for the remaining
+aggregate, vector, and persisted full-text cancellation obligations.
+
 Final local evidence for this slice:
 
 | Command | Result |

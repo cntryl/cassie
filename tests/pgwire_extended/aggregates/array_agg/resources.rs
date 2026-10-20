@@ -32,14 +32,12 @@ fn should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive(
 fn should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives(
 ) {
     // Arrange
-    let setup_sql = support::integer_table_fixture_setup("issue_811_array_agg_rows", 50_000);
-    let control_sql = "SELECT cardinality(array_agg(repeat('x', 2))) \
-                       FROM issue_811_array_agg_rows WHERE n <= 3";
-    let candidate_sql = "SELECT cardinality(array_agg(repeat('x', 512))) \
-                         FROM issue_811_array_agg_rows";
+    let setup_sql = support::integer_table_fixture_setup("issue_811_array_agg_rows", 3);
+    let control_sql = "SELECT count(*) FROM issue_811_array_agg_rows WHERE n <= 3";
+    let candidate_sql = "SELECT array_agg(n) FROM issue_811_array_agg_rows";
 
     // Act
-    let case = support::run_cancellation_case_with_setup(
+    let case = support::run_cancellation_case_with_setup_after_aggregate_input(
         "issue-811-array-agg-cancel",
         &setup_sql,
         control_sql,

@@ -1,5 +1,7 @@
 use super::{
-    check_projection_metadata_persistence_failure_point, CassieError, Midge, ProjectionMeta,
+    check_projection_metadata_persistence_failure_point,
+    check_projection_replay_post_commit_failure_point,
+    check_projection_replay_schema_commit_failure_point, CassieError, Midge, ProjectionMeta,
     StorageFamily,
 };
 
@@ -138,6 +140,42 @@ impl Midge {
         }
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    /// Records replay idempotency keys and their checkpoint in one
+    /// Schema-family transaction. Projection rows remain in the Data family.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when metadata validation, storage, or commit fails.
+    pub(crate) fn record_projection_events_and_metadata_batch(
+        &self,
+        metadata: &ProjectionMeta,
+        source_identity: &str,
+        event_ids: &[&str],
+        replay_batch_id: &str,
+    ) -> Result<(), CassieError> {
+        if let Some(definition) = &metadata.materialized {
+            crate::sql::definition_guard::query_sql(&definition.query)?;
+        }
+        let mut metadata = metadata.clone();
+        metadata.collection = self.canonical_collection_name(&metadata.collection);
+        let mut tx = self.begin_schema_rw_tx()?;
+        for event_id in event_ids {
+            tx.put(
+                Self::projection_event_key(&metadata.collection, source_identity, event_id),
+                replay_batch_id.as_bytes().to_vec(),
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+        Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
+        check_projection_metadata_persistence_failure_point()?;
+        check_projection_replay_schema_commit_failure_point()?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        check_projection_replay_post_commit_failure_point()?;
         Ok(())
     }
 }

@@ -6,6 +6,8 @@ use cassie::catalog::{ProjectionVerificationState, ProjectionVersionState};
 use cassie::executor::set_projection_activation_failure_point;
 use cassie::midge::adapter::{
     set_projection_metadata_persistence_failure_point, set_projection_output_failure_point,
+    set_projection_replay_post_commit_failure_point,
+    set_projection_replay_schema_commit_failure_point,
     set_projection_report_deletion_failure_point, ProjectionOutputFailurePoint,
 };
 use cassie::sql::ast::{

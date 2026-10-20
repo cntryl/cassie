@@ -80,6 +80,257 @@ fn should_replay_projection_batch_idempotently_with_checkpoint_metadata() {
     });
 }
 
+fn start_projection_replay_retry_fixture(
+    label: &str,
+) -> (tokio::runtime::Runtime, String, Cassie, CassieSession, String) {
+    use_local_storage();
+    let path = data_dir(label);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let (cassie, session, projection) = runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE projection_replay_schema_retry_docs (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        let projection =
+            canonical_test_collection(&cassie, "projection_replay_schema_retry_docs");
+        (cassie, session, projection)
+    });
+    (runtime, path, cassie, session, projection)
+}
+
+#[test]
+fn should_retry_projection_replay_when_schema_commit_fails_after_data_commit() {
+    // Arrange
+    let (_runtime, path, cassie, session, projection) =
+        start_projection_replay_retry_fixture("projection_replay_schema_commit_retry");
+    let batch = ProjectionReplayBatch {
+        projection: projection.clone(),
+        source_identity: "orders-stream".to_string(),
+        batch_id: "batch-1".to_string(),
+        lag: 0,
+        events: vec![ProjectionReplayEvent {
+            event_id: "event-1".to_string(),
+            checkpoint: "checkpoint-1".to_string(),
+            position: Some(1),
+            document_id: "doc-1".to_string(),
+            payload: Some(serde_json::json!({"title": "alpha"})),
+        }],
+    };
+    set_projection_replay_schema_commit_failure_point(true);
+
+    // Act
+    let failed = cassie.replay_projection_batch(batch.clone());
+    set_projection_replay_schema_commit_failure_point(false);
+    let rows_after_failed_schema_commit = query_rows(
+        &cassie,
+        &session,
+        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+    );
+    let event_seen_after_failed_schema_commit = cassie
+        .midge
+        .has_projection_event(&projection, "orders-stream", "event-1")
+        .unwrap();
+    let metadata_after_failed_schema_commit = cassie
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap();
+
+    // Assert
+    assert!(failed.is_err(), "schema failure was not returned: {failed:?}");
+    assert_eq!(
+        rows_after_failed_schema_commit,
+        vec![vec![Value::String("alpha".to_string())]]
+    );
+    assert!(!event_seen_after_failed_schema_commit);
+    assert_eq!(metadata_after_failed_schema_commit.source_checkpoint, None);
+    assert_eq!(metadata_after_failed_schema_commit.last_applied_event_id, None);
+
+    let retry = cassie.replay_projection_batch(batch).unwrap();
+    let rows_after_retry = query_rows(
+        &cassie,
+        &session,
+        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+    );
+    let metadata_after_retry = cassie
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap();
+    let event_seen_after_retry = cassie
+        .midge
+        .has_projection_event(&projection, "orders-stream", "event-1")
+        .unwrap();
+
+    // Assert
+    assert_eq!(retry.applied_event_count, 1);
+    assert_eq!(rows_after_retry, rows_after_failed_schema_commit);
+    assert!(event_seen_after_retry);
+    assert_eq!(
+        metadata_after_retry.source_checkpoint.as_deref(),
+        Some("checkpoint-1")
+    );
+    assert_eq!(
+        metadata_after_retry.last_applied_event_id.as_deref(),
+        Some("event-1")
+    );
+
+    cassie.shutdown();
+    drop(cassie);
+    let recovered = Cassie::new_with_data_dir(&path).unwrap();
+    recovered.startup().unwrap();
+    let recovered_session = recovered.create_session("tester", None);
+    let recovered_rows = query_rows(
+        &recovered,
+        &recovered_session,
+        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+    );
+    let recovered_metadata = recovered
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap();
+    let recovered_event_seen = recovered
+        .midge
+        .has_projection_event(&projection, "orders-stream", "event-1")
+        .unwrap();
+
+    // Assert
+    assert_eq!(recovered_rows, rows_after_retry);
+    assert!(recovered_event_seen);
+    assert_eq!(
+        recovered_metadata.source_checkpoint.as_deref(),
+        Some("checkpoint-1")
+    );
+
+    recovered.shutdown();
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_keep_projection_replay_checkpoint_after_uncertain_schema_commit() {
+    // Arrange
+    let (_runtime, path, cassie, session, projection) =
+        start_projection_replay_retry_fixture("projection_replay_uncertain_schema_commit");
+    cassie
+        .replay_projection_batch(ProjectionReplayBatch {
+            projection: projection.clone(),
+            source_identity: "orders-stream".to_string(),
+            batch_id: "batch-1".to_string(),
+            lag: 0,
+            events: vec![ProjectionReplayEvent {
+                event_id: "event-1".to_string(),
+                checkpoint: "checkpoint-1".to_string(),
+                position: Some(1),
+                document_id: "doc-1".to_string(),
+                payload: Some(serde_json::json!({"title": "alpha"})),
+            }],
+        })
+        .unwrap();
+    let uncertain_batch = ProjectionReplayBatch {
+        projection: projection.clone(),
+        source_identity: "orders-stream".to_string(),
+        batch_id: "batch-2".to_string(),
+        lag: 0,
+        events: vec![ProjectionReplayEvent {
+            event_id: "event-2".to_string(),
+            checkpoint: "checkpoint-2".to_string(),
+            position: Some(2),
+            document_id: "doc-2".to_string(),
+            payload: Some(serde_json::json!({"title": "bravo"})),
+        }],
+    };
+    set_projection_replay_post_commit_failure_point(true);
+
+    // Act
+    let uncertain_commit = cassie.replay_projection_batch(uncertain_batch.clone());
+    set_projection_replay_post_commit_failure_point(false);
+    let metadata_after_uncertain_commit = cassie
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap();
+    let event_seen_after_uncertain_commit = cassie
+        .midge
+        .has_projection_event(&projection, "orders-stream", "event-2")
+        .unwrap();
+
+    // Assert
+    assert!(uncertain_commit.is_err());
+    assert!(event_seen_after_uncertain_commit);
+    assert_eq!(
+        metadata_after_uncertain_commit.source_checkpoint.as_deref(),
+        Some("checkpoint-2")
+    );
+
+    let retry = cassie.replay_projection_batch(uncertain_batch).unwrap();
+    let metadata_after_retry = cassie
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap();
+    let rows_after_retry = query_rows(
+        &cassie,
+        &session,
+        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+    );
+
+    // Assert
+    assert_eq!(retry.applied_event_count, 0);
+    assert_eq!(retry.skipped_duplicate_count, 1);
+    assert_eq!(
+        metadata_after_retry.source_checkpoint.as_deref(),
+        Some("checkpoint-2")
+    );
+    assert_eq!(
+        rows_after_retry,
+        vec![
+            vec![Value::String("alpha".to_string())],
+            vec![Value::String("bravo".to_string())],
+        ]
+    );
+
+    cassie.shutdown();
+    drop(cassie);
+    let recovered = Cassie::new_with_data_dir(&path).unwrap();
+    recovered.startup().unwrap();
+    let recovered_session = recovered.create_session("tester", None);
+    let recovered_rows = query_rows(
+        &recovered,
+        &recovered_session,
+        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+    );
+    let recovered_metadata = recovered
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap();
+    let recovered_event_seen = recovered
+        .midge
+        .has_projection_event(&projection, "orders-stream", "event-2")
+        .unwrap();
+
+    // Assert
+    assert_eq!(recovered_rows, rows_after_retry);
+    assert!(recovered_event_seen);
+    assert_eq!(
+        recovered_metadata.source_checkpoint.as_deref(),
+        Some("checkpoint-2")
+    );
+
+    recovered.shutdown();
+    let _ = std::fs::remove_dir_all(path);
+}
+
 #[test]
 fn should_keep_hashed_projection_version_inactive_when_build_stops_before_metadata_publish() {
     // Arrange

@@ -28,9 +28,12 @@ library loading or a PostgreSQL extension ABI promise.
 Every issue and test must serve one of these five product areas:
 
 1. **Projection writes**: idempotent `INSERT ... ON CONFLICT`, `UPDATE` and
-   `DELETE`; an event batch and its checkpoint row committed in one
-   transaction; `COPY` and `TRUNCATE` for rebuilds. There is no separate
-   checkpoint or rebuild API.
+   `DELETE`; each replay event batch writes rows in one Data-family commit,
+   then commits its duplicate ledger and checkpoint together in one
+   Schema-family transaction. Rows may become visible before that checkpoint
+   transaction; retrying the same deterministic batch must safely reconcile
+   the gap. Cassie does not use a cross-family transaction. `COPY` and
+   `TRUNCATE` support rebuilds. There is no separate checkpoint or rebuild API.
 2. **Read-model lifecycle**: create, alter and drop tables, indexes, views and
    materialized views; rebuild into a staging table and rename-swap; restart
    and recovery.
@@ -66,11 +69,28 @@ on the exact release commit. GitHub Actions are disabled by user direction, so
 hosted evidence is blocked; do not enable or dispatch workflows or claim a
 hosted pass.
 
-| Milestone | Ships |
-| --- | --- |
-| [v0.3 Projection store](https://github.com/cntryl/cassie/milestone/7) | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract, with event/checkpoint transaction behavior, schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. The release covers the finite Cassie profile and does not require full PostgreSQL parity. |
-| [v0.4 Query and retrieval](https://github.com/cntryl/cassie/milestone/8) | The documented read-side contract for read-model workloads: selected relational SQL, type and function families, bounded extension compatibility in #843, plus full-text, vector and hybrid retrieval. Each capability is bounded by Feature Support and its live issue criteria; “complete SELECT” means the documented Cassie profile, not PostgreSQL-wide syntax or semantics. |
-| [v1.0 Production release](https://github.com/cntryl/cassie/milestone/9) | Production qualification of the projection store and documented query surface: representative single-node resource and concurrency evidence, cross-path invariants, restart/recovery and rebuild, operational thresholds and one release ledger. Qualification does not expand product scope. |
+The dates below are planning targets set on 2026-10-20, not capacity-backed
+forecasts. They assume one serial delivery lane and the written exit criteria
+only. Recheck progress each Friday. The current issue counts and merged PR rate
+do not establish engineering capacity, so keep these dates visible and reforecast
+explicitly when a gate slips.
+
+| Target date | Gate | Exit condition |
+| --- | --- | --- |
+| 2026-10-23 | Replay contract | Prove that the Data-family row batch can commit before the Schema-family ledger/checkpoint transaction, that the latter pair commits atomically, and that same-batch retry handles both an aborted Schema commit and an error response after a successful Schema commit without losing or double-applying projection state. |
+| 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. |
+
+If the replay recovery proof is incomplete on 2026-10-23, keep the v0.3 target
+visibly at risk and reforecast at the next Friday review; do not silently weaken
+the contract. v0.3 is the MVP qualification target, not approval to replace a
+production hosted PostgreSQL service. Production replacement depends on the v1.0
+qualification and workload-specific migration evidence.
+
+| Milestone | Target date | Ships |
+| --- | --- | --- |
+| [v0.3 Projection store](https://github.com/cntryl/cassie/milestone/7) | 2026-12-11 | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract. Projection rows commit in the Data family; the event duplicate ledger and checkpoint commit together in the Schema family. Replay retries reconcile a committed row batch when the Schema-family commit did not complete. The release also covers schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. It excludes cross-family transactions and full PostgreSQL parity. |
+| [v0.4 Query and retrieval](https://github.com/cntryl/cassie/milestone/8) | 2027-04-09 | The documented read-side contract for read-model workloads: selected relational SQL, type and function families, bounded extension compatibility in #843, plus full-text, vector and hybrid retrieval. Each capability is bounded by Feature Support and its live issue criteria; “complete SELECT” means the documented Cassie profile, not PostgreSQL-wide syntax or semantics. |
+| [v1.0 Production release](https://github.com/cntryl/cassie/milestone/9) | 2027-08-27 | Production qualification of the projection store and documented query surface: representative single-node resource and concurrency evidence, cross-path invariants, restart/recovery and rebuild, operational thresholds and one release ledger. Qualification does not expand product scope. |
 
 Requests for additional type families enter a release milestone only after the
 current Type Contract selects their logical identity, SQL and wire semantics,

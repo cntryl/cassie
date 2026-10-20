@@ -65,6 +65,16 @@ creates the four forms with trailing `NOT NULL`, inserts and reads values, and
 checks OIDs, typmods and text results. Other multi-word type-name and cast gaps
 remain under [#796](https://github.com/cntryl/cassie/issues/796).
 
+Extended-protocol casts also accept the schema-qualified
+`pg_catalog.timestamptz(3)`, `pg_catalog.timetz(3)` and
+`pg_catalog.numeric(5,2)` spellings. The pgwire regression
+[`should_bind_pg_catalog_qualified_temporal_casts_with_native_metadata`](../tests/pgwire_extended/types/temporal/parameters.rs)
+checks inferred parameter OIDs, statement and portal descriptors, typmods, and
+the rounded/rendered values. Its PostgreSQL 18.6 reference returns
+`2001-02-17 01:38:40+00`, `20:38:40-05` and `12.35` for the selected inputs.
+This qualifies only these type spellings; the remaining #796 cast, type-name,
+literal, operator, collation and expression obligations stay open.
+
 The #796 extended-protocol witness
 [`should_bind_the_selected_four_type_cast_fixture_through_extended_protocol`](../tests/pgwire_extended/grammar/parameters.rs)
 executes inferred `uuid`, `jsonb`, `numeric(18,2)`, and `uuid[]` casts through

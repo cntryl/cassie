@@ -132,3 +132,109 @@ fn should_accept_text_temporal_parameters_with_explicit_postgresql_oids() {
         ]]
     );
 }
+
+#[test]
+fn should_bind_pg_catalog_qualified_temporal_casts_with_native_metadata() {
+    // Arrange
+    let sql = "SELECT $1::pg_catalog.timestamptz(3) AS timestamp_value, \
+        $2::pg_catalog.timetz(3) AS time_value, \
+        $3::pg_catalog.numeric(5,2) AS numeric_value";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "qualified_temporal_casts",
+            sql,
+            &[0, 0, 0],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("qualified_temporal_casts"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(
+                "qualified_temporal_portal",
+                "qualified_temporal_casts",
+                &[
+                    "2001-02-16 20:38:40-05",
+                    "20:38:40-05",
+                    "12.345",
+                ],
+            ),
+            wire::describe_portal_frame("qualified_temporal_portal"),
+            wire::execute_frame("qualified_temporal_portal"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-796-qualified-temporal-casts", steps);
+    let parsed = &batches[1];
+    let described = &batches[2];
+    let executed = &batches[3];
+
+    // Assert
+    for (stage, frames) in [
+        ("Parse", parsed),
+        ("statement Describe", described),
+        ("Bind/portal Describe/Execute", executed),
+    ] {
+        assert_eq!(
+            wire::error_code(frames),
+            None,
+            "{stage} ErrorResponse: {:?}",
+            frames
+                .iter()
+                .filter(|(tag, _)| *tag == b'E')
+                .map(|(_, payload)| wire::parse_error_fields(payload))
+                .collect::<Vec<_>>()
+        );
+    }
+    assert_eq!(
+        wire::parse_parameter_description(
+            &described
+                .iter()
+                .find(|(tag, _)| *tag == b't')
+                .expect("qualified cast ParameterDescription")
+                .1
+        ),
+        vec![1184, 1266, 1700]
+    );
+    let statement_description = described
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("qualified cast statement RowDescription");
+    let portal_description = executed
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("qualified cast portal RowDescription");
+    let expected_columns = vec![
+        ("timestamp_value", 1184, 8, 3, 0),
+        ("time_value", 1266, 12, 3, 0),
+        ("numeric_value", 1700, -1, 327_686, 0),
+    ];
+    for description in [statement_description, portal_description] {
+        assert_eq!(
+            wire::parse_row_description(&description.1)
+                .iter()
+                .map(|column| {
+                    (
+                        column.name.as_str(),
+                        column.type_oid,
+                        column.type_size,
+                        column.type_mod,
+                        column.format_code,
+                    )
+                })
+                .collect::<Vec<_>>(),
+            expected_columns
+        );
+    }
+    assert_eq!(
+        wire::data_rows(executed),
+        vec![vec![
+            Some("2001-02-17 01:38:40+00".to_owned()),
+            Some("20:38:40-05".to_owned()),
+            Some("12.35".to_owned()),
+        ]]
+    );
+}

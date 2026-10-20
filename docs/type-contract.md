@@ -18,15 +18,16 @@ type support.
 ## Original scalar and container identities
 
 These entries use the existing `DataType` adapters. Character typmods are
-reported from the declared column length. `FLOAT` is Cassie's float8 identity;
-`REAL` and exact `NUMERIC` are separate native families below.
+reported from the declared column length. Bare `FLOAT` is Cassie's float8
+identity; `FLOAT(p)` selects that identity or the separate native REAL family
+below according to the declared precision.
 
 | SQL type | OID | `typlen` | Notes |
 | --- | ---: | ---: | --- |
 | `smallint` | 21 | 2 | Signed 16-bit value |
 | `integer` | 23 | 4 | Signed 32-bit value |
 | `bigint` | 20 | 8 | Signed 64-bit value |
-| `float` / `double precision` | 701 | 8 | IEEE float8 |
+| `float`, `float(p)` (25 through 53), `float8`, `double precision` | 701 | 8 | IEEE float8; bare `FLOAT` selects float8 |
 | `boolean` | 16 | 1 | |
 | `text` | 25 | -1 | UTF-8 |
 | `char(n)` / `character(n)` | 1042 | -1 | `atttypmod` is `n + 4`; bare `CHAR` is `char(1)` |
@@ -64,7 +65,7 @@ typmod is shown where a declaration can carry one. Temporal precision is
 
 | Type family | SQL spelling | OID | `typlen` | Typmod |
 | --- | --- | ---: | ---: | --- |
-| REAL | `real`, `float4` | 700 | 4 | -1 |
+| REAL | `real`, `float4`, `float(p)` (1 through 24) | 700 | 4 | -1 |
 | NUMERIC | `numeric`, `decimal` | 1700 | -1 | precision/scale when declared |
 | Network | `inet` | 869 | -1 | -1 |
 | Network | `cidr` | 650 | -1 | -1 |
@@ -80,13 +81,17 @@ typmod is shown where a declaration can carry one. Temporal precision is
 | Temporal | `timestamp(p) with time zone` / `timestamptz` | 1184 | 8 | precision when declared |
 | Temporal | `interval` | 1186 | 16 | field/precision typmod when declared |
 
-The `date`, `time` and `timestamp` entries are natively carried during
+The `FLOAT(p)` spelling selects the existing REAL identity for precision 1
+through 24 and the existing FLOAT identity for precision 25 through 53. The
+precision selects the carrier; it is not retained as a typmod, so both forms
+report typmod -1. Values outside that range fail with SQLSTATE 22023. The
+`date`, `time` and `timestamp` entries are natively carried during
 execution. Their unmodified schema declarations retain the existing base OIDs
 and row-blob tags; precision-qualified forms and the timezone-bearing temporal
 types use their extended identities. Explicit `WITHOUT TIME ZONE` declarations
 retain the `time`/`timestamp` identities, including their precision typmods.
 `REAL` is float4, and `NUMERIC` is exact decimal; neither is an alias for
-Cassie's float8 carrier.
+bare Cassie's float8 `FLOAT` carrier.
 
 ## Carriers, codecs and persistence
 
@@ -103,6 +108,8 @@ OID and invokes the matching family receiver. Existing base scalar, vector and
 array row-blob tags remain in place. This inventory does not select a second
 storage abstraction, a new migration policy, or a PostgreSQL on-disk format.
 Midge remains the only storage layer and owns persistence and recovery mechanics.
+`FLOAT(p)` declarations use these existing REAL or FLOAT representations; the
+precision does not add a stored tag or a persisted typmod.
 
 NUMERIC carries a base-10 integer mantissa and scale, with native text and
 binary codecs, typmod handling, arithmetic and selected aggregate/result-type

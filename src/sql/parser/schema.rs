@@ -803,7 +803,10 @@ pub(super) fn starts_with_keyword(raw: &str, keyword: &str) -> bool {
 
 pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
     DataType::parse_sql(raw).map_err(|message| {
-        if message.starts_with("NUMERIC precision") || message.starts_with("NUMERIC scale") {
+        if message.starts_with("NUMERIC precision")
+            || message.starts_with("NUMERIC scale")
+            || message.starts_with("FLOAT precision")
+        {
             SqlError::invalid_parameter_value(message)
         } else {
             SqlError::new(message)

@@ -93,9 +93,12 @@ carried natively (`TypedValue::Date(i32)` days since 2000-01-01,
 | `session` | the statement's `TimeZone`, `DateStyle`, `IntervalStyle`, `timezone_abbreviations` and clocks |
 
 Columns declared `date`, `time` or `timestamp` without a precision keep their
-existing schema types and storage; their values are read natively. A
-precision (`timestamp(3)`) or `with time zone` selects the extended type, whose
-typmod is reported as `atttypmod`.
+existing schema types and storage; their values are read natively. Explicit
+`TIME` and `TIMESTAMP` declarations accept optional precision and explicit
+`WITH TIME ZONE` or `WITHOUT TIME ZONE` suffixes, preserving the documented
+OIDs and typmods. The pgwire
+regression `should_bind_temporal_zone_columns_with_native_metadata` exercises
+create, insert and readback for all four temporal families.
 
 Each statement installs a `TemporalSession` into its
 `QueryExecutionControls` (`CassieSession::with_statement_text`): input without

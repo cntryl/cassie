@@ -155,3 +155,81 @@ fn should_describe_temporal_nulls_with_declared_result_types() {
         vec![vec![None, None, None, None, None, None]]
     );
 }
+
+#[test]
+fn should_bind_temporal_zone_columns_with_native_metadata() {
+    // Arrange
+    let steps = [
+        "SET TIME ZONE 'UTC'",
+        r"CREATE TABLE issue_796_temporal_zone_columns (
+            time_with_zone TIME(2) WITH TIME ZONE NOT NULL,
+            time_without_zone TIME(1) WITHOUT TIME ZONE NOT NULL,
+            timestamp_with_zone TIMESTAMP(3) WITH TIME ZONE NOT NULL,
+            timestamp_without_zone TIMESTAMP(4) WITHOUT TIME ZONE NOT NULL
+        )",
+        r"INSERT INTO issue_796_temporal_zone_columns VALUES (
+            NULL, '04:05:06.1', '2024-01-02 03:04:05.123-05:00', '2024-01-02 03:04:05.1234'
+        )",
+        r"INSERT INTO issue_796_temporal_zone_columns VALUES (
+            '03:04:05.12-08:00', NULL, '2024-01-02 03:04:05.123-05:00', '2024-01-02 03:04:05.1234'
+        )",
+        r"INSERT INTO issue_796_temporal_zone_columns VALUES (
+            '03:04:05.12-08:00', '04:05:06.1', NULL, '2024-01-02 03:04:05.1234'
+        )",
+        r"INSERT INTO issue_796_temporal_zone_columns VALUES (
+            '03:04:05.12-08:00', '04:05:06.1', '2024-01-02 03:04:05.123-05:00', NULL
+        )",
+        r"INSERT INTO issue_796_temporal_zone_columns VALUES (
+            '03:04:05.12-08:00', '04:05:06.1', '2024-01-02 03:04:05.123-05:00', '2024-01-02 03:04:05.1234'
+        )",
+        "SELECT time_with_zone, time_without_zone, timestamp_with_zone, timestamp_without_zone FROM issue_796_temporal_zone_columns",
+    ]
+    .into_iter()
+    .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+    .collect();
+
+    // Act
+    let batches = run_script("issue-796-temporal-zone-column-types", steps);
+
+    // Assert
+    for index in [0, 1, 6, 7] {
+        assert_eq!(
+            wire::error_code(&batches[index]),
+            None,
+            "batch {index}: {:?}",
+            batches[index]
+                .iter()
+                .filter(|(tag, _)| *tag == b'E')
+                .map(|(_, payload)| wire::parse_error_fields(payload))
+                .collect::<Vec<_>>()
+        );
+    }
+    for (index, batch) in batches.iter().enumerate().take(6).skip(2) {
+        assert_eq!(
+            wire::error_code(batch),
+            Some("23502".to_owned()),
+            "batch {index} must preserve the declared NOT NULL constraint"
+        );
+    }
+    let description = batches[7]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("temporal table RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![(1266, 2), (1083, 1), (1184, 3), (1114, 4)]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[7]),
+        vec![vec![
+            Some("03:04:05.12-08".to_owned()),
+            Some("04:05:06.1".to_owned()),
+            Some("2024-01-02 08:04:05.123+00".to_owned()),
+            Some("2024-01-02 03:04:05.1234".to_owned()),
+        ]]
+    );
+}

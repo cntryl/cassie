@@ -51,6 +51,13 @@ types, private wire identities, codec and metadata boundaries, exactness, NULL
 meaning and explicit exclusions. Its qualification does not promote the broader
 types/casts family.
 
+Table declarations accept `TIME` and `TIMESTAMP` with optional precision and
+explicit `WITH TIME ZONE` or `WITHOUT TIME ZONE` suffixes. The pgwire test
+[`should_bind_temporal_zone_columns_with_native_metadata`](../tests/pgwire_extended/types/temporal/metadata.rs)
+creates the four forms with trailing `NOT NULL`, inserts and reads values, and
+checks OIDs, typmods and text results. Other multi-word type-name and cast gaps
+remain under [#796](https://github.com/cntryl/cassie/issues/796).
+
 The #796 extended-protocol witness
 [`should_bind_the_selected_four_type_cast_fixture_through_extended_protocol`](../tests/pgwire_extended/grammar/parameters.rs)
 executes inferred `uuid`, `jsonb`, `numeric(18,2)`, and `uuid[]` casts through

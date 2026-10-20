@@ -123,6 +123,13 @@ checks `(CAST('42' AS TEXT))::INT` against the equivalent nested `CAST`,
 including the INT result OID and value. This qualifies that chain shape only;
 other cast pairs and syntax remain pending under #796.
 
+A chained postfix cast also accepts a schema-qualified type modifier:
+`'1.234'::pg_catalog.numeric(5,2)::pg_catalog.text`. The parser regression
+[`should_bind_chained_qualified_type_modifier_casts`](../tests/parser_types/grammar/parameters.rs)
+compares it with nested `CAST`, verifies the rounded `1.23` text value, and
+checks the TEXT result OID. This witness covers the combined spelling and cast
+shape.
+
 Operator spelling preserves signed literals, exponent signs, quoted identifiers
 and strings, and nested comment separators. Existing `count(*)` arguments and
 raw nested query text remain unchanged. Regex, JSON, array and concatenation

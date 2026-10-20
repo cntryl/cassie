@@ -24,6 +24,8 @@ mod mock_tei;
 mod mock_tei_context;
 #[path = "workloads/pgwire.rs"]
 mod pgwire;
+#[path = "workloads/qualified_operator_parser.rs"]
+mod qualified_operator_parser;
 #[path = "workloads/scaling.rs"]
 mod scaling;
 #[path = "workloads/scaling_legacy.rs"]
@@ -66,6 +68,7 @@ pub use join_context::*;
 pub use lifecycle::*;
 pub use mock_tei_context::context_with_mock_tei_embeddings;
 pub use pgwire::*;
+pub use qualified_operator_parser::QualifiedOperatorParserFixture;
 pub use scaling::*;
 pub use scaling_legacy::*;
 pub use sql::*;

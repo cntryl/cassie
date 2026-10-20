@@ -1,9 +1,10 @@
 //! Generic prefix operators bind below arithmetic, with bounded chain depth.
-use super::{depth, parse_arithmetic_expression};
+use super::qualified_operators::Index;
+use super::{depth, parse_arithmetic_expression_indexed};
 use crate::sql::ast::{Expr, UnaryNumericOp};
 use crate::sql::SqlError;
 
-pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
+pub(super) fn parse(raw: &str, qualified_operators: &Index<'_>) -> Result<Option<Expr>, SqlError> {
     let mut operators = [UnaryNumericOp::Plus; depth::MAX_POSTFIX_DEPTH];
     let mut count = 0;
     let mut operand = raw;
@@ -26,7 +27,7 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
     if count == 0 {
         return Ok(None);
     }
-    let mut expression = parse_arithmetic_expression(operand)?;
+    let mut expression = parse_arithmetic_expression_indexed(operand, qualified_operators)?;
     depth::validate(&expression, count)?;
     for op in operators[..count].iter().rev() {
         expression = Expr::UnaryNumeric {

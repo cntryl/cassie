@@ -3,7 +3,10 @@
 //! `make_interval` named arguments, each lowered to a function call.
 use super::super::clauses::{split_top_level, strip_parentheses};
 use super::super::lexical;
-use super::{parse_expression, parse_prefix_expression, split_csv, Expr, FunctionCall, SqlError};
+use super::qualified_operators::Index;
+use super::{
+    parse_expression, parse_prefix_expression_indexed, split_csv, Expr, FunctionCall, SqlError,
+};
 
 fn call(name: &str, args: Vec<Expr>) -> Expr {
     Expr::Function(Box::new(FunctionCall {
@@ -154,7 +157,7 @@ fn last_top_level(raw: &str, keyword: &str) -> Option<(usize, usize)> {
 
 /// `value AT TIME ZONE zone` → `timezone(zone, value)`; `value AT LOCAL` →
 /// `timezone(value)`.
-pub(super) fn at_time_zone(raw: &str) -> Result<Option<Expr>, SqlError> {
+pub(super) fn at_time_zone(raw: &str, operators: &Index<'_>) -> Result<Option<Expr>, SqlError> {
     let zone = last_top_level(raw, " at time zone ");
     let local = last_top_level(raw, " at local");
     let use_local = match (zone, local) {
@@ -170,15 +173,15 @@ pub(super) fn at_time_zone(raw: &str) -> Result<Option<Expr>, SqlError> {
         }
         return Ok(Some(call(
             "timezone",
-            vec![parse_prefix_expression(&raw[..start])?],
+            vec![parse_prefix_expression_indexed(&raw[..start], operators)?],
         )));
     }
     let (start, end) = zone.unwrap_or_default();
     Ok(Some(call(
         "timezone",
         vec![
-            parse_prefix_expression(&raw[end..])?,
-            parse_prefix_expression(&raw[..start])?,
+            parse_prefix_expression_indexed(&raw[end..], operators)?,
+            parse_prefix_expression_indexed(&raw[..start], operators)?,
         ],
     )))
 }

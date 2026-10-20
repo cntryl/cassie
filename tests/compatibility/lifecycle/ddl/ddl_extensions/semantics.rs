@@ -260,6 +260,35 @@ fn should_drop_an_absent_table_if_exists_before_creating_it() {
         assert_eq!(inserted_row.get::<_, i32>(0), 826);
     });
 }
+
+#[test]
+fn should_reject_drop_table_if_exists_for_a_virtual_view() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("drop_virtual_view_if_exists").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let drop_result = client
+            .batch_execute("DROP TABLE IF EXISTS pg_catalog.pg_class")
+            .await;
+        drop(client);
+        server.shutdown(connection).await;
+
+        // Assert
+        let error = drop_result.expect_err("DROP TABLE must reject a virtual view");
+        let db_error = error
+            .as_db_error()
+            .expect("virtual view rejection should be a database error");
+        assert!(
+            db_error.message().contains("is a view"),
+            "unexpected error when dropping a virtual view: {}",
+            db_error.message()
+        );
+    });
+}
+
 #[test]
 fn should_delete_temp_table_rows_on_commit() {
     // Arrange

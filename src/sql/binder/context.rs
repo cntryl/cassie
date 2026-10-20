@@ -207,9 +207,9 @@ fn require_existing_schema(name: &str, catalog: &Catalog) -> Result<(), CassieEr
     }
 }
 
-/// Resolves an existing object of one kind (view, rollup, projection) through
-/// `search_path`, falling back to [`normalize_relation_name`] when no schema
-/// holds a match so not-found and `IF EXISTS` handling stay unchanged.
+/// Resolves an existing named catalog object through `search_path`, falling
+/// back to [`normalize_relation_name`] when no schema holds a match so the
+/// caller can preserve not-found and `IF EXISTS` handling.
 ///
 /// # Errors
 ///

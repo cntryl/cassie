@@ -3,7 +3,7 @@ use super::logical::LogicalPlan;
 use crate::app::CassieError;
 use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::sql::ast::{Expr, QuerySource, SelectItem};
+use crate::sql::ast::{BinaryOp, Expr, QuerySource, SelectItem};
 use crate::types::DataType;
 use std::mem::size_of;
 
@@ -54,6 +54,12 @@ pub(crate) fn inline(
     let Some((cells, alias, names)) = producer(&plan.source, &plan.ctes) else {
         return Ok(None);
     };
+    // Keep an integer operator in its VALUES row-field context. Inlining it
+    // as a SELECT expression would change the reported field type from the
+    // source operator width to the SELECT expression result type.
+    if has_non_shift_integer_operator(cells) {
+        return Ok(None);
+    }
     if cells.iter().any(|cell| {
         cell.any_descendant_or_self(&mut |expr| {
             matches!(
@@ -137,6 +143,20 @@ pub(crate) fn inline(
     }
     plan.source = QuerySource::SingleRow;
     Ok(Some(memory))
+}
+
+fn has_non_shift_integer_operator(cells: &[Expr]) -> bool {
+    cells.iter().any(|cell| {
+        cell.any_descendant_or_self(&mut |expr| {
+            matches!(
+                expr,
+                Expr::Binary {
+                    op: BinaryOp::Integer { operation, .. },
+                    ..
+                } if !operation.is_shift()
+            )
+        })
+    })
 }
 
 fn rewrite_projection(

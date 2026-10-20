@@ -146,7 +146,11 @@ impl Analyzer<'_> {
             BinaryOp::Bitwise { operation } if operation.is_shift() => {
                 self.expression(left, lookup)?
             }
-            BinaryOp::Integer { width, .. } => OutputType::fixed(width.data_type()),
+            BinaryOp::Integer { operation, width } => OutputType::fixed(if operation.is_shift() {
+                width.data_type()
+            } else {
+                DataType::BigInt
+            }),
             BinaryOp::Add
             | BinaryOp::Sub
             | BinaryOp::Mul

@@ -175,12 +175,68 @@ fn should_preserve_integer_operator_width_given_values_rows_when_addition_is_eva
     // Arrange
     let fixture = sql_fixture("values-int4-arithmetic", &[]);
     // Act
+    let single_row = fixture.execute("VALUES (1 + 2)");
+    let multi_column = fixture.execute("VALUES (1 + 2, 4)");
     let outcome = fixture.execute("VALUES (1 + 2), (4)");
+    let derived = fixture.execute("SELECT n FROM (VALUES (1 + 2)) AS v(n)");
+    let derived_multi_column = fixture.execute("SELECT a, b FROM (VALUES (1 + 2, 4)) AS v(a, b)");
+    let cte = fixture.execute("WITH v(n) AS (VALUES (1 + 2)) SELECT n FROM v");
+    let cte_multi_column =
+        fixture.execute("WITH v(a, b) AS (VALUES (1 + 2, 4)) SELECT a, b FROM v");
     // Assert
+    let single_row = single_row.expect("single-row INT4 arithmetic VALUES");
+    assert_eq!(single_row.columns()[0].type_oid, 23);
+    assert_eq!(single_row.rows(), &[vec![Value::Int64(3)]]);
+    let multi_column = multi_column.expect("multi-column INT4 arithmetic VALUES");
+    assert_eq!(
+        multi_column
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        multi_column.rows(),
+        &[vec![Value::Int64(3), Value::Int64(4)]]
+    );
     let outcome = outcome.expect("INT4 arithmetic VALUES");
     assert_eq!(outcome.columns()[0].type_oid, 23);
     assert_eq!(
         outcome.rows(),
         &[vec![Value::Int64(3)], vec![Value::Int64(4)]]
+    );
+    let derived = derived.expect("derived INT4 arithmetic VALUES");
+    assert_eq!(derived.columns()[0].type_oid, 23);
+    assert_eq!(derived.rows(), &[vec![Value::Int64(3)]]);
+    let derived_multi_column =
+        derived_multi_column.expect("derived multi-column INT4 arithmetic VALUES");
+    assert_eq!(
+        derived_multi_column
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        derived_multi_column.rows(),
+        &[vec![Value::Int64(3), Value::Int64(4)]]
+    );
+    let cte = cte.expect("CTE INT4 arithmetic VALUES");
+    assert_eq!(cte.columns()[0].type_oid, 23);
+    assert_eq!(cte.rows(), &[vec![Value::Int64(3)]]);
+    let cte_multi_column = cte_multi_column.expect("CTE multi-column INT4 arithmetic VALUES");
+    assert_eq!(
+        cte_multi_column
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        cte_multi_column.rows(),
+        &[vec![Value::Int64(3), Value::Int64(4)]]
     );
 }

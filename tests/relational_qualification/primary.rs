@@ -636,8 +636,8 @@ fn should_preserve_supported_derived_projection_labels() {
     for (index, result) in results.into_iter().enumerate() {
         if index < 3 {
             assert!(
-                matches!(result, Err(cassie::app::CassieError::Planner(_))),
-                "unsupported qualified output label control{index}"
+                matches!(&result, Err(cassie::app::CassieError::UndefinedColumn(_))),
+                "unsupported qualified output label control{index}: got {result:?}"
             );
             continue;
         }

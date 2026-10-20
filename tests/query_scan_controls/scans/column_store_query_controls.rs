@@ -8,6 +8,9 @@ use super::support_column_store_controls::{payload, Fixture, COLLECTION};
 
 // Captured statement ownership admits 704 bytes before native reads.
 // 4 KiB admits narrow identity paths while remaining below each 8 KiB payload.
+// The second document is the smallest later-row corruption canary.
+const POISONED_LATER_ROW: usize = 1;
+const ROWS_THROUGH_POISONED_LATER_ROW: usize = POISONED_LATER_ROW + 1;
 
 #[test]
 fn should_reject_each_storage_layout_at_the_first_wide_row_boundary() {
@@ -15,11 +18,22 @@ fn should_reject_each_storage_layout_at_the_first_wide_row_boundary() {
     for column_store in [false, true] {
         // Arrange
         let fixture = if column_store {
-            Fixture::new("paired-column-memory", 4_096, 1, 128, 8_192)
+            Fixture::new(
+                "paired-column-memory",
+                4_096,
+                1,
+                ROWS_THROUGH_POISONED_LATER_ROW,
+                8_192,
+            )
         } else {
-            Fixture::row_store("paired-row-memory", 4_096, 128, 8_192)
+            Fixture::row_store(
+                "paired-row-memory",
+                4_096,
+                ROWS_THROUGH_POISONED_LATER_ROW,
+                8_192,
+            )
         };
-        fixture.poison_payload(127);
+        fixture.poison_payload(POISONED_LATER_ROW);
         let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
         set_query_scan_cancellation_after_entries(Some(2));
 
@@ -49,11 +63,23 @@ fn should_bound_full_shape_scans_before_later_decode_errors_with_each_worker_cou
         for column_store in [true, false] {
             // Arrange
             let fixture = if column_store {
-                Fixture::new("full-shape-column-memory", 4_096, workers, 128, 8_192)
+                Fixture::new(
+                    "full-shape-column-memory",
+                    4_096,
+                    workers,
+                    ROWS_THROUGH_POISONED_LATER_ROW,
+                    8_192,
+                )
             } else {
-                Fixture::row_store_with_workers("full-shape-row-memory", 4_096, workers, 128, 8_192)
+                Fixture::row_store_with_workers(
+                    "full-shape-row-memory",
+                    4_096,
+                    workers,
+                    ROWS_THROUGH_POISONED_LATER_ROW,
+                    8_192,
+                )
             };
-            fixture.poison_payload(127);
+            fixture.poison_payload(POISONED_LATER_ROW);
             let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
             let before_metrics = fixture.cassie.metrics();
 
@@ -135,8 +161,14 @@ fn should_reject_wide_column_store_scans_before_decoding_later_rows() {
     let _guard = query_scan_control_test_guard();
     for workers in [1, 4] {
         // Arrange
-        let fixture = Fixture::new("column-store-pre-decode-budget", 4_096, workers, 128, 8_192);
-        fixture.poison_payload(127);
+        let fixture = Fixture::new(
+            "column-store-pre-decode-budget",
+            4_096,
+            workers,
+            ROWS_THROUGH_POISONED_LATER_ROW,
+            8_192,
+        );
+        fixture.poison_payload(POISONED_LATER_ROW);
         for projection in [
             format!("SELECT payload FROM {COLLECTION}"),
             format!("SELECT length(payload) FROM {COLLECTION}"),
@@ -224,7 +256,7 @@ fn should_stop_column_store_identity_limit_before_reading_unneeded_wide_fields()
     let _guard = query_scan_control_test_guard();
     for workers in [1, 4] {
         // Arrange
-        let fixture = Fixture::new("column-store-bounded-limit", 4_096, workers, 128, 8_192);
+        let fixture = Fixture::new("column-store-bounded-limit", 4_096, workers, 1, 8_192);
         fixture.poison_payload(0);
         let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
         set_query_scan_cancellation_after_entries(Some(2));

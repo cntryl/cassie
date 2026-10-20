@@ -376,7 +376,8 @@ fn create_json_range_order_fixture(cassie: &Cassie, session: &cassie::app::Cassi
                 .expect("insert JSON value");
         }
     }
-    for number in 0..128 {
+    // Keep enough numeric rows to return multiple range matches and fill LIMIT 5.
+    for number in 0..8 {
         for table in ["json_index_range_order", "json_index_range_order_scan"] {
             cassie
                 .execute_sql(

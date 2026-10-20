@@ -3757,3 +3757,40 @@ The pgwire integration aggregator `tests/pgwire_extended.rs` contains module
 registrations but no test declarations of its own; the validator reported “No
 tests found” for that aggregator path. `git diff --check` passed. No workflow
 was run.
+
+## 2026-10-19 — #761 empty-side outer-join shape evidence
+
+This qualification-only slice strengthens SQL-019 without changing runtime
+behavior. `should_preserve_exact_output_for_empty_right_cte_on_left_join` and
+`should_preserve_exact_output_for_empty_left_cte_on_right_join` use empty CTE
+sources on each side and check ordered result aliases, PostgreSQL type OIDs,
+sizes and typmods, plus exact row values and NULL positions. The empty-right
+`LEFT JOIN` covers fallback and vectorized paths with runtime join-counter
+deltas. The empty-left `RIGHT JOIN` asserts the supported merge fallback. Both
+focused tests passed together in 1.21s.
+
+Before the new assertions, the existing executor empty-source shape test passed
+in 0.75s and the pgwire metadata test passed in 0.74s. Those checks covered row
+widths and NULL counts; they did not identify the exact value-to-field mapping.
+Jev's decision-gate request selected this SQL-019 probe with confidence 1.0.
+Its focused review gave a 0.10 concrete-gap probability and selected physical
+path as its first inspection concern (0.41 confidence). Source and runtime
+counter evidence confirmed the enabled LEFT case increments the vectorized
+join count, the disabled LEFT case records merge, and RIGHT records merge
+fallback. No further Jev request was needed. Both requests and responses are
+retained under ignored worktree paths `target/jev/issue-761-next-slice/` and
+`target/jev/issue-761-next-slice-review/`.
+
+Ordered final local validation:
+
+| Command | Actual result |
+| --- | --- |
+| `cargo build --locked --bin cassie` | Passed. The cold build took 58.61s; an incremental repeat passed in 0.16s. |
+| `cargo test --locked` | 1,231 library tests passed (66.89s aggregate) and 179 analytics tests passed (95.50s aggregate); stopped at `catalog_security` with 279 passed / 123 failed (73.12s aggregate). This matches the previously recorded clean-main failure count; identities were not compared in this slice. The command stops before the executor integration target, so the final two SQL-019 tests were run separately. No per-test 60-second warning was emitted. |
+| Focused executor tests | Passed: 2/2 in 1.21s after splitting the test-policy violations. |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed on the final test code. |
+| `cargo fmt --all -- --check` | Passed. |
+| `cntryl-tools validate-tests -f tests/executor/joins/join_scope_and_shape.rs` | Passed: 6/6. |
+
+`git diff --check` passed. No workflow was enabled or run. The full #761
+relational matrix remains open.

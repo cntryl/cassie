@@ -99,6 +99,149 @@ fn should_emit_complete_null_extensions_for_empty_outer_join_sources() {
 }
 
 #[test]
+fn should_preserve_exact_output_for_empty_right_cte_on_left_join() {
+    // Arrange
+    for vectorized in [false, true] {
+        with_fixture_config(
+            "ordered_empty_outer_join",
+            |config| config.limits.vectorized_joins_enabled = vectorized,
+            |cassie, session| {
+                seed_ordered_outer_join_tables(cassie, session);
+
+                // Act
+                let before_left_join = cassie.metrics();
+                let empty_right = sql(
+                    cassie,
+                    session,
+                    "WITH empty_right(right_key, right_label) AS (SELECT right_key, right_label FROM ordered_right WHERE false) SELECT ordered_left.left_key AS left_key_alias, ordered_left.left_label AS left_label_alias, empty_right.right_key AS right_key_alias, empty_right.right_label AS right_label_alias FROM ordered_left LEFT JOIN empty_right ON ordered_left.left_key = empty_right.right_key ORDER BY ordered_left.left_key",
+                );
+                // Assert
+                let after_left_join = cassie.metrics();
+                let vectorized_before = before_left_join["joins"]["vectorized_joins"]
+                    .as_u64()
+                    .unwrap_or_default();
+                let vectorized_after = after_left_join["joins"]["vectorized_joins"]
+                    .as_u64()
+                    .unwrap_or_default();
+                assert_eq!(
+                    vectorized_after.saturating_sub(vectorized_before),
+                    u64::from(vectorized),
+                    "vectorized join selection: {vectorized}"
+                );
+                if !vectorized {
+                    assert_eq!(after_left_join["joins"]["last_strategy"], "merge");
+                }
+                assert_ordered_outer_join_result(
+                    &empty_right,
+                    &[
+                        vec![
+                            Value::Int64(1),
+                            Value::String("left-one".into()),
+                            Value::Null,
+                            Value::Null,
+                        ],
+                        vec![
+                            Value::Int64(2),
+                            Value::String("left-two".into()),
+                            Value::Null,
+                            Value::Null,
+                        ],
+                    ],
+                );
+            },
+        );
+    }
+}
+
+#[test]
+fn should_preserve_exact_output_for_empty_left_cte_on_right_join() {
+    // Arrange
+    with_fixture_config(
+        "ordered_empty_left_outer_join",
+        |config| config.limits.vectorized_joins_enabled = true,
+        |cassie, session| {
+            seed_ordered_outer_join_tables(cassie, session);
+            let merge_joins_before = cassie.metrics()["joins"]["merge_joins"]
+                .as_u64()
+                .unwrap_or_default();
+
+            // Act
+            let empty_left = sql(
+                cassie,
+                session,
+                "WITH empty_left(left_key, left_label) AS (SELECT left_key, left_label FROM ordered_left WHERE false) SELECT empty_left.left_key AS left_key_alias, empty_left.left_label AS left_label_alias, ordered_right.right_key AS right_key_alias, ordered_right.right_label AS right_label_alias FROM empty_left RIGHT JOIN ordered_right ON empty_left.left_key = ordered_right.right_key ORDER BY ordered_right.right_key",
+            );
+
+            // Assert
+            let merge_joins_after = cassie.metrics()["joins"]["merge_joins"]
+                .as_u64()
+                .unwrap_or_default();
+            assert_eq!(
+                merge_joins_after.saturating_sub(merge_joins_before),
+                1,
+                "RIGHT JOIN uses its supported merge fallback"
+            );
+            assert_ordered_outer_join_result(
+                &empty_left,
+                &[
+                    vec![
+                        Value::Null,
+                        Value::Null,
+                        Value::Int64(1),
+                        Value::String("right-one".into()),
+                    ],
+                    vec![
+                        Value::Null,
+                        Value::Null,
+                        Value::Int64(2),
+                        Value::String("right-two".into()),
+                    ],
+                ],
+            );
+        },
+    );
+}
+
+fn seed_ordered_outer_join_tables(
+    cassie: &cassie::app::Cassie,
+    session: &cassie::app::CassieSession,
+) {
+    for statement in [
+        "CREATE TABLE ordered_left (left_key INT, left_label TEXT)",
+        "CREATE TABLE ordered_right (right_key INT, right_label TEXT)",
+        "INSERT INTO ordered_left VALUES (1, 'left-one'), (2, 'left-two')",
+        "INSERT INTO ordered_right VALUES (1, 'right-one'), (2, 'right-two')",
+    ] {
+        sql(cassie, session, statement);
+    }
+}
+
+fn assert_ordered_outer_join_result(result: &cassie::executor::QueryResult, rows: &[Vec<Value>]) {
+    let fields = result
+        .columns()
+        .iter()
+        .map(|column| {
+            (
+                column.name.as_str(),
+                column.type_oid,
+                column.typlen,
+                column.atttypmod,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        fields,
+        vec![
+            ("left_key_alias", 23, 4, -1),
+            ("left_label_alias", 25, -1, -1),
+            ("right_key_alias", 23, 4, -1),
+            ("right_label_alias", 25, -1, -1),
+        ]
+    );
+    assert_eq!(result.rows(), rows);
+}
+
+#[test]
 fn should_preserve_lateral_output_shape_when_a_left_row_has_no_match() {
     // Arrange
     with_fixture("lateral_empty_shape", |cassie, session| {

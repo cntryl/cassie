@@ -3674,3 +3674,42 @@ blocked because `.github/workflows/bench.yml` is absent; CI changes are outside
 this slice's authorization. The failures above are repository baseline gaps,
 not issue-953 acceptance failures. No repository-green or hosted-green claim is
 made; the patch is ready for PR review and remains unmerged.
+
+## 2026-10-19 — #780 VERIFY PROJECTION Describe metadata
+
+The focused WIRE-016 slice gives `VERIFY PROJECTION` statement and portal
+Describe the same ten-column schema used by execution. The new extended-protocol
+owner sends statement Describe, Bind, portal Describe, Execute and Sync for text
+and binary portal formats. It checks both RowDescriptions (column names, OIDs,
+sizes, modifiers and formats), one ten-field DataRow, one CommandComplete, no
+ErrorResponse and final ReadyForQuery `I`. The existing
+`should_preserve_execution_owned_projection_verification_output` test remains
+the no-Describe control for Simple Query and extended text/binary execution.
+The focused test was red before the repair (no RowDescription; expected two)
+and green afterward (**1 passed in 0.05s**).
+
+Jev's one focused review request asked whether schema parity or protocol framing
+still had a concrete gap and which failure mode to inspect first. It returned
+Noul probabilities 0.25 for schema parity and 0.24 for framing; its Choice
+selected `none` at 0.23 confidence (probabilities: none 0.42, schema parity
+0.31, portal protocol 0.22, unrelated-command scope 0.05). This was a weak
+triage signal. Source inspection confirmed execution and Describe call the same
+column-definition helper, the match arm is specific to `VerifyProjection`,
+and the executed probe checks both formats and final framing. No additional
+change was indicated. Request and response are retained in the ignored
+worktree `target/jev/issue-780-verify-projection-describe/` directory.
+
+Ordered validation on this worktree:
+
+| Command | Actual result |
+| --- | --- |
+| `cargo build --locked --bin cassie` | Passed |
+| `cargo test --locked` | 1,231 library tests passed; stopped at `catalog_security` with 279 passed / 123 failed (target aggregate 73.30s). This matches the existing clean-main failure count recorded above; failed identities were not re-compared in this slice. No individual test timeout was observed. |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed |
+| `cargo fmt --all -- --check` | Passed |
+| `cntryl-tools validate-tests -f tests/pgwire_extended/descriptors/projection_verification.rs` | Passed 1/1 after renaming the test to describe the single requested-format contract |
+
+The repository Actions permission readback was `enabled: false`; no workflow
+was enabled or run. This is a partial qualification under #780. Other fixed
+command families and post-`SET` `search_path` reporting remain open obligations;
+this record does not close #780 or claim repository-green status.

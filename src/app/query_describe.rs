@@ -268,6 +268,16 @@ impl Cassie {
             crate::planner::logical::LogicalCommand::Show(statement) => {
                 return Some(crate::executor::show_result_columns(statement));
             }
+            crate::planner::logical::LogicalCommand::VerifyProjection(_) => {
+                return Some(
+                    crate::executor::projection_verification_column_definitions()
+                        .into_iter()
+                        .map(|(name, data_type)| {
+                            crate::executor::ColumnMeta::from_data_type(name, &data_type)
+                        })
+                        .collect(),
+                );
+            }
             _ => return Some(Vec::new()),
         };
         if returning.is_empty() {

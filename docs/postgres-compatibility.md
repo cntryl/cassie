@@ -232,6 +232,8 @@ Inside LATERAL queries, inner-source names take precedence over correlated outer
 
 Every DataRow carries exactly as many fields as the RowDescription sent for the same result, encoded with the type and format that description announced. Built-in `pg_catalog` and `information_schema` views use the same declared column types for Describe and execution. A result row whose width does not match its description is reported as an internal error (`XX000`) rather than sent as a malformed frame.
 
+`VERIFY PROJECTION` shares its ten-column definition between execution and pre-execution Describe. Statement Describe uses text format; portal Describe uses the requested text or binary result format and matches the subsequent execution result.
+
 A successful startup emits backend process and secret data. A cancel request affects only the matching live backend. Incorrect or stale secrets do nothing. Cancellation is cooperative at bounded execution checkpoints and cleans up query and portal resources. A canceled resume returns `57014` and no partial row page.
 
 Portal `max_rows` controls one execute response; it does not reset Cassie's query limits. Result rows are counted cumulatively across resumes, and retained memory is shared across all live portals on the connection. An execute or bind that would exceed a cumulative limit returns `54000` atomically. Closing a portal or statement, rolling back, or disconnecting releases its state.

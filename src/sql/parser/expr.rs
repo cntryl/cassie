@@ -260,9 +260,9 @@ fn prefix_operators() -> [(&'static str, Option<BinaryOp>); 10] {
     ]
 }
 
-fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
+fn selected_prefix_operator(raw: &str) -> Option<(&str, &str, Option<BinaryOp>)> {
     let operators = prefix_operators();
-    let selected = operators
+    operators
         .into_iter()
         // A cheap substring test skips the top-level scan for absent tokens.
         .filter(|(token, _)| raw.contains(token))
@@ -270,14 +270,35 @@ fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
             super::operators::split_operator(raw, token, true)
                 .map(|(left, right)| (left, right, op))
         })
-        .max_by_key(|(left, _, _)| left.len());
-    if let Some(span) = qualified_operators::last_binary(raw)? {
+        .max_by_key(|(left, _, _)| left.len())
+}
+
+fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
+    let selected = selected_prefix_operator(raw);
+    let operators = qualified_operators::Index::scan(raw)?;
+    parse_prefix_expression_selected(raw, &operators, selected)
+}
+
+fn parse_prefix_expression_indexed(
+    raw: &str,
+    operators: &qualified_operators::Index<'_>,
+) -> Result<Expr, SqlError> {
+    let selected = selected_prefix_operator(raw);
+    parse_prefix_expression_selected(raw, operators, selected)
+}
+
+fn parse_prefix_expression_selected(
+    raw: &str,
+    operators: &qualified_operators::Index<'_>,
+    selected: Option<(&str, &str, Option<BinaryOp>)>,
+) -> Result<Expr, SqlError> {
+    if let Some(span) = operators.last_binary(raw) {
         if selected
             .as_ref()
             .is_none_or(|(left, _, _)| span.start > left.len())
         {
-            let left = parse_prefix_expression(&raw[..span.start])?;
-            let right = parse_prefix_expression(&raw[span.end..])?;
+            let left = parse_prefix_expression_indexed(&raw[..span.start], operators)?;
+            let right = parse_prefix_expression_indexed(&raw[span.end..], operators)?;
             depth::validate(&left, 1)?;
             depth::validate(&right, 1)?;
             return Ok(Expr::Binary {
@@ -288,8 +309,8 @@ fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
         }
     }
     if let Some((left, right, op)) = selected {
-        let left = parse_prefix_expression(left)?;
-        let right = parse_prefix_expression(right)?;
+        let left = parse_prefix_expression_indexed(left, operators)?;
+        let right = parse_prefix_expression_indexed(right, operators)?;
         return Ok(if let Some(op) = op {
             Expr::Binary {
                 left: Box::new(left),
@@ -306,19 +327,22 @@ fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
             }))
         });
     }
-    if let Some(expression) = generic_prefix::parse(raw)? {
+    if let Some(expression) = generic_prefix::parse(raw, operators)? {
         return Ok(expression);
     }
-    parse_arithmetic_expression(raw)
+    parse_arithmetic_expression_indexed(raw, operators)
 }
 
-fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
+fn parse_arithmetic_expression_indexed(
+    raw: &str,
+    operators: &qualified_operators::Index<'_>,
+) -> Result<Expr, SqlError> {
     if let Some((left, right, op)) =
         split_arithmetic_operator(raw, &[("+", BinaryOp::Add), ("-", BinaryOp::Sub)])
     {
         return Ok(Expr::Binary {
-            left: Box::new(parse_prefix_expression(left)?),
-            right: Box::new(parse_prefix_expression(right)?),
+            left: Box::new(parse_prefix_expression_indexed(left, operators)?),
+            right: Box::new(parse_prefix_expression_indexed(right, operators)?),
             op,
         });
     }
@@ -331,8 +355,8 @@ fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
         ],
     ) {
         return Ok(Expr::Binary {
-            left: Box::new(parse_prefix_expression(left)?),
-            right: Box::new(parse_prefix_expression(right)?),
+            left: Box::new(parse_prefix_expression_indexed(left, operators)?),
+            right: Box::new(parse_prefix_expression_indexed(right, operators)?),
             op,
         });
     }
@@ -356,12 +380,12 @@ fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
             })
         };
         return Ok(Expr::Binary {
-            left: Box::new(operand(parse_prefix_expression(left)?)?),
-            right: Box::new(operand(parse_prefix_expression(right)?)?),
+            left: Box::new(operand(parse_prefix_expression_indexed(left, operators)?)?),
+            right: Box::new(operand(parse_prefix_expression_indexed(right, operators)?)?),
             op: BinaryOp::Power,
         });
     }
-    if let Some(expression) = temporal_syntax::at_time_zone(raw)? {
+    if let Some(expression) = temporal_syntax::at_time_zone(raw, operators)? {
         return Ok(expression);
     }
     unary_numeric::parse(raw)

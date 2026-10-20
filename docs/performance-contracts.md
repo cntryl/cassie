@@ -318,6 +318,9 @@ record `fixture_invocations_per_sample=256`; parameter binding batches 8,192 fix
 because its kernel is materially shorter. The elapsed interval covers the full batch, while the
 completed count remains normalized to statements, parameters, or plans. This raises sub-millisecond
 rows above timer noise without changing scenario IDs, fixture identity, or logical operation units.
+The qualified-operator parser owner records one statement containing 8, 32, or 64 qualified binary
+operators and batches 64 parses per sample. The operator count is a fixture parameter; each
+completed operation remains one parsed statement.
 The 2,048-candidate posting-merge owner batches 512 complete production merges per measured sample
 and retains `candidate` normalization, lifting the fixed-operation window above scheduler noise.
 The 2,048-candidate hybrid-fusion owner applies the same 256-invocation bounded window and records

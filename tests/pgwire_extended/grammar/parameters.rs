@@ -176,7 +176,7 @@ fn should_bind_double_precision_table_columns_with_postgres_identity() {
         "issue-796-double-precision-table-column",
         vec![
             Step::ThroughReady(vec![wire::simple_query_frame(
-                "CREATE TABLE issue_796_double_precision_rows (value DOUBLE PRECISION)",
+                "CREATE TABLE issue_796_double_precision_rows (value DOUBLE PRECISION NOT NULL)",
             )]),
             Step::ThroughReady(vec![wire::simple_query_frame(
                 "INSERT INTO issue_796_double_precision_rows VALUES (1.25)",

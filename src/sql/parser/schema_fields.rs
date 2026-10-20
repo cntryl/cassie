@@ -83,7 +83,7 @@ fn parse_field_type_token(
         .ok_or_else(|| SqlError::new(format!("missing data type for column '{name}'")))?
         .trim()
         .to_string();
-    // `BIT VARYING[(n)]` spells one type across two tokens.
+    // `BIT VARYING[(n)]` and `DOUBLE PRECISION` spell one type across two tokens.
     if type_token.eq_ignore_ascii_case("bit")
         && parts.peek().is_some_and(|next| {
             next.get(..7)
@@ -92,6 +92,15 @@ fn parse_field_type_token(
     {
         if let Some(varying) = parts.next() {
             type_token = format!("{type_token} {varying}");
+        }
+    }
+    if type_token.eq_ignore_ascii_case("double")
+        && parts
+            .peek()
+            .is_some_and(|next| next.trim().eq_ignore_ascii_case("precision"))
+    {
+        if let Some(precision) = parts.next() {
+            type_token = format!("{type_token} {precision}");
         }
     }
     if type_token.is_empty() {

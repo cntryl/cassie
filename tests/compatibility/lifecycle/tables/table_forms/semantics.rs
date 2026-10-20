@@ -299,7 +299,7 @@ fn should_reject_table_like_before_creating_the_target() {
         server.shutdown(connection).await;
         assert_eq!(sqlstate, "0A000");
         assert!(
-            message.contains("CREATE TABLE LIKE execution is not implemented"),
+            message.contains("CREATE TABLE LIKE option INCLUDING ALL is not supported"),
             "unexpected error message: {message}"
         );
         assert!(!target_exists);
@@ -351,7 +351,7 @@ fn should_reject_table_like_before_if_not_exists_short_circuit() {
         server.shutdown(connection).await;
         assert_eq!(sqlstate, "0A000");
         assert!(
-            message.contains("CREATE TABLE LIKE execution is not implemented"),
+            message.contains("CREATE TABLE LIKE option INCLUDING ALL is not supported"),
             "unexpected error message: {message}"
         );
         assert_eq!(retained_value, 7);

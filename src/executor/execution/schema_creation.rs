@@ -1,5 +1,6 @@
 use super::{catalog, primary_key_indexes, Cassie, FieldSchema, QueryError, QueryResult, Schema};
 use crate::app::{CassieError, CatalogObjectKind};
+use crate::catalog::{FieldConstraint, NotNullOwnership};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{CreateIndexStatement, CreateTableStatement};
 
@@ -30,11 +31,13 @@ pub(super) fn create_table(
     controls: &QueryExecutionControls,
 ) -> Result<CreationOutcome, QueryError> {
     let table = statement.table.to_string();
-    cassie
-        .midge
-        .with_collection_gates(std::slice::from_ref(&table), || {
-            create_table_gated(cassie, statement, &table, controls)
-        })
+    let mut gated_collections = vec![table.clone()];
+    if let Some(like) = statement.like.as_ref() {
+        gated_collections.push(like.source.to_string());
+    }
+    cassie.midge.with_collection_gates(&gated_collections, || {
+        create_table_gated(cassie, statement, &table, controls)
+    })
 }
 
 fn create_table_gated(
@@ -54,36 +57,67 @@ fn create_table_gated(
         .into());
     }
 
+    let fields = if let Some(like) = statement.like.as_ref() {
+        copy_table_like_fields(cassie, like)?
+    } else {
+        statement.fields.clone()
+    };
+    let constraints = fields
+        .iter()
+        .flat_map(|field| field.constraints.iter().cloned())
+        .collect::<Vec<_>>();
     let schema = Schema {
-        fields: statement
-            .fields
+        fields: fields
             .iter()
             .map(|field| FieldSchema {
                 name: field.name.clone(),
                 data_type: field.data_type.clone(),
-                nullable: true,
+                nullable: statement.like.is_none()
+                    || !field
+                        .constraints
+                        .iter()
+                        .any(|constraint| constraint.not_null || constraint.primary_key),
             })
             .collect(),
     };
     let mut collection_meta =
         catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
+    let mut sequence_statement = statement.clone();
+    sequence_statement.fields = fields;
     let table_sequences =
-        super::sequence_command::prepare_create_table_sequences(cassie, statement)?;
+        super::sequence_command::prepare_create_table_sequences(cassie, &sequence_statement)?;
     let output = super::command_output::empty("CREATE TABLE", controls)?;
-    collection_meta.storage_id = cassie
-        .midge
-        .create_collection_with_meta(table, &schema, &collection_meta)
-        .map_err(QueryError::from)?;
-
-    let constraints = statement
-        .fields
-        .iter()
-        .flat_map(|field| field.constraints.iter().cloned())
-        .collect::<Vec<_>>();
-    cassie
-        .midge
-        .save_constraints(table, constraints.as_slice())
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    if statement.like.is_some() {
+        let Some(storage_id) = cassie
+            .midge
+            .create_collection_with_meta_and_constraints_if_absent(
+                table,
+                &schema,
+                &collection_meta,
+                &constraints,
+            )
+            .map_err(QueryError::from)?
+        else {
+            if statement.if_not_exists {
+                return CreationOutcome::unchanged("CREATE TABLE", controls);
+            }
+            return Err(CassieError::CatalogObjectAlreadyExists {
+                kind: CatalogObjectKind::Relation,
+                name: table.to_string(),
+            }
+            .into());
+        };
+        collection_meta.storage_id = storage_id;
+    } else {
+        collection_meta.storage_id = cassie
+            .midge
+            .create_collection_with_meta(table, &schema, &collection_meta)
+            .map_err(QueryError::from)?;
+        cassie
+            .midge
+            .save_constraints(table, constraints.as_slice())
+            .map_err(|error| QueryError::General(error.to_string()))?;
+    }
     let mut primary_key_indexes = primary_key_indexes(table, constraints.as_slice());
     primary_key_indexes.extend(catalog::composite_unique_indexes(
         table,
@@ -108,8 +142,139 @@ fn create_table_gated(
     for index in primary_key_indexes {
         cassie.catalog.register_index(index);
     }
-    super::schema_command::refresh_table_cardinality_stats(cassie, table)?;
+    if statement.like.is_none() {
+        super::schema_command::refresh_table_cardinality_stats(cassie, table)?;
+    }
     Ok(CreationOutcome::created(output))
+}
+
+fn copy_table_like_fields(
+    cassie: &Cassie,
+    like: &crate::sql::ast::CreateTableLikeClause,
+) -> Result<Vec<crate::sql::ast::FieldDefinition>, QueryError> {
+    let source = like.source.to_string();
+    let source_schema =
+        cassie
+            .catalog
+            .get_schema(&source)
+            .ok_or_else(|| CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::Relation,
+                name: source.clone(),
+            })?;
+    let source_constraints = cassie.catalog.get_constraints(&source);
+    let mut include_defaults = false;
+    for option in &like.options {
+        match option {
+            crate::sql::ast::CreateTableLikeOption::Including(
+                crate::sql::ast::CreateTableLikeFeature::Defaults,
+            ) => include_defaults = true,
+            crate::sql::ast::CreateTableLikeOption::Excluding(
+                crate::sql::ast::CreateTableLikeFeature::Defaults,
+            ) => include_defaults = false,
+            _ => {
+                return Err(CassieError::Unsupported(
+                    "CREATE TABLE LIKE contains an unsupported option".to_string(),
+                )
+                .into());
+            }
+        }
+    }
+
+    validate_table_like_default_copy(&source_schema.fields, &source_constraints, include_defaults)?;
+
+    Ok(source_schema
+        .fields
+        .into_iter()
+        .map(|field| {
+            let field_key = crate::sql::ColumnIdentifierPath::stored_field_key(&field.name);
+            let matches_field = |constraint: &&FieldConstraint| {
+                crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field) == field_key
+            };
+            let not_null = source_constraints
+                .iter()
+                .filter(matches_field)
+                .any(|constraint| constraint.not_null || constraint.primary_key);
+            let identity = source_constraints
+                .iter()
+                .filter(matches_field)
+                .any(|constraint| constraint.identity.is_some());
+            let source_default = include_defaults
+                .then(|| {
+                    source_constraints
+                        .iter()
+                        .filter(matches_field)
+                        .find(|constraint| {
+                            constraint.default_value.is_some()
+                                || constraint.default_expression.is_some()
+                        })
+                })
+                .flatten()
+                .filter(|_| !identity);
+            let mut copied_constraint = FieldConstraint::new(field.name.clone());
+            if not_null {
+                copied_constraint.not_null = true;
+                copied_constraint.not_null_ownership = NotNullOwnership::Explicit;
+            }
+            if let Some(source_default) = source_default {
+                copied_constraint
+                    .default_value
+                    .clone_from(&source_default.default_value);
+                copied_constraint
+                    .default_expression
+                    .clone_from(&source_default.default_expression);
+            }
+            let constraints = if copied_constraint.not_null
+                || copied_constraint.default_value.is_some()
+                || copied_constraint.default_expression.is_some()
+                || copied_constraint.default_sequence.is_some()
+            {
+                vec![copied_constraint]
+            } else {
+                Vec::new()
+            };
+            crate::sql::ast::FieldDefinition {
+                name: field.name,
+                data_type: field.data_type,
+                constraints,
+            }
+        })
+        .collect())
+}
+
+fn validate_table_like_default_copy(
+    fields: &[crate::catalog::FieldMeta],
+    constraints: &[FieldConstraint],
+    include_defaults: bool,
+) -> Result<(), QueryError> {
+    if !include_defaults {
+        return Ok(());
+    }
+
+    for field in fields {
+        let field_key = crate::sql::ColumnIdentifierPath::stored_field_key(&field.name);
+        let matches_field = |constraint: &&FieldConstraint| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field) == field_key
+        };
+        let identity = constraints
+            .iter()
+            .filter(matches_field)
+            .any(|constraint| constraint.identity.is_some());
+        let sequence_default = constraints.iter().filter(matches_field).any(|constraint| {
+            constraint.default_sequence.is_some()
+                || constraint
+                    .default_expression
+                    .as_deref()
+                    .and_then(crate::catalog::parse_nextval_default_expression)
+                    .is_some()
+        });
+        if !identity && sequence_default {
+            return Err(CassieError::Unsupported(
+                "CREATE TABLE LIKE INCLUDING DEFAULTS cannot copy sequence-backed defaults until their source dependency lifecycle is supported".to_string(),
+            )
+            .into());
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn create_index(

@@ -83,12 +83,9 @@ fn parse_field_type_token(
         .ok_or_else(|| SqlError::new(format!("missing data type for column '{name}'")))?
         .trim()
         .to_string();
-    // `BIT VARYING[(n)]` and `DOUBLE PRECISION` spell one type across two tokens.
+    // Bit/character VARYING modifiers and DOUBLE PRECISION span schema tokens.
     if type_token.eq_ignore_ascii_case("bit")
-        && parts.peek().is_some_and(|next| {
-            next.get(..7)
-                .is_some_and(|word| word.eq_ignore_ascii_case("varying"))
-        })
+        && parts.peek().is_some_and(|next| is_varying_type_token(next))
     {
         if let Some(varying) = parts.next() {
             type_token = format!("{type_token} {varying}");
@@ -101,6 +98,27 @@ fn parse_field_type_token(
     {
         if let Some(precision) = parts.next() {
             type_token = format!("{type_token} {precision}");
+        }
+    }
+    if type_token.eq_ignore_ascii_case("national")
+        && parts
+            .peek()
+            .is_some_and(|next| next.eq_ignore_ascii_case("character"))
+    {
+        let character = parts
+            .next()
+            .ok_or_else(|| SqlError::new("NATIONAL CHARACTER requires VARYING".into()))?;
+        let varying = parts
+            .next_if(|next| is_varying_type_token(next))
+            .ok_or_else(|| SqlError::new("NATIONAL CHARACTER requires VARYING".into()))?;
+        type_token = format!("{type_token} {character} {varying}");
+    } else if (type_token.eq_ignore_ascii_case("character")
+        || type_token.eq_ignore_ascii_case("char")
+        || type_token.eq_ignore_ascii_case("nchar"))
+        && parts.peek().is_some_and(|next| is_varying_type_token(next))
+    {
+        if let Some(varying) = parts.next() {
+            type_token = format!("{type_token} {varying}");
         }
     }
     let temporal_name = type_token
@@ -132,6 +150,13 @@ fn parse_field_type_token(
         )));
     }
     Ok(type_token)
+}
+
+fn is_varying_type_token(token: &str) -> bool {
+    token.eq_ignore_ascii_case("varying")
+        || token
+            .get(..8)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("varying("))
 }
 
 fn apply_field_constraint(
@@ -292,5 +317,51 @@ fn parse_field_data_type(
             ))
         }
         _ => parse_data_type(raw).map(|data_type| (data_type, None)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_field_type_token;
+
+    #[test]
+    fn should_join_varying_only_at_the_type_name_boundary() {
+        // Arrange
+        let accepted = [
+            ("bit", "varying", "bit varying"),
+            ("bit", "VARYING(4)", "bit VARYING(4)"),
+            ("character", "varying(4)", "character varying(4)"),
+            ("nchar", "VARYING(4)", "nchar VARYING(4)"),
+        ];
+        let rejected = [
+            ("bit", "varying_extra(4)"),
+            ("character", "varying_extra(4)"),
+        ];
+
+        // Act
+        let accepted_results = accepted.map(|(type_name, modifier, expected)| {
+            let mut parts = [type_name.to_owned(), modifier.to_owned()]
+                .into_iter()
+                .peekable();
+            let parsed = parse_field_type_token(&mut parts, "value").unwrap();
+            (expected, parsed, parts.next())
+        });
+        let rejected_results = rejected.map(|(type_name, modifier)| {
+            let mut parts = [type_name.to_owned(), modifier.to_owned()]
+                .into_iter()
+                .peekable();
+            let parsed = parse_field_type_token(&mut parts, "value").unwrap();
+            (type_name, modifier, parsed, parts.next())
+        });
+
+        // Assert
+        for (expected, parsed, remaining) in accepted_results {
+            assert_eq!(parsed, expected);
+            assert!(remaining.is_none());
+        }
+        for (type_name, modifier, parsed, remaining) in rejected_results {
+            assert_eq!(parsed, type_name);
+            assert_eq!(remaining.as_deref(), Some(modifier));
+        }
     }
 }

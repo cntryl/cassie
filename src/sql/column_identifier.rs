@@ -8,6 +8,11 @@ pub(crate) struct ColumnIdentifierPath {
 }
 
 impl ColumnIdentifierPath {
+    pub(crate) fn is_qualified_wildcard(raw: &str) -> bool {
+        raw.ends_with(".*")
+            && Self::parse(raw).is_ok_and(|path| path.is_qualified() && path.final_name() == "*")
+    }
+
     /// Retains quoted qualifier identity for an alias namespace. Catalog
     /// qualifier lookup keeps using its historical folded key.
     pub(crate) fn namespace_key(&self) -> String {

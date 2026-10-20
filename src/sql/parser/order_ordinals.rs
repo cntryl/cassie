@@ -73,15 +73,16 @@ fn output_column_at(position: i64, projection: &[SelectItem]) -> Result<Expr, Sq
         .ok_or_else(not_in_list)?;
     let wildcard =
         || SqlError::unsupported("ORDER BY position is not supported with SELECT *".into());
-    if projection
-        .iter()
-        .take(index)
-        .any(|item| matches!(item, SelectItem::Wildcard))
-    {
+    if projection.iter().take(index).any(is_wildcard) {
         return Err(wildcard());
     }
     match projection.get(index).ok_or_else(not_in_list)? {
         SelectItem::Wildcard => Err(wildcard()),
+        SelectItem::Column { name, .. }
+            if crate::sql::ColumnIdentifierPath::is_qualified_wildcard(name) =>
+        {
+            Err(wildcard())
+        }
         SelectItem::Column { name, alias } => Ok(Expr::Column(alias.as_deref().map_or_else(
             || name.clone(),
             crate::sql::ColumnIdentifierPath::stored_field_key,
@@ -106,4 +107,9 @@ fn output_column_at(position: i64, projection: &[SelectItem]) -> Result<Expr, Sq
             "ORDER BY position of an unaliased window function is not supported".into(),
         )),
     }
+}
+
+fn is_wildcard(item: &SelectItem) -> bool {
+    matches!(item, SelectItem::Wildcard)
+        || matches!(item, SelectItem::Column { name, .. } if crate::sql::ColumnIdentifierPath::is_qualified_wildcard(name))
 }

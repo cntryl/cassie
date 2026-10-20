@@ -48,7 +48,8 @@ survey labels are narrower historical observations, not whole-family parity.
 | COMMENT ON | Absent | #845 |
 | **Query clauses** | | |
 | INNER/LEFT/RIGHT/FULL/CROSS/LATERAL joins, aliases | Supported | — |
-| NATURAL JOIN, JOIN USING, qualified star `t.*` | Absent | #800 |
+| NATURAL JOIN, JOIN USING | Absent | #800 |
+| Qualified relation wildcard `t.*` | Experimental for base tables, CTEs and derived relations; unknown qualifiers fail binding and existing wildcard identity rules apply | #761 |
 | UNION [ALL], INTERSECT, EXCEPT | Supported | — |
 | INTERSECT ALL, EXCEPT ALL | Selected integer/text/NULL multiplicity qualified, including VALUES branches and explicit DISTINCT; wider coercions pending | #800 |
 | VALUES relations, row constructors, tuple comparison | Absent | #800 |

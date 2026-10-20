@@ -146,14 +146,9 @@ impl Cassie {
         &self,
         batch: &ProjectionReplayBatch,
     ) -> Result<crate::catalog::ProjectionMeta, CassieError> {
-        self.catalog
-            .get_projection_metadata(&batch.projection)
-            .or_else(|| {
-                self.midge
-                    .projection_metadata(&batch.projection)
-                    .ok()
-                    .flatten()
-            })
+        self.midge
+            .projection_metadata(&batch.projection)?
+            .or_else(|| self.catalog.get_projection_metadata(&batch.projection))
             .ok_or_else(|| CassieError::CollectionNotFound(batch.projection.clone()))
     }
 
@@ -310,39 +305,10 @@ impl Cassie {
         if let Some(epoch) = write_report.data_epoch {
             self.runtime.set_data_epoch(epoch);
         }
-        self.record_projection_replay_events(metadata, batch, &prepared.replay_event_ids)?;
         let mut write_stats = write_report.stats;
         write_stats.duplicate_checks = prepared.duplicate_checks;
         self.runtime
             .record_projection_write_batch(batch.projection.clone(), &write_stats);
-        Ok(())
-    }
-
-    fn record_projection_replay_events(
-        &self,
-        metadata: &crate::catalog::ProjectionMeta,
-        batch: &ProjectionReplayBatch,
-        replay_event_ids: &[String],
-    ) -> Result<(), CassieError> {
-        let replay_event_refs = replay_event_ids
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>();
-        if replay_event_refs.is_empty() {
-            return Ok(());
-        }
-        if let Err(error) = self.midge.record_projection_events_batch(
-            &batch.projection,
-            &batch.source_identity,
-            &replay_event_refs,
-            &batch.batch_id,
-        ) {
-            return self.fail_replay_metadata(
-                metadata.clone(),
-                batch,
-                format!("projection replay failed to record duplicate ledger: {error}"),
-            );
-        }
         Ok(())
     }
 
@@ -355,8 +321,8 @@ impl Cassie {
         if let Some(latest) = self.midge.projection_metadata(&metadata.collection)? {
             metadata = latest;
         }
-        metadata.source_identity = Some(batch.source_identity);
-        metadata.replay_batch_id = Some(batch.batch_id);
+        metadata.source_identity = Some(batch.source_identity.clone());
+        metadata.replay_batch_id = Some(batch.batch_id.clone());
         metadata.source_checkpoint = prepared.source_checkpoint;
         metadata.source_position = prepared.source_position;
         metadata.last_applied_event_id = prepared.last_applied_event_id;
@@ -373,7 +339,18 @@ impl Cassie {
             crate::catalog::ProjectionFreshness::Stale
         };
         metadata.last_error = None;
-        self.persist_replay_metadata(metadata.clone())?;
+        let replay_event_refs = prepared
+            .replay_event_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        self.midge.record_projection_events_and_metadata_batch(
+            &metadata,
+            &batch.source_identity,
+            &replay_event_refs,
+            &batch.batch_id,
+        )?;
+        self.catalog.register_projection_metadata(metadata.clone());
         self.runtime
             .record_projection_replay(batch.projection, prepared.applied, prepared.skipped);
 

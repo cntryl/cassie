@@ -3713,3 +3713,47 @@ The repository Actions permission readback was `enabled: false`; no workflow
 was enabled or run. This is a partial qualification under #780. Other fixed
 command families and post-`SET` `search_path` reporting remain open obligations;
 this record does not close #780 or claim repository-green status.
+
+## 2026-10-19 — #780 fixed projection command Describe metadata
+
+The remaining DIFF, COMPARE, PLAN REPAIR and REPAIR projection command families
+now share their execution-owned column definitions with statement/portal
+Describe. The focused tests send Parse, statement Describe, Bind, portal
+Describe, Execute and Sync for text and binary portal formats. They compare
+names, PostgreSQL OIDs, sizes, typmods and formats, then check a DataRow of the
+expected width, CommandComplete and ReadyForQuery `I`. The DIFF and COMPARE
+fixtures each produce a finite output row. PLAN REPAIR starts from a verified
+stale row hash. REPAIR runs twice in one connection against two independent
+tables; each fixture proves `repairable = true`, then observes `completed` and
+post-verification `verified`.
+
+TDD red: all four new owners observed zero RowDescriptions where two were
+expected; the focused test body completed in 0.07s. TDD green: all four pass in
+0.07s after sharing the result definitions. The retained no-Describe
+`should_preserve_execution_owned_projection_verification_output` control passes
+in 0.26s.
+
+Jev received one focused request with the exact diff, WIRE-016/WIRE-030
+invariants, command inputs, and test outcomes. It estimated a 0.07 probability
+of a concrete gap and selected repair-fixture state as the first inspection
+focus with 0.31 confidence. Source review confirmed each repair command uses an
+independent stale row hash and records a repairable verification. The tests now
+assert that precondition and the successful repair/post-verification fields;
+the rerun passes. No additional Jev request was needed. Request and response
+are retained under the worktree's ignored
+`target/jev/issue-780-fixed-command-describe-review/` directory.
+
+Ordered validation on this worktree:
+
+| Command | Actual result |
+| --- | --- |
+| `cargo build --locked --bin cassie` | Passed. |
+| `cargo test --locked` | 1,231 library tests and 179 analytics tests passed, then `catalog_security` stopped at 279 passed / 123 failed in 72.77s. This matches the previously recorded clean-main count; failing identities were not compared in this slice. The analytics integration target took 98.03s aggregate. The new focused protocol tests took 0.07s. |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed. |
+| `cargo fmt --all -- --check` | Passed. |
+| `cntryl-tools validate-tests -f tests/pgwire_extended/descriptors/projection_command_families.rs` | Passed 4/4. |
+
+The pgwire integration aggregator `tests/pgwire_extended.rs` contains module
+registrations but no test declarations of its own; the validator reported “No
+tests found” for that aggregator path. `git diff --check` passed. No workflow
+was run.

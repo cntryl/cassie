@@ -234,6 +234,21 @@ Every DataRow carries exactly as many fields as the RowDescription sent for the 
 
 `VERIFY PROJECTION` shares its ten-column definition between execution and pre-execution Describe. Statement Describe uses text format; portal Describe uses the requested text or binary result format and matches the subsequent execution result.
 
+`DIFF PROJECTION`, `COMPARE PROJECTION`, `PLAN REPAIR PROJECTION` and
+`REPAIR PROJECTION` use their execution-owned fixed result schemas for statement
+and portal Describe. Statement Describe uses text format; portal Describe uses
+the requested text or binary result format, and both match the following
+execution result. Their ordered schemas are:
+
+- DIFF: `row_id TEXT`, `change TEXT`, `left_digest TEXT`, `right_digest TEXT`,
+  `state TEXT`, `next_cursor TEXT`, `complete BOOLEAN`.
+- COMPARE: `target TEXT`, `state TEXT`, `root_digest TEXT`,
+  `manifest_digest TEXT`, `mismatches INT`, `report_id TEXT`.
+- PLAN REPAIR and REPAIR: `state TEXT`, `projection_name TEXT`, `scope TEXT`,
+  `target_collection TEXT`, `action TEXT`, `executable BOOLEAN`,
+  `verification_required TEXT`, `post_verification_state TEXT`, `report_id TEXT`,
+  `affected_objects TEXT`, `last_error TEXT`.
+
 A successful startup emits backend process and secret data. A cancel request affects only the matching live backend. Incorrect or stale secrets do nothing. Cancellation is cooperative at bounded execution checkpoints and cleans up query and portal resources. A canceled resume returns `57014` and no partial row page.
 
 Portal `max_rows` controls one execute response; it does not reset Cassie's query limits. Result rows are counted cumulatively across resumes, and retained memory is shared across all live portals on the connection. An execute or bind that would exceed a cumulative limit returns `54000` atomically. Closing a portal or statement, rolling back, or disconnecting releases its state.

@@ -1,9 +1,33 @@
 use crate::midge::adapter::RowHashRecord;
 use crate::runtime::QueryExecutionControls;
+use crate::types::DataType;
 use std::collections::BTreeMap;
 
 use super::command_output::Cell;
 use super::{Cassie, QueryError, QueryResult};
+
+pub(crate) fn diff_projection_column_definitions() -> [(&'static str, DataType); 7] {
+    [
+        ("row_id", DataType::Text),
+        ("change", DataType::Text),
+        ("left_digest", DataType::Text),
+        ("right_digest", DataType::Text),
+        ("state", DataType::Text),
+        ("next_cursor", DataType::Text),
+        ("complete", DataType::Boolean),
+    ]
+}
+
+pub(crate) fn compare_projection_column_definitions() -> [(&'static str, DataType); 6] {
+    [
+        ("target", DataType::Text),
+        ("state", DataType::Text),
+        ("root_digest", DataType::Text),
+        ("manifest_digest", DataType::Text),
+        ("mismatches", DataType::Int),
+        ("report_id", DataType::Text),
+    ]
+}
 
 pub(super) fn diff_projection(
     cassie: &Cassie,
@@ -204,15 +228,7 @@ fn diff_result_builder(
 ) -> Result<super::QueryResultBuilder<'_>, QueryError> {
     super::command_output::columns(
         "DIFF PROJECTION",
-        &[
-            ("row_id", crate::types::DataType::Text),
-            ("change", crate::types::DataType::Text),
-            ("left_digest", crate::types::DataType::Text),
-            ("right_digest", crate::types::DataType::Text),
-            ("state", crate::types::DataType::Text),
-            ("next_cursor", crate::types::DataType::Text),
-            ("complete", crate::types::DataType::Boolean),
-        ],
+        &diff_projection_column_definitions(),
         controls,
     )
 }
@@ -378,14 +394,7 @@ fn comparison_result(
 ) -> Result<QueryResult, QueryError> {
     let mut result = super::command_output::columns(
         "COMPARE PROJECTION",
-        &[
-            ("target", crate::types::DataType::Text),
-            ("state", crate::types::DataType::Text),
-            ("root_digest", crate::types::DataType::Text),
-            ("manifest_digest", crate::types::DataType::Text),
-            ("mismatches", crate::types::DataType::Int),
-            ("report_id", crate::types::DataType::Text),
-        ],
+        &compare_projection_column_definitions(),
         controls,
     )?;
     super::command_output::push_row(

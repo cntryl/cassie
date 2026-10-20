@@ -151,6 +151,9 @@ mod pgwire_extended_metadata;
 #[path = "pgwire_extended/descriptors/projection_verification.rs"]
 mod projection_verification_describe;
 
+#[path = "pgwire_extended/descriptors/projection_command_families.rs"]
+mod projection_command_families_describe;
+
 // Formerly tests/pgwire_extended_prepared.rs.
 #[path = "pgwire_extended/prepared_statements/prepared.rs"]
 mod pgwire_extended_prepared;

@@ -269,14 +269,25 @@ impl Cassie {
                 return Some(crate::executor::show_result_columns(statement));
             }
             crate::planner::logical::LogicalCommand::VerifyProjection(_) => {
-                return Some(
-                    crate::executor::projection_verification_column_definitions()
-                        .into_iter()
-                        .map(|(name, data_type)| {
-                            crate::executor::ColumnMeta::from_data_type(name, &data_type)
-                        })
-                        .collect(),
-                );
+                return Some(Self::fixed_result_columns(
+                    crate::executor::projection_verification_column_definitions(),
+                ));
+            }
+            crate::planner::logical::LogicalCommand::DiffProjection(_) => {
+                return Some(Self::fixed_result_columns(
+                    crate::executor::diff_projection_column_definitions(),
+                ));
+            }
+            crate::planner::logical::LogicalCommand::CompareProjection(_) => {
+                return Some(Self::fixed_result_columns(
+                    crate::executor::compare_projection_column_definitions(),
+                ));
+            }
+            crate::planner::logical::LogicalCommand::PlanRepairProjection(_)
+            | crate::planner::logical::LogicalCommand::RepairProjection(_) => {
+                return Some(Self::fixed_result_columns(
+                    crate::executor::repair_projection_column_definitions(),
+                ));
             }
             _ => return Some(Vec::new()),
         };
@@ -288,6 +299,15 @@ impl Cassie {
             collection_schema,
             user_functions,
         ))
+    }
+
+    fn fixed_result_columns(
+        definitions: impl IntoIterator<Item = (&'static str, crate::types::DataType)>,
+    ) -> Vec<crate::executor::ColumnMeta> {
+        definitions
+            .into_iter()
+            .map(|(name, data_type)| crate::executor::ColumnMeta::from_data_type(name, &data_type))
+            .collect()
     }
 
     fn describe_collection_schema(

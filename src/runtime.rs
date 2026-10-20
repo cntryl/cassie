@@ -26,12 +26,18 @@ pub(crate) mod accounted;
 mod adaptive_metrics;
 #[path = "runtime/admission.rs"]
 mod admission;
+#[path = "runtime/aggregate_test_pause.rs"]
+mod aggregate_test_pause;
 #[path = "runtime/cache_state.rs"]
 mod cache_state;
 #[path = "runtime/column_batch_metrics.rs"]
 pub(crate) mod column_batch_metrics;
 #[path = "runtime/controls.rs"]
 mod controls;
+#[doc(hidden)]
+pub use aggregate_test_pause::{
+    pause_next_query_after_aggregate_input, QueryAggregateTestPauseGuard,
+};
 #[path = "runtime/scoring_test_pause.rs"]
 mod scoring_test_pause;
 #[doc(hidden)]
@@ -101,6 +107,12 @@ pub(crate) use projection_metrics::ProjectionWriteStats;
 pub use schema_epochs::RunningQueryGuard;
 use schema_epochs::SchemaEpochTracker;
 pub use snapshots::*;
+
+#[derive(Debug)]
+enum QueryTestPause {
+    Aggregate(aggregate_test_pause::QueryAggregateTestPause),
+    Scoring(scoring_test_pause::ScoringTestPause),
+}
 
 #[derive(Debug, Default)]
 struct RuntimeFeedbackState {

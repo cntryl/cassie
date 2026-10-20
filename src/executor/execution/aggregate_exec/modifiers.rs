@@ -446,6 +446,7 @@ fn transition(
     accumulator.update_values(function, value, key, delimiter)?;
     memory.absorb(candidate);
     memory.shrink_to(accumulator.retained_heap_bytes()?);
+    controls.aggregate_input_retained()?;
     Ok(())
 }
 

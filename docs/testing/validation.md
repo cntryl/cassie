@@ -4159,3 +4159,53 @@ cargo nextest run --locked --config-file target/nextest-like-60s.toml --test par
 
 The full suite was not run. GitHub Actions remained disabled, and no workflow
 was enabled or dispatched.
+
+## 2026-10-20 — #796 pending `name` cast rejection
+
+This boundary-only slice adds a parser regression for the unqualified and
+`pg_catalog`-qualified cast spellings `'word'::name` and
+`'word'::pg_catalog.name`. The selected type profile does not include the
+separate PostgreSQL `name` type, so both casts must reject instead of silently
+aliasing it to Cassie's text type. `src/types/schema.rs` validates qualified
+names against `BUILTIN_TYPES` and its `named_type` lookup returns unsupported
+for an absent `name` entry. No runtime behavior or supported type set changed.
+
+Jev selected `reject_only` for the implementation and `casts_only` for test
+scope (probabilities 1.0 and 0.94; confidence 1.0 and 0.91). The repository
+contract agrees: `docs/feature-support.md` keeps `name` pending under #796, and
+the existing schema registry has no `name` entry. PostgreSQL 18.6 accepts both
+forms and identifies their result type as `name`; Cassie's profile deliberately
+remains narrower. Jev helped choose the regression boundary; the source and
+executed tests establish Cassie's behavior.
+
+The focused Jev review estimated a 0.15 probability of a false-green test and
+selected the type-resolution path as the first concern (probability 0.86,
+confidence 0.81). Inspection confirmed expression casts pass their target to
+`parse_data_type`; the unqualified lookup falls through to an unsupported-type
+error, while `pg_catalog.name` fails the `BUILTIN_TYPES` membership check. The
+regression asserts the `Unsupported` error kind and exact type-specific message
+for both inputs, so the selected concern is covered by source and executable
+evidence. Review request and response are retained under ignored
+`target/jev/name-type-cast-review-20261020/`.
+
+The final related batch passed 3/3 with 397 tests skipped and 0.011 seconds of
+test execution. The `target/nextest-like-60s.toml` profile enforced the
+60-second per-test limit. Ordered local validation:
+
+1. `cargo build --locked --bin cassie` passed.
+2. The focused Nextest batch below passed 3/3; 397 tests were skipped.
+3. `cargo clippy --workspace --all-targets --all-features -- -D warnings -D
+   clippy::pedantic` passed.
+4. `cargo fmt --all -- --check` passed.
+5. `cntryl-tools validate-tests -f
+   tests/parser_types/grammar/expressions/semantics.rs` passed 36/36, and
+   `git diff --check` passed. `cntryl-tools validate-docs` exited 1 on 75
+   broken local links in untouched documentation files; it reported no errors
+   for either file changed by this slice.
+
+```text
+cargo nextest run --locked --config-file target/nextest-like-60s.toml --test parser_types -E 'test(should_reject_unselected_name_type_casts) | test(should_reject_nonexistent_qualified_types_given_builtin_aliases_when_parsing_a_cast) | test(should_bind_schema_qualified_postgres_type_names)' --status-level fail --final-status-level fail
+```
+
+The full suite was not run. GitHub Actions remained disabled, and no workflow
+was enabled or dispatched.

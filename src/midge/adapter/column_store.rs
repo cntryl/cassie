@@ -1,7 +1,7 @@
 use super::{
     collect_scan, key_encoding, CassieError, CollectionCardinalityStats, CollectionMeta,
-    CollectionStorageMode, DocumentRef, HashSet, Instant, Midge, MidgeScanTimings, ProjectionMeta,
-    Query, RowFilter, RowSchema, Schema,
+    CollectionStorageMode, DocumentRef, FieldConstraint, HashSet, Instant, Midge, MidgeScanTimings,
+    ProjectionMeta, Query, RowFilter, RowSchema, Schema,
 };
 use std::time::Duration;
 
@@ -39,7 +39,7 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
     ) -> Result<u64, CassieError> {
-        self.create_collection_with_meta_inner(name, schema, metadata, false)
+        self.create_collection_with_meta_inner(name, schema, metadata, false, None)
             .map(|(_, storage_id)| storage_id)
     }
 
@@ -58,8 +58,34 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
     ) -> Result<Option<u64>, CassieError> {
-        self.create_collection_with_meta_inner(name, schema, metadata, true)
+        self.create_collection_with_meta_inner(name, schema, metadata, true, None)
             .map(|(created, storage_id)| created.then_some(storage_id))
+    }
+
+    /// Creates a collection and its initial column constraints in one schema-family transaction.
+    ///
+    /// The initial constraints are limited to column nullability and defaults; unlike general
+    /// constraint publication, they require no row scan or data-family writes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation or storage fails.
+    pub(crate) fn create_collection_with_meta_and_constraints_if_absent(
+        &self,
+        name: &str,
+        schema: &Schema,
+        metadata: &CollectionMeta,
+        constraints: &[FieldConstraint],
+    ) -> Result<Option<u64>, CassieError> {
+        Self::validate_initial_column_constraints(constraints)?;
+        let (created, storage_id) = self.create_collection_with_meta_inner(
+            name,
+            schema,
+            metadata,
+            true,
+            Some(constraints),
+        )?;
+        Ok(created.then_some(storage_id))
     }
 
     fn create_collection_with_meta_inner(
@@ -68,6 +94,7 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
         require_absent: bool,
+        initial_constraints: Option<&[FieldConstraint]>,
     ) -> Result<(bool, u64), CassieError> {
         let name = self.canonical_collection_name(name);
         let write_gate = self.collection_write_gate(&name);
@@ -132,6 +159,12 @@ impl Midge {
         if existing_metadata.is_none() {
             Self::save_collection_metadata_to_tx(&mut tx, &metadata)?;
         }
+        if let Some(constraints) = initial_constraints {
+            let value = serde_json::to_vec(constraints)
+                .map_err(|error| CassieError::Parse(error.to_string()))?;
+            tx.put(Self::constraints_key(&name), value, None)
+                .map_err(CassieError::from)?;
+        }
 
         let mut collections = Self::load_collections(&tx)?;
         if !collections.iter().any(|entry| entry == &name) {
@@ -146,6 +179,37 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok((!schema_exists && existing_metadata.is_none(), storage_id))
+    }
+
+    fn validate_initial_column_constraints(
+        constraints: &[FieldConstraint],
+    ) -> Result<(), CassieError> {
+        crate::sql::definition_guard::constraints(constraints)?;
+        if constraints.iter().any(|constraint| {
+            constraint.primary_key
+                || constraint.primary_key_name.is_some()
+                || constraint.primary_key_ordinal.is_some()
+                || constraint.unique
+                || constraint.unique_name.is_some()
+                || constraint.unique_ordinal.is_some()
+                || constraint.check.is_some()
+                || constraint.check_name.is_some()
+                || constraint.foreign_key_name.is_some()
+                || constraint.foreign_key_ordinal.is_some()
+                || constraint.foreign_key_on_delete.is_some()
+                || constraint.foreign_key_on_update.is_some()
+                || constraint.references_table.is_some()
+                || constraint.references_field.is_some()
+                || constraint.default_sequence_owned.is_owned()
+                || constraint.identity.is_some()
+                || constraint.identity_options.is_some()
+        }) {
+            return Err(CassieError::Unsupported(
+                "initial collection publication supports only NOT NULL and default column metadata"
+                    .to_string(),
+            ));
+        }
+        Ok(())
     }
 
     fn storage_relation_exists_case_insensitively(

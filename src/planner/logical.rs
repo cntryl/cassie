@@ -470,7 +470,7 @@ fn plan_named_command(
 
 fn plan_create_table(statement: &CreateTableStatement) -> Result<LogicalPlan, CassieError> {
     require_name(&statement.table, "CREATE TABLE requires a table name")?;
-    if statement.fields.is_empty() {
+    if statement.fields.is_empty() && statement.like.is_none() {
         return Err(CassieError::Planner(
             "CREATE TABLE requires at least one column".into(),
         ));

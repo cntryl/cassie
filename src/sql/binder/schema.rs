@@ -28,11 +28,7 @@ pub(super) fn bind_create_table(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateTableStatement, CassieError> {
-    if statement.like.is_some() {
-        return Err(CassieError::Unsupported(
-            "CREATE TABLE LIKE execution is not implemented yet".into(),
-        ));
-    }
+    validate_create_table_like_options(&statement)?;
 
     let name = normalize_new_relation_path(&statement.table, context, catalog)?;
     if name.is_empty() {
@@ -59,6 +55,11 @@ pub(super) fn bind_create_table(
             "CREATE TABLE storage mode 'column_indexed' is derived and cannot be created explicitly"
                 .into(),
         ));
+    }
+
+    if let Some(like) = statement.like.as_mut() {
+        let source = resolve_relation_path(&like.source, catalog, context)?;
+        like.source = canonical_relation_path(&source)?;
     }
 
     let own_constraints = schema_checks::bind_create_checks(&mut statement.fields)?;
@@ -120,6 +121,47 @@ pub(super) fn bind_create_table(
     requalify_serial_sequences(&mut statement, &name, catalog, context)?;
     statement.table = canonical_relation_path(&name)?;
     Ok(statement)
+}
+
+fn validate_create_table_like_options(
+    statement: &crate::sql::ast::CreateTableStatement,
+) -> Result<(), CassieError> {
+    let Some(like) = statement.like.as_ref() else {
+        return Ok(());
+    };
+
+    for option in &like.options {
+        let (action, feature) = match option {
+            crate::sql::ast::CreateTableLikeOption::Including(feature) => ("INCLUDING", *feature),
+            crate::sql::ast::CreateTableLikeOption::Excluding(feature) => ("EXCLUDING", *feature),
+        };
+        if feature != crate::sql::ast::CreateTableLikeFeature::Defaults {
+            return Err(CassieError::Unsupported(format!(
+                "CREATE TABLE LIKE option {action} {} is not supported yet",
+                create_table_like_feature_name(feature)
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn create_table_like_feature_name(
+    feature: crate::sql::ast::CreateTableLikeFeature,
+) -> &'static str {
+    use crate::sql::ast::CreateTableLikeFeature;
+
+    match feature {
+        CreateTableLikeFeature::All => "ALL",
+        CreateTableLikeFeature::Comments => "COMMENTS",
+        CreateTableLikeFeature::Compression => "COMPRESSION",
+        CreateTableLikeFeature::Constraints => "CONSTRAINTS",
+        CreateTableLikeFeature::Defaults => "DEFAULTS",
+        CreateTableLikeFeature::Generated => "GENERATED",
+        CreateTableLikeFeature::Identity => "IDENTITY",
+        CreateTableLikeFeature::Indexes => "INDEXES",
+        CreateTableLikeFeature::Statistics => "STATISTICS",
+        CreateTableLikeFeature::Storage => "STORAGE",
+    }
 }
 
 fn canonical_relation_path(name: &str) -> Result<IdentifierPath, CassieError> {

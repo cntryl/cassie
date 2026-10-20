@@ -92,6 +92,13 @@ the rounded/rendered values. Its PostgreSQL 18.6 reference returns
 This qualifies only these type spellings; the remaining #796 cast, type-name,
 literal, operator, collation and expression obligations stay open.
 
+The selected `bpchar` spelling is accepted as the existing character type:
+`bpchar` and `pg_catalog.bpchar` are unbounded, while `bpchar(n)` and
+`pg_catalog.bpchar(n)` retain the declared character width. The pgwire witness
+[`should_bind_bpchar_casts_using_native_type_metadata`](../tests/pgwire_extended/types/character/bpchar_casts.rs)
+checks inferred parameter OIDs, statement descriptors, values and padding. The
+separate `name` type and broader collation behavior remain pending under #796.
+
 The #796 extended-protocol witness
 [`should_bind_the_selected_four_type_cast_fixture_through_extended_protocol`](../tests/pgwire_extended/grammar/parameters.rs)
 executes inferred `uuid`, `jsonb`, `numeric(18,2)`, and `uuid[]` casts through

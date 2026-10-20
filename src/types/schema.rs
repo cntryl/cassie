@@ -152,13 +152,7 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
             .split_once('(')
             .map_or(local_name, |(name, _)| name.trim());
         let known_builtin = super::builtin::BUILTIN_TYPES.iter().any(|metadata| {
-            metadata.name == name
-                // UNKNOWN and unconstrained BPCHAR require cast semantics
-                // that the existing scalar runtime does not yet provide.
-                && !matches!(
-                    metadata.kind,
-                    super::builtin::BuiltinKind::Unknown | super::builtin::BuiltinKind::Bpchar
-                )
+            metadata.name == name && metadata.kind != super::builtin::BuiltinKind::Unknown
         });
         if !known_builtin {
             return Err(format!("unsupported data type '{raw}'"));
@@ -179,6 +173,7 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
     let canonical = if base.split_whitespace().eq(["character"])
         || base.split_whitespace().eq(["national", "character"])
         || base.split_whitespace().eq(["nchar"])
+        || (base.split_whitespace().eq(["bpchar"]) && !modifier.is_empty())
     {
         Some("char")
     } else if base.split_whitespace().eq(["character", "varying"])
@@ -283,6 +278,7 @@ fn named_type(lower: &str, raw: &str) -> Result<DataType, String> {
         "float" | "float8" | "double" => Ok(DataType::Float),
         "boolean" | "bool" => Ok(DataType::Boolean),
         "text" | "string" => Ok(DataType::Text),
+        "bpchar" => Ok(DataType::Char { length: None }),
         "uuid" => Ok(DataType::Uuid),
         "bytea" => Ok(DataType::Bytea),
         "date" => Ok(DataType::Date),

@@ -120,6 +120,8 @@ mod pgwire_scalar_receive_errors;
 #[path = "support/scalar_receive.rs"]
 mod support_scalar_receive;
 
+#[path = "pgwire_extended/types/character/bpchar_casts.rs"]
+mod pgwire_type_bpchar_casts;
 #[path = "pgwire_extended/types/real/float_precision.rs"]
 mod pgwire_type_float_precision;
 #[path = "pgwire_extended/aggregates/numeric/numeric_metadata.rs"]

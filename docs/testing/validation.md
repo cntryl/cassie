@@ -3947,3 +3947,48 @@ this slice. GitHub Actions
 permissions remain disabled and no workflow was enabled or dispatched. Issue
 [#796](https://github.com/cntryl/cassie/issues/796) remains open for its other
 type, cast, and expression obligations.
+
+## 2026-10-20 — #796 selected `bpchar` type spellings
+
+This runtime slice accepts `bpchar` and `pg_catalog.bpchar` as the existing
+unbounded character type, and sends `bpchar(n)` spellings through the existing
+`char(n)` typmod path. The implementation preserves OID 1042, unbounded
+typmod -1, bounded typmod `n + 4`, and bare SQL `CHAR` width one. It does not
+add a separate type representation. The extended-protocol witness checks
+Parse/Describe/Bind/Execute, parameter OIDs, statement and portal row metadata,
+and the padded text value for `bpchar(3)`.
+
+TDD red: the parser rejected `bpchar` as unsupported, and the new protocol
+witness failed at Parse with SQLSTATE 0A000. The existing combined bpchar/name
+cast case also failed for bpchar before the change. TDD green: the two new
+parser cases and the pgwire witness pass; the pre-existing combined case now
+fails only for the separate `name` type, which remains outside this slice and
+open under #796. PostgreSQL 18.6 reports OID 1042 for both aliases, typmod -1
+for unbounded `bpchar`, typmod 7 for `bpchar(3)`, and direct padded output
+`y  ` for a three-character cast.
+
+Jev's decision Choice selected the minimal `bpchar` alias mapped to the
+existing `DataType::Char` representation (confidence 1.0). Its focused review
+assigned 0.25 probability to an invariant gap and selected catalog-scope
+validation as the first concern (0.48 probability, 0.31 confidence). Source
+and executable tests confirmed `pg_catalog.bpchar` uses the registered built-in
+guard, `pg_catalog.unknown` remains rejected, and descriptors and values match
+the PostgreSQL oracle. No additional Jev request was needed. The request and
+response are retained under ignored `target/jev/issue-796-bpchar-decision/`
+and `target/jev/issue-796-bpchar-review/` paths.
+
+Ordered final local validation on the renamed final test tree:
+
+| Command | Actual result |
+| --- | --- |
+| `cargo build --locked --bin cassie` | Passed. |
+| Full workspace Nextest with `/tmp/cassie-nextest-60s.toml` | 10,006 tests across 34 binaries completed: 8,516 passed and 1,490 failed; 9 tests were reported skipped. Failure identities are a subset of the saved clean-main baseline (1,491 failures); no new failure appeared, and `should_map_float_precision_boundaries_to_postgres_type_oids` passed in this run. No timeout or termination; longest test was 47.941s. |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed. |
+| `cargo fmt --all -- --check` | Passed. |
+| `cntryl-tools validate-tests -f tests/parser_types/grammar/parameters/parameters.rs` | Passed 5/5 after renaming the alias test to remove a validator-reported multi-behavior name. |
+| `cntryl-tools validate-tests -f tests/pgwire_extended/types/character/bpchar_casts.rs` | Passed 1/1. |
+| `cntryl-tools validate-tests -f tests/pgwire_extended.rs` | No test declarations in the module-registration aggregator, as expected. |
+
+`git diff --check` passed. No workflow was enabled or run. Issue #796 remains
+open for the distinct `name` type and the other type, cast, and expression
+obligations.

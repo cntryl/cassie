@@ -116,6 +116,13 @@ Cassie's private array OID and JSON-array text representation. Matching array
 source and target types preserve the existing array value carrier; this does
 not qualify PostgreSQL array ABI or other array casts.
 
+For selected scalar types, a postfix `::` cast can follow a parenthesized
+`CAST` result. The parser regression
+[`should_bind_parenthesized_cast_result_through_postfix_conversion`](../tests/parser_types/grammar/parameters.rs)
+checks `(CAST('42' AS TEXT))::INT` against the equivalent nested `CAST`,
+including the INT result OID and value. This qualifies that chain shape only;
+other cast pairs and syntax remain pending under #796.
+
 Operator spelling preserves signed literals, exponent signs, quoted identifiers
 and strings, and nested comment separators. Existing `count(*)` arguments and
 raw nested query text remain unchanged. Regex, JSON, array and concatenation

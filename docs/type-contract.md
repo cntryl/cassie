@@ -40,6 +40,10 @@ reported from the declared column length. `FLOAT` is Cassie's float8 identity;
 | `vector(n)` | `100000 + n` | -1 | Private identity; finite positive dimension |
 | `T[]` | `34000 + (element identity mod 10000)` | -1 | Private identity; vector elements use a legacy residue and their wire arrays are excluded |
 
+The `varchar` identity also accepts `char varying(n)`,
+`national character varying(n)` and `nchar varying(n)`. These spellings retain
+OID 1043 and the same `n + 4` typmod as `character varying(n)`.
+
 `NULL` uses the unknown result identity (OID 705, `typlen` -2, typmod -1);
 SQL NULL on the wire is still a field length of -1. `oid` and the supported
 `reg*` aliases use their distinct registered PostgreSQL identities; their

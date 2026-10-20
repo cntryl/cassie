@@ -408,3 +408,70 @@ fn should_bind_oid_zero_bigint_parameters_in_values_over_extended_protocol() {
         ]
     );
 }
+
+#[test]
+fn should_bind_varying_character_columns_with_native_metadata() {
+    // Arrange
+    let steps = [
+        r"CREATE TABLE issue_796_varying_character_columns (
+            character_varying CHARACTER VARYING(2) NOT NULL,
+            char_varying CHAR VARYING(3) NOT NULL,
+            national_character_varying NATIONAL CHARACTER VARYING(4) NOT NULL,
+            nchar_varying NCHAR VARYING(5) NOT NULL
+        )",
+        "INSERT INTO issue_796_varying_character_columns VALUES ('ab', 'cde', 'wxyz', '12345')",
+        "INSERT INTO issue_796_varying_character_columns VALUES (NULL, 'cde', 'wxyz', '12345')",
+        "INSERT INTO issue_796_varying_character_columns VALUES ('ab', NULL, 'wxyz', '12345')",
+        "INSERT INTO issue_796_varying_character_columns VALUES ('ab', 'cde', NULL, '12345')",
+        "INSERT INTO issue_796_varying_character_columns VALUES ('ab', 'cde', 'wxyz', NULL)",
+        "SELECT character_varying, char_varying, national_character_varying, nchar_varying FROM issue_796_varying_character_columns",
+    ]
+    .into_iter()
+    .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+    .collect();
+
+    // Act
+    let batches = run_script("issue-796-varying-character-column-types", steps);
+
+    // Assert
+    for index in [0, 1, 6] {
+        assert_eq!(
+            wire::error_code(&batches[index]),
+            None,
+            "batch {index}: {:?}",
+            batches[index]
+                .iter()
+                .filter(|(tag, _)| *tag == b'E')
+                .map(|(_, payload)| wire::parse_error_fields(payload))
+                .collect::<Vec<_>>()
+        );
+    }
+    for (index, batch) in batches.iter().enumerate().take(6).skip(2) {
+        assert_eq!(
+            wire::error_code(batch),
+            Some("23502".to_owned()),
+            "batch {index} must preserve the declared NOT NULL constraint"
+        );
+    }
+    let description = batches[6]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("varying character table RowDescription");
+    let columns = wire::parse_row_description(&description.1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (column.type_oid, column.type_mod))
+            .collect::<Vec<_>>(),
+        vec![(1043, 6), (1043, 7), (1043, 8), (1043, 9)]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[6]),
+        vec![vec![
+            Some("ab".to_owned()),
+            Some("cde".to_owned()),
+            Some("wxyz".to_owned()),
+            Some("12345".to_owned()),
+        ]]
+    );
+}

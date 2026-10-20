@@ -51,6 +51,13 @@ types, private wire identities, codec and metadata boundaries, exactness, NULL
 meaning and explicit exclusions. Its qualification does not promote the broader
 types/casts family.
 
+Table declarations accept `CHARACTER VARYING(n)`, `CHAR VARYING(n)`,
+`NATIONAL CHARACTER VARYING(n)` and `NCHAR VARYING(n)` as the same OID 1043
+identity, preserving typmod `n + 4`. The pgwire regression
+[`should_bind_varying_character_columns_with_native_metadata`](../tests/pgwire_extended/grammar/parameters.rs)
+checks the descriptors, values and trailing `NOT NULL` constraints for all four
+forms. Other type-name and cast gaps remain under [#796](https://github.com/cntryl/cassie/issues/796).
+
 Table declarations accept `TIME` and `TIMESTAMP` with optional precision and
 explicit `WITH TIME ZONE` or `WITHOUT TIME ZONE` suffixes. The pgwire test
 [`should_bind_temporal_zone_columns_with_native_metadata`](../tests/pgwire_extended/types/temporal/metadata.rs)

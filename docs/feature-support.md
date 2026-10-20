@@ -106,6 +106,9 @@ The selected `bpchar` spelling is accepted as the existing character type:
 [`should_bind_bpchar_casts_using_native_type_metadata`](../tests/pgwire_extended/types/character/bpchar_casts.rs)
 checks inferred parameter OIDs, statement descriptors, values and padding. The
 separate `name` type and broader collation behavior remain pending under #796.
+Until that type is selected, both `name` and `pg_catalog.name` casts are
+rejected, as covered by
+[`should_reject_unselected_name_type_casts`](../tests/parser_types/grammar/expressions/semantics.rs).
 
 The #796 extended-protocol witness
 [`should_bind_the_selected_four_type_cast_fixture_through_extended_protocol`](../tests/pgwire_extended/grammar/parameters.rs)

@@ -710,6 +710,29 @@ fn should_reject_nonexistent_qualified_types_given_builtin_aliases_when_parsing_
 }
 
 #[test]
+fn should_reject_unselected_name_type_casts() {
+    // Arrange
+    let statements = [
+        ("SELECT 'word'::name", "name"),
+        ("SELECT 'word'::pg_catalog.name", "pg_catalog.name"),
+    ];
+
+    // Act
+    let parsed = statements.map(|(sql, _)| parse_statement(sql));
+
+    // Assert
+    for ((sql, type_name), result) in statements.into_iter().zip(parsed) {
+        let error = result.expect_err("unselected NAME type must reject");
+        assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
+        assert_eq!(
+            error.message(),
+            format!("unsupported data type '{type_name}'"),
+            "the cast must be rejected by type resolution: {sql}"
+        );
+    }
+}
+
+#[test]
 fn should_bound_postfix_cast_nesting_given_an_excessive_chain_when_parsing_an_expression() {
     // Arrange
     let admitted_sql = format!("SELECT 1{}", "::INT8".repeat(128));

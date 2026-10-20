@@ -88,6 +88,16 @@ numeric literal is supported; repeated unary-sign chains such as `n+++2` and
 `n-+-2` remain excluded. Lexical parity does not establish PostgreSQL's broader
 literal, unary-expression or postfix-cast grammar.
 
+The selected `UPDATE ... RETURNING` arithmetic witness in
+[`should_return_parenthesized_row_arithmetic_from_update`](../tests/pgwire_extended/grammar/returning_arithmetic.rs)
+checks a row-dependent `CASE` branch containing `id / (id - id)`, plus the
+zero-row form. Both succeed on the current source; returned values stay `1` and
+`2`, the empty result retains its BIGINT OID 20 descriptor, and a readback
+confirms both statements leave stored values unchanged. These exact forms were
+historical failures recorded in
+[#796](https://github.com/cntryl/cassie/issues/796); other forms in that issue
+remain open.
+
 ### JSON Document Null and SQL NULL
 
 For a declared `JSON` field, an absent key in the stored document represents SQL

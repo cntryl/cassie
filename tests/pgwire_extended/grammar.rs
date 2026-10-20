@@ -25,6 +25,8 @@ impl Drop for GrammarFixtureDirectory {
 
 include!("grammar/parameters.rs");
 
+include!("grammar/returning_arithmetic.rs");
+
 include!("grammar/semantics.rs");
 
 include!("grammar/resources.rs");

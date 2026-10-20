@@ -1,6 +1,6 @@
 use super::support_sql as support;
 
-use cassie::app::{Cassie, CassieSession};
+use cassie::app::{Cassie, CassieError, CassieSession};
 use cassie::types::Value;
 
 use support::{data_dir, use_local_storage};
@@ -49,6 +49,27 @@ fn should_resolve_aggregate_clauses_given_own_qualified_columns_when_values_and_
             [20, 20, 16]
         );
     }
+}
+
+#[test]
+fn should_not_strip_a_qualified_reference_to_a_distinct_relation_with_the_same_local_name() {
+    // Arrange
+    let fixture = super::support_sql_fixture::sql_fixture(
+        "distinct-qualified-own-name",
+        &[
+            "CREATE TABLE qualifier_inputs (amount INT4)",
+            "CREATE TABLE public.qualifier_inputs (other INT4)",
+        ],
+    );
+
+    // Act
+    let error = fixture.error("SELECT public.qualifier_inputs.amount FROM qualifier_inputs");
+
+    // Assert
+    assert!(matches!(
+        error,
+        CassieError::UndefinedColumn(name) if name == "public.qualifier_inputs.amount"
+    ));
 }
 
 #[test]

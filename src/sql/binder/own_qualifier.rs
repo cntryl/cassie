@@ -13,13 +13,16 @@ use crate::sql::ast::{
 
 /// Rewrites `select`'s own-qualified column references to bare names when its
 /// source is a single collection or CTE.
-pub(super) fn strip_select_own_qualifiers(select: &mut SelectStatement) {
-    let name = match &select.source {
-        QuerySource::Collection(name) => name.as_str(),
-        QuerySource::Cte(name) => name.as_str(),
+pub(super) fn strip_select_own_qualifiers(
+    select: &mut SelectStatement,
+    catalog: &super::Catalog,
+    context: &super::BindingContext,
+) {
+    let qualifiers = match &select.source {
+        QuerySource::Collection(name) => collection_qualifiers(name, catalog, context),
+        QuerySource::Cte(name) => crate::catalog::qualifier_variants(name),
         _ => return,
     };
-    let qualifiers = crate::catalog::qualifier_variants(name);
     for item in &mut select.projection {
         strip_select_item(item, &qualifiers);
     }
@@ -30,6 +33,65 @@ pub(super) fn strip_select_own_qualifiers(select: &mut SelectStatement) {
     strip_optional(&mut select.offset, &qualifiers);
     strip_order(&mut select.order, &qualifiers);
     strip_all(&mut select.distinct_on, &qualifiers);
+}
+
+fn collection_qualifiers(
+    name: &crate::sql::ast::IdentifierPath,
+    catalog: &super::Catalog,
+    context: &super::BindingContext,
+) -> Vec<String> {
+    let mut qualifiers = crate::catalog::qualifier_variants(name);
+    let Ok(parsed) = name.parsed_name() else {
+        return qualifiers;
+    };
+    let (schema_names, unqualified_source) = match parsed {
+        crate::catalog::ParsedName::Unqualified(local_name) => (
+            context
+                .relation_search_order()
+                .into_iter()
+                .map(|schema| (schema.to_string(), local_name.clone()))
+                .collect::<Vec<_>>(),
+            true,
+        ),
+        crate::catalog::ParsedName::SchemaQualified { schema, name } => {
+            (vec![(schema, name)], false)
+        }
+        crate::catalog::ParsedName::DatabaseQualified { .. } => return qualifiers,
+    };
+
+    for (schema, local_name) in schema_names {
+        let schema_qualified = format!(
+            "{}.{}",
+            crate::catalog::canonical_identifier_component(&schema),
+            crate::catalog::canonical_identifier_component(&local_name)
+        );
+        let candidate = if crate::catalog::is_system_schema(&schema) {
+            schema_qualified.clone()
+        } else {
+            crate::catalog::canonical_relation_name(&context.database, &schema, &local_name)
+        };
+        // Legacy in-memory catalogs can retain unqualified DDL under a short
+        // key. Treat that key as its search-path spelling only when no
+        // explicitly qualified relation occupies the logical path.
+        let resolves_to_source = super::resolve_relation_name(&candidate, catalog, context)
+            .is_ok_and(|resolved| resolved == name.as_str())
+            || (unqualified_source
+                && !context.scopes_database_objects()
+                && !crate::catalog::is_system_schema(&schema)
+                && catalog
+                    .matching_relation_names(&schema_qualified)
+                    .is_empty()
+                && super::resolve_relation_name(&local_name, catalog, context)
+                    .is_ok_and(|resolved| resolved == name.as_str()));
+        if resolves_to_source {
+            for qualifier in crate::catalog::qualifier_variants(&candidate) {
+                if !qualifiers.contains(&qualifier) {
+                    qualifiers.push(qualifier);
+                }
+            }
+        }
+    }
+    qualifiers
 }
 
 /// Rewrites an `UPDATE`'s own-qualified references in its `WHERE` and
@@ -220,7 +282,11 @@ mod tests {
         };
 
         // Act
-        strip_select_own_qualifiers(&mut select);
+        strip_select_own_qualifiers(
+            &mut select,
+            &crate::catalog::Catalog::new(),
+            &super::super::BindingContext::default(),
+        );
 
         // Assert
         let SelectItem::Function { function, .. } = &select.projection[0] else {

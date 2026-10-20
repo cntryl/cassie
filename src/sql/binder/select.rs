@@ -104,7 +104,7 @@ pub(super) fn bind_select_with_lateral_fields(
     let mut known_fields = source_fields(catalog, &select.source, &scope)?;
     known_fields.extend(lateral_fields.iter().cloned());
     if lateral_fields.is_empty() {
-        super::own_qualifier::strip_select_own_qualifiers(&mut select);
+        super::own_qualifier::strip_select_own_qualifiers(&mut select, catalog, context);
     }
 
     let field_types =

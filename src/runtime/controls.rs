@@ -8,7 +8,7 @@ use std::sync::Weak;
 pub struct QueryCancellationHandle(
     Arc<AtomicBool>,
     Option<Arc<crate::midge::adapter::QueryScanControlScope>>,
-    Option<Arc<super::scoring_test_pause::ScoringTestPause>>,
+    Option<Arc<super::QueryTestPause>>,
 );
 
 impl Default for QueryCancellationHandle {
@@ -16,7 +16,7 @@ impl Default for QueryCancellationHandle {
         Self(
             Arc::new(AtomicBool::new(false)),
             crate::midge::adapter::current_query_scan_control_scope(),
-            None,
+            super::aggregate_test_pause::take_next_query_pause(),
         )
     }
 }
@@ -40,7 +40,7 @@ impl QueryCancellationHandle {
         std::sync::mpsc::SyncSender<()>,
     ) {
         let (pause, selected, resume) = super::scoring_test_pause::ScoringTestPause::new(boundary);
-        self.2 = Some(Arc::new(pause));
+        self.2 = Some(Arc::new(super::QueryTestPause::Scoring(pause)));
         (selected, resume)
     }
 
@@ -190,11 +190,18 @@ impl Drop for QueryMemoryReservation {
 }
 
 impl QueryExecutionControls {
+    pub(crate) fn aggregate_input_retained(&self) -> Result<(), CassieError> {
+        if let Some(super::QueryTestPause::Aggregate(pause)) = self.cancellation.2.as_deref() {
+            pause.reach()?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn scored_candidate(
         &self,
         boundary: super::QueryScoringTestBoundary,
     ) -> Result<(), CassieError> {
-        if let Some(pause) = &self.cancellation.2 {
+        if let Some(super::QueryTestPause::Scoring(pause)) = self.cancellation.2.as_deref() {
             pause.reach(boundary)?;
         }
         Ok(())

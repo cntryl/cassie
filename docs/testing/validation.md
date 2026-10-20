@@ -3189,6 +3189,72 @@ fixtures and is not claimed faster by this two-case slice. Static inventory is
 8,811 Rust integration declarations / 8,939 registered instances; no unregistered,
 unresolved, duplicate or oversized files. Static counts are not executed results.
 
+
+### Autopilot batch 20: Retained string aggregate cancellation (2026-10-19)
+
+This partial #954 slice replaces the 50,000-row `string_agg` cancellation race
+with a three-row fixture. A hidden one-shot test pause runs after the aggregate
+accumulator has accepted the input and its retained heap charge has been applied.
+The test sends a real pgwire CancelRequest at that boundary, waits for the
+cancellation connection to close, resumes the aggregate and verifies SQLSTATE
+57014, no partial rows, and same-session recovery. The test body completes in
+0.59 seconds locally; fixture setup and compilation are not a performance claim.
+
+The pause is captured by the next query cancellation handle on the calling
+thread. Unit regressions cover one-shot capture, an unrelated handle, disconnected
+observer and resume endpoints, and both guard-drop cases: an unconsumed guard
+clears its pending pause, while a captured pause remains attached to its query.
+The test hook has a ten-second diagnostic hang guard. The implementation uses
+the existing cancellation handle and aggregate retention transition. Aggregate
+and scoring diagnostics share one optional test-pause slot so the cancellation
+handle's layout does not grow. The change adds no runtime setting or public SQL
+behavior.
+
+TDD first showed the focused fixture could not compile before the pause API
+existed. Initial integration attempts then exposed two prerequisites: `repeat()`
+is unsupported in the string control, and the legacy cancellation helper depends
+on unavailable `pg_stat_activity`. The final control uses literal strings and
+synchronizes at the retained aggregate-input boundary instead. The unit test for
+guard cleanup also caught that a dropped, unused observer reports disconnection
+rather than an empty channel; the regression now asserts only that no signal was
+received.
+
+Jev selected #954's string aggregate cancellation slice (confidence 1.0), while
+its implementation-seam choice had low confidence (0.36). Source inspection led
+to query-handle-scoped capture without adding a backend API. In focused review,
+Jev assigned 0.68 to the claim that CancelRequest socket EOF follows cancellation
+handling, 0.29 to a capture-isolation concern, and selected pause scope for the
+first review focus (probability 0.42, confidence 0.27). Source confirms the
+CancelRequest handler calls `cancel_pgwire_backend` before returning Break; the
+connection loop then exits. The added guard-drop regressions address the selected
+scope concern. These are triage signals; the source and passing wire test provide
+the evidence.
+
+This is one of the remaining #954 aggregate cases and does not close #954 or #811.
+The other collection aggregate fixtures, full repository test baseline, hosted
+backend qualification, and workflow-dependent benchmark validation remain
+separate work.
+
+Final local evidence for this slice:
+
+| Command | Result |
+| --- | --- |
+| `cargo build --locked --bin cassie` | Passed after the final handle representation change. |
+| `cargo test --locked --lib pause -- --nocapture` | Passed: 8 tests (aggregate/scoring pause regressions and the sibling schema-write pause test), 0.00 seconds of test execution. |
+| `cargo test --locked --test pgwire_extended should_cancel_string_agg_without_partial_output_given_retained_values_when_cancel_request_arrives -- --nocapture` | Passed: 1 test, 0.97 seconds of test execution. |
+| `cargo test --locked --test pgwire_extended should_reject_string_agg_growth_given_a_memory_budget_when_more_values_arrive -- --nocapture` | Existing adjacent #811 case remains red before its budget candidate: the small control returns 42601 for unsupported `repeat()`. This memory-budget fixture is outside this cancellation slice. |
+| `cargo test --locked` | Not completed. The library harness passed 1,231/1,231 in 77.51 seconds; the 179-test analytics harness was interrupted at approximately 59 seconds without a suite summary. Stable libtest does not report individual test durations. |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed after aggregate and scoring hooks were combined into one pause slot. |
+| `cargo fmt --all -- --check` | Passed. |
+| `cntryl-tools validate-tests -f src/runtime/aggregate_test_pause.rs` | Passed: 4/4 compliant. |
+| `cntryl-tools validate-tests -f tests/pgwire_extended/aggregates/string_agg/resources.rs` | Passed: 2/2 compliant. |
+| `git diff --check` | Passed. |
+
+The final focused tests remain below the user's 60-second per-test limit. The
+77.51-second library figure is the aggregate duration of the 1,231-test harness,
+not a recorded individual-test duration; the interrupted full command does not
+establish a repository-wide green result.
+
 ## Exact parameter OID cache identity (2026-10-17)
 
 Local runtime correction prepared against PR #951 head

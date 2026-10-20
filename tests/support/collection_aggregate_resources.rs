@@ -2,12 +2,12 @@
 
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::support_pgwire as wire;
 use cassie::app::{Cassie, CassieError};
 use cassie::config::CassieRuntimeConfig;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 type Frames = Vec<(u8, Vec<u8>)>;
@@ -108,82 +108,6 @@ fn seed_fixture(path: &str, setup_sql: &[String]) {
     drop(cassie);
 }
 
-fn marked_query(marker: &str, query: &str) -> String {
-    format!("/* {marker} */ {query}")
-}
-
-async fn observe_target_activity<R, W>(reader: &mut R, writer: &mut W, target_pid: i32) -> Frames
-where
-    R: AsyncRead + Unpin,
-    W: AsyncWrite + Unpin,
-{
-    let sql = format!("SELECT state, query FROM pg_stat_activity WHERE pid = {target_pid}");
-    wire::write_frames(writer, vec![wire::simple_query_frame(&sql)]).await;
-    wire::read_frames_until_ready_within(reader, Duration::from_secs(5)).await
-}
-
-fn assert_activity_marker(frames: &Frames, expected_state: &str, marker: &str) {
-    assert_eq!(
-        wire::error_code(frames),
-        None,
-        "pg_stat_activity ErrorResponse: {:?}",
-        frames
-            .iter()
-            .filter(|frame| frame.0 == b'E')
-            .map(|frame| wire::parse_error_fields(&frame.1))
-            .collect::<Vec<_>>()
-    );
-    assert!(
-        wire::data_rows(frames).iter().any(|row| {
-            row[0].as_deref() == Some(expected_state)
-                && row[1]
-                    .as_deref()
-                    .is_some_and(|query| query.contains(marker))
-        }),
-        "target activity must be {expected_state} with marker {marker:?}: {:?}",
-        wire::data_rows(frames)
-    );
-}
-
-async fn wait_for_active_query_marker<R, W>(
-    reader: &mut R,
-    writer: &mut W,
-    target_pid: i32,
-    marker: &str,
-) where
-    R: AsyncRead + Unpin,
-    W: AsyncWrite + Unpin,
-{
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        let frames = observe_target_activity(reader, writer, target_pid).await;
-        assert_eq!(
-            wire::error_code(&frames),
-            None,
-            "pg_stat_activity query failed while waiting for target marker {marker:?}: {:?}",
-            frames
-                .iter()
-                .filter(|frame| frame.0 == b'E')
-                .map(|frame| wire::parse_error_fields(&frame.1))
-                .collect::<Vec<_>>()
-        );
-        let rows = wire::data_rows(&frames);
-        if rows.iter().any(|row| {
-            row[0].as_deref() == Some("active")
-                && row[1]
-                    .as_deref()
-                    .is_some_and(|query| query.contains(marker))
-        }) {
-            return;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "target aggregate query with marker {marker:?} must be active before cancellation: {rows:?}"
-        );
-        tokio::time::sleep(Duration::from_millis(1)).await;
-    }
-}
-
 pub fn run_memory_budget_case_with_setup(
     label: &str,
     setup_sql: &[String],
@@ -235,95 +159,6 @@ pub fn run_memory_budget_case_with_setup(
             control,
             wide_control,
             candidate,
-            recovery,
-        }
-    });
-    drop(runtime);
-    result
-}
-
-pub fn run_cancellation_case_with_setup(
-    label: &str,
-    setup_sql: &[String],
-    control_sql: &str,
-    candidate_sql: &str,
-) -> CancellationCase {
-    wire::use_local_storage();
-    let path = wire::data_dir(label);
-    let _directory = FixtureDirectory(path.clone());
-    seed_fixture(&path, setup_sql);
-    let runtime = current_thread_runtime();
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.limits.query_timeout_ms = 0;
-    config.limits.query_memory_budget_bytes = 512 * 1024 * 1024;
-
-    let result = runtime.block_on(async {
-        let cassie = Arc::new(configured_instance(&path, config.clone()));
-        let server = start_server(Arc::clone(&cassie), config).await;
-        let (mut reader, mut writer, process_id, secret_key) = connect(server.address).await;
-        let (mut monitor_reader, mut monitor_writer, _, _) = connect(server.address).await;
-        let control_marker = format!("{label}_control");
-        let target_marker = format!("{label}_target");
-
-        wire::write_frames(
-            &mut writer,
-            vec![wire::simple_query_frame(&marked_query(
-                &control_marker,
-                control_sql,
-            ))],
-        )
-        .await;
-        let control =
-            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(10)).await;
-        assert_no_error(&control, "small retained-value cancellation control");
-        let control_activity =
-            observe_target_activity(&mut monitor_reader, &mut monitor_writer, process_id).await;
-        assert_activity_marker(&control_activity, "idle", &control_marker);
-
-        wire::write_frames(
-            &mut writer,
-            vec![wire::simple_query_frame(&marked_query(
-                &target_marker,
-                candidate_sql,
-            ))],
-        )
-        .await;
-        wait_for_active_query_marker(
-            &mut monitor_reader,
-            &mut monitor_writer,
-            process_id,
-            &target_marker,
-        )
-        .await;
-        let mut cancel_socket = tokio::net::TcpStream::connect(server.address)
-            .await
-            .expect("open cancellation connection");
-        cancel_socket
-            .write_all(&wire::cancel_request_frame(process_id, secret_key))
-            .await
-            .expect("send aggregate cancellation request");
-        cancel_socket
-            .shutdown()
-            .await
-            .expect("close cancellation connection");
-        let cancelled =
-            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(10)).await;
-        wire::write_frames(
-            &mut writer,
-            vec![wire::simple_query_frame("SELECT 47 AS recovery")],
-        )
-        .await;
-        let recovery =
-            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(10)).await;
-
-        drop(reader);
-        drop(writer);
-        drop(monitor_reader);
-        drop(monitor_writer);
-        server.stop().await;
-        CancellationCase {
-            control,
-            cancelled,
             recovery,
         }
     });

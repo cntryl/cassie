@@ -260,6 +260,103 @@ fn should_apply_like_all_with_explicit_exclusions() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_reject_table_like_before_creating_the_target() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_ast_execution_guard").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_like_guard_source (id INT)")
+            .await
+            .expect("create LIKE source table");
+
+        // Act
+        let error = client
+            .batch_execute(
+                "CREATE TABLE compat_like_guard_target \
+                 (LIKE compat_like_guard_source INCLUDING ALL)",
+            )
+            .await
+            .expect_err("LIKE copy execution is still pending");
+        let error = db_error(&error);
+        let sqlstate = error.code().code().to_owned();
+        let message = error.message().to_owned();
+        let target_exists: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables \
+                 WHERE table_name = 'compat_like_guard_target')",
+                &[],
+            )
+            .await
+            .expect("check that rejected LIKE did not create its target")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(sqlstate, "0A000");
+        assert!(
+            message.contains("CREATE TABLE LIKE execution is not implemented"),
+            "unexpected error message: {message}"
+        );
+        assert!(!target_exists);
+    });
+}
+
+#[test]
+fn should_reject_table_like_before_if_not_exists_short_circuit() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_ast_if_not_exists_guard").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_like_short_circuit_source (id INT)")
+            .await
+            .expect("create source table");
+        client
+            .batch_execute("CREATE TABLE compat_like_short_circuit_target (id INT)")
+            .await
+            .expect("create target table");
+        client
+            .batch_execute("INSERT INTO compat_like_short_circuit_target VALUES (7)")
+            .await
+            .expect("seed target row");
+
+        // Act
+        let error = client
+            .batch_execute(
+                "CREATE TABLE IF NOT EXISTS compat_like_short_circuit_target \
+                 (LIKE compat_like_short_circuit_source INCLUDING ALL)",
+            )
+            .await
+            .expect_err("LIKE guard must run before IF NOT EXISTS");
+        let error = db_error(&error);
+        let sqlstate = error.code().code().to_owned();
+        let message = error.message().to_owned();
+        let retained_value: i32 = client
+            .query_one(
+                "SELECT id FROM compat_like_short_circuit_target",
+                &[],
+            )
+            .await
+            .expect("existing target remains readable")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(sqlstate, "0A000");
+        assert!(
+            message.contains("CREATE TABLE LIKE execution is not implemented"),
+            "unexpected error message: {message}"
+        );
+        assert_eq!(retained_value, 7);
+    });
+}
 #[test]
 fn should_preserve_ctas_type_modifiers_without_materializing_rows() {
     // Arrange

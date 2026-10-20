@@ -10,6 +10,9 @@ mod parser_types;
 #[path = "parser_types/grammar/insert_source_boundary.rs"]
 mod insert_source_boundary;
 
+#[path = "parser_types/grammar/ddl/create_table_like.rs"]
+mod parser_create_table_like;
+
 #[path = "parser_types/grammar/aliases.rs"]
 mod parser_aliases;
 

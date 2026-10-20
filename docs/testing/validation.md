@@ -3992,3 +3992,80 @@ Ordered final local validation on the renamed final test tree:
 `git diff --check` passed. No workflow was enabled or run. Issue #796 remains
 open for the distinct `name` type and the other type, cast, and expression
 obligations.
+
+## 2026-10-20 — #826 CREATE TABLE LIKE AST staging
+
+This bounded slice adds an optional `like` clause to the exported
+`CreateTableStatement`, with an `IdentifierPath` source and an ordered vector of
+`INCLUDING`/`EXCLUDING` actions. The serde default keeps older serialized AST
+values without `like` readable. The parser accepts one standalone LIKE table
+element and the PostgreSQL 18 option vocabulary; unknown options and mixed or
+multiple table elements reject deterministically. Binding rejects parsed LIKE
+before target normalization, `IF NOT EXISTS`, and catalog access, so this does
+not create an empty or partial target. Full copy semantics remain open under
+[#826](https://github.com/cntryl/cassie/issues/826). The option set and ordering
+were checked against the [PostgreSQL 18 CREATE TABLE reference](https://www.postgresql.org/docs/18/sql-createtable.html)
+and a PostgreSQL 18.6 transaction probe: `INCLUDING IDENTITY EXCLUDING
+IDENTITY` produced a target without identity, while the reversed order produced
+one with identity; the probe transaction was rolled back.
+
+TDD red: before adding the AST types, the new parser test target failed to
+compile because `CreateTableLikeFeature`, `CreateTableLikeOption`, and
+`CreateTableStatement.like` did not exist. Before the binder guard, the new
+runtime guard test reached the old field parser and returned SQLSTATE `0A000`
+for unsupported type `compat_like_guard_source`, rather than the intended
+explicit LIKE execution rejection. The issue's existing broad
+`should_apply_like_all_with_explicit_exclusions` case still fails with its
+clean-main failure identity; that test performs earlier COMMENT/metadata
+operations which remain outside this parser-only increment.
+
+TDD green: six focused parser cases pass, including the issue fixture, ordered
+options, the complete PostgreSQL option vocabulary, a quoted schema-qualified
+source, old-JSON deserialization, unknown-option rejection, and deterministic
+rejection of mixed or multiple table elements. Two focused compatibility tests
+pass: one confirms a rejected LIKE leaves no target; the other confirms the
+guard runs before `IF NOT EXISTS` and preserves an existing target row.
+
+Jev's semantic Choice selected an optional LIKE clause with ordered actions
+(confidence 1.0) and parse-then-guard staging (probability 0.98, confidence
+0.97). The focused review estimated a 0.25 probability of a concrete invariant
+gap and selected quoted source boundaries as its first concern (probability
+0.44, confidence 0.30). Inspection confirmed the scanner preserves quoted
+spans, and the quoted schema-qualified parser regression passed; no code change
+was indicated. No additional Jev request was made. Requests and responses are
+retained under ignored `target/jev/issue-826-like-ast-decision/` and
+`target/jev/issue-826-like-ast-review/`.
+
+Ordered final local validation on this source tree:
+
+1. `cargo build --locked --bin cassie` passed.
+2. The full suite ran in one Nextest invocation with a 60-second per-test
+   timeout (`period = 60s`, one termination, zero grace). It completed in
+   1,436.609s: 10,014 tests run, 8,522 passed, 1,492 failed, and 9 skipped;
+   there were no Nextest `TIMEOUT` or `TERMINATED` results. Compared with the
+   saved clean-main failure identity set, two failures appeared and one prior
+   failure disappeared. The two identities were
+   `should_insert_the_waiting_row_given_an_upsert_waiter_when_the_owner_rolls_back`
+   and
+   `should_enforce_numeric_digit_limits_given_dead_integer_conversions_when_statements_are_parsed`.
+   The numeric-limit case passed in the focused rerun. The upsert rollback case
+   failed in a single-test run on both this tree and the untouched `main`
+   checkout at the same timing assertion, so it is a current-main concurrency
+   failure outside this slice. The prior failure
+   `should_map_float_precision_boundaries_to_postgres_type_oids` passed in this
+   run. The full-run log is `target/validation/issue-826-nextest-final.log`; the
+   two-case rerun is `target/validation/issue-826-nextest-flakes.log`.
+3. The focused parser and binder-guard batch passed 8/8 in 5.718s, including
+   the final test name. Its log is
+   `target/validation/issue-826-focused-final.log`.
+4. `cargo clippy --workspace --all-targets --all-features -- -D warnings -D
+   clippy::pedantic` passed.
+5. `cargo fmt --all -- --check` passed.
+6. `cntryl-tools validate-tests -f
+   tests/parser_types/grammar/ddl/create_table_like.rs` passed 6/6, and
+   `cntryl-tools validate-tests -f
+   tests/compatibility/lifecycle/tables/table_forms/semantics.rs` passed 12/12.
+7. `git diff --check` passed.
+
+The clean-main comparison was a targeted run of the upsert rollback test; the
+full suite was not run on `main`. No GitHub workflow was enabled or dispatched.

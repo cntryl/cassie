@@ -28,6 +28,12 @@ pub(super) fn bind_create_table(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateTableStatement, CassieError> {
+    if statement.like.is_some() {
+        return Err(CassieError::Unsupported(
+            "CREATE TABLE LIKE execution is not implemented yet".into(),
+        ));
+    }
+
     let name = normalize_new_relation_path(&statement.table, context, catalog)?;
     if name.is_empty() {
         return Err(CassieError::Planner(

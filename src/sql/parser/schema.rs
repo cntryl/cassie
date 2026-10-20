@@ -19,6 +19,8 @@ mod schema_identifiers;
 mod schema_identity;
 #[path = "schema_indexes.rs"]
 mod schema_indexes;
+#[path = "schema_like.rs"]
+mod schema_like;
 #[path = "schema_literals.rs"]
 mod schema_literals;
 #[path = "schema_references.rs"]
@@ -37,6 +39,7 @@ use schema_identifiers::{
 pub(super) use schema_indexes::{
     parse_create_index_statement, parse_drop_index_statement, parse_index_options,
 };
+use schema_like::{is_like_table_element, parse_create_table_like_clause};
 use schema_literals::parse_constant_literal;
 pub(super) use schema_literals::parse_constraint_literal;
 use schema_sequences::parse_alter_column_operation;
@@ -73,27 +76,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
         ));
     }
 
-    let mut fields = Vec::new();
-    if !body.is_empty() {
-        for raw in split_csv(body) {
-            let raw = raw.trim();
-            if raw.is_empty() {
-                return Err(SqlError::new("empty column definition".into()));
-            }
-            if let Some(constraints) = parse_table_constraint(raw, &table)? {
-                apply_table_constraints(&mut fields, constraints, &table)?;
-            } else {
-                let field = parse_field_definition_for_table(raw, Some(&table))?;
-                fields.push(field);
-            }
-        }
-    }
-
-    if fields.is_empty() {
-        return Err(SqlError::new(
-            "CREATE TABLE requires at least one column".into(),
-        ));
-    }
+    let (fields, like) = parse_create_table_body(body, &table)?;
 
     let mut seen = HashSet::new();
     for field in &fields {
@@ -134,8 +117,64 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
             fields,
             if_not_exists,
             storage_mode,
+            like,
         }),
     })
+}
+
+fn parse_create_table_body(
+    body: &str,
+    table: &crate::sql::ast::IdentifierPath,
+) -> Result<
+    (
+        Vec<FieldDefinition>,
+        Option<crate::sql::ast::CreateTableLikeClause>,
+    ),
+    SqlError,
+> {
+    let table_elements = if body.is_empty() {
+        Vec::new()
+    } else {
+        split_csv(body)
+    };
+    let like_element = table_elements
+        .iter()
+        .copied()
+        .find(|element| is_like_table_element(element));
+    let like = if let Some(like_element) = like_element {
+        if table_elements.len() != 1 {
+            return Err(SqlError::unsupported(
+                "this slice supports a single LIKE table element without other table elements"
+                    .into(),
+            ));
+        }
+        Some(parse_create_table_like_clause(like_element)?)
+    } else {
+        None
+    };
+
+    let mut fields = Vec::new();
+    if like.is_none() {
+        for raw in table_elements {
+            let raw = raw.trim();
+            if raw.is_empty() {
+                return Err(SqlError::new("empty column definition".into()));
+            }
+            if let Some(constraints) = parse_table_constraint(raw, table)? {
+                apply_table_constraints(&mut fields, constraints, table)?;
+            } else {
+                fields.push(parse_field_definition_for_table(raw, Some(table))?);
+            }
+        }
+
+        if fields.is_empty() {
+            return Err(SqlError::new(
+                "CREATE TABLE requires at least one column".into(),
+            ));
+        }
+    }
+
+    Ok((fields, like))
 }
 
 pub(super) fn parse_create_graph_statement(sql: &str) -> Result<ParsedStatement, SqlError> {

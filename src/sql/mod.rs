@@ -25,12 +25,13 @@ pub(crate) use source_types::{
 pub use ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
     CatalogStatement, CatalogStatementRef, CommonTableExpression, CopyFormat, CopyStatement,
-    CreateSchemaStatement, CreateTableStatement, CreateViewStatement, DeleteStatement,
-    DropSchemaStatement, DropTableStatement, DropViewStatement, FieldDefinition,
-    IdentifierComponent, IdentifierPath, InsertStatement, ParsedStatement, ProjectionStatement,
-    ProjectionStatementRef, QuerySource, QueryStatement, RetentionStatement, RetentionStatementRef,
-    RuntimeStatement, RuntimeStatementRef, SelectItem, SelectStatement, StatementFamily,
-    StatementRoute, StatementRouteRef, UpdateStatement,
+    CreateSchemaStatement, CreateTableLikeClause, CreateTableLikeFeature, CreateTableLikeOption,
+    CreateTableStatement, CreateViewStatement, DeleteStatement, DropSchemaStatement,
+    DropTableStatement, DropViewStatement, FieldDefinition, IdentifierComponent, IdentifierPath,
+    InsertStatement, ParsedStatement, ProjectionStatement, ProjectionStatementRef, QuerySource,
+    QueryStatement, RetentionStatement, RetentionStatementRef, RuntimeStatement,
+    RuntimeStatementRef, SelectItem, SelectStatement, StatementFamily, StatementRoute,
+    StatementRouteRef, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
 pub(crate) use column_identifier::ColumnIdentifierPath;

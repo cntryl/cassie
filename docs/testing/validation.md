@@ -4069,3 +4069,39 @@ Ordered final local validation on this source tree:
 
 The clean-main comparison was a targeted run of the upsert rollback test; the
 full suite was not run on `main`. No GitHub workflow was enabled or dispatched.
+
+## 2026-10-20 — #796 parenthesized CAST result followed by postfix cast
+
+This qualification-only slice adds a focused witness for a remaining #796 cast
+shape: `(CAST('42' AS TEXT))::INT`. The test compares it with the equivalent
+nested `CAST` and checks the selected INT OID 23 and value 42. The parser's
+existing postfix path already wraps each top-level `::` target around the
+preceding expression; runtime code did not change.
+
+Jev ranked #796 above the currently blocked #846 COPY and #842 index work
+(probability 0.85, confidence 0.81). A follow-up Choice selected the
+parenthesized CAST result probe first (probability 0.43, confidence 0.24).
+Source inspection confirmed the form reaches the existing cast-chain path. The
+focused test and a PostgreSQL 18.6 query both returned 42 with integer / OID 23,
+so the low-confidence concern identified missing coverage rather than a runtime
+defect. Jev was used for prioritization and probe selection; the executed
+comparison establishes the behavior. Requests and responses are retained under
+ignored `target/jev/cassie-next-slice-priority-20261020/` and
+`target/jev/issue-796-cast-chain-gap/`.
+
+Ordered local validation:
+
+1. `cargo build --locked --bin cassie` passed.
+2. Focused Nextest batch passed 5/5 across the parenthesized chain witness and
+   adjacent #1003/#1004 type-name controls; 393 tests were skipped. The
+   `target/nextest-like-60s.toml` profile enforced the 60-second per-test guard;
+   total test execution was 0.012s.
+3. `cargo clippy --workspace --all-targets --all-features -- -D warnings -D
+   clippy::pedantic` passed.
+4. `cargo fmt --all -- --check` passed.
+5. `cntryl-tools validate-tests -f
+   tests/parser_types/grammar/parameters.rs` passed 10/10; `git diff --check`
+   passed.
+
+The full suite was not run. No workflow was enabled or dispatched; GitHub
+Actions permission remains disabled.

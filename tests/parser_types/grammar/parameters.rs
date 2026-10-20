@@ -14,6 +14,24 @@ fn should_bind_double_precision_type_names_in_casts() {
 }
 
 #[test]
+fn should_bind_parenthesized_cast_result_through_postfix_conversion() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-parenthesized-postfix-cast", &[]);
+
+    // Act
+    let postfix = fixture.execute("SELECT (CAST('42' AS TEXT))::INT AS value");
+    let standard = fixture.execute("SELECT CAST(CAST('42' AS TEXT) AS INT) AS value");
+
+    // Assert
+    let postfix = postfix.expect("postfix cast after parenthesized CAST");
+    let standard = standard.expect("nested CAST control");
+    assert_eq!(postfix.columns()[0].type_oid, 23);
+    assert_eq!(standard.columns()[0].type_oid, 23);
+    assert_eq!(postfix.rows(), standard.rows());
+    assert_eq!(postfix.rows(), &[vec![Value::Int64(42)]]);
+}
+
+#[test]
 fn should_reject_legacy_type_aliases_in_sql_type_positions_given_array_suffixes() {
     // Arrange
     let fixture = sql_fixture("issue-796-legacy-type-aliases", &[]);

@@ -503,7 +503,13 @@ pub(super) fn bind_drop_table(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::DropTableStatement, CassieError> {
-    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
+    let table = if statement.if_exists {
+        super::resolve_existing_name(statement.table.trim(), context, |name| {
+            catalog.relation_exists(name) || virtual_views::schema(name).is_some()
+        })?
+    } else {
+        resolve_relation_name(statement.table.trim(), catalog, context)?
+    };
     if table.is_empty() {
         return Err(CassieError::Planner(
             "DROP TABLE requires a table name".into(),

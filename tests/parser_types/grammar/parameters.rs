@@ -14,6 +14,62 @@ fn should_bind_double_precision_type_names_in_casts() {
 }
 
 #[test]
+fn should_reject_legacy_type_aliases_in_sql_type_positions_given_array_suffixes() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-legacy-type-aliases", &[]);
+    let cases = [
+        (
+            "CREATE TABLE issue_796_double_array (value DOUBLE[])",
+            "double",
+        ),
+        ("SELECT CAST('word' AS STRING) AS value", "string"),
+        ("SELECT 'word'::STRING AS value", "string"),
+        (
+            "CREATE TABLE issue_796_string_array (value STRING[])",
+            "string",
+        ),
+        (
+            "CREATE TABLE issue_796_string_column (value STRING)",
+            "string",
+        ),
+    ];
+
+    // Act
+    let outcomes = cases
+        .iter()
+        .map(|(sql, alias)| (sql, alias, fixture.execute(sql)))
+        .collect::<Vec<_>>();
+
+    // Assert
+    let failures = outcomes
+        .into_iter()
+        .filter_map(|(sql, alias, result)| match result {
+            Err(cassie::app::CassieError::Unsupported(message))
+                if message == format!("unsupported data type '{alias}'") => None,
+            Ok(result) => Some(format!("{sql}: unexpectedly accepted {result:?}")),
+            Err(error) => Some(format!("{sql}: expected unsupported alias rejection, got {error}")),
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        failures.is_empty(),
+        "legacy aliases must not enter through SQL type positions:\n{}",
+        failures.join("\n")
+    );
+    assert_eq!(
+        cassie::types::DataType::parse_sql("double[]"),
+        Ok(cassie::types::DataType::Array(Box::new(
+            cassie::types::DataType::Float
+        ))),
+        "non-SQL helper callers retain the array alias"
+    );
+    assert_eq!(
+        cassie::types::DataType::parse_sql("string"),
+        Ok(cassie::types::DataType::Text),
+        "non-SQL helper callers retain the text alias"
+    );
+}
+
+#[test]
 fn should_reject_bare_double_given_postgresql_type_name_rules_when_casting_and_declaring() {
     // Arrange
     let fixture = sql_fixture("issue-796-bare-double-type-name", &[]);

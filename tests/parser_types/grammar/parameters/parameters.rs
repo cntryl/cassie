@@ -86,16 +86,13 @@ fn should_bind_postgres_bpchar_cast_type_spelling() {
 }
 
 #[test]
-fn should_bind_postgres_bpchar_name_type_spellings() {
+fn should_bind_selected_bpchar_type_spelling() {
     // Arrange
     let label = "issue-796-type-synonyms";
     let fixture = sql_fixture(label, &[]);
 
     // Act
-    let cases = [
-        ("SELECT CAST('x' AS bpchar) AS value", 1042),
-        ("SELECT CAST('x' AS name) AS value", 19),
-    ];
+    let cases = [("SELECT CAST('x' AS bpchar) AS value", 1042)];
     let failures = cases
         .iter()
         .filter_map(|(sql, expected_oid)| match fixture.execute(sql) {
@@ -117,13 +114,44 @@ fn should_bind_postgres_bpchar_name_type_spellings() {
     // Assert
     assert!(
         failures.is_empty(),
-        "character type aliases failed:\n{}",
+        "selected character type spelling failed:\n{}",
         failures.join("\n")
     );
 }
 
 #[test]
-fn should_bind_postgres_type_spellings_with_native_type_oids() {
+fn should_reject_unselected_postgres_name_type_spellings() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-unselected-type-names", &[]);
+    let cases = [
+        "SELECT CAST('x' AS name) AS value",
+        "SELECT NULL::\"char\"",
+    ];
+
+    // Act
+    let failures = cases
+        .iter()
+        .filter_map(|sql| match fixture.execute(sql) {
+            Err(cassie::app::CassieError::Unsupported(_)) => None,
+            Err(error) => Some(format!("{sql}: expected unsupported type, got {error}")),
+            Ok(result) => Some(format!(
+                "{sql}: expected unsupported type, got {:?} / {}",
+                result.rows(),
+                result.columns()[0].type_oid
+            )),
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(
+        failures.is_empty(),
+        "unselected PostgreSQL type spellings were not rejected:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn should_bind_selected_postgres_type_spellings_with_cassie_array_identity() {
     // Arrange
     let fixture = sql_fixture("issue-796-type-name-oids", &[]);
     let cases = [
@@ -136,8 +164,7 @@ fn should_bind_postgres_type_spellings_with_native_type_oids() {
         ("SELECT NULL::national character varying(4)", 1043),
         ("SELECT NULL::nchar(4)", 1042),
         ("SELECT NULL::char varying(4)", 1043),
-        ("SELECT NULL::\"char\"", 18),
-        ("SELECT NULL::integer[]", 1007),
+        ("SELECT NULL::integer[]", 34_023),
         ("SELECT NULL::float4", 700),
         ("SELECT NULL::float8", 701),
         ("SELECT NULL::real", 700),

@@ -32,6 +32,27 @@ fn should_bind_parenthesized_cast_result_through_postfix_conversion() {
 }
 
 #[test]
+fn should_bind_chained_qualified_type_modifier_casts() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-qualified-typmod-cast-chain", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT '1.234'::pg_catalog.numeric(5,2)::pg_catalog.text AS chained, \
+         CAST(CAST('1.234' AS pg_catalog.numeric(5,2)) AS pg_catalog.text) AS standard",
+    );
+
+    // Assert
+    let result = result.expect("qualified typmod cast chain matches nested CAST");
+    assert_eq!(result.rows(), &[vec![
+        Value::String("1.23".to_owned()),
+        Value::String("1.23".to_owned()),
+    ]]);
+    assert_eq!(result.columns()[0].type_oid, 25);
+    assert_eq!(result.columns()[1].type_oid, 25);
+}
+
+#[test]
 fn should_reject_legacy_type_aliases_in_sql_type_positions_given_array_suffixes() {
     // Arrange
     let fixture = sql_fixture("issue-796-legacy-type-aliases", &[]);

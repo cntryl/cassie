@@ -3734,8 +3734,10 @@ with zero new diagnostics against clean main and 499 baseline diagnostics
 removed by refreshing generated inventory pages. Benchmark validation remains
 blocked because `.github/workflows/bench.yml` is absent; CI changes are outside
 this slice's authorization. The failures above are repository baseline gaps,
-not issue-953 acceptance failures. No repository-green or hosted-green claim is
-made; the patch is ready for PR review and remains unmerged.
+not issue-953 acceptance failures. PR #971 later merged this patch on
+2026-10-19 as `9a2f7c5c16767662ae25f428ce8b2a561226280a`. Issue #953 remains
+open on the current GitHub backlog, so this merge does not claim issue closure
+or a repository-wide or hosted-green result.
 
 ## 2026-10-19 — #780 VERIFY PROJECTION Describe metadata
 
@@ -4105,3 +4107,55 @@ Ordered local validation:
 
 The full suite was not run. No workflow was enabled or dispatched; GitHub
 Actions permission remains disabled.
+
+## 2026-10-20 — #796 chained qualified typmod cast
+
+This qualification-only slice adds a witness for the combined form
+`'1.234'::pg_catalog.numeric(5,2)::pg_catalog.text`. It compares the postfix
+chain with nested `CAST`, checks the numeric typmod's rounded text value
+`1.23`, and verifies the TEXT result OID 25. `parse_postfix_expression`
+identifies top-level `::` positions and parses each target through
+`parse_data_type`; the source path already supported this combined form, so no
+runtime code changed.
+
+Jev selected continued #796 work (probability 0.78, confidence 0.71) and
+ranked the qualified typmod chain first among the supplied probes (probability
+0.57, confidence 0.43). A source/test search found no existing combined-chain
+witness. PostgreSQL 18.6 returned `1.23|1.23|text` for the postfix expression,
+nested `CAST` control, and result type. Cassie's initial focused execution
+passed the new test 1/1; the final related batch passed 6/6 across parser and
+extended-protocol targets, with 4,152 tests skipped. The configured Nextest
+profile enforced the 60-second per-test limit; aggregate execution time was
+0.075 seconds, separate from the 17.56-second test-target compilation.
+
+The focused Jev review estimated a 0.27 false-green probability and selected
+the top-level cast boundary as its first review focus (probability 0.63,
+confidence 0.45). Source inspection confirmed parentheses keep
+`numeric(5,2)` inside the first type target and the following `::` is found
+after the closing parenthesis. The PostgreSQL comparison and passing Cassie
+test verify the rounded value and TEXT identity; no further probe or runtime
+change was indicated.
+
+This is a qualification increment under #796. It does not close the remaining
+cast, type-name, literal, operator or collation obligations.
+
+Ordered local validation:
+
+1. `cargo build --locked --bin cassie` passed.
+2. The focused Nextest batch below passed 6/6 (4,152 skipped); the configured
+   per-test timeout was 60 seconds and test execution took 0.075 seconds.
+3. `cargo clippy --workspace --all-targets --all-features -- -D warnings -D
+   clippy::pedantic` passed.
+4. `cargo fmt --all -- --check` passed.
+5. `cntryl-tools validate-tests -f
+   tests/parser_types/grammar/parameters.rs` passed 11/11.
+6. `git diff --check` passed. `cntryl-tools validate-docs` reported 75 broken
+   local links in untouched docs; none referenced the files changed by this
+   slice.
+
+```text
+cargo nextest run --locked --config-file target/nextest-like-60s.toml --test parser_types --test pgwire_extended -E 'test(should_bind_chained_qualified_type_modifier_casts) | test(should_bind_parenthesized_cast_result_through_postfix_conversion) | test(should_bind_postgres_chained_type_casts) | test(should_preserve_builtin_identity_given_pg_catalog_qualified_casts_when_projected) | test(should_bind_pg_catalog_qualified_temporal_casts_with_native_metadata) | test(should_describe_chained_qualified_array_cast_expression)' --status-level fail --final-status-level fail
+```
+
+The full suite was not run. GitHub Actions remained disabled, and no workflow
+was enabled or dispatched.

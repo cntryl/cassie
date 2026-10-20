@@ -122,7 +122,11 @@ pub(crate) use materialized_projection::projection_verification_column_definitio
 mod materialized_projection_maintenance;
 mod materialized_projection_versions;
 mod projection_diff;
+pub(crate) use projection_diff::{
+    compare_projection_column_definitions, diff_projection_column_definitions,
+};
 mod projection_repair;
+pub(crate) use projection_repair::repair_projection_column_definitions;
 mod retention;
 mod role_command;
 mod rollups;

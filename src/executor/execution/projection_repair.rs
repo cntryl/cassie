@@ -8,6 +8,22 @@ use crate::sql::ast::{
     RepairProjectionStatement, VerifyProjectionStatement,
 };
 
+pub(crate) fn repair_projection_column_definitions() -> [(&'static str, DataType); 11] {
+    [
+        ("state", DataType::Text),
+        ("projection_name", DataType::Text),
+        ("scope", DataType::Text),
+        ("target_collection", DataType::Text),
+        ("action", DataType::Text),
+        ("executable", DataType::Boolean),
+        ("verification_required", DataType::Text),
+        ("post_verification_state", DataType::Text),
+        ("report_id", DataType::Text),
+        ("affected_objects", DataType::Text),
+        ("last_error", DataType::Text),
+    ]
+}
+
 #[derive(Debug, Clone)]
 struct RepairPlan {
     projection_name: String,
@@ -422,23 +438,8 @@ fn repair_result(
     plan: &RepairPlan,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    let mut result = super::command_output::columns(
-        command,
-        &[
-            ("state", DataType::Text),
-            ("projection_name", DataType::Text),
-            ("scope", DataType::Text),
-            ("target_collection", DataType::Text),
-            ("action", DataType::Text),
-            ("executable", DataType::Boolean),
-            ("verification_required", DataType::Text),
-            ("post_verification_state", DataType::Text),
-            ("report_id", DataType::Text),
-            ("affected_objects", DataType::Text),
-            ("last_error", DataType::Text),
-        ],
-        controls,
-    )?;
+    let mut result =
+        super::command_output::columns(command, &repair_projection_column_definitions(), controls)?;
     super::command_output::push_row(
         &mut result,
         &[

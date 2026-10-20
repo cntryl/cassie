@@ -189,6 +189,7 @@ fn should_keep_integer_column_arithmetic_exact_when_combined_with_a_bare_literal
     assert_eq!(literal_plus_column.rows(), vec![vec![Value::Int64(2)]]);
     assert_eq!(literal_plus_column.columns()[0].type_oid, 20);
     assert_eq!(column_plus_column.rows(), vec![vec![Value::Int64(2)]]);
+    assert_eq!(column_plus_column.columns()[0].type_oid, 20);
     // Integer literals are integers in PostgreSQL, so literal-only
     // arithmetic stays exact (see
     // should_execute_table_free_literal_alias_cast_projection).

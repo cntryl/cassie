@@ -569,6 +569,25 @@ pub(super) fn infer_projection_schema_with_parameters(
     Schema { fields }
 }
 
+pub(crate) fn infer_projection_expr_type(
+    expr: &Expr,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
+    match expr {
+        Expr::Binary {
+            op: BinaryOp::Integer { operation, .. },
+            ..
+        } if !operation.is_shift() => Some(DataType::BigInt),
+        Expr::Binary {
+            op: BinaryOp::Integer { width, .. },
+            ..
+        } => Some(width.data_type()),
+        _ => infer_expr_type(expr, source_schema, user_functions, parameter_types),
+    }
+}
+
 fn infer_scoped_projection_schema(
     projection: &[SelectItem],
     source_schema: &Schema,

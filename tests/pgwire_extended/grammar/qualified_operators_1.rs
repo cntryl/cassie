@@ -62,10 +62,10 @@ fn should_match_case_23_given_qualified_builtin_when_native_operator_is_executed
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 23, 4, -1),
+        ("v", 20, 8, -1),
         [
             &[&[0, 1, 0, 0, 0, 2, 45, 49]],
-            &[&[0, 1, 0, 0, 0, 4, 255, 255, 255, 255]],
+            &[&[0, 1, 0, 0, 0, 8, 255, 255, 255, 255, 255, 255, 255, 255]],
         ],
     );
 }
@@ -192,10 +192,10 @@ fn should_match_case_31_given_qualified_builtin_when_native_operator_is_executed
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 23, 4, -1),
+        ("v", 20, 8, -1),
         [
             &[&[0, 1, 0, 0, 0, 1, 51]],
-            &[&[0, 1, 0, 0, 0, 4, 0, 0, 0, 3]],
+            &[&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 3]],
         ],
     );
 }
@@ -266,10 +266,10 @@ fn should_match_case_35_given_qualified_builtin_when_native_operator_is_executed
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 23, 4, -1),
+        ("v", 20, 8, -1),
         [
             &[&[0, 1, 0, 0, 0, 2, 49, 52]],
-            &[&[0, 1, 0, 0, 0, 4, 0, 0, 0, 14]],
+            &[&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 14]],
         ],
     );
 }
@@ -283,10 +283,10 @@ fn should_match_case_36_given_qualified_builtin_when_native_operator_is_executed
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 23, 4, -1),
+        ("v", 20, 8, -1),
         [
             &[&[0, 1, 0, 0, 0, 2, 49, 52]],
-            &[&[0, 1, 0, 0, 0, 4, 0, 0, 0, 14]],
+            &[&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 14]],
         ],
     );
 }

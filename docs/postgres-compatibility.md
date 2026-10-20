@@ -198,6 +198,14 @@ identity (OID 701). Exact current identities and row-blob behavior are listed
 in the [Type Contract](type-contract.md); family semantics and limits live in
 [Extended Types](extended-types.md) and [Feature Support](feature-support.md).
 
+Non-shift integer arithmetic and bitwise expressions projected directly by a
+`SELECT` report BIGINT (OID 20), including expressions over INT columns.
+Cassie checks each operation at the resolved operand width, so an INT4
+overflow still errors even though the expression result descriptor is BIGINT.
+Integer shifts retain the left operand's type. `VALUES` row-field inference is
+separate and remains under #800. These expression descriptors do not change
+declared column types or stored values.
+
 Integer/float and integer/numeric comparison behavior follows the selected
 operator or aggregate contract for that position. The
 [mixed numeric comparison contract](mixed-numeric-comparison-contract.md)

@@ -150,7 +150,7 @@ pub(crate) fn columns_from_projection_with_wildcard<S: BuildHasher>(
                 )]
             }
             SelectItem::Expr { expr, alias } => {
-                let data_type = crate::sql::binder::infer_expr_type(
+                let data_type = crate::sql::binder::infer_projection_expr_type(
                     expr,
                     &source_schema,
                     &user_functions,

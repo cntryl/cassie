@@ -103,6 +103,29 @@ fn parse_field_type_token(
             type_token = format!("{type_token} {precision}");
         }
     }
+    let temporal_name = type_token
+        .split_once('(')
+        .map_or(type_token.as_str(), |(name, _)| name)
+        .trim();
+    if temporal_name.eq_ignore_ascii_case("time") || temporal_name.eq_ignore_ascii_case("timestamp")
+    {
+        if let Some(zone_modifier) = parts.next_if(|next| {
+            next.eq_ignore_ascii_case("with") || next.eq_ignore_ascii_case("without")
+        }) {
+            let time = parts.next().ok_or_else(|| {
+                SqlError::new(format!("{zone_modifier} must be followed by TIME ZONE"))
+            })?;
+            let zone = parts.next().ok_or_else(|| {
+                SqlError::new(format!("{zone_modifier} TIME must be followed by ZONE"))
+            })?;
+            if !time.eq_ignore_ascii_case("time") || !zone.eq_ignore_ascii_case("zone") {
+                return Err(SqlError::new(format!(
+                    "unsupported temporal type qualifier '{zone_modifier} {time} {zone}'"
+                )));
+            }
+            type_token = format!("{type_token} {zone_modifier} {time} {zone}");
+        }
+    }
     if type_token.is_empty() {
         return Err(SqlError::new(format!(
             "missing data type for column '{name}'"

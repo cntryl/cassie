@@ -79,8 +79,10 @@ typmod is shown where a declaration can carry one. Temporal precision is
 The `date`, `time` and `timestamp` entries are natively carried during
 execution. Their unmodified schema declarations retain the existing base OIDs
 and row-blob tags; precision-qualified forms and the timezone-bearing temporal
-types use their extended identities. `REAL` is float4, and `NUMERIC` is exact
-decimal; neither is an alias for Cassie's float8 carrier.
+types use their extended identities. Explicit `WITHOUT TIME ZONE` declarations
+retain the `time`/`timestamp` identities, including their precision typmods.
+`REAL` is float4, and `NUMERIC` is exact decimal; neither is an alias for
+Cassie's float8 carrier.
 
 ## Carriers, codecs and persistence
 

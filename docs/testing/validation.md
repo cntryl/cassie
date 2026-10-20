@@ -3856,3 +3856,41 @@ Ordered final local validation:
 
 `git diff --check` passed. No workflow was enabled or run. The full #761
 relational matrix remains open.
+
+## 2026-10-20 — #796 schema-qualified temporal cast metadata
+
+This qualification-only slice adds one extended-protocol witness for the
+already supported `pg_catalog.timestamptz(3)`, `pg_catalog.timetz(3)` and
+`pg_catalog.numeric(5,2)` cast spellings. It checks inferred parameter OIDs,
+statement and portal RowDescriptions (name, OID, size, typmod and format), and
+the executed text values. PostgreSQL 18.6 (Homebrew) returned
+`2001-02-17 01:38:40+00`, `20:38:40-05` and `12.35` for the same inputs under
+UTC. The focused Nextest case passed **1/1 in 0.073s**. Runtime source did not
+change; this does not close the remaining #796 obligations.
+
+Jev received one focused review request with the invariant, source excerpts,
+exact diff, PostgreSQL result and test output. It returned a 0.22 probability of
+a concrete parameter-inference/Describe gap. Its review-focus Choice selected
+parameter inference (0.53 probability, 0.37 confidence); descriptor parity was
+0.14, value semantics 0.03 and none/unclear 0.30. Source review confirmed
+`pg_catalog.` type names are checked against registered built-ins before the
+existing parser handles their modifiers, and cast parameter inference uses the
+selected target type. The executable test observed Parse parameter OIDs
+`[1184, 1266, 1700]`, matching descriptors on both Describe paths, successful
+Bind/Execute and the native values. The signal is resolved without a code
+change or another Jev request. Request and response are retained under the
+ignored `target/jev/issue-796-qualified-temporal-casts-review/` directory.
+
+Ordered local validation:
+
+| Command | Result |
+| --- | --- |
+| `cargo build --locked --bin cassie` | Passed. |
+| Full workspace Nextest with `/tmp/cassie-nextest-60s.toml` | 10,001 run; 8,510 passed, 1,491 failed, 9 skipped. Failure count matches the saved main baseline; the added test passed. No timeout was reported; the slowest observed test was 30.408s. The suite took 1,463.218s total. |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed. |
+| `cargo fmt --all -- --check` | Passed. |
+| `cntryl-tools validate-tests -f tests/pgwire_extended/types/temporal/parameters.rs` | Passed 3/3. |
+
+No GitHub workflow was enabled or dispatched. The broad full-suite failures
+remain baseline qualification work and are not attributed to this test and
+documentation-only diff.

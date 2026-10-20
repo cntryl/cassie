@@ -6,6 +6,21 @@ and the confirmed correlated SELECT output defect
 the selected public grammar, type identities and support levels remain the
 contracts in [the SQL dialect profile](sql-dialect-profile.md).
 
+## Qualified relation wildcard probe (2026-10-20)
+
+`relation.*` expands the selected source namespace for base tables, CTEs and
+derived relations. Focused local probes cover both sides of an `ON` join,
+quoted relation aliases, CTE bodies, set-operation width and rows, unknown
+qualifiers, unsupported `ORDER BY` ordinals, and schema inference from an
+unbound parsed SELECT. The existing `JOIN ... USING` wildcard case is outside
+this probe because the parser's join source currently requires an `ON`
+predicate; no JOIN USING support is claimed here.
+
+These probes qualify this subset only. They do not complete SQL-005 or SQL-006,
+compare the behavior against PostgreSQL, or promote the Experimental support
+level. Exact test names and the validation receipt are recorded with the
+implementation review.
+
 ## Selected correlated output repair
 
 Classify each `EXISTS` occurrence independently using the existing binder's

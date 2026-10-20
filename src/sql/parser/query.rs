@@ -94,6 +94,15 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
     if token == "*" {
         return Ok(SelectItem::Wildcard);
     }
+    if token.ends_with(".*") {
+        let path = crate::sql::ColumnIdentifierPath::parse_sql(token).map_err(SqlError::new)?;
+        if path.is_qualified() && path.final_name() == "*" {
+            return Ok(SelectItem::Column {
+                name: path.namespace_key(),
+                alias: None,
+            });
+        }
+    }
 
     let (expr_raw, alias) = parse_alias(token);
     if expr_raw.trim().is_empty() {

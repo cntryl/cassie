@@ -105,27 +105,43 @@ pub(super) fn infer_select_schema_with_outer(
         parameter_types,
         outer_fields,
     )?;
-    let mut fields = if let Some(outer) = outer_fields {
+    let lookup = if let Some(outer) = outer_fields {
         let mut lookup = source_schema.clone();
         append_source_qualifiers(&select.source, catalog, &mut lookup)?;
         // The inner source owns unqualified names; explicit outer names remain
         // available only in this inference lookup, never in wildcard output.
         lookup.fields.extend(outer.fields.iter().cloned());
-        infer_scoped_projection_schema(
-            &select.projection,
-            &source_schema,
-            &lookup,
-            user_functions,
-            parameter_types,
-        )
+        lookup
     } else {
-        infer_projection_schema_with_parameters(
-            &select.projection,
-            &source_schema,
-            user_functions,
-            parameter_types,
-        )
+        source_schema.clone()
     };
+    let cte_scope = cte_schemas
+        .iter()
+        .map(|(name, schema)| {
+            let row_fields = schema.fields.clone();
+            let visible = row_fields.iter().map(|field| field.name.clone()).collect();
+            (
+                name.clone(),
+                super::CteBinding {
+                    visible,
+                    row_fields,
+                },
+            )
+        })
+        .collect();
+    let wildcard_context = QualifiedWildcardContext {
+        source: &select.source,
+        catalog,
+        cte_scope: &cte_scope,
+        lookup: &lookup,
+    };
+    let mut fields = infer_select_projection_schema(
+        &select.projection,
+        &source_schema,
+        user_functions,
+        parameter_types,
+        &wildcard_context,
+    )?;
 
     if let Some(set) = &select.set {
         let right_schema = infer_select_schema_with_outer(
@@ -588,30 +604,51 @@ pub(crate) fn infer_projection_expr_type(
     }
 }
 
-fn infer_scoped_projection_schema(
+struct QualifiedWildcardContext<'a, 'scope> {
+    source: &'a QuerySource,
+    catalog: &'a Catalog,
+    cte_scope: &'a super::CteScope<'scope>,
+    lookup: &'a Schema,
+}
+
+fn infer_select_projection_schema(
     projection: &[SelectItem],
     source_schema: &Schema,
-    lookup: &Schema,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     parameter_types: &[i32],
-) -> Schema {
+    wildcard_context: &QualifiedWildcardContext<'_, '_>,
+) -> Result<Schema, CassieError> {
     let mut fields = Vec::new();
     for item in projection {
-        if matches!(item, SelectItem::Wildcard) {
-            fields.extend(source_schema.fields.iter().cloned());
-        } else {
-            fields.extend(
-                infer_projection_schema_with_parameters(
-                    std::slice::from_ref(item),
-                    lookup,
-                    user_functions,
-                    parameter_types,
-                )
-                .fields,
-            );
-        }
+        let expanded = match item {
+            SelectItem::Wildcard => {
+                fields.extend(source_schema.fields.iter().cloned());
+                continue;
+            }
+            SelectItem::Column { name, .. }
+                if crate::sql::ColumnIdentifierPath::is_qualified_wildcard(name) =>
+            {
+                super::aliases::qualified_wildcard_projection_items(
+                    name,
+                    wildcard_context.source,
+                    wildcard_context.catalog,
+                    wildcard_context.cte_scope,
+                    wildcard_context.lookup,
+                )?
+            }
+            _ => std::slice::from_ref(item).to_vec(),
+        };
+        fields.extend(
+            infer_projection_schema_with_parameters(
+                &expanded,
+                wildcard_context.lookup,
+                user_functions,
+                parameter_types,
+            )
+            .fields,
+        );
     }
-    Schema { fields }
+    Ok(Schema { fields })
 }
 
 pub(super) fn schema_field_type(schema: &Schema, name: &str) -> Option<DataType> {
@@ -970,5 +1007,48 @@ fn preserve_alias_identity(source: &QuerySource, catalog: &Catalog, schema: &mut
                 nullable: true,
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::infer_select_schema;
+    use crate::catalog::Catalog;
+    use crate::sql::QueryStatement;
+    use crate::types::DataType;
+
+    #[test]
+    fn should_infer_qualified_wildcard_shape_from_unbound_select() {
+        // Arrange
+        let catalog = Catalog::new();
+        catalog.register_collection(
+            "inference_qualified_star_source",
+            vec![
+                ("id".to_owned(), DataType::BigInt),
+                ("label".to_owned(), DataType::Text),
+            ],
+        );
+        let parsed = crate::sql::parse_statement(
+            "SELECT inference_qualified_star_source.* FROM inference_qualified_star_source",
+        )
+        .expect("qualified wildcard SQL parses");
+        let QueryStatement::Select(select) = parsed.statement else {
+            panic!("qualified wildcard is a SELECT");
+        };
+
+        // Act
+        let schema = infer_select_schema(&select, &catalog).expect("infer SELECT schema");
+
+        // Assert
+        assert_eq!(
+            schema
+                .fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            ["id", "label"]
+        );
+        assert_eq!(schema.fields[0].data_type, DataType::BigInt);
+        assert_eq!(schema.fields[1].data_type, DataType::Text);
     }
 }

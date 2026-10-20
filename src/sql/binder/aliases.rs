@@ -5,6 +5,7 @@
 
 use super::{CassieError, Catalog, CteScope, Expr, QuerySource, SelectItem, SelectStatement};
 use crate::sql::ColumnIdentifierPath;
+use crate::types::Schema;
 use std::fmt::Write;
 
 pub(crate) fn qualifier(alias: &str) -> String {
@@ -371,12 +372,19 @@ pub(super) fn lower_select(
     lateral_fields: &std::collections::HashSet<String>,
     set_result: bool,
 ) -> Result<(), CassieError> {
-    if !has_alias(&select.source) {
+    let has_qualified_wildcard = select
+        .projection
+        .iter()
+        .any(|item| qualified_wildcard_name(item).is_some());
+    if !has_alias(&select.source) && !has_qualified_wildcard {
         return Ok(());
     }
     let mut spaces = Vec::new();
     namespaces(&select.source, catalog, scope, &mut spaces)?;
     if spaces.is_empty() {
+        if let Some(name) = select.projection.iter().find_map(qualified_wildcard_name) {
+            return Err(unknown_wildcard_qualifier(name));
+        }
         return Ok(());
     }
     let correlated = select_contains_exists(select);
@@ -403,8 +411,7 @@ pub(super) fn lower_select(
         });
     let mut projection = Vec::new();
     for mut item in std::mem::take(&mut select.projection) {
-        if matches!(item, SelectItem::Wildcard) {
-            expand_wildcard(&mut projection, &spaces, single, has_declared_id);
+        if expand_wildcard_item(&item, &mut projection, &spaces, single, has_declared_id)? {
             continue;
         }
         match &mut item {
@@ -460,6 +467,33 @@ pub(super) fn lower_select(
         }
     }
     Ok(())
+}
+
+fn qualified_wildcard_namespace<'a>(
+    name: &str,
+    spaces: &'a [Namespace],
+) -> Result<&'a Namespace, CassieError> {
+    let path = ColumnIdentifierPath::parse(name).map_err(CassieError::Planner)?;
+    let rendered_qualifier = name.strip_suffix(".*").unwrap_or(name);
+    let qualifier = path.namespace_qualifier();
+    spaces
+        .iter()
+        .find(|space| {
+            qualifier
+                .as_deref()
+                .is_some_and(|qualifier| space.name == qualifier || space.qualifier == qualifier)
+                || space.name == rendered_qualifier
+                || space.qualifier == rendered_qualifier
+        })
+        .ok_or_else(|| {
+            let qualifier = qualifier.unwrap_or_else(|| rendered_qualifier.to_string());
+            CassieError::Planner(format!("unknown relation qualifier '{qualifier}'"))
+        })
+}
+
+fn unknown_wildcard_qualifier(name: &str) -> CassieError {
+    let qualifier = name.strip_suffix(".*").unwrap_or(name);
+    CassieError::Planner(format!("unknown relation qualifier '{qualifier}'"))
 }
 
 fn rewrite_source_clauses(
@@ -605,6 +639,80 @@ fn expand_wildcard(
             });
         }
     }
+}
+
+fn qualified_wildcard_name(item: &SelectItem) -> Option<&str> {
+    match item {
+        SelectItem::Column { name, .. } if ColumnIdentifierPath::is_qualified_wildcard(name) => {
+            Some(name)
+        }
+        _ => None,
+    }
+}
+
+fn expand_wildcard_item(
+    item: &SelectItem,
+    projection: &mut Vec<SelectItem>,
+    spaces: &[Namespace],
+    single: bool,
+    has_declared_id: bool,
+) -> Result<bool, CassieError> {
+    if matches!(item, SelectItem::Wildcard) {
+        expand_wildcard(projection, spaces, single, has_declared_id);
+        return Ok(true);
+    }
+    let Some(name) = qualified_wildcard_name(item) else {
+        return Ok(false);
+    };
+    let namespace = qualified_wildcard_namespace(name, spaces)?;
+    expand_wildcard(
+        projection,
+        std::slice::from_ref(namespace),
+        single,
+        has_declared_id,
+    );
+    Ok(true)
+}
+
+pub(super) fn qualified_wildcard_projection_items(
+    name: &str,
+    source: &QuerySource,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    schema: &Schema,
+) -> Result<Vec<SelectItem>, CassieError> {
+    let mut spaces = Vec::new();
+    namespaces(source, catalog, scope, &mut spaces)?;
+    let namespace = qualified_wildcard_namespace(name, &spaces)?;
+    let has_declared_id = spaces.iter().any(|space| {
+        space.fields.iter().any(|(_, physical)| {
+            ColumnIdentifierPath::parse(physical)
+                .is_ok_and(|path| path.final_name().eq_ignore_ascii_case("id"))
+        })
+    });
+    let mut projection = Vec::new();
+    for (visible, physical) in &namespace.fields {
+        if has_declared_id && physical == "_id" {
+            continue;
+        }
+        let qualified = format!("{}.{}", namespace.qualifier, physical);
+        let has_qualified_field = schema.fields.iter().any(|field| {
+            ColumnIdentifierPath::reference_field_key(&field.name)
+                == ColumnIdentifierPath::reference_field_key(&qualified)
+        });
+        projection.push(SelectItem::Column {
+            name: if has_qualified_field {
+                qualified
+            } else {
+                physical.clone()
+            },
+            alias: Some(
+                ColumnIdentifierPath::parse(visible)
+                    .map_or_else(|_| visible.clone(), |path| path.declared_name()),
+            ),
+        });
+    }
+    Ok(projection)
 }
 
 fn subquery_names(

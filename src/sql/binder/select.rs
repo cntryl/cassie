@@ -486,6 +486,7 @@ pub(super) fn projected_column_names(projection: &[SelectItem]) -> Vec<String> {
 
 pub(super) fn matches_wildcard(item: &SelectItem) -> bool {
     matches!(item, SelectItem::Wildcard)
+        || matches!(item, SelectItem::Column { name, .. } if crate::sql::ColumnIdentifierPath::is_qualified_wildcard(name))
 }
 
 pub(super) fn bind_query_source_with_lateral_fields(

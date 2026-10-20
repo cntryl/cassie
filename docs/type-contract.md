@@ -30,7 +30,7 @@ below according to the declared precision.
 | `float`, `float(p)` (25 through 53), `float8`, `double precision` | 701 | 8 | IEEE float8; bare `FLOAT` selects float8 |
 | `boolean` | 16 | 1 | |
 | `text` | 25 | -1 | UTF-8 |
-| `char(n)` / `character(n)` | 1042 | -1 | `atttypmod` is `n + 4`; bare `CHAR` is `char(1)` |
+| `char(n)` / `character(n)` / `bpchar(n)` | 1042 | -1 | `atttypmod` is `n + 4`; unbounded `bpchar` has typmod -1; bare `CHAR` is `char(1)` |
 | `varchar(n)` / `character varying(n)` | 1043 | -1 | `atttypmod` is `n + 4` when representable |
 | `uuid` | 2950 | 16 | |
 | `bytea` | 17 | -1 | Raw bytes; hex text output |
@@ -44,6 +44,11 @@ below according to the declared precision.
 The `varchar` identity also accepts `char varying(n)`,
 `national character varying(n)` and `nchar varying(n)`. These spellings retain
 OID 1043 and the same `n + 4` typmod as `character varying(n)`.
+
+`bpchar` and `pg_catalog.bpchar` without a length use the existing unbounded
+character identity (OID 1042, typmod -1). Their `(n)` forms use the same
+character-counted padding and `n + 4` typmod as `char(n)`. Bare SQL `CHAR`
+remains width one and is distinct from unbounded `bpchar`.
 
 `NULL` uses the unknown result identity (OID 705, `typlen` -2, typmod -1);
 SQL NULL on the wire is still a field length of -1. `oid` and the supported

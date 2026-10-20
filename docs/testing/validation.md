@@ -3894,3 +3894,56 @@ Ordered local validation:
 No GitHub workflow was enabled or dispatched. The broad full-suite failures
 remain baseline qualification work and are not attributed to this test and
 documentation-only diff.
+
+## 2026-10-20 — #796 canonical `FLOAT(p)` type selection
+
+This bounded runtime slice implements PostgreSQL 18.6's canonical `FLOAT(p)`
+selection using Cassie's existing REAL and FLOAT representations. Precision 1
+through 24 selects OID 700; 25 through 53 selects OID 701. The precision does
+not become a typmod. PostgreSQL 18.6 confirms text values `1.2345679` and
+`1.23456789`, inferred parameter OIDs `[700, 701]`, declared column
+`atttypmod` -1 for both, and SQLSTATE 22023 for precision 0 or 54. It rejects
+`FLOAT(+24)`, `float8(24)` and `pg_catalog.float8(24)` with SQLSTATE 42601.
+
+TDD red: the new precision-boundary test failed on main because `FLOAT(24)` and
+`FLOAT(25)` were unsupported. A separate pgwire assertion exposed that Rust
+accepts a leading plus in `u32::parse`, so `FLOAT(+24)` was initially accepted
+instead of rejected as syntax. TDD green: precision parsing now requires
+ASCII digits before numeric conversion; the boundary, declared-column and
+extended-protocol tests pass. The parser helper was split after strict Clippy
+found `parse_sql_type` at 101 lines; no lint suppression was added.
+
+Jev's decision Choice selected the shared `DataType::parse_sql` path with
+probability 1.0, matching casts and declarations in source. Its focused review
+gave a 0.22 probability to an invalid-bound DDL SQLSTATE gap and selected alias
+scope as the first inspection concern (0.80 probability, 0.73 confidence).
+Source confirms the precision branch matches only the canonical `float` base;
+the existing bare-alias test and native rejection probes confirm the supported
+boundary. Column and cast parsing share the same diagnostic mapping, so no
+separate DDL SQLSTATE path was needed. The signed-modifier bug was found by the
+local parser/oracle probe and fixed with an executable regression. No
+additional Jev request was made. The request and response are retained under
+ignored `target/jev/issue-796-float-type-modifiers-decision/` and
+`target/jev/issue-796-float-type-modifiers-review/` paths.
+
+Ordered final local validation on the renamed final test tree:
+
+| Command | Actual result |
+| --- | --- |
+| `cargo build --locked --bin cassie` | Passed. |
+| Full workspace Nextest with `/tmp/cassie-nextest-60s.toml` | 10,003 discovered; 9 skipped; 8,504 passed and 1,490 failed. The unique failure identities exactly match the saved main baseline except `should_map_float_precision_boundaries_to_postgres_type_oids`, which now passes. No new failure identity appeared. No `TIMEOUT` or `TERMINATED` record; the longest logged failing test was 30.394s. |
+| Focused FLOAT precision Nextest cases | 4/4 passed before the test-name cleanup; the final renamed pgwire case passed 1/1 in 0.092s. |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` | Passed after extracting the FLOAT type-selection helper. |
+| `cargo fmt --all -- --check` | Passed. |
+| `cntryl-tools validate-tests -f tests/parser_types/grammar/metadata.rs` | Passed 2/2. |
+| `cntryl-tools validate-tests -f tests/pgwire_extended/types/real/float_precision.rs` | Passed 1/1. |
+
+The `tests/pgwire_extended.rs` aggregator change is only a module registration;
+`cntryl-tools` reported no test declarations in that file. `git diff --check`
+passed. The upsert concurrency case failed once in a full run and also failed
+with the same assertion when run alone on clean main; it passed in the final
+full rerun. It is recorded as existing baseline instability, not attributed to
+this slice. GitHub Actions
+permissions remain disabled and no workflow was enabled or dispatched. Issue
+[#796](https://github.com/cntryl/cassie/issues/796) remains open for its other
+type, cast, and expression obligations.

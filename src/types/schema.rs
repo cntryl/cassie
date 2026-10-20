@@ -173,6 +173,9 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         .map_or((lower.as_str(), ""), |(base, _)| {
             (base, &lower[base.len()..])
         });
+    if base.trim() == "float" && !modifier.is_empty() {
+        return parse_float_type(modifier, raw);
+    }
     let canonical = if base.split_whitespace().eq(["character"])
         || base.split_whitespace().eq(["national", "character"])
         || base.split_whitespace().eq(["nchar"])
@@ -236,6 +239,38 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
     }
 
     named_type(&lower, raw)
+}
+
+fn parse_float_type(modifier: &str, raw: &str) -> Result<DataType, String> {
+    let precision = parse_float_precision(modifier, raw)?;
+    Ok(if precision <= 24 {
+        DataType::Extended(super::extended::ExtendedType::Real)
+    } else {
+        DataType::Float
+    })
+}
+
+fn parse_float_precision(modifier: &str, raw: &str) -> Result<u32, String> {
+    let Some(precision) = modifier
+        .strip_prefix('(')
+        .and_then(|modifier| modifier.strip_suffix(')'))
+    else {
+        return Err(format!("unsupported modifier in '{raw}'"));
+    };
+    let precision = precision.trim();
+    if precision.is_empty() || !precision.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(format!("invalid FLOAT precision '{raw}'"));
+    }
+    let precision = precision
+        .parse::<u32>()
+        .map_err(|_| format!("invalid FLOAT precision '{raw}'"))?;
+    if precision == 0 {
+        return Err("FLOAT precision must be at least 1 bit".to_string());
+    }
+    if precision > 53 {
+        return Err("FLOAT precision must be less than 54 bits".to_string());
+    }
+    Ok(precision)
 }
 
 /// A type named by a single keyword or alias.

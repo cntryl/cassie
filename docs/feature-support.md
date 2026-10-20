@@ -65,6 +65,23 @@ creates the four forms with trailing `NOT NULL`, inserts and reads values, and
 checks OIDs, typmods and text results. Other multi-word type-name and cast gaps
 remain under [#796](https://github.com/cntryl/cassie/issues/796).
 
+`FLOAT(p)` casts and declared columns use the existing REAL identity (OID 700)
+for precision 1 through 24 and FLOAT identity (OID 701) for precision 25
+through 53. The selected carrier controls value rounding; the precision itself
+is not retained as a typmod. Precision 0 and 54 are rejected as SQLSTATE 22023;
+the signed spelling `FLOAT(+24)` is rejected as SQLSTATE 42601.
+The PostgreSQL 18.6 oracle returns `1.2345679` for the selected REAL input and
+`1.23456789` for FLOAT. The parser regression
+[`should_map_float_precision_boundaries_to_postgres_type_oids`](../tests/parser_types/grammar/metadata.rs)
+checks both precision boundaries, endpoint values, rounding, and invalid
+precisions; its companion verifies declared-column values and metadata. The
+extended-protocol regression
+[`should_bind_float_precision_casts_using_native_type_metadata`](../tests/pgwire_extended/types/real/float_precision.rs)
+checks inferred parameter OIDs, statement and portal RowDescriptions, values,
+NULLs, and SQLSTATE 22023 at both invalid bounds. This qualifies only canonical
+`FLOAT(p)` handling; broader type, cast, and array behavior remains open under
+[#796](https://github.com/cntryl/cassie/issues/796).
+
 Extended-protocol casts also accept the schema-qualified
 `pg_catalog.timestamptz(3)`, `pg_catalog.timetz(3)` and
 `pg_catalog.numeric(5,2)` spellings. The pgwire regression

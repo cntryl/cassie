@@ -66,10 +66,12 @@ creates the four forms with trailing `NOT NULL`, inserts and reads values, and
 checks OIDs, typmods and text results. Other multi-word type-name and cast gaps
 remain under [#796](https://github.com/cntryl/cassie/issues/796).
 
-SQL type positions reject bare `DOUBLE`, which PostgreSQL does not expose as a
-type name; use `DOUBLE PRECISION`, `FLOAT` or `FLOAT8` for the existing OID 701
-identity. The public `DataType::parse_sql` helper retains its legacy `double`
-alias for non-SQL callers and does not define SQL syntax acceptance.
+SQL type positions reject bare `DOUBLE` and `STRING`, which PostgreSQL does not
+expose as type names. Use `DOUBLE PRECISION`, `FLOAT` or `FLOAT8` for the
+existing OID 701 identity and `TEXT` for OID 25. This also rejects arrays of
+the bare aliases. The public `DataType::parse_sql` helper retains the legacy
+`double` and `string` aliases for non-SQL callers and does not define SQL
+syntax acceptance.
 
 `FLOAT(p)` casts and declared columns use the existing REAL identity (OID 700)
 for precision 1 through 24 and FLOAT identity (OID 701) for precision 25

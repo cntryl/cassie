@@ -841,12 +841,12 @@ pub(super) fn starts_with_keyword(raw: &str, keyword: &str) -> bool {
 }
 
 pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
-    // SQL requires DOUBLE PRECISION; preserve the shared parser's legacy alias
-    // for non-SQL callers.
-    if raw.trim().eq_ignore_ascii_case("double") {
-        return Err(SqlError::unsupported(
-            "unsupported data type 'double'".to_string(),
-        ));
+    // SQL requires DOUBLE PRECISION and TEXT; preserve the shared parser's
+    // legacy aliases for non-SQL callers, including array element names.
+    if let Some(alias) = legacy_sql_type_alias(raw) {
+        return Err(SqlError::unsupported(format!(
+            "unsupported data type '{alias}'"
+        )));
     }
     DataType::parse_sql(raw).map_err(|message| {
         if message.starts_with("NUMERIC precision")
@@ -858,4 +858,16 @@ pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
             SqlError::new(message)
         }
     })
+}
+
+fn legacy_sql_type_alias(raw: &str) -> Option<&'static str> {
+    let raw = raw.trim();
+    let element_type = raw.strip_suffix("[]").unwrap_or(raw).trim();
+    if element_type.eq_ignore_ascii_case("double") {
+        Some("double")
+    } else if element_type.eq_ignore_ascii_case("string") {
+        Some("string")
+    } else {
+        None
+    }
 }

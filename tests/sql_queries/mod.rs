@@ -44,8 +44,6 @@ mod postgresql18_uuid_hash_lsn;
 mod postgresql18_values_aggregate_inventory_wave2;
 #[path = "relations/values_rows.rs"]
 mod postgresql18_values_rows;
-#[path = "aggregates/xml/xml.rs"]
-mod postgresql18_xml;
 
 #[path = "set_returning/array_subscripts.rs"]
 mod set_returning_array_subscripts;

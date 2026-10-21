@@ -52,8 +52,6 @@ mod postgresql18_text_compat;
 mod postgresql18_uuid_hash_lsn_compat;
 #[path = "aggregates/windows/window_function_wire.rs"]
 mod postgresql18_window_function_wire;
-#[path = "types/xml/xml.rs"]
-mod postgresql18_xml_compat;
 #[path = "routines/record_functions.rs"]
 mod record_functions;
 #[path = "subqueries/scalar_subqueries.rs"]
@@ -123,9 +121,6 @@ mod types_money_restart;
 
 #[path = "types/uuid_lsn/restart.rs"]
 mod types_uuid_lsn_restart;
-
-#[path = "types/xml/xpath/limits.rs"]
-mod types_xml_xpath_limits;
 
 #[path = "aggregates/array_agg/resources.rs"]
 mod aggregates_array_agg_resources;

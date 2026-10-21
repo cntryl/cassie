@@ -1628,73 +1628,6 @@
     ]
   },
   {
-    "issue": 906,
-    "name": "should_reject_xpath_expansion_given_a_memory_budget_when_result_growth_exceeds_the_budget",
-    "status": "authored",
-    "suite": "pgwire_extended",
-    "directory": "tests/pgwire_extended/types/xml/xpath",
-    "file": "tests/pgwire_extended/types/xml/xpath/limits.rs",
-    "execution_status": "failed_observed",
-    "category": "types/xml/xpath",
-    "actual_test": "should_reject_xpath_expansion_given_a_memory_budget_when_result_growth_exceeds_the_budget",
-    "instances": [
-      {
-        "suite": "pgwire_extended",
-        "name": "pgwire_extended::types_xml_xpath_limits::should_reject_xpath_expansion_given_a_memory_budget_when_result_growth_exceeds_the_budget"
-      }
-    ],
-    "asserted_contract": "See the linked test assertion references; no separate Cassie result is inferred.",
-    "mapping_basis": "authored_or_existing_exact_test",
-    "oracle": {
-      "authority": "expected value/error literals in linked Rust test body",
-      "evidence": "Not independently rerun in this agent slice; see assertion references."
-    },
-    "prior_execution_status": "pending_serialized_cargo",
-    "prior_execution_evidence": null,
-    "observations": [
-      {
-        "suite": "pgwire_extended",
-        "name": "pgwire_extended::types_xml_xpath_limits::should_reject_xpath_expansion_given_a_memory_budget_when_result_growth_exceeds_the_budget",
-        "status": "failed_observed",
-        "failure_excerpt": "thread 'pgwire_extended::types_xml_xpath_limits::should_reject_xpath_expansion_given_a_memory_budget_when_result_growth_exceeds_the_budget' (19424939) panicked at tests/pgwire_extended/types/xml/xpath_limits.rs:150:5:\nassertion `left == right` failed: small XPath control ErrorResponse: [('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token 'DOCUMENT '<root><i/><i/><i/></root>''\")]\n  left: Some(\"42601\")\n right: None"
-      }
-    ]
-  },
-  {
-    "issue": 906,
-    "name": "should_cancel_xpath_without_partial_output_given_expanding_results_when_cancel_request_arrives",
-    "status": "authored",
-    "suite": "pgwire_extended",
-    "directory": "tests/pgwire_extended/types/xml/xpath",
-    "file": "tests/pgwire_extended/types/xml/xpath/limits.rs",
-    "execution_status": "failed_observed",
-    "category": "types/xml/xpath",
-    "actual_test": "should_cancel_xpath_without_partial_output_given_expanding_results_when_cancel_request_arrives",
-    "instances": [
-      {
-        "suite": "pgwire_extended",
-        "name": "pgwire_extended::types_xml_xpath_limits::should_cancel_xpath_without_partial_output_given_expanding_results_when_cancel_request_arrives"
-      }
-    ],
-    "asserted_contract": "See the linked test assertion references; no separate Cassie result is inferred.",
-    "mapping_basis": "authored_or_existing_exact_test",
-    "oracle": {
-      "authority": "expected value/error literals in linked Rust test body",
-      "evidence": "Not independently rerun in this agent slice; see assertion references."
-    },
-    "prior_execution_status": "pending_serialized_cargo",
-    "prior_execution_evidence": null,
-    "observations": [
-      {
-        "suite": "pgwire_extended",
-        "name": "pgwire_extended::types_xml_xpath_limits::should_cancel_xpath_without_partial_output_given_expanding_results_when_cancel_request_arrives",
-        "status": "failed_observed",
-        "failure_excerpt": "thread 'pgwire_extended::types_xml_xpath_limits::should_cancel_xpath_without_partial_output_given_expanding_results_when_cancel_request_arrives' (19553429) panicked at tests/pgwire_extended/types/xml/xpath/limits.rs:202:5:\nassertion `left == right` failed: valid XPath positive control must succeed before cancellation: [('S', \"ERROR\"), ('C', \"42601\"), ('M', \"invalid expression token 'DOCUMENT '<root><i/><i/><i/></root>')'\")]\n  left: Some(\"42601\")\n right: None\ntest pgwire_extended::types_json_jsonpath_cancellation::should_cancel_without_partial_rows_given_jsonpath_expansion_when_cancel_request_arrives ... FAILED\ntest pgwire_extended::types_xml_xpath_limits::should_cancel_xpath_without_partial_output_given_expanding_results_when_cancel_request_arrives ... FAILED\n\n",
-        "evidence": "final focused run: final-cancellation-tests.log"
-      }
-    ]
-  },
-  {
     "issue": 908,
     "name": "should_preserve_money_binary_identity_given_inserted_and_updated_rows_when_storage_restarts",
     "status": "authored",
@@ -2150,11 +2083,11 @@
         "name": "compatibility::lifecycle::conversion_lifecycle::should_apply_encoding_conversion_given_a_sql_conversion_object_when_text_is_converted"
       }
     ],
-    "asserted_contract": "The named UTF8-to-LATIN1 conversion maps caf\u00e8 to bytes 636166e8.",
+    "asserted_contract": "The named UTF8-to-LATIN1 conversion maps cafè to bytes 636166e8.",
     "mapping_basis": "exact_test_present",
     "oracle": {
       "reference": "PostgreSQL 18.6",
-      "expected": "The named UTF8-to-LATIN1 conversion maps caf\u00e8 to bytes 636166e8.",
+      "expected": "The named UTF8-to-LATIN1 conversion maps cafè to bytes 636166e8.",
       "status": "assertion_encoded; no fresh per-case run in this static pass"
     },
     "prior_execution_status": "not_run_by_this_agent; awaiting serialized integrator Cargo lane",

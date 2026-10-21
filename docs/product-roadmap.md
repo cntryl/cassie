@@ -78,7 +78,7 @@ explicitly when a gate slips.
 | Target date | Gate | Exit condition | Status |
 | --- | --- | --- | --- |
 | 2026-10-23 | Replay contract | Prove that the Data-family row batch can commit before the Schema-family ledger/checkpoint transaction, that the latter pair commits atomically, and that same-batch retry handles both an aborted Schema commit and an error response after a successful Schema commit without losing or double-applying projection state. | Complete locally on 2026-10-20; see [focused evidence](testing/validation.md). Hosted evidence remains blocked while Actions are disabled. |
-| 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Open |
+| 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Open; [read-only issue map](v0.3-scope-map.md) covers all 30 members. GitHub assignments remain unchanged. |
 
 The replay recovery proof is complete locally; this does not establish a hosted
 pass. If later changes invalidate the proof, keep the v0.3 target visibly at risk
@@ -86,6 +86,10 @@ and reforecast at the next Friday review; do not silently weaken the contract.
 v0.3 is the MVP qualification target, not approval to replace a production hosted
 PostgreSQL service. Production replacement depends on the v1.0 qualification and
 workload-specific migration evidence.
+
+The v0.3 scope map is a read-only review artifact. The scope-freeze gate remains
+open until its proposed issue splits and milestone moves are applied; no GitHub
+issue was changed for that map.
 
 | Milestone | Target date | Ships |
 | --- | --- | --- |

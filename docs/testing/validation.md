@@ -4266,3 +4266,79 @@ enabled or dispatched. Hosted evidence remains blocked.
 ```text
 cargo nextest run --locked --config-file target/nextest-like-60s.toml --test analytics -E 'test(should_replay_projection_batch_idempotently_with_checkpoint_metadata) | test(should_retry_projection_replay_when_schema_commit_fails_after_data_commit) | test(should_retry_projection_replay_after_schema_commit_conflict) | test(should_keep_projection_replay_checkpoint_after_uncertain_schema_commit)' --status-level fail --final-status-level fail
 ```
+
+## 2026-10-21 — #823 per-candidate INSERT RETURNING error order
+
+The existing #823 red cases establish a selected, exact behavior: for two
+VALUES candidates that collide on a UNIQUE value, PostgreSQL 18.6 evaluates the
+first candidate's `RETURNING EXISTS` expression before processing the later
+collision. If that expression divides by zero, it reports `22012`; a conflict
+that exists before candidate one still reports `23505`. The test controls also
+cover distinct candidates with a runtime error, rollback with no partial rows,
+and simple, extended-text, and extended-binary protocol modes.
+
+On main `77ea4e2f`, the focused red batch ran the SQL and wire regressions and
+failed 0/2: Cassie reported `23505` instead of `22012` for the later-conflict
+case. Each test finished in under 0.45 seconds. Source inspection found that
+`execute_insert` staged candidates one at a time but deferred all `RETURNING`
+projection until after the candidate loop. The statement read owner was already
+captured once and shared with the deferred projection.
+
+The implementation projects each successfully staged candidate immediately
+when `INSERT ... RETURNING` contains `EXISTS`, using that same captured
+statement-start read owner. It retains each projected row under query-memory
+accounting and sends the accumulated rows through the existing final
+materialization path. A pre-existing conflict is still detected before any
+candidate's `RETURNING`; later conflicts are reached only after earlier
+candidates' expressions. Other DML paths and non-`EXISTS` INSERT RETURNING keep
+their existing projection flow. Every mutation remains in Cassie's existing
+session/Data-family transaction; no cross-family transaction is introduced.
+
+Jev's typed decision request selected per-successful-candidate projection with
+the fixed statement view (probability 1.0, confidence 1.0) and selected the
+exact case as a bounded v0.3 slice without waiting for the broader #800, #769,
+#761, or #848 owners (probability 0.99, confidence 0.98). Source and existing
+tests confirm those broader SQL and qualification paths are not needed for the
+simple fixture. Jev's first review focus was the error-priority controls
+(probability 0.60, confidence 0.47); those controls were retained in the wire
+test. The answer guided the slice boundary, not correctness evidence.
+
+The final focused Nextest batch passed 40/40 with 5,350 tests skipped in 47.621
+seconds aggregate; `target/nextest-like-60s.toml` enforced a 60-second cap per
+test. A preliminary broad `test(/returning/)` filter matched unrelated
+`set_returning` and MERGE cancellation modules; it stopped after 23 of 83
+selected tests, with 18 passing and five failures outside the changed INSERT
+path. That overbroad run is not counted as a clean validation result. The
+focused batch below narrows the names to the returning helpers, EXISTS owners,
+the exact #823 regressions, ordinary INSERT RETURNING forms, skipped conflicts,
+multi-row conflict source order, and lazy row-dependent expressions.
+
+```text
+cargo nextest run --locked --lib --test relational_qualification --test sql_mutations --test pgwire_extended --filter-expr 'test(/dml_returning_tests/) | test(/exists_returning/) | test(should_evaluate_first_candidate_returning_before_later_unique_conflict) | test(should_evaluate_each_insert_returning_row_before_a_later_unique_conflict) | test(should_return_correlated_scalar_subquery_values_from_update) | test(should_execute_insert_values_with_explicit_columns_returning_columns) | test(should_execute_insert_returning_wildcard) | test(should_execute_insert_returning_scalar_function) | test(should_execute_insert_select_with_returning_rows) | test(should_preserve_skipped_conflict_insert_returning_contract) | test(should_preserve_source_order_given_multi_row_on_conflict_returning) | test(should_keep_row_dependent_returning_expressions_lazy)' --config-file target/nextest-like-60s.toml --no-fail-fast --status-level fail --final-status-level fail --failure-output immediate
+```
+
+Jev's focused review request selected `later_candidate_error_priority` as the
+first review concern (probability 0.35, confidence 0.19); its Noul concrete-gap
+probability was 0.15. I checked the lead against the source and executable
+controls: `execute_insert` completes projection before the loop can process the
+next source row, while a pre-existing conflict returns from
+`execute_insert_source_row` before any RETURNING row is appended. The 40-test
+batch passed the later-conflict, pre-existing-conflict, and distinct-runtime-
+error controls across all three wire modes, and also passed ordinary INSERT
+RETURNING cases. The same `statement_read_controls` reference reaches every
+projection; returned row ownership is attached by `ProjectionOutputMemory` and
+the accumulated slots stay in `AccountedVec`. The low-confidence Jev result did
+not identify a new failing path, so it prompted no code change or extra Jev
+request.
+
+After the final code refactor, `cargo build --locked --bin cassie`, the focused
+Nextest batch, `cargo clippy --workspace --all-targets --all-features -- -D
+warnings -D clippy::pedantic`, `cargo fmt --all -- --check`, `git diff
+--check`, and both affected `cntryl-tools validate-tests -f` checks passed. The
+workspace docs validator still reports 75 broken links in the unchanged
+`docs/testing/owner-assertions.md`, `docs/testing/planned-tests.md`, and
+`docs/sql-dialect-profile-history.md`; it reports no errors in the two changed
+documentation files. No full test suite or GitHub workflow was run.
+
+The full test suite was not run. GitHub Actions remained disabled; no workflow
+was enabled or dispatched.

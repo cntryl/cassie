@@ -8,8 +8,6 @@ mod postgresql18_aggregate_semantic_edges;
 mod postgresql18_binary_bytea;
 #[path = "ctes/ctes.rs"]
 mod postgresql18_ctes;
-#[path = "types/geometry/geometry.rs"]
-mod postgresql18_geometry;
 #[path = "aggregates/grouping/math_functions.rs"]
 mod postgresql18_math_functions;
 #[path = "aggregates/money/money.rs"]
@@ -54,9 +52,6 @@ mod set_returning_array_subscripts;
 
 #[path = "set_returning/lateral_ordinality.rs"]
 mod set_returning_lateral_ordinality;
-
-#[path = "types/geometry/operator_nulls.rs"]
-mod types_geometry_operator_nulls;
 
 #[path = "relations/values_admission.rs"]
 mod postgresql18_values_admission;

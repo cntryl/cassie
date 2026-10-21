@@ -4,13 +4,13 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1642 |
-| Rust files | 1610 |
-| Rust test declarations | 8628 |
+| Files under `tests/` | 1621 |
+| Rust files | 1589 |
+| Rust test declarations | 8554 |
 | Python test declarations | 19 |
-| Static Rust registration instances | 8756 |
+| Static Rust registration instances | 8682 |
 | Cargo test targets | 32 |
-| Reconciled backfill names | 136 |
+| Reconciled backfill names | 133 |
 | Unregistered Rust declarations | 0 |
 | Unresolved module paths | 0 |
 | Duplicate registered test identities | 0 |
@@ -44,7 +44,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [parser_types](inventory/parser_types.md) | 393 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 3733 | 8 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 3685 | 8 |
 | [planner_controls](inventory/planner_controls.md) | 123 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 75 | 0 |
@@ -54,7 +54,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
 | [sql_mutations](inventory/sql_mutations.md) | 310 | 0 |
-| [sql_queries](inventory/sql_queries.md) | 1786 | 0 |
+| [sql_queries](inventory/sql_queries.md) | 1760 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
 | [storage_indexes](inventory/storage_indexes.md) | 182 | 0 |
@@ -133,6 +133,6 @@ Each item links to a registered assertion in the backfill list. Authoring status
 
 | Status | Names |
 | --- | ---: |
-| `authored` | 122 |
+| `authored` | 119 |
 | `existing_equivalent` | 13 |
 | `oracle_corrected` | 1 |

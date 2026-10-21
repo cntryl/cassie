@@ -14,8 +14,6 @@ mod postgresql18_binary_bytea_compat;
 mod postgresql18_cte_compat;
 #[path = "protocol/explain_options.rs"]
 mod postgresql18_explain_options;
-#[path = "types/geometry/geometry.rs"]
-mod postgresql18_geometry_compat;
 #[path = "grammar.rs"]
 mod postgresql18_grammar;
 #[path = "functions/math/math.rs"]
@@ -113,12 +111,6 @@ mod type_resolution_polymorphic;
 
 #[path = "type_resolution/prepared_descriptors.rs"]
 mod type_resolution_prepared_descriptors;
-
-#[path = "types/geometry/degenerate_codecs.rs"]
-mod types_geometry_degenerate_codecs;
-
-#[path = "types/geometry/null_metadata.rs"]
-mod types_geometry_null_metadata;
 
 #[path = "types/json/jsonpath/cancellation.rs"]
 mod types_json_jsonpath_cancellation;

@@ -395,7 +395,7 @@ fn should_store_column_values_under_numeric_ids_without_json_wrappers() {
 }
 
 #[test]
-fn should_persist_projection_metadata_in_schema_family() {
+fn should_persist_projection_metadata_in_database_family() {
     // Arrange
     let path = data_dir("projection_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -428,9 +428,17 @@ fn should_persist_projection_metadata_in_schema_family() {
             .projection_metadata(collection)
             .unwrap()
             .expect("projection metadata should exist");
+        let mut encoder = cntryl_lexkey::Encoder::with_capacity(64);
+        encoder.encode_composite_into_buf(&[b"cassie", b"\x01", b"projection"]);
+        encoder.push_separator();
+        let projection_prefix = encoder.into_vec();
         let legacy_entries = cassie
             .midge
-            .raw_scan_prefix(StorageFamily::Schema, b"__cassie__/projection/")
+            .raw_scan_prefix(StorageFamily::Schema, &projection_prefix)
+            .unwrap();
+        let database_entries = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, &projection_prefix)
             .unwrap();
 
         // Assert
@@ -443,6 +451,7 @@ fn should_persist_projection_metadata_in_schema_family() {
             legacy_entries,
             [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
         );
+        assert_eq!(database_entries.len(), 1);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -530,7 +539,7 @@ fn should_reject_legacy_projection_metadata_on_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible cassie-midge-layout-v2 storage layout"),
+                .contains("incompatible cassie-midge-layout-v3 storage layout"),
             "unexpected error: {error}"
         );
 

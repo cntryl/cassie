@@ -77,7 +77,7 @@ fn should_reject_legacy_collections_index_on_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible cassie-midge-layout-v2 storage layout"),
+                .contains("incompatible cassie-midge-layout-v3 storage layout"),
             "unexpected error: {error}"
         );
 
@@ -143,7 +143,7 @@ fn should_refresh_in_memory_catalog_during_startup() {
 }
 
 #[test]
-fn should_hydrate_namespace_catalog_from_schema_family() {
+fn should_hydrate_namespace_catalog_from_database_family() {
     // Arrange
     let path = data_dir("schema_namespace_hydrate");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -178,7 +178,7 @@ fn should_hydrate_namespace_catalog_from_schema_family() {
 }
 
 #[test]
-fn should_hydrate_renamed_namespace_catalog_from_schema_family() {
+fn should_hydrate_renamed_namespace_catalog_from_database_family() {
     // Arrange
     let path = data_dir("schema_namespace_rename_hydrate");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -216,7 +216,7 @@ fn should_hydrate_renamed_namespace_catalog_from_schema_family() {
 }
 
 #[test]
-fn should_hydrate_dropped_namespace_catalog_from_schema_family() {
+fn should_hydrate_dropped_namespace_catalog_from_database_family() {
     // Arrange
     let path = data_dir("schema_namespace_drop_hydrate");
     let runtime = tokio::runtime::Builder::new_current_thread()

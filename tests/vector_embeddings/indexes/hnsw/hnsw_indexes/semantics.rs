@@ -105,8 +105,8 @@ fn should_store_hnsw_graph_state_in_the_data_family() {
     put_hnsw_index(&cassie, collection, 2);
     let raw_metadata = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Schema, b"")
-        .expect("schema scan")
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .expect("database family scan")
         .into_iter()
         .find_map(|(_key, value)| serde_json::from_slice::<VectorIndexRecord>(&value).ok())
         .expect("vector index metadata");

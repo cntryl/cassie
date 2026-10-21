@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{collect_scan, CassieError, IndexKind, IndexMeta, Midge, Query};
+use super::{CassieError, IndexKind, IndexMeta, Midge};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(super) enum IndexPublicationState {
@@ -18,11 +18,7 @@ pub(super) struct PendingIndexPublication {
 
 impl Midge {
     pub(crate) fn validate_pending_index_publications(&self) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
-        let entries = collect_scan(
-            tx.scan(&Query::new().prefix(Self::index_publication_prefix().into()))
-                .map_err(CassieError::from)?,
-        )?;
+        let entries = self.scan_database_families(&Self::index_publication_prefix())?;
         for (_key, raw) in entries {
             serde_json::from_slice::<PendingIndexPublication>(&raw).map_err(|error| {
                 CassieError::Parse(format!("invalid index publication: {error}"))
@@ -41,7 +37,7 @@ impl Midge {
             index: index.clone(),
             target_generation: self.collection_generation(&index.collection)?,
         };
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
         tx.put(
             Self::index_publication_key(&index.collection, &index.name),
             serde_json::to_vec(&pending).map_err(|error| CassieError::Parse(error.to_string()))?,
@@ -59,11 +55,7 @@ impl Midge {
     ///
     /// Returns an error when a pending record cannot be read, rebuilt, or published.
     pub fn replay_pending_index_publications(&self) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
-        let entries = collect_scan(
-            tx.scan(&Query::new().prefix(Self::index_publication_prefix().into()))
-                .map_err(CassieError::from)?,
-        )?;
+        let entries = self.scan_database_families(&Self::index_publication_prefix())?;
         let mut pending = entries
             .into_iter()
             .map(|(_, raw)| {
@@ -137,7 +129,7 @@ impl Midge {
             {
                 continue;
             }
-            let mut tx = self.begin_schema_rw_tx()?;
+            let mut tx = self.begin_data_rw_tx_for(&publication.index.collection)?;
             tx.put(
                 Self::index_key(&publication.index.collection, &publication.index.name),
                 serde_json::to_vec(&publication.index)
@@ -160,7 +152,7 @@ impl Midge {
         &self,
         publication: &PendingIndexPublication,
     ) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&publication.index.collection)?;
         tx.put(
             Self::index_publication_key(&publication.index.collection, &publication.index.name),
             serde_json::to_vec(publication)

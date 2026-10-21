@@ -2,7 +2,7 @@ use super::support_pgwire as support;
 
 use cassie::app::Cassie;
 use cassie::catalog::{
-    canonical_relation_name, CollectionMeta, FieldConstraint, IndexKind, IndexMeta,
+    canonical_relation_name, CollectionMeta, FieldConstraint, IndexKind, IndexMeta, ProjectionMeta,
 };
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -94,12 +94,43 @@ fn seed_database_image_fixture(cassie: &Cassie) {
         .expect("index");
     cassie
         .midge
+        .put_index(&IndexMeta {
+            collection: collection.clone(),
+            name: "pending_drop".to_string(),
+            field: "value".to_string(),
+            fields: vec!["value".to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        })
+        .expect("index pending deferred cleanup");
+    cassie
+        .midge
         .put_document(
             &collection,
             Some("row-1".to_string()),
             serde_json::json!({"value": "copy"}),
         )
         .expect("row");
+    let mut projection = ProjectionMeta::new(&collection, 1);
+    projection.source_identity = Some("orders-stream".to_string());
+    projection.source_checkpoint = Some("checkpoint-1".to_string());
+    projection.last_applied_event_id = Some("event-1".to_string());
+    cassie
+        .midge
+        .put_projection_metadata(&projection)
+        .expect("projection metadata");
+    cassie
+        .midge
+        .record_projection_event(&collection, "orders-stream", "event-1", "batch-1")
+        .expect("projection event");
+    cassie
+        .midge
+        .defer_drop_index(&collection, "pending_drop", u64::MAX)
+        .expect("deferred index cleanup");
 }
 
 async fn backup_database<R, W>(reader: &mut R, writer: &mut W) -> Vec<u8>
@@ -155,6 +186,9 @@ where
 
 fn assert_restored_database(cassie: &Cassie) {
     let collection = canonical_relation_name("restored", "public", "analytics");
+    cassie
+        .run_deferred_schema_cleanup_for_diagnostics()
+        .expect("replay restored deferred cleanup");
     let restored = cassie
         .midge
         .get_document(&collection, "row-1")
@@ -178,10 +212,29 @@ fn assert_restored_database(cassie: &Cassie) {
         constraints[0].default_value,
         Some(serde_json::json!("analytics"))
     );
-    let indexes = cassie.catalog.list_indexes(&collection);
+    let indexes = cassie
+        .midge
+        .list_indexes()
+        .expect("list restored index metadata")
+        .into_iter()
+        .filter(|index| index.collection.eq_ignore_ascii_case(&collection))
+        .collect::<Vec<_>>();
     assert_eq!(indexes.len(), 1);
     assert_eq!(indexes[0].name, "analytics");
     assert_eq!(indexes[0].collection, collection);
+    let projection = cassie
+        .midge
+        .projection_metadata(&collection)
+        .expect("restored projection metadata")
+        .expect("restored projection");
+    assert_eq!(
+        projection.source_checkpoint.as_deref(),
+        Some("checkpoint-1")
+    );
+    assert!(cassie
+        .midge
+        .has_projection_event(&collection, "orders-stream", "event-1")
+        .expect("restored replay ledger lookup"));
 }
 
 #[test]

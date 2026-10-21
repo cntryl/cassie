@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{key_encoding, CassieError, FieldConstraint, Midge, Query, RowDecode};
+use super::{key_encoding, CassieError, FieldConstraint, Midge, RowDecode};
 
 const UNIQUE_BACKFILL_BATCH_SIZE: usize = 5_000;
 
@@ -35,13 +35,8 @@ impl Midge {
     ///
     /// Returns an error when a pending publication is invalid or cannot be completed.
     pub fn replay_pending_unique_constraint_publications(&self) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
-        let entries = super::collect_scan(
-            tx.scan(
-                &Query::new().prefix(key_encoding::unique_constraint_publication_prefix().into()),
-            )
-            .map_err(CassieError::from)?,
-        )?;
+        let entries =
+            self.scan_database_families(&key_encoding::unique_constraint_publication_prefix())?;
         let pending = entries
             .into_iter()
             .map(|(_, raw)| {
@@ -93,7 +88,7 @@ impl Midge {
             fields,
         };
         self.validate_unique_constraint_rows(&publication)?;
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.put(
             key_encoding::unique_constraint_publication_key(collection),
             serde_json::to_vec(&publication)
@@ -141,7 +136,7 @@ impl Midge {
                 .map_err(CassieError::from)?;
         }
 
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&publication.collection)?;
         tx.put(
             Self::constraints_key(&publication.collection),
             serde_json::to_vec(&publication.constraints)
@@ -236,7 +231,7 @@ mod tests {
         cassie
             .midge
             .raw_put(
-                StorageFamily::Schema,
+                StorageFamily::Data,
                 &key_encoding::unique_constraint_publication_key(CANONICAL),
                 &serde_json::to_vec(&publication).unwrap(),
             )
@@ -256,7 +251,7 @@ mod tests {
         let pending = restarted
             .midge
             .raw_scan_prefix(
-                StorageFamily::Schema,
+                StorageFamily::Data,
                 &key_encoding::unique_constraint_publication_prefix(),
             )
             .unwrap();

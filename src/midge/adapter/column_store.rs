@@ -62,7 +62,7 @@ impl Midge {
             .map(|(created, storage_id)| created.then_some(storage_id))
     }
 
-    /// Creates a collection and its initial column constraints in one schema-family transaction.
+    /// Creates a collection and its initial column constraints in one database-family transaction.
     ///
     /// The initial constraints are limited to column nullability and defaults; unlike general
     /// constraint publication, they require no row scan or data-family writes.
@@ -104,7 +104,7 @@ impl Midge {
         if let Some(database) = crate::catalog::relation_database_name(&name) {
             let _ = self.database_family(&database)?;
         }
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&name)?;
 
         let schema_key = Self::collection_schema_key(&name);
         let schema_exists = tx.get(&schema_key).map_err(CassieError::from)?.is_some();
@@ -123,7 +123,7 @@ impl Midge {
         let storage_id = if let Some(existing) = existing_metadata.as_ref() {
             existing.storage_id
         } else {
-            Self::allocate_object_id_to_tx(&mut tx)?
+            self.allocate_object_id()?
         };
         metadata.storage_id = storage_id;
         let mut row_schema = RowSchema::from_schema(schema);
@@ -240,7 +240,7 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn collection_metadata(&self, name: &str) -> Result<Option<CollectionMeta>, CassieError> {
         let name = self.canonical_collection_name(name);
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.database_tx_for_collection(&name, super::TransactionMode::ReadOnly)?;
         if let Some(metadata) = Self::load_collection_metadata_from_tx(&tx, &name)? {
             return Ok(Some(metadata));
         }

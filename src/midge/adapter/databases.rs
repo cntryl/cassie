@@ -370,7 +370,7 @@ impl Midge {
         &self,
         database: &str,
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
-        let entries = self.raw_scan_prefix(super::StorageFamily::Schema, b"")?;
+        let entries = self.raw_scan_prefix_database(database, b"")?;
         let mut scoped_entries = Vec::new();
         for (key, value) in entries {
             if !catalog_entry_belongs_to_database(&key, &value, database) {
@@ -479,8 +479,10 @@ impl Midge {
                 staged.metadata.name
             )));
         }
-        let mut collection_names = Vec::new();
-        let mut namespace_names = Vec::new();
+        let mut data_tx = self
+            .engine
+            .begin_tx(staged.handle.id(), TransactionMode::ReadWrite)
+            .map_err(CassieError::from)?;
         for (key, value) in catalog_entries {
             validate_database_catalog_entry(&key, &value, source_database)?;
             let Some(family) = key_family(&key) else {
@@ -492,20 +494,17 @@ impl Midge {
                 "layout" | "database-lifecycle" | "schema-epoch" | "databases" | "database" => {
                     continue
                 }
-                "collections" => {
-                    collection_names.extend(rewrite_string_list(
-                        &value,
-                        source_database,
-                        &staged.metadata.name,
-                    )?);
-                    continue;
-                }
-                "namespaces" => {
-                    namespace_names.extend(rewrite_string_list(
-                        &value,
-                        source_database,
-                        &staged.metadata.name,
-                    )?);
+                "collections" | "namespaces" => {
+                    let values =
+                        rewrite_string_list(&value, source_database, &staged.metadata.name)?;
+                    data_tx
+                        .put(
+                            key,
+                            serde_json::to_vec(&values)
+                                .map_err(|error| CassieError::Parse(error.to_string()))?,
+                            None,
+                        )
+                        .map_err(CassieError::from)?;
                     continue;
                 }
                 _ => {}
@@ -513,12 +512,13 @@ impl Midge {
             let key = rewrite_key_component(&key, source_database, &staged.metadata.name);
             let value =
                 rewrite_catalog_value(family, &value, source_database, &staged.metadata.name)?;
-            tx.put(key, value, None).map_err(CassieError::from)?;
+            data_tx.put(key, value, None).map_err(CassieError::from)?;
         }
+        data_tx
+            .commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
 
         Self::write_database_metadata(&mut tx, &staged.metadata)?;
-        merge_string_list(&mut tx, Self::collections_key(), collection_names)?;
-        merge_string_list(&mut tx, Self::namespaces_key(), namespace_names)?;
         Self::delete_lifecycle_record(&mut tx, &staged.operation_id)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -730,28 +730,6 @@ impl Midge {
     }
 }
 
-fn merge_string_list(
-    tx: &mut cntryl_midge::Transaction,
-    key: Vec<u8>,
-    additions: Vec<String>,
-) -> Result<(), CassieError> {
-    let mut values = tx
-        .get(&key)
-        .map_err(CassieError::from)?
-        .map_or_else(Vec::new, |raw| {
-            serde_json::from_slice::<Vec<String>>(&raw).unwrap_or_default()
-        });
-    values.extend(additions);
-    values.sort();
-    values.dedup();
-    tx.put(
-        key,
-        serde_json::to_vec(&values).map_err(|error| CassieError::Parse(error.to_string()))?,
-        None,
-    )
-    .map_err(CassieError::from)
-}
-
 fn is_database_data_key(key: &[u8]) -> bool {
     matches!(
         key_family(key),
@@ -775,7 +753,7 @@ fn is_database_data_key(key: &[u8]) -> bool {
 
 fn is_database_catalog_data_key(key: &[u8]) -> bool {
     match key_family(key) {
-        Some("database" | "databases" | "collections" | "namespaces") | None => false,
+        Some("database" | "databases") | None => false,
         Some("namespace") => key_components(key)
             .nth(4)
             .is_none_or(|schema| !schema.eq_ignore_ascii_case(b"public")),

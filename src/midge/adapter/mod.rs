@@ -47,7 +47,7 @@ thread_local! {
     static PROJECTION_HASH_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static PROJECTION_OUTPUT_FAILURE_POINT: Cell<Option<ProjectionOutputFailurePoint>> = const { Cell::new(None) };
     static PROJECTION_METADATA_PERSISTENCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
-    static PROJECTION_REPLAY_SCHEMA_COMMIT_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static PROJECTION_REPLAY_METADATA_COMMIT_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static PROJECTION_REPLAY_POST_COMMIT_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static ROLLUP_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static COLLECTION_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
@@ -103,14 +103,14 @@ pub(crate) fn check_projection_metadata_persistence_failure_point() -> Result<()
 }
 
 #[doc(hidden)]
-pub fn set_projection_replay_schema_commit_failure_point(enabled: bool) {
-    PROJECTION_REPLAY_SCHEMA_COMMIT_FAILPOINT.set(enabled);
+pub fn set_projection_replay_metadata_commit_failure_point(enabled: bool) {
+    PROJECTION_REPLAY_METADATA_COMMIT_FAILPOINT.set(enabled);
 }
 
-pub(crate) fn check_projection_replay_schema_commit_failure_point() -> Result<(), CassieError> {
-    if PROJECTION_REPLAY_SCHEMA_COMMIT_FAILPOINT.replace(false) {
+pub(crate) fn check_projection_replay_metadata_commit_failure_point() -> Result<(), CassieError> {
+    if PROJECTION_REPLAY_METADATA_COMMIT_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
-            "injected projection replay schema commit failure".to_string(),
+            "injected projection replay metadata commit failure".to_string(),
         ));
     }
     Ok(())
@@ -124,7 +124,7 @@ pub fn set_projection_replay_post_commit_failure_point(enabled: bool) {
 pub(crate) fn check_projection_replay_post_commit_failure_point() -> Result<(), CassieError> {
     if PROJECTION_REPLAY_POST_COMMIT_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
-            "injected projection replay failure after schema commit".to_string(),
+            "injected projection replay failure after metadata commit".to_string(),
         ));
     }
     Ok(())
@@ -317,10 +317,15 @@ mod column_batches;
 mod vector_values;
 pub use vector_values::vector_from_json;
 mod column_store;
+#[cfg(test)]
+#[path = "column_store_tests.rs"]
+mod column_store_tests;
 mod database_catalog_rewrite;
 mod databases;
 pub(crate) use column_store::ColumnStoreScanRequest;
-pub(crate) use database_catalog_rewrite::validate_database_catalog_entry;
+pub(crate) use database_catalog_rewrite::{
+    is_database_catalog_entry, validate_database_catalog_entry,
+};
 pub(super) use databases::DatabaseFamily;
 pub(crate) use databases::StagedDatabaseFamily;
 pub(crate) mod documents;
@@ -725,8 +730,8 @@ impl Midge {
         key_encoding::schema_epoch_key()
     }
 
-    fn schema_cleanup_key(cleanup_id: &str) -> Vec<u8> {
-        key_encoding::schema_cleanup_key(cleanup_id)
+    fn schema_cleanup_key(collection: &str, cleanup_id: &str) -> Vec<u8> {
+        key_encoding::schema_cleanup_key(collection, cleanup_id)
     }
 
     fn schema_cleanup_prefix() -> Vec<u8> {

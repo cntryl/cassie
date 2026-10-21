@@ -67,7 +67,7 @@ impl Midge {
         let source_generation = self.collection_generation(&index.collection)?;
         let mut digest = Sha256::new();
         for (batch, chunk) in rows.chunks(STAGING_BATCH_SIZE).enumerate() {
-            let mut tx = self.begin_schema_rw_tx()?;
+            let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
             for (offset, row) in chunk.iter().enumerate() {
                 let ordinal =
                     u64::try_from(batch * STAGING_BATCH_SIZE + offset).map_err(parse_error)?;
@@ -105,7 +105,7 @@ impl Midge {
                     .record_materialized_projection_maintenance_debt,
             }),
         };
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&publication.index.collection)?;
         tx.put(
             Self::index_publication_key(&publication.index.collection, &publication.index.name),
             serde_json::to_vec(&publication).map_err(parse_error)?,
@@ -122,7 +122,7 @@ impl Midge {
     }
 
     fn ensure_no_pending_vector_publication(&self, collection: &str) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(collection)?;
         for (_, raw) in collect_scan(
             tx.scan(&Query::new().prefix(Self::index_publication_prefix().into()))
                 .map_err(CassieError::from)?,
@@ -219,7 +219,8 @@ impl Midge {
         }
         let index = self.prepare_vector_index_sidecars(pending.vector_index.clone())?;
         self.commit_vector_publication_metadata(publication, &index)?;
-        let _ = self.delete_vector_backfill_rows(&pending.publication_id);
+        let _ = self
+            .delete_vector_backfill_rows(&pending.vector_index.collection, &pending.publication_id);
         let _ = self.delete_vector_backfill_marker(&index.collection, marker);
         Ok(report)
     }
@@ -233,7 +234,7 @@ impl Midge {
             .vector_backfill
             .as_ref()
             .ok_or_else(|| CassieError::Parse("missing vector backfill publication".to_string()))?;
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&publication.index.collection)?;
         tx.put(
             Self::vector_index_key(&index.collection, &index.field),
             serde_json::to_vec(&index).map_err(parse_error)?,
@@ -273,7 +274,7 @@ impl Midge {
         &self,
         pending: &PendingVectorBackfill,
     ) -> Result<Vec<BackfillRow>, CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&pending.vector_index.collection)?;
         let entries = collect_scan(
             tx.scan(&Query::new().prefix(
                 key_encoding::vector_backfill_row_prefix(Some(&pending.publication_id)).into(),
@@ -317,8 +318,12 @@ impl Midge {
         Ok(rows)
     }
 
-    fn delete_vector_backfill_rows(&self, publication_id: &str) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
+    fn delete_vector_backfill_rows(
+        &self,
+        collection: &str,
+        publication_id: &str,
+    ) -> Result<(), CassieError> {
+        let tx = self.begin_data_readonly_tx_for(collection)?;
         let rows = collect_scan(
             tx.scan(
                 &Query::new()
@@ -328,7 +333,7 @@ impl Midge {
         )?;
         drop(tx);
         for chunk in rows.chunks(STAGING_BATCH_SIZE) {
-            let mut tx = self.begin_schema_rw_tx()?;
+            let mut tx = self.begin_data_rw_tx_for(collection)?;
             for (key, _) in chunk {
                 tx.delete(key.clone()).map_err(CassieError::from)?;
             }
@@ -339,47 +344,27 @@ impl Midge {
     }
 
     pub(crate) fn cleanup_vector_publication_staging(&self) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
-        let pending = collect_scan(
-            tx.scan(&Query::new().prefix(Self::index_publication_prefix().into()))
+        for database in self.database_names() {
+            let tx = self.begin_database_readonly_tx(&database)?;
+            let pending = collect_scan(
+                tx.scan(&Query::new().prefix(Self::index_publication_prefix().into()))
+                    .map_err(CassieError::from)?,
+            )?;
+            let ids = pending
+                .into_iter()
+                .map(|(_, raw)| {
+                    serde_json::from_slice::<PendingIndexPublication>(&raw).map_err(parse_error)
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .filter_map(|record| record.vector_backfill.map(|vector| vector.publication_id))
+                .collect::<Vec<_>>();
+            let rows = collect_scan(
+                tx.scan(
+                    &Query::new().prefix(key_encoding::vector_backfill_row_prefix(None).into()),
+                )
                 .map_err(CassieError::from)?,
-        )?;
-        let ids = pending
-            .into_iter()
-            .map(|(_, raw)| {
-                serde_json::from_slice::<PendingIndexPublication>(&raw).map_err(parse_error)
-            })
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .filter_map(|record| record.vector_backfill.map(|vector| vector.publication_id))
-            .collect::<Vec<_>>();
-        let rows = collect_scan(
-            tx.scan(&Query::new().prefix(key_encoding::vector_backfill_row_prefix(None).into()))
-                .map_err(CassieError::from)?,
-        )?;
-        drop(tx);
-        let prefixes = ids
-            .iter()
-            .map(|id| key_encoding::vector_backfill_row_prefix(Some(id)))
-            .collect::<Vec<_>>();
-        let orphaned = rows
-            .into_iter()
-            .filter(|(key, _)| !prefixes.iter().any(|prefix| key.starts_with(prefix)))
-            .collect::<Vec<_>>();
-        for chunk in orphaned.chunks(STAGING_BATCH_SIZE) {
-            let mut tx = self.begin_schema_rw_tx()?;
-            for (key, _) in chunk {
-                tx.delete(key.clone()).map_err(CassieError::from)?;
-            }
-            tx.commit(self.write_options_sync())
-                .map_err(CassieError::from)?;
-        }
-        let active = ids
-            .iter()
-            .map(|id| key_encoding::vector_backfill_applied_key(id))
-            .collect::<HashSet<_>>();
-        for database in self.list_databases()? {
-            let tx = self.database_tx(&database.name, cntryl_midge::TransactionMode::ReadOnly)?;
+            )?;
             let markers = collect_scan(
                 tx.scan(
                     &Query::new().prefix(key_encoding::vector_backfill_applied_prefix().into()),
@@ -387,9 +372,32 @@ impl Midge {
                 .map_err(CassieError::from)?,
             )?;
             drop(tx);
+
+            let prefixes = ids
+                .iter()
+                .map(|id| key_encoding::vector_backfill_row_prefix(Some(id)))
+                .collect::<Vec<_>>();
+            let orphaned = rows
+                .into_iter()
+                .filter(|(key, _)| !prefixes.iter().any(|prefix| key.starts_with(prefix)))
+                .collect::<Vec<_>>();
+            for chunk in orphaned.chunks(STAGING_BATCH_SIZE) {
+                let mut tx =
+                    self.database_tx(&database, cntryl_midge::TransactionMode::ReadWrite)?;
+                for (key, _) in chunk {
+                    tx.delete(key.clone()).map_err(CassieError::from)?;
+                }
+                tx.commit(self.write_options_sync())
+                    .map_err(CassieError::from)?;
+            }
+
+            let active = ids
+                .iter()
+                .map(|id| key_encoding::vector_backfill_applied_key(id))
+                .collect::<HashSet<_>>();
             for chunk in markers.chunks(STAGING_BATCH_SIZE) {
                 let mut tx =
-                    self.database_tx(&database.name, cntryl_midge::TransactionMode::ReadWrite)?;
+                    self.database_tx(&database, cntryl_midge::TransactionMode::ReadWrite)?;
                 for (key, _) in chunk {
                     if !active.contains(key) {
                         tx.delete(key.clone()).map_err(CassieError::from)?;

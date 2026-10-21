@@ -7,7 +7,7 @@ use super::{Cassie, CassieError};
 use crate::midge::adapter::StagedDatabaseFamily;
 
 pub const DATABASE_IMAGE_VERSION: u16 = 1;
-const DATABASE_IMAGE_LAYOUT_VERSION: &str = "cassie-midge-layout-v2";
+const DATABASE_IMAGE_LAYOUT_VERSION: &str = "cassie-midge-layout-v3";
 const DATABASE_IMAGE_MAGIC: &[u8] = b"CASSIEDB";
 const FRAME_HEADER: u8 = b'H';
 const FRAME_CATALOG: u8 = b'C';
@@ -56,8 +56,8 @@ enum RestorePhase {
     Closed,
 }
 
-/// A bounded-chunk logical backup stream. Catalog records are rewritten by
-/// restore; data-family keys are already database-local and are copied raw.
+/// A bounded-chunk logical backup stream. Database catalog records are framed
+/// separately for rewrite on restore; data-family records are copied raw.
 pub struct DatabaseBackupStream {
     cassie: Cassie,
     source_database: String,
@@ -140,7 +140,9 @@ impl DatabaseBackupStream {
                             self.data_exhausted = true;
                         } else {
                             self.data_cursor = page.last().map(|(key, _)| key.clone());
-                            self.data_page.extend(page);
+                            self.data_page.extend(page.into_iter().filter(|(key, _)| {
+                                !crate::midge::adapter::is_database_catalog_entry(key)
+                            }));
                         }
                     }
 
@@ -153,7 +155,7 @@ impl DatabaseBackupStream {
                         ));
                         self.data_count = self.data_count.saturating_add(1);
                         self.enqueue_frame(FRAME_DATA, &frame);
-                    } else {
+                    } else if self.data_exhausted {
                         self.phase = BackupPhase::Footer;
                     }
                 }

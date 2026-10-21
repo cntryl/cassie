@@ -24,8 +24,8 @@ Cassie must not be treated as the source event store. A Cassie snapshot or proje
 - Events for one `(projection, source_identity)` pair must be replayed in monotonically increasing source position when positions are present.
 - `event_id` must be non-empty, stable across retries, and unique for each source event within the projection/source pair.
 - The caller must not acknowledge the source position or submit a later batch after a replay error; retry the same event batch until its durable checkpoint is confirmed.
-- Redelivery of an event whose Schema-family ledger commit completed is idempotent: Cassie skips it and increments duplicate skip diagnostics without rewriting projection rows.
-- If projection rows committed in the Data family but the Schema-family replay-state transaction did not, the event has no committed ledger entry. Retrying the same batch may reapply its deterministic document replacements/deletions before committing the ledger and checkpoint.
+- Redelivery of an event whose durable ledger commit completed is idempotent: Cassie skips it and increments duplicate skip diagnostics without rewriting projection rows.
+- If projection rows committed in the owning database family but the replay-state transaction did not, the event has no committed ledger entry. Retrying the same batch may reapply its deterministic document replacements/deletions before committing the ledger and checkpoint.
 - The same new event id appearing more than once in a single batch is a replay conflict. Cassie fails the batch before applying projection row writes.
 - `batch_id` is diagnostic metadata. It is not the idempotency key and must not be used as a source offset.
 - Replay payloads must already contain deterministic timestamps, generated ids, and any values derived from clocks, random sources, sequence generators, or external services.
@@ -46,9 +46,9 @@ Cassie records failed freshness and `last_error` for:
 
 For preflight conflicts such as empty event ids, out-of-order positions, and duplicate event ids inside a batch, Cassie does not apply projection row writes and does not advance `source_checkpoint` or `last_applied_event_id`.
 
-Replay crosses two Midge transaction boundaries. Cassie first commits the row and index writes in the Data family. It then commits the duplicate-ledger entries and checkpoint metadata together in one Schema-family transaction. Cassie never opens a transaction across those families. Rows can therefore be visible while the previous checkpoint is still stored. If the Schema-family transaction does not commit, neither its event ledger entries nor its checkpoint update is visible; replaying the same deterministic batch applies the row writes again and retries that transaction. If the caller receives an uncertain commit error, the durable ledger/checkpoint state is authoritative and retrying the same batch resolves the outcome. A successful Schema-family transaction cannot leave a new ledger entry paired with an old checkpoint.
+Replay still crosses two Midge transaction boundaries. Cassie first commits the row and index writes in the projection's owning database family. It then commits the duplicate-ledger entries and checkpoint metadata together in a second transaction in that same family. The records can share one Midge family, but current replay does not publish them in one transaction. Rows can therefore be visible while the previous checkpoint is still stored. If the replay-state transaction does not commit, neither its event ledger entries nor its checkpoint update is visible; replaying the same deterministic batch applies the row writes again and retries that transaction. If the caller receives an uncertain commit error, the durable ledger/checkpoint state is authoritative and retrying the same batch resolves the outcome. A successful replay-state transaction cannot leave a new ledger entry paired with an old checkpoint.
 
-Preflight and row-write failures persist failed freshness when the failure is known before the checkpoint commit. Failed metadata is hydrated on restart so operators can see that the projection is not fresh. A failure returned by the final Schema-family commit may have an uncertain outcome; inspect durable checkpoint state and retry the same batch instead of assuming either commit result.
+Preflight and row-write failures persist failed freshness when the failure is known before the checkpoint commit. Failed metadata is hydrated on restart so operators can see that the projection is not fresh. A failure returned by the final replay-state commit may have an uncertain outcome; inspect durable checkpoint state and retry the same batch instead of assuming either commit result.
 
 ## Operator Workflow After Replay Failure
 
@@ -62,5 +62,5 @@ Do not swap an active projection version after a failed replay solely because a 
 
 ## Evidence
 
-- `tests/analytics.rs` module `projection_lifecycle` covers idempotent duplicate skip, out-of-order failed freshness, duplicate event ids inside one batch, restart hydration of failed replay metadata, retry after a committed Data-family write with an aborted Schema-family transaction, and retry after a Schema-family commit whose error response left the caller uncertain.
+- `tests/analytics.rs` module `projection_lifecycle` covers idempotent duplicate skip, out-of-order failed freshness, duplicate event ids inside one batch, restart hydration of failed replay metadata, retry after a committed row write with an aborted replay-state transaction, and retry after a replay-state commit whose error response left the caller uncertain.
 - `docs/production-readiness.md` records the Stable local projection lifecycle promotion and its retained native-disk replay, refresh, verification, and repair evidence. Deployment-profile alert thresholds remain open under #8 and are not implied by that promotion.

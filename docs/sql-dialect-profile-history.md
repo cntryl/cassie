@@ -119,7 +119,7 @@ This proposed contract owns [#792](https://github.com/cntryl/cassie/issues/792) 
 
 #### Boundaries and approval
 
-Cassie remains single-node, Midge remains the direct storage and recovery owner, pgwire remains primary, and REST remains secondary and administrative. Distributed SQL, replication, fleet coordination and arbitrary PostgreSQL extension loading remain outside this profile. Existing `cassie-midge-layout-v2` and accepted current type identities remain unchanged until an explicit successor decision.
+Cassie remains single-node, Midge remains the direct storage and recovery owner, pgwire remains primary, and REST remains secondary and administrative. Distributed SQL, replication, fleet coordination and arbitrary PostgreSQL extension loading remain outside this profile. At this historical snapshot, `cassie-midge-layout-v2` and then-current type identities remained selected until a successor decision; the later unreleased v3 co-location layout is documented in [per-database Midge column families](database-families.md).
 
 [Query Engine Target 1](query-engine-target.md) remains the finite current-type execution target. Its exclusions are preserved for that target. The rows below propose later work for selected PostgreSQL-shaped syntax, exact types, routine/trigger execution, locking, transactional DDL and a selected vector identity profile. They do not retroactively remove Target 1 exclusions. Full PostgreSQL/server/catalog/extension parity and blanket OLTP certification remain unclaimed.
 

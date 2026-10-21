@@ -31,6 +31,12 @@ pub(super) fn catalog_entry_belongs_to_database(key: &[u8], value: &[u8], databa
         return program_catalog_name(value)
             .is_some_and(|name| catalog_name_belongs_to_database(&name, database));
     }
+    if family == "maintenance-debt" {
+        return serde_json::from_slice::<serde_json::Value>(value)
+            .ok()
+            .and_then(|record| record.get("collection")?.as_str().map(str::to_string))
+            .is_some_and(|name| catalog_name_belongs_to_database(&name, database));
+    }
     is_database_scoped_catalog_family(family)
         && database_name_component(key)
             .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes()))
@@ -57,6 +63,11 @@ pub(crate) fn validate_database_catalog_entry(
     } else if (matches!(family, "function" | "procedure")
         && program_catalog_name(value)
             .is_some_and(|name| catalog_name_belongs_to_database(&name, database)))
+        || (family == "maintenance-debt"
+            && serde_json::from_slice::<serde_json::Value>(value)
+                .ok()
+                .and_then(|record| record.get("collection")?.as_str().map(str::to_string))
+                .is_some_and(|name| catalog_name_belongs_to_database(&name, database)))
         || (is_database_scoped_catalog_family(family)
             && database_name_component(key)
                 .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes())))
@@ -79,22 +90,36 @@ fn is_database_scoped_catalog_family(family: &str) -> bool {
         "schema"
             | "row-schema"
             | "projection"
+            | "projection-event"
             | "vector-index"
             | "index"
+            | "index-publication"
             | "view"
             | "sequence"
             | "function"
             | "procedure"
             | "constraints"
+            | "unique-constraint-publication"
+            | "unique-constraint-cleanup"
+            | "schema-cleanup"
+            | "schema-operation"
+            | "field-add-operation"
+            | "field-rename-operation"
+            | "field-drop-operation"
             | "namespace"
             | "cardinality"
             | "collection-meta"
             | "rollup"
             | "retention"
-            | "collection-generation"
             | "maintenance-debt"
             | "graph"
     )
+}
+
+pub(crate) fn is_database_catalog_entry(key: &[u8]) -> bool {
+    key_family(key).is_some_and(|family| {
+        matches!(family, "collections" | "namespaces") || is_database_scoped_catalog_family(family)
+    })
 }
 
 pub(super) fn catalog_name_belongs_to_database(name: &str, database: &str) -> bool {
@@ -138,15 +163,37 @@ pub(super) fn rewrite_catalog_value(
     source: &str,
     target: &str,
 ) -> Result<Vec<u8>, CassieError> {
+    if matches!(family, "projection-event") {
+        return Ok(raw.to_vec());
+    }
     let mut value: serde_json::Value = serde_json::from_slice(raw).map_err(|error| {
         CassieError::Parse(format!("invalid database catalog image value: {error}"))
     })?;
     match family {
         "projection" => rewrite_projection(&mut value, source, target),
-        "vector-index" | "maintenance-debt" => {
+        "index-publication" => rewrite_index_publication(&mut value, source, target),
+        "index" => rewrite_fields(&mut value, &["collection", "name"], source, target),
+        "unique-constraint-publication" => {
+            rewrite_fields(&mut value, &["collection"], source, target);
+            if let Some(constraints) = value.get_mut("constraints") {
+                rewrite_constraints(constraints, source, target);
+            }
+            if let Some(fields) = value.get_mut("fields") {
+                rewrite_constraints(fields, source, target);
+            }
+        }
+        "vector-index"
+        | "maintenance-debt"
+        | "unique-constraint-cleanup"
+        | "field-add-operation"
+        | "field-rename-operation"
+        | "field-drop-operation" => {
             rewrite_fields(&mut value, &["collection"], source, target);
         }
-        "index" => rewrite_fields(&mut value, &["collection", "name"], source, target),
+        "schema-cleanup" => rewrite_schema_cleanup(&mut value, source, target),
+        "schema-operation" => {
+            rewrite_fields(&mut value, &["current_name", "next_name"], source, target);
+        }
         "view" | "sequence" | "function" | "procedure" | "namespace" | "collection-meta" => {
             rewrite_fields(&mut value, &["name"], source, target);
         }
@@ -174,13 +221,31 @@ pub(super) fn rewrite_catalog_value(
     serde_json::to_vec(&value).map_err(|error| CassieError::Parse(error.to_string()))
 }
 
+fn rewrite_index_publication(value: &mut serde_json::Value, source: &str, target: &str) {
+    if let Some(index) = value.get_mut("index") {
+        rewrite_fields(index, &["collection", "name"], source, target);
+    }
+    if let Some(vector_backfill) = value.get_mut("vector_backfill") {
+        if let Some(vector_index) = vector_backfill.get_mut("vector_index") {
+            rewrite_fields(vector_index, &["collection"], source, target);
+        }
+    }
+}
+
+fn rewrite_schema_cleanup(value: &mut serde_json::Value, source: &str, target: &str) {
+    let Some(actions) = value
+        .get_mut("action")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return;
+    };
+    for action in actions.values_mut() {
+        rewrite_fields(action, &["table", "view"], source, target);
+    }
+}
+
 fn rewrite_projection(value: &mut serde_json::Value, source: &str, target: &str) {
-    rewrite_fields(
-        value,
-        &["projection_id", "collection", "source_identity"],
-        source,
-        target,
-    );
+    rewrite_fields(value, &["projection_id", "collection"], source, target);
     let Some(object) = value.as_object_mut() else {
         return;
     };
@@ -289,7 +354,7 @@ fn rewrite_catalog_name(value: &str, source: &str, target: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::rewrite_catalog_value;
+    use super::{is_database_catalog_entry, rewrite_catalog_value, rewrite_key_component};
 
     fn rewrite(family: &str, value: &serde_json::Value) -> serde_json::Value {
         let raw = serde_json::to_vec(&value).expect("catalog value");
@@ -363,7 +428,7 @@ mod tests {
         let value = serde_json::json!({
             "projection_id": "analytics.public.summary",
             "collection": "analytics.public.summary",
-            "source_identity": "analytics.public.analytics",
+            "source_identity": "analytics.public.orders-stream",
             "source_generations": {"analytics.public.analytics": 4},
             "materialized": {
                 "name": "analytics.public.summary",
@@ -391,6 +456,10 @@ mod tests {
         assert_eq!(rewritten["projection_id"], "restored.public.summary");
         assert_eq!(rewritten["collection"], "restored.public.summary");
         assert_eq!(
+            rewritten["source_identity"],
+            "analytics.public.orders-stream"
+        );
+        assert_eq!(
             rewritten["source_generations"]["restored.public.analytics"],
             4
         );
@@ -406,5 +475,170 @@ mod tests {
         );
         assert_eq!(rewritten["integrity"]["last_error"], "analytics");
         assert_eq!(rewritten["last_error"], "analytics");
+    }
+
+    #[test]
+    fn should_rewrite_pending_index_publication_for_database_restore() {
+        // Arrange
+        let value = serde_json::json!({
+            "index": {
+                "collection": "analytics.public.items",
+                "name": "items_by_value"
+            },
+            "vector_backfill": {
+                "vector_index": {"collection": "analytics.public.items"}
+            }
+        });
+
+        // Act
+        let rewritten = rewrite("index-publication", &value);
+
+        // Assert
+        assert_eq!(rewritten["index"]["collection"], "restored.public.items");
+        assert_eq!(rewritten["index"]["name"], "items_by_value");
+        assert_eq!(
+            rewritten["vector_backfill"]["vector_index"]["collection"],
+            "restored.public.items"
+        );
+    }
+
+    #[test]
+    fn should_rewrite_pending_schema_cleanup_for_database_restore() {
+        // Arrange
+        let key = crate::midge::adapter::key_encoding::schema_cleanup_key(
+            "analytics.public.items",
+            "cleanup-1",
+        );
+        let value = serde_json::json!({
+            "cleanup_id": "cleanup-1",
+            "blocked_by_epoch": 18_446_744_073_709_551_615_u64,
+            "action": {
+                "DropTable": {
+                    "table": "analytics.public.items",
+                    "relation_id": 17
+                }
+            }
+        });
+        let raw = serde_json::to_vec(&value).expect("cleanup value");
+
+        // Act
+        let rewritten_key = rewrite_key_component(&key, "analytics", "restored");
+        let rewritten = rewrite_catalog_value("schema-cleanup", &raw, "analytics", "restored")
+            .expect("rewritten cleanup");
+        let rewritten: serde_json::Value =
+            serde_json::from_slice(&rewritten).expect("rewritten cleanup JSON");
+
+        // Assert
+        assert!(is_database_catalog_entry(&key));
+        assert!(super::catalog_entry_belongs_to_database(
+            &key,
+            &raw,
+            "analytics"
+        ));
+        assert_eq!(
+            super::key_components(&rewritten_key)
+                .nth(3)
+                .expect("database component"),
+            b"restored"
+        );
+        assert_eq!(
+            rewritten["action"]["DropTable"]["table"],
+            "restored.public.items"
+        );
+        assert_eq!(rewritten["action"]["DropTable"]["relation_id"], 17);
+    }
+
+    #[test]
+    fn should_rewrite_unique_publication_for_database_restore() {
+        // Arrange
+        let publication_key =
+            crate::midge::adapter::key_encoding::unique_constraint_publication_key(
+                "analytics.public.items",
+            );
+        let publication = serde_json::json!({
+            "collection": "analytics.public.items",
+            "constraints": [{
+                "default_sequence": "analytics.public.items_id_seq",
+                "references_table": "analytics.public.accounts"
+            }],
+            "fields": []
+        });
+        let publication_raw = serde_json::to_vec(&publication).expect("publication value");
+
+        // Act
+        let rewritten_publication = rewrite("unique-constraint-publication", &publication);
+        let rewritten_publication_key =
+            rewrite_key_component(&publication_key, "analytics", "restored");
+
+        // Assert
+        assert!(is_database_catalog_entry(&publication_key));
+        assert!(super::catalog_entry_belongs_to_database(
+            &publication_key,
+            &publication_raw,
+            "analytics"
+        ));
+        assert_eq!(
+            super::key_components(&rewritten_publication_key)
+                .nth(3)
+                .expect("database component"),
+            b"restored"
+        );
+        assert_eq!(rewritten_publication["collection"], "restored.public.items");
+        assert_eq!(
+            rewritten_publication["constraints"][0]["references_table"],
+            "restored.public.accounts"
+        );
+    }
+
+    #[test]
+    fn should_keep_unique_reservation_key_database_local_during_restore() {
+        // Arrange
+        let reservation = crate::midge::adapter::key_encoding::unique_constraint_reservation_key(
+            "analytics.public.items",
+            "email",
+            &serde_json::json!("person@example.com"),
+        )
+        .expect("reservation key");
+
+        // Act
+        let rewritten_reservation = rewrite_key_component(&reservation, "analytics", "restored");
+
+        // Assert
+        assert!(!is_database_catalog_entry(&reservation));
+        assert_eq!(rewritten_reservation, reservation);
+        assert_eq!(
+            super::key_components(&rewritten_reservation)
+                .nth(3)
+                .expect("database-local schema component"),
+            b"public"
+        );
+    }
+
+    #[test]
+    fn should_rewrite_maintenance_debt_for_database_restore() {
+        // Arrange
+        let key = crate::midge::adapter::key_encoding::maintenance_debt_key(
+            "analytics.public.items",
+            "projection",
+        );
+        let value = serde_json::json!({
+            "collection": "analytics.public.items",
+            "artifact": "projection"
+        });
+        let raw = serde_json::to_vec(&value).expect("maintenance value");
+
+        // Act
+        let rewritten_key = rewrite_key_component(&key, "analytics", "restored");
+        let rewritten = rewrite("maintenance-debt", &value);
+
+        // Assert
+        assert!(is_database_catalog_entry(&key));
+        assert!(super::catalog_entry_belongs_to_database(
+            &key,
+            &raw,
+            "analytics"
+        ));
+        assert_eq!(rewritten_key, key);
+        assert_eq!(rewritten["collection"], "restored.public.items");
     }
 }

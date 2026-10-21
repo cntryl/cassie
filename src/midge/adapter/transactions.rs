@@ -1,14 +1,33 @@
 use super::{
-    CassieError, ColumnFamilyHandle, FamilyScope, Midge, StorageFamily, TransactionMode,
-    DEFAULT_FAMILY_NAME,
+    collect_scan, CassieError, ColumnFamilyHandle, FamilyScope, Midge, Query, RawStorageEntry,
+    StorageFamily, TransactionMode, DEFAULT_FAMILY_NAME,
 };
 use crate::catalog::{
     canonical_relation_name, canonical_schema_name, is_system_schema, local_name, parse_name,
-    relation_database_name, ParsedName,
+    relation_database_name, schema_database_name, ParsedName,
 };
 use cntryl_midge::ConflictPolicy;
 
 impl Midge {
+    pub(super) fn database_names(&self) -> Vec<String> {
+        self.database_families.read().keys().cloned().collect()
+    }
+
+    pub(super) fn scan_database_families(
+        &self,
+        prefix: &[u8],
+    ) -> Result<Vec<RawStorageEntry>, CassieError> {
+        let mut entries = Vec::new();
+        for database in self.database_names() {
+            let tx = self.begin_database_readonly_tx(&database)?;
+            entries.extend(collect_scan(
+                tx.scan(&Query::new().prefix(prefix.to_vec().into()))
+                    .map_err(CassieError::from)?,
+            )?);
+        }
+        Ok(entries)
+    }
+
     pub(crate) fn canonical_collection_name(&self, collection: &str) -> String {
         match parse_name(collection) {
             Ok(ParsedName::Unqualified(name)) => canonical_relation_name(
@@ -77,8 +96,8 @@ impl Midge {
     }
 
     /// Open a transaction against exactly one logical database's physical
-    /// column family. Schema/catalog and temporary transactions remain separate
-    /// and cannot be combined with this transaction.
+    /// column family. Global cf0 and temporary transactions remain separate and
+    /// cannot be combined with this transaction.
     ///
     /// # Errors
     ///
@@ -139,6 +158,26 @@ impl Midge {
         let database =
             relation_database_name(&canonical).unwrap_or_else(|| self.default_database.clone());
         self.database_tx(&database, mode)
+    }
+
+    pub(super) fn database_tx_for_namespace(
+        &self,
+        namespace: &str,
+        mode: TransactionMode,
+    ) -> Result<cntryl_midge::Transaction, CassieError> {
+        let canonical = self.canonical_namespace_name(namespace);
+        let database =
+            schema_database_name(&canonical).unwrap_or_else(|| self.default_database.clone());
+        self.database_tx(&database, mode)
+    }
+
+    pub(super) fn begin_namespace_rw_tx(
+        &self,
+        namespace: &str,
+    ) -> Result<cntryl_midge::Transaction, CassieError> {
+        let mut tx = self.database_tx_for_namespace(namespace, TransactionMode::ReadWrite)?;
+        tx.set_conflict_policy(ConflictPolicy::AbortOnWriteConflict);
+        Ok(tx)
     }
 
     pub(super) fn flush_data_family_for_collection(

@@ -1,14 +1,15 @@
-use super::{key_encoding, CassieError, Midge, StorageFamily};
-use crate::catalog::name_matches;
+use super::{key_encoding, CassieError, Midge};
 
 impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_sequence(&self, metadata: &crate::catalog::SequenceMeta) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut metadata = metadata.clone();
+        metadata.name = self.canonical_collection_name(&metadata.name);
+        let mut tx = self.begin_data_rw_tx_for(&metadata.name)?;
         let value =
-            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key_encoding::sequence_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
@@ -23,15 +24,16 @@ impl Midge {
         &self,
         name: &str,
     ) -> Result<Option<crate::catalog::SequenceMeta>, CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
+        let canonical = self.canonical_collection_name(name);
+        let tx = self.begin_data_readonly_tx_for(&canonical)?;
         let raw = tx
-            .get(&key_encoding::sequence_key(name))
+            .get(&key_encoding::sequence_key(&canonical))
             .map_err(CassieError::from)?;
         let Some(raw) = raw else {
             return Ok(self
                 .list_sequences()?
                 .into_iter()
-                .find(|sequence| name_matches(&sequence.name, name)));
+                .find(|sequence| self.canonical_collection_name(&sequence.name) == canonical));
         };
         serde_json::from_slice(&raw)
             .map(Some)
@@ -42,8 +44,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_sequences(&self) -> Result<Vec<crate::catalog::SequenceMeta>, CassieError> {
-        let entries =
-            self.raw_scan_prefix(StorageFamily::Schema, &key_encoding::sequence_prefix())?;
+        let entries = self.scan_database_families(&key_encoding::sequence_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -61,10 +62,11 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_sequence(&self, name: &str) -> Result<(), CassieError> {
-        let stored_name = self
-            .get_sequence(name)?
-            .map_or_else(|| name.to_string(), |sequence| sequence.name);
-        let mut tx = self.begin_schema_rw_tx()?;
+        let stored_name = self.get_sequence(name)?.map_or_else(
+            || self.canonical_collection_name(name),
+            |sequence| sequence.name,
+        );
+        let mut tx = self.begin_data_rw_tx_for(&stored_name)?;
         tx.delete(key_encoding::sequence_key(&stored_name))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
@@ -106,7 +108,7 @@ impl Midge {
         }
     }
 
-    /// Applies `update` to the stored sequence in one schema transaction and
+    /// Applies `update` to the stored sequence in one database-family transaction and
     /// returns its result with the updated metadata.
     ///
     /// # Errors
@@ -124,7 +126,7 @@ impl Midge {
                 name: name.to_string(),
             })?
             .name;
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&stored_name)?;
         let raw = tx
             .get(&key_encoding::sequence_key(&stored_name))
             .map_err(CassieError::from)?

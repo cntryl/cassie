@@ -46,8 +46,8 @@ pub(super) use vector::{
     ivfflat_membership_prefix, ivfflat_source_summary_key,
 };
 
-pub(super) const LAYOUT_VERSION: &str = "cassie-midge-layout-v2";
-pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-layout-v2";
+pub(super) const LAYOUT_VERSION: &str = "cassie-midge-layout-v3";
+pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-layout-v3";
 
 const ROOT: &[u8] = b"cassie";
 const BASELINE: &[u8] = b"\x01";
@@ -448,8 +448,8 @@ pub(super) fn index_collection_prefix(collection: &str) -> Vec<u8> {
     scoped_prefix(FAMILY_INDEX, collection, &[])
 }
 
-pub(super) fn schema_cleanup_key(cleanup_id: &str) -> Vec<u8> {
-    key(FAMILY_SCHEMA_CLEANUP, &[cleanup_id.as_bytes()])
+pub(super) fn schema_cleanup_key(collection: &str, cleanup_id: &str) -> Vec<u8> {
+    scoped_key(FAMILY_SCHEMA_CLEANUP, collection, &[cleanup_id.as_bytes()])
 }
 
 pub(super) fn schema_cleanup_prefix() -> Vec<u8> {
@@ -861,8 +861,8 @@ fn scoped_components(raw: &str) -> Vec<String> {
 }
 
 /// Convert a canonical `database.schema.relation` name to the local key scope
-/// used inside that database's physical family. Schema/catalog keys continue to
-/// use `scoped_components` so the global catalog remains database-qualified.
+/// used inside that database's physical family. Catalog keys continue to use
+/// `scoped_components` so they remain database-qualified within the family.
 fn data_scoped_components(raw: &str) -> Vec<String> {
     let components = scoped_components(raw);
     if components.len() >= 3 {

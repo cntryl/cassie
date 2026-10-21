@@ -5,8 +5,8 @@ use crate::app::CassieError;
 
 pub(crate) const SCHEMA_FAMILY_NAME: &str = "cf0";
 pub(crate) const TEMP_FAMILY_NAME: &str = "cf1";
-/// Compatibility label only. V5 has no shared data family; `StorageFamily::Data`
-/// resolves to the configured default database family at transaction time.
+/// Compatibility label only. `StorageFamily::Data` resolves to the configured
+/// default database family at transaction time.
 pub(crate) const DATA_FAMILY_NAME: &str = "database";
 pub(crate) const DEFAULT_FAMILY_NAME: &str = "default";
 

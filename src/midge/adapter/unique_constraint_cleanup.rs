@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     check_unique_constraint_cleanup_failure_point, key_encoding, CassieError, FieldConstraint,
-    Midge, Query,
+    Midge,
 };
 
 const UNIQUE_RESERVATION_CLEANUP_BATCH_SIZE: usize = 5_000;
@@ -41,7 +41,7 @@ impl Midge {
                 collection: collection.clone(),
                 fields,
             };
-            let mut tx = self.begin_schema_rw_tx()?;
+            let mut tx = self.begin_data_rw_tx_for(&collection)?;
             tx.put(
                 Self::constraints_key(&collection),
                 serde_json::to_vec(constraints)
@@ -69,11 +69,8 @@ impl Midge {
     ///
     /// Returns an error when a pending cleanup is invalid or cannot be completed.
     pub fn replay_pending_unique_constraint_cleanups(&self) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
-        let entries = super::collect_scan(
-            tx.scan(&Query::new().prefix(key_encoding::unique_constraint_cleanup_prefix().into()))
-                .map_err(CassieError::from)?,
-        )?;
+        let entries =
+            self.scan_database_families(&key_encoding::unique_constraint_cleanup_prefix())?;
         let mut cleanups = entries
             .into_iter()
             .map(|(_, raw)| {
@@ -119,7 +116,7 @@ impl Midge {
             }
         }
 
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&cleanup.collection)?;
         tx.delete(key_encoding::unique_constraint_cleanup_key(
             &cleanup.collection,
         ))

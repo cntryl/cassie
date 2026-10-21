@@ -120,7 +120,7 @@ impl Midge {
         name: &str,
     ) -> Result<Option<IndexMeta>, CassieError> {
         let collection = self.canonical_collection_name(collection);
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let raw = tx
             .get(&Self::index_key(&collection, name))
             .map_err(CassieError::from)?;
@@ -150,7 +150,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_indexes(&self) -> Result<Vec<IndexMeta>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::index_prefix())?;
+        let entries = self.scan_database_families(&Self::index_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
 
         for (_key, raw_value) in entries {
@@ -205,7 +205,7 @@ impl Midge {
             }
             check_index_drop_failure_point()?;
         }
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&stored_collection)?;
         tx.delete(Self::index_key(&stored_collection, &stored_name))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
@@ -224,9 +224,13 @@ impl Midge {
         {
             crate::sql::definition_guard::expression_sql(expr)?;
         }
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut metadata = metadata.clone();
+        metadata.name = self.canonical_collection_name(&metadata.name);
+        metadata.source_collection = self.canonical_collection_name(&metadata.source_collection);
+        metadata.output_collection = self.canonical_collection_name(&metadata.output_collection);
+        let mut tx = self.begin_data_rw_tx_for(&metadata.source_collection)?;
         let value =
-            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::rollup_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
@@ -238,7 +242,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_rollups(&self) -> Result<Vec<RollupMeta>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::rollup_prefix())?;
+        let entries = self.scan_database_families(&Self::rollup_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -253,8 +257,17 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_rollup(&self, name: &str) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::rollup_key(name))
+        let canonical = self.canonical_collection_name(name);
+        let existing = self
+            .list_rollups()?
+            .into_iter()
+            .find(|rollup| self.canonical_collection_name(&rollup.name) == canonical);
+        let (stored_name, source) = existing.map_or_else(
+            || (canonical.clone(), canonical.clone()),
+            |rollup| (rollup.name, rollup.source_collection),
+        );
+        let mut tx = self.begin_data_rw_tx_for(&source)?;
+        tx.delete(Self::rollup_key(&stored_name))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -265,9 +278,12 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_retention_policy(&self, metadata: &RetentionPolicyMeta) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut metadata = metadata.clone();
+        metadata.name = self.canonical_collection_name(&metadata.name);
+        metadata.collection = self.canonical_collection_name(&metadata.collection);
+        let mut tx = self.begin_data_rw_tx_for(&metadata.collection)?;
         let value =
-            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::retention_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
@@ -279,7 +295,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_retention_policies(&self) -> Result<Vec<RetentionPolicyMeta>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::retention_prefix())?;
+        let entries = self.scan_database_families(&Self::retention_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -294,8 +310,17 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_retention_policy(&self, name: &str) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::retention_key(name))
+        let canonical = self.canonical_collection_name(name);
+        let existing = self
+            .list_retention_policies()?
+            .into_iter()
+            .find(|policy| self.canonical_collection_name(&policy.name) == canonical);
+        let (stored_name, collection) = existing.map_or_else(
+            || (canonical.clone(), canonical.clone()),
+            |policy| (policy.name, policy.collection),
+        );
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
+        tx.delete(Self::retention_key(&stored_name))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -307,7 +332,10 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_graph(&self, metadata: &crate::catalog::GraphMeta) -> Result<(), CassieError> {
         let mut metadata = metadata.clone();
-        let canonical_name = self.canonical_collection_name(&metadata.name);
+        metadata.name = self.canonical_collection_name(&metadata.name);
+        metadata.node_collection = self.canonical_collection_name(&metadata.node_collection);
+        metadata.edge_collection = self.canonical_collection_name(&metadata.edge_collection);
+        let canonical_name = metadata.name.clone();
         metadata.storage_id = if let Some(existing) =
             self.list_graphs()?.into_iter().find(|graph| {
                 self.canonical_collection_name(&graph.name)
@@ -324,7 +352,7 @@ impl Midge {
                 .map_err(CassieError::from)?;
             id
         };
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&metadata.edge_collection)?;
         let value =
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::graph_key(&metadata.name), value, None)
@@ -338,7 +366,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_graphs(&self) -> Result<Vec<crate::catalog::GraphMeta>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::graph_prefix())?;
+        let entries = self.scan_database_families(&Self::graph_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -353,8 +381,17 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_graph(&self, name: &str) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::graph_key(name))
+        let canonical = self.canonical_collection_name(name);
+        let existing = self.list_graphs()?.into_iter().find(|graph| {
+            self.canonical_collection_name(&graph.name)
+                .eq_ignore_ascii_case(&canonical)
+        });
+        let (stored_name, edge_collection) = existing.map_or_else(
+            || (canonical.clone(), canonical.clone()),
+            |graph| (graph.name, graph.edge_collection),
+        );
+        let mut tx = self.begin_data_rw_tx_for(&edge_collection)?;
+        tx.delete(Self::graph_key(&stored_name))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -366,7 +403,7 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_vector_index(&self, collection: &str, field: &str) -> Result<(), CassieError> {
         let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.delete(Self::vector_index_key(collection, field))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
@@ -500,7 +537,7 @@ impl Midge {
     ) -> Result<(), CassieError> {
         crate::sql::definition_guard::constraints(constraints)?;
         let collection = self.canonical_collection_name(collection);
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
         let value = serde_json::to_vec(constraints)
             .map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::constraints_key(&collection), value, None)
@@ -515,7 +552,7 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn load_constraints(&self, collection: &str) -> Result<Vec<FieldConstraint>, CassieError> {
         let collection = self.canonical_collection_name(collection);
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let raw = tx
             .get(&Self::constraints_key(&collection))
             .map_err(CassieError::from)?;
@@ -535,7 +572,7 @@ impl Midge {
         collection: &str,
     ) -> Result<Option<CollectionCardinalityStats>, CassieError> {
         let collection = self.canonical_collection_name(collection);
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let stats = Self::load_cardinality_stats_from_tx(&tx, &collection)?;
         let generation = self.collection_generation(&collection)?;
         if stats
@@ -553,7 +590,7 @@ impl Midge {
     pub fn list_cardinality_stats(
         &self,
     ) -> Result<std::collections::HashMap<String, CollectionCardinalityStats>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::cardinality_prefix())?;
+        let entries = self.scan_database_families(&Self::cardinality_prefix())?;
         let prefix = Self::cardinality_prefix();
         let mut out = std::collections::HashMap::new();
         for (key, raw_value) in entries {
@@ -578,7 +615,7 @@ impl Midge {
         let collection = self.canonical_collection_name(collection);
         let mut stats = stats.clone();
         stats.built_generation = self.collection_generation(&collection)?;
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
         Self::save_cardinality_stats_to_tx(&mut tx, &collection, &stats)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -590,7 +627,7 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_cardinality_stats(&self, collection: &str) -> Result<(), CassieError> {
         let collection = self.canonical_collection_name(collection);
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
         tx.delete(Self::cardinality_key(&collection))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
@@ -660,10 +697,12 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_function(&self, metadata: &crate::catalog::FunctionMeta) -> Result<(), CassieError> {
         crate::sql::definition_guard::expression_sql(&metadata.body)?;
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut metadata = metadata.clone();
+        metadata.name = self.canonical_collection_name(&metadata.name);
+        let mut tx = self.begin_data_rw_tx_for(&metadata.name)?;
         let key = Self::function_key(&metadata.name);
         let value =
-            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -677,9 +716,10 @@ impl Midge {
         &self,
         name: &str,
     ) -> Result<Option<crate::catalog::FunctionMeta>, CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
+        let canonical = self.canonical_collection_name(name);
+        let tx = self.begin_data_readonly_tx_for(&canonical)?;
         let raw = tx
-            .get(&Self::function_key(name))
+            .get(&Self::function_key(&canonical))
             .map_err(CassieError::from)?;
         let Some(raw) = raw else {
             return Ok(None);
@@ -694,7 +734,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_functions(&self) -> Result<Vec<crate::catalog::FunctionMeta>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::function_prefix())?;
+        let entries = self.scan_database_families(&Self::function_prefix())?;
         let mut out: Vec<crate::catalog::FunctionMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -710,8 +750,9 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_function(&self, name: &str) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::function_key(name))
+        let canonical = self.canonical_collection_name(name);
+        let mut tx = self.begin_data_rw_tx_for(&canonical)?;
+        tx.delete(Self::function_key(&canonical))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -726,10 +767,12 @@ impl Midge {
         metadata: &crate::catalog::ProcedureMeta,
     ) -> Result<(), CassieError> {
         crate::sql::definition_guard::query_sql(&metadata.body)?;
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut metadata = metadata.clone();
+        metadata.name = self.canonical_collection_name(&metadata.name);
+        let mut tx = self.begin_data_rw_tx_for(&metadata.name)?;
         let key = Self::procedure_key(&metadata.name);
         let value =
-            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -743,9 +786,10 @@ impl Midge {
         &self,
         name: &str,
     ) -> Result<Option<crate::catalog::ProcedureMeta>, CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
+        let canonical = self.canonical_collection_name(name);
+        let tx = self.begin_data_readonly_tx_for(&canonical)?;
         let raw = tx
-            .get(&Self::procedure_key(name))
+            .get(&Self::procedure_key(&canonical))
             .map_err(CassieError::from)?;
         let Some(raw) = raw else {
             return Ok(None);
@@ -760,7 +804,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_procedures(&self) -> Result<Vec<crate::catalog::ProcedureMeta>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::procedure_prefix())?;
+        let entries = self.scan_database_families(&Self::procedure_prefix())?;
         let mut out: Vec<crate::catalog::ProcedureMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -776,8 +820,9 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_procedure(&self, name: &str) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::procedure_key(name))
+        let canonical = self.canonical_collection_name(name);
+        let mut tx = self.begin_data_rw_tx_for(&canonical)?;
+        tx.delete(Self::procedure_key(&canonical))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -789,10 +834,12 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_view(&self, metadata: &crate::catalog::ViewMeta) -> Result<(), CassieError> {
         crate::sql::definition_guard::query_sql(&metadata.query)?;
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut metadata = metadata.clone();
+        metadata.name = self.canonical_collection_name(&metadata.name);
+        let mut tx = self.begin_data_rw_tx_for(&metadata.name)?;
         let key = Self::view_key(&metadata.name);
         let value =
-            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -803,8 +850,11 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn get_view(&self, name: &str) -> Result<Option<crate::catalog::ViewMeta>, CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
-        let raw = tx.get(&Self::view_key(name)).map_err(CassieError::from)?;
+        let canonical = self.canonical_collection_name(name);
+        let tx = self.begin_data_readonly_tx_for(&canonical)?;
+        let raw = tx
+            .get(&Self::view_key(&canonical))
+            .map_err(CassieError::from)?;
         let Some(raw) = raw else {
             return Ok(None);
         };
@@ -818,7 +868,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_views(&self) -> Result<Vec<crate::catalog::ViewMeta>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::view_prefix())?;
+        let entries = self.scan_database_families(&Self::view_prefix())?;
         let mut out: Vec<crate::catalog::ViewMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -834,8 +884,10 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_view(&self, name: &str) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::view_key(name)).map_err(CassieError::from)?;
+        let canonical = self.canonical_collection_name(name);
+        let mut tx = self.begin_data_rw_tx_for(&canonical)?;
+        tx.delete(Self::view_key(&canonical))
+            .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
@@ -899,7 +951,9 @@ impl Midge {
 
     pub fn collection_schema(&self, name: &str) -> Option<Schema> {
         let name = self.canonical_collection_name(name);
-        let tx = self.begin_schema_readonly_tx().ok()?;
+        let tx = self
+            .database_tx_for_collection(&name, super::TransactionMode::ReadOnly)
+            .ok()?;
         if let Ok(Some(row_schema)) = Self::load_row_schema_from_tx(&tx, &name) {
             return Some(row_schema.active_schema());
         }
@@ -915,7 +969,7 @@ impl Midge {
         collection: &str,
     ) -> Result<Option<ProjectionMeta>, CassieError> {
         let canonical = self.canonical_collection_name(collection);
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.database_tx_for_collection(&canonical, super::TransactionMode::ReadOnly)?;
         let Some(mut metadata) = Self::load_projection_metadata_from_tx(&tx, &canonical)? else {
             return Ok(None);
         };
@@ -926,33 +980,27 @@ impl Midge {
     }
 
     pub fn list_collections(&self) -> Vec<String> {
-        let Ok(tx) = self.begin_schema_readonly_tx() else {
-            return Vec::new();
-        };
-
-        Self::load_collections(&tx).map_or_else(
-            |_| Vec::new(),
-            |mut values| {
-                values.sort();
-                values
-            },
-        )
+        let mut collections = Vec::new();
+        for database in self.database_names() {
+            let Ok(tx) = self.begin_database_readonly_tx(&database) else {
+                return Vec::new();
+            };
+            let Ok(mut values) = Self::load_collections(&tx) else {
+                return Vec::new();
+            };
+            collections.append(&mut values);
+        }
+        collections.sort();
+        collections.dedup();
+        collections
     }
 
     pub fn list_collections_from_schema(&self) -> Vec<String> {
-        let Ok(tx) = self.begin_schema_readonly_tx() else {
-            return Vec::new();
-        };
-        let Ok(scan) = tx
-            .scan(&Query::new().prefix(Self::schema_collection_prefix().into()))
-            .map_err(CassieError::from)
-            .and_then(collect_scan)
-        else {
-            return Vec::new();
-        };
-
         let mut collections = Vec::new();
         let prefix = Self::schema_collection_prefix();
+        let Ok(scan) = self.scan_database_families(&prefix) else {
+            return Vec::new();
+        };
         for (raw_key, _raw_value) in scan {
             if let Some(name) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) {
                 collections.push(name);

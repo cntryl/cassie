@@ -1,9 +1,8 @@
 use super::schema_write_control::{pause_before_schema_write_commit, SchemaWritePausePoint};
 use super::{
     check_projection_metadata_persistence_failure_point,
-    check_projection_replay_post_commit_failure_point,
-    check_projection_replay_schema_commit_failure_point, CassieError, Midge, ProjectionMeta,
-    StorageFamily,
+    check_projection_replay_metadata_commit_failure_point,
+    check_projection_replay_post_commit_failure_point, CassieError, Midge, ProjectionMeta,
 };
 
 impl Midge {
@@ -16,7 +15,7 @@ impl Midge {
         }
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&metadata.collection)?;
         Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
         check_projection_metadata_persistence_failure_point()?;
         tx.commit(self.write_options_sync())
@@ -28,7 +27,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_projection_metadata(&self) -> Result<Vec<ProjectionMeta>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::projection_prefix())?;
+        let entries = self.scan_database_families(&Self::projection_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -45,7 +44,7 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_projection_metadata(&self, collection: &str) -> Result<(), CassieError> {
         let collection = self.canonical_collection_name(collection);
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
         tx.delete(Self::projection_key(&collection))
             .map_err(CassieError::from)?;
         Self::delete_keys_with_prefix(&mut tx, Self::projection_event_prefix(&collection))?;
@@ -64,7 +63,7 @@ impl Midge {
         event_id: &str,
     ) -> Result<bool, CassieError> {
         let projection = self.canonical_collection_name(projection);
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&projection)?;
         tx.get(&Self::projection_event_key(
             &projection,
             source_identity,
@@ -84,7 +83,7 @@ impl Midge {
         event_ids: &[&str],
     ) -> Result<Vec<bool>, CassieError> {
         let projection = self.canonical_collection_name(projection);
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&projection)?;
         let mut out = Vec::with_capacity(event_ids.len());
         for event_id in event_ids {
             let seen = tx
@@ -130,7 +129,7 @@ impl Midge {
         replay_batch_id: &str,
     ) -> Result<(), CassieError> {
         let projection = self.canonical_collection_name(projection);
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&projection)?;
         for event_id in event_ids {
             tx.put(
                 Self::projection_event_key(&projection, source_identity, event_id),
@@ -144,8 +143,7 @@ impl Midge {
         Ok(())
     }
 
-    /// Records replay idempotency keys and their checkpoint in one
-    /// Schema-family transaction. Projection rows remain in the Data family.
+    /// Records replay idempotency keys and their checkpoint in one database-family transaction.
     ///
     /// # Errors
     ///
@@ -162,7 +160,7 @@ impl Midge {
         }
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&metadata.collection)?;
         for event_id in event_ids {
             tx.put(
                 Self::projection_event_key(&metadata.collection, source_identity, event_id),
@@ -173,8 +171,8 @@ impl Midge {
         }
         Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
         check_projection_metadata_persistence_failure_point()?;
-        check_projection_replay_schema_commit_failure_point()?;
-        pause_before_schema_write_commit(SchemaWritePausePoint::ProjectionReplay);
+        check_projection_replay_metadata_commit_failure_point()?;
+        pause_before_schema_write_commit(SchemaWritePausePoint::ProjectionReplayMetadataCommit);
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         check_projection_replay_post_commit_failure_point()?;

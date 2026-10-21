@@ -3,14 +3,17 @@
 This record defines the finite single-node Cassie obligations selected by
 [#771](https://github.com/cntryl/cassie/issues/771), after prerequisite #751.
 The qualification baseline is `3b03dd4db34ac88f533501d0484ecdc3cf223a2e`.
-The existing layout, image version, journals and direct Midge API remain authoritative.
+The current Cassie layout marker is `cassie-midge-layout-v3`; each database's
+catalog records now share its row family. This unreleased layout does not need
+an in-place migration. Image framing, journals and the direct Midge API remain
+authoritative at their documented boundaries.
 Named witnesses qualify their exercised boundaries, rather than every possible
 interleaving or deployment profile. Full ordered validation and exact-head hosted
 checks remain publication requirements.
 
 | Obligation | Qualification owner and finite disposition |
 | --- | --- |
-| STO-01 | `midge_baseline_database_families` and catalog duplicate-name restart witnesses exercise stable opaque owners; `transactions.rs` rejects cross-family/schema-data transactions. |
+| STO-01 | `midge_baseline_database_families` and catalog duplicate-name restart witnesses exercise stable opaque owners; each database's rows and catalog share its family, while `transactions.rs` keeps transactions within one physical family. |
 | STO-02 | `midge_layout_bootstrap` plus `layout_marker_admission` reject old, corrupt and missing markers before bootstrap mutation. Initialized empty and populated storage retain exact family contents on rejection, including absent `cf1`. Only empty default/fixed `cf0`/`cf1` inventories qualify as unpublished initialization; unknown or opaque families, even empty, do not. |
 | STO-03 | `schema_operation_recovery` and `index_publication_recovery` exercise journal replay, rejected intent and interrupted publication; recovery preserves newer owners rather than silently resetting storage. |
 | STO-04 | `column_name_reuse_resolution` exercises rename/drop/re-add field identities and declared carriers; schema recovery witnesses cover interrupted field maintenance. |
@@ -56,7 +59,8 @@ but no fabricated runtime fault-injection proof is claimed.
 Cassie selects the published `cntryl-midge` 0.4.1 release for fresh stores.
 Midge requires database FORMAT 8, SST V4, cloud WAL catalog v3 and cloud lease
 metadata v3. Stores created with the former 0.3.2 dependency are not compatible;
-there is no in-place upgrade. Cassie's own logical layout marker is unchanged.
+there is no in-place upgrade. As of this 2026-10-17 snapshot, Cassie's own
+logical layout marker was unchanged.
 
 For a fresh deployment, select a new empty `CASSIE_STORAGE_PATH` (or a fresh
 cloud prefix) and retain the old store separately. Do not delete the old store

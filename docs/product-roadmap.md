@@ -28,11 +28,12 @@ library loading or a PostgreSQL extension ABI promise.
 Every issue and test must serve one of these five product areas:
 
 1. **Projection writes**: idempotent `INSERT ... ON CONFLICT`, `UPDATE` and
-   `DELETE`; each replay event batch writes rows in one Data-family commit,
-   then commits its duplicate ledger and checkpoint together in one
-   Schema-family transaction. Rows may become visible before that checkpoint
-   transaction; retrying the same deterministic batch must safely reconcile
-   the gap. Cassie does not use a cross-family transaction. `COPY` and
+   `DELETE`; each replay event batch writes rows in one transaction in the
+   owning database family, then commits its duplicate ledger and checkpoint
+   together in a second transaction in that same family. Rows may become
+   visible before that checkpoint transaction; retrying the same deterministic
+   batch must safely reconcile the gap. Current replay does not combine the
+   writes into one transaction. Cassie does not use cross-database transactions. `COPY` and
    `TRUNCATE` support rebuilds. There is no separate checkpoint or rebuild API.
 2. **Read-model lifecycle**: create, alter and drop tables, indexes, views and
    materialized views; rebuild into a staging table and rename-swap; restart
@@ -77,7 +78,7 @@ explicitly when a gate slips.
 
 | Target date | Gate | Exit condition | Status |
 | --- | --- | --- | --- |
-| 2026-10-23 | Replay contract | Prove that the Data-family row batch can commit before the Schema-family ledger/checkpoint transaction, that the latter pair commits atomically, and that same-batch retry handles both an aborted Schema commit and an error response after a successful Schema commit without losing or double-applying projection state. | Complete locally on 2026-10-20; see [focused evidence](testing/validation.md). Hosted evidence remains blocked while Actions are disabled. |
+| 2026-10-23 | Replay contract | Prove that the owning database-family row batch can commit before the replay-state transaction, that ledger and checkpoint commit together, and that same-batch retry handles both an aborted replay-state commit and an error response after a successful replay-state commit without losing or double-applying projection state. | Complete locally on 2026-10-20; see [focused evidence](testing/validation.md). Hosted evidence remains blocked while Actions are disabled. |
 | 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Open; [read-only issue map](v0.3-scope-map.md) covers all 30 members. GitHub assignments remain unchanged. |
 
 The replay recovery proof is complete locally; this does not establish a hosted
@@ -93,7 +94,7 @@ issue was changed for that map.
 
 | Milestone | Target date | Ships |
 | --- | --- | --- |
-| [v0.3 Projection store](https://github.com/cntryl/cassie/milestone/7) | 2026-12-11 | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract. Projection rows commit in the Data family; the event duplicate ledger and checkpoint commit together in the Schema family. Replay retries reconcile a committed row batch when the Schema-family commit did not complete. The release also covers schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. It excludes cross-family transactions and full PostgreSQL parity. |
+| [v0.3 Projection store](https://github.com/cntryl/cassie/milestone/7) | 2026-12-11 | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract. Projection rows, duplicate ledger, and checkpoint use the owning database family; today the row batch and replay-state metadata still commit in separate transactions, and replay retries reconcile a committed row batch when the replay-state commit did not complete. The release also covers schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. It excludes cross-database transactions and full PostgreSQL parity. |
 | [v0.4 Query and retrieval](https://github.com/cntryl/cassie/milestone/8) | 2027-04-09 | The documented read-side contract for read-model workloads: selected relational SQL, type and function families, bounded extension compatibility in #843, plus full-text, vector and hybrid retrieval. Each capability is bounded by Feature Support and its live issue criteria; “complete SELECT” means the documented Cassie profile, not PostgreSQL-wide syntax or semantics. |
 | [v1.0 Production release](https://github.com/cntryl/cassie/milestone/9) | 2027-08-27 | Production qualification of the projection store and documented query surface: representative single-node resource and concurrency evidence, cross-path invariants, restart/recovery and rebuild, operational thresholds and one release ledger. Qualification does not expand product scope. |
 

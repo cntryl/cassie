@@ -726,7 +726,7 @@ fn should_fail_closed_on_unknown_vector_publication_version() {
     interrupt_before_backfill(&cassie);
     let (key, mut record) = super::vector_publication_support::pending_record(&cassie);
     record["vector_backfill"]["version"] = serde_json::json!(99);
-    super::vector_publication_support::write_schema_record(&cassie, key, Some(&record));
+    super::vector_publication_support::write_database_record(&cassie, key, Some(&record));
     drop(cassie);
 
     // Act
@@ -758,7 +758,7 @@ fn should_fail_closed_on_missing_vector_backfill_staging_row() {
     );
     interrupt_before_backfill(&cassie);
     let (key, _) = super::vector_publication_support::staged_record(&cassie);
-    super::vector_publication_support::write_schema_record(&cassie, key, None);
+    super::vector_publication_support::write_database_record(&cassie, key, None);
 
     // Act
     let result = cassie.midge.replay_pending_index_publications();
@@ -792,7 +792,7 @@ fn should_fail_closed_on_changed_vector_backfill_staging_digest() {
     interrupt_before_backfill(&cassie);
     let (key, mut record) = super::vector_publication_support::staged_record(&cassie);
     record["payload"]["body"] = serde_json::json!("corrupted");
-    super::vector_publication_support::write_schema_record(&cassie, key, Some(&record));
+    super::vector_publication_support::write_database_record(&cassie, key, Some(&record));
 
     // Act
     let result = cassie.midge.replay_pending_index_publications();

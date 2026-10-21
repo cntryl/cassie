@@ -1,7 +1,7 @@
 use super::{
     check_document_write_failure_point, collect_scan, normalize_vector, CassieError,
-    DocumentWriteFailurePoint, Midge, NormalizedVectorRecord, Query, StorageFamily,
-    VectorIndexRecord, VectorIndexState,
+    DocumentWriteFailurePoint, Midge, NormalizedVectorRecord, Query, VectorIndexRecord,
+    VectorIndexState,
 };
 #[path = "vector_indexes/build.rs"]
 mod build;
@@ -503,7 +503,7 @@ impl Midge {
         &self,
         metadata: &crate::embeddings::VectorIndexRecord,
     ) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&metadata.collection)?;
         let key = Self::vector_index_key(&metadata.collection, &metadata.field);
 
         let value =
@@ -524,7 +524,7 @@ impl Midge {
     ) -> Result<Option<crate::embeddings::VectorIndexRecord>, CassieError> {
         let requested_collection = collection.to_string();
         let collection = self.canonical_collection_name(collection);
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
 
         let raw = tx
             .get(&Self::vector_index_key(&collection, field))
@@ -570,7 +570,7 @@ impl Midge {
     pub(super) fn list_vector_index_definitions_canonical(
         &self,
     ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::vector_index_prefix())?;
+        let entries = self.scan_database_families(&Self::vector_index_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
 
         for (_key, raw_value) in entries {

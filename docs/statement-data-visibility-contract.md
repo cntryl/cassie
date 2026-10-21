@@ -36,14 +36,16 @@ chunks, specialized retrieval, and their scalar or row fallbacks. A fallback
 must not silently open a newer Data view. Existing ordering, equality,
 visibility, authorization and descriptor laws remain authoritative.
 
-The view covers exactly one logical database's Data physical family.
-Schema/catalog and Temp visibility remain separate. Cross-database
-synchronization, transaction-wide repeatable snapshots, REPEATABLE READ,
-SERIALIZABLE and transactional DDL are not selected. Ordinary bound SQL relations in another database remain rejected by the
+The view covers exactly one logical database's physical family. That family
+also stores its database-scoped catalog records, but this contract does not add
+catalog MVCC or transactional DDL. Global `cf0` records and Temp visibility
+remain separate. Cross-database synchronization, transaction-wide repeatable
+snapshots, REPEATABLE READ, SERIALIZABLE and transactional DDL are not selected.
+Ordinary bound SQL relations in another database remain rejected by the
 existing binder boundary. Internal adapter or direct-plan foreign-family reads
 retain fresh reads outside this same-database guarantee.
-Midge remains the only storage layer; no persistent layout, dependency
-upgrade or public API change is selected.
+Midge remains the only storage layer. This visibility contract selects no
+dependency upgrade or public API change.
 
 ## Mutation and commit authority
 

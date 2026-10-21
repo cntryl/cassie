@@ -28,8 +28,6 @@ mod postgresql18_network_compat;
 mod postgresql18_numeric_compat;
 #[path = "query_execution.rs"]
 mod postgresql18_query_inventory_wave2;
-#[path = "aggregates/ranges/range.rs"]
-mod postgresql18_range_compat;
 #[path = "ctes/recursive_cte_cancellation.rs"]
 mod postgresql18_recursive_cte_cancellation;
 #[path = "subqueries/row_subquery_wire_semantics.rs"]

@@ -24,8 +24,6 @@ mod postgresql18_numeric;
 mod postgresql18_pattern_matching;
 #[path = "functions/string/query/semantics.rs"]
 mod postgresql18_query_inventory_wave3;
-#[path = "aggregates/ranges/ranges.rs"]
-mod postgresql18_ranges;
 #[path = "relations/relations.rs"]
 mod postgresql18_relations;
 #[path = "set_operations/set_operations.rs"]

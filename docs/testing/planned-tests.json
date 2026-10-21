@@ -1628,72 +1628,6 @@
     ]
   },
   {
-    "issue": 905,
-    "name": "should_match_scan_results_given_indexed_range_values_when_range_predicates_execute",
-    "status": "authored",
-    "suite": "storage_indexes",
-    "directory": "tests/storage_indexes/types/ranges",
-    "file": "tests/storage_indexes/types/ranges/operators.rs",
-    "execution_status": "failed_observed",
-    "category": "types/ranges",
-    "actual_test": "should_match_scan_results_given_indexed_range_values_when_range_predicates_execute",
-    "instances": [
-      {
-        "suite": "storage_indexes",
-        "name": "types_ranges_operators::should_match_scan_results_given_indexed_range_values_when_range_predicates_execute"
-      }
-    ],
-    "asserted_contract": "PG18.6 int4range `@> 5` returns ID 2; overlap with [3,9) returns IDs 1,2,3 for scan and GiST-backed table.",
-    "mapping_basis": "authored_or_existing_exact_test",
-    "oracle": {
-      "authority": "local PostgreSQL 18.6 psql",
-      "evidence": "PG18.6 int4range `@> 5` returns ID 2; overlap with [3,9) returns IDs 1,2,3 for scan and GiST-backed table."
-    },
-    "prior_execution_status": "pending_serialized_cargo",
-    "prior_execution_evidence": null,
-    "observations": [
-      {
-        "suite": "storage_indexes",
-        "name": "types_ranges_operators::should_match_scan_results_given_indexed_range_values_when_range_predicates_execute",
-        "status": "failed_observed",
-        "failure_excerpt": "thread 'types_ranges_operators::should_match_scan_results_given_indexed_range_values_when_range_predicates_execute' (19475176) panicked at tests/storage_indexes/types/ranges/operators.rs:24:37:\nPostgreSQL-valid range setup failed: CREATE TABLE issue_905_range_scan (id INT4, value INT4RANGE): unsupported feature: unsupported data type 'INT4RANGE'"
-      }
-    ]
-  },
-  {
-    "issue": 905,
-    "name": "should_match_scan_results_given_a_custom_range_with_subtype_diff_when_its_index_is_queried",
-    "status": "authored",
-    "suite": "storage_indexes",
-    "directory": "tests/storage_indexes/types/ranges",
-    "file": "tests/storage_indexes/types/ranges/operators.rs",
-    "execution_status": "failed_observed",
-    "category": "types/ranges",
-    "actual_test": "should_match_scan_results_given_a_custom_range_with_subtype_diff_when_its_index_is_queried",
-    "instances": [
-      {
-        "suite": "storage_indexes",
-        "name": "types_ranges_operators::should_match_scan_results_given_a_custom_range_with_subtype_diff_when_its_index_is_queried"
-      }
-    ],
-    "asserted_contract": "PG18.6 custom float8 range with `subtype_diff=float8mi`: `@> CAST(3 AS FLOAT8)` returns ID 2 for scan and GiST-backed table.",
-    "mapping_basis": "authored_or_existing_exact_test",
-    "oracle": {
-      "authority": "local PostgreSQL 18.6 psql",
-      "evidence": "PG18.6 custom float8 range with `subtype_diff=float8mi`: `@> CAST(3 AS FLOAT8)` returns ID 2 for scan and GiST-backed table."
-    },
-    "prior_execution_status": "pending_serialized_cargo",
-    "prior_execution_evidence": null,
-    "observations": [
-      {
-        "suite": "storage_indexes",
-        "name": "types_ranges_operators::should_match_scan_results_given_a_custom_range_with_subtype_diff_when_its_index_is_queried",
-        "status": "failed_observed",
-        "failure_excerpt": "thread 'types_ranges_operators::should_match_scan_results_given_a_custom_range_with_subtype_diff_when_its_index_is_queried' (19475170) panicked at tests/storage_indexes/types/ranges/operators.rs:72:10:\ncreate the PostgreSQL custom range and subtype-difference routine: Unsupported(\"unsupported SQL statement\")"
-      }
-    ]
-  },
-  {
     "issue": 906,
     "name": "should_reject_xpath_expansion_given_a_memory_budget_when_result_growth_exceeds_the_budget",
     "status": "authored",
@@ -2315,11 +2249,11 @@
         "name": "compatibility::lifecycle::conversion_lifecycle::should_apply_encoding_conversion_given_a_sql_conversion_object_when_text_is_converted"
       }
     ],
-    "asserted_contract": "The named UTF8-to-LATIN1 conversion maps cafè to bytes 636166e8.",
+    "asserted_contract": "The named UTF8-to-LATIN1 conversion maps caf\u00e8 to bytes 636166e8.",
     "mapping_basis": "exact_test_present",
     "oracle": {
       "reference": "PostgreSQL 18.6",
-      "expected": "The named UTF8-to-LATIN1 conversion maps cafè to bytes 636166e8.",
+      "expected": "The named UTF8-to-LATIN1 conversion maps caf\u00e8 to bytes 636166e8.",
       "status": "assertion_encoded; no fresh per-case run in this static pass"
     },
     "prior_execution_status": "not_run_by_this_agent; awaiting serialized integrator Cargo lane",

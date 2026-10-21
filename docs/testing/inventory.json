@@ -124860,7 +124860,7 @@
       "name": "should_reject_parse_metadata_before_publication_when_shared_budget_is_exceeded",
       "current_file": "tests/pgwire_extended/parameters/parameter_admission.rs",
       "line": 11,
-      "end_line": 108,
+      "end_line": 116,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -280292,8 +280292,8 @@
       "current_file": "tests/pgwire_extended/parameters/parameter_admission.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 108,
-      "sha256": "ee174a2ae2623a43bb8aa6ac6eecaf778048d62a0039b3d8509639ac79c73088",
+      "lines": 116,
+      "sha256": "7089ca8aa30d269719f772a5cfd3a8ce58655aa6789a8c2216985615f8eeba2c",
       "test_declarations": 1,
       "registered_suites": [
         "pgwire_extended"

@@ -107,13 +107,9 @@ fn start_projection_replay_retry_fixture(
     (runtime, path, cassie, session, projection)
 }
 
-#[test]
-fn should_retry_projection_replay_when_schema_commit_fails_after_data_commit() {
-    // Arrange
-    let (_runtime, path, cassie, session, projection) =
-        start_projection_replay_retry_fixture("projection_replay_schema_commit_retry");
-    let batch = ProjectionReplayBatch {
-        projection: projection.clone(),
+fn projection_replay_retry_batch(projection: &str) -> ProjectionReplayBatch {
+    ProjectionReplayBatch {
+        projection: projection.to_string(),
         source_identity: "orders-stream".to_string(),
         batch_id: "batch-1".to_string(),
         lag: 0,
@@ -124,7 +120,15 @@ fn should_retry_projection_replay_when_schema_commit_fails_after_data_commit() {
             document_id: "doc-1".to_string(),
             payload: Some(serde_json::json!({"title": "alpha"})),
         }],
-    };
+    }
+}
+
+#[test]
+fn should_retry_projection_replay_when_schema_commit_fails_after_data_commit() {
+    // Arrange
+    let (_runtime, path, cassie, session, projection) =
+        start_projection_replay_retry_fixture("projection_replay_schema_commit_retry");
+    let batch = projection_replay_retry_batch(&projection);
     set_projection_replay_schema_commit_failure_point(true);
 
     // Act
@@ -213,6 +217,108 @@ fn should_retry_projection_replay_when_schema_commit_fails_after_data_commit() {
     );
 
     recovered.shutdown();
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_retry_projection_replay_after_schema_commit_conflict() {
+    // Arrange
+    let _schema_write_guard = schema_write_conflict_test_guard();
+    let (_runtime, path, cassie, session, projection) =
+        start_projection_replay_retry_fixture("projection_replay_schema_commit_conflict");
+    let cassie = Arc::new(cassie);
+    let batch = projection_replay_retry_batch(&projection);
+    let ready = Arc::new(Barrier::new(2));
+    let resume = Arc::new(Barrier::new(2));
+    set_schema_write_commit_barriers(
+        Some(SchemaWritePausePoint::ProjectionReplay),
+        Some(Arc::clone(&ready)),
+        Some(Arc::clone(&resume)),
+    );
+    let replay_cassie = Arc::clone(&cassie);
+    let replay_batch = batch.clone();
+    let replay = std::thread::spawn(move || {
+        let _worker_guard = schema_write_conflict_worker_guard();
+        replay_cassie.replay_projection_batch(replay_batch)
+    });
+    ready.wait();
+
+    // Act
+    set_schema_write_commit_barriers(None, None, None);
+    let mut competing_metadata = cassie
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap();
+    competing_metadata.last_error = Some("concurrent schema writer".to_string());
+    cassie
+        .midge
+        .put_projection_metadata(&competing_metadata)
+        .unwrap();
+    resume.wait();
+    let failed = replay.join().expect("join replay worker");
+    let rows_after_conflict = query_rows(
+        &cassie,
+        &session,
+        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+    );
+    let event_seen_after_conflict = cassie
+        .midge
+        .has_projection_event(&projection, "orders-stream", "event-1")
+        .unwrap();
+    let metadata_after_conflict = cassie
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap();
+
+    // Assert
+    match failed {
+        Err(CassieError::StorageRetryable(error)) => {
+            assert_eq!(error.kind(), StorageRetryKind::WriteConflict);
+        }
+        Err(error) => panic!("unexpected replay error: {error}"),
+        Ok(report) => panic!("conflicting Schema commit unexpectedly succeeded: {report:?}"),
+    }
+    assert_eq!(
+        rows_after_conflict,
+        vec![vec![Value::String("alpha".to_string())]]
+    );
+    assert!(!event_seen_after_conflict);
+    assert_eq!(metadata_after_conflict.last_error.as_deref(), Some("concurrent schema writer"));
+    assert_eq!(metadata_after_conflict.source_checkpoint, None);
+    assert_eq!(metadata_after_conflict.last_applied_event_id, None);
+
+    let retry = cassie.replay_projection_batch(batch).unwrap();
+    let rows_after_retry = query_rows(
+        &cassie,
+        &session,
+        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+    );
+    let metadata_after_retry = cassie
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap();
+    let event_seen_after_retry = cassie
+        .midge
+        .has_projection_event(&projection, "orders-stream", "event-1")
+        .unwrap();
+
+    // Assert
+    assert_eq!(retry.applied_event_count, 1);
+    assert_eq!(rows_after_retry, rows_after_conflict);
+    assert!(event_seen_after_retry);
+    assert_eq!(
+        metadata_after_retry.source_checkpoint.as_deref(),
+        Some("checkpoint-1")
+    );
+    assert_eq!(
+        metadata_after_retry.last_applied_event_id.as_deref(),
+        Some("event-1")
+    );
+
+    cassie.shutdown();
     let _ = std::fs::remove_dir_all(path);
 }
 

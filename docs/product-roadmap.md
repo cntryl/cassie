@@ -75,16 +75,17 @@ only. Recheck progress each Friday. The current issue counts and merged PR rate
 do not establish engineering capacity, so keep these dates visible and reforecast
 explicitly when a gate slips.
 
-| Target date | Gate | Exit condition |
-| --- | --- | --- |
-| 2026-10-23 | Replay contract | Prove that the Data-family row batch can commit before the Schema-family ledger/checkpoint transaction, that the latter pair commits atomically, and that same-batch retry handles both an aborted Schema commit and an error response after a successful Schema commit without losing or double-applying projection state. |
-| 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. |
+| Target date | Gate | Exit condition | Status |
+| --- | --- | --- | --- |
+| 2026-10-23 | Replay contract | Prove that the Data-family row batch can commit before the Schema-family ledger/checkpoint transaction, that the latter pair commits atomically, and that same-batch retry handles both an aborted Schema commit and an error response after a successful Schema commit without losing or double-applying projection state. | Complete locally on 2026-10-20; see [focused evidence](testing/validation.md). Hosted evidence remains blocked while Actions are disabled. |
+| 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Open |
 
-If the replay recovery proof is incomplete on 2026-10-23, keep the v0.3 target
-visibly at risk and reforecast at the next Friday review; do not silently weaken
-the contract. v0.3 is the MVP qualification target, not approval to replace a
-production hosted PostgreSQL service. Production replacement depends on the v1.0
-qualification and workload-specific migration evidence.
+The replay recovery proof is complete locally; this does not establish a hosted
+pass. If later changes invalidate the proof, keep the v0.3 target visibly at risk
+and reforecast at the next Friday review; do not silently weaken the contract.
+v0.3 is the MVP qualification target, not approval to replace a production hosted
+PostgreSQL service. Production replacement depends on the v1.0 qualification and
+workload-specific migration evidence.
 
 | Milestone | Target date | Ships |
 | --- | --- | --- |

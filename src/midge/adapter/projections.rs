@@ -1,3 +1,4 @@
+use super::schema_write_control::{pause_before_schema_write_commit, SchemaWritePausePoint};
 use super::{
     check_projection_metadata_persistence_failure_point,
     check_projection_replay_post_commit_failure_point,
@@ -173,6 +174,7 @@ impl Midge {
         Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
         check_projection_metadata_persistence_failure_point()?;
         check_projection_replay_schema_commit_failure_point()?;
+        pause_before_schema_write_commit(SchemaWritePausePoint::ProjectionReplay);
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         check_projection_replay_post_commit_failure_point()?;

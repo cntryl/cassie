@@ -15,6 +15,7 @@ thread_local! {
 pub enum SchemaWritePausePoint {
     CollectionCreate,
     DatabaseCreateFinalize,
+    ProjectionReplay,
     SequenceNextValue,
 }
 

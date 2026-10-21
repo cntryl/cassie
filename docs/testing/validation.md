@@ -4209,3 +4209,60 @@ cargo nextest run --locked --config-file target/nextest-like-60s.toml --test par
 
 The full suite was not run. GitHub Actions remained disabled, and no workflow
 was enabled or dispatched.
+
+## 2026-10-20 — Replay commit abort and same-batch retry
+
+TDD red: the new focused regression initially failed to compile because the
+`ProjectionReplay` commit pause point was not defined. TDD green: after wiring
+that point immediately before the replay transaction's commit, the conflict
+case and its adjacent replay recovery controls passed.
+
+The replay gate now has a deterministic test of a real Schema-family commit
+abort. The replay worker commits its row batch in the Data family, stages the
+event key and checkpoint metadata in one Schema transaction, and pauses at that
+transaction's commit. A competing writer commits a change to the same projection
+metadata key. Releasing replay produces Midge's typed retryable `WriteConflict`.
+The test observes the row while confirming that neither the event key nor the
+new checkpoint is visible. Retrying the same batch leaves one logical row and
+commits both the event key and checkpoint together. The existing pre-commit
+failure test remains distinct; this test exercises failure from the actual
+`tx.commit()` call.
+
+Jev's decision request selected `actual_commit_abort` for the roadmap's
+“aborted Schema commit” requirement (probability 0.98, confidence 0.97), and
+`same_key_competing_writer` as the smallest deterministic seam (probability
+0.99, confidence 0.99). Source inspection confirms the replay transaction uses
+`AbortOnWriteConflict`, and the executed regression observes
+`StorageRetryKind::WriteConflict`; Jev guided the test boundary, while source
+and the focused run establish the behavior. Request and response are retained
+under ignored `target/jev/replay-gate-20261020/`.
+
+Jev's focused diff review assigned a 0.51 false-green probability and selected
+the commit boundary as its first concern (probability 0.85, confidence 0.81).
+The required focused probe passed the new conflict test 1/1 in 5.768 seconds.
+Source confirms it pauses after both Schema writes and directly before
+`tx.commit()`; the test then commits the competing metadata update and observes
+the replay transaction's typed `WriteConflict`. This verifies the review lead
+against the implementation and executable test.
+
+Ordered local validation on the replay-gate change:
+
+1. `cargo build --locked --bin cassie` passed.
+2. The focused Nextest batch below passed 4/4 with 178 unrelated analytics
+   tests skipped. `target/nextest-like-60s.toml` enforced the 60-second per-test
+   guard; selected-test execution took 6.551 seconds.
+3. `cargo clippy --workspace --all-targets --all-features -- -D warnings -D
+   clippy::pedantic` passed.
+4. `cargo fmt --all -- --check` passed.
+5. `cntryl-tools validate-tests -f
+   tests/analytics/projections/projection_lifecycle/metadata.rs` passed 6/6;
+   `git diff --check` passed.
+6. `cntryl-tools validate-docs` reported 75 broken local links in untouched
+   documentation files; it reported no errors in either file changed here.
+
+The full suite was not run. GitHub Actions remained disabled; no workflow was
+enabled or dispatched. Hosted evidence remains blocked.
+
+```text
+cargo nextest run --locked --config-file target/nextest-like-60s.toml --test analytics -E 'test(should_replay_projection_batch_idempotently_with_checkpoint_metadata) | test(should_retry_projection_replay_when_schema_commit_fails_after_data_commit) | test(should_retry_projection_replay_after_schema_commit_conflict) | test(should_keep_projection_replay_checkpoint_after_uncertain_schema_commit)' --status-level fail --final-status-level fail
+```

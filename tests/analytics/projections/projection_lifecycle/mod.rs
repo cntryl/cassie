@@ -1,14 +1,18 @@
 #![allow(unused_imports, dead_code)]
 
-use cassie::app::{Cassie, CassieSession};
+use std::sync::{Arc, Barrier};
+
+use cassie::app::{Cassie, CassieError, CassieSession, StorageRetryKind};
 use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
 use cassie::catalog::{ProjectionVerificationState, ProjectionVersionState};
 use cassie::executor::set_projection_activation_failure_point;
 use cassie::midge::adapter::{
+    schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
     set_projection_metadata_persistence_failure_point, set_projection_output_failure_point,
     set_projection_replay_post_commit_failure_point,
     set_projection_replay_schema_commit_failure_point,
-    set_projection_report_deletion_failure_point, ProjectionOutputFailurePoint,
+    set_projection_report_deletion_failure_point, set_schema_write_commit_barriers,
+    ProjectionOutputFailurePoint, SchemaWritePausePoint,
 };
 use cassie::sql::ast::{
     AlterMaterializedProjectionOperation, CopyFormat, CopyStatement, QueryStatement,

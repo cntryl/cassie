@@ -1,3 +1,4 @@
+use super::dml_returning;
 use super::{
     build_dml_result, check_timeout, dml_referential_actions, execute_plan, filter,
     inserted_row_to_batch_row, integral_json_number, json_to_value, update_assignment_to_json,
@@ -28,38 +29,20 @@ pub(in crate::executor::execution) fn execute_insert(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
-    let returning_read_controls =
-        if crate::executor::execution::exists_projection::contains(&statement.returning) {
-            Some(
-                crate::executor::execution::entrypoints::statement_read_controls(
-                    cassie, session, controls,
-                )?,
-            )
-        } else {
-            None
-        };
+    let (has_exists_returning, returning_read_controls) =
+        prepare_insert_returning_read_controls(cassie, session, &statement.returning, controls)?;
     let statement_read_controls = returning_read_controls.as_ref().unwrap_or(controls);
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
-    let source_rows = insert_source_rows(
+    let (target_fields, source_rows) = prepare_insert_source_rows(
         cassie,
         session,
         statement,
         params,
         user_functions,
+        &schema,
         statement_read_controls,
-    )?;
-    let source_width = source_rows
-        .first()
-        .map_or_else(|| insert_source_width(statement, &schema), Vec::len);
-    let target_fields = insert_target_fields(statement, &schema, source_width)?;
-    validate_insert_source_rows(&source_rows, target_fields.len())?;
-    let (target_fields, source_rows) = super::identity_insert::apply_identity_policy(
-        cassie,
-        statement,
-        target_fields,
-        source_rows,
     )?;
 
     let mut affected_count = 0usize;
@@ -78,6 +61,26 @@ pub(in crate::executor::execution) fn execute_insert(
             .is_some()
             .then_some(&conflict_images),
     };
+    let returning_schema = row_image_schema(statement, &schema);
+    let result_context = DmlResultContext {
+        cassie,
+        session,
+        table: &statement.table,
+        returning: &statement.returning,
+        params,
+        user_functions,
+        command_prefix: "INSERT 0",
+        controls,
+        statement_read_controls,
+        returning_schema: returning_schema.as_ref(),
+    };
+    let projection_schema = has_exists_returning
+        .then(|| dml_returning::prepare_projection_schema(&result_context))
+        .transpose()?;
+    let mut projected_returning_rows = projection_schema
+        .as_ref()
+        .map(|_| crate::runtime::accounted::AccountedVec::try_new(controls))
+        .transpose()?;
     let mut affected_row_ids = std::collections::HashSet::new();
     for source_row in source_rows {
         check_timeout(controls)?;
@@ -100,30 +103,112 @@ pub(in crate::executor::execution) fn execute_insert(
             &row_id,
             &mut returning_rows,
         )?;
-        if let Some(aliases) = &statement.returning_aliases {
-            if let Some(row) = returning_rows.pop() {
-                let before = conflict_images.borrow_mut().remove(&row_id);
-                returning_rows.push(with_row_images(row, &schema, aliases, before.as_ref()));
-            }
-        }
+        attach_insert_returning_aliases(
+            statement,
+            &schema,
+            &row_id,
+            &conflict_images,
+            &mut returning_rows,
+        );
+        project_insert_returning_row(
+            &result_context,
+            projection_schema.as_ref(),
+            projected_returning_rows.as_mut(),
+            &mut returning_rows,
+        )?;
     }
-    let returning_schema = row_image_schema(statement, &schema);
-    build_dml_result(
-        &DmlResultContext {
-            cassie,
-            session,
-            table: &statement.table,
-            returning: &statement.returning,
-            params,
-            user_functions,
-            command_prefix: "INSERT 0",
-            controls,
-            statement_read_controls,
-            returning_schema: returning_schema.as_ref(),
-        },
+    finish_insert_returning(
+        &result_context,
+        projection_schema.as_ref(),
+        projected_returning_rows,
         affected_count,
         returning_rows,
     )
+}
+
+fn prepare_insert_returning_read_controls(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    returning: &[crate::sql::ast::SelectItem],
+    controls: &QueryExecutionControls,
+) -> Result<(bool, Option<QueryExecutionControls>), QueryError> {
+    let has_exists_returning = crate::executor::execution::exists_projection::contains(returning);
+    let returning_read_controls = if has_exists_returning {
+        Some(
+            crate::executor::execution::entrypoints::statement_read_controls(
+                cassie, session, controls,
+            )?,
+        )
+    } else {
+        None
+    };
+    Ok((has_exists_returning, returning_read_controls))
+}
+
+fn prepare_insert_source_rows(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::InsertStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    schema: &CollectionSchema,
+    controls: &QueryExecutionControls,
+) -> Result<(Vec<FieldMeta>, Vec<Vec<Value>>), QueryError> {
+    let source_rows =
+        insert_source_rows(cassie, session, statement, params, user_functions, controls)?;
+    let source_width = source_rows
+        .first()
+        .map_or_else(|| insert_source_width(statement, schema), Vec::len);
+    let target_fields = insert_target_fields(statement, schema, source_width)?;
+    validate_insert_source_rows(&source_rows, target_fields.len())?;
+    super::identity_insert::apply_identity_policy(cassie, statement, target_fields, source_rows)
+}
+
+fn attach_insert_returning_aliases(
+    statement: &crate::sql::ast::InsertStatement,
+    schema: &CollectionSchema,
+    row_id: &str,
+    conflict_images: &std::cell::RefCell<HashMap<String, serde_json::Value>>,
+    returning_rows: &mut Vec<BatchRow>,
+) {
+    if let Some(aliases) = &statement.returning_aliases {
+        if let Some(row) = returning_rows.pop() {
+            let before = conflict_images.borrow_mut().remove(row_id);
+            returning_rows.push(with_row_images(row, schema, aliases, before.as_ref()));
+        }
+    }
+}
+
+fn project_insert_returning_row(
+    context: &DmlResultContext<'_>,
+    projection_schema: Option<&dml_returning::ProjectionSchema>,
+    projected_rows: Option<&mut crate::runtime::accounted::AccountedVec<BatchRow>>,
+    returning_rows: &mut Vec<BatchRow>,
+) -> Result<(), QueryError> {
+    if let (Some(projection_schema), Some(projected_rows)) = (projection_schema, projected_rows) {
+        if let Some(row) = returning_rows.pop() {
+            let projected = dml_returning::project(context, projection_schema, vec![row])?;
+            for row in projected {
+                projected_rows.try_push_with(0, || row)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn finish_insert_returning(
+    context: &DmlResultContext<'_>,
+    projection_schema: Option<&dml_returning::ProjectionSchema>,
+    projected_rows: Option<crate::runtime::accounted::AccountedVec<BatchRow>>,
+    affected_count: usize,
+    returning_rows: Vec<BatchRow>,
+) -> Result<QueryResult, QueryError> {
+    if let (Some(projection_schema), Some(projected_rows)) = (projection_schema, projected_rows) {
+        let (rows, _rows_memory) = projected_rows.into_parts();
+        dml_returning::finish_projected(context, projection_schema, affected_count, rows)
+    } else {
+        build_dml_result(context, affected_count, returning_rows)
+    }
 }
 
 /// Inserts one already-evaluated row, as `MERGE ... THEN INSERT` does, and

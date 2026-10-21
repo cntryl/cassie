@@ -7,29 +7,62 @@ use super::super::{
     check_timeout, exists_projection, scan, source, Batch, CteContext, QuerySource,
 };
 use super::{
-    dml_returning_columns, BatchRow, DataType, DmlResultContext, QueryError, QueryResult, Value,
+    dml_returning_columns, BatchRow, CollectionSchema, DataType, DmlResultContext, QueryError,
+    QueryResult, Value,
 };
 use crate::executor::batch::OperatorMemory;
 use crate::executor::retained_memory::{add, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
-pub(super) fn build(
+pub(super) struct ProjectionSchema {
+    schema: Option<CollectionSchema>,
+    _memory: Option<QueryMemoryReservation>,
+}
+
+pub(super) fn prepare_projection_schema(
     context: &DmlResultContext<'_>,
-    affected_count: usize,
-    mut rows: Vec<BatchRow>,
-) -> Result<QueryResult, QueryError> {
-    let (schema, _schema_memory) = context
+) -> Result<ProjectionSchema, QueryError> {
+    let (schema, memory) = context
         .cassie
         .catalog
         .clone_schema_with_controls(context.table, context.controls)?;
-    if schema.as_ref().is_some_and(|schema| {
+    Ok(ProjectionSchema {
+        schema,
+        _memory: memory,
+    })
+}
+
+pub(super) fn build(
+    context: &DmlResultContext<'_>,
+    affected_count: usize,
+    rows: Vec<BatchRow>,
+) -> Result<QueryResult, QueryError> {
+    let schema = prepare_projection_schema(context)?;
+    let projected = project(context, &schema, rows)?;
+    #[cfg(test)]
+    super::dml_returning_tests::observe(
+        super::dml_returning_tests::Phase::Projected,
+        context.controls,
+        affected_count,
+        &projected,
+        projected.capacity(),
+    );
+    finish_projected(context, &schema, affected_count, projected)
+}
+
+pub(super) fn project(
+    context: &DmlResultContext<'_>,
+    projection_schema: &ProjectionSchema,
+    mut rows: Vec<BatchRow>,
+) -> Result<Vec<BatchRow>, QueryError> {
+    if projection_schema.schema.as_ref().is_some_and(|schema| {
         schema
             .fields
             .iter()
             .any(|field| matches!(field.data_type, DataType::Array(_)))
     }) {
         if let Some(first) = rows.first_mut() {
-            scan::attach_row_types(first, schema.as_ref());
+            scan::attach_row_types(first, projection_schema.schema.as_ref());
             if let Some(types) = first.shared_data_types() {
                 for row in &mut rows[1..] {
                     row.set_data_types(types.clone());
@@ -76,16 +109,21 @@ pub(super) fn build(
         .try_reserve_exact(count)
         .map_err(|error| allocation_error(&error))?;
     projected.extend(batches.into_iter().flatten());
-    #[cfg(test)]
-    super::dml_returning_tests::observe(
-        super::dml_returning_tests::Phase::Projected,
-        context.controls,
-        affected_count,
-        &projected,
-        projected.capacity(),
+    Ok(projected)
+}
+
+pub(super) fn finish_projected(
+    context: &DmlResultContext<'_>,
+    projection_schema: &ProjectionSchema,
+    affected_count: usize,
+    rows: Vec<BatchRow>,
+) -> Result<QueryResult, QueryError> {
+    let columns = dml_returning_columns(
+        context.returning,
+        projection_schema.schema.as_ref(),
+        context.user_functions,
     );
-    let columns = dml_returning_columns(context.returning, schema.as_ref(), context.user_functions);
-    finish(context, affected_count, &columns, projected)
+    finish(context, affected_count, &columns, rows)
 }
 
 fn admit_inputs(

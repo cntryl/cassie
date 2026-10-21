@@ -4362,9 +4362,12 @@ ordered local validation was:
 2. `CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target CARGO_BUILD_JOBS=4 cargo test --locked` compiled the test targets and passed 1,236 library tests, 182 analytics tests, and 2 backend CI tests. It then failed in `catalog_security` with 279 passed / 123 failed; Cargo exited 101. The out-of-scope test removals did not clear this separate catalog batch.
 3. `CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target CARGO_BUILD_JOBS=4 cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` passed.
 4. `cargo fmt --all -- --check` and `git diff --check` passed.
-5. `/Users/jrepanich/Code/cntryl/cassie/target/test-inventory-tools312/bin/python tools/test_inventory.py --check` passed: 8,514 Rust declarations, 8,642 registrations, 131 planned tests, and no unregistered tests, unresolved paths, duplicate identities, or shard errors.
-6. `cntryl-tools validate-tests -f` passed for `tests/pgwire_extended/mod.rs`, `tests/sql_queries/mod.rs`, and `tests/storage_indexes.rs`; each registration root reports no test declarations in that file.
-7. `cntryl-tools validate-docs` reports 75 existing broken local links. None refers to the removed range, geometry, or XML test paths; this matches the previously recorded workspace documentation drift.
+5. `cntryl-tools generate-inventory --root /Users/jrepanich/Code/cntryl/cassie-worktrees/ranges --output /tmp/cassie-ranges-inventory.md` generated 1,243 source tests, 8,628 integration tests, and 11 benchmarks/stress tests.
+6. `cntryl-tools generate-inventory --root /Users/jrepanich/Code/cntryl/cassie-worktrees/geometry --output /tmp/cassie-geometry-inventory.md` generated 1,243 source tests, 8,554 integration tests, and 11 benchmarks/stress tests.
+7. `cntryl-tools generate-inventory --root /Users/jrepanich/Code/cntryl/cassie-worktrees/xml --output /tmp/cassie-xml-inventory.md` generated 1,243 source tests, 8,514 integration tests, and 11 benchmarks/stress tests.
+8. `/Users/jrepanich/Code/cntryl/cassie/target/test-inventory-tools312/bin/python tools/test_inventory.py --check` passed: 8,514 Rust declarations, 8,642 registrations, 131 planned tests, and no unregistered tests, unresolved paths, duplicate identities, or shard errors.
+9. `cntryl-tools validate-tests -f` exited successfully for `tests/pgwire_extended/mod.rs`, `tests/sql_queries/mod.rs`, and `tests/storage_indexes.rs`; each registration root reports no test declarations in that file.
+10. `cntryl-tools validate-docs` reports 75 existing broken local links. None refers to the removed range, geometry, or XML test paths; this matches the previously recorded workspace documentation drift.
 
 The focused `CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target
 CARGO_BUILD_JOBS=4 cargo test --locked --test storage_indexes` run on the

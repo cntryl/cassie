@@ -75,6 +75,7 @@ impl Cassie {
         Ok(Self {
             midge,
             catalog: Catalog::new(),
+            catalog_publication: Arc::new(parking_lot::RwLock::new(())),
             embedding_provider,
             runtime,
             feedback_persistence_lock: Arc::new(Mutex::new(())),

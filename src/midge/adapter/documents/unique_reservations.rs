@@ -15,7 +15,7 @@ enum UniqueReservationDescriptor {
 
 impl Midge {
     pub(super) fn release_unique_reservations_for_batch(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: &[PreparedWrite],
@@ -43,7 +43,7 @@ impl Midge {
     }
 
     pub(super) fn sync_unique_reservations_for_document(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         id: &str,

@@ -81,7 +81,7 @@ The count below is the number of reconciled remaining-list items for an owner, n
 | [#830](https://github.com/cntryl/cassie/issues/830) | Feature request: Extend SQL routines with signatures and set-returning results | Existing tests retained; runtime acceptance open |
 | [#831](https://github.com/cntryl/cassie/issues/831) | Feature request: Complete object ownership, privilege and row-level security DDL | Existing tests retained; runtime acceptance open |
 | [#832](https://github.com/cntryl/cassie/issues/832) | Feature request: Enforce routine security context and scoped settings | Existing tests retained; runtime acceptance open |
-| [#833](https://github.com/cntryl/cassie/issues/833) | Feature request: Complete transactional DDL and catalog publication | Existing tests retained; runtime acceptance open |
+| [#833](https://github.com/cntryl/cassie/issues/833) | Feature request: Complete transactional DDL and catalog publication | Selected explicit-transaction runtime slice in review; broader acceptance remains open |
 | [#834](https://github.com/cntryl/cassie/issues/834) | Feature request: Execute data-modifying CTEs with RETURNING relations | 2 linked items |
 | [#835](https://github.com/cntryl/cassie/issues/835) | Feature request: Implement full PostgreSQL PL/pgSQL compatibility | Existing tests retained; runtime acceptance open |
 | [#836](https://github.com/cntryl/cassie/issues/836) | Feature request: Add anonymous procedural blocks and parameterized dynamic SQL | Existing tests retained; runtime acceptance open |

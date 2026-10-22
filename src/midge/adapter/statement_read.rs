@@ -12,7 +12,7 @@ thread_local! {
 
 pub(crate) struct StatementDataRead {
     // Release the snapshot before its engine owner, then its admitted metadata.
-    tx: cntryl_midge::Transaction,
+    tx: crate::midge::adapter::AdapterTransaction,
     midge: Arc<Midge>,
     database: String,
     family_id: cntryl_midge::ColumnFamilyId,
@@ -74,9 +74,7 @@ impl StatementDataRead {
         let memory = controls.reserve_query_memory(bytes)?;
         let family = midge.database_family(database)?;
         let family_id = family.id();
-        let tx = midge
-            .engine
-            .begin_tx(family_id, TransactionMode::ReadOnly)?;
+        let tx = midge.begin_adapter_tx(family_id, TransactionMode::ReadOnly)?;
         // The temporary family handle does not become statement-owned backing.
         drop(family);
         let epoch_scratch =
@@ -100,12 +98,12 @@ impl StatementDataRead {
 /// Private constructors enforce exactly one populated owner without adding a
 /// heap allocation to previously standalone readonly calls.
 pub(super) struct DataReadTransaction {
-    fresh: Option<cntryl_midge::Transaction>,
+    fresh: Option<crate::midge::adapter::AdapterTransaction>,
     shared: Option<Arc<StatementDataRead>>,
 }
 
 impl DataReadTransaction {
-    pub(super) fn fresh(tx: cntryl_midge::Transaction) -> Self {
+    pub(super) fn fresh(tx: crate::midge::adapter::AdapterTransaction) -> Self {
         Self {
             fresh: Some(tx),
             shared: None,
@@ -121,7 +119,7 @@ impl DataReadTransaction {
 }
 
 impl std::ops::Deref for DataReadTransaction {
-    type Target = cntryl_midge::Transaction;
+    type Target = crate::midge::adapter::AdapterTransaction;
 
     fn deref(&self) -> &Self::Target {
         if let Some(owner) = &self.shared {

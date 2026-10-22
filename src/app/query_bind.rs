@@ -42,7 +42,7 @@ impl Cassie {
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         self.ensure_session_database_access(session)?;
-        Self::ensure_statement_can_execute(session, &parsed, controls)?;
+        self.ensure_statement_can_execute(session, &parsed, controls)?;
         // Utility statements, notably EXPLAIN, plan their contained query when
         // executed. Bind must neither perform that work nor execute commands.
         if !matches!(

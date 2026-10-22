@@ -108,14 +108,10 @@ fn should_reject_set_transaction_in_active_transaction() {
 }
 
 #[test]
-fn should_reject_ddl_in_active_transaction() {
+fn should_reject_unselected_ddl_in_active_transaction() {
     // Arrange
     with_source_table("transaction_semantics_ddl", |cassie, session| {
         for sql in [
-            "CREATE TABLE transaction_semantics_new_table (value TEXT)",
-            "ALTER TABLE transaction_semantics_source ADD COLUMN rejected TEXT",
-            "CREATE SCHEMA transaction_semantics_schema",
-            "CREATE INDEX transaction_semantics_new_index ON transaction_semantics_source (title)",
             "CREATE VIEW transaction_semantics_new_view AS SELECT title FROM transaction_semantics_source",
             "CREATE SEQUENCE transaction_semantics_new_sequence",
             "CREATE ROLLUP transaction_semantics_new_rollup ON transaction_semantics_source USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total",
@@ -125,26 +121,7 @@ fn should_reject_ddl_in_active_transaction() {
         }
 
         // Act
-        let source = cassie
-            .catalog
-            .get_schema("transaction_semantics_source")
-            .expect("source schema");
-
         // Assert
-        assert!(!cassie
-            .catalog
-            .relation_exists("transaction_semantics_new_table"));
-        assert!(!cassie
-            .catalog
-            .namespace_exists("transaction_semantics_schema"));
-        assert!(!source.fields.iter().any(|field| field.name == "rejected"));
-        assert!(cassie
-            .catalog
-            .get_index(
-                "transaction_semantics_source",
-                "transaction_semantics_new_index"
-            )
-            .is_none());
         assert!(cassie
             .catalog
             .get_view("transaction_semantics_new_view")
@@ -160,6 +137,131 @@ fn should_reject_ddl_in_active_transaction() {
             .catalog
             .get_materialized_projection("transaction_semantics_new_projection")
             .is_none());
+    });
+}
+
+#[test]
+fn should_publish_transactional_table_in_its_schema() {
+    // Arrange
+    with_source_table("transaction_semantics_selected_ddl", |cassie, session| {
+        let observer = cassie.create_session("observer", None);
+        cassie
+            .execute_sql(session, "BEGIN", vec![])
+            .expect("begin transaction");
+
+        // Act
+        cassie
+            .execute_sql(
+                session,
+                "CREATE SCHEMA transaction_semantics_schema",
+                vec![],
+            )
+            .expect("create schema transactionally");
+        cassie
+            .execute_sql(
+                session,
+                "CREATE TABLE transaction_semantics_schema.transaction_semantics_new_table (value TEXT)",
+                vec![],
+            )
+            .expect("create table transactionally");
+        let own_table = cassie
+            .execute_sql(
+                session,
+                "SELECT table_name FROM information_schema.tables \
+                 WHERE table_schema = 'transaction_semantics_schema' \
+                   AND table_name = 'transaction_semantics_new_table'",
+                vec![],
+            )
+            .expect("read the staged table")
+            .rows()
+            .to_vec();
+        let other_table = cassie
+            .execute_sql(
+                &observer,
+                "SELECT table_name FROM information_schema.tables \
+                 WHERE table_schema = 'transaction_semantics_schema' \
+                   AND table_name = 'transaction_semantics_new_table'",
+                vec![],
+            )
+            .expect("read committed table catalog")
+            .rows()
+            .to_vec();
+        cassie
+            .execute_sql(session, "COMMIT", vec![])
+            .expect("publish transactional DDL");
+        let published_table = cassie
+            .execute_sql(
+                &observer,
+                "SELECT table_name FROM information_schema.tables \
+                 WHERE table_schema = 'transaction_semantics_schema' \
+                   AND table_name = 'transaction_semantics_new_table'",
+                vec![],
+            )
+            .expect("read published table catalog")
+            .rows()
+            .to_vec();
+
+        // Assert
+        assert_eq!(
+            own_table,
+            vec![vec![Value::String(
+                "transaction_semantics_new_table".to_owned()
+            )]]
+        );
+        assert_eq!(other_table, [] as [Vec<Value>; 0]);
+        assert_eq!(published_table, own_table);
+    });
+}
+
+#[test]
+fn should_publish_transactional_scalar_index() {
+    // Arrange
+    with_source_table("transaction_semantics_selected_index", |cassie, session| {
+        let observer = cassie.create_session("observer", None);
+        cassie
+            .execute_sql(session, "BEGIN", vec![])
+            .expect("begin transaction");
+
+        // Act
+        cassie
+            .execute_sql(
+                session,
+                "CREATE INDEX transaction_semantics_new_index ON transaction_semantics_source (title)",
+                vec![],
+            )
+            .expect("create scalar index transactionally");
+        let other_index = cassie
+            .execute_sql(
+                &observer,
+                "SELECT indexname FROM pg_indexes \
+                 WHERE indexname = 'transaction_semantics_new_index'",
+                vec![],
+            )
+            .expect("read committed index catalog")
+            .rows()
+            .to_vec();
+        cassie
+            .execute_sql(session, "COMMIT", vec![])
+            .expect("publish transactional index");
+        let published_index = cassie
+            .execute_sql(
+                &observer,
+                "SELECT indexname FROM pg_indexes \
+                 WHERE indexname = 'transaction_semantics_new_index'",
+                vec![],
+            )
+            .expect("read published index catalog")
+            .rows()
+            .to_vec();
+
+        // Assert
+        assert_eq!(other_index, [] as [Vec<Value>; 0]);
+        assert_eq!(
+            published_index,
+            vec![vec![Value::String(
+                "transaction_semantics_new_index".to_owned()
+            )]]
+        );
     });
 }
 
@@ -180,7 +282,8 @@ fn should_preserve_staged_data_after_ddl_rejection() {
         let error = cassie
             .execute_sql(
                 session,
-                "CREATE TABLE transaction_semantics_rejected (value TEXT)",
+                "CREATE VIEW transaction_semantics_rejected_view AS \
+                 SELECT title FROM transaction_semantics_source",
                 vec![],
             )
             .expect_err("DDL should fail after staged DML");
@@ -199,9 +302,10 @@ fn should_preserve_staged_data_after_ddl_rejection() {
             )
             .expect("read source after rollback");
         assert_eq!(rows.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
-        assert!(!cassie
+        assert!(cassie
             .catalog
-            .relation_exists("transaction_semantics_rejected"));
+            .get_view("transaction_semantics_rejected_view")
+            .is_none());
     });
 }
 

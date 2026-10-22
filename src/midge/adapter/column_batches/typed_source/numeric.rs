@@ -12,7 +12,7 @@ pub(super) struct Loaded {
     pub(super) numeric: Option<NumericValues>,
 }
 pub(super) fn load(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,

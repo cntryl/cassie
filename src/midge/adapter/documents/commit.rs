@@ -10,7 +10,7 @@ impl Midge {
     pub(super) fn finish_document_write_batches(
         &self,
         options: &DocumentWriteBatchOptions,
-        mut tx: cntryl_midge::Transaction,
+        mut tx: crate::midge::adapter::AdapterTransaction,
         mut reports: BTreeMap<String, DocumentWriteBatchReport>,
         changed_collections: Vec<String>,
         vector_records_by_collection: &BTreeMap<

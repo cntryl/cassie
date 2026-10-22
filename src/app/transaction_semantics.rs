@@ -1,8 +1,10 @@
+use crate::catalog::Catalog;
 use crate::sql::ast::{QueryStatement, StatementFamily};
 
 use super::{CassieError, CassieSession};
 
 pub(crate) fn ensure_supported_transaction_semantics(
+    catalog: &Catalog,
     session: &CassieSession,
     statement: &QueryStatement,
 ) -> Result<(), CassieError> {
@@ -20,14 +22,38 @@ pub(crate) fn ensure_supported_transaction_semantics(
         );
     }
 
-    if statement.family() != StatementFamily::Runtime {
+    if statement.family() != StatementFamily::Runtime
+        && (session.is_implicit_transaction() || !transactional_ddl_supported(catalog, statement))
+    {
         return reject_active_transaction_statement(
             session,
-            "DDL and catalog operations are not supported inside an active transaction",
+            "this DDL or catalog operation is not supported inside an active transaction",
         );
     }
 
     Ok(())
+}
+
+fn transactional_ddl_supported(catalog: &Catalog, statement: &QueryStatement) -> bool {
+    match statement {
+        QueryStatement::CreateTable(_)
+        | QueryStatement::DropTable(_)
+        | QueryStatement::AlterTable(_)
+        | QueryStatement::CreateSchema(_)
+        | QueryStatement::DropSchema(_)
+        | QueryStatement::AlterSchema(_) => true,
+        QueryStatement::CreateIndex(index) => index.kind == crate::catalog::IndexKind::Scalar,
+        QueryStatement::DropIndex(index) => catalog
+            .all_indexes_snapshot()
+            .into_iter()
+            .find(|stored| {
+                crate::catalog::name_matches(&stored.name, &index.name)
+                    && (index.table.is_empty()
+                        || crate::catalog::name_matches(&stored.collection, &index.table))
+            })
+            .is_none_or(|stored| stored.kind == crate::catalog::IndexKind::Scalar),
+        _ => false,
+    }
 }
 
 fn reject_active_transaction_statement(

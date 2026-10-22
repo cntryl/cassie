@@ -104,20 +104,9 @@ impl Midge {
         if let Some(database) = crate::catalog::relation_database_name(&name) {
             let _ = self.database_family(&database)?;
         }
-        let needs_storage_id = {
-            let tx = self.database_tx_for_collection(&name, super::TransactionMode::ReadOnly)?;
-            let schema_exists = tx
-                .get(&Self::collection_schema_key(&name))
-                .map_err(CassieError::from)?
-                .is_some();
-            let existing_metadata = Self::load_collection_metadata_from_tx(&tx, &name)?;
-            let storage_name_exists = Self::storage_relation_exists_case_insensitively(&tx, &name)?;
-            if require_absent
-                && (schema_exists || existing_metadata.is_some() || storage_name_exists)
-            {
-                return Ok((false, 0));
-            }
-            existing_metadata.is_none()
+        let Some(needs_storage_id) = self.collection_storage_id_needed(&name, require_absent)?
+        else {
+            return Ok((false, 0));
         };
         let storage_id = needs_storage_id
             .then(|| self.allocate_object_id())
@@ -204,6 +193,24 @@ impl Midge {
         Ok((!schema_exists && existing_metadata.is_none(), storage_id))
     }
 
+    fn collection_storage_id_needed(
+        &self,
+        name: &str,
+        require_absent: bool,
+    ) -> Result<Option<bool>, CassieError> {
+        let tx = self.database_tx_for_collection(name, super::TransactionMode::ReadOnly)?;
+        let schema_exists = tx
+            .get(&Self::collection_schema_key(name))
+            .map_err(CassieError::from)?
+            .is_some();
+        let existing_metadata = Self::load_collection_metadata_from_tx(&tx, name)?;
+        let storage_name_exists = Self::storage_relation_exists_case_insensitively(&tx, name)?;
+        if require_absent && (schema_exists || existing_metadata.is_some() || storage_name_exists) {
+            return Ok(None);
+        }
+        Ok(Some(existing_metadata.is_none()))
+    }
+
     fn validate_initial_column_constraints(
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
@@ -236,7 +243,7 @@ impl Midge {
     }
 
     fn storage_relation_exists_case_insensitively(
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         name: &str,
     ) -> Result<bool, CassieError> {
         let collections = Self::load_collections(tx)?;
@@ -295,7 +302,7 @@ impl Midge {
     }
 
     pub(crate) fn load_collection_metadata_from_tx(
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         name: &str,
     ) -> Result<Option<CollectionMeta>, CassieError> {
         let Some(raw) = tx
@@ -311,7 +318,7 @@ impl Midge {
     }
 
     pub(crate) fn save_collection_metadata_to_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         metadata: &CollectionMeta,
     ) -> Result<(), CassieError> {
         let value =
@@ -322,7 +329,7 @@ impl Midge {
     }
 
     pub(crate) fn delete_collection_metadata_to_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         name: &str,
     ) -> Result<(), CassieError> {
         tx.delete(Self::collection_metadata_key(name))
@@ -331,7 +338,7 @@ impl Midge {
     }
 
     pub(crate) fn rename_collection_metadata_to_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {
@@ -345,7 +352,7 @@ impl Midge {
     }
 
     pub(crate) fn load_column_store_document_from_tx(
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         _collection: &str,
         id: &str,
         row_schema: &RowSchema,
@@ -382,7 +389,7 @@ impl Midge {
     }
 
     pub(crate) fn write_column_store_document_to_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         _collection: &str,
         id: &str,
         payload: &serde_json::Value,
@@ -418,7 +425,7 @@ impl Midge {
     }
 
     pub(crate) fn delete_column_store_document_to_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         _collection: &str,
         id: &str,
         row_schema: &RowSchema,
@@ -443,7 +450,7 @@ impl Midge {
     }
 
     pub(crate) fn scan_column_store_rows_batched(
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         request: ColumnStoreScanRequest<'_>,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
         let scan_started = Instant::now();
@@ -520,7 +527,7 @@ impl Midge {
     }
 
     fn project_column_store_document(
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         _collection: &str,
         id: &str,
         row_schema: &RowSchema,

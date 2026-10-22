@@ -72,13 +72,69 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        if matches!(&parsed.statement, QueryStatement::Transaction(_)) {
+            return self.execute_bound_statement_inner(
+                session,
+                parsed,
+                sql_fingerprint,
+                parameters,
+                mode,
+                controls,
+            );
+        }
+
+        let _publication_read = self.catalog_publication.read();
+        let transaction_active = session.is_transaction_active();
+        let catalog_statement =
+            parsed.statement.family() != crate::sql::ast::StatementFamily::Runtime;
+        let catalog = if transaction_active {
+            if catalog_statement && session.transaction_catalog_overlay().is_none() {
+                session.begin_transaction_catalog_overlay(&self.catalog)
+            } else {
+                session
+                    .transaction_catalog_overlay()
+                    .unwrap_or_else(|| self.catalog.clone())
+            }
+        } else {
+            self.catalog.clone()
+        };
+        let mut scoped_cassie = self.clone();
+        scoped_cassie.catalog = catalog;
+        let _storage_scope = if transaction_active {
+            Some(self.midge.enter_transactional_ddl_scope(
+                session.current_database().unwrap_or(&self.default_database),
+                session.transaction_storage_overlay(),
+                catalog_statement && !session.is_implicit_transaction(),
+            )?)
+        } else {
+            None
+        };
+        scoped_cassie.execute_bound_statement_inner(
+            session,
+            parsed,
+            sql_fingerprint,
+            parameters,
+            mode,
+            controls,
+        )
+    }
+
+    fn execute_bound_statement_inner(
+        &self,
+        session: &CassieSession,
+        parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameters: (Vec<Value>, &[i32], bool),
+        mode: ExecutionMode,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
         // A new top-level statement never borrows an enclosing read authority.
         // This also protects early transaction/EXPLAIN returns and fresh gated
         // commit validation when embedded execution is nested on one thread.
         let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
         let _entry_overlay_scope = super::SessionReadScope::enter(None);
         self.ensure_session_database_access(session)?;
-        Self::ensure_statement_can_execute(session, &parsed, controls)?;
+        self.ensure_statement_can_execute(session, &parsed, controls)?;
         Self::mark_statement_transaction_query(session, &parsed.statement);
         if let QueryStatement::SessionObject(statement) = &parsed.statement {
             let call = super::session_objects::SessionObjectCall {

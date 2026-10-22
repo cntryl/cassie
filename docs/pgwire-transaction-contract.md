@@ -19,7 +19,8 @@ READ COMMITTED is supported; unsupported isolation remains rejected.
 | --- | --- |
 | Supported reads and DML | One implicit transaction per Simple Query or extended segment through Sync. |
 | Transaction controls | Explicit BEGIN persists across Query and Sync; controls follow the origin table below. |
-| DDL/catalog operations rejected in an active transaction | Standalone only. Reject a mixed Simple Query before any execution. Extended standalone DDL must be the first Execute after Sync; require Sync before another Execute. |
+| Selected schema/table/scalar-index DDL | Explicit transactions only. The session reads its staged objects; commit publishes them atomically with row writes. See the #833 extension below. |
+| Other DDL/catalog operations | Standalone only. Reject a mixed Simple Query before any execution. Extended standalone DDL must be the first Execute after Sync; require Sync before another Execute. |
 | Table COPY FROM STDIN | Preserve the existing single-statement Simple Query streaming path, atomic application when idle, and staging in an explicit transaction. Extended COPY remains unsupported. |
 | Database BACKUP/RESTORE | Preserve authorization ordering and idle-only standalone image operations. |
 | Parse/Bind/Describe/Close | Preparation alone does not create a mutation transaction. Bound portals still belong to the current segment or explicit transaction. |
@@ -28,15 +29,16 @@ Table COPY and database images mixed with other Simple Query statements reject
 with `0A000` before execution and without entering copy mode. The generic SQL COPY
 guard does not replace the dedicated wire COPY handler. Preserve its 16 MiB
 buffer limit, ignored Flush/Sync during copy-in, and late-frame recovery.
-No transactional DDL, extended COPY, distributed transactions, new isolation
-levels, or persistent transaction format is introduced.
+No extended COPY, distributed transactions, new isolation levels, or persistent
+transaction format is introduced.
 
 ## Selected local-development contract expansion
 
-The table above describes the current implementation. The local-development
+The table above records the finite #755 wire boundary. The local-development
 gate selects the following database-scoped transactional DDL extension under
-[#833](https://github.com/cntryl/cassie/issues/833); it remains unsupported
-until implementation and acceptance evidence are complete:
+[#833](https://github.com/cntryl/cassie/issues/833). Its selected runtime slice
+is implemented in the current PR; the broader issue acceptance and protocol
+qualification remain open:
 
 - Supported schema, table, and scalar-index CREATE/ALTER/DROP operations stage
   catalog and row changes within the owning Midge database family.
@@ -133,7 +135,7 @@ rolls back 2. `INSERT 1; BEGIN` retains 1 privately until explicit completion.
 | Recovery Sync | Clear recovery marker and segment resources; one `I` or `E`. |
 | Standalone DDL as first Execute | Execute immediately and close its execution portal; mark Standalone Complete. |
 | Further Execute after standalone DDL before Sync | Reject `0A000`, enter recovery; earlier completed DDL remains visible. |
-| DDL inside implicit/explicit origin | Reject before mutation and fail the owning origin. |
+| DDL inside an implicit origin, or unselected DDL inside an explicit origin | Reject before mutation and fail the owning origin. |
 | Extended COPY/image operation | Preserve unsupported `0A000` and origin-aware Sync recovery. |
 | Terminate/disconnect | Roll back uncommitted work and release execution/resource ownership; no ready response required. |
 
@@ -209,5 +211,5 @@ commands; passing these cases does not prove every protocol interleaving.
 Broader snapshot/resource qualification remains [#757](https://github.com/cntryl/cassie/issues/757),
 transaction publication/visibility qualification [#763](https://github.com/cntryl/cassie/issues/763),
 and packet/client workflow qualification [#780](https://github.com/cntryl/cassie/issues/780).
-No stronger isolation, transactional DDL, distributed transaction or general
-PostgreSQL server-parity claim follows from this finite acceptance.
+No stronger isolation, distributed transaction or general PostgreSQL
+server-parity claim follows from this finite acceptance.

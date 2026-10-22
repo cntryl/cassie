@@ -1,7 +1,7 @@
 //! Session transaction characteristics and ownership boundaries.
 
 use super::{
-    CassieError, CassieSession, SessionTransactionStatus, SharedTransactionWrites,
+    Arc, CassieError, CassieSession, Mutex, SessionTransactionStatus, SharedTransactionWrites,
     TransactionIsolation,
 };
 use crate::app::TransactionErrorKind;
@@ -86,6 +86,10 @@ impl CassieSession {
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
+        transaction.catalog_overlay = None;
+        transaction.catalog_base_version = None;
+        transaction.storage_overlay =
+            Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.session_state = Some(session_state);
         transaction.local_settings.clear();
         Ok(())
@@ -211,6 +215,10 @@ impl CassieSession {
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
+        transaction.catalog_overlay = None;
+        transaction.catalog_base_version = None;
+        transaction.storage_overlay =
+            Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         let session_state = transaction.session_state.take();
         let locals = std::mem::take(&mut transaction.local_settings);
         drop(transaction);
@@ -250,6 +258,10 @@ impl CassieSession {
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
+        transaction.catalog_overlay = None;
+        transaction.catalog_base_version = None;
+        transaction.storage_overlay =
+            Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.local_settings.clear();
         drop(transaction);
         if let Some(session_state) = session_state {

@@ -158,7 +158,7 @@ impl Midge {
     }
 
     fn fresh_graph_edge_count_in_tx(
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         graph: &crate::catalog::GraphMeta,
         expected_generation: u64,
     ) -> Result<u64, CassieError> {
@@ -197,7 +197,7 @@ impl Midge {
     }
 
     pub(crate) fn sync_graph_adjacency_for_document(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         graph: Option<&crate::catalog::GraphMeta>,
         row_id: &str,
         previous: Option<&serde_json::Value>,
@@ -248,7 +248,7 @@ impl Midge {
     }
 
     fn put_graph_edge_record(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         record: &GraphEdgeRecord,
     ) -> Result<(), CassieError> {
         tx.put(Self::graph_outbound_edge_key(record), Vec::new(), None)
@@ -271,7 +271,7 @@ impl Midge {
     }
 
     fn delete_graph_edge_record(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         record: &GraphEdgeRecord,
     ) -> Result<(), CassieError> {
         tx.delete(Self::graph_outbound_edge_key(record))
@@ -286,7 +286,7 @@ impl Midge {
     }
 
     fn write_graph_manifest_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         graph_id: u64,
         source_generation: u64,
         edge_count: u64,
@@ -303,7 +303,7 @@ impl Midge {
     }
 
     fn advance_graph_manifest_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         graph_id: u64,
         target_generation: u64,
         had_previous: bool,

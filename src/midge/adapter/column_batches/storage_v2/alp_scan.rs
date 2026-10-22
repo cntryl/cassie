@@ -36,7 +36,7 @@ pub(super) fn single_alp_predicate_field<'a>(
 }
 
 pub(super) fn load_alp_field_chunk(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,

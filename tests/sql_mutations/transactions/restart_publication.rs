@@ -139,7 +139,7 @@ fn should_preserve_transactional_catalog_publication_across_restart() {
         vec![
             vec![
                 Value::String("id".to_owned()),
-                Value::String("integer".to_owned()),
+                Value::String("int".to_owned()),
                 Value::String("NO".to_owned()),
             ],
             vec![

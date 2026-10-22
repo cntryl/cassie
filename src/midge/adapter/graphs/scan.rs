@@ -131,7 +131,7 @@ impl Midge {
 
     fn scan_graph_prefix_controlled(
         &self,
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         request: &GraphPrefixScan<'_>,
         controls: &QueryExecutionControls,
         edges: &mut AccountedVec<GraphEdgeRecord>,
@@ -307,7 +307,7 @@ fn decode_graph_edge_key(
 }
 
 fn load_manifest(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     graph_id: u64,
 ) -> Result<Option<GraphAdjacencyManifest>, CassieError> {
     let Some(raw) = tx
@@ -320,7 +320,7 @@ fn load_manifest(
 }
 
 fn collection_generation_from_tx(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     collection: &str,
 ) -> Result<u64, CassieError> {
     let Some(raw) = tx

@@ -54,7 +54,7 @@ impl Midge {
     }
 
     pub(super) fn record_column_batch_maintenance_debt_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         target_generation: u64,
     ) -> Result<(), CassieError> {
@@ -67,7 +67,7 @@ impl Midge {
     }
 
     pub(super) fn record_projection_hash_maintenance_debt_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         target_generation: u64,
     ) -> Result<(), CassieError> {
@@ -80,7 +80,7 @@ impl Midge {
     }
 
     pub(super) fn record_rollup_maintenance_debt_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         target_generation: u64,
     ) -> Result<(), CassieError> {
@@ -88,7 +88,7 @@ impl Midge {
     }
 
     pub(super) fn record_materialized_projection_maintenance_debt_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         target_generation: u64,
     ) -> Result<(), CassieError> {
@@ -101,7 +101,7 @@ impl Midge {
     }
 
     pub(super) fn record_fulltext_maintenance_debt_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         index_name: &str,
         target_generation: u64,
@@ -115,7 +115,7 @@ impl Midge {
     }
 
     fn record_maintenance_debt_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         artifact: &str,
         target_generation: u64,

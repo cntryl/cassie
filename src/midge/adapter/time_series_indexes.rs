@@ -279,7 +279,7 @@ impl Midge {
     }
 
     pub(crate) fn sync_time_series_indexes_for_document(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         id: &str,
         old_payload: Option<&serde_json::Value>,
         new_payload: Option<&serde_json::Value>,
@@ -328,7 +328,7 @@ impl Midge {
     }
 
     fn update_time_series_metadata_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         index: &IndexMeta,
         old_entry: Option<&TimeSeriesIndexEntry>,
         new_entry: Option<&TimeSeriesIndexEntry>,
@@ -386,7 +386,7 @@ impl Midge {
     }
 
     fn adjust_time_series_bucket_count_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         relation_id: u64,
         index_id: u64,
         bucket: &BucketIdentity,
@@ -614,7 +614,7 @@ impl Midge {
 
     fn load_time_series_integrity(
         &self,
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         collection: &str,
         relation_id: u64,
         index_id: u64,

@@ -116,7 +116,7 @@ fn record_controlled_read(
 
 struct ControlledPostingReadContext<'a> {
     midge: &'a Midge,
-    tx: &'a cntryl_midge::Transaction,
+    tx: &'a crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     allowed_ids: Option<&'a BTreeSet<String>>,
@@ -126,7 +126,7 @@ struct ControlledPostingReadContext<'a> {
 
 struct ControlledCandidateDocumentContext<'a> {
     midge: &'a Midge,
-    tx: &'a cntryl_midge::Transaction,
+    tx: &'a crate::midge::adapter::AdapterTransaction,
     collection: &'a str,
     row_schema: &'a crate::midge::row_blob::RowSchema,
     relation_id: u64,

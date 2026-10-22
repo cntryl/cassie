@@ -95,6 +95,63 @@ impl Catalog {
         self.version.load(Ordering::SeqCst)
     }
 
+    /// Creates a private catalog view for one explicit transaction.
+    #[must_use]
+    pub(crate) fn detached_transaction_snapshot(&self) -> Self {
+        Self {
+            databases: Arc::new(RwLock::new(self.databases.read().clone())),
+            collections: Arc::new(RwLock::new(self.collections.read().clone())),
+            namespaces: Arc::new(RwLock::new(self.namespaces.read().clone())),
+            schemas: Arc::new(RwLock::new(self.schemas.read().clone())),
+            projections: Arc::new(RwLock::new(self.projections.read().clone())),
+            constraints: Arc::new(RwLock::new(self.constraints.read().clone())),
+            indexes: Arc::new(RwLock::new(self.indexes.read().clone())),
+            graphs: Arc::new(RwLock::new(self.graphs.read().clone())),
+            functions: Arc::new(RwLock::new(self.functions.read().clone())),
+            procedures: Arc::new(RwLock::new(self.procedures.read().clone())),
+            views: Arc::new(RwLock::new(self.views.read().clone())),
+            roles: Arc::new(RwLock::new(self.roles.read().clone())),
+            sequences: Arc::new(RwLock::new(self.sequences.read().clone())),
+            rollups: Arc::new(RwLock::new(self.rollups.read().clone())),
+            retention_policies: Arc::new(RwLock::new(self.retention_policies.read().clone())),
+            vector_indexes: Arc::new(RwLock::new(self.vector_indexes.read().clone())),
+            cardinality: Arc::new(RwLock::new(self.cardinality.read().clone())),
+            projection_comparison_reports: Arc::new(RwLock::new(
+                self.projection_comparison_reports.read().clone(),
+            )),
+            projection_consistency_reports: Arc::new(RwLock::new(
+                self.projection_consistency_reports.read().clone(),
+            )),
+            projection_repair_reports: Arc::new(RwLock::new(
+                self.projection_repair_reports.read().clone(),
+            )),
+            operational_assignments: Arc::new(RwLock::new(
+                self.operational_assignments.read().clone(),
+            )),
+            maintenance_debts: Arc::new(RwLock::new(self.maintenance_debts.read().clone())),
+            version: Arc::new(AtomicU64::new(self.version())),
+        }
+    }
+
+    /// Publishes a private transaction snapshot while the caller holds the
+    /// catalog publication write guard.
+    pub(crate) fn publish_transaction_snapshot(&self, snapshot: &Self) {
+        (*self.collections.write()).clone_from(&snapshot.collections.read());
+        (*self.namespaces.write()).clone_from(&snapshot.namespaces.read());
+        (*self.schemas.write()).clone_from(&snapshot.schemas.read());
+        (*self.constraints.write()).clone_from(&snapshot.constraints.read());
+        (*self.indexes.write()).clone_from(&snapshot.indexes.read());
+        (*self.graphs.write()).clone_from(&snapshot.graphs.read());
+        (*self.views.write()).clone_from(&snapshot.views.read());
+        (*self.sequences.write()).clone_from(&snapshot.sequences.read());
+        (*self.rollups.write()).clone_from(&snapshot.rollups.read());
+        (*self.retention_policies.write()).clone_from(&snapshot.retention_policies.read());
+        (*self.vector_indexes.write()).clone_from(&snapshot.vector_indexes.read());
+        (*self.projections.write()).clone_from(&snapshot.projections.read());
+        (*self.cardinality.write()).clone_from(&snapshot.cardinality.read());
+        self.bump_version();
+    }
+
     pub fn register_collection(&self, name: &str, schema: Vec<(String, DataType)>) {
         self.register_collection_with_constraints(name, schema, Vec::new());
     }

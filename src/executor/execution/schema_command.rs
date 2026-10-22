@@ -1,6 +1,6 @@
 use super::command_output::empty as empty_command;
 use super::{catalog, virtual_views, Cassie, FieldSchema, QueryError, QueryResult, QueryStatement};
-use crate::app::{CassieError, CatalogObjectKind};
+use crate::app::{CassieError, CassieSession, CatalogObjectKind};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
@@ -174,6 +174,7 @@ pub(super) fn drop_table(
 
 pub(super) fn alter_table(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &AlterTableStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
@@ -183,6 +184,20 @@ pub(super) fn alter_table(
         .is_some_and(crate::catalog::collections::CollectionStorageMode::uses_column_store_storage);
     let output = empty_command("ALTER TABLE", controls)?;
     execute_alter_table_operation(cassie, statement, is_column_store)?;
+    if let Some(session) = session {
+        match &statement.operation {
+            AlterTableOperation::RenameTo { table: next_table } => session
+                .rename_transaction_collections(&[(
+                    statement.table.as_str().to_owned(),
+                    next_table.clone(),
+                )])
+                .map_err(QueryError::Cassie)?,
+            AlterTableOperation::RenameColumn { from, to } => {
+                session.rename_transaction_column(statement.table.as_str(), from, to);
+            }
+            _ => {}
+        }
+    }
 
     Ok(output)
 }
@@ -285,6 +300,7 @@ pub(super) fn drop_database(
 
 pub(super) fn alter_schema(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &AlterSchemaStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
@@ -304,7 +320,7 @@ pub(super) fn alter_schema(
         .midge
         .rename_namespace(&target_schema, &next_schema)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    rename_schema_descendants(cassie, &target_schema, &next_schema)?;
+    rename_schema_descendants(cassie, session, &target_schema, &next_schema)?;
     cassie.hydrate_catalog()?;
 
     Ok(output)
@@ -586,6 +602,7 @@ pub(super) fn refresh_table_cardinality_stats(
 
 fn rename_schema_descendants(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     current_schema: &str,
     next_schema: &str,
 ) -> Result<(), QueryError> {
@@ -603,7 +620,7 @@ fn rename_schema_descendants(
         .collect::<Vec<_>>();
     let relation_renames = relation_rename_map(&collection_renames);
 
-    rename_schema_collections(cassie, &collection_renames)?;
+    rename_schema_collections(cassie, session, &collection_renames)?;
     rename_schema_views(cassie, current_schema, next_schema)?;
     schema_sequence_rename::rename_schema_sequences(
         cassie,
@@ -632,10 +649,16 @@ fn relation_rename_map(collection_renames: &[(String, String)]) -> RelationRenam
 
 fn rename_schema_collections(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     collection_renames: &[(String, String)],
 ) -> Result<(), QueryError> {
     for (current, next) in collection_renames {
         cassie.midge.rename_collection(current, next)?;
+    }
+    if let Some(session) = session {
+        session
+            .rename_transaction_collections(collection_renames)
+            .map_err(QueryError::Cassie)?;
     }
     Ok(())
 }
@@ -912,16 +935,25 @@ fn database_is_empty(cassie: &Cassie, database: &str) -> bool {
 }
 
 fn object_in_schema(name: &str, schema: &str) -> bool {
-    let target_schema = crate::catalog::local_name(schema);
-    if !crate::catalog::relation_schema_name(name).eq_ignore_ascii_case(&target_schema) {
+    let (object_database, object_schema) = match crate::catalog::parse_name(name) {
+        Ok(crate::catalog::ParsedName::DatabaseQualified {
+            database, schema, ..
+        }) => (Some(database), schema),
+        Ok(crate::catalog::ParsedName::SchemaQualified { schema, .. }) => (None, schema),
+        Ok(crate::catalog::ParsedName::Unqualified(_)) => {
+            (None, crate::catalog::DEFAULT_SCHEMA.to_owned())
+        }
+        Err(_) => return false,
+    };
+    if !crate::catalog::name_matches(schema, &object_schema) {
         return false;
     }
 
     let target_database = crate::catalog::schema_database_name(schema);
     target_database.as_ref().is_none_or(|database| {
-        crate::catalog::relation_database_name(name)
+        object_database
             .as_ref()
-            .is_none_or(|relation_database| relation_database.eq_ignore_ascii_case(database))
+            .is_none_or(|object_database| object_database.eq_ignore_ascii_case(database))
     })
 }
 

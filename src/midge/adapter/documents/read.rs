@@ -10,7 +10,7 @@ use std::time::Duration;
 struct RowBlobScanRequest<'a> {
     collection: &'a str,
     row_schema: &'a RowSchema,
-    tx: &'a cntryl_midge::Transaction,
+    tx: &'a crate::midge::adapter::AdapterTransaction,
     batch_size: usize,
     projection: Option<&'a std::collections::HashSet<String>>,
     filter: Option<&'a RowFilter>,
@@ -32,7 +32,7 @@ impl Midge {
     ///
     /// Returns an error when the persisted epoch is malformed or cannot be read.
     pub fn data_epoch(&self) -> Result<u64, CassieError> {
-        let tx = self.database_tx(
+        let tx = self.begin_database_adapter_tx(
             &self.default_database,
             cntryl_midge::TransactionMode::ReadOnly,
         )?;
@@ -40,12 +40,13 @@ impl Midge {
     }
 
     pub(crate) fn data_epoch_for_database(&self, database: &str) -> Result<u64, CassieError> {
-        let tx = self.database_tx(database, cntryl_midge::TransactionMode::ReadOnly)?;
+        let tx =
+            self.begin_database_adapter_tx(database, cntryl_midge::TransactionMode::ReadOnly)?;
         Self::load_data_epoch_from_tx(&tx)
     }
 
     pub(in crate::midge::adapter) fn load_data_epoch_from_tx(
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
     ) -> Result<u64, CassieError> {
         let Some(raw) = tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? else {
             return Ok(0);
@@ -78,7 +79,7 @@ impl Midge {
     }
 
     pub(crate) fn increment_data_epoch_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
     ) -> Result<u64, CassieError> {
         let next = match tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? {
             Some(raw) => {
@@ -96,7 +97,7 @@ impl Midge {
     }
 
     pub(crate) fn increment_collection_generation_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
     ) -> Result<u64, CassieError> {
         let key = Self::collection_generation_key(collection);

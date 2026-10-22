@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use cntryl_midge::{Query, Transaction};
+use cntryl_midge::Query;
 
 use crate::runtime::accounted::Accounted;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
@@ -79,7 +79,7 @@ impl ExpectedKeys {
 impl Midge {
     pub(super) fn verify_graph_adjacency_controlled(
         &self,
-        tx: &Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         graph: &crate::catalog::GraphMeta,
         manifest: &GraphAdjacencyManifest,
         controls: &QueryExecutionControls,
@@ -188,7 +188,7 @@ impl Midge {
 
 fn scan_entries(
     midge: &Midge,
-    tx: &Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     prefix: &[u8],
     controls: &QueryExecutionControls,
     reads: &mut usize,

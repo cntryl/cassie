@@ -123,7 +123,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | LIST, RANGE, HASH partitioning | Absent | #840 |
 | CREATE TYPE (enum, composite, range), DOMAIN | Absent | #827, #828, #905 |
 | CREATE EXTENSION | Absent | #843 |
-| Transactional DDL | Absent (standalone only) | #833 |
+| Transactional DDL | Partial: selected explicit schema/table/scalar-index lifecycle; implicit and unselected DDL remain standalone only | #833 |
 | **Routines and triggers** | | |
 | Scalar SQL functions, single-statement procedures, CALL | Supported | — |
 | Overloads, defaults, named args, RETURNS TABLE/SETOF, OR REPLACE | Absent | #830 |

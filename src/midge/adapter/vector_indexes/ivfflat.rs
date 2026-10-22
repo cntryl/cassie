@@ -306,7 +306,7 @@ fn persisted_manifest_matches(
 }
 
 pub(super) fn load_ivfflat_manifest(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     field_id: u32,
     manifest: PersistedIvfManifest,

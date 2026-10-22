@@ -692,7 +692,7 @@ impl Midge {
     }
 
     pub(crate) fn delete_keys_with_prefix(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         prefix: Vec<u8>,
     ) -> Result<(), CassieError> {
         let scan = collect_scan(
@@ -859,7 +859,7 @@ fn segment_requested_bytes(segment: &ColumnBatchSegmentMeta, wanted: &BTreeSet<S
 }
 
 fn load_column_batch_segment(
-    data_tx: &cntryl_midge::Transaction,
+    data_tx: &crate::midge::adapter::AdapterTransaction,
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
 ) -> Result<Result<LoadedSegment, ColumnBatchScanFallbackReason>, CassieError> {

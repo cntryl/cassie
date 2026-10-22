@@ -17,6 +17,7 @@ pub struct CassieRuntimeConfigState {
 pub struct Cassie {
     pub midge: Arc<Midge>,
     pub catalog: Catalog,
+    pub(crate) catalog_publication: Arc<parking_lot::RwLock<()>>,
     pub embedding_provider: Arc<dyn EmbeddingProvider>,
     pub(crate) runtime: Arc<RuntimeState>,
     pub(super) feedback_persistence_lock: Arc<Mutex<()>>,

@@ -176,7 +176,7 @@ impl Midge {
     }
 
     pub(super) fn write_vector_index_state_to_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         state: &VectorIndexState,
@@ -339,7 +339,7 @@ impl Midge {
     }
 
     fn write_vector_index_manifest_to_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         state: &VectorIndexState,
@@ -387,7 +387,7 @@ impl Midge {
     }
 
     pub(super) fn refresh_vector_index_states_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         row_schema: &super::RowSchema,
         indexes: &[VectorIndexRecord],
         records_by_field: &[(String, Vec<NormalizedVectorRecord>)],
@@ -438,7 +438,7 @@ impl Midge {
 
     pub(super) fn stamp_vector_index_states_generation_in_tx(
         &self,
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         built_generation: u64,
     ) -> Result<(), CassieError> {
@@ -478,7 +478,7 @@ impl Midge {
     }
 
     pub(super) fn stamp_normalized_vectors_generation_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         row_schema: &super::RowSchema,
         built_generation: u64,
         records_by_field: &[(String, Vec<NormalizedVectorRecord>)],
@@ -661,7 +661,7 @@ impl Midge {
     }
 
     pub(super) fn write_normalized_vector_records(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         row_schema: &super::RowSchema,
         records: &[NormalizedVectorRecord],
     ) -> Result<(), CassieError> {
@@ -679,7 +679,7 @@ impl Midge {
     }
 
     pub(super) fn delete_normalized_vector_keys_with_prefix(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         prefix: Vec<u8>,
     ) -> Result<(), CassieError> {
         let scan = collect_scan(
@@ -699,7 +699,7 @@ impl Midge {
     }
 
     pub(super) fn delete_normalized_vector_keys_for_document(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         row_schema: &super::RowSchema,
         id: &str,
         fields: &[String],
@@ -906,7 +906,7 @@ impl Midge {
 }
 
 fn load_hnsw_manifest(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     field_id: u32,
     manifest: PersistedHnswManifest,

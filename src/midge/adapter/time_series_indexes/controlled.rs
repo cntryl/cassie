@@ -144,7 +144,7 @@ impl Midge {
 
     fn load_controlled_integrity(
         &self,
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         collection: &str,
         relation_id: u64,
         index_id: u64,
@@ -327,7 +327,7 @@ fn requested_counts_match(
 
 fn load_controlled_hits(
     midge: &Midge,
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     request: &ControlledIndexRequest<'_>,
     controls: &QueryExecutionControls,
 ) -> Result<ControlledHits, CassieError> {
@@ -401,7 +401,7 @@ fn controlled_hit_query(request: &ControlledIndexRequest<'_>, start_key: Option<
 
 fn controlled_scan_pages(
     midge: &Midge,
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     controls: &QueryExecutionControls,
     mut query_for_page: impl FnMut(Option<Vec<u8>>) -> Query,
     mut visit: impl FnMut(&[u8], &[u8]) -> Result<(), CassieError>,

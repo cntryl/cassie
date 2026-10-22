@@ -54,7 +54,7 @@ struct LoadedPredicateFields {
 /// Loads only field chunks for a filtered aggregate.  In particular, this deliberately does not
 /// validate or read the row-id chunk: aggregate results have no row identity observable to SQL.
 pub(super) fn scan_aggregate_segment(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
     fields: &BTreeSet<String>,
@@ -226,7 +226,7 @@ fn encode_segment_with_policy(
 }
 
 pub(super) fn write_segment(
-    tx: &mut cntryl_midge::Transaction,
+    tx: &mut crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &EncodedSegment,
@@ -260,7 +260,7 @@ pub(super) fn write_segment(
 }
 
 pub(super) fn load_segment(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
     wanted: &BTreeSet<String>,
@@ -364,7 +364,7 @@ pub(super) fn load_segment(
 }
 
 pub(super) fn scan_segment(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
     wanted: &BTreeSet<String>,
@@ -448,7 +448,7 @@ pub(super) fn scan_segment(
 }
 
 fn load_predicate_fields(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -573,7 +573,7 @@ fn empty_loaded_segment(
 }
 
 fn load_projection_fields(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -690,7 +690,7 @@ fn find_field_chunk<'a>(
 }
 
 pub(super) fn load_field_chunk(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -701,7 +701,7 @@ pub(super) fn load_field_chunk(
 }
 
 fn load_field_chunk_selected(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -721,7 +721,7 @@ fn load_field_chunk_selected(
 }
 
 fn load_field_chunk_with_selection(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -772,7 +772,7 @@ fn load_field_chunk_with_selection(
 }
 
 pub(super) fn load_row_ids(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,

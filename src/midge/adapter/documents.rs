@@ -4,6 +4,7 @@ use super::{
     NormalizedVectorRecord, RowSchema, Schema, Uuid,
 };
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 #[path = "documents/commit.rs"]
 mod commit;
@@ -56,6 +57,14 @@ struct DocumentWriteBatchContext {
     fulltext_indexes: Vec<super::IndexMeta>,
     graph: Option<crate::catalog::GraphMeta>,
     needs_existing_payload: bool,
+}
+
+#[derive(Default)]
+struct PreparedDocumentWriteBatches {
+    reports: BTreeMap<String, DocumentWriteBatchReport>,
+    changed_collections: Vec<String>,
+    vector_records_by_collection: BTreeMap<String, VectorRecordsByField>,
+    fulltext_indexes_by_collection: BTreeMap<String, Vec<IndexMeta>>,
 }
 
 struct ExistingDocumentState {
@@ -240,7 +249,29 @@ impl Midge {
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
+        self.apply_document_write_batches_with_storage_overlay(writes, options, None)
+    }
+
+    pub(crate) fn apply_document_write_batches_with_transactional_ddl(
+        &self,
+        writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
+        options: &DocumentWriteBatchOptions,
+        overlay: &super::StorageOverlay,
+    ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
+        self.apply_document_write_batches_with_storage_overlay(writes, options, Some(overlay))
+    }
+
+    fn apply_document_write_batches_with_storage_overlay(
+        &self,
+        writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
+        options: &DocumentWriteBatchOptions,
+        overlay: Option<&super::StorageOverlay>,
+    ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
         if writes.is_empty() {
+            if let Some(overlay) = overlay {
+                let database = self.default_database.clone();
+                self.commit_storage_overlay(&database, overlay)?;
+            }
             return Ok(BTreeMap::new());
         }
         let mut canonical_writes = BTreeMap::<String, Vec<DocumentWriteOp>>::new();
@@ -274,13 +305,6 @@ impl Midge {
                 write_guards.push(write_gate.lock());
             }
 
-            for (collection, operations) in &collections {
-                let context = self.document_write_batch_context(collection)?;
-                let prepared =
-                    Self::prepare_document_writes(collection, operations.clone(), &context)?;
-                prepared_writes.push((collection.clone(), context, prepared));
-            }
-
             let database = crate::catalog::relation_database_name(
                 collections.first().map_or("", |(collection, _)| collection),
             )
@@ -293,34 +317,40 @@ impl Midge {
                     "one transaction cannot access multiple databases".to_string(),
                 ));
             }
-            let mut tx = self.database_tx(&database, cntryl_midge::TransactionMode::ReadWrite)?;
-            tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
-            let mut reports = BTreeMap::new();
-            let mut changed_collections = Vec::new();
-            let mut vector_records_by_collection = BTreeMap::new();
-            let mut fulltext_indexes_by_collection = BTreeMap::new();
+            let _overlay_scope = if let Some(overlay) = overlay {
+                let overlay = Arc::new(parking_lot::Mutex::new(overlay.clone()));
+                Some(self.enter_transactional_ddl_scope(&database, overlay, false)?)
+            } else {
+                None
+            };
+            for (collection, operations) in &collections {
+                let context = self.document_write_batch_context(collection)?;
+                let prepared =
+                    Self::prepare_document_writes(collection, operations.clone(), &context)?;
+                prepared_writes.push((collection.clone(), context, prepared));
+            }
 
-            for (collection, context, prepared_collection) in prepared_writes {
-                let (report, vector_records) = self.apply_prepared_collection_writes(
-                    &mut tx,
-                    &collection,
-                    &context,
-                    prepared_collection,
-                    options,
-                )?;
-                if report.has_changes() {
-                    Self::refresh_vector_index_states_in_tx(
-                        &mut tx,
-                        &context.row_schema,
-                        &context.vector_indexes,
-                        &vector_records,
-                    )?;
-                    vector_records_by_collection.insert(collection.clone(), vector_records);
-                    fulltext_indexes_by_collection
-                        .insert(collection.clone(), context.fulltext_indexes.clone());
-                    changed_collections.push(collection.clone());
+            let mut tx = self.begin_raw_database_adapter_tx(
+                &database,
+                cntryl_midge::TransactionMode::ReadWrite,
+            )?;
+            tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
+            if let Some(overlay) = overlay {
+                Self::apply_storage_overlay_to_transaction(&mut tx, overlay)?;
+            }
+            let PreparedDocumentWriteBatches {
+                reports,
+                changed_collections,
+                vector_records_by_collection,
+                fulltext_indexes_by_collection,
+            } = self.apply_prepared_document_write_batches(&mut tx, prepared_writes, options)?;
+
+            if changed_collections.is_empty() {
+                tx.rollback().map_err(CassieError::from)?;
+                if let Some(overlay) = overlay {
+                    self.commit_storage_overlay(&database, overlay)?;
                 }
-                reports.insert(collection, report);
+                return Ok(reports);
             }
 
             match self.finish_document_write_batches(
@@ -346,9 +376,63 @@ impl Midge {
         }
     }
 
+    fn apply_prepared_document_write_batches(
+        &self,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
+        prepared_writes: Vec<(String, DocumentWriteBatchContext, Vec<PreparedWrite>)>,
+        options: &DocumentWriteBatchOptions,
+    ) -> Result<PreparedDocumentWriteBatches, CassieError> {
+        let mut applied = PreparedDocumentWriteBatches::default();
+        for (collection, context, prepared_collection) in prepared_writes {
+            let (report, vector_records) = self.apply_prepared_collection_writes(
+                tx,
+                &collection,
+                &context,
+                prepared_collection,
+                options,
+            )?;
+            if report.has_changes() {
+                Self::refresh_vector_index_states_in_tx(
+                    tx,
+                    &context.row_schema,
+                    &context.vector_indexes,
+                    &vector_records,
+                )?;
+                applied
+                    .vector_records_by_collection
+                    .insert(collection.clone(), vector_records);
+                applied
+                    .fulltext_indexes_by_collection
+                    .insert(collection.clone(), context.fulltext_indexes.clone());
+                applied.changed_collections.push(collection.clone());
+            }
+            applied.reports.insert(collection, report);
+        }
+        Ok(applied)
+    }
+
+    fn apply_storage_overlay_to_transaction(
+        tx: &mut crate::midge::adapter::AdapterTransaction,
+        overlay: &super::StorageOverlay,
+    ) -> Result<(), CassieError> {
+        for (key, change) in &overlay.changes {
+            tx.assert_expected_value(key.clone(), &change.expected)
+                .map_err(CassieError::from)?;
+        }
+        for (key, change) in &overlay.changes {
+            if let Some(value) = &change.value {
+                tx.put(key.clone(), value.clone(), change.ttl_seconds)
+                    .map_err(CassieError::from)?;
+            } else {
+                tx.delete(key.clone()).map_err(CassieError::from)?;
+            }
+        }
+        Ok(())
+    }
+
     fn apply_prepared_collection_writes(
         &self,
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared_collection: Vec<PreparedWrite>,
@@ -547,7 +631,7 @@ impl Midge {
     }
 
     fn apply_prepared_document_write(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: PreparedWrite,
@@ -575,7 +659,7 @@ impl Midge {
     }
 
     fn existing_document_state_for_prepared_write(
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         id: &str,
@@ -625,7 +709,7 @@ impl Midge {
     }
 
     fn apply_prepared_put(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         mut prepared: PreparedWrite,
@@ -733,7 +817,7 @@ impl Midge {
     }
 
     fn apply_prepared_delete(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: &PreparedWrite,
@@ -796,7 +880,7 @@ impl Midge {
     }
 
     fn sync_secondary_indexes_for_write(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         context: &DocumentWriteBatchContext,
         id: &str,
         previous: Option<&serde_json::Value>,

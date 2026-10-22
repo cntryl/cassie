@@ -108,6 +108,211 @@ fn should_restore_dropped_table_after_transaction_rollback() {
 }
 
 #[test]
+fn should_commit_table_drop_after_staging_a_row_write() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-833-drop-after-staged-write",
+        &["CREATE TABLE tx_ddl_drop_staged (id INT PRIMARY KEY)"],
+    );
+    fixture.execute("BEGIN").expect("begin transaction");
+    fixture
+        .execute("INSERT INTO tx_ddl_drop_staged VALUES (1)")
+        .expect("stage a row write");
+    fixture
+        .execute("DROP TABLE tx_ddl_drop_staged")
+        .expect("drop table transactionally");
+
+    // Act
+    fixture
+        .execute("COMMIT")
+        .expect("commit the staged write and table drop");
+    let absent = fixture.execute("SELECT id FROM tx_ddl_drop_staged");
+
+    // Assert
+    assert!(
+        absent.is_err(),
+        "dropped table must stay absent after commit"
+    );
+}
+
+#[test]
+fn should_publish_a_staged_row_after_transactional_table_rename() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-833-rename-after-staged-write",
+        &[
+            "CREATE TABLE tx_ddl_rename_staged (id INT PRIMARY KEY, label TEXT)",
+            "INSERT INTO tx_ddl_rename_staged VALUES (1, 'existing')",
+        ],
+    );
+    fixture.execute("BEGIN").expect("begin transaction");
+    fixture
+        .execute("INSERT INTO tx_ddl_rename_staged VALUES (2, 'staged')")
+        .expect("stage a row write");
+    fixture
+        .execute("ALTER TABLE tx_ddl_rename_staged RENAME TO tx_ddl_renamed")
+        .expect("rename table transactionally");
+
+    // Act
+    fixture
+        .execute("COMMIT")
+        .expect("commit the staged row and table rename");
+    let rows = fixture.rows("SELECT id, label FROM tx_ddl_renamed ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            vec![Value::Int64(1), Value::String("existing".to_owned())],
+            vec![Value::Int64(2), Value::String("staged".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_publish_a_staged_row_after_transactional_schema_rename() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-833-schema-rename-after-staged-write",
+        &[
+            "CREATE SCHEMA tx_ddl_schema_before",
+            "CREATE TABLE tx_ddl_schema_before.tx_ddl_schema_rows (id INT PRIMARY KEY, label TEXT)",
+            "INSERT INTO tx_ddl_schema_before.tx_ddl_schema_rows VALUES (1, 'existing')",
+        ],
+    );
+    fixture.execute("BEGIN").expect("begin transaction");
+    fixture
+        .execute("INSERT INTO tx_ddl_schema_before.tx_ddl_schema_rows VALUES (2, 'staged')")
+        .expect("stage a row write");
+    fixture
+        .execute("ALTER SCHEMA tx_ddl_schema_before RENAME TO tx_ddl_schema_after")
+        .expect("rename schema transactionally");
+    fixture
+        .execute("SELECT id FROM tx_ddl_schema_after.tx_ddl_schema_rows")
+        .expect("read the table from the renamed schema before commit");
+
+    // Act
+    fixture
+        .execute("COMMIT")
+        .expect("commit the staged row and schema rename");
+    let rows = fixture
+        .execute("SELECT id, label FROM tx_ddl_schema_after.tx_ddl_schema_rows ORDER BY id")
+        .expect("read table after the schema rename")
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            vec![Value::Int64(1), Value::String("existing".to_owned())],
+            vec![Value::Int64(2), Value::String("staged".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_publish_a_view_after_transactional_schema_rename() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-833-schema-rename-with-view",
+        &[
+            "CREATE SCHEMA tx_ddl_view_before",
+            "CREATE TABLE tx_ddl_view_before.tx_ddl_view_rows (id INT PRIMARY KEY)",
+            "INSERT INTO tx_ddl_view_before.tx_ddl_view_rows VALUES (1)",
+            "CREATE VIEW tx_ddl_view_before.tx_ddl_view AS \
+             SELECT id FROM tx_ddl_view_before.tx_ddl_view_rows",
+        ],
+    );
+    fixture.execute("BEGIN").expect("begin transaction");
+    fixture
+        .execute("ALTER SCHEMA tx_ddl_view_before RENAME TO tx_ddl_view_after")
+        .expect("rename schema transactionally");
+    let private = fixture
+        .execute("SELECT id FROM tx_ddl_view_after.tx_ddl_view ORDER BY id")
+        .expect("read the renamed view before commit")
+        .rows()
+        .to_vec();
+
+    // Act
+    fixture.execute("COMMIT").expect("commit the schema rename");
+    let rows = fixture
+        .execute("SELECT id FROM tx_ddl_view_after.tx_ddl_view ORDER BY id")
+        .expect("read the view after the schema rename")
+        .rows()
+        .to_vec();
+
+    // Assert
+    let expected = vec![vec![Value::Int64(1)]];
+    assert_eq!(private, expected);
+    assert_eq!(rows, expected);
+}
+
+#[test]
+fn should_preserve_staged_values_after_transactional_column_rename() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-833-column-rename-after-staged-write",
+        &["CREATE TABLE tx_ddl_column_rows (id INT PRIMARY KEY, old_label TEXT)"],
+    );
+    fixture.execute("BEGIN").expect("begin transaction");
+    fixture
+        .execute("INSERT INTO tx_ddl_column_rows VALUES (1, 'staged')")
+        .expect("stage a row write");
+    fixture
+        .execute("ALTER TABLE tx_ddl_column_rows RENAME COLUMN old_label TO new_label")
+        .expect("rename column transactionally");
+
+    // Act
+    fixture
+        .execute("COMMIT")
+        .expect("commit the staged row and column rename");
+    let rows = fixture.rows("SELECT id, new_label FROM tx_ddl_column_rows ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![Value::Int64(1), Value::String("staged".to_owned())]]
+    );
+}
+
+#[test]
+fn should_resolve_staged_conflict_after_transactional_target_column_rename() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-833-conflict-target-column-rename",
+        &[
+            "CREATE TABLE tx_ddl_conflict_rows \
+               (id INT PRIMARY KEY, old_label TEXT UNIQUE)",
+            "INSERT INTO tx_ddl_conflict_rows VALUES (1, 'original')",
+        ],
+    );
+    fixture.execute("BEGIN").expect("begin transaction");
+    fixture
+        .execute(
+            "INSERT INTO tx_ddl_conflict_rows VALUES (2, 'original') \
+             ON CONFLICT (old_label) DO UPDATE SET \
+               id = excluded.id, old_label = excluded.old_label",
+        )
+        .expect("stage a conflicting row write");
+    fixture
+        .execute("ALTER TABLE tx_ddl_conflict_rows RENAME COLUMN old_label TO new_label")
+        .expect("rename the conflict target column transactionally");
+
+    // Act
+    fixture
+        .execute("COMMIT")
+        .expect("resolve the conflict and commit the renamed column");
+    let rows = fixture.rows("SELECT id, new_label FROM tx_ddl_conflict_rows ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![Value::Int64(2), Value::String("original".to_owned())]]
+    );
+}
+
+#[test]
 fn should_rollback_materialized_view_publication_with_transaction() {
     // Arrange
     let fixture = sql_fixture(

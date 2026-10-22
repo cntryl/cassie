@@ -57,7 +57,7 @@ fn should_flush_scalar_index_batch(batch_number: usize, batch_count: usize) -> b
 
 impl Midge {
     pub(crate) fn sync_scalar_indexes_for_document(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         id: &str,
         old_payload: Option<&serde_json::Value>,
         new_payload: Option<&serde_json::Value>,

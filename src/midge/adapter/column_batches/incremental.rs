@@ -399,7 +399,7 @@ fn publish_incremental_segments(
 }
 
 fn fence_generation(
-    tx: &mut cntryl_midge::Transaction,
+    tx: &mut crate::midge::adapter::AdapterTransaction,
     collection: &str,
     target_generation: u64,
 ) -> Result<(), CassieError> {

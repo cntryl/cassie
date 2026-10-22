@@ -49,7 +49,7 @@ impl Cassie {
         }
 
         let staging = batch.into_session();
-        let committed = self.apply_staged_write_batches(&staging, Some(controls))?;
+        let committed = self.apply_staged_write_batches(&staging, Some(controls), None)?;
         self.finish_staged_write_batches(committed, Some(controls));
         Ok(())
     }
@@ -58,10 +58,14 @@ impl Cassie {
         &self,
         staging: &CassieSession,
         controls: Option<&QueryExecutionControls>,
+        transactional_ddl: Option<(&str, &crate::midge::adapter::StorageOverlay)>,
     ) -> Result<CommittedWriteBatch, CassieError> {
         let mut writes = transaction_write_batches(staging);
         if writes.is_empty() {
             check_publication_controls(controls)?;
+            if let Some((database, overlay)) = transactional_ddl {
+                self.midge.commit_storage_overlay(database, overlay)?;
+            }
             return Ok(CommittedWriteBatch {
                 changed_collections: Vec::new(),
             });
@@ -71,10 +75,14 @@ impl Cassie {
         let mut options = self.document_write_options_for_collections(&collections);
         options.refresh_after_commit = false;
         check_publication_controls(controls)?;
-        let reports = match self
-            .midge
-            .apply_document_write_batches_with_options(&writes, &options)
-        {
+        let initial = if let Some((_, overlay)) = transactional_ddl {
+            self.midge
+                .apply_document_write_batches_with_transactional_ddl(&writes, &options, overlay)
+        } else {
+            self.midge
+                .apply_document_write_batches_with_options(&writes, &options)
+        };
+        let reports = match initial {
             Ok(reports) => reports,
             Err(CassieError::UniqueViolation { .. })
                 if !staging.transaction_conflict_intents().is_empty() =>
@@ -90,8 +98,17 @@ impl Cassie {
                         self.document_write_options_for_collections(&retry_collections);
                     retry_options.refresh_after_commit = false;
                     check_publication_controls(controls)?;
-                    self.midge
-                        .apply_document_write_batches_with_options(&writes, &retry_options)?
+                    if let Some((_, overlay)) = transactional_ddl {
+                        self.midge
+                            .apply_document_write_batches_with_transactional_ddl(
+                                &writes,
+                                &retry_options,
+                                overlay,
+                            )?
+                    } else {
+                        self.midge
+                            .apply_document_write_batches_with_options(&writes, &retry_options)?
+                    }
                 }
             }
             Err(error) => return Err(error),

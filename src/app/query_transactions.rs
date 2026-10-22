@@ -124,22 +124,65 @@ impl Cassie {
                 "COMMIT requires an active transaction".to_string(),
             ));
         }
+        let catalog_overlay = session.transaction_catalog_overlay();
+        let storage_overlay = session.transaction_storage_overlay_snapshot();
+        let database = session
+            .current_database()
+            .unwrap_or(&self.default_database)
+            .to_owned();
+        let catalog_publication = catalog_overlay
+            .as_ref()
+            .map(|_| self.catalog_publication.write());
+        if catalog_overlay.is_some()
+            && session.transaction_catalog_base_version() != Some(self.catalog.version())
+        {
+            session.mark_transaction_failed();
+            return Err(CassieError::Transaction {
+                kind: TransactionErrorKind::SerializationFailure,
+                message: "catalog changed while a transactional DDL block was active".to_owned(),
+            });
+        }
+        let transactional_ddl = catalog_overlay
+            .as_ref()
+            .map(|_| (database.as_str(), &storage_overlay));
         let (collections, referential) = self.transaction_commit_write_gates(session);
         let committed = if referential {
             self.midge.with_collection_write_gates(&collections, || {
                 self.validate_staged_foreign_keys(session)?;
                 self.validate_staged_parent_references(session)?;
-                self.apply_staged_write_batches(session, None)
+                if catalog_overlay.is_some() {
+                    self.bump_transaction_schema_epoch()?;
+                }
+                self.apply_staged_write_batches(session, None, transactional_ddl)
             })
         } else {
             self.midge.with_collection_gates(&collections, || {
-                self.apply_staged_write_batches(session, None)
+                if catalog_overlay.is_some() {
+                    self.bump_transaction_schema_epoch()?;
+                }
+                self.apply_staged_write_batches(session, None, transactional_ddl)
             })
         }
         .inspect_err(|_| session.mark_transaction_failed())?;
 
+        if let Some(snapshot) = catalog_overlay.as_ref() {
+            self.catalog.publish_transaction_snapshot(snapshot);
+        }
         session.commit_transaction();
+        drop(catalog_publication);
         self.finish_staged_write_batches(committed, None);
+        Ok(())
+    }
+
+    fn bump_transaction_schema_epoch(&self) -> Result<(), CassieError> {
+        let schema_epoch = self
+            .midge
+            .bump_schema_epoch()
+            .map_err(|error| CassieError::Storage(format!("bump schema epoch: {error}")))?;
+        self.runtime.record_storage_access("schema", true, true);
+        self.runtime.set_schema_epoch(schema_epoch);
+        self.runtime.invalidate_plan_cache();
+        self.runtime.invalidate_execution_result_cache();
         Ok(())
     }
 }

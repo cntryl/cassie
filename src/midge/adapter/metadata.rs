@@ -13,7 +13,7 @@ impl Midge {
     }
 
     pub(super) fn allocate_object_id_to_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
     ) -> Result<u64, CassieError> {
         let key = key_encoding::object_id_counter_key();
         let current = tx

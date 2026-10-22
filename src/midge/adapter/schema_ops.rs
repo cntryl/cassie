@@ -731,7 +731,7 @@ impl Midge {
     }
 
     fn rename_collection_maintenance_debt_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {

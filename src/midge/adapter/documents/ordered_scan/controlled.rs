@@ -194,7 +194,7 @@ impl OrderedSource {
 
     fn fill(
         &mut self,
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         midge: &Midge,
         reverse: bool,
         controls: &QueryExecutionControls,

@@ -20,7 +20,7 @@ pub(crate) fn should_flush_projection_output_batch(
 }
 
 pub(super) fn write_row_hash_record_to_tx(
-    tx: &mut cntryl_midge::Transaction,
+    tx: &mut crate::midge::adapter::AdapterTransaction,
     record: &RowHashRecord,
 ) -> Result<(), CassieError> {
     tx.put(
@@ -33,7 +33,7 @@ pub(super) fn write_row_hash_record_to_tx(
 }
 
 pub(super) fn write_range_hash_record_to_tx(
-    tx: &mut cntryl_midge::Transaction,
+    tx: &mut crate::midge::adapter::AdapterTransaction,
     record: &RangeHashRecord,
 ) -> Result<(), CassieError> {
     tx.put(
@@ -46,7 +46,7 @@ pub(super) fn write_range_hash_record_to_tx(
 }
 
 pub(super) fn write_root_hash_record_to_tx(
-    tx: &mut cntryl_midge::Transaction,
+    tx: &mut crate::midge::adapter::AdapterTransaction,
     record: &RootHashRecord,
 ) -> Result<(), CassieError> {
     tx.put(
@@ -59,7 +59,7 @@ pub(super) fn write_root_hash_record_to_tx(
 }
 
 pub(super) fn delete_keys_from_tx(
-    tx: &mut cntryl_midge::Transaction,
+    tx: &mut crate::midge::adapter::AdapterTransaction,
     keys: &[Vec<u8>],
 ) -> Result<(), CassieError> {
     for key in keys {

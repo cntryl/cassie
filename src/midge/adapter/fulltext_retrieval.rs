@@ -209,7 +209,7 @@ fn validate_complete_artifact_counts(
 }
 
 fn load_complete_fulltext_postings(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
 ) -> Result<LoadedFulltextPostings, CassieError> {
@@ -256,7 +256,7 @@ fn load_complete_fulltext_postings(
 }
 
 fn load_candidate_postings(
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     terms: &[String],
@@ -478,7 +478,7 @@ impl Midge {
 
     pub(crate) fn rebuild_fulltext_index_in_tx(
         &self,
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         index: &IndexMeta,
         generation: u64,
@@ -687,7 +687,7 @@ impl Midge {
 
     fn fulltext_source_document_exists(
         &self,
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         id: &str,
@@ -710,7 +710,7 @@ impl Midge {
 
     fn load_documents_from_tx(
         &self,
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
     ) -> Result<Vec<(String, serde_json::Value)>, CassieError> {
@@ -755,7 +755,7 @@ impl Midge {
     ///
     /// Returns an error when the persisted full-text state is missing, corrupt, or unreadable.
     fn delete_fulltext_artifacts_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         index: &IndexMeta,
     ) -> Result<(), CassieError> {
         let (relation_id, index_id) = Self::fulltext_storage_ids(index)?;
@@ -771,7 +771,7 @@ impl Midge {
     }
 
     fn save_fulltext_state_in_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         index: &IndexMeta,
         state: &PersistedFulltextIndexState,
     ) -> Result<(), CassieError> {

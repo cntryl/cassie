@@ -109,7 +109,7 @@ impl PersistedIvfFlatCandidateBatch {
 
 struct ControlledIvfReadContext<'a> {
     midge: &'a Midge,
-    tx: &'a cntryl_midge::Transaction,
+    tx: &'a crate::midge::adapter::AdapterTransaction,
     collection: &'a str,
     field: &'a str,
     relation_id: u64,
@@ -132,7 +132,7 @@ struct ControlledHnswHeader {
 
 fn load_controlled_hnsw_header(
     midge: &Midge,
-    tx: &cntryl_midge::Transaction,
+    tx: &crate::midge::adapter::AdapterTransaction,
     collection: &str,
     relation_id: u64,
     field_id: u32,
@@ -918,7 +918,7 @@ impl Midge {
     }
 
     pub(super) fn write_hnsw_source_summary_to_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         generation: u64,
@@ -935,7 +935,7 @@ impl Midge {
     }
 
     pub(super) fn write_vector_source_summary_to_tx(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         generation: u64,

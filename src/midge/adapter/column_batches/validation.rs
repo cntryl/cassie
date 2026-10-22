@@ -352,7 +352,7 @@ impl Midge {
     }
 
     fn validate_column_batch_keys(
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         metadata: &ColumnBatchMetadata,
         relation_id: u64,
         index_id: u64,
@@ -375,7 +375,7 @@ impl Midge {
 
     fn validate_column_batch_segments(
         &self,
-        tx: &cntryl_midge::Transaction,
+        tx: &crate::midge::adapter::AdapterTransaction,
         collection: &str,
         index: &IndexMeta,
         metadata: &ColumnBatchMetadata,

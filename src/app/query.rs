@@ -350,7 +350,7 @@ impl Cassie {
             parser::parse_statement(&format!("EXPLAIN {}", sql.trim()))?
         };
 
-        Self::ensure_statement_can_execute(session, &explain, controls)?;
+        self.ensure_statement_can_execute(session, &explain, controls)?;
         let QueryStatement::Explain(statement) = explain.statement else {
             return Err(CassieError::Execution(
                 "expected explain statement after explain wrapping".to_string(),
@@ -402,6 +402,7 @@ impl Cassie {
     }
 
     pub(super) fn ensure_statement_can_execute(
+        &self,
         session: &CassieSession,
         parsed: &crate::sql::ast::ParsedStatement,
         controls: &QueryExecutionControls,
@@ -415,6 +416,7 @@ impl Cassie {
         Self::ensure_transaction_recovery(session, parsed)?;
         session.authorize_statement(&parsed.statement)?;
         super::transaction_semantics::ensure_supported_transaction_semantics(
+            &self.catalog,
             session,
             &parsed.statement,
         )?;

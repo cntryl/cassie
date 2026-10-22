@@ -22,7 +22,8 @@ use super::session_settings::SessionSettings;
 use super::{
     normalize_role_name, Arc, BTreeMap, CassieError, Mutex, Serialize, TransactionIsolation,
 };
-use crate::catalog::DEFAULT_SCHEMA;
+use crate::catalog::{Catalog, DEFAULT_SCHEMA};
+use crate::midge::adapter::StorageOverlay;
 use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug, Clone, Serialize)]
@@ -75,6 +76,9 @@ struct SessionTransactionState {
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
     savepoints: Vec<SessionSavepoint>,
+    catalog_overlay: Option<Catalog>,
+    catalog_base_version: Option<u64>,
+    storage_overlay: Arc<Mutex<StorageOverlay>>,
     session_state: Option<SessionStateSnapshot>,
     /// Settings changed by `SET LOCAL`, restored when the transaction ends.
     local_settings: Vec<String>,
@@ -94,6 +98,9 @@ struct SessionSavepoint {
     modes: crate::sql::ast::TransactionModes,
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
+    catalog_overlay: Option<Catalog>,
+    catalog_base_version: Option<u64>,
+    storage_overlay: StorageOverlay,
     session_state: SessionStateSnapshot,
 }
 
@@ -128,6 +135,9 @@ pub(crate) struct StatementMutationBatch {
     base_transaction_active: bool,
     base_writes: SharedTransactionWrites,
     base_conflict_intent_count: usize,
+    base_catalog_overlay: Option<Catalog>,
+    base_catalog_base_version: Option<u64>,
+    base_storage_overlay: StorageOverlay,
 }
 
 #[derive(Debug)]
@@ -225,6 +235,9 @@ impl CassieSession {
                 writes: SharedTransactionWrites::default(),
                 conflict_intents: Vec::new(),
                 savepoints: Vec::new(),
+                catalog_overlay: None,
+                catalog_base_version: None,
+                storage_overlay: Arc::new(Mutex::new(StorageOverlay::default())),
                 session_state: None,
                 local_settings: Vec::new(),
             })),
@@ -247,29 +260,47 @@ impl CassieSession {
         }
 
         let base_transaction_active = transaction.status == SessionTransactionStatus::InTransaction;
-        let (isolation, modes, has_query, generation, base_writes, conflict_intents) =
-            if base_transaction_active {
-                (
-                    transaction.isolation,
-                    transaction.modes,
-                    transaction.has_query,
-                    transaction.generation,
-                    transaction.writes.clone(),
-                    transaction.conflict_intents.clone(),
-                )
-            } else {
-                (
-                    None,
-                    crate::sql::ast::TransactionModes {
-                        read_only: Some(self.default_transaction_read_only()),
-                        deferrable: Some(self.default_transaction_deferrable()),
-                    },
-                    false,
-                    transaction.generation,
-                    SharedTransactionWrites::default(),
-                    Vec::new(),
-                )
-            };
+        let (
+            isolation,
+            modes,
+            has_query,
+            generation,
+            base_writes,
+            conflict_intents,
+            catalog_overlay,
+            catalog_base_version,
+            storage_overlay,
+        ) = if base_transaction_active {
+            (
+                transaction.isolation,
+                transaction.modes,
+                transaction.has_query,
+                transaction.generation,
+                transaction.writes.clone(),
+                transaction.conflict_intents.clone(),
+                transaction
+                    .catalog_overlay
+                    .as_ref()
+                    .map(Catalog::detached_transaction_snapshot),
+                transaction.catalog_base_version,
+                transaction.storage_overlay.lock().clone(),
+            )
+        } else {
+            (
+                None,
+                crate::sql::ast::TransactionModes {
+                    read_only: Some(self.default_transaction_read_only()),
+                    deferrable: Some(self.default_transaction_deferrable()),
+                },
+                false,
+                transaction.generation,
+                SharedTransactionWrites::default(),
+                Vec::new(),
+                None,
+                None,
+                StorageOverlay::default(),
+            )
+        };
         drop(transaction);
 
         let base_conflict_intent_count = conflict_intents.len();
@@ -293,6 +324,11 @@ impl CassieSession {
                 writes: base_writes.clone(),
                 conflict_intents,
                 savepoints: Vec::new(),
+                catalog_overlay: catalog_overlay
+                    .as_ref()
+                    .map(Catalog::detached_transaction_snapshot),
+                catalog_base_version,
+                storage_overlay: Arc::new(Mutex::new(storage_overlay.clone())),
                 session_state: None,
                 local_settings: Vec::new(),
             })),
@@ -307,6 +343,9 @@ impl CassieSession {
             base_transaction_active,
             base_writes,
             base_conflict_intent_count,
+            base_catalog_overlay: catalog_overlay,
+            base_catalog_base_version: catalog_base_version,
+            base_storage_overlay: storage_overlay,
         })
     }
 
@@ -334,6 +373,17 @@ impl CassieSession {
             }
         }
 
+        let current_catalog_version = transaction.catalog_overlay.as_ref().map(Catalog::version);
+        let base_catalog_version = batch.base_catalog_overlay.as_ref().map(Catalog::version);
+        if current_catalog_version != base_catalog_version
+            || transaction.catalog_base_version != batch.base_catalog_base_version
+            || *transaction.storage_overlay.lock() != batch.base_storage_overlay
+        {
+            return Err(CassieError::Execution(
+                "session transaction changed while statement was executing".to_string(),
+            ));
+        }
+
         for mutation in delta.rows {
             if let Some(change) = mutation.after {
                 let writes = Arc::make_mut(&mut transaction.writes);
@@ -353,6 +403,13 @@ impl CassieSession {
             }
         }
         transaction.conflict_intents.extend(delta.conflict_intents);
+        let batch_transaction = batch.session.transaction.lock();
+        transaction.catalog_overlay = batch_transaction
+            .catalog_overlay
+            .as_ref()
+            .map(Catalog::detached_transaction_snapshot);
+        transaction.catalog_base_version = batch_transaction.catalog_base_version;
+        *transaction.storage_overlay.lock() = batch_transaction.storage_overlay.lock().clone();
         Ok(())
     }
 
@@ -474,12 +531,21 @@ impl CassieSession {
         let writes = transaction.writes.clone();
         let conflict_intents = transaction.conflict_intents.clone();
         let modes = transaction.modes;
+        let catalog_overlay = transaction
+            .catalog_overlay
+            .as_ref()
+            .map(Catalog::detached_transaction_snapshot);
+        let catalog_base_version = transaction.catalog_base_version;
+        let storage_overlay = transaction.storage_overlay.lock().clone();
         transaction.savepoints.push(SessionSavepoint {
             name: name.to_ascii_lowercase(),
             object_mark: self.session_objects_mark(),
             modes,
             writes,
             conflict_intents,
+            catalog_overlay,
+            catalog_base_version,
+            storage_overlay,
             session_state: self.session_state_snapshot(),
         });
         Ok(())
@@ -508,9 +574,18 @@ impl CassieSession {
         transaction.modes = transaction.savepoints[index].modes;
         transaction.writes = transaction.savepoints[index].writes.clone();
         let conflict_intents = transaction.savepoints[index].conflict_intents.clone();
+        let catalog_overlay = transaction.savepoints[index]
+            .catalog_overlay
+            .as_ref()
+            .map(Catalog::detached_transaction_snapshot);
+        let catalog_base_version = transaction.savepoints[index].catalog_base_version;
+        let storage_overlay = transaction.savepoints[index].storage_overlay.clone();
         let session_state = transaction.savepoints[index].session_state.clone();
         let object_mark = transaction.savepoints[index].object_mark;
         transaction.conflict_intents = conflict_intents;
+        transaction.catalog_overlay = catalog_overlay;
+        transaction.catalog_base_version = catalog_base_version;
+        *transaction.storage_overlay.lock() = storage_overlay;
         transaction.savepoints.truncate(index + 1);
         transaction.status = SessionTransactionStatus::InTransaction;
         self.restore_session_state(session_state);
@@ -545,6 +620,127 @@ impl CassieSession {
 
     pub(crate) fn is_transaction_active(&self) -> bool {
         self.transaction.lock().status == SessionTransactionStatus::InTransaction
+    }
+
+    pub(crate) fn transaction_catalog_overlay(&self) -> Option<Catalog> {
+        self.transaction.lock().catalog_overlay.clone()
+    }
+
+    pub(crate) fn begin_transaction_catalog_overlay(&self, catalog: &Catalog) -> Catalog {
+        let mut transaction = self.transaction.lock();
+        if transaction.catalog_overlay.is_none() {
+            transaction.catalog_base_version = Some(catalog.version());
+            transaction.catalog_overlay = Some(catalog.detached_transaction_snapshot());
+        }
+        transaction
+            .catalog_overlay
+            .as_ref()
+            .expect("catalog overlay initialized above")
+            .clone()
+    }
+
+    pub(crate) fn transaction_catalog_base_version(&self) -> Option<u64> {
+        self.transaction.lock().catalog_base_version
+    }
+
+    pub(crate) fn transaction_storage_overlay(&self) -> std::sync::Arc<Mutex<StorageOverlay>> {
+        std::sync::Arc::clone(&self.transaction.lock().storage_overlay)
+    }
+
+    pub(crate) fn transaction_storage_overlay_snapshot(&self) -> StorageOverlay {
+        self.transaction.lock().storage_overlay.lock().clone()
+    }
+
+    pub(crate) fn rename_transaction_collections(
+        &self,
+        renames: &[(String, String)],
+    ) -> Result<(), CassieError> {
+        let mut transaction = self.transaction.lock();
+        if transaction.status != SessionTransactionStatus::InTransaction {
+            return Ok(());
+        }
+
+        for (current, next) in renames {
+            let writes = Arc::make_mut(&mut transaction.writes);
+            if let Some(changes) = writes.remove(current) {
+                let mut merged = changes.as_ref().clone();
+                if let Some(existing) = writes.remove(next) {
+                    for (id, change) in existing.iter() {
+                        merged.entry(id.clone()).or_insert_with(|| change.clone());
+                    }
+                }
+                writes.insert(next.clone(), Arc::new(merged));
+            }
+
+            for intent in &mut transaction.conflict_intents {
+                if crate::catalog::name_matches(&intent.schema.collection, current) {
+                    intent.schema.collection.clone_from(next);
+                    intent.statement.table =
+                        crate::sql::ast::IdentifierPath::parse(next).map_err(CassieError::Parse)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn rename_transaction_column(&self, collection: &str, current: &str, next: &str) {
+        let mut transaction = self.transaction.lock();
+        if transaction.status != SessionTransactionStatus::InTransaction {
+            return;
+        }
+
+        let current_key = crate::sql::ColumnIdentifierPath::stored_field_key(current);
+        let writes = Arc::make_mut(&mut transaction.writes);
+        for (name, changes) in writes.iter_mut() {
+            if !crate::catalog::name_matches(name, collection) {
+                continue;
+            }
+            for change in Arc::make_mut(changes).values_mut() {
+                if let TransactionRowChange::Upsert(payload) = change {
+                    rename_payload_field(payload, &current_key, next);
+                }
+            }
+        }
+
+        for intent in &mut transaction.conflict_intents {
+            if !crate::catalog::name_matches(&intent.schema.collection, collection) {
+                continue;
+            }
+
+            rename_payload_field(&mut intent.payload, &current_key, next);
+            for field in &mut intent.schema.fields {
+                if crate::sql::ColumnIdentifierPath::stored_field_key(&field.name) == current_key {
+                    next.clone_into(&mut field.name);
+                }
+            }
+            for column in &mut intent.statement.columns {
+                rename_column_reference(column, &current_key, next);
+            }
+            if let Some(conflict) = &mut intent.statement.on_conflict {
+                for field in &mut conflict.target_fields {
+                    rename_column_reference(field, &current_key, next);
+                }
+                for expression in &mut conflict.target_expressions {
+                    rename_expression_column(expression, &current_key, next);
+                }
+                if let Some(predicate) = &mut conflict.target_predicate {
+                    rename_expression_column(predicate, &current_key, next);
+                }
+                if let crate::sql::ast::InsertConflictAction::DoUpdate {
+                    assignments,
+                    filter,
+                } = &mut conflict.action
+                {
+                    for (field, expression) in assignments {
+                        rename_column_reference(field, &current_key, next);
+                        rename_expression_column(expression, &current_key, next);
+                    }
+                    if let Some(filter) = filter {
+                        rename_expression_column(filter, &current_key, next);
+                    }
+                }
+            }
+        }
     }
 
     pub(crate) fn is_transaction_failed(&self) -> bool {
@@ -723,6 +919,39 @@ impl CassieSession {
         crate::catalog::relation_database_name(collection)
             .is_some_and(|database| !database.eq_ignore_ascii_case(current_database))
     }
+}
+
+fn rename_payload_field(payload: &mut serde_json::Value, current_key: &str, next: &str) {
+    let Some(fields) = payload.as_object_mut() else {
+        return;
+    };
+    let Some(current) = fields
+        .keys()
+        .find(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field) == current_key)
+        .cloned()
+    else {
+        return;
+    };
+    if let Some(value) = fields.remove(&current) {
+        fields.insert(next.to_owned(), value);
+    }
+}
+
+fn rename_column_reference(column: &mut String, current_key: &str, next: &str) {
+    if crate::sql::ColumnIdentifierPath::reference_field_key(column) == current_key {
+        next.clone_into(column);
+    }
+}
+
+fn rename_expression_column(expression: &mut crate::sql::ast::Expr, current_key: &str, next: &str) {
+    if let crate::sql::ast::Expr::Column(column) = expression {
+        rename_column_reference(column, current_key, next);
+        return;
+    }
+    let _ = expression.try_visit_children_mut(|child| {
+        rename_expression_column(child, current_key, next);
+        Ok::<(), std::convert::Infallible>(())
+    });
 }
 
 impl StatementMutationBatch {

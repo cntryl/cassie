@@ -32,6 +32,30 @@ buffer limit, ignored Flush/Sync during copy-in, and late-frame recovery.
 No extended COPY, distributed transactions, new isolation levels, or persistent
 transaction format is introduced.
 
+## Selected READ COMMITTED unique-owner wait slice
+
+The scoped runtime increment for [#819](https://github.com/cntryl/cassie/issues/819)
+tracks non-null values from single-column PRIMARY KEY and UNIQUE constraints
+staged by plain SQL `INSERT` in an explicit transaction. A competing plain SQL
+`INSERT` for the same key waits until its owner commits, rolls back, disconnects,
+or rolls back to a savepoint that removed the staged insert. The waiter releases
+collection write gates while waiting, then rechecks resolved candidates against
+gated live constraint state before waiting on another owner or publishing. A
+committed duplicate returns `23505` without waiting on unrelated unresolved
+keys. If the owner rolls back, the waiting `INSERT` can stage and commit without
+evaluating defaults or expressions a second time.
+Savepoint rollback releases keys acquired after that savepoint. Waits honor
+query cancellation and deadlines. Detected wait cycles return `40P01`; the
+victim's previously staged keys remain owned until transaction resolution.
+
+The ownership registry is private and in-memory. This slice does not select
+REPEATABLE READ or SERIALIZABLE, and it does not qualify unique indexes,
+composite or expression constraints, or wait behavior for UPDATE, MERGE, COPY,
+`INSERT ... ON CONFLICT`, or other write paths. Those obligations remain open
+under #819 and its named downstream owners. Focused executable evidence is in
+[`transaction_errors.rs`](../tests/sql_mutations/transactions/transaction_errors.rs)
+and the completing PR; the implementation does not complete #819.
+
 ## Selected local-development contract expansion
 
 The table above records the finite #755 wire boundary. The local-development

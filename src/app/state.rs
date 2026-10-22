@@ -18,6 +18,7 @@ pub struct Cassie {
     pub midge: Arc<Midge>,
     pub catalog: Catalog,
     pub(crate) catalog_publication: Arc<parking_lot::RwLock<()>>,
+    pub(crate) transaction_unique_waits: Arc<super::TransactionUniqueWaits>,
     pub embedding_provider: Arc<dyn EmbeddingProvider>,
     pub(crate) runtime: Arc<RuntimeState>,
     pub(super) feedback_persistence_lock: Arc<Mutex<()>>,

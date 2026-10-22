@@ -535,16 +535,23 @@ fn execute_insert_command(
 ) -> CommandExecution {
     CommandExecution::new((|| {
         super::materialized_projection::reject_write(cassie, &statement.table)?;
-        let result = execute_atomic_dml(cassie, session, &statement.table, controls, |working| {
-            super::dml::execute_insert(
-                cassie,
-                Some(working),
-                statement,
-                params,
-                user_functions,
-                controls,
-            )
-        })?;
+        let result = execute_atomic_dml(
+            cassie,
+            session,
+            &statement.table,
+            controls,
+            statement.on_conflict.is_none(),
+            |working| {
+                super::dml::execute_insert(
+                    cassie,
+                    Some(working),
+                    statement,
+                    params,
+                    user_functions,
+                    controls,
+                )
+            },
+        )?;
         apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
@@ -560,16 +567,23 @@ fn execute_update_command(
 ) -> CommandExecution {
     CommandExecution::new((|| {
         super::materialized_projection::reject_write(cassie, &statement.table)?;
-        let result = execute_atomic_dml(cassie, session, &statement.table, controls, |working| {
-            super::dml::execute_update(
-                cassie,
-                Some(working),
-                statement,
-                params,
-                user_functions,
-                controls,
-            )
-        })?;
+        let result = execute_atomic_dml(
+            cassie,
+            session,
+            &statement.table,
+            controls,
+            false,
+            |working| {
+                super::dml::execute_update(
+                    cassie,
+                    Some(working),
+                    statement,
+                    params,
+                    user_functions,
+                    controls,
+                )
+            },
+        )?;
         apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
@@ -585,16 +599,23 @@ fn execute_delete_command(
 ) -> CommandExecution {
     CommandExecution::new((|| {
         super::materialized_projection::reject_write(cassie, &statement.table)?;
-        let result = execute_atomic_dml(cassie, session, &statement.table, controls, |working| {
-            super::dml::execute_delete(
-                cassie,
-                Some(working),
-                statement,
-                params,
-                user_functions,
-                controls,
-            )
-        })?;
+        let result = execute_atomic_dml(
+            cassie,
+            session,
+            &statement.table,
+            controls,
+            false,
+            |working| {
+                super::dml::execute_delete(
+                    cassie,
+                    Some(working),
+                    statement,
+                    params,
+                    user_functions,
+                    controls,
+                )
+            },
+        )?;
         apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
@@ -610,16 +631,23 @@ fn execute_merge_command(
 ) -> CommandExecution {
     CommandExecution::new((|| {
         super::materialized_projection::reject_write(cassie, &statement.table)?;
-        let result = execute_atomic_dml(cassie, session, &statement.table, controls, |working| {
-            super::dml::execute_merge(
-                cassie,
-                Some(working),
-                statement,
-                params,
-                user_functions,
-                controls,
-            )
-        })?;
+        let result = execute_atomic_dml(
+            cassie,
+            session,
+            &statement.table,
+            controls,
+            false,
+            |working| {
+                super::dml::execute_merge(
+                    cassie,
+                    Some(working),
+                    statement,
+                    params,
+                    user_functions,
+                    controls,
+                )
+            },
+        )?;
         apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
@@ -630,20 +658,145 @@ fn execute_atomic_dml(
     session: Option<&CassieSession>,
     table: &str,
     controls: &QueryExecutionControls,
-    execute: impl FnOnce(&CassieSession) -> Result<QueryResult, QueryError>,
+    wait_for_unique_owner: bool,
+    mut execute: impl FnMut(&CassieSession) -> Result<QueryResult, QueryError>,
 ) -> Result<QueryResult, QueryError> {
     let collections = cassie.referential_write_collections(table);
-    cassie.midge.with_collection_write_gates(&collections, || {
-        let batch = cassie
-            .new_statement_batch(session)
+    let mut pending_attempt: Option<PendingUniqueInsert> = None;
+    loop {
+        let attempt = cassie.midge.with_collection_write_gates(&collections, || {
+            if let Some(pending) = pending_attempt.take() {
+                let Some(original) = session.filter(|session| {
+                    session.is_transaction_active()
+                        && session.transaction_unique_owner_id() == pending.owner
+                }) else {
+                    return Err(QueryError::from(crate::app::CassieError::Execution(
+                        "transaction changed while INSERT waited for a unique key".to_owned(),
+                    )));
+                };
+                return attempt_unique_insert_publication(cassie, original, controls, pending);
+            }
+
+            let batch = cassie
+                .new_statement_batch(session)
+                .map_err(QueryError::from)?;
+            let result = execute(batch.session())?;
+            check_timeout(controls)?;
+
+            if wait_for_unique_owner {
+                if let Some(original) = session.filter(|session| session.is_transaction_active()) {
+                    if !batch.has_enclosing_transaction() {
+                        return Err(QueryError::from(crate::app::CassieError::Execution(
+                            "session transaction changed while INSERT was executing".to_owned(),
+                        )));
+                    }
+                    let owner = original.transaction_unique_owner_id();
+                    let catalog = batch
+                        .session()
+                        .transaction_catalog_overlay()
+                        .unwrap_or_else(|| cassie.catalog.clone());
+                    let keys =
+                        crate::app::collect_unique_keys(&catalog, &cassie.midge, batch.session());
+                    let pending = PendingUniqueInsert {
+                        owner,
+                        batch,
+                        result,
+                        keys,
+                        previous_keys: cassie.transaction_unique_waits.snapshot_owner_keys(owner),
+                        resolved_keys: std::collections::BTreeSet::new(),
+                    };
+                    return attempt_unique_insert_publication(cassie, original, controls, pending);
+                }
+            }
+
+            cassie
+                .publish_statement_batch(session, batch, controls)
+                .map_err(QueryError::from)?;
+            Ok(AtomicDmlAttempt::Published(result))
+        })?;
+
+        match attempt {
+            AtomicDmlAttempt::Published(result) => return Ok(result),
+            AtomicDmlAttempt::Wait {
+                pending,
+                key,
+                owner,
+            } => {
+                let pending = *pending;
+                cassie
+                    .transaction_unique_waits
+                    .wait_for_key(pending.owner, owner, &key, controls)
+                    .map_err(QueryError::from)?;
+                pending_attempt = Some(pending);
+            }
+        }
+    }
+}
+
+struct PendingUniqueInsert {
+    owner: uuid::Uuid,
+    batch: crate::app::StatementMutationBatch,
+    result: QueryResult,
+    keys: std::collections::BTreeSet<crate::app::UniqueTransactionKey>,
+    previous_keys: std::collections::BTreeSet<crate::app::UniqueTransactionKey>,
+    resolved_keys: std::collections::BTreeSet<crate::app::UniqueTransactionKey>,
+}
+
+enum AtomicDmlAttempt {
+    Published(QueryResult),
+    Wait {
+        pending: Box<PendingUniqueInsert>,
+        key: crate::app::UniqueTransactionKey,
+        owner: uuid::Uuid,
+    },
+}
+
+fn attempt_unique_insert_publication(
+    cassie: &Cassie,
+    original: &CassieSession,
+    controls: &QueryExecutionControls,
+    mut pending: PendingUniqueInsert,
+) -> Result<AtomicDmlAttempt, QueryError> {
+    let waits = &cassie.transaction_unique_waits;
+    let catalog = pending
+        .batch
+        .session()
+        .transaction_catalog_overlay()
+        .unwrap_or_else(|| cassie.catalog.clone());
+    for key in &pending.resolved_keys {
+        crate::app::validate_unique_key_candidate(
+            cassie,
+            &catalog,
+            &cassie.midge,
+            pending.batch.session(),
+            key,
+        )
+        .map_err(QueryError::from)?;
+    }
+
+    match waits
+        .claim_keys(pending.owner, &pending.keys)
+        .map_err(QueryError::from)?
+    {
+        crate::app::UniqueKeyClaim::Wait { key, owner } => {
+            pending.resolved_keys.insert(key.clone());
+            return Ok(AtomicDmlAttempt::Wait {
+                pending: Box::new(pending),
+                key,
+                owner,
+            });
+        }
+        crate::app::UniqueKeyClaim::Claimed => {}
+    }
+
+    let result = pending.result;
+    if let Err(error) = cassie.publish_statement_batch(Some(original), pending.batch, controls) {
+        waits
+            .restore_owner_keys(pending.owner, &pending.previous_keys)
             .map_err(QueryError::from)?;
-        let result = execute(batch.session())?;
-        check_timeout(controls)?;
-        cassie
-            .publish_statement_batch(session, batch, controls)
-            .map_err(QueryError::from)?;
-        Ok(result)
-    })
+        return Err(QueryError::from(error));
+    }
+    Ok(AtomicDmlAttempt::Published(result))
 }
 
 fn apply_write_side_effects(

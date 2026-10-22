@@ -76,6 +76,7 @@ impl Cassie {
             midge,
             catalog: Catalog::new(),
             catalog_publication: Arc::new(parking_lot::RwLock::new(())),
+            transaction_unique_waits: Arc::new(super::TransactionUniqueWaits::default()),
             embedding_provider,
             runtime,
             feedback_persistence_lock: Arc::new(Mutex::new(())),

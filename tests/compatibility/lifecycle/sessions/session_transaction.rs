@@ -32,6 +32,8 @@ mod timezone_settings;
 mod transaction_aliases;
 #[path = "../transactions/transaction_chaining.rs"]
 mod transaction_chaining;
+#[path = "../transactions/unique_conflict_autocommit.rs"]
+mod unique_conflict_autocommit;
 #[path = "../transactions/unique_conflict_commit.rs"]
 mod unique_conflict_commit;
 #[path = "../transactions/unique_conflict_rollback.rs"]

@@ -28,6 +28,13 @@ fn start(_path: &str) -> (Cassie, CassieSession) {
     (cassie, session)
 }
 
+fn start_local(path: &str) -> (Cassie, CassieSession) {
+    let cassie = Cassie::new_with_data_dir(path).expect("cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    (cassie, session)
+}
+
 fn run(cassie: &Cassie, session: &CassieSession, sql: &str) -> Result<QueryResult, CassieError> {
     cassie.execute_sql(session, sql, vec![])
 }
@@ -177,13 +184,13 @@ fn should_reject_dropping_a_column_that_a_foreign_key_references() {
 fn should_drop_foreign_key_with_the_child_column_it_is_declared_on() {
     with_cassie("fk-ddl-drop-child", |path| {
         // Arrange
-        let (cassie, session) = start(path);
+        let (cassie, session) = start_local(path);
         exec_all(&cassie, &session, &PARENT_CHILD);
 
         // Act
         run(&cassie, &session, "ALTER TABLE c DROP COLUMN pid").expect("drop child column");
         drop(cassie);
-        let (cassie, session) = start(path);
+        let (cassie, session) = start_local(path);
 
         // Assert
         let foreign_keys = rows(
@@ -200,7 +207,7 @@ fn should_drop_foreign_key_with_the_child_column_it_is_declared_on() {
 fn should_carry_foreign_key_when_the_referenced_column_is_renamed() {
     with_cassie("fk-ddl-rename-column", |path| {
         // Arrange
-        let (cassie, session) = start(path);
+        let (cassie, session) = start_local(path);
         exec_all(&cassie, &session, &PARENT_CHILD);
 
         // Act
@@ -211,7 +218,7 @@ fn should_carry_foreign_key_when_the_referenced_column_is_renamed() {
         )
         .expect("rename");
         drop(cassie);
-        let (cassie, session) = start(path);
+        let (cassie, session) = start_local(path);
 
         // Assert
         let restricted_delete = run(&cassie, &session, "DELETE FROM p WHERE key_id = 1");
@@ -231,13 +238,13 @@ fn should_carry_foreign_key_when_the_referenced_column_is_renamed() {
 fn should_carry_foreign_key_when_the_referenced_table_is_renamed() {
     with_cassie("fk-ddl-rename-table", |path| {
         // Arrange
-        let (cassie, session) = start(path);
+        let (cassie, session) = start_local(path);
         exec_all(&cassie, &session, &PARENT_CHILD);
 
         // Act
         run(&cassie, &session, "ALTER TABLE p RENAME TO p_new").expect("rename");
         drop(cassie);
-        let (cassie, session) = start(path);
+        let (cassie, session) = start_local(path);
 
         // Assert
         let restricted_delete = run(&cassie, &session, "DELETE FROM p_new WHERE id = 1");
@@ -257,7 +264,7 @@ fn should_carry_foreign_key_when_the_referenced_table_is_renamed() {
 fn should_carry_self_referencing_foreign_key_through_renames() {
     with_cassie("fk-ddl-self-reference", |path| {
         // Arrange
-        let (cassie, session) = start(path);
+        let (cassie, session) = start_local(path);
         exec_all(
                 &cassie,
                 &session,
@@ -278,7 +285,7 @@ fn should_carry_self_referencing_foreign_key_through_renames() {
         .expect("rename column");
         run(&cassie, &session, "ALTER TABLE nodes RENAME TO tree").expect("rename table");
         drop(cassie);
-        let (cassie, session) = start(path);
+        let (cassie, session) = start_local(path);
 
         // Assert
         let restricted_delete = run(&cassie, &session, "DELETE FROM tree WHERE node_id = 1");
@@ -455,7 +462,7 @@ fn should_report_the_declared_foreign_key_name_on_violation() {
 fn should_keep_enforcing_foreign_key_when_both_referencing_columns_are_renamed() {
     with_cassie("fk-ddl-rename-both-columns", |path| {
         // Arrange
-        let (cassie, session) = start(path);
+        let (cassie, session) = start_local(path);
         exec_all(&cassie, &session, &PARENT_CHILD);
 
         // Act
@@ -468,7 +475,7 @@ fn should_keep_enforcing_foreign_key_when_both_referencing_columns_are_renamed()
             ],
         );
         drop(cassie);
-        let (cassie, session) = start(path);
+        let (cassie, session) = start_local(path);
 
         // Assert
         let restricted_delete = run(&cassie, &session, "DELETE FROM p WHERE key_id = 1");

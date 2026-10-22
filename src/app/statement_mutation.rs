@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use crate::midge::adapter::DocumentWriteOp;
 use crate::runtime::QueryExecutionControls;
@@ -14,13 +15,13 @@ impl Cassie {
         &self,
         session: Option<&CassieSession>,
     ) -> Result<StatementMutationBatch, CassieError> {
-        session.map_or_else(
-            || {
-                CassieSession::new("root".to_string(), Some(self.default_database.clone()))
-                    .fork_statement_batch()
-            },
-            CassieSession::fork_statement_batch,
-        )
+        if let Some(session) = session {
+            session.attach_transaction_unique_waits(Arc::clone(&self.transaction_unique_waits));
+            session.fork_statement_batch()
+        } else {
+            CassieSession::new("root".to_string(), Some(self.default_database.clone()))
+                .fork_statement_batch()
+        }
     }
 
     pub(crate) fn publish_statement_batch(

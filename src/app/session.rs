@@ -24,7 +24,9 @@ use super::{
 };
 use crate::catalog::{Catalog, DEFAULT_SCHEMA};
 use crate::midge::adapter::StorageOverlay;
+use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicI32, Ordering};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieSession {
@@ -44,6 +46,10 @@ pub struct CassieSession {
     backend_pid: Arc<AtomicI32>,
     #[serde(skip)]
     transaction: Arc<Mutex<SessionTransactionState>>,
+    #[serde(skip)]
+    transaction_unique_waits: Arc<Mutex<Option<Arc<super::TransactionUniqueWaits>>>>,
+    #[serde(skip)]
+    owns_transaction_lifecycle: bool,
     #[serde(skip)]
     procedure_calls: Arc<Mutex<Vec<String>>>,
     #[serde(skip)]
@@ -73,6 +79,7 @@ struct SessionTransactionState {
     modes: crate::sql::ast::TransactionModes,
     has_query: bool,
     generation: u64,
+    unique_owner_id: Uuid,
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
     savepoints: Vec<SessionSavepoint>,
@@ -102,6 +109,7 @@ struct SessionSavepoint {
     catalog_base_version: Option<u64>,
     storage_overlay: StorageOverlay,
     session_state: SessionStateSnapshot,
+    unique_keys: BTreeSet<super::UniqueTransactionKey>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -232,6 +240,7 @@ impl CassieSession {
                 modes: crate::sql::ast::TransactionModes::default(),
                 has_query: false,
                 generation: 0,
+                unique_owner_id: Uuid::new_v4(),
                 writes: SharedTransactionWrites::default(),
                 conflict_intents: Vec::new(),
                 savepoints: Vec::new(),
@@ -241,11 +250,28 @@ impl CassieSession {
                 session_state: None,
                 local_settings: Vec::new(),
             })),
+            transaction_unique_waits: Arc::default(),
+            owns_transaction_lifecycle: true,
             procedure_calls: Arc::new(Mutex::new(Vec::new())),
             random: Arc::new(Mutex::new(SessionRandom::default())),
             session_objects: Arc::default(),
             transaction_clock: Arc::default(),
         }
+    }
+
+    pub(crate) fn attach_transaction_unique_waits(
+        &self,
+        waits: Arc<super::TransactionUniqueWaits>,
+    ) {
+        *self.transaction_unique_waits.lock() = Some(waits);
+    }
+
+    pub(crate) fn transaction_unique_waits(&self) -> Option<Arc<super::TransactionUniqueWaits>> {
+        self.transaction_unique_waits.lock().clone()
+    }
+
+    pub(crate) fn transaction_unique_owner_id(&self) -> Uuid {
+        self.transaction.lock().unique_owner_id
     }
 
     /// Runs `operation` against this session's `random()` sequence.
@@ -265,6 +291,7 @@ impl CassieSession {
             modes,
             has_query,
             generation,
+            unique_owner_id,
             base_writes,
             conflict_intents,
             catalog_overlay,
@@ -276,6 +303,7 @@ impl CassieSession {
                 transaction.modes,
                 transaction.has_query,
                 transaction.generation,
+                transaction.unique_owner_id,
                 transaction.writes.clone(),
                 transaction.conflict_intents.clone(),
                 transaction
@@ -294,6 +322,7 @@ impl CassieSession {
                 },
                 false,
                 transaction.generation,
+                transaction.unique_owner_id,
                 SharedTransactionWrites::default(),
                 Vec::new(),
                 None,
@@ -321,6 +350,7 @@ impl CassieSession {
                 modes,
                 has_query,
                 generation,
+                unique_owner_id,
                 writes: base_writes.clone(),
                 conflict_intents,
                 savepoints: Vec::new(),
@@ -332,6 +362,8 @@ impl CassieSession {
                 session_state: None,
                 local_settings: Vec::new(),
             })),
+            transaction_unique_waits: Arc::clone(&self.transaction_unique_waits),
+            owns_transaction_lifecycle: false,
             procedure_calls: Arc::new(Mutex::new(self.procedure_calls.lock().clone())),
             random: Arc::clone(&self.random),
             session_objects: Arc::clone(&self.session_objects),
@@ -537,6 +569,11 @@ impl CassieSession {
             .map(Catalog::detached_transaction_snapshot);
         let catalog_base_version = transaction.catalog_base_version;
         let storage_overlay = transaction.storage_overlay.lock().clone();
+        let unique_keys = self
+            .transaction_unique_waits()
+            .map_or_else(BTreeSet::new, |waits| {
+                waits.snapshot_owner_keys(transaction.unique_owner_id)
+            });
         transaction.savepoints.push(SessionSavepoint {
             name: name.to_ascii_lowercase(),
             object_mark: self.session_objects_mark(),
@@ -547,6 +584,7 @@ impl CassieSession {
             catalog_base_version,
             storage_overlay,
             session_state: self.session_state_snapshot(),
+            unique_keys,
         });
         Ok(())
     }
@@ -582,12 +620,18 @@ impl CassieSession {
         let storage_overlay = transaction.savepoints[index].storage_overlay.clone();
         let session_state = transaction.savepoints[index].session_state.clone();
         let object_mark = transaction.savepoints[index].object_mark;
+        let unique_owner_id = transaction.unique_owner_id;
+        let unique_keys = transaction.savepoints[index].unique_keys.clone();
         transaction.conflict_intents = conflict_intents;
         transaction.catalog_overlay = catalog_overlay;
         transaction.catalog_base_version = catalog_base_version;
         *transaction.storage_overlay.lock() = storage_overlay;
         transaction.savepoints.truncate(index + 1);
         transaction.status = SessionTransactionStatus::InTransaction;
+        drop(transaction);
+        if let Some(waits) = self.transaction_unique_waits() {
+            waits.restore_owner_keys(unique_owner_id, &unique_keys)?;
+        }
         self.restore_session_state(session_state);
         self.rollback_session_objects_to(object_mark);
         Ok(())
@@ -921,6 +965,18 @@ impl CassieSession {
     }
 }
 
+impl Drop for CassieSession {
+    fn drop(&mut self) {
+        if !self.owns_transaction_lifecycle || Arc::strong_count(&self.transaction) != 1 {
+            return;
+        }
+        let owner = self.transaction.lock().unique_owner_id;
+        if let Some(waits) = self.transaction_unique_waits() {
+            waits.release_owner(owner);
+        }
+    }
+}
+
 fn rename_payload_field(payload: &mut serde_json::Value, current_key: &str, next: &str) {
     let Some(fields) = payload.as_object_mut() else {
         return;
@@ -959,7 +1015,7 @@ impl StatementMutationBatch {
         &self.session
     }
 
-    pub(super) const fn has_enclosing_transaction(&self) -> bool {
+    pub(crate) const fn has_enclosing_transaction(&self) -> bool {
         self.base_transaction_active
     }
 

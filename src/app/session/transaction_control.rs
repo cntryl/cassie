@@ -83,6 +83,7 @@ impl CassieSession {
         transaction.modes = modes;
         transaction.has_query = false;
         transaction.generation = transaction.generation.wrapping_add(1);
+        transaction.unique_owner_id = uuid::Uuid::new_v4();
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
@@ -207,11 +208,13 @@ impl CassieSession {
     pub(crate) fn commit_transaction(&self) {
         self.discard_sequence_restarts();
         let mut transaction = self.transaction.lock();
+        let unique_owner_id = transaction.unique_owner_id;
         transaction.status = SessionTransactionStatus::Idle;
         transaction.implicit = false;
         transaction.isolation = None;
         transaction.modes = TransactionModes::default();
         transaction.has_query = false;
+        transaction.unique_owner_id = uuid::Uuid::new_v4();
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
@@ -222,6 +225,9 @@ impl CassieSession {
         let session_state = transaction.session_state.take();
         let locals = std::mem::take(&mut transaction.local_settings);
         drop(transaction);
+        if let Some(waits) = self.transaction_unique_waits() {
+            waits.release_owner(unique_owner_id);
+        }
         self.end_transaction_objects(true);
         if let Some(state) = session_state {
             let mut settings = self.settings.lock();
@@ -249,12 +255,14 @@ impl CassieSession {
     pub(crate) fn rollback_transaction(&self) {
         self.restore_sequence_restarts();
         let mut transaction = self.transaction.lock();
+        let unique_owner_id = transaction.unique_owner_id;
         let session_state = transaction.session_state.take();
         transaction.status = SessionTransactionStatus::Idle;
         transaction.implicit = false;
         transaction.isolation = None;
         transaction.modes = TransactionModes::default();
         transaction.has_query = false;
+        transaction.unique_owner_id = uuid::Uuid::new_v4();
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
@@ -264,6 +272,9 @@ impl CassieSession {
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.local_settings.clear();
         drop(transaction);
+        if let Some(waits) = self.transaction_unique_waits() {
+            waits.release_owner(unique_owner_id);
+        }
         if let Some(session_state) = session_state {
             self.restore_session_state(session_state);
         }

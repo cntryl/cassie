@@ -148,6 +148,11 @@ mod schema_cleanup;
 mod snapshots;
 mod statement_mutation;
 mod transaction_error;
+mod transaction_unique_waits;
+pub(crate) use transaction_unique_waits::{
+    collect_unique_keys, validate_unique_key_candidate, TransactionUniqueWaits, UniqueKeyClaim,
+    UniqueTransactionKey,
+};
 mod transaction_semantics;
 pub use transaction_error::TransactionErrorKind;
 mod vector_helpers;

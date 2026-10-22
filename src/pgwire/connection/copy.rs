@@ -1,12 +1,21 @@
 use super::state::SessionState;
 use super::writers::write_command_complete;
 use super::{
-    cassie_pg_error, read_frontend_message, run_pgwire_blocking, str, write_copy_data,
-    write_copy_done, write_copy_in_response, write_copy_out_response, write_error_response,
-    write_ready_for_query, Arc, AsyncWrite, Cassie, CassieError, CassieSession, FrontendMessage,
-    HandshakeError, PgWireError, PgWireSeverity, PgwireReader, MAX_FRONTEND_MESSAGE_BYTES,
+    cassie_pg_error, read_frontend_message, run_pgwire_blocking, write_copy_data, write_copy_done,
+    write_copy_in_response, write_copy_out_response, write_error_response, write_ready_for_query,
+    Arc, AsyncWrite, Cassie, CassieError, CassieSession, FrontendMessage, HandshakeError,
+    PgWireError, PgWireSeverity, PgwireReader, MAX_FRONTEND_MESSAGE_BYTES,
 };
-use crate::sql::ast::{CopyStatement, QueryStatement};
+use crate::sql::ast::CopyStatement;
+
+#[path = "copy/input.rs"]
+mod input;
+#[path = "copy/output.rs"]
+mod output;
+#[path = "copy/request.rs"]
+mod request;
+
+use request::{CopyDirection, CopyRequest, CopyWireFormat};
 
 pub(super) enum SimpleCopyOutcome {
     Handled,
@@ -81,30 +90,8 @@ pub(super) async fn try_handle_simple_copy_query(
     if let Some(command) = parse_database_copy_command(sql) {
         return handle_database_copy(cassie, session, command, reader, write_half).await;
     }
-    let sql = sql.to_string();
-    let context = binding_context(&cassie, &session);
-    let session_for_parse = session.clone();
-    let statement = match run_pgwire_blocking(cassie.clone(), "pgwire_copy_parse", move |cassie| {
-        if !sql.trim_start().to_ascii_lowercase().starts_with("copy ") {
-            return Ok(None);
-        }
-        let parsed = crate::sql::parser::parse_statement(&sql)?;
-        session_for_parse.authorize_statement(&parsed.statement)?;
-        Cassie::ensure_transaction_recovery(&session_for_parse, &parsed)?;
-        session_for_parse.ensure_transaction_writable()?;
-        session_for_parse.mark_transaction_query();
-        let QueryStatement::Copy(_) = &parsed.statement else {
-            return Ok(None);
-        };
-        let bound = crate::sql::binder::bind_with_context(parsed, &cassie.catalog, &context)?;
-        let QueryStatement::Copy(statement) = bound.statement.statement else {
-            return Ok(None);
-        };
-        Ok(Some(statement))
-    })
-    .await
-    {
-        Ok(Some(statement)) => statement,
+    let bound = match bind_copy_request(cassie.clone(), session.clone(), sql).await {
+        Ok(Some(bound)) => bound,
         Ok(None) => return SimpleCopyOutcome::NotCopy,
         Err(error) => {
             return write_copy_error(write_half, &session, &cassie_pg_error(&error)).await
@@ -122,26 +109,187 @@ pub(super) async fn try_handle_simple_copy_query(
         return write_copy_error(write_half, &session, &error).await;
     }
 
-    let column_count = copy_response_column_count(&cassie, &statement);
-    if write_copy_in_response(write_half, column_count)
-        .await
-        .is_err()
+    match bound {
+        BoundCopyRequest::From(request, statement) => {
+            let column_count = copy_response_column_count(&cassie, &statement);
+            if write_copy_in_response(
+                write_half,
+                column_count,
+                output::response_format(request.format),
+            )
+            .await
+            .is_err()
+            {
+                return SimpleCopyOutcome::ConnectionClosed;
+            }
+            if handle_simple_copy_from_stdin(
+                cassie,
+                session,
+                request,
+                statement,
+                cancellation.cloned(),
+                reader,
+                write_half,
+            )
+            .await
+            {
+                SimpleCopyOutcome::Handled
+            } else {
+                SimpleCopyOutcome::ConnectionClosed
+            }
+        }
+        BoundCopyRequest::To(request, query_sql) => {
+            handle_simple_copy_to_stdout(
+                cassie,
+                session,
+                request,
+                query_sql,
+                cancellation.cloned(),
+                write_half,
+            )
+            .await
+        }
+    }
+}
+
+async fn bind_copy_request(
+    cassie: Arc<Cassie>,
+    session: CassieSession,
+    sql: &str,
+) -> Result<Option<BoundCopyRequest>, CassieError> {
+    let sql = sql.to_string();
+    let context = binding_context(&cassie, &session);
+    let session_for_parse = session.clone();
+    run_pgwire_blocking(cassie, "pgwire_copy_parse", move |cassie| {
+        let Some(request) = request::parse_copy_request(&sql)? else {
+            return Ok(None);
+        };
+        match request.direction {
+            CopyDirection::FromStdin => {
+                let binding_sql = request.table_binding_sql().ok_or_else(|| {
+                    CassieError::Parse("COPY FROM STDIN requires a table target".to_string())
+                })?;
+                let parsed = crate::sql::parser::parse_statement(&binding_sql)?;
+                session_for_parse.authorize_statement(&parsed.statement)?;
+                Cassie::ensure_transaction_recovery(&session_for_parse, &parsed)?;
+                session_for_parse.ensure_transaction_writable()?;
+                session_for_parse.mark_transaction_query();
+                let bound =
+                    crate::sql::binder::bind_with_context(parsed, &cassie.catalog, &context)?;
+                let crate::sql::ast::QueryStatement::Copy(statement) = bound.statement.statement
+                else {
+                    return Err(CassieError::Parse(
+                        "COPY FROM STDIN did not bind as a table copy".to_string(),
+                    ));
+                };
+                Ok(Some(BoundCopyRequest::From(request, statement)))
+            }
+            CopyDirection::ToStdout => {
+                let query_sql = request.query_sql();
+                let parsed = crate::sql::parser::parse_statement(&query_sql)?;
+                if !matches!(
+                    &parsed.statement,
+                    crate::sql::ast::QueryStatement::Select(_)
+                ) {
+                    return Err(CassieError::Unsupported(
+                        "COPY TO STDOUT requires a SELECT query".to_string(),
+                    ));
+                }
+                session_for_parse.authorize_statement(&parsed.statement)?;
+                Cassie::ensure_transaction_recovery(&session_for_parse, &parsed)?;
+                session_for_parse.mark_transaction_query();
+                Ok(Some(BoundCopyRequest::To(request, query_sql)))
+            }
+        }
+    })
+    .await
+}
+
+enum BoundCopyRequest {
+    From(CopyRequest, CopyStatement),
+    To(CopyRequest, String),
+}
+
+async fn handle_simple_copy_to_stdout(
+    cassie: Arc<Cassie>,
+    session: CassieSession,
+    request: CopyRequest,
+    query_sql: String,
+    cancellation: Option<crate::runtime::QueryCancellationHandle>,
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> SimpleCopyOutcome {
+    let session_for_query = session.clone();
+    let result = run_pgwire_blocking(cassie.clone(), "pgwire_copy_to_stdout", move |cassie| {
+        if let Some(cancellation) = cancellation.as_ref() {
+            cassie.execute_sql_with_cancellation(
+                &session_for_query,
+                &query_sql,
+                Vec::new(),
+                cancellation,
+            )
+        } else {
+            cassie.execute_sql(&session_for_query, &query_sql, Vec::new())
+        }
+    })
+    .await;
+    let result = match result {
+        Ok(result) => result,
+        Err(error) => {
+            return write_copy_error(write_half, &session, &cassie_pg_error(&error)).await
+        }
+    };
+
+    let columns = result.columns();
+    let header = output::encode_header(&request, columns);
+    if write_copy_out_response(
+        write_half,
+        columns.len(),
+        output::response_format(request.format),
+    )
+    .await
+    .is_err()
     {
         return SimpleCopyOutcome::ConnectionClosed;
     }
-    if handle_simple_copy_from_stdin(
-        cassie,
-        session,
-        statement,
-        cancellation.cloned(),
-        reader,
-        write_half,
-    )
-    .await
+
+    if request.format == CopyWireFormat::Binary
+        && write_copy_data(write_half, &output::binary_header())
+            .await
+            .is_err()
     {
-        SimpleCopyOutcome::Handled
-    } else {
+        return SimpleCopyOutcome::ConnectionClosed;
+    }
+    if let Some(header) = header {
+        if write_copy_data(write_half, &header).await.is_err() {
+            return SimpleCopyOutcome::ConnectionClosed;
+        }
+    }
+    for row in result.rows() {
+        let encoded = match output::encode_row(&request, columns, row) {
+            Ok(encoded) => encoded,
+            Err(error) => {
+                return write_copy_error(write_half, &session, &cassie_pg_error(&error)).await
+            }
+        };
+        if write_copy_data(write_half, &encoded).await.is_err() {
+            return SimpleCopyOutcome::ConnectionClosed;
+        }
+    }
+    if request.format == CopyWireFormat::Binary
+        && write_copy_data(write_half, &output::binary_trailer())
+            .await
+            .is_err()
+    {
+        return SimpleCopyOutcome::ConnectionClosed;
+    }
+    let command = format!("COPY {}", result.row_count());
+    if write_copy_done(write_half).await.is_err()
+        || write_command_complete(write_half, &command).await.is_err()
+        || write_ready_for_query(write_half, &session).await.is_err()
+    {
         SimpleCopyOutcome::ConnectionClosed
+    } else {
+        SimpleCopyOutcome::Handled
     }
 }
 
@@ -261,7 +409,7 @@ async fn handle_database_backup(
         }
     };
     // The backup image is streamed as a single text-format column.
-    if write_copy_out_response(write_half, 1).await.is_err() {
+    if write_copy_out_response(write_half, 1, 0).await.is_err() {
         return SimpleCopyOutcome::ConnectionClosed;
     }
     loop {
@@ -313,7 +461,7 @@ async fn handle_database_restore(
             return write_copy_error(write_half, &session, &cassie_pg_error(&error)).await
         }
     };
-    if write_copy_in_response(write_half, 1).await.is_err() {
+    if write_copy_in_response(write_half, 1, 0).await.is_err() {
         return SimpleCopyOutcome::ConnectionClosed;
     }
 
@@ -452,6 +600,7 @@ fn copy_response_column_count(cassie: &Cassie, statement: &CopyStatement) -> usi
 async fn handle_simple_copy_from_stdin(
     cassie: Arc<Cassie>,
     session: CassieSession,
+    request: CopyRequest,
     statement: CopyStatement,
     cancellation: Option<crate::runtime::QueryCancellationHandle>,
     reader: &mut PgwireReader,
@@ -475,6 +624,7 @@ async fn handle_simple_copy_from_stdin(
                 return finish_simple_copy(
                     cassie,
                     session,
+                    request,
                     statement,
                     payload,
                     cancellation,
@@ -508,6 +658,7 @@ async fn handle_simple_copy_from_stdin(
 async fn finish_simple_copy(
     cassie: Arc<Cassie>,
     session: CassieSession,
+    request: CopyRequest,
     statement: CopyStatement,
     payload: Vec<u8>,
     cancellation: Option<crate::runtime::QueryCancellationHandle>,
@@ -518,6 +669,7 @@ async fn finish_simple_copy(
         execute_copy_payload(
             &cassie,
             &session_for_copy,
+            &request,
             &statement,
             &payload,
             cancellation.as_ref(),
@@ -539,10 +691,25 @@ async fn finish_simple_copy(
 fn execute_copy_payload(
     cassie: &Cassie,
     session: &CassieSession,
+    request: &CopyRequest,
     statement: &CopyStatement,
     payload: &[u8],
     cancellation: Option<&crate::runtime::QueryCancellationHandle>,
 ) -> Result<String, CassieError> {
-    let count = cassie.ingest_copy_csv_payload(session, statement, payload, cancellation)?;
+    let mut rows = match request.format {
+        CopyWireFormat::Csv => crate::app::parse_copy_csv_payload(
+            payload,
+            request.csv_delimiter(),
+            request.null_marker(),
+        )?,
+        CopyWireFormat::Text => {
+            input::parse_text_payload(payload, request.text_delimiter(), request.null_marker())?
+        }
+        CopyWireFormat::Binary => input::parse_binary_payload(payload, cassie, statement)?,
+    };
+    if request.header && !rows.is_empty() {
+        rows.remove(0);
+    }
+    let count = cassie.ingest_copy_rows(session, statement, rows, cancellation)?;
     Ok(format!("COPY {count}"))
 }

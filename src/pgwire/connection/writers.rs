@@ -350,31 +350,41 @@ pub(super) async fn write_command_complete(
 pub(super) async fn write_copy_in_response(
     write_half: &mut (impl AsyncWrite + Unpin),
     column_count: usize,
+    format_code: i16,
 ) -> io::Result<()> {
-    let payload = copy_response_payload(column_count)?;
+    let payload = copy_response_payload(column_count, format_code)?;
     write_backend_frame(write_half, b'G', &payload).await
 }
 
 pub(super) async fn write_copy_out_response(
     write_half: &mut (impl AsyncWrite + Unpin),
     column_count: usize,
+    format_code: i16,
 ) -> io::Result<()> {
-    let payload = copy_response_payload(column_count)?;
+    let payload = copy_response_payload(column_count, format_code)?;
     write_backend_frame(write_half, b'H', &payload).await
 }
 
-/// `CopyInResponse`/`CopyOutResponse` body: Int8 overall format (text),
-/// Int16 column count, then one Int16 text format code per column.
-fn copy_response_payload(column_count: usize) -> io::Result<Vec<u8>> {
+/// `CopyInResponse`/`CopyOutResponse` body: Int8 overall format,
+/// Int16 column count, then one Int16 format code per column.
+fn copy_response_payload(column_count: usize, format_code: i16) -> io::Result<Vec<u8>> {
+    if !matches!(format_code, 0 | 1) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "unsupported COPY format code",
+        ));
+    }
     let mut payload = Vec::with_capacity(3 + 2 * column_count);
-    payload.push(0);
+    payload.push(u8::try_from(format_code).map_err(|_| {
+        io::Error::new(io::ErrorKind::InvalidInput, "unsupported COPY format code")
+    })?);
     payload.extend_from_slice(
         &i16::try_from(column_count)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "too many columns"))?
             .to_be_bytes(),
     );
     for _ in 0..column_count {
-        payload.extend_from_slice(&0_i16.to_be_bytes());
+        payload.extend_from_slice(&format_code.to_be_bytes());
     }
     Ok(payload)
 }

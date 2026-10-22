@@ -78,6 +78,9 @@ Supported predicate shapes include:
 - Left-prefix composite lookup.
 - Combined predicates extracted from simple conjunctions.
 - JSON scalar indexes and `UNIQUE` reservations support objects and arrays using deterministic JSON serialization with recursively sorted object keys. Native SQL `ARRAY` values also work in primary, unique, and secondary scalar indexes. Range predicates and index-ordered reads on JSON fields fall back to row scans because integer and float key tags are separate even when the executor compares those values numerically.
+- Scalar btree definitions accept `ASC`/`DESC`, `NULLS FIRST`/`LAST`, and the selected `text_pattern_ops` class for text-like fields. Cassie persists and reports these modifiers in PostgreSQL catalog metadata, while Midge key encoding, comparisons, and query acceleration retain their existing behavior.
+- A modifier-bearing key list that mixes field and expression keys is rejected with SQLSTATE `0A000`; the current scalar index metadata does not preserve that mixed key order.
+- For compatibility with the existing Cassie catalog surface, `pg_index.indexrelid` and `indrelid` are text display labels; `indexrelid_oid` and `indrelid_oid` provide their numeric OIDs. This does not claim PostgreSQL's native `pg_index` column types.
 
 NULL and non-finite values:
 
@@ -97,7 +100,7 @@ Whole-number `FLOAT` keys:
 Out of scope unless separately documented:
 
 - Arbitrary skip-column lookup.
-- PostgreSQL operator classes and collation-specific index behavior.
+- Operator-class behavior beyond metadata-only `text_pattern_ops` reporting, and collation-specific index behavior.
 - Planner hints.
 
 ## Covering Indexes
@@ -147,6 +150,7 @@ Current guarantee:
 
 - Supported expression metadata is persisted and hydrated.
 - Planner matching uses Cassie expression normalization.
+- `pg_get_indexdef` formats accepted stored expression nodes as SQL; the cast and conditional-expression forms are covered by [`should_render_supported_expression_index_definitions`](../tests/compatibility/lifecycle/indexes/expression_index_definition.rs).
 - Exact equality predicates on deterministic expression keys are storage-backed scalar index seeks.
 - Untargeted `ON CONFLICT` resolves unique expression-index conflicts through committed reservation keys and checks only staged transaction changes by iteration.
 - Projection fields that are not stored in the index are fetched from row blobs.

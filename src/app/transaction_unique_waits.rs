@@ -349,12 +349,14 @@ mod tests {
     fn should_clear_wait_edge_when_query_deadline_has_elapsed() {
         // Arrange
         let (waits, owner, waiter, key) = waiting_pair();
-        let mut limits = CassieRuntimeLimits::default();
-        limits.query_timeout_ms = 1;
-        let controls = QueryExecutionControls::from_limits(
-            &limits,
-            Instant::now() - std::time::Duration::from_millis(10),
-        );
+        let limits = CassieRuntimeLimits {
+            query_timeout_ms: 1,
+            ..CassieRuntimeLimits::default()
+        };
+        let elapsed_start = Instant::now()
+            .checked_sub(Duration::from_millis(10))
+            .expect("subtract a short duration from the current instant");
+        let controls = QueryExecutionControls::from_limits(&limits, elapsed_start);
 
         // Act
         let result = waits.wait_for_key(waiter, owner, &key, &controls);

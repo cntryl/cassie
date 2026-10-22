@@ -7,6 +7,14 @@ use super::{
 
 use super::{parse_if_exists, parse_if_not_exists, starts_with_keyword};
 
+type ParsedIndexFields<'a> = (
+    Vec<String>,
+    Vec<Expr>,
+    std::collections::BTreeMap<String, String>,
+    &'a str,
+);
+type ParsedIndexKeyModifiers<'a> = (&'a str, Option<String>, Option<String>, Option<String>);
+
 pub(in crate::sql::parser) fn parse_create_index_statement(
     sql: &str,
 ) -> Result<ParsedStatement, SqlError> {
@@ -49,10 +57,19 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
     let remainder = remainder[on_pos + 2..].trim();
     let (table, remainder) = parse_index_target(remainder)?;
     let (kind, access_method, remainder) = parse_index_kind(remainder)?;
-    let (fields, expressions, remainder) = parse_index_fields(remainder)?;
+    let (fields, expressions, key_options, remainder) = parse_index_fields(remainder)?;
     let (include_fields, remainder) = parse_index_include_fields(remainder)?;
     let (predicate, remainder) = parse_index_predicate(remainder)?;
     let (mut options, remainder) = parse_index_options(remainder)?;
+    if options
+        .keys()
+        .any(|key| key.starts_with("__cassie_index_key_"))
+    {
+        return Err(SqlError::unsupported(
+            "index key metadata options are reserved for SQL key clauses".to_string(),
+        ));
+    }
+    options.extend(key_options);
 
     if !remainder.is_empty() {
         return Err(SqlError::new("unsupported CREATE INDEX syntax".to_string()));
@@ -227,7 +244,7 @@ pub(in crate::sql::parser) fn parse_index_kind(
 
 pub(in crate::sql::parser) fn parse_index_fields(
     raw: &str,
-) -> Result<(Vec<String>, Vec<Expr>, &str), SqlError> {
+) -> Result<ParsedIndexFields<'_>, SqlError> {
     let raw = raw.trim();
     if !raw.starts_with('(') {
         return Err(SqlError::new(
@@ -247,12 +264,28 @@ pub(in crate::sql::parser) fn parse_index_fields(
     let before = raw[close + 1..].trim();
     let mut fields = Vec::new();
     let mut expressions = Vec::new();
-    for field in split_csv(field_spec) {
+    let mut key_options = std::collections::BTreeMap::new();
+    let mut has_key_modifiers = false;
+    for (position, field) in split_csv(field_spec).into_iter().enumerate() {
         let field = field.trim();
         if field.is_empty() {
             return Err(SqlError::new(
                 "CREATE INDEX field cannot be empty".to_string(),
             ));
+        }
+        let (field, operator_class, order, nulls) = parse_index_key_modifiers(field)?;
+        for (option, value) in [
+            ("operator_class", operator_class),
+            ("order", order),
+            ("nulls", nulls),
+        ] {
+            if let Some(value) = value {
+                has_key_modifiers = true;
+                key_options.insert(
+                    crate::catalog::IndexMeta::key_option_name(position, option),
+                    value,
+                );
+            }
         }
         if field.starts_with('"') || is_index_field_identifier(field) {
             fields.push(parse_column_reference(field)?);
@@ -266,7 +299,78 @@ pub(in crate::sql::parser) fn parse_index_fields(
         }
     }
 
-    Ok((fields, expressions, before))
+    if has_key_modifiers && !fields.is_empty() && !expressions.is_empty() {
+        return Err(SqlError::unsupported(
+            "ordered or operator-class index keys cannot mix field and expression keys".to_string(),
+        ));
+    }
+
+    Ok((fields, expressions, key_options, before))
+}
+
+fn parse_index_key_modifiers(raw: &str) -> Result<ParsedIndexKeyModifiers<'_>, SqlError> {
+    let mut field = raw.trim_end();
+    let mut order = None;
+    let mut nulls = None;
+    if let Some(remainder) = strip_trailing_words(field, &["nulls", "first"]) {
+        field = remainder;
+        nulls = Some("first".to_string());
+    } else if let Some(remainder) = strip_trailing_words(field, &["nulls", "last"]) {
+        field = remainder;
+        nulls = Some("last".to_string());
+    }
+    if let Some(remainder) = strip_trailing_words(field, &["asc"]) {
+        field = remainder;
+        order = Some("asc".to_string());
+    } else if let Some(remainder) = strip_trailing_words(field, &["desc"]) {
+        field = remainder;
+        order = Some("desc".to_string());
+    }
+
+    let mut operator_class = None;
+    if let Some((remainder, candidate)) = strip_trailing_operator_class(field) {
+        field = remainder;
+        operator_class = Some(
+            if candidate.eq_ignore_ascii_case("pg_catalog.text_pattern_ops") {
+                "text_pattern_ops".to_string()
+            } else {
+                candidate
+            },
+        );
+    }
+    if field.trim().is_empty() {
+        return Err(SqlError::new(
+            "CREATE INDEX key modifier requires an indexed field".to_string(),
+        ));
+    }
+    Ok((field.trim_end(), operator_class, order, nulls))
+}
+
+fn strip_trailing_words<'a>(raw: &'a str, words: &[&str]) -> Option<&'a str> {
+    let mut end = raw.trim_end().len();
+    for expected in words.iter().rev() {
+        let candidate = &raw[..end];
+        let split = candidate.rfind(char::is_whitespace);
+        let (prefix, last) = split.map_or(("", candidate), |split| {
+            (&candidate[..split], &candidate[split + 1..])
+        });
+        if !last.eq_ignore_ascii_case(expected) {
+            return None;
+        }
+        end = prefix.trim_end().len();
+    }
+    Some(&raw[..end])
+}
+
+fn strip_trailing_operator_class(raw: &str) -> Option<(&str, String)> {
+    let trimmed = raw.trim_end();
+    let split = trimmed.rfind(char::is_whitespace)?;
+    let candidate = trimmed[split + 1..].trim();
+    if candidate.is_empty() || !candidate.to_ascii_lowercase().ends_with("_ops") {
+        return None;
+    }
+    let remainder = trimmed[..split].trim_end();
+    (!remainder.is_empty()).then(|| (remainder, candidate.to_ascii_lowercase()))
 }
 
 pub(in crate::sql::parser) fn is_index_field_identifier(raw: &str) -> bool {

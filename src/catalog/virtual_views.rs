@@ -7,6 +7,18 @@ use crate::types::{DataType, Value};
 
 pub type VirtualRow = Vec<(String, Value)>;
 
+pub(crate) fn index_definition_by_oid(catalog: &Catalog, oid: i64) -> Option<String> {
+    virtual_views_pg::index_definition_by_oid(catalog, oid)
+}
+
+pub(crate) fn index_definition_by_name(catalog: &Catalog, name: &str) -> Option<String> {
+    virtual_views_pg::index_definition_by_name(catalog, name)
+}
+
+pub(crate) fn format_stored_expression(expression: &str) -> String {
+    virtual_views_pg::format_stored_expression(expression)
+}
+
 #[path = "virtual_views_consistency.rs"]
 mod virtual_views_consistency;
 #[path = "virtual_views_constraints.rs"]

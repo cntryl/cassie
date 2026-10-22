@@ -126,7 +126,7 @@ fn should_persist_include_index_metadata_after_restart() {
             cassie
                 .execute_sql(
                     &session,
-                    "CREATE INDEX sql_include_metadata_restart_email_idx ON sql_include_metadata_restart USING btree (email) INCLUDE (title, body)",
+                    "CREATE INDEX sql_include_metadata_restart_email_idx ON sql_include_metadata_restart USING btree (email text_pattern_ops ASC NULLS FIRST) INCLUDE (title, body)",
                     vec![],
                 )
                 .unwrap();
@@ -156,10 +156,32 @@ fn should_persist_include_index_metadata_after_restart() {
             index.include_fields,
             vec!["title".to_string(), "body".to_string()]
         );
+        assert_eq!(
+            index
+                .options
+                .get("__cassie_index_key_0_operator_class")
+                .map(String::as_str),
+            Some("text_pattern_ops")
+        );
+        assert_eq!(
+            index
+                .options
+                .get("__cassie_index_key_0_order")
+                .map(String::as_str),
+            Some("asc")
+        );
+        assert_eq!(
+            index
+                .options
+                .get("__cassie_index_key_0_nulls")
+                .map(String::as_str),
+            Some("first")
+        );
         let Value::String(indexdef) = &introspection.rows()[0][0] else {
             panic!("expected textual index definition");
         };
         assert!(indexdef.contains("INCLUDE (title, body)"));
+        assert!(indexdef.contains("email text_pattern_ops NULLS FIRST"));
 
         let _ = std::fs::remove_dir_all(path);
     });

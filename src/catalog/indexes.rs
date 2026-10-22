@@ -112,6 +112,18 @@ impl IndexMeta {
     const RELATION_ID_OPTION: &'static str = "__cassie_relation_id";
     pub(crate) const ACCESS_METHOD_OPTION: &'static str = "__cassie_access_method";
 
+    #[must_use]
+    pub(crate) fn key_option_name(position: usize, option: &str) -> String {
+        format!("__cassie_index_key_{position}_{option}")
+    }
+
+    #[must_use]
+    pub(crate) fn key_option(&self, position: usize, option: &str) -> Option<&str> {
+        self.options
+            .get(&Self::key_option_name(position, option))
+            .map(String::as_str)
+    }
+
     pub(crate) fn access_method(&self) -> &str {
         match &self.kind {
             IndexKind::Scalar => self

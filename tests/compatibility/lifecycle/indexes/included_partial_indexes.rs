@@ -27,12 +27,13 @@ fn should_publish_partial_btree_index_clause_metadata() {
         let metadata = client
             .query_one(
                 "SELECT index_row.indnatts::INT, index_row.indnkeyatts::INT, \
+                        index_row.indkey::text, \
                         index_row.indisvalid, index_row.indisready, \
                         pg_catalog.pg_get_expr(index_row.indpred, index_row.indrelid), \
                         pg_catalog.pg_get_indexdef(index_row.indexrelid) \
                  FROM pg_catalog.pg_index AS index_row \
                  WHERE index_row.indexrelid = \
-                   'compat_index_include_idx'::regclass",
+                   'compat_index_include_idx'",
                 &[],
             )
             .await
@@ -53,15 +54,16 @@ fn should_publish_partial_btree_index_clause_metadata() {
                 .iter()
                 .map(|column| column.type_().oid())
                 .collect::<Vec<_>>(),
-            vec![23, 23, 16, 16, 25, 25]
+            vec![23, 23, 25, 16, 16, 25, 25]
         );
         assert_eq!(metadata.get::<_, i32>(0), 2);
         assert_eq!(metadata.get::<_, i32>(1), 1);
-        assert!(metadata.get::<_, bool>(2));
+        assert_eq!(metadata.get::<_, String>(2), "1 2");
         assert!(metadata.get::<_, bool>(3));
-        assert_eq!(metadata.get::<_, String>(4), "active");
+        assert!(metadata.get::<_, bool>(4));
+        assert_eq!(metadata.get::<_, String>(5), "active");
         assert_eq!(
-            metadata.get::<_, String>(5),
+            metadata.get::<_, String>(6),
             "CREATE INDEX compat_index_include_idx ON public.compat_index_include_rows \
              USING btree (key_value DESC NULLS LAST) INCLUDE (payload) WHERE active"
         );

@@ -191,9 +191,10 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
             Value::String(quote_identifier(text))
         })),
         "format_type" | "pg_catalog.format_type" => Some(evaluate_format_type(name, args)),
-        "pg_get_expr" | "pg_catalog.pg_get_expr" => Some(unary_nullable_text(name, args, |text| {
-            Value::String(text.to_string())
-        })),
+        "pg_get_expr" | "pg_catalog.pg_get_expr" => Some(evaluate_pg_get_expr(name, args)),
+        "pg_get_indexdef" | "pg_catalog.pg_get_indexdef" => {
+            Some(evaluate_pg_get_indexdef(name, args, session))
+        }
         "pg_get_userbyid" | "pg_catalog.pg_get_userbyid" => {
             Some(require_arg_count(name, args, 1).map(|()| Value::String("root".to_string())))
         }
@@ -212,6 +213,41 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         ),
         _ => None,
     }
+}
+
+fn evaluate_pg_get_expr(name: &str, args: &[Value]) -> Result<Value, QueryError> {
+    require_arg_count(name, args, 2)?;
+    match text_arg(name, &args[0])? {
+        Some(expression) => Ok(Value::String(
+            crate::catalog::virtual_views::format_stored_expression(&expression),
+        )),
+        None => Ok(Value::Null),
+    }
+}
+
+fn evaluate_pg_get_indexdef(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_arg_count(name, args, 1)?;
+    let Some(argument) = args.first() else {
+        return Err(QueryError::General(format!("{name} requires 1 arg")));
+    };
+    if matches!(argument, Value::Null) {
+        return Ok(Value::Null);
+    }
+    let Some((catalog, _)) = session.and_then(CassieSession::object_lookup_context) else {
+        return Ok(Value::Null);
+    };
+    let definition = match argument {
+        Value::Int64(oid) => crate::catalog::virtual_views::index_definition_by_oid(&catalog, *oid),
+        Value::String(index_name) => {
+            crate::catalog::virtual_views::index_definition_by_name(&catalog, index_name)
+        }
+        _ => None,
+    };
+    Ok(definition.map_or(Value::Null, Value::String))
 }
 
 fn evaluate_current_setting(

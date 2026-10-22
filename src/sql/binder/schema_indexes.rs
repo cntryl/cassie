@@ -67,6 +67,7 @@ pub(super) fn bind_create_index(
     let include_fields = declared_field_names(&schema, normalize_fields(&statement.include_fields));
     validate_include_fields(&statement, &schema, &table, &fields, &include_fields)?;
     validate_index_fields_and_expressions(&schema, &table, &fields, &expressions)?;
+    validate_scalar_index_key_options(&statement, &schema, &fields, &expressions)?;
 
     match statement.kind {
         crate::catalog::IndexKind::Vector => schema_index_options::bind_vector_index_options(
@@ -522,6 +523,94 @@ fn validate_index_fields_and_expressions(
         .collect::<HashSet<_>>();
     for expression in expressions {
         validate_index_expression(expression, &known_fields)?;
+    }
+    Ok(())
+}
+
+fn validate_scalar_index_key_options(
+    statement: &CreateIndexStatement,
+    schema: &CollectionSchema,
+    fields: &[String],
+    expressions: &[Expr],
+) -> Result<(), CassieError> {
+    let key_count = fields.len() + expressions.len();
+    let key_options = (0..key_count)
+        .map(|position| {
+            (
+                position,
+                statement
+                    .options
+                    .get(&IndexMeta::key_option_name(position, "operator_class")),
+                statement
+                    .options
+                    .get(&IndexMeta::key_option_name(position, "order")),
+                statement
+                    .options
+                    .get(&IndexMeta::key_option_name(position, "nulls")),
+            )
+        })
+        .filter(|(_, operator_class, order, nulls)| {
+            operator_class.is_some() || order.is_some() || nulls.is_some()
+        })
+        .collect::<Vec<_>>();
+    if key_options.is_empty() {
+        return Ok(());
+    }
+
+    let access_method = statement
+        .options
+        .get(IndexMeta::ACCESS_METHOD_OPTION)
+        .map_or("btree", String::as_str);
+    if statement.kind != crate::catalog::IndexKind::Scalar
+        || !access_method.eq_ignore_ascii_case("btree")
+    {
+        return Err(CassieError::Unsupported(
+            "ordered keys and operator classes are supported only for scalar btree indexes".into(),
+        ));
+    }
+
+    for (position, operator_class, order, nulls) in key_options {
+        if order.is_some_and(|order| !matches!(order.as_str(), "asc" | "desc")) {
+            return Err(CassieError::Unsupported(
+                "unsupported btree key ordering option".into(),
+            ));
+        }
+        if nulls.is_some_and(|nulls| !matches!(nulls.as_str(), "first" | "last")) {
+            return Err(CassieError::Unsupported(
+                "unsupported btree NULL ordering option".into(),
+            ));
+        }
+        let Some(operator_class) = operator_class else {
+            continue;
+        };
+        if !matches!(
+            operator_class.as_str(),
+            "text_pattern_ops" | "pg_catalog.text_pattern_ops"
+        ) {
+            return Err(CassieError::Unsupported(format!(
+                "btree operator class '{operator_class}' is not supported"
+            )));
+        }
+        let Some(field) = fields.get(position) else {
+            return Err(CassieError::Unsupported(
+                "text_pattern_ops requires a scalar text field key".into(),
+            ));
+        };
+        let data_type = schema
+            .fields
+            .iter()
+            .find(|candidate| candidate.name == *field)
+            .map(|candidate| &candidate.data_type);
+        if !data_type.is_some_and(|data_type| {
+            matches!(
+                data_type,
+                DataType::Text | DataType::Char { .. } | DataType::Varchar { .. }
+            )
+        }) {
+            return Err(CassieError::Unsupported(format!(
+                "text_pattern_ops requires a text, char, or varchar key field, got '{field}'"
+            )));
+        }
     }
     Ok(())
 }

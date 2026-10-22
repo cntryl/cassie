@@ -2,6 +2,8 @@ use super::*;
 
 #[path = "drop_index_if_exists_scope.rs"]
 mod drop_index_if_exists_scope;
+#[path = "expression_index_definition.rs"]
+mod expression_index_definition;
 #[path = "generated_index_name.rs"]
 mod generated_index_name;
 #[path = "included_partial_indexes.rs"]

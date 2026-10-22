@@ -117,9 +117,6 @@ mod scalar_read_equivalence;
 #[path = "storage_indexes/types/temporal/instant_equality.rs"]
 mod types_temporal_instant_equality;
 
-#[path = "storage_indexes/types/ranges/operators.rs"]
-mod types_ranges_operators;
-
 #[path = "storage_indexes/storage/midge_release_041.rs"]
 mod midge_release_041;
 

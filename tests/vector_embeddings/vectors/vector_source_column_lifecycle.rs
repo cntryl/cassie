@@ -4,15 +4,26 @@ use cassie::sql::ast::{CopyFormat, CopyStatement};
 use cassie::types::Value;
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
-fn start_vector_cassie(path: &str) -> Cassie {
+fn vector_config() -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
         model: "deterministic-test".to_string(),
         dimensions: 3,
     });
+    config
+}
+
+fn start_vector_cassie(path: &str) -> Cassie {
+    let config = vector_config();
     let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    cassie
+}
+
+fn start_vector_cassie_in_memory() -> Cassie {
+    let cassie = Cassie::new_in_memory_with_config(vector_config()).expect("create Cassie");
     cassie.startup().expect("start Cassie");
     cassie
 }
@@ -53,7 +64,6 @@ fn embedding_is_null(cassie: &Cassie, table: &str) -> Vec<Vec<Value>> {
 #[test]
 fn should_drop_vector_index_given_its_source_column_is_dropped() {
     // Arrange
-    use_local_storage();
     let path = data_dir("vector_source_column_drop");
     let table = "vector_source_column_drop";
     {
@@ -95,10 +105,8 @@ fn should_drop_vector_index_given_its_source_column_is_dropped() {
 #[test]
 fn should_unregister_vector_index_given_its_vector_column_is_dropped() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_column_drop_catalog");
     let table = "vector_column_drop_catalog";
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_vector_cassie_in_memory();
     create_sourced_vector_table(&cassie, table);
     let session = cassie.create_session("tester", None);
 
@@ -120,17 +128,13 @@ fn should_unregister_vector_index_given_its_vector_column_is_dropped() {
         .catalog
         .get_index(table, &format!("{table}_idx"))
         .is_none());
-    drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_write_null_embedding_given_source_column_is_omitted_or_null() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_source_column_omitted");
     let table = "vector_source_column_omitted";
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_vector_cassie_in_memory();
     create_sourced_vector_table(&cassie, table);
     let session = cassie.create_session("tester", None);
     let copy = CopyStatement {
@@ -165,6 +169,4 @@ fn should_write_null_embedding_given_source_column_is_omitted_or_null() {
             vec![Value::String("c-copy".into()), Value::Bool(true)],
         ]
     );
-    drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }

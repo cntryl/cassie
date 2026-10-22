@@ -9,7 +9,7 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 use sha2::{Digest, Sha256};
 
 use super::support_sql as support;
-use support::{canonical_test_collection, canonical_test_index, data_dir, use_local_storage};
+use support::{canonical_test_collection, canonical_test_index, data_dir};
 
 struct AmountFixture {
     path: String,
@@ -20,9 +20,25 @@ struct AmountFixture {
 }
 
 fn amount_fixture(label: &str, table: &str, values: &[Value]) -> AmountFixture {
-    use_local_storage();
+    amount_fixture_with_storage(label, table, values, false)
+}
+
+fn persistent_amount_fixture(label: &str, table: &str, values: &[Value]) -> AmountFixture {
+    amount_fixture_with_storage(label, table, values, true)
+}
+
+fn amount_fixture_with_storage(
+    label: &str,
+    table: &str,
+    values: &[Value],
+    persistent: bool,
+) -> AmountFixture {
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = if persistent {
+        Cassie::new_with_data_dir(&path).expect("create Cassie")
+    } else {
+        crate::support_sql::new_in_memory_cassie().expect("create Cassie")
+    };
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -68,9 +84,33 @@ fn ordered_numeric_fixture(
     values: &[serde_json::Value],
     segment_size: usize,
 ) -> AmountFixture {
-    use_local_storage();
+    ordered_numeric_fixture_with_storage(label, table, column_type, values, segment_size, false)
+}
+
+fn persistent_ordered_numeric_fixture(
+    label: &str,
+    table: &str,
+    column_type: &str,
+    values: &[serde_json::Value],
+    segment_size: usize,
+) -> AmountFixture {
+    ordered_numeric_fixture_with_storage(label, table, column_type, values, segment_size, true)
+}
+
+fn ordered_numeric_fixture_with_storage(
+    label: &str,
+    table: &str,
+    column_type: &str,
+    values: &[serde_json::Value],
+    segment_size: usize,
+    persistent: bool,
+) -> AmountFixture {
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = if persistent {
+        Cassie::new_with_data_dir(&path).expect("create Cassie")
+    } else {
+        crate::support_sql::new_in_memory_cassie().expect("create Cassie")
+    };
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(

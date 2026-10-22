@@ -12,10 +12,6 @@ use uuid::Uuid;
 
 type QueryEndpointCase = (reqwest::Method, String, Option<serde_json::Value>);
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 fn data_dir(label: &str) -> PathBuf {
     crate::support_temp_dirs::sweep_stale_once();
     std::env::temp_dir().join(format!(

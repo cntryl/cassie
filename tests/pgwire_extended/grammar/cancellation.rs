@@ -1,7 +1,6 @@
 #[test]
 fn should_cancel_tablesample_filter_without_partial_rows_or_stale_state() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("issue-800-tablesample-cancel");
     let _directory = GrammarFixtureDirectory(path.clone());
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -11,7 +10,7 @@ fn should_cancel_tablesample_filter_without_partial_rows_or_stale_state() {
 
     // Act
     let (setup, baseline, cancelled, recovery) = runtime.block_on(async {
-        let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie
             .startup()
             .expect("start TABLESAMPLE cancellation fixture");

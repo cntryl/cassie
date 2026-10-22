@@ -59,6 +59,9 @@ find src tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr 
   Use `Cassie::new_in_memory_with_config` for ephemeral SQL/protocol fixtures;
   do not mutate process-wide storage environment variables to select their mode.
   Keep restart/persistence tests on local storage and retain their actual recovery assertions.
+- Use Midge memory mode for every Cassie test fixture unless the test exercises disk-backed
+  persistence, restart/recovery, or on-disk layout. Keep those cases explicitly local with
+  isolated data directories.
 - All integration tests live in `tests/`. Module tests live near the code they cover.
 - **Async tests**: use `tokio::runtime::Builder::new_current_thread().enable_all().build()` — never `#[tokio::test]`.
 - Benchmark fixtures select `CASSIE_STORAGE_MODE=memory` for ephemeral runs and

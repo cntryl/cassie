@@ -1,9 +1,8 @@
 #[test]
 fn should_reject_noncanonical_rest_collection_names_before_persisting_them() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("collection-create-invalid-name");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let requests = ["", "   ", "other.public.events", "a b", "my.table", "x/y"];
 
     // Act
@@ -38,9 +37,8 @@ fn should_reject_noncanonical_rest_collection_names_before_persisting_them() {
 #[test]
 fn should_reject_invalid_rest_collection_fields_before_persisting_them() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("collection-create-invalid-fields");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let requests = [
         serde_json::json!({
             "name": "rest_duplicate_fields",

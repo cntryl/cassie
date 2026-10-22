@@ -38,7 +38,6 @@ fn should_parse_analytical_materialized_projection_options() {
 #[test]
 fn should_persist_analytical_projection_options() {
     // Arrange
-    use_local_storage();
     let path = data_dir("analytical_projection_options");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -46,7 +45,7 @@ fn should_persist_analytical_projection_options() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -92,7 +91,6 @@ fn should_persist_analytical_projection_options() {
 #[test]
 fn should_route_covered_query_to_fresh_analytical_projection() {
     // Arrange
-    use_local_storage();
     let path = data_dir("analytical_projection_route");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -100,7 +98,7 @@ fn should_route_covered_query_to_fresh_analytical_projection() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -178,7 +176,6 @@ fn should_route_covered_query_to_fresh_analytical_projection() {
 #[test]
 fn should_match_staged_transaction_rows_in_analytical_projection_reads() {
     // Arrange
-    use_local_storage();
     let path = data_dir("analytical_projection_transaction_overlay");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -186,7 +183,7 @@ fn should_match_staged_transaction_rows_in_analytical_projection_reads() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             for sql in [
@@ -244,7 +241,6 @@ fn should_match_staged_transaction_rows_in_analytical_projection_reads() {
 #[test]
 fn should_fallback_to_source_when_analytical_projection_is_stale() {
     // Arrange
-    use_local_storage();
     let path = data_dir("analytical_projection_stale_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -252,7 +248,7 @@ fn should_fallback_to_source_when_analytical_projection_is_stale() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -323,7 +319,6 @@ fn should_fallback_to_source_when_analytical_projection_is_stale() {
 #[test]
 fn should_reject_dml_against_analytical_projection_output() {
     // Arrange
-    use_local_storage();
     let path = data_dir("analytical_projection_output_dml");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -331,7 +326,7 @@ fn should_reject_dml_against_analytical_projection_output() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -376,9 +371,8 @@ fn should_reject_dml_against_analytical_projection_output() {
 #[test]
 fn should_read_a_capitalized_projection_alias_in_lowercase() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_alias_case");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [

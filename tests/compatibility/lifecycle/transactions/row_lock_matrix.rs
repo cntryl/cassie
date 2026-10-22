@@ -6,7 +6,6 @@ type RowLockRecheckTask = tokio::task::JoinHandle<(
 )>;
 
 struct RowLockRecheckFixture {
-    _directory: DataDirectory,
     cassie: Cassie,
     server: tokio::task::JoinHandle<()>,
     owner: tokio_postgres::Client,
@@ -23,12 +22,9 @@ struct RowLockRecheckObservations {
 }
 
 async fn create_row_lock_recheck_fixture() -> RowLockRecheckFixture {
-    support::use_local_storage();
-    let path = support::data_dir("row_lock_predicate_recheck");
-    let directory = DataDirectory(path.clone());
     let mut server_config = CassieRuntimeConfig::from_env().expect("runtime config");
     server_config.password = "postgres".to_string();
-    let cassie = Cassie::new_with_data_dir_and_config(&path, server_config.clone())
+    let cassie = Cassie::new_in_memory_with_config(server_config.clone())
         .expect("create instrumented Cassie instance");
     cassie
         .startup()
@@ -93,7 +89,6 @@ async fn create_row_lock_recheck_fixture() -> RowLockRecheckFixture {
         (worker, result)
     });
     RowLockRecheckFixture {
-        _directory: directory,
         cassie,
         server,
         owner,
@@ -282,7 +277,6 @@ fn should_recheck_update_predicate_after_a_row_lock_wait() {
     runtime.block_on(async {
         let fixture = create_row_lock_recheck_fixture().await;
         let RowLockRecheckFixture {
-            _directory,
             cassie,
             server,
             owner,

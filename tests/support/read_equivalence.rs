@@ -4,17 +4,15 @@ use cassie::config::{
 };
 use cassie::executor::QueryResult;
 
-pub fn with_fixture(label: &str, test: impl FnOnce(&Cassie, &CassieSession)) {
-    with_fixture_config(label, |_| {}, test);
+pub fn with_fixture(_label: &str, test: impl FnOnce(&Cassie, &CassieSession)) {
+    with_fixture_config("", |_| {}, test);
 }
 
 pub fn with_fixture_config(
-    label: &str,
+    _label: &str,
     configure: impl FnOnce(&mut CassieRuntimeConfig),
     test: impl FnOnce(&Cassie, &CassieSession),
 ) {
-    crate::support_sql::use_local_storage();
-    let path = crate::support_sql::data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -27,13 +25,12 @@ pub fn with_fixture_config(
             dimensions: 3,
         });
         configure(&mut config);
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         test(&cassie, &session);
     });
     drop(runtime);
-    std::fs::remove_dir_all(path).expect("remove fixture");
 }
 
 pub fn sql(cassie: &Cassie, session: &CassieSession, statement: &str) -> QueryResult {

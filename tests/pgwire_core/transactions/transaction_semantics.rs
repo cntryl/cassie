@@ -1,5 +1,3 @@
-use cassie::app::Cassie;
-
 use super::support_pgwire as wire;
 use super::support_sql as sql;
 
@@ -26,7 +24,6 @@ fn error_field(fields: &[(char, String)], tag: char) -> Option<&str> {
 #[test]
 fn should_report_transaction_semantics_sqlstate_through_pgwire() {
     // Arrange
-    sql::use_local_storage();
     let path = sql::data_dir("pgwire_transaction_semantics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -34,7 +31,7 @@ fn should_report_transaction_semantics_sqlstate_through_pgwire() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let setup = cassie.create_session("tester", None);
         cassie

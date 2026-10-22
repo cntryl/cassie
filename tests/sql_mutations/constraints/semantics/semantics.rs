@@ -1,9 +1,8 @@
 #[test]
 fn should_keep_altered_primary_key_writable_given_a_differently_cased_column_name() {
     // Arrange
-    use_local_storage();
     let path = data_dir("alter_primary_key_column_case");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -51,7 +50,6 @@ fn should_keep_altered_primary_key_writable_given_a_differently_cased_column_nam
 #[test]
 fn should_enforce_constraints_during_ingest() {
     // Arrange
-    use_local_storage();
     let path = data_dir("constraints_ingest");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -59,7 +57,7 @@ fn should_enforce_constraints_during_ingest() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -170,7 +168,6 @@ fn should_hydrate_collection_constraints_on_startup() {
 #[test]
 fn should_allow_only_one_concurrent_unique_insert_to_commit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("unique_concurrent_insert");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -178,7 +175,7 @@ fn should_allow_only_one_concurrent_unique_insert_to_commit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -239,7 +236,6 @@ fn should_allow_only_one_concurrent_unique_insert_to_commit() {
 #[test]
 fn should_insert_on_conflict_do_update() {
     // Arrange
-    use_local_storage();
     let path = data_dir("on_conflict_do_update");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -247,7 +243,7 @@ fn should_insert_on_conflict_do_update() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -285,7 +281,6 @@ fn should_insert_on_conflict_do_update() {
 #[test]
 fn should_insert_on_conflict_do_nothing() {
     // Arrange
-    use_local_storage();
     let path = data_dir("on_conflict_do_nothing");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -293,7 +288,7 @@ fn should_insert_on_conflict_do_nothing() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

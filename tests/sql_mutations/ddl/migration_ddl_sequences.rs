@@ -18,7 +18,9 @@ struct SequenceRestartState {
 }
 
 fn execute_statement(cassie: &Cassie, session: &CassieSession, sql: &str) {
-    cassie.execute_sql(session, sql, vec![]).unwrap();
+    cassie
+        .execute_sql(session, sql, vec![])
+        .unwrap_or_else(|error| panic!("execute {sql}: {error}"));
 }
 
 fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
@@ -225,7 +227,6 @@ fn should_apply_sequence_defaults_metadata_through_restart() {
 #[test]
 fn should_register_serial_sequence_in_schema_of_qualified_table() {
     // Arrange
-    use_local_storage();
     let path = data_dir("serial_schema_qualified_table");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -233,7 +234,7 @@ fn should_register_serial_sequence_in_schema_of_qualified_table() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", Some("postgres".to_string()));
         execute_statement(&cassie, &session, "CREATE SCHEMA ledger");
@@ -284,7 +285,6 @@ fn should_register_serial_sequence_in_schema_of_qualified_table() {
 #[test]
 fn should_qualify_serial_sequence_for_unqualified_table_in_search_path_schema() {
     // Arrange
-    use_local_storage();
     let path = data_dir("serial_search_path_schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -292,7 +292,7 @@ fn should_qualify_serial_sequence_for_unqualified_table_in_search_path_schema() 
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let public_session = cassie.create_session("tester", Some("postgres".to_string()));
         execute_statement(&cassie, &public_session, "CREATE SCHEMA reporting");
@@ -378,7 +378,6 @@ fn should_qualify_serial_sequence_for_unqualified_table_in_search_path_schema() 
 #[test]
 fn should_keep_serial_default_working_after_renaming_its_schema() {
     // Arrange
-    use_local_storage();
     let path = data_dir("serial_schema_rename");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -386,7 +385,7 @@ fn should_keep_serial_default_working_after_renaming_its_schema() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", Some("postgres".to_string()));
         execute_statement(&cassie, &session, "CREATE SCHEMA billing");
@@ -438,7 +437,6 @@ fn should_keep_serial_default_working_after_renaming_its_schema() {
 #[test]
 fn should_release_serial_sequence_when_dropping_its_table() {
     // Arrange
-    use_local_storage();
     let path = data_dir("serial_sequence_table_drop");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -446,7 +444,7 @@ fn should_release_serial_sequence_when_dropping_its_table() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         for sql in [
@@ -489,16 +487,48 @@ fn should_rename_serial_sequence_when_renaming_its_table() {
             "CREATE TABLE t (k SERIAL, v INT)",
             "INSERT INTO t (v) VALUES (1)",
             "ALTER TABLE t RENAME TO t2",
+        ] {
+            execute_statement(&cassie, &session, sql);
+        }
+        assert!(cassie.catalog.sequence_exists("t2_k_seq"));
+        assert!(
+            !cassie.catalog.sequence_exists("t_k_seq"),
+            "old sequence survived table rename: sequences={:?}, constraints={:?}",
+            cassie.catalog.list_sequences(),
+            cassie.catalog.get_constraints("t2")
+        );
+        assert_eq!(cassie.catalog.list_sequences().len(), 1);
+        let renamed_sequence = cassie
+            .catalog
+            .get_sequence("t2_k_seq")
+            .expect("renamed serial sequence");
+        assert_eq!(
+            renamed_sequence
+                .owned_by
+                .as_ref()
+                .map(|owner| owner.table.as_str()),
+            Some("postgres.public.t2")
+        );
+
+        // Act
+        drop(session);
+        drop(cassie);
+        let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+        restarted.startup().expect("restart");
+        let session = restarted.create_session("tester", None);
+        assert!(restarted.catalog.sequence_exists("t2_k_seq"));
+        assert!(!restarted.catalog.sequence_exists("t_k_seq"));
+
+        for sql in [
             "INSERT INTO t2 (v) VALUES (2)",
             "CREATE TABLE t (k SERIAL, v INT)",
             "INSERT INTO t (v) VALUES (3)",
         ] {
-            execute_statement(&cassie, &session, sql);
+            execute_statement(&restarted, &session, sql);
         }
 
-        // Act
-        let renamed_rows = query_rows(&cassie, &session, "SELECT k FROM t2 ORDER BY k");
-        let recreated_rows = query_rows(&cassie, &session, "SELECT k FROM t");
+        let renamed_rows = query_rows(&restarted, &session, "SELECT k FROM t2 ORDER BY k");
+        let recreated_rows = query_rows(&restarted, &session, "SELECT k FROM t");
 
         // Assert
         assert_eq!(
@@ -506,6 +536,8 @@ fn should_rename_serial_sequence_when_renaming_its_table() {
             vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
         );
         assert_eq!(recreated_rows, vec![vec![Value::Int64(1)]]);
+        drop(session);
+        drop(restarted);
         let _ = std::fs::remove_dir_all(path);
     });
 }
@@ -513,7 +545,6 @@ fn should_rename_serial_sequence_when_renaming_its_table() {
 #[test]
 fn should_desugar_serial_columns_to_sequence_backed_integer_defaults() {
     // Arrange
-    use_local_storage();
     let path = data_dir("serial");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -521,7 +552,7 @@ fn should_desugar_serial_columns_to_sequence_backed_integer_defaults() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -613,7 +644,6 @@ fn should_desugar_serial_columns_to_sequence_backed_integer_defaults() {
 #[test]
 fn should_bind_bare_explicit_sequence_defaults_to_table_schema() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explicit-sequence-default-schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -621,7 +651,7 @@ fn should_bind_bare_explicit_sequence_defaults_to_table_schema() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         for sql in [

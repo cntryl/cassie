@@ -1,7 +1,6 @@
 #[test]
 fn should_include_null_trailing_keys_in_composite_index_range_scan() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_composite_null_trailing");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_include_null_trailing_keys_in_composite_index_range_scan() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         create_indexed_and_plain_tables(
@@ -52,7 +51,6 @@ fn should_include_null_trailing_keys_in_composite_index_range_scan() {
 #[test]
 fn should_keep_ordered_index_scan_for_nullable_leading_order_key() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_order_nullable_leading_key");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -60,7 +58,7 @@ fn should_keep_ordered_index_scan_for_nullable_leading_order_key() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             cassie.startup().expect("start Cassie");
             let session = cassie.create_session("tester", None);
             for sql in [

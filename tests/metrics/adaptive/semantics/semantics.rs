@@ -1,7 +1,6 @@
 #[test]
 fn should_record_adaptive_candidate_expansion() {
     // Arrange
-    use_local_storage();
     let path = data_dir("adaptive_candidate_expansion");
     let config = adaptive_candidate_config(1, 100);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -10,7 +9,7 @@ fn should_record_adaptive_candidate_expansion() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let collection = "metrics_adaptive_candidate_expansion";
         register_adaptive_candidate_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -84,7 +83,6 @@ fn should_preserve_the_selected_adaptive_read_surface_across_profiles() {
 #[test]
 fn should_select_adaptive_read_operator_alternative() {
     // Arrange
-    use_local_storage();
     let path = data_dir("adaptive_read_operator_select");
     let config = adaptive_execution_config(true, 100);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -93,7 +91,7 @@ fn should_select_adaptive_read_operator_alternative() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let collection = "metrics_adaptive_read_operator_select";
         let base_index = "metrics_adaptive_read_operator_body_idx_a";
         let preferred_index = "metrics_adaptive_read_operator_title_idx_b";
@@ -161,7 +159,6 @@ fn should_select_adaptive_read_operator_alternative() {
 #[test]
 fn should_report_adaptive_read_operator_disabled_without_selected_delta() {
     // Arrange
-    use_local_storage();
     let path = data_dir("adaptive_read_operator_disabled");
     let config = adaptive_execution_config(false, 0);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -170,7 +167,7 @@ fn should_report_adaptive_read_operator_disabled_without_selected_delta() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let collection = "metrics_adaptive_read_operator_disabled";
         let base_index = "metrics_adaptive_read_operator_disabled_body_idx_a";
         let preferred_index = "metrics_adaptive_read_operator_disabled_title_idx_b";
@@ -242,7 +239,6 @@ fn should_report_adaptive_read_operator_disabled_without_selected_delta() {
 #[test]
 fn should_keep_base_alternative_when_adaptive_guard_fails() {
     // Arrange
-    use_local_storage();
     let path = data_dir("adaptive_read_operator_guard");
     let config = adaptive_execution_config(true, 10_000);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -251,7 +247,7 @@ fn should_keep_base_alternative_when_adaptive_guard_fails() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let collection = "metrics_adaptive_read_operator_guard";
         let base_index = "metrics_adaptive_read_operator_guard_body_idx_a";
         let preferred_index = "metrics_adaptive_read_operator_guard_title_idx_b";
@@ -291,7 +287,6 @@ fn should_keep_base_alternative_when_adaptive_guard_fails() {
 #[test]
 fn should_keep_base_alternative_when_confidence_guard_fails() {
     // Arrange
-    use_local_storage();
     let path = data_dir("adaptive_read_operator_confidence");
     let config = adaptive_execution_confidence_config(true, 100, 900);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -300,7 +295,7 @@ fn should_keep_base_alternative_when_confidence_guard_fails() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let collection = "metrics_adaptive_read_operator_confidence";
         let base_index = "metrics_adaptive_read_operator_confidence_body_idx_a";
         let preferred_index = "metrics_adaptive_read_operator_confidence_title_idx_b";
@@ -347,7 +342,6 @@ fn should_keep_base_alternative_when_confidence_guard_fails() {
 #[test]
 fn should_switch_vectorized_join_to_merge_when_threshold_exceeded() {
     // Arrange
-    use_local_storage();
     let path = data_dir("operator_switch_join_threshold");
     let config = operator_switch_config(true, 2);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -356,7 +350,7 @@ fn should_switch_vectorized_join_to_merge_when_threshold_exceeded() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let session = cassie.create_session("tester", None);
         create_switch_join_tables(
             &cassie,
@@ -417,19 +411,18 @@ fn should_switch_vectorized_join_to_merge_when_threshold_exceeded() {
 #[test]
 fn should_report_operator_switch_failure_without_claiming_success() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("operator_switch_failure");
     let mut config = operator_switch_config(true, 0);
-    // Local phase probe: admitted set/qualification inputs peak at 11,408 bytes;
-    // keyed replacement requires 17,048. Preserve a negative replacement fixture.
-    config.limits.query_memory_budget_bytes = 12 * 1_024;
+    // The 12 KiB boundary rejects query capture at 12,373 bytes before the
+    // adaptive operator can be attempted; 13 KiB admits capture but rejects
+    // the keyed replacement.
+    config.limits.query_memory_budget_bytes = 13 * 1_024;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let session = cassie.create_session("tester", None);
         // Literal sources isolate replacement failure from storage-tree decode reservations.
         // Complete source rows fit; their independently owned keyed merge copies exceed
@@ -484,7 +477,8 @@ fn should_report_operator_switch_failure_without_claiming_success() {
                 &before,
                 &["adaptive_candidates", "operator_switch_attempts"]
             ),
-            1
+            1,
+            "operator replacement should be attempted before failing: {error:?}"
         );
         assert_eq!(
             snapshot_delta(
@@ -509,14 +503,12 @@ fn should_report_operator_switch_failure_without_claiming_success() {
 
         drop(session);
         drop(cassie);
-        std::fs::remove_dir_all(path).expect("remove fixture after engine drop");
     });
 }
 
 #[test]
 fn should_keep_vectorized_join_when_operator_switching_disabled() {
     // Arrange
-    use_local_storage();
     let path = data_dir("operator_switch_disabled");
     let config = operator_switch_config(false, 0);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -525,7 +517,7 @@ fn should_keep_vectorized_join_when_operator_switching_disabled() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let session = cassie.create_session("tester", None);
         create_switch_join_tables(
             &cassie,
@@ -566,7 +558,6 @@ fn should_keep_vectorized_join_when_operator_switching_disabled() {
 #[test]
 fn should_report_runtime_operator_switch_in_explain_analyze() {
     // Arrange
-    use_local_storage();
     let path = data_dir("operator_switch_explain");
     let config = operator_switch_config(true, 1);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -575,7 +566,7 @@ fn should_report_runtime_operator_switch_in_explain_analyze() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let session = cassie.create_session("tester", None);
         create_switch_join_tables(
             &cassie,

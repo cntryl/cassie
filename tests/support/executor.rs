@@ -21,9 +21,8 @@ pub fn data_dir(label: &str) -> String {
     path.to_string_lossy().to_string()
 }
 
-pub fn cassie_temp(label: &str) -> Cassie {
-    use_local_storage();
-    Cassie::new_with_data_dir(data_dir(label)).expect("cassie")
+pub fn cassie_temp(_label: &str) -> Cassie {
+    crate::support_sql::new_in_memory_cassie().expect("cassie")
 }
 
 pub fn text_schema(fields: &[&str]) -> Schema {

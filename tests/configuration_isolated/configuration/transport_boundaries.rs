@@ -10,8 +10,7 @@ use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use pgwire_support::{
-    data_dir, password_message, read_until_ready, read_wire_frame, simple_query_frame,
-    startup_frame, use_local_storage,
+    password_message, read_until_ready, read_wire_frame, simple_query_frame, startup_frame,
 };
 
 type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
@@ -175,15 +174,13 @@ fn auth_request_code(payload: &[u8]) -> Option<i32> {
 fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
     // Arrange
     let _environment = EnvironmentGuard::set("CASSIE_ROOT_PASSWORD", "route-password");
-    use_local_storage();
-    let path = data_dir("pgwire-simple");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         seed_transport_boundary_docs(&cassie);
         let (addr, server) = spawn_pgwire_boundary_server(&cassie).await;
@@ -197,7 +194,6 @@ fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
 
         server.abort();
         let _ = server.await;
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
@@ -205,15 +201,13 @@ fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
 fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
     // Arrange
     let _environment = EnvironmentGuard::set("CASSIE_ROOT_PASSWORD", "route-password");
-    use_local_storage();
-    let path = data_dir("rest-route");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -313,6 +307,5 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
 
         server.abort();
         let _ = server.await;
-        let _ = std::fs::remove_dir_all(path);
     });
 }

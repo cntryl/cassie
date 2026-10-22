@@ -23,7 +23,6 @@ fn run_sql(
 #[test]
 fn should_match_float_foreign_keys_across_all_write_paths() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign_key_float_numeric_equivalence");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -31,7 +30,7 @@ fn should_match_float_foreign_keys_across_all_write_paths() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             for sql in [
@@ -103,7 +102,6 @@ fn should_match_float_foreign_keys_across_all_write_paths() {
 #[test]
 fn should_reject_insert_when_foreign_key_parent_is_missing() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign_key_missing_parent");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -111,7 +109,7 @@ fn should_reject_insert_when_foreign_key_parent_is_missing() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -164,7 +162,6 @@ fn should_reject_insert_when_foreign_key_parent_is_missing() {
 #[test]
 fn should_reject_parent_mutation_when_foreign_key_children_exist() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign_key_referenced_parent");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -172,7 +169,7 @@ fn should_reject_parent_mutation_when_foreign_key_children_exist() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -245,7 +242,6 @@ fn should_reject_parent_mutation_when_foreign_key_children_exist() {
 #[test]
 fn should_apply_foreign_key_delete_actions() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign_key_delete_actions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -253,7 +249,7 @@ fn should_apply_foreign_key_delete_actions() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -340,7 +336,6 @@ fn should_apply_foreign_key_delete_actions() {
 #[test]
 fn should_apply_foreign_key_update_actions() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign_key_update_actions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -348,7 +343,7 @@ fn should_apply_foreign_key_update_actions() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -441,7 +436,6 @@ fn should_apply_foreign_key_update_actions() {
 #[test]
 fn should_cascade_referenced_key_update_through_a_two_level_chain() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign_key_update_cascade_two_levels");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -449,7 +443,7 @@ fn should_cascade_referenced_key_update_through_a_two_level_chain() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             cassie.startup().expect("start Cassie");
             let session = cassie.create_session("tester", None);
             for sql in [
@@ -512,7 +506,6 @@ fn should_cascade_referenced_key_update_through_a_two_level_chain() {
 #[test]
 fn should_propagate_set_null_after_parent_key_update() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign_key_set_null_two_levels");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -520,7 +513,7 @@ fn should_propagate_set_null_after_parent_key_update() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             cassie.startup().expect("start Cassie");
             let session = cassie.create_session("tester", None);
             for sql in [
@@ -558,7 +551,6 @@ fn should_propagate_set_null_after_parent_key_update() {
 #[test]
 fn should_propagate_set_null_after_parent_delete() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign_key_delete_set_null_two_levels");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -566,7 +558,7 @@ fn should_propagate_set_null_after_parent_delete() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             cassie.startup().expect("start Cassie");
             let session = cassie.create_session("tester", None);
             for sql in [

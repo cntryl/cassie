@@ -4,10 +4,8 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use super::support_sql as support;
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
-use support::*;
 
 const SQLALCHEMY_PROBE: &str = r#"
 import sys
@@ -87,18 +85,15 @@ struct ProbeOutput {
 }
 
 struct CompatibilityServer {
-    data_dir: String,
     addr: SocketAddr,
     server: tokio::task::JoinHandle<()>,
 }
 
 impl CompatibilityServer {
-    async fn start(label: &str) -> Self {
-        use_local_storage();
-        let data_dir = data_dir(label);
+    async fn start(_label: &str) -> Self {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -113,17 +108,12 @@ impl CompatibilityServer {
         });
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        Self {
-            data_dir,
-            addr,
-            server,
-        }
+        Self { addr, server }
     }
 
     async fn shutdown_without_client(self) {
         self.server.abort();
         let _ = self.server.await;
-        let _ = std::fs::remove_dir_all(self.data_dir);
     }
 }
 

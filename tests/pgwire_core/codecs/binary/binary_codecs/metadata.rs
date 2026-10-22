@@ -1,10 +1,8 @@
 #[test]
 fn should_emit_outer_join_rows_matching_pgwire_metadata() {
     // Arrange
-    support::use_local_storage();
-    let path = support::data_dir("outer-join-wire-shape");
     runtime().block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             for sql in ["CREATE TABLE wire_users (user_key INT, name TEXT)", "CREATE TABLE wire_orders (order_key INT, total INT)", "INSERT INTO wire_users VALUES (1,'ada'),(2,'grace')"] {
@@ -27,16 +25,14 @@ fn should_emit_outer_join_rows_matching_pgwire_metadata() {
             }
             drop(cassie);
         });
-    std::fs::remove_dir_all(path).expect("cleanup");
 }
 
 #[test]
 fn should_describe_case_result_types_over_pgwire() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("case-result-types");
     runtime().block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
 
             // Act

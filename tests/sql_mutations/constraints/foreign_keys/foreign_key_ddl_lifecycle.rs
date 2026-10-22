@@ -12,7 +12,6 @@ const PARENT_CHILD: [&str; 4] = [
     ];
 
 fn with_cassie(label: &str, test: impl FnOnce(&str)) {
-    support::use_local_storage();
     let path = support::data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -22,8 +21,8 @@ fn with_cassie(label: &str, test: impl FnOnce(&str)) {
     let _ = std::fs::remove_dir_all(&path);
 }
 
-fn start(path: &str) -> (Cassie, CassieSession) {
-    let cassie = Cassie::new_with_data_dir(path).expect("cassie");
+fn start(_path: &str) -> (Cassie, CassieSession) {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     (cassie, session)

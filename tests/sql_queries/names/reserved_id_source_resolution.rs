@@ -3,7 +3,7 @@ use super::support_sql as support;
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn identity_of(cassie: &Cassie, session: &CassieSession, sql: &str) -> String {
     let result = cassie.execute_sql(session, sql, vec![]).expect("select id");
@@ -16,9 +16,8 @@ fn identity_of(cassie: &Cassie, session: &CassieSession, sql: &str) -> String {
 #[test]
 fn should_resolve_id_to_the_internal_identity_in_every_source_shape() {
     // Arrange
-    use_local_storage();
     let path = data_dir("reserved_id_undeclared_sources");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [
@@ -104,9 +103,8 @@ fn should_resolve_id_to_the_internal_identity_in_every_source_shape() {
 #[test]
 fn should_resolve_a_declared_id_column_in_every_source_shape() {
     // Arrange
-    use_local_storage();
     let path = data_dir("reserved_id_declared_sources");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [
@@ -168,9 +166,8 @@ fn should_resolve_a_declared_id_column_in_every_source_shape() {
 #[test]
 fn should_return_a_value_for_a_column_aliased_to_the_internal_identity_name() {
     // Arrange
-    use_local_storage();
     let path = data_dir("reserved_id_aliased_output");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [
@@ -206,9 +203,8 @@ fn should_return_a_value_for_a_column_aliased_to_the_internal_identity_name() {
 #[test]
 fn should_drop_a_declared_id_column_but_never_the_internal_identity() {
     // Arrange
-    use_local_storage();
     let path = data_dir("reserved_id_drop_column");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [

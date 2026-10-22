@@ -1,15 +1,13 @@
-use cassie::app::Cassie;
 use cassie::types::{DataType, FieldSchema, Schema};
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 #[test]
 fn should_reject_cardinality_stats_from_an_older_collection_generation() {
     // Arrange
-    use_local_storage();
     let path = data_dir("cardinality_generation");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let collection = "cardinality_generation_docs";
     let schema = Schema {

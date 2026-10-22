@@ -1,7 +1,6 @@
 #[test]
 fn should_recover_ready_after_simple_query_error() {
     // Arrange
-    use_local_storage();
     let path = data_dir("error");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -11,7 +10,7 @@ fn should_recover_ready_after_simple_query_error() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -89,7 +88,6 @@ fn should_recover_ready_after_simple_query_error() {
 #[test]
 fn should_report_retryable_storage_error_with_cannot_connect_now_sqlstate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("retryable_storage");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -99,7 +97,7 @@ fn should_report_retryable_storage_error_with_cannot_connect_now_sqlstate() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         let (addr, server) = spawn_pgwire_server(&cassie).await;
         let mut socket = tokio::net::TcpStream::connect(addr)
@@ -147,7 +145,6 @@ fn should_report_retryable_storage_error_with_cannot_connect_now_sqlstate() {
 #[test]
 fn should_report_bigint_out_of_range_with_sqlstate_22003() {
     // Arrange
-    use_local_storage();
     let path = data_dir("bigint_out_of_range");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -155,7 +152,7 @@ fn should_report_bigint_out_of_range_with_sqlstate_22003() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let (addr, server) = spawn_pgwire_server(&cassie).await;
         let mut socket = tokio::net::TcpStream::connect(addr)
@@ -195,7 +192,6 @@ fn should_report_bigint_out_of_range_with_sqlstate_22003() {
 #[test]
 fn should_report_division_by_zero_with_sqlstate_22012() {
     // Arrange
-    use_local_storage();
     let path = data_dir("division_by_zero");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -203,7 +199,7 @@ fn should_report_division_by_zero_with_sqlstate_22012() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie

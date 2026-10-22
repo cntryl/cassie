@@ -317,8 +317,8 @@ impl Midge {
                 metadata.name
             )));
         }
-        if self
-            .database_catalog_entries(name)?
+        let catalog_entries = self.database_catalog_entries(name)?;
+        if catalog_entries
             .iter()
             .any(|(key, _)| is_database_catalog_data_key(key))
         {
@@ -352,9 +352,7 @@ impl Midge {
             .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
 
-        self.engine
-            .drop_column_family(handle.id())
-            .map_err(CassieError::from)?;
+        self.drop_physical_family_if_present(&metadata.physical_family)?;
         let mut cleanup = self.begin_schema_tx_for_handle(&schema, TransactionMode::ReadWrite)?;
         Self::delete_lifecycle_record(&mut cleanup, &record.operation_id)?;
         cleanup
@@ -589,10 +587,10 @@ impl Midge {
 
     fn drop_physical_family_if_present(&self, name: &str) -> Result<(), CassieError> {
         if let Some(handle) = self.engine.get_column_family(name) {
-            // Midge's safe family drop requires committed memtable data to be flushed.
-            self.engine.flush_cf(&handle).map_err(CassieError::from)?;
+            // Every caller is aborting an unpublished family or has verified that
+            // the logical database is empty before removing its remaining catalog rows.
             self.engine
-                .drop_column_family(handle.id())
+                .drop_column_family_discarding_unflushed(handle.id())
                 .map_err(CassieError::from)?;
         }
         Ok(())
@@ -753,7 +751,7 @@ fn is_database_data_key(key: &[u8]) -> bool {
 
 fn is_database_catalog_data_key(key: &[u8]) -> bool {
     match key_family(key) {
-        Some("database" | "databases") | None => false,
+        Some("database" | "databases" | "namespaces") | None => false,
         Some("namespace") => key_components(key)
             .nth(4)
             .is_none_or(|schema| !schema.eq_ignore_ascii_case(b"public")),

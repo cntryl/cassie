@@ -75,10 +75,6 @@ impl Drop for MockOpenAiServer {
     }
 }
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 fn canonical_collection(name: &str) -> String {
     canonical_relation_name("postgres", "public", name)
 }

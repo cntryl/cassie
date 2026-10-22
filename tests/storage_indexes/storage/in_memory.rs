@@ -7,7 +7,6 @@ use cassie::types::Value;
 #[test]
 fn should_isolate_rows_given_explicit_memory_instances_when_the_same_table_is_created() {
     // Arrange
-    crate::support_sql::use_local_storage();
     let first = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("first");
     let second = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("second");
     let first_session = first.create_session("tester", None);

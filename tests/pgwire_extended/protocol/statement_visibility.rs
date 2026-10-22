@@ -14,10 +14,10 @@ async fn round_trip(
     wire::write_frames(writer, frames).await;
     wire::read_frames_until_ready_within(reader, Duration::from_secs(5)).await
 }
-fn fixture(path: &str) -> Cassie {
+fn fixture(_path: &str) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("config");
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-    let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("Cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("setup", None);
     cassie
@@ -56,7 +56,6 @@ fn runtime() -> tokio::runtime::Runtime {
 #[test]
 fn should_capture_portal_data_at_first_execute_after_bind() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("statement-first-execute");
     runtime().block_on(async {
         let cassie = fixture(&path);
@@ -117,7 +116,6 @@ fn should_capture_portal_data_at_first_execute_after_bind() {
 #[test]
 fn should_resume_suspended_portal_after_staged_savepoint_rollback() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("statement-resume-savepoint");
     runtime().block_on(async {
         let cassie = fixture(&path);
@@ -198,7 +196,6 @@ fn should_resume_suspended_portal_after_staged_savepoint_rollback() {
 #[test]
 fn should_release_a_suspended_portal_owner_on_close() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("statement-suspended-close");
     runtime().block_on(async {
         let cassie = fixture(&path);

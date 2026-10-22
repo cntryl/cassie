@@ -1,7 +1,6 @@
 #[test]
 fn should_match_full_scan_for_non_finite_range_parameters_on_scalar_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_non_finite_parameters");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_match_full_scan_for_non_finite_range_parameters_on_scalar_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         create_indexed_and_plain_tables(
             &cassie,
@@ -58,7 +57,6 @@ fn should_match_full_scan_for_non_finite_range_parameters_on_scalar_index() {
 #[test]
 fn should_keep_the_scalar_index_for_a_non_finite_parameter_outside_the_filter() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_unused_non_finite_parameter");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -66,7 +64,7 @@ fn should_keep_the_scalar_index_for_a_non_finite_parameter_outside_the_filter() 
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         create_indexed_and_plain_tables(
             &cassie,
@@ -105,7 +103,6 @@ fn should_keep_the_scalar_index_for_a_non_finite_parameter_outside_the_filter() 
 #[test]
 fn should_return_no_rows_for_null_range_parameter_on_scalar_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_null_range_parameter");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -113,7 +110,7 @@ fn should_return_no_rows_for_null_range_parameter_on_scalar_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         create_indexed_and_plain_tables(
             &cassie,

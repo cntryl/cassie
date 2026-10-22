@@ -38,6 +38,42 @@ fn should_report_created_index_definition_in_pg_indexes() {
 }
 
 #[test]
+fn should_quote_index_definition_identifiers_that_need_quoting() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-pg-indexes-quoted-identifiers",
+        &[
+            "CREATE SCHEMA \"Issue817MixedCase\"",
+            "CREATE TABLE \"Issue817MixedCase\".\"SelectTable\" (\
+             \"select\" INTEGER, \"CamelInclude\" INTEGER)",
+            "CREATE INDEX \"IndexName\" \
+             ON \"Issue817MixedCase\".\"SelectTable\" (\"select\") \
+             INCLUDE (\"CamelInclude\")",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT indexdef FROM pg_catalog.pg_indexes \
+             WHERE schemaname = 'Issue817MixedCase' \
+               AND tablename = 'SelectTable' \
+               AND indexname = 'IndexName'",
+        )
+        .expect("query the quoted index definition");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String(
+            "CREATE INDEX \"IndexName\" ON \"Issue817MixedCase\".\"SelectTable\" USING btree (\"select\") INCLUDE (\"CamelInclude\")"
+                .to_owned(),
+        )]]
+    );
+}
+
+#[test]
 fn should_list_created_indexes_in_pg_stat_user_indexes() {
     // Arrange
     let fixture = sql_fixture(

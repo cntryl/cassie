@@ -4,9 +4,6 @@ use cassie::app::Cassie;
 use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig};
 use cassie::types::{Value, Vector};
 
-use super::support_sql as support;
-use support::{data_dir, use_local_storage};
-
 fn run(cassie: &Cassie, sql: &str) -> Vec<Vec<Value>> {
     run_with(cassie, sql, vec![])
 }
@@ -31,20 +28,18 @@ fn scored_ids(rows: &[Vec<Value>]) -> Vec<(String, f64)> {
         .collect()
 }
 
-fn hybrid_fixture(label: &str) -> Cassie {
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir(label)).unwrap();
+fn hybrid_fixture() -> Cassie {
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     seed_hybrid_fixture(cassie)
 }
 
-fn hybrid_fixture_with_local_provider(label: &str) -> Cassie {
-    use_local_storage();
+fn hybrid_fixture_with_local_provider() -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
         model: "deterministic-test".to_string(),
         dimensions: 2,
     });
-    let cassie = Cassie::new_with_data_dir_and_config(data_dir(label), config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     cassie.startup().unwrap();
     run(
         &cassie,
@@ -115,13 +110,12 @@ fn seed_hybrid_fixture(cassie: Cassie) -> Cassie {
 #[test]
 fn should_highlight_accent_folded_matches_in_snippet() {
     // Arrange
-    use_local_storage();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(data_dir("snippet_accent")).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             run(&cassie, "CREATE TABLE snip_accent (id INT NOT NULL, body TEXT)");
             run(
@@ -153,13 +147,12 @@ fn should_highlight_accent_folded_matches_in_snippet() {
 #[test]
 fn should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet() {
     // Arrange
-    use_local_storage();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(data_dir("snippet_accent_read")).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             run(&cassie, "CREATE TABLE snip_read (id INT NOT NULL, body TEXT)");
             run(
@@ -189,13 +182,12 @@ fn should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet() {
 #[test]
 fn should_not_highlight_case_mismatch_when_case_folding_is_disabled() {
     // Arrange
-    use_local_storage();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(data_dir("snippet_case")).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             run(&cassie, "CREATE TABLE snip_case (id INT NOT NULL, body TEXT)");
             run(
@@ -228,9 +220,9 @@ fn should_keep_fulltext_scores_stable_after_filtered_hybrid_query() {
         .expect("runtime");
     runtime.block_on(async {
             let scored = "SELECT _id, search_score(body, 'alpha beta') AS score FROM ia ORDER BY score DESC LIMIT 2";
-            let cold = hybrid_fixture("hybrid_stats_cold");
+            let cold = hybrid_fixture();
             let baseline = scored_ids(&run(&cold, scored));
-            let warmed = hybrid_fixture("hybrid_stats_warmed");
+            let warmed = hybrid_fixture();
 
             // Act
             run(
@@ -257,7 +249,7 @@ fn should_score_hybrid_candidates_with_full_indexed_corpus_statistics() {
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = hybrid_fixture("hybrid_stats_corpus_scoring");
+            let cassie = hybrid_fixture();
             let candidate_ids = run(&cassie, "SELECT _id FROM ia WHERE grp = 'B'")
                 .into_iter()
                 .filter_map(|row| match &row[0] {
@@ -325,7 +317,7 @@ fn should_use_persisted_corpus_statistics_for_bounded_hybrid_candidates() {
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = hybrid_fixture_with_local_provider("hybrid_bounded_stats_corpus");
+            let cassie = hybrid_fixture_with_local_provider();
             // Retain links across equal-vector clusters so this corpus-statistics
             // fixture deterministically exercises the persisted ANN path.
             run(

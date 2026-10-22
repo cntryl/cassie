@@ -1,29 +1,18 @@
 use cassie::app::{Cassie, CassieError};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 
-use super::support_sql as support;
-
 const COLLECTION: &str = "controlled_column_metadata";
 const METADATA_REJECTION_BUDGET: usize = 1_024;
 
 struct Fixture {
     cassie: Cassie,
-    path: String,
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
-    }
 }
 
 fn fixture() -> Fixture {
-    support::use_local_storage();
-    let path = support::data_dir("column-metadata-controls");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = METADATA_REJECTION_BUDGET;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("controlled cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("controlled cassie");
     cassie.startup().expect("startup controlled cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -58,7 +47,7 @@ fn fixture() -> Fixture {
             vec![],
         )
         .expect("create metadata-heavy column index");
-    Fixture { cassie, path }
+    Fixture { cassie }
 }
 
 fn metric(metrics: &serde_json::Value, family: &str, name: &str) -> u64 {

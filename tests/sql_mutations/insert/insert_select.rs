@@ -15,7 +15,6 @@ use support::*;
 #[test]
 fn should_execute_insert_select_with_returning_rows() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_select_returning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -23,7 +22,7 @@ fn should_execute_insert_select_with_returning_rows() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -80,7 +79,6 @@ fn should_execute_insert_select_with_returning_rows() {
 #[test]
 fn should_reject_insert_select_shape_mismatch_before_writing() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_select_shape");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -88,7 +86,7 @@ fn should_reject_insert_select_shape_mismatch_before_writing() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -144,7 +142,6 @@ fn should_reject_insert_select_shape_mismatch_before_writing() {
 #[test]
 fn should_apply_default_values_for_insert_select() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_select_defaults");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -152,7 +149,7 @@ fn should_apply_default_values_for_insert_select() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

@@ -58,9 +58,6 @@ fn should_return_57014_given_a_blocked_row_lock_waiter_when_cancel_request_arriv
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        support::use_local_storage();
-        let path = support::data_dir("row_lock_cancel_request");
-        let _directory = DataDirectory(path.clone());
         let crate::support_unique_conflict::Fixture {
             cassie,
             owner,
@@ -68,7 +65,7 @@ fn should_return_57014_given_a_blocked_row_lock_waiter_when_cancel_request_arriv
             owner_connection,
             contender_connection: waiter_connection,
             server,
-        } = crate::support_unique_conflict::start(&path).await;
+        } = crate::support_unique_conflict::start().await;
         let waiter = std::sync::Arc::new(waiter);
         create_locked_row(&owner).await;
         lock_fixture_row(&owner).await;
@@ -128,9 +125,6 @@ fn should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_sessi
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        support::use_local_storage();
-        let path = support::data_dir("row_lock_cancel_reuse");
-        let _directory = DataDirectory(path.clone());
         let crate::support_unique_conflict::Fixture {
             cassie,
             owner,
@@ -138,7 +132,7 @@ fn should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_sessi
             owner_connection,
             contender_connection: waiter_connection,
             server,
-        } = crate::support_unique_conflict::start(&path).await;
+        } = crate::support_unique_conflict::start().await;
         let waiter = std::sync::Arc::new(waiter);
         create_locked_row(&owner).await;
         lock_fixture_row(&owner).await;

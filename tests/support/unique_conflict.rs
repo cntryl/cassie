@@ -49,11 +49,11 @@ pub async fn observe_owner_wait<T>(
     }
 }
 
-pub async fn start(path: &str) -> Fixture {
+pub async fn start() -> Fixture {
     let mut server_config = CassieRuntimeConfig::from_env().expect("runtime config");
     server_config.password = "postgres".to_string();
-    let cassie = Cassie::new_with_data_dir_and_config(path, server_config.clone())
-        .expect("create instrumented Cassie instance");
+    let cassie = Cassie::new_in_memory_with_config(server_config.clone())
+        .expect("create in-memory instrumented Cassie instance");
     cassie
         .startup()
         .expect("start instrumented Cassie instance");

@@ -10,11 +10,10 @@ use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
 use crate::support_authentication_redaction::{
-    assert_secret_free, emit_capture_positive_controls, enter_owned_child, owned_storage_path,
-    retain_private_canaries, TraceCapture,
+    assert_secret_free, emit_capture_positive_controls, enter_owned_child, retain_private_canaries,
+    TraceCapture,
 };
 use crate::support_pgwire as wire;
-use crate::support_sql::use_local_storage;
 
 const COMPLETION: &str = "AUTH03 owned child completed: wire3 rest3 capture2 cleanup1";
 const DEADLINE: Duration = Duration::from_secs(10);
@@ -253,8 +252,6 @@ fn should_redact_credentials_across_network_authentication_failures() {
         return;
     }
     let capture = TraceCapture::install_in_owned_child();
-    use_local_storage();
-    let path = owned_storage_path();
     let actual_password = format!("auth03-actual-{}", uuid::Uuid::new_v4());
     let wrong_password = format!("auth03-invalid-{}", uuid::Uuid::new_v4());
     let config = CassieRuntimeConfig {
@@ -268,7 +265,7 @@ fn should_redact_credentials_across_network_authentication_failures() {
         wrong_password.clone(),
         config.password.clone(),
     ];
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("Cassie");
+    let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("Cassie");
     cassie.startup().expect("startup");
     for name in ["wire_redaction_reader", "rest_redaction_reader", "root"] {
         if name != "root" {
@@ -296,10 +293,8 @@ fn should_redact_credentials_across_network_authentication_failures() {
     drop(runtime);
     cassie.shutdown();
     drop(cassie);
-    std::fs::remove_dir_all(&path).expect("cleanup after runtime and engine owners drop");
 
     // Assert
-    assert!(!std::path::Path::new(&path).exists());
     assert_observations(&observed, &canaries);
     capture.assert_redacted_with_both_domains(&canaries);
     println!("\n{COMPLETION}");

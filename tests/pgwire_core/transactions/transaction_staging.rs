@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use cassie::app::Cassie;
-
 use super::support_pgwire as wire;
 use super::support_sql as sql;
 
@@ -21,7 +19,6 @@ fn simple_query_frame(query: &str) -> Vec<u8> {
 #[test]
 fn should_commit_multi_collection_staging_with_transaction_ready_status() {
     // Arrange
-    sql::use_local_storage();
     let path = sql::data_dir("pgwire_transaction_staging");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -29,7 +26,7 @@ fn should_commit_multi_collection_staging_with_transaction_ready_status() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let setup = cassie.create_session("tester", None);
         cassie

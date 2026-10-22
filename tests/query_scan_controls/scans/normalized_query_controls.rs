@@ -10,7 +10,6 @@ use cassie::midge::adapter::{
 fn should_reserve_cold_normalized_decode_overlap_before_the_next_read() {
     // Arrange
     let _guard = query_scan_control_test_guard();
-    let path = super::support_sql::data_dir("rest-normalized-decode-overlap");
     let config = CassieRuntimeConfig {
         embeddings: EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
             model: "normalized-controls".to_owned(),
@@ -22,7 +21,7 @@ fn should_reserve_cold_normalized_decode_overlap_before_the_next_read() {
         },
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("engine");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("engine");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -77,5 +76,4 @@ fn should_reserve_cold_normalized_decode_overlap_before_the_next_read() {
     );
     assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }

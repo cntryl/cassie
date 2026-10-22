@@ -1,16 +1,9 @@
-use super::support_sql as support;
-
-use cassie::app::Cassie;
 use cassie::types::Value;
-
-use support::{data_dir, use_local_storage};
 
 #[test]
 fn should_return_declared_id_from_search_score_top_k() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("scored_declared_id_search");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [
@@ -47,6 +40,4 @@ fn should_return_declared_id_from_search_score_top_k() {
         "expected the internal identity, got {:?}",
         identity.rows()[0][0]
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }

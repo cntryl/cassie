@@ -3,7 +3,6 @@
 use std::time::{Duration, Instant};
 
 use crate::support_pgwire as wire;
-use cassie::app::Cassie;
 use tokio::io::AsyncWriteExt;
 
 struct CycleFixtureDirectory(String);
@@ -158,8 +157,8 @@ async fn cancel_cycle_after_seed_stream(
     (cancelled, seed_streamed, active_query_observed)
 }
 
-async fn run_cycle_cancellation(path: &str) -> CycleCancellationEvidence {
-    let cassie = Cassie::new_with_data_dir(path).expect("Cassie");
+async fn run_cycle_cancellation(_path: &str) -> CycleCancellationEvidence {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("start CYCLE cancellation fixture");
     let server = wire::spawn_server(cassie).await;
     let (mut observer_reader, mut observer_writer) = connect_activity_observer(server.addr).await;
@@ -314,7 +313,6 @@ fn assert_cycle_cancellation(evidence: &CycleCancellationEvidence) {
 #[test]
 fn should_return_57014_given_cycle_recursion_has_started_when_cancel_request_arrives() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("cycle-recursion-cancel-and-recovery");
     let _directory = CycleFixtureDirectory(path.clone());
     let runtime = current_thread_runtime();

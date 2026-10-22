@@ -1,12 +1,10 @@
+use super::support_pgwire as wire;
 use cassie::app::{Cassie, CassieError, CassieSession};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use cassie::midge::adapter::{
     query_scan_control_test_guard, set_query_scan_cancellation_after_entries,
 };
 use serde_json::json;
-use uuid::Uuid;
-
-use super::support_pgwire as wire;
 
 const FIXTURE_ROWS: usize = 64;
 const RESULT_LIMIT: usize = 5;
@@ -80,7 +78,6 @@ impl AnalyticalFamily {
 struct Fixture {
     cassie: Cassie,
     session: CassieSession,
-    path: String,
 }
 
 struct FallbackEvidence {
@@ -91,34 +88,19 @@ struct FallbackEvidence {
 
 impl Fixture {
     fn new(family: AnalyticalFamily, memory_budget: usize) -> Self {
-        std::env::set_var("CASSIE_STORAGE_MODE", "local");
-        let path = std::env::temp_dir()
-            .join(format!(
-                "cassie-specialized-analytical-{}-{}",
-                family.label(),
-                Uuid::new_v4()
-            ))
-            .to_string_lossy()
-            .into_owned();
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_memory_budget_bytes = memory_budget;
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         config.limits.parallel_scan_workers = 1;
-        let cassie =
-            Cassie::new_with_data_dir_and_config(&path, config).expect("configured cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("configured cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         seed_family(&cassie, &session, family);
-        Self {
-            cassie,
-            session,
-            path,
-        }
+        Self { cassie, session }
     }
 
     fn cleanup(self) {
         drop(self.cassie);
-        let _ = std::fs::remove_dir_all(self.path);
     }
 }
 
@@ -148,11 +130,7 @@ fn wire_sqlstate(
     cancel_after_reads: Option<usize>,
 ) -> String {
     let fixture = Fixture::new(family, memory_budget);
-    let Fixture {
-        cassie,
-        session,
-        path,
-    } = fixture;
+    let Fixture { cassie, session } = fixture;
     drop(session);
     let runtime = current_thread_runtime();
     let sqlstate = runtime.block_on(async {
@@ -177,7 +155,6 @@ fn wire_sqlstate(
         server.stop().await;
         sqlstate
     });
-    let _ = std::fs::remove_dir_all(path);
     sqlstate
 }
 

@@ -7,7 +7,7 @@ use cassie::types::Value;
 fn should_stop_encoded_projection_at_limit_before_retaining_later_segments() {
     // Arrange
     let _guard = query_scan_control_test_guard();
-    let (cassie, session, path, payload) = fixture();
+    let (cassie, session, payload) = fixture();
 
     // Act
     let result = cassie.execute_sql(&session, "SELECT payload FROM records LIMIT 1", vec![]);
@@ -21,14 +21,13 @@ fn should_stop_encoded_projection_at_limit_before_retaining_later_segments() {
         Some(0)
     );
     drop((session, cassie));
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_read_all_encoded_projection_rows_without_retaining_all_segment_scratch() {
     // Arrange
     let _guard = query_scan_control_test_guard();
-    let (cassie, session, path, payload) = fixture();
+    let (cassie, session, payload) = fixture();
 
     // Act
     let result = cassie.execute_sql(&session, "SELECT payload FROM records", vec![]);
@@ -42,5 +41,4 @@ fn should_read_all_encoded_projection_rows_without_retaining_all_segment_scratch
         Some(0)
     );
     drop((session, cassie));
-    let _ = std::fs::remove_dir_all(path);
 }

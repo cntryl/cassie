@@ -1,20 +1,15 @@
-use cassie::app::Cassie;
 use cassie::types::Value;
-
-use super::support_sql as support;
-use support::*;
 
 #[test]
 fn should_reject_user_function_defined_only_in_another_database() {
     // Arrange
-    let path = data_dir("udf_database_scope");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let postgres = cassie.create_session("tester", Some("postgres".to_string()));
         cassie
@@ -65,21 +60,18 @@ fn should_reject_user_function_defined_only_in_another_database() {
             .expect("execute tenant_a function");
         assert_eq!(result.rows(), vec![vec![Value::Int64(2000)]]);
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_resolve_user_functions_by_ordered_search_path() {
     // Arrange
-    let path = data_dir("udf_search_path");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", Some("postgres".to_string()));
         cassie
@@ -129,6 +121,4 @@ fn should_resolve_user_functions_by_ordered_search_path() {
         assert_eq!(second_first.rows(), vec![vec![Value::Int64(22)]]);
         assert_eq!(first_first.rows(), vec![vec![Value::Int64(12)]]);
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }

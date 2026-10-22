@@ -320,7 +320,6 @@ fn should_preserve_collection_name_matching_source_database_through_pgwire_resto
 #[test]
 fn should_reject_qualified_restore_database_name_before_copy_in() {
     // Arrange
-    support::use_local_storage();
     let path = data_dir("qualified-target");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -328,7 +327,7 @@ fn should_reject_qualified_restore_database_name_before_copy_in() {
         .expect("runtime");
 
     let (entered_copy_in, error_code) = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let server = support::spawn_server(cassie).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)

@@ -10,7 +10,6 @@ use support::*;
 #[test]
 fn should_execute_graph_neighbors_weighted_shortest_path() {
     // Arrange
-    use_local_storage();
     let path = data_dir("graph_neighbors_shortest_path");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -18,7 +17,7 @@ fn should_execute_graph_neighbors_weighted_shortest_path() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         seed_social_graph(&cassie, &session);
 
@@ -120,7 +119,6 @@ fn should_execute_lateral_graph_expansion_explain_metrics_after_restart() {
 #[test]
 fn should_reject_negative_graph_edge_weight() {
     // Arrange
-    use_local_storage();
     let path = data_dir("graph_negative_weight");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -128,7 +126,7 @@ fn should_reject_negative_graph_edge_weight() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(&session, "CREATE GRAPH social", vec![])
@@ -153,7 +151,6 @@ fn should_reject_negative_graph_edge_weight() {
 #[test]
 fn should_bulk_load_fresh_graph_documents_for_adjacency_reads() {
     // Arrange
-    use_local_storage();
     let path = data_dir("graph_fresh_bulk_load");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -161,7 +158,7 @@ fn should_bulk_load_fresh_graph_documents_for_adjacency_reads() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(

@@ -110,6 +110,21 @@ pub struct ColumnBatchRow {
 impl IndexMeta {
     const STORAGE_ID_OPTION: &'static str = "__cassie_storage_id";
     const RELATION_ID_OPTION: &'static str = "__cassie_relation_id";
+    pub(crate) const ACCESS_METHOD_OPTION: &'static str = "__cassie_access_method";
+
+    pub(crate) fn access_method(&self) -> &str {
+        match &self.kind {
+            IndexKind::Scalar => self
+                .options
+                .get(Self::ACCESS_METHOD_OPTION)
+                .map_or("btree", String::as_str),
+            IndexKind::FullText => "gin",
+            IndexKind::Vector => "vector",
+            IndexKind::Hybrid => "btree",
+            IndexKind::Column => "column",
+            IndexKind::TimeSeries => "time_series",
+        }
+    }
 
     #[must_use]
     pub(crate) fn storage_id(&self) -> Option<u64> {

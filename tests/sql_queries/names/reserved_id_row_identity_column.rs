@@ -3,7 +3,7 @@ use super::support_sql as support;
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn run(cassie: &Cassie, session: &CassieSession, statements: &[&str]) {
     for statement in statements {
@@ -18,9 +18,8 @@ fn metric(metrics: &serde_json::Value, key: &str) -> u64 {
 }
 
 fn seed_underscore_tables(label: &str) -> (String, Cassie, CassieSession) {
-    use_local_storage();
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     run(
@@ -106,9 +105,8 @@ fn should_filter_a_declared_id_table_on_underscore_id() {
 #[test]
 fn should_reject_bare_id_against_a_derived_relation_that_does_not_project_it() {
     // Arrange
-    use_local_storage();
     let path = data_dir("reserved_id_derived_relation");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     run(
@@ -154,9 +152,8 @@ fn should_reject_bare_id_against_a_derived_relation_that_does_not_project_it() {
 #[test]
 fn should_use_scalar_index_order_with_underscore_id_tiebreak_on_declared_id_table() {
     // Arrange
-    use_local_storage();
     let path = data_dir("reserved_id_scalar_order_tiebreak");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     run(

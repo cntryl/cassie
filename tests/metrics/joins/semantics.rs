@@ -15,7 +15,6 @@ fn vectorized_join_config(batch_size: usize) -> CassieRuntimeConfig {
 #[test]
 fn should_record_merge_join_runtime_metrics() {
     // Arrange
-    use_local_storage();
     let path = data_dir("merge_join_runtime_metrics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -23,7 +22,7 @@ fn should_record_merge_join_runtime_metrics() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -83,7 +82,6 @@ fn should_record_merge_join_runtime_metrics() {
 #[test]
 fn should_record_vectorized_join_runtime_metrics() {
     // Arrange
-    use_local_storage();
     let path = data_dir("vectorized_join_runtime_metrics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -92,7 +90,7 @@ fn should_record_vectorized_join_runtime_metrics() {
 
     runtime.block_on(async {
         let cassie =
-            Cassie::new_with_data_dir_and_config(&path, vectorized_join_config(1)).unwrap();
+            Cassie::new_in_memory_with_config(vectorized_join_config(1)).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -149,7 +147,6 @@ fn should_record_vectorized_join_runtime_metrics() {
 #[test]
 fn should_reject_loaded_join_inputs_before_operator_selection() {
     // Arrange
-    use_local_storage();
     let path = data_dir("vectorized_join_spill_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -159,7 +156,7 @@ fn should_reject_loaded_join_inputs_before_operator_selection() {
     runtime.block_on(async {
         let mut config = vectorized_join_config(2);
         config.limits.query_memory_budget_bytes = 1_023;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         // Literal sources isolate the join strategy from storage-tree decode reservations.

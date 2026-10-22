@@ -70,21 +70,6 @@ pub fn records() -> Records {
 pub struct Fixture {
     pub session: CassieSession,
     pub cassie: Arc<Cassie>,
-    _directory: Directory,
-}
-
-struct Directory(std::path::PathBuf);
-
-impl Drop for Directory {
-    fn drop(&mut self) {
-        if let Err(error) = std::fs::remove_dir_all(&self.0) {
-            if std::thread::panicking() {
-                eprintln!("qualification cleanup failed during unwind: {error}");
-            } else {
-                panic!("qualification cleanup failed: {error}");
-            }
-        }
-    }
 }
 
 pub fn fixture() -> Fixture {
@@ -92,19 +77,12 @@ pub fn fixture() -> Fixture {
 }
 
 pub fn fixture_with_vectorized_joins(enabled: bool) -> Fixture {
-    let directory = Directory(std::env::temp_dir().join(format!(
-        "cassie-relational-qualification-{}",
-        uuid::Uuid::new_v4()
-    )));
-    std::fs::create_dir(&directory.0).expect("create private directory");
     let mut config = CassieRuntimeConfig::default();
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 64 * 1024 * 1024;
     config.limits.vectorized_joins_enabled = enabled;
-    let cassie = Arc::new(
-        Cassie::new_with_data_dir_and_config(&directory.0, config).expect("qualification engine"),
-    );
+    let cassie = Arc::new(Cassie::new_in_memory_with_config(config).expect("qualification engine"));
     cassie.startup().expect("startup before seed");
     let session = cassie.create_session("tester", None);
     let records = records();
@@ -116,11 +94,7 @@ pub fn fixture_with_vectorized_joins(enabled: bool) -> Fixture {
             .execute_sql(&session, &seed.create, vec![])
             .expect("seed table");
     }
-    let fixture = Fixture {
-        session,
-        cassie,
-        _directory: directory,
-    };
+    let fixture = Fixture { session, cassie };
     let mut cycles = Vec::new();
     let mut expected_oids = Vec::new();
     for seed in &records.seeds {

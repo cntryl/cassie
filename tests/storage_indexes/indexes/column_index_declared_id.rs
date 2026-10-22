@@ -3,7 +3,7 @@ use super::support_sql as support;
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn run(cassie: &Cassie, session: &CassieSession, statements: &[&str]) {
     for statement in statements {
@@ -16,9 +16,8 @@ fn run(cassie: &Cassie, session: &CassieSession, statements: &[&str]) {
 #[test]
 fn should_return_declared_id_when_column_index_covers_only_other_fields() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_index_declared_id_projection");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     run(
@@ -53,9 +52,8 @@ fn should_return_declared_id_when_column_index_covers_only_other_fields() {
 #[test]
 fn should_filter_on_declared_id_through_column_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_index_declared_id_filter");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     run(

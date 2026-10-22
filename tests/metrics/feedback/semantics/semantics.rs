@@ -1,7 +1,6 @@
 #[test]
 fn should_isolate_runtime_feedback_by_offset_shape() {
     // Arrange
-    use_local_storage();
     let path = data_dir("feedback_offset_shape");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_isolate_runtime_feedback_by_offset_shape() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "metrics_feedback_offset_shape";
         register_feedback_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -49,7 +48,6 @@ fn should_isolate_runtime_feedback_by_offset_shape() {
 #[test]
 fn should_capture_runtime_feedback_for_normalized_select() {
     // Arrange
-    use_local_storage();
     let path = data_dir("feedback_capture");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -57,7 +55,7 @@ fn should_capture_runtime_feedback_for_normalized_select() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "metrics_feedback_capture";
         register_feedback_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -98,7 +96,6 @@ fn should_capture_runtime_feedback_for_normalized_select() {
 #[test]
 fn should_capture_runtime_feedback_for_selected_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("feedback_selected_index");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -106,7 +103,7 @@ fn should_capture_runtime_feedback_for_selected_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "metrics_feedback_selected_index";
         let index_name = "metrics_feedback_selected_title_idx";
         register_feedback_collection(&cassie, collection);
@@ -165,7 +162,6 @@ fn should_capture_runtime_feedback_for_selected_index() {
 #[test]
 fn should_skip_feedback_lookup_when_execution_result_cache_hits() {
     // Arrange
-    use_local_storage();
     let path = data_dir("feedback_result_cache_hit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -173,7 +169,7 @@ fn should_skip_feedback_lookup_when_execution_result_cache_hits() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -226,7 +222,6 @@ fn should_skip_feedback_lookup_when_execution_result_cache_hits() {
 #[test]
 fn should_partition_runtime_feedback_by_schema_epoch() {
     // Arrange
-    use_local_storage();
     let path = data_dir("feedback_schema_epoch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -234,7 +229,7 @@ fn should_partition_runtime_feedback_by_schema_epoch() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "metrics_feedback_schema_epoch";
         register_feedback_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -287,7 +282,6 @@ fn should_partition_runtime_feedback_by_schema_epoch() {
 #[test]
 fn should_ignore_operator_feedback_when_confidence_is_too_low() {
     // Arrange
-    use_local_storage();
     let path = data_dir("operator_feedback_low_confidence");
     let config = operator_feedback_config(true);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -296,7 +290,7 @@ fn should_ignore_operator_feedback_when_confidence_is_too_low() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            let cassie = Cassie::new_in_memory_with_config(config).unwrap();
             let collection = "metrics_operator_feedback_low_confidence";
             register_feedback_collection(&cassie, collection);
             let session = cassie.create_session("tester", None);
@@ -339,7 +333,6 @@ fn should_ignore_operator_feedback_when_confidence_is_too_low() {
 #[test]
 fn should_use_confident_operator_feedback_to_switch_selected_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("operator_feedback_switch");
     let config = operator_feedback_config(true);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -348,7 +341,7 @@ fn should_use_confident_operator_feedback_to_switch_selected_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            let cassie = Cassie::new_in_memory_with_config(config).unwrap();
             let collection = "metrics_operator_feedback_switch";
             let base_index = "metrics_operator_feedback_body_idx_a";
             let preferred_index = "metrics_operator_feedback_title_idx_b";
@@ -411,7 +404,6 @@ fn should_use_confident_operator_feedback_to_switch_selected_index() {
 #[test]
 fn should_fall_back_to_base_index_when_operator_feedback_is_disabled() {
     // Arrange
-    use_local_storage();
     let path = data_dir("operator_feedback_disabled");
     let config = operator_feedback_config(false);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -420,7 +412,7 @@ fn should_fall_back_to_base_index_when_operator_feedback_is_disabled() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            let cassie = Cassie::new_in_memory_with_config(config).unwrap();
             let collection = "metrics_operator_feedback_disabled";
             let base_index = "metrics_operator_feedback_disabled_body_idx_a";
             let preferred_index = "metrics_operator_feedback_disabled_title_idx_b";
@@ -460,7 +452,6 @@ fn should_fall_back_to_base_index_when_operator_feedback_is_disabled() {
 #[test]
 fn should_report_stale_operator_feedback_in_explain_diagnostics() {
     // Arrange
-    use_local_storage();
     let path = data_dir("operator_feedback_stale");
     let mut config = operator_feedback_config(true);
     config.limits.feedback_ttl_seconds = 1;
@@ -470,7 +461,7 @@ fn should_report_stale_operator_feedback_in_explain_diagnostics() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let collection = "metrics_operator_feedback_stale";
         register_feedback_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -511,7 +502,6 @@ fn should_report_stale_operator_feedback_in_explain_diagnostics() {
 #[test]
 fn should_report_runtime_feedback_in_explain_analyze_output() {
     // Arrange
-    use_local_storage();
     let path = data_dir("feedback_explain_analyze");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -519,7 +509,7 @@ fn should_report_runtime_feedback_in_explain_analyze_output() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             let collection = "metrics_feedback_explain_analyze";
             register_feedback_collection(&cassie, collection);
             let session = cassie.create_session("tester", None);

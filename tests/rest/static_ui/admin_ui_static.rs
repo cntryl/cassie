@@ -10,10 +10,6 @@ use uuid::Uuid;
 use super::support_sql as support;
 use support::*;
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 fn temp_path(label: &str) -> PathBuf {
     let mut path = std::env::temp_dir();
     path.push(format!("cassie-admin-ui-{label}-{}", Uuid::new_v4()));
@@ -164,7 +160,6 @@ async fn spawn_tls_rest_server(
 #[test]
 fn should_complete_rest_https_handshake() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("https-handshake");
     let tls_dir = temp_path("https-identity");
     std::fs::create_dir_all(&tls_dir).expect("create TLS directory");
@@ -185,7 +180,7 @@ fn should_complete_rest_https_handshake() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config).expect("cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
 
         // Act
         let (base_url, shutdown, server) = spawn_tls_rest_server(cassie).await;
@@ -233,7 +228,6 @@ fn should_complete_rest_https_handshake() {
 #[test]
 fn should_serve_admin_index_for_shell_routes() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("admin-index");
     let dist = write_dist_fixture("admin-index");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -242,7 +236,7 @@ fn should_serve_admin_index_for_shell_routes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
         let client = reqwest::Client::new();
 
@@ -280,7 +274,6 @@ fn should_serve_admin_index_for_shell_routes() {
 #[test]
 fn should_serve_built_admin_assets() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("admin-asset");
     let dist = write_dist_fixture("admin-asset");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -289,7 +282,7 @@ fn should_serve_built_admin_assets() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
         let client = reqwest::Client::new();
 
@@ -331,7 +324,6 @@ fn should_serve_built_admin_assets() {
 #[test]
 fn should_reject_admin_assets_over_the_static_file_limit() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("oversized-asset");
     let dist = write_dist_fixture("oversized-asset");
     let oversized = dist.join("assets").join("oversized.bin");
@@ -345,7 +337,7 @@ fn should_reject_admin_assets_over_the_static_file_limit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
 
         // Act
@@ -364,7 +356,6 @@ fn should_reject_admin_assets_over_the_static_file_limit() {
 #[test]
 fn should_return_not_found_when_admin_ui_dir_is_missing() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("missing-admin-ui");
     let missing_dist = temp_path("missing-admin-ui");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -373,7 +364,7 @@ fn should_return_not_found_when_admin_ui_dir_is_missing() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, missing_dist).await;
         let client = reqwest::Client::new();
 
@@ -395,7 +386,6 @@ fn should_return_not_found_when_admin_ui_dir_is_missing() {
 #[test]
 fn should_reject_admin_asset_path_traversal() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("admin-traversal");
     let dist = write_dist_fixture("admin-traversal");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -404,7 +394,7 @@ fn should_reject_admin_asset_path_traversal() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
         let host = base_url.strip_prefix("http://").expect("base URL host");
         let mut stream = tokio::net::TcpStream::connect(host)
@@ -436,7 +426,6 @@ fn should_reject_admin_asset_path_traversal() {
 #[test]
 fn should_preserve_existing_route_auth_behavior() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("existing-routes");
     let dist = write_dist_fixture("existing-routes");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -445,7 +434,7 @@ fn should_preserve_existing_route_auth_behavior() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
         let client = reqwest::Client::new();
@@ -503,7 +492,6 @@ fn should_preserve_existing_route_auth_behavior() {
 #[test]
 fn should_reject_oversized_rest_request_body() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("oversized-body");
     let dist = write_dist_fixture("oversized-body");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -512,7 +500,7 @@ fn should_reject_oversized_rest_request_body() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
         let client = reqwest::Client::new();
         let body = vec![b'x'; 8 * 1024 * 1024 + 1];
@@ -545,9 +533,7 @@ fn should_drain_declared_oversized_body_before_returning_reusable_413() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir_and_config(
-                &data_dir,
-                CassieRuntimeConfig::default(),
+            let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default(),
             )
             .expect("cassie");
             let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
@@ -630,9 +616,7 @@ fn should_reject_chunked_oversized_body_at_the_http_wire_limit() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir_and_config(
-                &data_dir,
-                CassieRuntimeConfig::default(),
+            let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default(),
             )
             .expect("cassie");
             let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
@@ -676,7 +660,6 @@ fn should_reject_chunked_oversized_body_at_the_http_wire_limit() {
 #[test]
 fn should_reject_non_json_rest_write_requests() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("non-json-body");
     let dist = write_dist_fixture("non-json-body");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -685,7 +668,7 @@ fn should_reject_non_json_rest_write_requests() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
         // Act
         let response = reqwest::Client::new()
@@ -709,7 +692,6 @@ fn should_reject_non_json_rest_write_requests() {
 #[test]
 fn should_reject_cross_origin_rest_state_changes() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("cross-origin");
     let dist = write_dist_fixture("cross-origin");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -718,7 +700,7 @@ fn should_reject_cross_origin_rest_state_changes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
         // Act
         let response = reqwest::Client::new()
@@ -743,7 +725,6 @@ fn should_reject_cross_origin_rest_state_changes() {
 #[test]
 fn should_reject_ambiguous_paths_before_rest_security_checks() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("ambiguous-api-path");
     let dist = write_dist_fixture("ambiguous-api-path");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -752,7 +733,7 @@ fn should_reject_ambiguous_paths_before_rest_security_checks() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
         let client = reqwest::Client::new();
@@ -789,7 +770,6 @@ fn should_reject_ambiguous_paths_before_rest_security_checks() {
 #[test]
 fn should_not_serve_admin_shell_for_unmatched_api_routes() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("unmatched-api");
     let dist = write_dist_fixture("unmatched-api");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -798,7 +778,7 @@ fn should_not_serve_admin_shell_for_unmatched_api_routes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
         let client = reqwest::Client::new();

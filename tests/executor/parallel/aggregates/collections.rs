@@ -5,11 +5,10 @@ use super::*;
 #[test]
 fn should_execute_grouped_boolean_aggregates_with_partial_states() {
     // Arrange
-    use_local_storage();
     let path = data_dir("postgresql18_grouped_boolean_aggregate_states");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
     let collection = "exec_pg18_grouped_boolean_aggregate_states";
     let session = cassie.create_session("tester", None);
     create_registered_collection(
@@ -104,9 +103,8 @@ fn should_execute_grouped_boolean_aggregates_with_partial_states() {
 #[test]
 fn should_execute_statistical_aggregates_over_collection_rows() {
     // Arrange
-    use_local_storage();
     let path = data_dir("postgresql18_statistical_aggregate_merge");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     let collection = "exec_pg18_statistical_aggregate_merge";
     let session = cassie.create_session("tester", None);
     create_registered_collection(&cassie, collection, &[("value", DataType::Float)]);
@@ -172,9 +170,8 @@ fn should_execute_statistical_aggregates_over_collection_rows() {
 #[test]
 fn should_preserve_input_sequence_in_array_aggregation() {
     // Arrange
-    use_local_storage();
     let path = data_dir("postgresql18_array_aggregate_bounds");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -221,9 +218,8 @@ fn should_preserve_input_sequence_in_array_aggregation() {
 #[test]
 fn should_expand_correlated_json_arrays_with_nulls_ordinality() {
     // Arrange
-    use_local_storage();
     let path = data_dir("postgresql18_correlated_json_array_elements");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(

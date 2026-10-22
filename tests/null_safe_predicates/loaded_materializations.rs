@@ -113,7 +113,7 @@ fn should_reject_unchecked_stored_index_predicate_maintenance() {
     let (key, _) = fixture
         .cassie
         .midge
-        .raw_scan_prefix(cassie::midge::adapter::StorageFamily::Schema, &[])
+        .raw_scan_prefix(cassie::midge::adapter::StorageFamily::Data, &[])
         .expect("actual keys")
         .into_iter()
         .find(|(_, bytes)| {
@@ -125,7 +125,7 @@ fn should_reject_unchecked_stored_index_predicate_maintenance() {
         .cassie
         .midge
         .raw_put(
-            cassie::midge::adapter::StorageFamily::Schema,
+            cassie::midge::adapter::StorageFamily::Data,
             &key,
             &serde_json::to_vec(&index).expect("existing record"),
         )

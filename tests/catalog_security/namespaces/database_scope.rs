@@ -95,15 +95,13 @@ fn seed_projection_catalog_filtering_fixtures(
 #[test]
 fn should_bootstrap_default_database_with_public_schema_on_fresh_startup() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("bootstrap_default_database");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = new_in_memory_cassie().unwrap();
 
         // Act
         cassie.startup().unwrap();
@@ -138,23 +136,19 @@ fn should_bootstrap_default_database_with_public_schema_on_fresh_startup() {
                 vec![Value::String("public".to_string())],
             ]
         );
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_reject_queries_for_missing_session_database() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("missing_session_database");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", Some("missing_db".to_string()));
 
@@ -169,23 +163,19 @@ fn should_reject_queries_for_missing_session_database() {
         };
         assert_eq!(kind, CatalogObjectKind::Database);
         assert_eq!(name, "missing_db");
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_filter_catalog_views_plus_constraints_to_current_database() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("catalog_filtering");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let postgres = cassie.create_session("tester", Some("postgres".to_string()));
         let tenant = cassie.create_session("tester", Some("tenant_b".to_string()));
@@ -266,23 +256,19 @@ fn should_filter_catalog_views_plus_constraints_to_current_database() {
                 Value::String("shared_docs".to_string()),
             ]]
         );
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_filter_projection_catalog_views_to_current_database() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("runtime_catalog_database_filter");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let postgres = cassie.create_session("tester", Some("postgres".to_string()));
         cassie
@@ -357,23 +343,19 @@ fn should_filter_projection_catalog_views_to_current_database() {
             owner_assignments,
             vec![vec![Value::String("postgres-assignment".to_string())]]
         );
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_restrict_pg_table_visibility_to_search_path() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("pg_table_visibility");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", Some("postgres".to_string()));
         cassie
@@ -420,17 +402,13 @@ fn should_restrict_pg_table_visibility_to_search_path() {
                 ],
             ]
         );
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_reject_relation_creation_in_system_schemas() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("system_schema_relation_creation");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
     cassie
@@ -454,15 +432,12 @@ fn should_reject_relation_creation_in_system_schemas() {
             "{sql} must be rejected"
         );
     }
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_reject_relation_creation_given_system_schema_first_in_search_path() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("system_schema_search_path_creation");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
     cassie
@@ -478,15 +453,12 @@ fn should_reject_relation_creation_given_system_schema_first_in_search_path() {
 
     // Assert
     assert!(matches!(result, Err(CassieError::InsufficientPrivilege)));
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_keep_system_schema_qualified_names_out_of_other_databases() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("system_schema_cross_database");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let postgres = cassie.create_session("tester", None);
     cassie
@@ -509,15 +481,12 @@ fn should_keep_system_schema_qualified_names_out_of_other_databases() {
 
     // Assert
     assert!(read.is_err(), "tenant_b must not reach pg_catalog.leak");
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_not_read_graph_edges_from_another_database() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_read_cross_database");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let postgres = cassie.create_session("tester", None);
     for sql in [
@@ -577,5 +546,4 @@ fn should_not_read_graph_edges_from_another_database() {
             "analytics session must not traverse the postgres graph: {sql}"
         );
     }
-    let _ = std::fs::remove_dir_all(path);
 }

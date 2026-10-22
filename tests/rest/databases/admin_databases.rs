@@ -7,10 +7,6 @@ use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 fn data_dir(label: &str) -> PathBuf {
     crate::support_temp_dirs::sweep_stale_once();
     std::env::temp_dir().join(format!(
@@ -75,9 +71,8 @@ async fn login_cookie(client: &Client, base_url: &str, username: &str, password:
 #[test]
 fn should_create_admin_database_through_dedicated_rest_endpoint() {
     // Arrange
-    use_local_storage();
     let path = data_dir("create");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let observable = cassie.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -131,9 +126,8 @@ fn should_create_admin_database_through_dedicated_rest_endpoint() {
 #[test]
 fn should_reject_duplicate_admin_database_names() {
     // Arrange
-    use_local_storage();
     let path = data_dir("duplicate");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -180,9 +174,8 @@ fn should_reject_duplicate_admin_database_names() {
 #[test]
 fn should_return_conflict_when_rest_collection_already_exists() {
     // Arrange
-    use_local_storage();
     let path = data_dir("duplicate-collection");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -233,9 +226,8 @@ fn should_return_conflict_when_rest_collection_already_exists() {
 #[test]
 fn should_reject_malformed_admin_database_names() {
     // Arrange
-    use_local_storage();
     let path = data_dir("invalid");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -273,9 +265,8 @@ fn should_reject_malformed_admin_database_names() {
 #[test]
 fn should_require_admin_authorization_to_create_database() {
     // Arrange
-    use_local_storage();
     let path = data_dir("authorization");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let root = cassie
         .authenticate_role("root", Some("postgres"), None)
         .expect("root session");
@@ -324,9 +315,8 @@ fn should_require_admin_authorization_to_create_database() {
 #[test]
 fn should_scope_admin_database_listing_to_granted_databases() {
     // Arrange
-    use_local_storage();
     let path = data_dir("grant-scoped-listing");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let root = cassie
         .authenticate_role("root", Some("postgres"), None)

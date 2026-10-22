@@ -3,25 +3,23 @@ use cassie::config::{CassieRuntimeConfig, OperatorSwitchingEnabled};
 use cassie::types::{Value, Vector};
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn with_cassie(name: &str, test: impl FnOnce(&Cassie, &CassieSession)) {
-    use_local_storage();
     let path = data_dir(name);
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let session = cassie.create_session("tester", None);
     test(&cassie, &session);
     let _ = std::fs::remove_dir_all(path);
 }
 
 fn with_bounded_join_cassie(name: &str, test: impl FnOnce(&Cassie, &CassieSession)) {
-    use_local_storage();
     let path = data_dir(name);
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.vectorized_joins_enabled = true;
     config.limits.adaptive_execution_enabled = false;
     config.limits.operator_switching_enabled = OperatorSwitchingEnabled::disabled();
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     let session = cassie.create_session("tester", None);
     test(&cassie, &session);
     let _ = std::fs::remove_dir_all(path);

@@ -1,3 +1,4 @@
+use super::support_pgwire as wire;
 use cassie::app::{Cassie, CassieError};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use cassie::executor::projection::set_projection_build_failure_point;
@@ -5,28 +6,15 @@ use cassie::midge::adapter::{
     query_scan_control_test_guard, set_query_scan_cancellation_after_entries,
 };
 use cassie::types::Value;
-use uuid::Uuid;
 
-use super::support_pgwire as wire;
-
-fn data_dir(label: &str) -> String {
-    crate::support_temp_dirs::sweep_stale_once();
-    std::env::temp_dir()
-        .join(format!("cassie-query-controls-{label}-{}", Uuid::new_v4()))
-        .to_string_lossy()
-        .into_owned()
-}
-
-fn configured_cassie(label: &str, memory_budget: usize) -> (Cassie, String) {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-    let path = data_dir(label);
+fn configured_cassie(memory_budget: usize) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = memory_budget;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("configured cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("configured cassie");
     cassie.startup().expect("startup");
-    (cassie, path)
+    cassie
 }
 
 fn seed_documents(cassie: &Cassie, table: &str, count: usize, payload_size: usize) {
@@ -88,7 +76,7 @@ fn assert_join_success_was_not_published(
 fn should_reject_unbounded_scan_without_partial_rows_given_low_memory_budget() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("low-scan-budget", 512);
+    let cassie = configured_cassie(512);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -121,8 +109,6 @@ fn should_reject_unbounded_scan_without_partial_rows_given_low_memory_budget() {
         metrics["query"]["errors_by_class"]["resource_limit"].as_u64(),
         Some(1)
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
@@ -130,7 +116,7 @@ fn should_stop_limit_scan_before_low_memory_budget_is_exhausted() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
     // Admit the 704-byte statement owner before testing the one-row stop.
-    let (cassie, path) = configured_cassie("limit-early-stop", 4_096);
+    let cassie = configured_cassie(4_096);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -163,17 +149,15 @@ fn should_stop_limit_scan_before_low_memory_budget_is_exhausted() {
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_stop_exists_scan_after_first_inner_row_given_low_memory_budget() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    // Keep the original 2 KiB conversion allowance plus 1 KiB for the
-    // measured 704-byte captured statement owner. Full inner scanning denies.
-    let (cassie, path) = configured_cassie("exists-early-stop", 3 * 1024);
+    // The memory backend needs 3,170 bytes for the first-row EXISTS path; a
+    // full inner scan still exceeds this 4 KiB budget.
+    let cassie = configured_cassie(4 * 1024);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -220,8 +204,6 @@ fn should_stop_exists_scan_after_first_inner_row_given_low_memory_budget() {
         visited, 2,
         "outer and inner scans should each consume one row"
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
@@ -231,7 +213,7 @@ fn should_preserve_transaction_overlay_visibility_under_query_controls() {
     // Captured transaction overlay and sort/projection owners share the budget.
     // This positive visibility fixture uses a finite 32 KiB allowance;
     // separate denial controls retain their selected low-memory frontiers.
-    let (cassie, path) = configured_cassie("transaction-overlay", 32 * 1_024);
+    let cassie = configured_cassie(32 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -269,15 +251,13 @@ fn should_preserve_transaction_overlay_visibility_under_query_controls() {
     cassie
         .execute_sql(&session, "ROLLBACK", vec![])
         .expect("rollback transaction");
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_bound_native_reads_for_limit_with_transaction_overlay() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("overlay-limit", 16 * 1_024 * 1_024);
+    let cassie = configured_cassie(16 * 1_024 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -321,8 +301,6 @@ fn should_bound_native_reads_for_limit_with_transaction_overlay() {
     cassie
         .execute_sql(&session, "ROLLBACK", vec![])
         .expect("rollback transaction");
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
@@ -330,8 +308,6 @@ fn should_report_join_budget_failure_with_program_limit_sqlstate() {
     // Arrange
     const FIXTURE_BUDGET_BYTES: usize = 256 * 1_024;
     let _hook_guard = query_scan_control_test_guard();
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-    let path = data_dir("join-sqlstate");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     // Qualified retained inputs fit; the 256-row joined output exceeds the shared cap.
     config.limits.query_memory_budget_bytes = FIXTURE_BUDGET_BYTES;
@@ -342,7 +318,7 @@ fn should_report_join_budget_failure_with_program_limit_sqlstate() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -428,8 +404,6 @@ fn should_report_join_budget_failure_with_program_limit_sqlstate() {
 
         server.stop().await;
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
@@ -437,7 +411,7 @@ fn should_stop_cross_join_after_limit_without_materializing_both_inputs() {
     // Arrange
     const FIXTURE_BUDGET_BYTES: usize = 32 * 1_024;
     let _hook_guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("cross-join-limit", FIXTURE_BUDGET_BYTES);
+    let cassie = configured_cassie(FIXTURE_BUDGET_BYTES);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -495,15 +469,13 @@ fn should_stop_cross_join_after_limit_without_materializing_both_inputs() {
         Some(0)
     );
     println!("bounded CROSS accounted memory peak: {peak} bytes; native entries: {visited}");
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_cancel_at_a_deterministic_mid_scan_boundary_without_leaking_reservations() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("deterministic-cancellation", 64 * 1_024);
+    let cassie = configured_cassie(64 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -539,15 +511,13 @@ fn should_cancel_at_a_deterministic_mid_scan_boundary_without_leaking_reservatio
         metrics["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_cancel_unindexed_heap_top_k_at_controlled_scan_boundary() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("heap-top-k-cancellation", 64 * 1_024);
+    let cassie = configured_cassie(64 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -581,14 +551,13 @@ fn should_cancel_unindexed_heap_top_k_at_controlled_scan_boundary() {
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_reject_unindexed_heap_top_k_before_exceeding_memory_budget() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("heap-top-k-memory", 9 * 1_024);
+    let cassie = configured_cassie(9 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -626,14 +595,13 @@ fn should_reject_unindexed_heap_top_k_before_exceeding_memory_budget() {
     assert!(matches!(error, CassieError::ResourceLimit(_)));
     assert!(error.to_string().contains("query memory budget exceeded"));
     assert_failed_query_after_source_scan(&cassie, &before_metrics, before_entries, 4);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_reject_expanding_projection_before_building_output() {
     let _hook_guard = query_scan_control_test_guard();
     // Arrange
-    let (cassie, path) = configured_cassie("expanding-projection-memory", 4 * 1_024);
+    let cassie = configured_cassie(4 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -673,14 +641,13 @@ fn should_reject_expanding_projection_before_building_output() {
     );
     assert!(error.to_string().contains("query memory budget exceeded"));
     assert_failed_query_after_source_scan(&cassie, &before_metrics, before_entries, 1);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_cancel_wildcard_scan_at_the_same_controlled_storage_boundary() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("wildcard-cancellation", 64 * 1_024);
+    let cassie = configured_cassie(64 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -709,6 +676,4 @@ fn should_cancel_wildcard_scan_at_the_same_controlled_storage_boundary() {
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }

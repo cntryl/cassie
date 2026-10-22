@@ -25,8 +25,7 @@ fn should_order_by_hybrid_score() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_hybrid_order";
 
         let schema = Schema {
@@ -122,8 +121,7 @@ fn should_filter_by_hybrid_score_threshold() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_hybrid_filter";
 
         let schema = Schema {
@@ -206,8 +204,7 @@ fn should_reject_hybrid_score_with_wrong_arity() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_hybrid_wrong_arity";
 
         let schema = Schema {

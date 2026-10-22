@@ -6,9 +6,6 @@ use std::time::Duration;
 type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 type WireFrame = (u8, Vec<u8>);
 
-use super::support_sql as support;
-use support::*;
-
 fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -24,10 +21,10 @@ fn data_dir(label: &str) -> String {
     path.to_string_lossy().to_string()
 }
 
-fn new_cassie(path: &str) -> Cassie {
+fn new_cassie(_path: &str) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.password = "postgres".to_string();
-    Cassie::new_with_data_dir_and_config(path, config).expect("cassie")
+    Cassie::new_in_memory_with_config(config).expect("cassie")
 }
 
 fn startup_frame() -> Vec<u8> {
@@ -260,7 +257,6 @@ fn assert_ready(frames: &[WireFrame]) {
 #[test]
 fn should_execute_simple_query_statements_in_order_with_one_ready_frame() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ordered");
 
     runtime().block_on(async {
@@ -304,7 +300,6 @@ fn should_execute_simple_query_statements_in_order_with_one_ready_frame() {
 #[test]
 fn should_preserve_semicolon_delimiters_in_quoted_commented_sql() {
     // Arrange
-    use_local_storage();
     let path = data_dir("quotes-comments");
 
     runtime().block_on(async {
@@ -347,7 +342,6 @@ fn should_preserve_semicolon_delimiters_in_quoted_commented_sql() {
 #[test]
 fn should_ignore_empty_statements_in_a_simple_query_batch() {
     // Arrange
-    use_local_storage();
     let path = data_dir("empty");
 
     runtime().block_on(async {
@@ -396,7 +390,6 @@ fn should_ignore_empty_statements_in_a_simple_query_batch() {
 #[test]
 fn should_stop_after_the_first_error_in_a_simple_query_batch() {
     // Arrange
-    use_local_storage();
     let path = data_dir("stop-on-error");
 
     runtime().block_on(async {
@@ -451,7 +444,6 @@ fn should_stop_after_the_first_error_in_a_simple_query_batch() {
 #[test]
 fn should_execute_transaction_control_statements_in_order() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transactions");
 
     runtime().block_on(async {
@@ -498,7 +490,6 @@ fn should_execute_transaction_control_statements_in_order() {
 #[test]
 fn should_reject_copy_when_mixed_with_other_simple_query_statements() {
     // Arrange
-    use_local_storage();
     let path = data_dir("copy-mixed");
 
     runtime().block_on(async {

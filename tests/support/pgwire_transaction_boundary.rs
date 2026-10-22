@@ -24,15 +24,15 @@ pub struct Transcript {
     pub terminal: Frames,
 }
 
-fn fixture(path: &str, prefix: Prefix) -> Cassie {
+fn fixture(prefix: Prefix) -> Cassie {
     let parent_conflict = matches!(prefix, Prefix::ImplicitParentConflict);
     let output_error = matches!(prefix, Prefix::ExplicitOutputError);
     let cassie = if output_error {
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_memory_budget_bytes = 512 * 1024 * 1024;
-        Cassie::new_with_data_dir_and_config(path, config).expect("Cassie with output probe budget")
+        Cassie::new_in_memory_with_config(config).expect("Cassie with output probe budget")
     } else {
-        Cassie::new_with_data_dir(path).expect("Cassie")
+        crate::support_sql::new_in_memory_cassie().expect("Cassie")
     };
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
@@ -117,14 +117,12 @@ pub fn run_script(
     tail: Vec<Vec<Vec<u8>>>,
 ) -> Transcript {
     let parent_conflict = matches!(prefix, Prefix::ImplicitParentConflict);
-    wire::use_local_storage();
-    let path = wire::data_dir("extended-transaction-privacy");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("current-thread runtime");
     let transcript = runtime.block_on(async {
-        let cassie = fixture(&path, prefix);
+        let cassie = fixture(prefix);
         let server = wire::spawn_server(cassie).await;
         let owner = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -210,12 +208,11 @@ pub fn run_script(
             terminal,
         }
     });
-    let _ = std::fs::remove_dir_all(path);
     transcript
 }
 
-pub fn copy_access_fixture(path: &str) -> (Cassie, cassie::app::CassieSession, String) {
-    let cassie = Cassie::new_with_data_dir(path).expect("Cassie");
+pub fn copy_access_fixture() -> (Cassie, cassie::app::CassieSession, String) {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     let admin = cassie
         .authenticate_role("root", Some("postgres"), None)

@@ -19,12 +19,11 @@ fn runtime() -> tokio::runtime::Runtime {
 #[test]
 fn should_not_retry_a_durable_commit_after_materialized_refresh_failure() {
     // Arrange
-    use_local_storage();
     let _failpoint_guard = TRANSACTION_MAINTENANCE_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("transaction_commit_materialized_boundary");
 
     runtime().block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             cassie

@@ -22,8 +22,6 @@ async fn exchange(
 }
 
 pub fn resume_after_change(staged: bool, mutation: &str) -> Pages {
-    crate::support_sql::use_local_storage();
-    let path = crate::support_sql::data_dir("typed-portal");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -31,7 +29,7 @@ pub fn resume_after_change(staged: bool, mutation: &str) -> Pages {
     let pages = runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("configuration");
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie.execute_sql(&session, "CREATE TABLE typed_portal (id TEXT PRIMARY KEY, n BIGINT)", vec![]).expect("table");
@@ -68,6 +66,5 @@ pub fn resume_after_change(staged: bool, mutation: &str) -> Pages {
         server.stop().await;
         Pages { first, second, closed }
     });
-    std::fs::remove_dir_all(path).expect("cleanup");
     pages
 }

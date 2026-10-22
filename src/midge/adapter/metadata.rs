@@ -42,6 +42,23 @@ impl Midge {
     ///
     /// Returns an error when the counter cannot be read or committed.
     pub fn allocate_object_id(&self) -> Result<u64, CassieError> {
+        const MAX_ATTEMPTS: usize = 64;
+        let mut attempt = 1;
+        loop {
+            match self.allocate_object_id_once() {
+                Err(error)
+                    if error.storage_retry_kind()
+                        == Some(crate::app::StorageRetryKind::WriteConflict)
+                        && attempt < MAX_ATTEMPTS =>
+                {
+                    attempt += 1;
+                }
+                outcome => return outcome,
+            }
+        }
+    }
+
+    fn allocate_object_id_once(&self) -> Result<u64, CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let id = Self::allocate_object_id_to_tx(&mut tx)?;
         tx.commit(self.write_options_sync())

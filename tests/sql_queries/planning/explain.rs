@@ -16,7 +16,6 @@ use support::*;
 #[test]
 fn should_explain_select_query_plan() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_select_plan");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -24,7 +23,7 @@ fn should_explain_select_query_plan() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             let collection = "sql_explain_select_plan";
             let schema = Schema {
                 fields: vec![FieldSchema {
@@ -74,7 +73,6 @@ fn should_explain_select_query_plan() {
 #[test]
 fn should_explain_predicate_pushdown_for_literal_equality_filter() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_predicate_pushdown");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -82,7 +80,7 @@ fn should_explain_predicate_pushdown_for_literal_equality_filter() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_explain_predicate_pushdown";
         let schema = Schema {
             fields: vec![
@@ -134,7 +132,6 @@ fn should_explain_predicate_pushdown_for_literal_equality_filter() {
 #[test]
 fn should_report_read_path_metadata_in_explain() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_read_path_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -142,7 +139,7 @@ fn should_report_read_path_metadata_in_explain() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_explain_read_path_metadata";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -201,7 +198,6 @@ fn should_report_read_path_metadata_in_explain() {
 #[test]
 fn should_explain_materialized_projection_freshness() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_materialized_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -209,7 +205,7 @@ fn should_explain_materialized_projection_freshness() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
 
@@ -255,7 +251,6 @@ fn should_explain_materialized_projection_freshness() {
 #[test]
 fn should_explain_projection_pruning_fields() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_projection_pruning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -263,7 +258,7 @@ fn should_explain_projection_pruning_fields() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_explain_projection_pruning";
         let schema = Schema {
             fields: vec![
@@ -321,7 +316,6 @@ fn should_explain_projection_pruning_fields() {
 #[test]
 fn should_explain_limit_pushdown_scan_limit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_limit_pushdown");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -329,7 +323,7 @@ fn should_explain_limit_pushdown_scan_limit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_explain_limit_pushdown";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -376,7 +370,6 @@ fn should_explain_limit_pushdown_scan_limit() {
 #[test]
 fn should_explain_top_k_plan_for_order_limit_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_top_k");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -384,7 +377,7 @@ fn should_explain_top_k_plan_for_order_limit_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -420,7 +413,6 @@ fn should_explain_top_k_plan_for_order_limit_query() {
 #[test]
 fn should_explain_storage_top_k_read_path_for_row_id_order() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_storage_top_k");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -428,7 +420,7 @@ fn should_explain_storage_top_k_read_path_for_row_id_order() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -462,7 +454,6 @@ fn should_explain_storage_top_k_read_path_for_row_id_order() {
 #[test]
 fn should_explain_keyset_read_path_for_row_id_cursor() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_keyset");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -470,7 +461,7 @@ fn should_explain_keyset_read_path_for_row_id_cursor() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             let session = cassie.create_session("tester", None);
 
             cassie
@@ -504,7 +495,6 @@ fn should_explain_keyset_read_path_for_row_id_cursor() {
 #[test]
 fn should_explain_analyze_select_query_plan() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_analyze_select");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -512,7 +502,7 @@ fn should_explain_analyze_select_query_plan() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie

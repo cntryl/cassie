@@ -418,7 +418,6 @@ fn should_bound_global_regexp_replace_output_expansion() {
 #[test]
 fn should_cancel_global_regexp_replacement_without_partial_output() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("issue-799-regexp-replace-cancel");
     let _directory = FixtureDirectory(path.clone());
     let input = "a".repeat(5_000_000);
@@ -429,7 +428,7 @@ fn should_cancel_global_regexp_replacement_without_partial_output() {
 
     // Act
     let (baseline, parsed, cancelled, recovery) = runtime.block_on(async {
-        let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("start regex cancellation fixture");
         let server = wire::spawn_server(cassie).await;
         let socket = tokio::net::TcpStream::connect(server.addr)

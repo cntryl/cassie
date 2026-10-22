@@ -181,9 +181,6 @@ struct UniqueKeyWaitObservation {
 }
 
 async fn observe_unique_key_owner_wait() -> UniqueKeyWaitObservation {
-    support::use_local_storage();
-    let path = support::data_dir("unique_key_transaction_wait");
-    let _directory = DataDirectory(path.clone());
     let crate::support_unique_conflict::Fixture {
         cassie,
         owner,
@@ -191,7 +188,7 @@ async fn observe_unique_key_owner_wait() -> UniqueKeyWaitObservation {
         owner_connection,
         contender_connection,
         server,
-    } = crate::support_unique_conflict::start(&path).await;
+    } = crate::support_unique_conflict::start().await;
     owner
         .batch_execute(
             "CREATE TABLE compat_unique_wait_rows (id INT PRIMARY KEY, value TEXT UNIQUE)",

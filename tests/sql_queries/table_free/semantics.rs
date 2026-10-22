@@ -1,15 +1,13 @@
-use cassie::app::Cassie;
 use cassie::types::Value;
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 #[test]
 fn should_execute_table_free_literal_alias_cast_projection() {
     // Arrange
-    use_local_storage();
     let path = data_dir("table_free_literals");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
 
@@ -58,9 +56,8 @@ fn should_execute_table_free_literal_alias_cast_projection() {
 #[test]
 fn should_execute_table_free_parameter_through_union_all() {
     // Arrange
-    use_local_storage();
     let path = data_dir("table_free_parameters");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
 

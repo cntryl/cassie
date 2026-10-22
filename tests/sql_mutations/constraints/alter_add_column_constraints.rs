@@ -1,4 +1,3 @@
-use cassie::app::Cassie;
 use cassie::types::Value;
 
 use super::support_sql as support;
@@ -6,9 +5,8 @@ use super::support_sql as support;
 #[test]
 fn should_enforce_inline_constraints_added_to_existing_table() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("alter-add-column-inline-constraints");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [

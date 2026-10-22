@@ -1,7 +1,6 @@
 #[test]
 fn should_persist_runtime_feedback_delta_without_replacing_unrelated_records() {
     // Arrange
-    use_local_storage();
     let path = data_dir("feedback_delta_persistence");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_persist_runtime_feedback_delta_without_replacing_unrelated_records() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "metrics_feedback_delta_persistence";
         register_feedback_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -69,7 +68,6 @@ fn should_persist_runtime_feedback_delta_without_replacing_unrelated_records() {
 #[test]
 fn should_reconcile_runtime_feedback_after_delta_persistence_failure() {
     // Arrange
-    use_local_storage();
     let path = data_dir("feedback_delta_retry");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -77,7 +75,7 @@ fn should_reconcile_runtime_feedback_after_delta_persistence_failure() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "metrics_feedback_delta_retry";
         register_feedback_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -207,7 +205,6 @@ fn should_ignore_malformed_persisted_feedback_after_restart() {
 #[test]
 fn should_hydrate_persisted_operator_feedback_from_storage() {
     // Arrange
-    use_local_storage();
     let path = data_dir("operator_feedback_restart");
     let config = operator_feedback_config(true);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -216,7 +213,7 @@ fn should_hydrate_persisted_operator_feedback_from_storage() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

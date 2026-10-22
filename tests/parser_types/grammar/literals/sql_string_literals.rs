@@ -1,11 +1,10 @@
 use super::support_sql as support;
 
-use cassie::app::Cassie;
 use cassie::sql::ast::{Expr, QueryStatement, SelectItem};
 use cassie::sql::parse_statement;
 use cassie::types::Value;
 
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn parse_projected_string(sql: &str) -> String {
     let parsed = parse_statement(sql).expect("parse string literal projection");
@@ -174,7 +173,6 @@ fn should_keep_operator_text_inside_a_single_string_literal() {
 #[test]
 fn should_round_trip_doubled_quotes_through_sql() {
     // Arrange
-    use_local_storage();
     let path = data_dir("sql_string_literal_quotes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -182,7 +180,7 @@ fn should_round_trip_doubled_quotes_through_sql() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             cassie.startup().expect("start Cassie");
             let session = cassie.create_session("tester", None);
             cassie

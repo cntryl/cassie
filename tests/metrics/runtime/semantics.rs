@@ -3,7 +3,7 @@ use cassie::catalog::{canonical_relation_name, IndexKind, IndexMeta};
 use cassie::types::{DataType, FieldSchema, Schema};
 
 use super::support_metrics as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn canonical_public_relation(name: &str) -> String {
     canonical_relation_name("postgres", "public", name)
@@ -162,7 +162,6 @@ fn assert_read_path_metrics(after: &serde_json::Value, before: &ReadPathBaseline
 #[test]
 fn should_report_runtime_metrics_snapshot() {
     // Arrange
-    use_local_storage();
     let path = data_dir("startup_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -170,7 +169,7 @@ fn should_report_runtime_metrics_snapshot() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
 
         let collection = "metrics_runtime_docs";
@@ -265,7 +264,6 @@ fn should_report_runtime_metrics_snapshot() {
 #[test]
 fn should_record_read_path_metrics_for_point_lookup_collection_scan() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_path_metrics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -273,7 +271,7 @@ fn should_record_read_path_metrics_for_point_lookup_collection_scan() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         seed_read_path_collection(&cassie);
         let session = cassie.create_session("tester", None);
         let before = read_path_baseline(&cassie.metrics());
@@ -292,7 +290,6 @@ fn should_record_read_path_metrics_for_point_lookup_collection_scan() {
 #[test]
 fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
     // Arrange
-    use_local_storage();
     let path = data_dir("cardinality_metrics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -300,7 +297,7 @@ fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = canonical_public_relation("metrics_cardinality_docs");
         let index = canonical_public_relation("idx_title");
         seed_cardinality_metrics_fixture(&cassie, &collection, &index);
@@ -362,7 +359,6 @@ fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
 #[test]
 fn should_record_query_error_statistics() {
     // Arrange
-    use_local_storage();
     let path = data_dir("query_errors");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -370,7 +366,7 @@ fn should_record_query_error_statistics() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         let before = cassie.metrics();
         let before_count = before["query"]["count"].as_u64().unwrap_or_default();
@@ -407,7 +403,6 @@ fn should_record_query_error_statistics() {
 #[test]
 fn should_count_failed_scan_as_storage_read_error() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scan_errors");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -415,7 +410,7 @@ fn should_count_failed_scan_as_storage_read_error() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.catalog.register_collection(
             "missing_storage_collection",
             vec![("title".to_string(), DataType::Text)],

@@ -1,9 +1,8 @@
 #[test]
 fn should_return_connection_backend_pid_without_reusing_another_sessions_result() {
     // Arrange
-    use_local_storage();
     let path = data_dir("backend-pid-result-cache");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let setup = cassie.create_session("root", None);
     cassie
@@ -89,7 +88,6 @@ fn should_return_connection_backend_pid_without_reusing_another_sessions_result(
 #[test]
 fn should_copy_csv_from_stdin_rows() {
     // Arrange
-    use_local_storage();
     let path = data_dir("copy_stdin");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -99,7 +97,7 @@ fn should_copy_csv_from_stdin_rows() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_copy_collection(&cassie);
 
@@ -135,11 +133,10 @@ fn should_copy_csv_from_stdin_rows() {
 #[test]
 fn should_copy_csv_from_stdin_with_legacy_unparenthesized_options() {
     // Arrange
-    use_local_storage();
     let path = data_dir("copy_legacy_csv_stdin");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.password = "postgres".to_string();
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     seed_copy_collection(&cassie);
 
@@ -204,7 +201,6 @@ fn should_copy_csv_from_stdin_with_legacy_unparenthesized_options() {
 #[test]
 fn should_align_wildcard_data_rows_with_row_description_when_table_declares_id() {
     // Arrange
-    use_local_storage();
     let path = data_dir("simple-wildcard-declared-id");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -212,7 +208,7 @@ fn should_align_wildcard_data_rows_with_row_description_when_table_declares_id()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         for sql in [

@@ -1,27 +1,25 @@
 use std::sync::{Arc, Barrier};
 
 use cassie::app::Cassie;
-use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig};
-
-use super::support_sql as support;
+use cassie::config::{
+    CassieRuntimeConfig, EmbeddingsRuntimeConfig, ExecutionResultCacheEnabled, LocalRuntimeConfig,
+};
 
 const TABLE: &str = "ann_concurrent_source";
 const QUERY: &str = "SELECT id, vector_distance(embedding, '[0,0,0]') AS distance FROM ann_concurrent_source ORDER BY distance ASC LIMIT 5";
 
-fn fixture(path: &str, index_type: &str) -> Arc<Cassie> {
-    fixture_with_memory_budget(path, index_type, None)
+fn fixture(index_type: &str) -> Arc<Cassie> {
+    fixture_with_memory_budget(index_type, None)
 }
 
 fn fixture_with_memory_budget(
-    path: &str,
     index_type: &str,
     query_memory_budget_bytes: Option<usize>,
 ) -> Arc<Cassie> {
-    fixture_before_index(path, index_type, query_memory_budget_bytes, |_| {})
+    fixture_before_index(index_type, query_memory_budget_bytes, |_| {})
 }
 
 fn fixture_before_index(
-    path: &str,
     index_type: &str,
     query_memory_budget_bytes: Option<usize>,
     before_index: impl FnOnce(&Cassie),
@@ -30,13 +28,13 @@ fn fixture_before_index(
     if let Some(query_memory_budget_bytes) = query_memory_budget_bytes {
         config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
     }
+    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
         model: "deterministic-test".to_string(),
         dimensions: 3,
     });
-    let cassie = Arc::new(
-        Cassie::new_with_data_dir_and_config(path, config).expect("create concurrent ANN fixture"),
-    );
+    let cassie =
+        Arc::new(Cassie::new_in_memory_with_config(config).expect("create concurrent ANN fixture"));
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -82,11 +80,8 @@ fn fixture_before_index(
 fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::use_local_storage();
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = support::data_dir("ann-concurrent-source");
     let mut expected = None;
-    let cassie = fixture_before_index(&path, "hnsw", None, |cassie| {
+    let cassie = fixture_before_index("hnsw", None, |cassie| {
         expected = Some(
             cassie
                 .execute_sql(&cassie.create_session("baseline", None), QUERY, vec![])
@@ -173,19 +168,14 @@ fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
     drop(exact);
     cassie.shutdown();
     drop(cassie);
-    std::fs::remove_dir_all(&path).expect("strict concurrent ANN cleanup");
-    assert!(!std::path::Path::new(&path).exists());
 }
 
 #[test]
 fn should_preserve_captured_ivfflat_source_when_replaced_before_reranking() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::use_local_storage();
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = support::data_dir("ivfflat-concurrent-source");
     let mut expected = None;
-    let cassie = fixture_before_index(&path, "ivfflat", None, |cassie| {
+    let cassie = fixture_before_index("ivfflat", None, |cassie| {
         expected = Some(
             cassie
                 .execute_sql(&cassie.create_session("baseline", None), QUERY, vec![])
@@ -272,20 +262,14 @@ fn should_preserve_captured_ivfflat_source_when_replaced_before_reranking() {
     drop(exact);
     cassie.shutdown();
     drop(cassie);
-    std::fs::remove_dir_all(&path).expect("strict concurrent ANN cleanup");
-    assert!(!std::path::Path::new(&path).exists());
 }
 
 #[test]
 fn should_pause_only_the_installing_fixture_at_the_ann_rerank_boundary() {
     for index_type in ["hnsw", "ivfflat"] {
         // Arrange
-        support::use_local_storage();
-        std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-        let owner_path = support::data_dir(&format!("ann-barrier-owner-{index_type}"));
-        let unrelated_path = support::data_dir(&format!("ann-barrier-unrelated-{index_type}"));
-        let owner = fixture(&owner_path, index_type);
-        let unrelated = fixture(&unrelated_path, index_type);
+        let owner = fixture(index_type);
+        let unrelated = fixture(index_type);
         let selected = Arc::new(Barrier::new(1));
         let resume = Arc::new(Barrier::new(1));
         cassie::executor::set_vector_ann_rerank_barriers(
@@ -319,10 +303,9 @@ fn should_pause_only_the_installing_fixture_at_the_ann_rerank_boundary() {
             installed_after_owner, 1,
             "{index_type} owner fixture did not consume its rerank barriers"
         );
-        for (cassie, path) in [(owner, owner_path), (unrelated, unrelated_path)] {
+        for cassie in [owner, unrelated] {
             cassie.shutdown();
             drop(cassie);
-            std::fs::remove_dir_all(&path).expect("strict ANN barrier cleanup");
         }
     }
 }
@@ -331,10 +314,7 @@ fn should_pause_only_the_installing_fixture_at_the_ann_rerank_boundary() {
 fn should_cancel_hnsw_candidate_loading_without_publishing_success_metrics() {
     // Arrange
     let _guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::use_local_storage();
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = support::data_dir("hnsw-controlled-cancellation");
-    let cassie = fixture(&path, "hnsw");
+    let cassie = fixture("hnsw");
     let before = cassie.metrics();
     cassie::midge::adapter::set_query_scan_cancellation_after_entries(Some(3));
 
@@ -358,17 +338,13 @@ fn should_cancel_hnsw_candidate_loading_without_publishing_success_metrics() {
         after["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_cancel_ivfflat_membership_loading_without_publishing_success_metrics() {
     // Arrange
     let _guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::use_local_storage();
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = support::data_dir("ivfflat-controlled-cancellation");
-    let cassie = fixture(&path, "ivfflat");
+    let cassie = fixture("ivfflat");
     let before = cassie.metrics();
     cassie::midge::adapter::set_query_scan_cancellation_after_entries(Some(3));
 
@@ -392,17 +368,13 @@ fn should_cancel_ivfflat_membership_loading_without_publishing_success_metrics()
         after["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_reject_hnsw_loading_when_query_memory_is_exhausted() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::use_local_storage();
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = support::data_dir("hnsw-low-memory");
-    let cassie = fixture_with_memory_budget(&path, "hnsw", Some(1_024));
+    let cassie = fixture_with_memory_budget("hnsw", Some(1_024));
     let before = cassie.metrics();
 
     // Act
@@ -425,17 +397,13 @@ fn should_reject_hnsw_loading_when_query_memory_is_exhausted() {
         after["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_publish_hnsw_metrics_only_after_selecting_the_ann_path() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::use_local_storage();
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = support::data_dir("hnsw-final-metrics");
-    let cassie = fixture(&path, "hnsw");
+    let cassie = fixture("hnsw");
     let before = cassie.metrics();
 
     // Act
@@ -465,17 +433,13 @@ fn should_publish_hnsw_metrics_only_after_selecting_the_ann_path() {
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_reject_ivfflat_loading_when_query_memory_is_exhausted() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::use_local_storage();
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = support::data_dir("ivfflat-low-memory");
-    let cassie = fixture_with_memory_budget(&path, "ivfflat", Some(1_024));
+    let cassie = fixture_with_memory_budget("ivfflat", Some(1_024));
     let before = cassie.metrics();
 
     // Act
@@ -498,17 +462,13 @@ fn should_reject_ivfflat_loading_when_query_memory_is_exhausted() {
         after["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_publish_ivfflat_metrics_only_after_selecting_the_ann_path() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::use_local_storage();
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = support::data_dir("ivfflat-final-metrics");
-    let cassie = fixture(&path, "ivfflat");
+    let cassie = fixture("ivfflat");
     let before = cassie.metrics();
 
     // Act
@@ -542,5 +502,4 @@ fn should_publish_ivfflat_metrics_only_after_selecting_the_ann_path() {
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-    let _ = std::fs::remove_dir_all(path);
 }

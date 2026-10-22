@@ -2,14 +2,13 @@ use cassie::app::{Cassie, CassieError};
 use cassie::types::Value;
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 #[test]
 fn should_reject_uuid_aliases_in_unique_constraint_reservations() {
     // Arrange
-    use_local_storage();
     let path = data_dir("uuid_unique_aliases");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -45,9 +44,8 @@ fn should_reject_uuid_aliases_in_unique_constraint_reservations() {
 #[test]
 fn should_reject_bytea_aliases_in_unique_scalar_index_reservations() {
     // Arrange
-    use_local_storage();
     let path = data_dir("bytea_unique_aliases");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -90,9 +88,8 @@ fn should_reject_bytea_aliases_in_unique_scalar_index_reservations() {
 #[test]
 fn should_find_uuid_alias_after_indexed_write() {
     // Arrange
-    use_local_storage();
     let path = data_dir("uuid_scalar_index_alias");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -137,9 +134,8 @@ fn should_find_uuid_alias_after_indexed_write() {
 #[test]
 fn should_find_bytea_alias_after_indexed_write() {
     // Arrange
-    use_local_storage();
     let path = data_dir("bytea_scalar_index_alias");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -187,9 +183,8 @@ fn deleted_owner_fixture(
     unique_index_ddl: Option<&str>,
     literal: &str,
 ) -> (Cassie, cassie::app::CassieSession, String) {
-    use_local_storage();
     let path = data_dir(name);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie

@@ -1,9 +1,8 @@
 #[test]
 fn should_preserve_integer_sum_above_two_to_the_fifty_third() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_large_integer_sum");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -51,9 +50,8 @@ fn should_preserve_integer_sum_above_two_to_the_fifty_third() {
 #[test]
 fn should_reconcile_existing_maintenance_debt_when_publishing_column_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_publication_debt");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(

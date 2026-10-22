@@ -2,37 +2,18 @@ use cassie::app::{Cassie, CassieError, CassieSession};
 use cassie::executor::QueryResult;
 use cassie::sql::ast::{CopyFormat, CopyStatement};
 use cassie::types::Value;
-use std::path::PathBuf;
-use uuid::Uuid;
-
-struct FixtureDirectory(PathBuf);
-
-impl Drop for FixtureDirectory {
-    fn drop(&mut self) {
-        std::fs::remove_dir_all(&self.0).expect("remove fixture directory after owners drop");
-    }
-}
-
 pub(super) struct Fixture {
     session: CassieSession,
     pub(super) cassie: Cassie,
-    _directory: FixtureDirectory,
 }
 
 impl Fixture {
     pub(super) fn new() -> Self {
-        std::env::set_var("CASSIE_STORAGE_MODE", "local");
-        let directory = FixtureDirectory(
-            std::env::temp_dir().join(format!("cassie-constraint-ingress-{}", Uuid::new_v4())),
-        );
-        let cassie = Cassie::new_with_data_dir(&directory.0).expect("create Cassie");
+        let config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("create Cassie");
         cassie.startup().expect("startup Cassie");
         let session = cassie.create_session("tester", None);
-        let fixture = Self {
-            session,
-            cassie,
-            _directory: directory,
-        };
+        let fixture = Self { session, cassie };
         fixture
             .execute("CREATE TABLE constraint_default_source (id INT)")
             .expect("create source table");

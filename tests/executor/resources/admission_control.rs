@@ -6,10 +6,6 @@ use pgwire::{complete_startup, parse_error_fields, read_wire_frame};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 fn data_dir(label: &str) -> String {
     crate::support_temp_dirs::sweep_stale_once();
     let mut path = std::env::temp_dir();
@@ -57,7 +53,6 @@ async fn read_http_response_head(stream: &mut tokio::net::TcpStream) -> String {
 #[test]
 fn should_reject_pgwire_connections_over_admission_limit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("pgwire");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -66,7 +61,7 @@ fn should_reject_pgwire_connections_over_admission_limit() {
 
     runtime.block_on(async {
         let config = runtime_config_with_limits(1, 512);
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -119,7 +114,6 @@ fn should_reject_pgwire_connections_over_admission_limit() {
 #[test]
 fn should_release_rest_admission_permit_after_overflow_503() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rest");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -128,7 +122,7 @@ fn should_release_rest_admission_permit_after_overflow_503() {
 
     runtime.block_on(async {
         let config = runtime_config_with_limits(256, 1);
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -193,7 +187,6 @@ fn should_release_rest_admission_permit_after_overflow_503() {
 #[test]
 fn should_emit_no_plaintext_pgwire_rejection_before_required_tls() {
     // Arrange
-    use_local_storage();
     let path = data_dir("pgwire-tls-overflow");
     let (tls_dir, certificate, key) = tls_identity("pgwire-overflow");
     let mut config = runtime_config_with_limits(1, 512);
@@ -206,7 +199,7 @@ fn should_emit_no_plaintext_pgwire_rejection_before_required_tls() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("0.0.0.0:0")
             .await
@@ -252,7 +245,6 @@ fn should_emit_no_plaintext_pgwire_rejection_before_required_tls() {
 #[test]
 fn should_return_rest_admission_503_over_tls() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rest-tls-overflow");
     let (tls_dir, certificate, key) = tls_identity("rest-overflow");
     let mut config = runtime_config_with_limits(256, 1);
@@ -264,7 +256,7 @@ fn should_return_rest_admission_503_over_tls() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

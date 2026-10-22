@@ -25,14 +25,6 @@ pub struct CancellationCase {
     pub recovery: Frames,
 }
 
-struct FixtureDirectory(String);
-
-impl Drop for FixtureDirectory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 struct TestServer {
     address: SocketAddr,
     handle: tokio::task::JoinHandle<Result<(), CassieError>>,
@@ -52,10 +44,8 @@ fn current_thread_runtime() -> tokio::runtime::Runtime {
         .expect("current-thread runtime")
 }
 
-fn configured_instance(path: &str, config: CassieRuntimeConfig) -> Cassie {
-    let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("Cassie instance");
-    cassie.startup().expect("start aggregate fixture");
-    cassie
+fn configured_instance(config: CassieRuntimeConfig) -> Cassie {
+    Cassie::new_in_memory_with_config(config).expect("in-memory Cassie instance")
 }
 
 async fn start_server(instance: Arc<Cassie>, config: CassieRuntimeConfig) -> TestServer {
@@ -92,12 +82,11 @@ pub fn integer_table_fixture_setup(table_name: &str, row_count: i32) -> Vec<Stri
     statements
 }
 
-fn seed_fixture(path: &str, setup_sql: &[String]) {
+fn seed_fixture(cassie: &Cassie, setup_sql: &[String]) {
     if setup_sql.is_empty() {
         return;
     }
 
-    let cassie = Cassie::new_with_data_dir(path).expect("create aggregate input fixture");
     let session = cassie.create_session("tester", None);
     for sql in setup_sql {
         cassie
@@ -105,27 +94,25 @@ fn seed_fixture(path: &str, setup_sql: &[String]) {
             .unwrap_or_else(|error| panic!("execute aggregate fixture setup {sql:?}: {error}"));
     }
     drop(session);
-    drop(cassie);
 }
 
 pub fn run_memory_budget_case_with_setup(
-    label: &str,
+    _label: &str,
     setup_sql: &[String],
     control_sql: &str,
     wide_control_sql: &str,
     candidate_sql: &str,
 ) -> ResourceCase {
-    wire::use_local_storage();
-    let path = wire::data_dir(label);
-    let _directory = FixtureDirectory(path.clone());
-    seed_fixture(&path, setup_sql);
     let runtime = current_thread_runtime();
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 4_096;
 
     let result = runtime.block_on(async {
-        let cassie = Arc::new(configured_instance(&path, config.clone()));
+        let cassie = configured_instance(config.clone());
+        seed_fixture(&cassie, setup_sql);
+        cassie.startup().expect("start aggregate fixture");
+        let cassie = Arc::new(cassie);
         let server = start_server(Arc::clone(&cassie), config).await;
         let (mut reader, mut writer, _, _) = connect(server.address).await;
 
@@ -167,22 +154,21 @@ pub fn run_memory_budget_case_with_setup(
 }
 
 pub fn run_cancellation_case_with_setup_after_aggregate_input(
-    label: &str,
+    _label: &str,
     setup_sql: &[String],
     control_sql: &str,
     candidate_sql: &str,
 ) -> CancellationCase {
-    wire::use_local_storage();
-    let path = wire::data_dir(label);
-    let _directory = FixtureDirectory(path.clone());
-    seed_fixture(&path, setup_sql);
     let runtime = current_thread_runtime();
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 512 * 1024 * 1024;
 
     runtime.block_on(async {
-        let cassie = Arc::new(configured_instance(&path, config.clone()));
+        let cassie = configured_instance(config.clone());
+        seed_fixture(&cassie, setup_sql);
+        cassie.startup().expect("start aggregate fixture");
+        let cassie = Arc::new(cassie);
         let server = start_server(Arc::clone(&cassie), config).await;
         let (mut reader, mut writer, process_id, secret_key) = connect(server.address).await;
 

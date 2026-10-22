@@ -131,7 +131,6 @@ fn assert_capacity_categories(capacity: &MetricsValue) {
 #[test]
 fn should_report_local_capacity_bytes_by_category() {
     // Arrange
-    use_local_storage();
     let path = data_dir("category-bytes");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -140,7 +139,7 @@ fn should_report_local_capacity_bytes_by_category() {
         .expect("runtime");
 
     runtime.block_on(async move {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         seed_capacity_fixture(&cassie, &session);

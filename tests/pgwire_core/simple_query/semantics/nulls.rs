@@ -1,11 +1,10 @@
 #[test]
 fn should_copy_default_text_from_stdin_with_null_values_tab_escapes() {
     // Arrange
-    use_local_storage();
     let path = data_dir("copy_text_stdin");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.password = "postgres".to_string();
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     seed_copy_collection(&cassie);
 
@@ -85,9 +84,8 @@ fn should_copy_default_text_from_stdin_with_null_values_tab_escapes() {
 #[test]
 fn should_encode_query_csv_header_null_force_quote_options() {
     // Arrange
-    use_local_storage();
     let path = data_dir("copy-query-csv-out");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     seed_copy_export_rows(&cassie);
 
@@ -126,9 +124,8 @@ fn should_encode_query_csv_header_null_force_quote_options() {
 #[test]
 fn should_encode_query_default_text_copy_with_null_fields() {
     // Arrange
-    use_local_storage();
     let path = data_dir("copy-query-text-out");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     seed_copy_export_rows(&cassie);
 
@@ -167,7 +164,6 @@ fn should_encode_query_default_text_copy_with_null_fields() {
 #[test]
 fn should_return_row_description_for_empty_simple_query_result() {
     // Arrange
-    use_local_storage();
     let path = data_dir("empty_result");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -177,7 +173,7 @@ fn should_return_row_description_for_empty_simple_query_result() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
 
         let collection = canonical_relation_name("postgres", "public", "simple_query_empty_docs");

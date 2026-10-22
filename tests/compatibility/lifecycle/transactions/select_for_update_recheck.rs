@@ -8,7 +8,6 @@ type SelectRecheckTask = tokio::task::JoinHandle<(
 )>;
 
 struct SelectRecheckFixture {
-    _directory: DataDirectory,
     cassie: Cassie,
     server: tokio::task::JoinHandle<()>,
     owner: tokio_postgres::Client,
@@ -25,12 +24,9 @@ struct SelectRecheckObservations {
 }
 
 async fn create_select_recheck_fixture() -> SelectRecheckFixture {
-    support::use_local_storage();
-    let path = support::data_dir("row_lock_select_predicate_recheck");
-    let directory = DataDirectory(path.clone());
     let mut server_config = CassieRuntimeConfig::from_env().expect("runtime config");
     server_config.password = "postgres".to_string();
-    let cassie = Cassie::new_with_data_dir_and_config(&path, server_config.clone())
+    let cassie = Cassie::new_in_memory_with_config(server_config.clone())
         .expect("create instrumented Cassie instance");
     cassie
         .startup()
@@ -93,7 +89,6 @@ async fn create_select_recheck_fixture() -> SelectRecheckFixture {
         (worker, result)
     });
     SelectRecheckFixture {
-        _directory: directory,
         cassie,
         server,
         owner,
@@ -184,7 +179,6 @@ fn should_recheck_select_for_update_predicate_after_concurrent_update_commits() 
     runtime.block_on(async {
         let fixture = create_select_recheck_fixture().await;
         let SelectRecheckFixture {
-            _directory,
             cassie,
             server,
             owner,

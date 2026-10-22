@@ -3,11 +3,10 @@ use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
 fn capped_instance(label: &str) -> (Cassie, CassieSession, String) {
-    crate::support_sql::use_local_storage();
     let path = crate::support_sql::data_dir(label);
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.max_result_rows = 5;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     let mut setup = vec![

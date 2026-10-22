@@ -1,9 +1,8 @@
 #[test]
 fn should_reject_altered_check_constraint_when_existing_row_violates_it() {
     // Arrange
-    use_local_storage();
     let path = data_dir("alter_check_existing_violation");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -32,9 +31,8 @@ fn should_reject_altered_check_constraint_when_existing_row_violates_it() {
 #[test]
 fn should_reject_altered_primary_key_when_existing_row_has_null_key() {
     // Arrange
-    use_local_storage();
     let path = data_dir("alter_primary_key_existing_null");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -63,9 +61,8 @@ fn should_reject_altered_primary_key_when_existing_row_has_null_key() {
 #[test]
 fn should_report_malformed_like_pattern_in_check_constraint() {
     // Arrange
-    use_local_storage();
     let path = data_dir("check_like_malformed_pattern");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
     cassie
@@ -97,7 +94,6 @@ fn should_report_malformed_like_pattern_in_check_constraint() {
 #[test]
 fn should_reject_insert_when_primary_key_is_duplicate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("primary_key_duplicate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -105,7 +101,7 @@ fn should_reject_insert_when_primary_key_is_duplicate() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -144,7 +140,6 @@ fn should_reject_insert_when_primary_key_is_duplicate() {
 #[test]
 fn should_reject_insert_when_primary_key_is_null() {
     // Arrange
-    use_local_storage();
     let path = data_dir("primary_key_null");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -152,7 +147,7 @@ fn should_reject_insert_when_primary_key_is_null() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -181,7 +176,6 @@ fn should_reject_insert_when_primary_key_is_null() {
 #[test]
 fn should_reject_insert_when_unique_value_is_duplicate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("unique_insert_duplicate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -189,7 +183,7 @@ fn should_reject_insert_when_unique_value_is_duplicate() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -228,7 +222,6 @@ fn should_reject_insert_when_unique_value_is_duplicate() {
 #[test]
 fn should_reject_update_when_unique_value_conflicts() {
     // Arrange
-    use_local_storage();
     let path = data_dir("unique_update_conflict");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -236,7 +229,7 @@ fn should_reject_update_when_unique_value_conflicts() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -283,7 +276,6 @@ fn should_reject_update_when_unique_value_conflicts() {
 #[test]
 fn should_reject_insert_when_unique_index_value_is_duplicate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("unique_index_insert_duplicate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -291,7 +283,7 @@ fn should_reject_insert_when_unique_index_value_is_duplicate() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -343,7 +335,6 @@ fn should_reject_insert_when_unique_index_value_is_duplicate() {
 #[test]
 fn should_reject_update_when_unique_index_value_conflicts() {
     // Arrange
-    use_local_storage();
     let path = data_dir("unique_index_update_conflict");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -351,7 +342,7 @@ fn should_reject_update_when_unique_index_value_conflicts() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -410,7 +401,6 @@ fn should_reject_update_when_unique_index_value_conflicts() {
 #[test]
 fn should_reject_insert_when_check_constraint_fails() {
     // Arrange
-    use_local_storage();
     let path = data_dir("check_insert_failure");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -418,7 +408,7 @@ fn should_reject_insert_when_check_constraint_fails() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -450,7 +440,6 @@ fn should_reject_insert_when_check_constraint_fails() {
 #[test]
 fn should_reject_update_when_check_constraint_fails() {
     // Arrange
-    use_local_storage();
     let path = data_dir("check_update_failure");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -458,7 +447,7 @@ fn should_reject_update_when_check_constraint_fails() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

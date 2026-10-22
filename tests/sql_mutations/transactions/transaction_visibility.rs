@@ -20,7 +20,6 @@ use support::*;
 #[test]
 fn should_hide_transaction_writes_from_other_sessions_before_commit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_uncommitted_visibility");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -28,7 +27,7 @@ fn should_hide_transaction_writes_from_other_sessions_before_commit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let writer = cassie.create_session("writer", None);
         let reader = cassie.create_session("reader", None);
@@ -70,7 +69,6 @@ fn should_hide_transaction_writes_from_other_sessions_before_commit() {
 #[test]
 fn should_read_own_transaction_writes_before_commit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_read_your_writes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -78,7 +76,7 @@ fn should_read_own_transaction_writes_before_commit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -119,7 +117,6 @@ fn should_read_own_transaction_writes_before_commit() {
 #[test]
 fn should_persist_transaction_writes_after_commit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_commit_writes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -127,7 +124,7 @@ fn should_persist_transaction_writes_after_commit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let writer = cassie.create_session("writer", None);
         let reader = cassie.create_session("reader", None);
@@ -170,7 +167,6 @@ fn should_persist_transaction_writes_after_commit() {
 #[test]
 fn should_keep_transaction_insert_out_of_storage_until_commit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_storage_routing");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -178,7 +174,7 @@ fn should_keep_transaction_insert_out_of_storage_until_commit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

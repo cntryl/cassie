@@ -9,7 +9,6 @@ use cassie::config::CassieRuntimeConfig;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use tokio_postgres::{Client, NoTls, SimpleQueryMessage};
-use uuid::Uuid;
 
 const TRACE_SCHEMA_VERSION: u32 = 1;
 const PGADMIN_VERSION: &str = "9.16";
@@ -297,20 +296,15 @@ struct TraceServer {
     client: Client,
     connection: tokio::task::JoinHandle<()>,
     server: tokio::task::JoinHandle<()>,
-    data_dir: String,
 }
 
 impl TraceServer {
-    async fn start(label: &str) -> Result<Self, String> {
-        let data_dir = std::env::temp_dir()
-            .join(format!("cassie-desktop-trace-{label}-{}", Uuid::new_v4()))
-            .to_string_lossy()
-            .to_string();
+    async fn start(_label: &str) -> Result<Self, String> {
         let config = CassieRuntimeConfig {
             password: "postgres".to_string(),
             ..CassieRuntimeConfig::default()
         };
-        let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config.clone())
+        let cassie = Cassie::new_in_memory_with_config(config.clone())
             .map_err(|error| format!("construct trace server: {error}"))?;
         cassie
             .startup()
@@ -333,7 +327,6 @@ impl TraceServer {
             client,
             connection,
             server,
-            data_dir,
         })
     }
 
@@ -343,7 +336,6 @@ impl TraceServer {
         self.server.abort();
         let _ = self.connection.await;
         let _ = self.server.await;
-        let _ = std::fs::remove_dir_all(self.data_dir);
     }
 }
 

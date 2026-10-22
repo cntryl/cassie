@@ -1,9 +1,8 @@
 #[test]
 fn should_reject_hnsw_sql_top_k_query_dimension_mismatch() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_sql_topk_dimension_mismatch");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_sql_topk_dimension_mismatch";
     register_hnsw_collection(&cassie, collection);
@@ -31,9 +30,8 @@ fn should_reject_hnsw_sql_top_k_query_dimension_mismatch() {
 #[test]
 fn should_reject_pgvector_operator_query_dimension_mismatch() {
     // Arrange
-    use_local_storage();
     let path = data_dir("pgvector_operator_dimension_mismatch");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "pgvector_operator_dimension_mismatch";
     register_hnsw_collection(&cassie, collection);
@@ -100,9 +98,8 @@ fn should_reject_pgvector_operator_query_dimension_mismatch() {
 #[test]
 fn should_reject_out_of_range_query_vector_components() {
     // Arrange
-    use_local_storage();
     let path = data_dir("out_of_range_query_vector_components");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "out_of_range_query_vector_components";
     register_hnsw_collection(&cassie, collection);
@@ -187,9 +184,8 @@ fn should_reject_out_of_range_query_vector_components() {
 #[test]
 fn should_fall_back_when_hnsw_graph_entry_point_is_invalid() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_invalid_entry_fallback");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_invalid_entry_fallback";
     register_hnsw_collection(&cassie, collection);
@@ -214,9 +210,8 @@ fn should_fall_back_when_hnsw_graph_entry_point_is_invalid() {
 #[test]
 fn should_fall_back_when_hnsw_graph_max_layer_is_invalid() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_invalid_max_layer_fallback");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_invalid_max_layer_fallback";
     register_hnsw_collection(&cassie, collection);

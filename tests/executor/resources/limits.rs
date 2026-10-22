@@ -28,11 +28,10 @@ fn should_create_no_deadline_given_a_zero_query_timeout() {
 
     runtime.block_on(async {
         // Arrange
-        use_local_storage();
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_timeout_ms = 0;
         let path = data_dir("timeout");
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
 
         let collection = "exec_timeout";
         let schema = Schema {
@@ -90,11 +89,10 @@ fn should_return_no_partial_rows_given_a_result_limit_overflow() {
 
     runtime.block_on(async {
         // Arrange
-        use_local_storage();
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.max_result_rows = 1;
         let path = data_dir("max_rows");
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
 
         let collection = "exec_max_rows";
         let schema = Schema {
@@ -165,11 +163,10 @@ fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
 
     runtime.block_on(async {
     // Arrange
-    use_local_storage();
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.cte_recursion_depth = 0;
     let path = data_dir("cte_depth");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
 
     let collection = "exec_cte_depth";
     let schema = Schema {
@@ -234,11 +231,10 @@ fn should_fail_query_with_resource_limit_when_memory_budget_is_exceeded() {
 
     runtime.block_on(async {
         // Arrange
-        use_local_storage();
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_memory_budget_bytes = 16;
         let path = data_dir("spill_budget");
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
 
         let collection = "exec_spill";
         let schema = Schema {
@@ -293,8 +289,7 @@ fn should_skip_offset_then_take_limit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_offset_limit";
 
         let schema = Schema {
@@ -392,8 +387,7 @@ fn should_default_missing_offset_to_zero_in_execution() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_default_offset";
 
         let schema = Schema {
@@ -470,7 +464,6 @@ fn should_default_missing_offset_to_zero_in_execution() {
 #[test]
 fn should_cleanup_parallel_aggregation_workers_on_timeout() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_aggregation_timeout");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
@@ -481,7 +474,7 @@ fn should_cleanup_parallel_aggregation_workers_on_timeout() {
             .checked_sub(Duration::from_secs(1))
             .expect("expired query start"),
     );
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

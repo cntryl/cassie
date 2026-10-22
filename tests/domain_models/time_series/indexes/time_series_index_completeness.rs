@@ -10,9 +10,20 @@ const INDEX: &str = "idx_ts_complete_time";
 const QUERY: &str = "SELECT amount FROM ts_complete_events WHERE event_at >= '2026-01-01T00:00:00Z' AND event_at < '2026-01-01T02:00:00Z' ORDER BY amount";
 
 fn fixture(label: &str) -> (Cassie, String) {
-    support::use_local_storage();
+    fixture_with_storage(label, false)
+}
+
+fn persistent_fixture(label: &str) -> (Cassie, String) {
+    fixture_with_storage(label, true)
+}
+
+fn fixture_with_storage(label: &str, persistent: bool) -> (Cassie, String) {
     let path = support::data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = if persistent {
+        Cassie::new_with_data_dir(&path).expect("cassie")
+    } else {
+        crate::support_sql::new_in_memory_cassie().expect("cassie")
+    };
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -295,7 +306,7 @@ fn should_fallback_given_stale_manifest_generation() {
 #[test]
 fn should_rebuild_missing_manifest_during_restart() {
     // Arrange
-    let (cassie, path) = fixture("time-series-restart-missing-manifest");
+    let (cassie, path) = persistent_fixture("time-series-restart-missing-manifest");
     cassie
         .midge
         .raw_delete(StorageFamily::Data, &manifest_key(&cassie))
@@ -321,7 +332,7 @@ fn should_rebuild_missing_manifest_during_restart() {
 #[test]
 fn should_rebuild_old_manifest_version_during_restart() {
     // Arrange
-    let (cassie, path) = fixture("time-series-restart-old-manifest");
+    let (cassie, path) = persistent_fixture("time-series-restart-old-manifest");
     let mut old = manifest(&cassie);
     old["version"] = json!(0);
     cassie

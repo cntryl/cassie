@@ -1,4 +1,3 @@
-use cassie::app::Cassie;
 use cassie::types::Value;
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -8,21 +7,16 @@ fn data_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("cassie-idempotent-ddl-{name}-{}", Uuid::new_v4()))
 }
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 #[test]
 fn should_preserve_table_given_mismatched_if_not_exists_definition() {
     // Arrange
-    use_local_storage();
     let path = data_dir("table");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -67,14 +61,13 @@ fn should_preserve_table_given_mismatched_if_not_exists_definition() {
 #[test]
 fn should_preserve_idempotent_ddl_given_repeated_create_index_if_not_exists() {
     // Arrange
-    use_local_storage();
     let path = data_dir("index");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

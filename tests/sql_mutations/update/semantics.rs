@@ -15,7 +15,6 @@ use support::*;
 #[test]
 fn should_not_apply_column_defaults_during_update_or_upsert() {
     // Arrange
-    use_local_storage();
     let path = data_dir("update_does_not_apply_defaults");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -23,7 +22,7 @@ fn should_not_apply_column_defaults_during_update_or_upsert() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             for sql in [
@@ -67,7 +66,6 @@ fn should_not_apply_column_defaults_during_update_or_upsert() {
 #[test]
 fn should_not_apply_column_defaults_during_foreign_key_cascade_updates() {
     // Arrange
-    use_local_storage();
     let path = data_dir("cascade_update_does_not_apply_defaults");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -75,7 +73,7 @@ fn should_not_apply_column_defaults_during_foreign_key_cascade_updates() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             for sql in [
@@ -116,7 +114,6 @@ fn should_not_apply_column_defaults_during_foreign_key_cascade_updates() {
 #[test]
 fn should_reject_non_finite_float_values_on_write_paths() {
     // Arrange
-    use_local_storage();
     let path = data_dir("non_finite_write_paths");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -124,7 +121,7 @@ fn should_reject_non_finite_float_values_on_write_paths() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             let session = cassie.create_session("tester", None);
             for sql in [
                 "CREATE TABLE non_finite_writes (item_id INT PRIMARY KEY, x FLOAT)",
@@ -180,7 +177,6 @@ fn should_reject_non_finite_float_values_on_write_paths() {
 #[test]
 fn should_maintain_include_values_after_update_delete() {
     // Arrange
-    use_local_storage();
     let path = data_dir("include_update_delete");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -188,7 +184,7 @@ fn should_maintain_include_values_after_update_delete() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -253,7 +249,6 @@ fn should_maintain_include_values_after_update_delete() {
 #[test]
 fn should_execute_update_where_returning_rows() {
     // Arrange
-    use_local_storage();
     let path = data_dir("update_where_returning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -261,7 +256,7 @@ fn should_execute_update_where_returning_rows() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -319,7 +314,6 @@ fn should_execute_update_where_returning_rows() {
 #[test]
 fn should_execute_update_returning_scalar_function() {
     // Arrange
-    use_local_storage();
     let path = data_dir("update_returning_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -327,7 +321,7 @@ fn should_execute_update_returning_scalar_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -365,7 +359,6 @@ fn should_execute_update_returning_scalar_function() {
 #[test]
 fn should_preserve_row_id_when_update_rewrites_row_blob() {
     // Arrange
-    use_local_storage();
     let path = data_dir("update_preserve_id");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -373,7 +366,7 @@ fn should_preserve_row_id_when_update_rewrites_row_blob() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -415,7 +408,6 @@ fn should_preserve_row_id_when_update_rewrites_row_blob() {
 #[test]
 fn should_reject_update_validation_failure_without_mutating_row() {
     // Arrange
-    use_local_storage();
     let path = data_dir("update_validation_failure");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -423,7 +415,7 @@ fn should_reject_update_validation_failure_without_mutating_row() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -467,7 +459,6 @@ fn should_reject_update_validation_failure_without_mutating_row() {
 #[test]
 fn should_report_zero_rows_for_update_without_matches() {
     // Arrange
-    use_local_storage();
     let path = data_dir("update_no_match");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -475,7 +466,7 @@ fn should_report_zero_rows_for_update_without_matches() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -513,7 +504,6 @@ fn should_report_zero_rows_for_update_without_matches() {
 #[test]
 fn should_reject_update_with_duplicate_assignment_target() {
     // Arrange
-    use_local_storage();
     let path = data_dir("update_duplicate_assignment");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -521,7 +511,7 @@ fn should_reject_update_with_duplicate_assignment_target() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -550,7 +540,6 @@ fn should_reject_update_with_duplicate_assignment_target() {
 #[test]
 fn should_reject_update_with_unknown_assignment_target() {
     // Arrange
-    use_local_storage();
     let path = data_dir("update_unknown_assignment");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -558,7 +547,7 @@ fn should_reject_update_with_unknown_assignment_target() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

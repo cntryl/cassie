@@ -1,9 +1,7 @@
 #[test]
 fn should_compare_jsonb_column_with_json_string_literal() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("jsonb_string_literal_comparison");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -72,15 +70,12 @@ fn should_compare_jsonb_column_with_json_string_literal() {
         array_result.rows(),
         vec![vec![Value::String("array".to_string())]]
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_compare_jsonb_scalar_string_literals() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("jsonb_scalar_string_literal_comparison");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -164,15 +159,12 @@ fn should_compare_jsonb_scalar_string_literals() {
         deleted.rows(),
         vec![vec![Value::String("boolean".to_string())]]
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_compare_text_with_array_shaped_string_literal() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("text_array_shaped_literals");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -226,5 +218,4 @@ fn should_compare_text_with_array_shaped_string_literal() {
         in_list.rows(),
         vec![vec![Value::String("array".to_string())]]
     );
-    let _ = std::fs::remove_dir_all(path);
 }

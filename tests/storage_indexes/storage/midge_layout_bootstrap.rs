@@ -78,7 +78,7 @@ fn should_route_schema_data_temp_across_families() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let _ = cassie.midge.ensure_families_ready().unwrap();
 
         let collection = "cf_layout_docs";
@@ -188,7 +188,7 @@ fn should_reject_transactions_that_include_schema_plus_data_families() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
 
         // Act
@@ -298,7 +298,7 @@ fn should_bootstrap_via_startup_path() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
 
         // Act
         cassie.startup().unwrap();
@@ -323,7 +323,7 @@ fn should_preserve_temp_family_during_startup() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let mut tx = cassie
             .midge
@@ -357,7 +357,7 @@ fn should_keep_cassie_metadata_off_default_family() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
 
         let collection = "cf_layout_default_guard";
@@ -415,7 +415,7 @@ fn should_make_startup_idempotent_when_reinvoked() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
 
         // Act
         cassie.startup().unwrap();

@@ -1,7 +1,6 @@
 #[test]
 fn should_prune_parameterized_time_series_ranges() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_parameterized_controls");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_prune_parameterized_time_series_ranges() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie

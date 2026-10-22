@@ -3,7 +3,6 @@ use cassie::app::CassieSession;
 use cassie::executor::set_materialized_projection_maintenance_failure_point;
 use cassie::midge::adapter::set_materialized_projection_debt_persistence_failure_point;
 use cassie::types::Value;
-use std::path::Path;
 
 static MATERIALIZED_PROJECTION_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -17,8 +16,7 @@ fn runtime() -> tokio::runtime::Runtime {
         .expect("runtime")
 }
 
-fn setup_source_and_projection(path: &Path) -> (Cassie, CassieSession) {
-    let cassie = Cassie::new_with_data_dir(path).expect("cassie");
+fn setup_source_and_projection(cassie: Cassie) -> (Cassie, CassieSession) {
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -53,7 +51,9 @@ fn should_replay_materialized_projection_debt_after_post_commit_stale_failure() 
     let path = data_dir("analytical_projection_maintenance_debt");
 
     runtime().block_on(async {
-        let (cassie, session) = setup_source_and_projection(path.as_ref());
+        let (cassie, session) = setup_source_and_projection(
+            Cassie::new_with_data_dir(&path).expect("create persistent Cassie"),
+        );
         // Act
         cassie
             .execute_sql(&session, "BEGIN", vec![])
@@ -156,7 +156,9 @@ fn should_retain_projection_fallback_when_debt_detail_persistence_is_interrupted
     let path = data_dir("analytical_projection_debt_persistence_interrupted");
 
     runtime().block_on(async {
-            let (cassie, session) = setup_source_and_projection(path.as_ref());
+            let (cassie, session) = setup_source_and_projection(
+                Cassie::new_with_data_dir(&path).expect("create persistent Cassie"),
+            );
             set_materialized_projection_maintenance_failure_point(true);
             set_materialized_projection_debt_persistence_failure_point(true);
 
@@ -239,11 +241,10 @@ fn should_retain_projection_fallback_when_debt_detail_persistence_is_interrupted
 #[test]
 fn should_reject_analytical_projection_with_mismatched_source_generation() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("analytical_projection_generation_fence");
-
     runtime().block_on(async {
-        let (cassie, session) = setup_source_and_projection(path.as_ref());
+        let (cassie, session) = setup_source_and_projection(
+            support::new_in_memory_cassie().expect("create in-memory Cassie"),
+        );
         let mut projection = cassie
             .catalog
             .get_materialized_projection("analytical_debt")
@@ -266,7 +267,5 @@ fn should_reject_analytical_projection_with_mismatched_source_generation() {
         // Assert
         assert_eq!(result.rows().len(), 1);
         assert_eq!(result.rows()[0][1], Value::Int64(10));
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }

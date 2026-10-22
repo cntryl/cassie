@@ -10,9 +10,8 @@ use super::support_sql as support;
 #[test]
 fn should_allow_duplicate_keys_outside_partial_unique_index_predicate() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("partial_unique_index_predicate");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -111,9 +110,8 @@ fn should_allow_duplicate_keys_outside_partial_unique_index_predicate() {
 #[test]
 fn should_allow_distinct_unique_columns_with_colliding_legacy_key_bytes() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("unique_reservation_field_value_collision");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -146,9 +144,8 @@ fn should_allow_distinct_unique_columns_with_colliding_legacy_key_bytes() {
 #[test]
 fn should_reject_whole_number_float_duplicates_in_unique_reservations() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("unique_reservation_whole_float");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -180,9 +177,8 @@ fn should_reject_whole_number_float_duplicates_in_unique_reservations() {
 #[test]
 fn should_release_unique_reservation_when_document_is_deleted() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("unique_reservation_delete");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -236,9 +232,8 @@ fn should_release_unique_reservation_when_document_is_deleted() {
 #[test]
 fn should_commit_transactional_unique_value_reuse_after_delete() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("unique_reservation_transaction_delete_insert");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -286,9 +281,8 @@ fn should_commit_transactional_unique_value_reuse_after_delete() {
 #[test]
 fn should_commit_transactional_unique_value_rotation_across_updates() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("unique_reservation_transaction_rotation");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -358,9 +352,8 @@ fn should_commit_transactional_unique_value_rotation_across_updates() {
 #[test]
 fn should_commit_transactional_unique_index_value_rotation_across_updates() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("unique_index_transaction_rotation");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -432,9 +425,8 @@ fn should_commit_transactional_unique_index_value_rotation_across_updates() {
 fn should_rollback_unique_reservations_when_transaction_rotation_commit_fails() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    support::use_local_storage();
     let path = support::data_dir("unique_reservation_transaction_rotation_failure");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -488,9 +480,8 @@ fn should_rollback_unique_reservations_when_transaction_rotation_commit_fails() 
 #[test]
 fn should_release_unique_reservation_when_unique_column_is_dropped() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("unique_reservation_drop_column");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -529,9 +520,8 @@ fn should_release_unique_reservation_when_unique_column_is_dropped() {
 #[test]
 fn should_release_unique_index_reservations_when_index_is_dropped() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("unique_index_reservation_drop");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -563,9 +553,8 @@ fn should_release_unique_index_reservations_when_index_is_dropped() {
 #[test]
 fn should_reject_duplicate_unique_value_after_column_rename() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("unique_reservation_rename_column");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie

@@ -20,7 +20,7 @@ fn top_k(
 #[test]
 fn should_fallback_when_ivfflat_cannot_fill_the_requested_window() {
     // Arrange
-    let (cassie, path) = circle_fixture("ivf_exhaustion", 64, 64 * 1024 * 1024);
+    let cassie = circle_fixture("ivf_exhaustion", 64, 64 * 1024 * 1024);
     let exact = top_k(&cassie, 10, 0);
     create_index(&cassie, "index_type = ivfflat, lists = 64, probes = 1, training_sample_size = 64, training_seed = 17");
     let before = cassie.metrics();
@@ -64,13 +64,12 @@ fn should_fallback_when_ivfflat_cannot_fill_the_requested_window() {
         0
     );
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }
 
 #[test]
 fn should_fallback_when_ivfflat_candidates_do_not_reach_the_offset() {
     // Arrange
-    let (cassie, path) = circle_fixture("ivf_offset_exhaustion", 64, 64 * 1024 * 1024);
+    let cassie = circle_fixture("ivf_offset_exhaustion", 64, 64 * 1024 * 1024);
     let exact = top_k(&cassie, 4, 8);
     create_index(&cassie, "index_type = ivfflat, lists = 64, probes = 1, training_sample_size = 64, training_seed = 17");
 
@@ -81,13 +80,12 @@ fn should_fallback_when_ivfflat_candidates_do_not_reach_the_offset() {
     assert_eq!(indexed.rows(), exact.rows());
     assert_eq!(indexed.rows().len(), 4);
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }
 
 #[test]
 fn should_preserve_small_ivfflat_result_windows() {
     // Arrange
-    let (cassie, path) = circle_fixture("ivf_small_window", 3, 64 * 1024 * 1024);
+    let cassie = circle_fixture("ivf_small_window", 3, 64 * 1024 * 1024);
     cassie
         .midge
         .put_fresh_documents(
@@ -120,13 +118,12 @@ fn should_preserve_small_ivfflat_result_windows() {
         before["vector"]["ivfflat_fallbacks"]
     );
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }
 
 #[test]
 fn should_bound_hnsw_result_windows_by_eligible_vectors() {
     // Arrange
-    let (cassie, path) = circle_fixture("hnsw_eligible_window", 3, 64 * 1024 * 1024);
+    let cassie = circle_fixture("hnsw_eligible_window", 3, 64 * 1024 * 1024);
     cassie
         .midge
         .put_fresh_documents(
@@ -155,13 +152,12 @@ fn should_bound_hnsw_result_windows_by_eligible_vectors() {
         before["vector"]["hnsw_fallbacks"]
     );
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }
 
 #[test]
 fn should_fallback_when_a_disconnected_hnsw_graph_underfills_top_k() {
     // Arrange
-    let (cassie, path) = circle_fixture("hnsw_exhaustion", 3, 64 * 1024 * 1024);
+    let cassie = circle_fixture("hnsw_exhaustion", 3, 64 * 1024 * 1024);
     let exact = top_k(&cassie, 2, 0);
     let exact_offset = top_k(&cassie, 1, 1);
     create_index(
@@ -229,5 +225,4 @@ fn should_fallback_when_a_disconnected_hnsw_graph_underfills_top_k() {
         0
     );
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }

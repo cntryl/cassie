@@ -55,8 +55,7 @@ fn should_parse_create_procedure_statement() {
 #[test]
 fn should_reject_unknown_function_during_binding() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -86,8 +85,7 @@ fn should_reject_unknown_function_during_binding() {
 #[test]
 fn should_reject_bad_function_arity_during_binding() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -117,8 +115,7 @@ fn should_reject_bad_function_arity_during_binding() {
 #[test]
 fn should_accept_case_insensitive_function_names_during_binding() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -149,8 +146,7 @@ fn should_accept_case_insensitive_function_names_during_binding() {
 #[test]
 fn should_allow_snippet_function_binding() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

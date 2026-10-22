@@ -1,24 +1,13 @@
 //! Timestamptz equality by instant through indexed and table scans.
 
-use cassie::app::Cassie;
 use cassie::types::Value;
-
-struct FixtureDirectory(String);
-
-impl Drop for FixtureDirectory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
 
 #[test]
 fn should_match_indexed_results_given_equal_instants_with_different_offsets_when_timestamptz_rows_are_filtered(
 ) {
     // Arrange
-    crate::support_sql::use_local_storage();
-    let path = crate::support_sql::data_dir("issue-814-timestamptz-index-instant-equality");
-    let _directory = FixtureDirectory(path.clone());
-    let cassie = Cassie::new_with_data_dir(&path).expect("create timestamptz index fixture");
+    let cassie =
+        crate::support_sql::new_in_memory_cassie().expect("create timestamptz index fixture");
     cassie.startup().expect("start timestamptz index fixture");
     let session = cassie.create_session("tester", None);
     for sql in [

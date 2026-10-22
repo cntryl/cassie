@@ -4,13 +4,11 @@ use std::sync::Arc;
 
 use crate::support_pgwire::{self, PgwireServer};
 use crate::support_sql;
-use cassie::app::Cassie;
 use tokio::task::JoinHandle;
 use tokio_postgres::{Client, NoTls};
 
 pub struct Fixture {
     pub server: PgwireServer,
-    path: String,
 }
 
 pub struct Session {
@@ -18,13 +16,11 @@ pub struct Session {
     connection: JoinHandle<Result<(), tokio_postgres::Error>>,
 }
 
-pub async fn start(label: &str) -> Fixture {
-    support_sql::use_local_storage();
-    let path = support_sql::data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create catalog fixture");
+pub async fn start(_label: &str) -> Fixture {
+    let cassie = support_sql::new_in_memory_cassie().expect("create catalog fixture");
     cassie.startup().expect("start catalog fixture");
     let server = support_pgwire::spawn_server(cassie).await;
-    Fixture { server, path }
+    Fixture { server }
 }
 
 pub async fn connect(fixture: &Fixture) -> Session {
@@ -53,5 +49,4 @@ pub async fn stop(fixture: Fixture, sessions: Vec<Session>) {
         let _ = session.connection.await;
     }
     fixture.server.stop().await;
-    std::fs::remove_dir_all(fixture.path).expect("remove isolated catalog fixture");
 }

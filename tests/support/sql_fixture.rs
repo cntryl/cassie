@@ -1,4 +1,4 @@
-//! Ephemeral SQL correctness fixtures, with explicit local storage for lifecycle tests.
+//! Ephemeral SQL correctness fixtures, with explicit local storage for persistence tests.
 #![allow(dead_code)]
 
 use cassie::app::{Cassie, CassieError, CassieSession};

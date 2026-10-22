@@ -15,7 +15,6 @@ use support::*;
 #[test]
 fn should_order_fulltext_top_k_by_score_with_limit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_top_k_limit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -23,7 +22,7 @@ fn should_order_fulltext_top_k_by_score_with_limit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_fulltext_top_k_limit";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -96,7 +95,6 @@ fn should_order_fulltext_top_k_by_score_with_limit() {
 #[test]
 fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_unordered_match");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -104,7 +102,7 @@ fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_fulltext_unordered_match";
         let schema = Schema {
             fields: vec![
@@ -185,7 +183,6 @@ fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
 #[test]
 fn should_project_search_function_as_boolean_match() {
     // Arrange
-    use_local_storage();
     let path = data_dir("search_boolean_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -193,7 +190,7 @@ fn should_project_search_function_as_boolean_match() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_search_boolean_projection";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -247,7 +244,6 @@ fn should_project_search_function_as_boolean_match() {
 #[test]
 fn should_project_search_score_as_numeric_relevance() {
     // Arrange
-    use_local_storage();
     let path = data_dir("search_score_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -255,7 +251,7 @@ fn should_project_search_score_as_numeric_relevance() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_search_score_projection";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -318,7 +314,6 @@ fn should_project_search_score_as_numeric_relevance() {
 #[test]
 fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_changing_results() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_unordered_mismatch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -326,7 +321,7 @@ fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_chang
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_fulltext_unordered_mismatch";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -390,7 +385,6 @@ fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_chang
 #[test]
 fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_results() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_unordered_extra_filter");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -398,7 +392,7 @@ fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_r
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_fulltext_unordered_extra_filter";
         let schema = Schema {
             fields: vec![
@@ -469,7 +463,6 @@ fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_r
 #[test]
 fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_complex_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -477,7 +470,7 @@ fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_fulltext_complex_fallback";
         let schema = Schema {
             fields: vec![
@@ -547,7 +540,6 @@ fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
 #[test]
 fn should_project_snippet_without_highlighting_generated_markup() {
     // Arrange
-    use_local_storage();
     let path = data_dir("snippet_generated_markup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -555,7 +547,7 @@ fn should_project_snippet_without_highlighting_generated_markup() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_snippet_generated_markup";
         let schema = Schema {
             fields: vec![FieldSchema {

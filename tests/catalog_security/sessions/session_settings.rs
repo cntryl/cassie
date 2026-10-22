@@ -1,22 +1,16 @@
-use super::support_sql as support;
-
 use cassie::app::Cassie;
 use cassie::types::Value;
 
-use support::*;
-
-fn cassie_and_session(label: &str) -> (Cassie, cassie::CassieSession, String) {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-    let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+fn cassie_and_session(_label: &str) -> (Cassie, cassie::CassieSession) {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let session = cassie.create_session("root", Some("postgres".to_string()));
-    (cassie, session, path)
+    (cassie, session)
 }
 
 #[test]
 fn should_use_one_registry_for_setting_reads() {
     // Arrange
-    let (cassie, session, path) = cassie_and_session("shared_registry");
+    let (cassie, session) = cassie_and_session("shared_registry");
 
     // Act
     cassie
@@ -50,13 +44,12 @@ fn should_use_one_registry_for_setting_reads() {
         Value::String("DBeaver 26.1.3".to_string())
     );
     assert_eq!(catalog.rows(), current.rows());
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_replay_exact_pgadmin_initialization_settings() {
     // Arrange
-    let (cassie, session, path) = cassie_and_session("pgadmin_init");
+    let (cassie, session) = cassie_and_session("pgadmin_init");
 
     // Act
     cassie
@@ -82,13 +75,12 @@ fn should_replay_exact_pgadmin_initialization_settings() {
     assert_eq!(session.setting("datestyle").unwrap(), "ISO, MDY");
     assert_eq!(session.setting("client_min_messages").unwrap(), "notice");
     assert_eq!(session.setting("client_encoding").unwrap(), "UTF8");
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_accept_postgres_set_time_zone_syntax() {
     // Arrange
-    let (cassie, session, path) = cassie_and_session("set_time_zone");
+    let (cassie, session) = cassie_and_session("set_time_zone");
 
     // Act
     let result = cassie.execute_sql(&session, "SET TIME ZONE 'UTC'", vec![]);
@@ -96,13 +88,12 @@ fn should_accept_postgres_set_time_zone_syntax() {
     // Assert
     result.expect("set PostgreSQL time zone syntax");
     assert_eq!(session.setting("timezone").unwrap(), "UTC");
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_reject_invalid_settings_with_22023() {
     // Arrange
-    let (cassie, session, path) = cassie_and_session("invalid_values");
+    let (cassie, session) = cassie_and_session("invalid_values");
 
     // Act
     let fixed = cassie.execute_sql(&session, "SET TimeZone='Mars/Olympus_Mons'", vec![]);
@@ -112,13 +103,12 @@ fn should_reject_invalid_settings_with_22023() {
     for error in [fixed.unwrap_err(), unknown.unwrap_err()] {
         assert!(error.to_string().contains("parameter"));
     }
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_expose_client_version_functions() {
     // Arrange
-    let (cassie, session, path) = cassie_and_session("version_identity");
+    let (cassie, session) = cassie_and_session("version_identity");
 
     // Act
     let result = cassie
@@ -139,5 +129,4 @@ fn should_expose_client_version_functions() {
         result.rows()[0][2],
         Value::String(env!("CARGO_PKG_VERSION").to_string())
     );
-    let _ = std::fs::remove_dir_all(path);
 }

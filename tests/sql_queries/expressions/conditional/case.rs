@@ -1,13 +1,11 @@
-use super::support_sql::{data_dir, use_local_storage};
-use cassie::app::Cassie;
+use super::support_sql::data_dir;
 use cassie::types::Value;
 
 #[test]
 fn should_evaluate_nested_case_with_nulls() {
     // Arrange
-    use_local_storage();
     let path = data_dir("case_nested_null");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
 
@@ -33,9 +31,8 @@ fn should_evaluate_nested_case_with_nulls() {
 #[test]
 fn should_execute_case_in_relational_contexts() {
     // Arrange
-    use_local_storage();
     let path = data_dir("case_relational");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -88,9 +85,8 @@ fn should_execute_case_in_relational_contexts() {
 #[test]
 fn should_reject_invalid_case_forms() {
     // Arrange
-    use_local_storage();
     let path = data_dir("case_errors");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
 

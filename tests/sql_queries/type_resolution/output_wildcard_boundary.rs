@@ -1,15 +1,13 @@
 //! This fixture calls embedded `execute_sql`; the private wire profile is absent.
 
-use super::support_sql::{data_dir, use_local_storage};
-use cassie::app::Cassie;
+use super::support_sql::data_dir;
 use cassie::types::Value;
 
 #[test]
 fn should_preserve_projected_wildcard_identity_at_the_core_result_boundary() {
     // Arrange
-    use_local_storage();
     let path = data_dir("type-output-core-wildcard-boundary");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [

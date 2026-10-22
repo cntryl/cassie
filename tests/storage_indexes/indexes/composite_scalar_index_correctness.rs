@@ -2,12 +2,11 @@ use cassie::app::Cassie;
 use cassie::types::Value;
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 #[test]
 fn should_create_json_index_without_blocking_object_writes() {
     // Arrange
-    use_local_storage();
     let path = data_dir("json_index_object_writes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -15,7 +14,7 @@ fn should_create_json_index_without_blocking_object_writes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -92,7 +91,6 @@ fn should_create_json_index_without_blocking_object_writes() {
 #[test]
 fn should_enforce_json_unique_index_for_object_values() {
     // Arrange
-    use_local_storage();
     let path = data_dir("json_unique_object_values");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -100,7 +98,7 @@ fn should_enforce_json_unique_index_for_object_values() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -149,7 +147,6 @@ fn should_enforce_json_unique_index_for_object_values() {
 #[test]
 fn should_backfill_native_array_index_without_poisoning_later_ddl() {
     // Arrange
-    use_local_storage();
     let path = data_dir("native_array_index_publication");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -157,7 +154,7 @@ fn should_backfill_native_array_index_without_poisoning_later_ddl() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             cassie
@@ -239,7 +236,6 @@ fn create_native_array_index_tables(cassie: &Cassie, session: &cassie::app::Cass
 #[test]
 fn should_enforce_native_array_primary_key() {
     // Arrange
-    use_local_storage();
     let path = data_dir("native_array_primary_key");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -247,7 +243,7 @@ fn should_enforce_native_array_primary_key() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         create_native_array_index_tables(&cassie, &session);
@@ -277,7 +273,6 @@ fn should_enforce_native_array_primary_key() {
 #[test]
 fn should_enforce_native_array_unique_constraint() {
     // Arrange
-    use_local_storage();
     let path = data_dir("native_array_unique_constraint");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -285,7 +280,7 @@ fn should_enforce_native_array_unique_constraint() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         create_native_array_index_tables(&cassie, &session);
@@ -312,7 +307,6 @@ fn should_enforce_native_array_unique_constraint() {
 #[test]
 fn should_write_native_array_to_secondary_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("native_array_secondary_index");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -320,7 +314,7 @@ fn should_write_native_array_to_secondary_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         create_native_array_index_tables(&cassie, &session);
@@ -403,7 +397,6 @@ fn create_json_range_order_fixture(cassie: &Cassie, session: &cassie::app::Cassi
 #[test]
 fn should_preserve_json_range_results_with_an_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("json_index_range_results");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -411,7 +404,7 @@ fn should_preserve_json_range_results_with_an_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         create_json_range_order_fixture(&cassie, &session);
@@ -469,7 +462,6 @@ fn should_preserve_json_range_results_with_an_index() {
 #[test]
 fn should_preserve_json_order_results_with_an_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("json_index_order_results");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -477,7 +469,7 @@ fn should_preserve_json_order_results_with_an_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         create_json_range_order_fixture(&cassie, &session);

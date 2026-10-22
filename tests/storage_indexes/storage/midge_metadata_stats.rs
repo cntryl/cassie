@@ -127,7 +127,7 @@ fn should_rebuild_field_cardinality_stats() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
         let collection = "cf_layout_field_cardinality";
         cassie
@@ -212,7 +212,7 @@ fn should_move_cleanup_cardinality_stats_on_collection_rename_drop() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
 
         let current = "cf_layout_cardinality_cleanup";
@@ -273,7 +273,7 @@ fn should_cleanup_column_store_keys_after_collection_rename_then_drop() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
         let collection = "cf_layout_column_store_cleanup";
         let renamed = "cf_layout_column_store_cleanup_archive";
@@ -347,7 +347,7 @@ fn should_cleanup_column_store_keys_after_collection_rename_then_drop() {
 fn should_store_column_values_under_numeric_ids_without_json_wrappers() {
     // Arrange
     let path = data_dir("column_store_compact_layout");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.midge.ensure_families_ready().unwrap();
     let collection = "column_store_compact_layout";
     let schema = Schema {
@@ -467,7 +467,7 @@ fn should_hydrate_projection_metadata_during_startup() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
 
         cassie
@@ -557,7 +557,7 @@ fn should_cleanup_projection_checkpoint_metadata_on_rename_drop() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
         let current = "projection_checkpoint_cleanup";
         let next = "projection_checkpoint_cleanup_next";

@@ -1,6 +1,5 @@
 //! Table-backed PostgreSQL geometry behavior tracked by #907.
 
-use cassie::app::Cassie;
 use cassie::types::Value;
 use std::time::Duration;
 
@@ -31,7 +30,6 @@ impl Drop for GeometryDirectory {
 }
 
 fn run_wire_join(label: &str) -> Vec<(u8, Vec<u8>)> {
-    wire::use_local_storage();
     let path = wire::data_dir(label);
     let _directory = GeometryDirectory(path.clone());
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -40,7 +38,7 @@ fn run_wire_join(label: &str) -> Vec<(u8, Vec<u8>)> {
         .expect("current-thread runtime");
 
     let frames = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create geometry fixture");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create geometry fixture");
         cassie.startup().expect("start geometry fixture");
         let session = cassie.create_session("tester", None);
         for sql in SETUP {

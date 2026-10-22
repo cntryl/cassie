@@ -4,24 +4,14 @@ use cassie::midge::adapter::{
     query_scan_control_test_guard, set_query_scan_cancellation_after_entries,
 };
 use cassie::runtime::QueryCancellationHandle;
-use uuid::Uuid;
-
-fn configured_cassie(label: &str) -> (Cassie, String) {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-    let path = std::env::temp_dir()
-        .join(format!(
-            "cassie-rest-cancellation-{label}-{}",
-            Uuid::new_v4()
-        ))
-        .to_string_lossy()
-        .into_owned();
+fn configured_cassie() -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.password = "postgres".to_string();
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
-    (cassie, path)
+    cassie
 }
 
 fn seed_rows(cassie: &Cassie, table: &str, count: usize) {
@@ -43,7 +33,7 @@ fn seed_rows(cassie: &Cassie, table: &str, count: usize) {
 fn should_propagate_acknowledged_rest_read_cancellation_without_leaking_resources() {
     // Arrange
     let _guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("read");
+    let cassie = configured_cassie();
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -75,15 +65,13 @@ fn should_propagate_acknowledged_rest_read_cancellation_without_leaking_resource
         metrics["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit() {
     // Arrange
     let _guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("mutation");
+    let cassie = configured_cassie();
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -122,15 +110,13 @@ fn should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit() {
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_leave_zero_documents_when_rest_document_write_is_cancelled_before_publication() {
     // Arrange
     let _guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("document-mutation");
+    let cassie = configured_cassie();
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -163,6 +149,4 @@ fn should_leave_zero_documents_when_rest_document_write_is_cancelled_before_publ
     // Assert
     assert!(matches!(error, CassieError::QueryCancelled));
     assert_eq!(rows.rows(), vec![vec![cassie::types::Value::Int64(0)]]);
-
-    let _ = std::fs::remove_dir_all(path);
 }

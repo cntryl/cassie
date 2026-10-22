@@ -11,10 +11,9 @@ use cassie::midge::adapter::{
 #[test]
 fn should_abort_one_conflicting_table_create_before_reusing_object_id() {
     // Arrange
-    support::use_local_storage();
     let _test_guard = schema_write_conflict_test_guard();
     let path = support::data_dir("schema-write-conflicts");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("create Cassie"));
     cassie.startup().expect("start Cassie");
     let ready = Arc::new(Barrier::new(3));
     let resume = Arc::new(Barrier::new(3));
@@ -97,10 +96,9 @@ fn should_abort_one_conflicting_table_create_before_reusing_object_id() {
 #[test]
 fn should_abort_one_conflicting_nextval_before_returning_a_duplicate_value() {
     // Arrange
-    support::use_local_storage();
     let _test_guard = schema_write_conflict_test_guard();
     let path = support::data_dir("sequence-write-conflicts");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("create Cassie"));
     cassie.startup().expect("start Cassie");
     let setup_session = cassie.create_session("tester", None);
     cassie

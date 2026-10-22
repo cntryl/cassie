@@ -155,14 +155,9 @@ fn should_reject_ingest_when_query_provider_model_mismatch() {
 #[test]
 fn should_reject_ingest_when_dimensions_change() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("dimension_mismatch");
-    let path_for_cleanup = path.clone();
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        openai_runtime("http://127.0.0.1:1".to_string()),
-    )
-    .unwrap();
+    let cassie =
+        Cassie::new_in_memory_with_config(openai_runtime("http://127.0.0.1:1".to_string()))
+            .unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -197,21 +192,14 @@ fn should_reject_ingest_when_dimensions_change() {
             cassie.ingest_document(collection, serde_json::json!({"content": "sample text"}));
         assert!(matches!(result, Err(CassieError::InvalidEmbedding(_))));
     });
-
-    let _ = std::fs::remove_dir_all(path_for_cleanup);
 }
 
 #[test]
 fn should_reject_query_when_metric_different() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("metric_mismatch");
-    let path_for_cleanup = path.clone();
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        openai_runtime("http://127.0.0.1:1".to_string()),
-    )
-    .unwrap();
+    let cassie =
+        Cassie::new_in_memory_with_config(openai_runtime("http://127.0.0.1:1".to_string()))
+            .unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -252,6 +240,4 @@ fn should_reject_query_when_metric_different() {
         );
         assert!(matches!(result, Err(CassieError::InvalidEmbedding(_))));
     });
-
-    let _ = std::fs::remove_dir_all(path_for_cleanup);
 }

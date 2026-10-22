@@ -1,15 +1,13 @@
 #[test]
 fn should_replay_projection_batch_idempotently_with_checkpoint_metadata() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("projection_replay_idempotent");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -75,9 +73,23 @@ fn should_replay_projection_batch_idempotently_with_checkpoint_metadata() {
             metrics["projections"]["replay_duplicates_skipped"].as_u64(),
             Some(1)
         );
-
-        let _ = std::fs::remove_dir_all(path);
     });
+}
+
+fn initialize_projection_replay_retry_fixture(
+    cassie: Cassie,
+) -> (Cassie, CassieSession, String) {
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE projection_replay_schema_retry_docs (title TEXT)",
+            vec![],
+        )
+        .unwrap();
+    let projection = canonical_test_collection(&cassie, "projection_replay_schema_retry_docs");
+    (cassie, session, projection)
 }
 
 fn start_projection_replay_retry_fixture(
@@ -90,21 +102,25 @@ fn start_projection_replay_retry_fixture(
         .build()
         .expect("runtime");
     let (cassie, session, projection) = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE projection_replay_schema_retry_docs (title TEXT)",
-                vec![],
-            )
-            .unwrap();
-        let projection =
-            canonical_test_collection(&cassie, "projection_replay_schema_retry_docs");
-        (cassie, session, projection)
+        initialize_projection_replay_retry_fixture(
+            Cassie::new_with_data_dir(&path).unwrap(),
+        )
     });
     (runtime, path, cassie, session, projection)
+}
+
+fn start_in_memory_projection_replay_retry_fixture(
+) -> (tokio::runtime::Runtime, Cassie, CassieSession, String) {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let (cassie, session, projection) = runtime.block_on(async {
+        initialize_projection_replay_retry_fixture(
+            crate::support_sql::new_in_memory_cassie().unwrap(),
+        )
+    });
+    (runtime, cassie, session, projection)
 }
 
 fn projection_replay_retry_batch(projection: &str) -> ProjectionReplayBatch {
@@ -224,8 +240,8 @@ fn should_retry_projection_replay_when_metadata_commit_fails_after_row_commit() 
 fn should_retry_projection_replay_after_metadata_commit_conflict() {
     // Arrange
     let _schema_write_guard = schema_write_conflict_test_guard();
-    let (_runtime, path, cassie, session, projection) =
-        start_projection_replay_retry_fixture("projection_replay_metadata_commit_conflict");
+    let (_runtime, cassie, session, projection) =
+        start_in_memory_projection_replay_retry_fixture();
     let cassie = Arc::new(cassie);
     let batch = projection_replay_retry_batch(&projection);
     let ready = Arc::new(Barrier::new(2));
@@ -319,7 +335,6 @@ fn should_retry_projection_replay_after_metadata_commit_conflict() {
     );
 
     cassie.shutdown();
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]

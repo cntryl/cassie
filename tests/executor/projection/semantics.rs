@@ -25,9 +25,8 @@ fn should_execute_simple_filtered_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("smoke");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_smoke";
 
         let schema = Schema {
@@ -86,8 +85,7 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_multi_batch";
 
         let schema = Schema {
@@ -162,8 +160,7 @@ fn should_preserve_filtered_projection_across_multiple_batches() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_multi_batch_filter";
 
         let schema = Schema {
@@ -250,8 +247,7 @@ fn should_project_missing_columns_as_null() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_missing_projection_column";
 
         let schema = Schema {
@@ -312,7 +308,6 @@ fn should_project_missing_columns_as_null() {
 #[test]
 fn should_project_complex_values_through_filtered_ordered_scan() {
     // Arrange
-    use_local_storage();
     let path = data_dir("zero_copy_projected_complex_values");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -320,7 +315,7 @@ fn should_project_complex_values_through_filtered_ordered_scan() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

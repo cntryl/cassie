@@ -17,6 +17,21 @@ mod cache_publication {
     include!("../publication/cache.rs");
 }
 
+fn new_in_memory_vector_cassie() -> Cassie {
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
+        model: "deterministic-test".to_string(),
+        dimensions: 3,
+    });
+    Cassie::new_in_memory_with_config(config).expect("create in-memory Cassie")
+}
+
+fn start_in_memory_vector_cassie() -> Cassie {
+    let cassie = new_in_memory_vector_cassie();
+    cassie.startup().expect("start in-memory Cassie");
+    cassie
+}
+
 fn new_vector_cassie(path: &str) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
@@ -93,9 +108,7 @@ fn vector(values: [f32; 3]) -> Value {
 #[test]
 fn should_store_explicit_vector_given_insert_into_sourced_vector_column() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_write_explicit_insert");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     create_table(&cassie, "explicit_insert", true);
 
     // Act
@@ -119,15 +132,12 @@ fn should_store_explicit_vector_given_insert_into_sourced_vector_column() {
     assert!(!same(&derived, &vector([1.0, 0.0, 0.0])));
     assert!(matches!(derived, Value::Vector(_)));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_store_explicit_vector_given_update_assigns_embedding_column() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_write_explicit_update");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     create_table(&cassie, "explicit_update", true);
     run(
         &cassie,
@@ -154,15 +164,12 @@ fn should_store_explicit_vector_given_update_assigns_embedding_column() {
         &vector([0.0, 1.0, 0.0])
     ));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_regenerate_embedding_given_update_changes_source_column() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_write_regenerate");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     create_table(&cassie, "regenerate", true);
     run(
         &cassie,
@@ -184,15 +191,12 @@ fn should_regenerate_embedding_given_update_changes_source_column() {
     assert!(!same(&after, &before));
     assert!(same(&after, &beta));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_clear_embedding_given_update_sets_source_column_to_null() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_write_clear");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     create_table(&cassie, "clear_source", true);
     run(
         &cassie,
@@ -233,15 +237,12 @@ fn should_clear_embedding_given_update_sets_source_column_to_null() {
     ));
     assert!(matches!(null_text, Value::Vector(_)));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_embed_existing_rows_given_vector_index_created_on_populated_table() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_write_backfill");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     create_table(&cassie, "backfill", false);
     run(
         &cassie,
@@ -276,15 +277,12 @@ fn should_embed_existing_rows_given_vector_index_created_on_populated_table() {
         &vector([0.0, 0.0, 1.0])
     ));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_accept_vector_string_literal_given_insert_or_update() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_write_literal");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     create_table(&cassie, "literal", false);
 
     // Act
@@ -326,15 +324,12 @@ fn should_accept_vector_string_literal_given_insert_or_update() {
         &vector([7.0, 8.0, 9.0])
     ));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_report_range_error_given_vector_literal_component_exceeds_f32() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_write_literal_range");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     create_table(&cassie, "literal_range", false);
     run(
         &cassie,
@@ -362,15 +357,12 @@ fn should_report_range_error_given_vector_literal_component_exceeds_f32() {
         &vector([1.0, 2.0, 3.0])
     ));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_preserve_constraints_before_vector_backfill_publication() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_backfill_check");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     run(&cassie, "CREATE TABLE guarded (id TEXT, body TEXT, embedding VECTOR(3), CHECK (embedding = 'forbidden'))", vec![]);
     run(
         &cassie,
@@ -395,15 +387,12 @@ fn should_preserve_constraints_before_vector_backfill_publication() {
         .expect("index metadata")
         .is_none());
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_leave_rows_unchanged_after_vector_backfill_provider_failure() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_backfill_provider_failure");
-    let mut cassie = start_vector_cassie(&path);
+    let mut cassie = start_in_memory_vector_cassie();
     cassie.embedding_provider =
         std::sync::Arc::new(super::backfill_provider::FailSecondProvider::default());
     create_table(&cassie, "partial_backfill", false);
@@ -433,7 +422,6 @@ fn should_leave_rows_unchanged_after_vector_backfill_provider_failure() {
         .expect("index metadata")
         .is_none());
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 fn rest_index(cassie: &Cassie, table: &str) -> Result<serde_json::Value, cassie::app::CassieError> {
@@ -447,9 +435,7 @@ fn rest_index(cassie: &Cassie, table: &str) -> Result<serde_json::Value, cassie:
 #[test]
 fn should_preserve_constraints_before_rest_vector_backfill_publication() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("rest_vector_backfill_check");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     run(&cassie, "CREATE TABLE guarded (id TEXT, body TEXT, embedding VECTOR(3), CHECK (embedding = 'forbidden'))", vec![]);
     run(
         &cassie,
@@ -464,15 +450,12 @@ fn should_preserve_constraints_before_rest_vector_backfill_publication() {
     assert!(result.is_err());
     assert!(matches!(embedding_of(&cassie, "guarded", "a"), Value::Null));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_leave_rows_unchanged_after_rest_vector_backfill_provider_failure() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("rest_vector_backfill_provider_failure");
-    let mut cassie = start_vector_cassie(&path);
+    let mut cassie = start_in_memory_vector_cassie();
     cassie.embedding_provider =
         std::sync::Arc::new(super::backfill_provider::FailSecondProvider::default());
     create_table(&cassie, "partial_backfill", false);
@@ -496,7 +479,6 @@ fn should_leave_rows_unchanged_after_rest_vector_backfill_provider_failure() {
         Value::Null
     ));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 fn reopen_without_provider_calls(path: &str) -> Cassie {
@@ -664,9 +646,7 @@ fn should_replay_committed_rest_vector_backfill_after_sidecar_failure() {
 #[test]
 fn should_expose_rollup_debt_after_committed_backfill_failure() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_backfill_rollup_debt");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     run(
         &cassie,
         "CREATE TABLE recover_backfill (id TEXT, body TEXT, event_at TEXT, embedding VECTOR(3))",
@@ -700,7 +680,6 @@ fn should_expose_rollup_debt_after_committed_backfill_failure() {
         .is_some_and(|plan| plan.contains("rollup_rewrite=none"))));
     assert_eq!(debt.len(), 1);
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 fn interrupt_before_backfill(cassie: &Cassie) {
@@ -747,9 +726,7 @@ fn should_fail_closed_on_unknown_vector_publication_version() {
 #[test]
 fn should_fail_closed_on_missing_vector_backfill_staging_row() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_backfill_missing_stage");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     create_table(&cassie, "recover_backfill", false);
     run(
         &cassie,
@@ -774,15 +751,12 @@ fn should_fail_closed_on_missing_vector_backfill_staging_row() {
         Value::Null
     ));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_fail_closed_on_changed_vector_backfill_staging_digest() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_backfill_corrupt_stage");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     create_table(&cassie, "recover_backfill", false);
     run(
         &cassie,
@@ -804,15 +778,12 @@ fn should_fail_closed_on_changed_vector_backfill_staging_digest() {
         Value::Null
     ));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_preserve_newer_source_rows_when_vector_publication_generation_changes() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_backfill_generation_change");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     create_table(&cassie, "recover_backfill", false);
     run(
         &cassie,
@@ -842,15 +813,12 @@ fn should_preserve_newer_source_rows_when_vector_publication_generation_changes(
     );
     assert!(matches!(&body[0][0], Value::String(value) if value == "newer"));
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_backfill_unique_rows_without_conflicting_with_their_own_identity() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_backfill_unique_identity");
-    let cassie = start_vector_cassie(&path);
+    let cassie = start_in_memory_vector_cassie();
     run(
         &cassie,
         "CREATE TABLE recover_backfill (id TEXT UNIQUE, body TEXT, embedding VECTOR(3))",
@@ -868,5 +836,4 @@ fn should_backfill_unique_rows_without_conflicting_with_their_own_identity() {
     // Assert
     assert_recovered_backfill(&cassie);
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }

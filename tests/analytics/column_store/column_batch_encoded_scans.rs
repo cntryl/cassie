@@ -15,8 +15,8 @@ struct EncodedScanFixture {
     session: CassieSession,
 }
 
-fn corrupted_isolation_fixture(path: &str) -> EncodedScanFixture {
-    let cassie = Cassie::new_with_data_dir(path).expect("create Cassie");
+fn corrupted_isolation_fixture() -> EncodedScanFixture {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -85,15 +85,13 @@ fn corrupted_isolation_fixture(path: &str) -> EncodedScanFixture {
 #[test]
 fn should_late_materialize_selected_values_despite_unrequested_corruption() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("column_batch_encoded_scan_isolation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let fixture = corrupted_isolation_fixture(&path);
+        let fixture = corrupted_isolation_fixture();
         let cassie = fixture.cassie;
         let session = fixture.session;
         let before = cassie.metrics();
@@ -167,22 +165,18 @@ fn should_late_materialize_selected_values_despite_unrequested_corruption() {
             1
         );
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_apply_encoded_conjunctions_with_null_predicates_exactly() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("column_batch_encoded_conjunctions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -256,22 +250,18 @@ fn should_apply_encoded_conjunctions_with_null_predicates_exactly() {
             3
         );
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_keep_case_distinct_columns_in_encoded_scans() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("column_batch_case_distinct_columns");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         cassie
@@ -328,8 +318,6 @@ fn should_keep_case_distinct_columns_in_encoded_scans() {
             0
         );
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]

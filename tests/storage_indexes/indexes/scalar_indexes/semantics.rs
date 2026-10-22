@@ -1,7 +1,6 @@
 #[test]
 fn should_explain_index_aware_plan_for_scalar_equality_filter() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_index_aware");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_explain_index_aware_plan_for_scalar_equality_filter() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -51,7 +50,6 @@ fn should_explain_index_aware_plan_for_scalar_equality_filter() {
 #[test]
 fn should_use_covering_scalar_index_for_projection() {
     // Arrange
-    use_local_storage();
     let path = data_dir("covering_scalar_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -59,7 +57,7 @@ fn should_use_covering_scalar_index_for_projection() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -135,7 +133,6 @@ fn should_use_covering_scalar_index_for_projection() {
 #[test]
 fn should_fallback_for_noncovered_scalar_index_projection() {
     // Arrange
-    use_local_storage();
     let path = data_dir("covering_scalar_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -143,7 +140,7 @@ fn should_fallback_for_noncovered_scalar_index_projection() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -210,7 +207,6 @@ fn should_fallback_for_noncovered_scalar_index_projection() {
 #[test]
 fn should_use_include_columns_for_covered_projection() {
     // Arrange
-    use_local_storage();
     let path = data_dir("include_covered_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -218,7 +214,7 @@ fn should_use_include_columns_for_covered_projection() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -272,7 +268,6 @@ fn should_use_include_columns_for_covered_projection() {
 #[test]
 fn should_query_rows_after_creating_secondary_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("secondary_index_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -280,7 +275,7 @@ fn should_query_rows_after_creating_secondary_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -334,7 +329,6 @@ fn should_query_rows_after_creating_secondary_index() {
 #[test]
 fn should_query_rows_after_creating_composite_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("composite_index_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -342,7 +336,7 @@ fn should_query_rows_after_creating_composite_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -414,7 +408,6 @@ fn should_query_rows_after_creating_composite_index() {
 #[test]
 fn should_query_rows_after_creating_range_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("range_index_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -422,7 +415,7 @@ fn should_query_rows_after_creating_range_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -490,7 +483,6 @@ fn should_query_rows_after_creating_range_index() {
 #[test]
 fn should_page_tenant_filtered_rows_through_composite_range_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("tenant_filtered_page_index_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -498,7 +490,7 @@ fn should_page_tenant_filtered_rows_through_composite_range_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

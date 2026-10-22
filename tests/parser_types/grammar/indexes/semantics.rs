@@ -37,6 +37,23 @@ fn should_parse_create_index_statement() {
 }
 
 #[test]
+fn should_parse_create_index_without_an_explicit_name() {
+    // Arrange
+    let sql = "CREATE INDEX ON customer_orders (customer_id)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse an index without an explicit name");
+
+    // Assert
+    let QueryStatement::CreateIndex(statement) = parsed.statement else {
+        panic!("expected create index statement");
+    };
+    assert_eq!(statement.name, "");
+    assert_eq!(statement.table, "customer_orders");
+    assert_eq!(statement.fields, vec!["customer_id".to_string()]);
+}
+
+#[test]
 fn should_parse_create_index_if_not_exists_variants() {
     // Arrange
     let statements = [
@@ -157,11 +174,7 @@ fn should_reject_non_scalar_expression_index() {
 #[test]
 fn should_reject_non_immutable_function_expression_index() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-expression-index-volatile-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -197,9 +210,7 @@ fn should_reject_non_immutable_function_expression_index() {
 #[test]
 fn should_reject_duplicate_include_columns() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-include-duplicate-{}", Uuid::new_v4()))
-            .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -239,9 +250,7 @@ fn should_reject_duplicate_include_columns() {
 #[test]
 fn should_reject_include_key_overlap() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-include-overlap-{}", Uuid::new_v4()))
-            .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -274,9 +283,7 @@ fn should_reject_include_key_overlap() {
 #[test]
 fn should_reject_unknown_include_column() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-include-unknown-{}", Uuid::new_v4()))
-            .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -309,9 +316,7 @@ fn should_reject_unknown_include_column() {
 #[test]
 fn should_reject_fulltext_include_columns() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-include-fulltext-{}", Uuid::new_v4()))
-            .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -400,11 +405,7 @@ fn should_parse_vector_create_index_statement() {
 #[test]
 fn should_parse_fulltext_create_index_statement_with_options() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-fulltext-index-options-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -453,11 +454,7 @@ fn should_parse_fulltext_create_index_statement_with_options() {
 #[test]
 fn should_apply_fulltext_create_index_defaults() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-fulltext-index-defaults-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -503,11 +500,7 @@ fn should_apply_fulltext_create_index_defaults() {
 #[test]
 fn should_reject_fulltext_create_index_with_non_finite_boost() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-fulltext-index-non-finite-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -549,11 +542,7 @@ fn should_reject_fulltext_create_index_with_non_finite_boost() {
 #[test]
 fn should_reject_duplicate_fulltext_index_on_same_field() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-fulltext-index-duplicate-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -614,11 +603,7 @@ fn should_reject_duplicate_fulltext_index_on_same_field() {
 #[test]
 fn should_reject_fulltext_index_on_non_text_field() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-fulltext-index-non-text-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -651,11 +636,7 @@ fn should_reject_fulltext_index_on_non_text_field() {
 #[test]
 fn should_reject_fulltext_create_index_with_unsupported_option() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-fulltext-index-unsupported-option-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -697,11 +678,7 @@ fn should_reject_fulltext_create_index_with_unsupported_option() {
 #[test]
 fn should_reject_fulltext_create_index_with_invalid_fulltext_k1() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-fulltext-index-bad-k1-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -743,11 +720,7 @@ fn should_reject_fulltext_create_index_with_invalid_fulltext_k1() {
 #[test]
 fn should_reject_vector_create_index_without_source_field() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-vector-index-no-source-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -792,11 +765,7 @@ fn should_reject_vector_create_index_without_source_field() {
 #[test]
 fn should_reject_vector_create_index_with_invalid_metric() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-vector-index-bad-metric-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -838,11 +807,7 @@ fn should_reject_vector_create_index_with_invalid_metric() {
 #[test]
 fn should_reject_vector_create_index_on_non_vector_field() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-vector-index-non-vector-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -878,11 +843,7 @@ fn should_reject_vector_create_index_on_non_vector_field() {
 #[test]
 fn should_default_vector_metric_to_cosine() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-vector-index-default-metric-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -941,4 +902,53 @@ fn should_parse_drop_index_statement() {
     assert_eq!(statement.name, "idx_users_email");
     assert_eq!(statement.table, "users");
     assert!(statement.if_exists);
+}
+
+#[test]
+fn should_parse_drop_index_without_an_on_clause() {
+    // Arrange
+    let sql = "DROP INDEX IF EXISTS idx_users_email";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::DropIndex(statement) = parsed.statement else {
+        panic!("expected drop index statement");
+    };
+
+    assert_eq!(statement.name, "idx_users_email");
+    assert_eq!(statement.table, "");
+    assert!(statement.if_exists);
+}
+
+#[test]
+fn should_parse_quoted_drop_index_name_without_an_on_clause() {
+    // Arrange
+    let sql = r#"DROP INDEX "index with spaces""#;
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::DropIndex(statement) = parsed.statement else {
+        panic!("expected drop index statement");
+    };
+
+    assert_eq!(statement.name, r#""index with spaces""#);
+    assert_eq!(statement.table, "");
+}
+
+#[test]
+fn should_reject_drop_index_concurrently_as_unsupported_syntax() {
+    // Arrange
+    let sql = "DROP INDEX CONCURRENTLY customer_orders_customer_id_idx";
+
+    // Act
+    let error = parse_statement(sql).expect_err("concurrent index maintenance is unsupported");
+
+    // Assert
+    assert!(error
+        .to_string()
+        .contains("DROP INDEX CONCURRENTLY is not supported"));
 }

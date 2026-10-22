@@ -7,15 +7,11 @@ use cassie::types::Value;
 use std::sync::Arc;
 use std::time::Duration;
 
-use support::*;
-
 #[test]
 fn should_score_case_sensitive_terms_from_persisted_fulltext_index() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("persisted_case_sensitive_fulltext");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = support::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -57,16 +53,13 @@ fn should_score_case_sensitive_terms_from_persisted_fulltext_index() {
         Value::String("The Rust compiler is fast".to_string())
     );
     assert!(matches!(result.rows()[0][1], Value::Float64(score) if score > 0.0));
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_read_persisted_postings_before_fetching_candidate_rows() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("persisted_fulltext_sql");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = support::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -134,16 +127,13 @@ fn should_read_persisted_postings_before_fetching_candidate_rows() {
         after["search"]["row_scan_fallback_total"].as_u64(),
         before["search"]["row_scan_fallback_total"].as_u64()
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_match_row_baseline_scores_from_persisted_postings() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("persisted_fulltext_scores");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = support::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -191,16 +181,13 @@ fn should_match_row_baseline_scores_from_persisted_postings() {
         after["search"]["candidate_row_fetches_total"].as_u64(),
         before["search"]["candidate_row_fetches_total"].as_u64()
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_apply_structured_predicates_only_to_posting_candidates() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("persisted_fulltext_structured_filter");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = support::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -266,16 +253,13 @@ fn should_apply_structured_predicates_only_to_posting_candidates() {
                 .unwrap(),
         1
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_prefilter_fulltext_candidates_with_integer_parameter_on_float_index() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("persisted_fulltext_float_prefilter");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = support::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
             "CREATE TABLE persisted_float_filter_docs (rating FLOAT, body TEXT)",
@@ -308,16 +292,13 @@ fn should_prefilter_fulltext_candidates_with_integer_parameter_on_float_index() 
         after["search"]["retrieval_fallback_reasons"]["authoritative_row_scan"],
         serde_json::Value::Null
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_keep_both_signed_zeros_in_fulltext_scalar_prefilter() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("persisted_fulltext_signed_zero_prefilter");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = support::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -388,16 +369,13 @@ fn should_keep_both_signed_zeros_in_fulltext_scalar_prefilter() {
                 .unwrap(),
         2
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_keep_null_trailing_index_keys_in_fulltext_prefilter() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("persisted_fulltext_nullable_prefilter");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = support::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
             "CREATE TABLE persisted_nullable_filter_docs (category TEXT, label TEXT, body TEXT)",
@@ -436,16 +414,13 @@ fn should_keep_null_trailing_index_keys_in_fulltext_prefilter() {
         after["search"]["retrieval_fallback_reasons"]["authoritative_row_scan"],
         serde_json::Value::Null
     );
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_overlay_transaction_mutations_on_fulltext_fallback() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("persisted_fulltext_transaction_overlay");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = support::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -532,18 +507,15 @@ fn should_overlay_transaction_mutations_on_fulltext_fallback() {
     cassie
         .execute_sql(&session, "ROLLBACK", vec![])
         .expect("rollback transaction");
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_enforce_memory_budget_during_persisted_fulltext_scoring() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("persisted_fulltext_memory_budget");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.limits.query_memory_budget_bytes = 512;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("create Cassie");
+    config.limits.query_memory_budget_bytes = 1_024;
+    let cassie = Cassie::new_in_memory_with_config(config).expect("create Cassie");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -582,16 +554,13 @@ fn should_enforce_memory_budget_during_persisted_fulltext_scoring() {
 
     // Assert
     assert!(matches!(error, CassieError::ResourceLimit(_)));
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_cancel_persisted_fulltext_scoring_at_a_candidate_boundary() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let path = data_dir("persisted_fulltext_cancellation");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+    let cassie = Arc::new(support::new_in_memory_cassie().expect("create Cassie"));
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -663,5 +632,4 @@ fn should_cancel_persisted_fulltext_scoring_at_a_candidate_boundary() {
     assert_eq!(recovery.expect("same-session recovery").rows().len(), 3);
     drop(session);
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }

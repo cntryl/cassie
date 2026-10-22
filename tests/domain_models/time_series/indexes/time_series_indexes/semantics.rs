@@ -38,7 +38,6 @@ fn should_preserve_bucket_native_results_across_supported_widths() {
 #[test]
 fn should_select_time_series_index_for_timestamp_range_explain() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_index_explain");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -46,7 +45,7 @@ fn should_select_time_series_index_for_timestamp_range_explain() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -95,7 +94,6 @@ fn should_select_time_series_index_for_timestamp_range_explain() {
 #[test]
 fn should_select_the_exact_case_distinct_time_series_timestamp_field() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_case_distinct_timestamp_fields");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -103,7 +101,7 @@ fn should_select_the_exact_case_distinct_time_series_timestamp_field() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             cassie.startup().expect("start Cassie");
             let session = cassie.create_session("tester", None);
             for statement in [
@@ -177,7 +175,6 @@ fn should_select_the_exact_case_distinct_time_series_timestamp_field() {
 #[test]
 fn should_execute_timestamp_range_with_time_series_metrics() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_index_execute");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -185,7 +182,7 @@ fn should_execute_timestamp_range_with_time_series_metrics() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -265,7 +262,6 @@ fn should_execute_timestamp_range_with_time_series_metrics() {
 #[test]
 fn should_bulk_load_fresh_time_series_documents_for_bucket_reads() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_fresh_bulk_load");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -273,7 +269,7 @@ fn should_bulk_load_fresh_time_series_documents_for_bucket_reads() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -356,7 +352,6 @@ fn should_bulk_load_fresh_time_series_documents_for_bucket_reads() {
 #[test]
 fn should_bound_partitioned_time_series_bucket_reads() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_bounded_partition_reads");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -364,7 +359,7 @@ fn should_bound_partitioned_time_series_bucket_reads() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -426,9 +421,8 @@ fn should_bound_partitioned_time_series_bucket_reads() {
 #[test]
 fn should_keep_time_series_sidecars_current_during_concurrent_rebuilds() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_concurrent_rebuilds");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
     cassie
@@ -495,7 +489,6 @@ fn should_keep_time_series_sidecars_current_during_concurrent_rebuilds() {
 #[test]
 fn should_fallback_to_row_blobs_when_bucket_membership_is_missing() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_index_missing_sidecar");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -503,7 +496,7 @@ fn should_fallback_to_row_blobs_when_bucket_membership_is_missing() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -562,7 +555,6 @@ fn should_fallback_to_row_blobs_when_bucket_membership_is_missing() {
 #[test]
 fn should_cleanup_bucket_membership_after_retention() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_index_retention_sidecar");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -570,7 +562,7 @@ fn should_cleanup_bucket_membership_after_retention() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -645,7 +637,6 @@ fn should_cleanup_bucket_membership_after_retention() {
 #[test]
 fn should_range_scan_same_second_timestamps_chronologically_through_time_series_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_same_second_range");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -653,7 +644,7 @@ fn should_range_scan_same_second_timestamps_chronologically_through_time_series_
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             for (table, indexed) in [("ts_same_second_baseline", false), ("ts_same_second_indexed", true)] {

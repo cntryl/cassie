@@ -114,7 +114,6 @@ fn should_keep_row_hashes_deterministic_across_restart_schema_epoch_changes() {
 #[test]
 fn should_report_empty_projection_root_after_delete() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_row_hash_delete");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -122,7 +121,7 @@ fn should_report_empty_projection_root_after_delete() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -169,7 +168,6 @@ fn should_report_empty_projection_root_after_delete() {
 #[test]
 fn should_expose_projection_verification_state_through_catalog_views() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_hash_catalog_views");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -177,7 +175,7 @@ fn should_expose_projection_verification_state_through_catalog_views() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -265,7 +263,6 @@ fn should_expose_projection_verification_state_through_catalog_views() {
 #[test]
 fn should_report_integrity_failure_for_corrupt_row_hash() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_hash_corruption");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -273,7 +270,7 @@ fn should_report_integrity_failure_for_corrupt_row_hash() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -336,7 +333,6 @@ fn row_hash_storage_key(cassie: &Cassie, collection: &str, row_id: &str) -> Vec<
 #[test]
 fn should_block_unverified_projection_version_activation_without_unsafe_override() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_activation_verification");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -344,7 +340,7 @@ fn should_block_unverified_projection_version_activation_without_unsafe_override
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

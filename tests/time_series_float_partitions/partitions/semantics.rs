@@ -1,9 +1,5 @@
-use super::support_sql as support;
-
 use cassie::app::Cassie;
 use cassie::types::Value;
-
-use support::{data_dir, use_local_storage};
 
 fn query_ids(
     cassie: &Cassie,
@@ -34,15 +30,13 @@ fn query_ids(
 #[test]
 fn should_match_full_scan_for_whole_number_float_partition_values() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("time_series_float_partitions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             let session = cassie.create_session("tester", None);
             for table in ["float_partition_baseline", "float_partition_indexed"] {
                 cassie
@@ -128,6 +122,5 @@ fn should_match_full_scan_for_whole_number_float_partition_values() {
                 assert_eq!(indexed, baseline, "indexed: {predicate}");
             }
 
-            let _ = std::fs::remove_dir_all(path);
         });
 }

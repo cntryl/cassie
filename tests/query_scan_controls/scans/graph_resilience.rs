@@ -50,12 +50,12 @@ fn should_preserve_seeded_graph_results_across_path_permutations() {
     assert_eq!(forward.overlay_fallback_reason, "transaction-overlay");
 }
 
-fn configured_cassie(path: &str, memory_budget: usize) -> Cassie {
+fn configured_cassie(memory_budget: usize) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = memory_budget;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("configured cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("configured cassie");
     cassie.startup().expect("startup");
     cassie
 }
@@ -82,11 +82,9 @@ fn graph_edge_payload(
 fn should_keep_colon_containing_node_identities_distinct_in_shortest_path() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    use_local_storage();
-    let path = data_dir("graph_colon_identity");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = support::new_in_memory_cassie().expect("cassie");
         let session = cassie.create_session("tester", None);
         execute(&cassie, &session, "CREATE GRAPH social");
         execute(
@@ -115,19 +113,16 @@ fn should_keep_colon_containing_node_identities_distinct_in_shortest_path() {
                 Value::Int64(2),
             ]]
         );
-        let _ = std::fs::remove_dir_all(path);
-    });
+            });
 }
 
 #[test]
 fn should_merge_both_directions_by_weight_then_edge_id_before_limit() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    use_local_storage();
-    let path = data_dir("graph_weighted_limit");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = support::new_in_memory_cassie().expect("cassie");
         let session = cassie.create_session("tester", None);
         execute(&cassie, &session, "CREATE GRAPH social");
         execute(
@@ -172,19 +167,16 @@ fn should_merge_both_directions_by_weight_then_edge_id_before_limit() {
                 ],
             ]
         );
-        let _ = std::fs::remove_dir_all(path);
-    });
+            });
 }
 
 #[test]
 fn should_return_a_self_loop_once_when_scanning_both_directions() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    use_local_storage();
-    let path = data_dir("graph_self_loop_both");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = support::new_in_memory_cassie().expect("cassie");
         let session = cassie.create_session("tester", None);
         execute(&cassie, &session, "CREATE GRAPH social");
         execute(
@@ -211,19 +203,16 @@ fn should_return_a_self_loop_once_when_scanning_both_directions() {
                 Value::String("alice".into()),
             ]]
         );
-        let _ = std::fs::remove_dir_all(path);
-    });
+            });
 }
 
 #[test]
 fn should_fail_graph_traversal_atomically_given_low_query_memory() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    use_local_storage();
-    let path = data_dir("graph_low_memory");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = configured_cassie(&path, 64 * 1_024);
+        let cassie = configured_cassie(512);
         let session = cassie.create_session("tester", None);
         execute(&cassie, &session, "CREATE GRAPH social");
         let edges = (0..8)
@@ -240,11 +229,6 @@ fn should_fail_graph_traversal_atomically_given_low_query_memory() {
             .midge
             .put_fresh_graph_documents("social_edges", edges)
             .expect("seed graph edges");
-        // Bootstrap under an ample budget, then reopen the same durable graph at the target cap.
-        drop(session);
-        drop(cassie);
-        let cassie = configured_cassie(&path, 64);
-        let session = cassie.create_session("tester", None);
         let before = cassie.metrics();
 
         // Act
@@ -274,19 +258,16 @@ fn should_fail_graph_traversal_atomically_given_low_query_memory() {
             after["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
         );
-        let _ = std::fs::remove_dir_all(path);
-    });
+            });
 }
 
 #[test]
 fn should_bound_shortest_path_search_by_query_memory() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    use_local_storage();
-    let path = data_dir("graph_shortest_path_low_memory");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-            let cassie = configured_cassie(&path, 64 * 1_024);
+            let cassie = configured_cassie(512);
             let session = cassie.create_session("tester", None);
             execute(&cassie, &session, "CREATE GRAPH social");
             let edges = (0..8)
@@ -303,11 +284,6 @@ fn should_bound_shortest_path_search_by_query_memory() {
                 .midge
                 .put_fresh_graph_documents("social_edges", edges)
                 .expect("seed graph edges");
-            // Bootstrap under an ample budget, then reopen the same durable graph at the target cap.
-            drop(session);
-            drop(cassie);
-            let cassie = configured_cassie(&path, 64);
-            let session = cassie.create_session("tester", None);
             let before = cassie.metrics();
 
             // Act
@@ -337,19 +313,16 @@ fn should_bound_shortest_path_search_by_query_memory() {
                 after["query"]["current_accounted_memory_bytes"].as_u64(),
                 Some(0)
             );
-            let _ = std::fs::remove_dir_all(path);
-        });
+                    });
 }
 
 #[test]
 fn should_cancel_graph_scan_at_a_deterministic_entry_without_partial_metrics() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    use_local_storage();
-    let path = data_dir("graph_deterministic_cancellation");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = configured_cassie(&path, 64 * 1_024);
+        let cassie = configured_cassie(64 * 1_024);
         let session = cassie.create_session("tester", None);
         execute(&cassie, &session, "CREATE GRAPH social");
         let edges = (0..8)
@@ -403,19 +376,16 @@ fn should_cancel_graph_scan_at_a_deterministic_entry_without_partial_metrics() {
             after_metrics["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
         );
-        let _ = std::fs::remove_dir_all(path);
-    });
+            });
 }
 
 #[test]
 fn should_match_native_results_after_transaction_overlay_commit() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    use_local_storage();
-    let path = data_dir("graph_overlay_fallback");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = support::new_in_memory_cassie().expect("cassie");
         let session = cassie.create_session("writer", None);
         execute(&cassie, &session, "CREATE GRAPH social");
         execute(&cassie, &session, "BEGIN");
@@ -451,19 +421,16 @@ fn should_match_native_results_after_transaction_overlay_commit() {
             overlay_metrics["graph"]["last_fallback_reason"],
             "transaction-overlay"
         );
-        let _ = std::fs::remove_dir_all(path);
-    });
+            });
 }
 
 #[test]
 fn should_preserve_graph_adjacency_across_schema_rename() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    use_local_storage();
-    let path = data_dir("graph_schema_rename_drop");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = support::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", Some("postgres".to_string()));
         execute(&cassie, &session, "CREATE SCHEMA reporting");
@@ -520,8 +487,7 @@ fn should_preserve_graph_adjacency_across_schema_rename() {
         assert_eq!(renamed, vec![vec![Value::String("e1".into())]]);
         assert!(old_name.is_err());
         assert_eq!(storage_id_after_rename, storage_id_before_rename);
-        let _ = std::fs::remove_dir_all(path);
-    });
+            });
 }
 
 #[test]
@@ -707,11 +673,9 @@ fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
 fn should_verify_all_authoritative_edges_before_filtered_native_graph_reads() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    use_local_storage();
-    let path = data_dir("graph_bounded_native_reads");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = configured_cassie(&path, 64 * 1_024);
+        let cassie = configured_cassie(64 * 1_024);
         let session = cassie.create_session("tester", None);
         execute(&cassie, &session, "CREATE GRAPH social");
         let mut edges = (0..64)
@@ -773,6 +737,5 @@ fn should_verify_all_authoritative_edges_before_filtered_native_graph_reads() {
             cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
         );
-        let _ = std::fs::remove_dir_all(path);
-    });
+            });
 }

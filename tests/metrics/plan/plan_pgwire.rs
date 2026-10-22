@@ -2,7 +2,7 @@ use super::support_pgwire as pgwire_support;
 
 use cassie::app::Cassie;
 use cassie::types::{DataType, FieldSchema, Schema};
-use pgwire_support::{data_dir, describe_statement_frame, startup_frame, use_local_storage};
+use pgwire_support::{data_dir, describe_statement_frame, startup_frame};
 
 fn password_frame(password: &str) -> Vec<u8> {
     pgwire_support::password_message(password)
@@ -42,7 +42,6 @@ async fn read_until_ready(
 #[test]
 fn should_report_plan_cache_metrics() {
     // Arrange
-    use_local_storage();
     let path = data_dir("plan_cache_metrics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -50,7 +49,7 @@ fn should_report_plan_cache_metrics() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "metrics_plan_cache_docs";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -118,7 +117,6 @@ fn should_report_plan_cache_metrics() {
 #[test]
 fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
     // Arrange
-    use_local_storage();
     let path = data_dir("pgwire_protocol_errors");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -128,7 +126,7 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
     runtime.block_on(async {
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let before_protocol_errors = cassie.metrics()["pgwire"]["protocol_errors_total"]
             .as_u64()

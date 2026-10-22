@@ -2,7 +2,6 @@
 
 use super::super::support_pgwire as wire;
 use super::super::support_sql_fixture::sql_fixture;
-use cassie::app::Cassie;
 use cassie::types::Value;
 use std::time::Duration;
 

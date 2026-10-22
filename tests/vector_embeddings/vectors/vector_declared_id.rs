@@ -1,16 +1,9 @@
-use super::support_sql as support;
-
-use cassie::app::Cassie;
 use cassie::types::Value;
-
-use support::{data_dir, use_local_storage};
 
 #[test]
 fn should_return_declared_id_from_vector_distance_top_k() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("vector_declared_id_topk");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -50,6 +43,4 @@ fn should_return_declared_id_from_vector_distance_top_k() {
     // Assert
     assert_eq!(declared.rows()[0][0], Value::Int64(7));
     assert_eq!(identity.rows()[0][0], Value::String("a".to_string()));
-
-    let _ = std::fs::remove_dir_all(path);
 }

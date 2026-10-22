@@ -39,9 +39,7 @@ fn register_collection(cassie: &Cassie, collection: &str) -> String {
 #[test]
 fn should_increment_the_durable_data_epoch_once_per_changed_batch() {
     // Arrange
-    support::use_local_storage();
-    let path = support::data_dir("durable_data_epoch");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let collection = register_collection(&cassie, "durable_data_epoch");
     assert_eq!(cassie.midge.data_epoch().expect("read epoch"), 0);
@@ -103,9 +101,8 @@ fn should_hydrate_the_durable_data_epoch_after_restart() {
 #[test]
 fn should_increment_data_epoch_for_concurrent_writes_to_different_collections() {
     // Arrange
-    support::use_local_storage();
-    let path = support::data_dir("concurrent_data_epoch");
-    let cassie = std::sync::Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+    let cassie =
+        std::sync::Arc::new(crate::support_sql::new_in_memory_cassie().expect("create Cassie"));
     cassie.startup().expect("start Cassie");
     let first = register_collection(&cassie, "concurrent_data_epoch_first");
     let second = register_collection(&cassie, "concurrent_data_epoch_second");
@@ -142,9 +139,7 @@ fn should_increment_data_epoch_for_concurrent_writes_to_different_collections() 
 #[test]
 fn should_leave_data_unchanged_when_write_conflict_retries_are_exhausted() {
     // Arrange
-    support::use_local_storage();
-    let path = support::data_dir("write_conflict_retry_exhaustion");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let collection = register_collection(&cassie, "write_conflict_retry_exhaustion");
     set_document_write_conflicts_remaining(8);
@@ -173,9 +168,8 @@ fn should_leave_data_unchanged_when_write_conflict_retries_are_exhausted() {
 #[test]
 fn should_retry_a_document_write_batch_after_a_transient_write_stall() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("write_stall_retry");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let collection = register_collection(&cassie, "write_stall_retry");
     set_document_write_storage_failures(DocumentWriteStorageFailure::WriteStall, 2);
@@ -208,9 +202,8 @@ fn should_retry_a_document_write_batch_after_a_transient_write_stall() {
 #[test]
 fn should_not_retry_a_document_write_batch_after_the_writer_is_fenced() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("fenced_write_no_retry");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let collection = register_collection(&cassie, "fenced_write_no_retry");
     set_document_write_storage_failures(DocumentWriteStorageFailure::Fenced, 1);

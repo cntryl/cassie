@@ -2,7 +2,7 @@ pub(crate) use cassie::app::Cassie;
 use cassie::app::CassieSession;
 pub(crate) use cassie::types::Value;
 
-pub(crate) use crate::support_sql::{data_dir, use_local_storage};
+pub(crate) use crate::support_sql::{data_dir, new_in_memory_cassie, use_local_storage};
 
 pub(crate) fn current_thread_runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()

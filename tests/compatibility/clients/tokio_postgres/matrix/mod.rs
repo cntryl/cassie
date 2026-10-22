@@ -5,10 +5,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 use std::{fs, path::PathBuf};
 
-use super::support_sql as support;
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
-use support::*;
 use tokio_postgres::{error::DbError, NoTls, SimpleQueryMessage};
 use uuid::Uuid;
 
@@ -22,18 +20,15 @@ fn temp_dir(label: &str) -> PathBuf {
 }
 
 pub(super) struct CompatibilityServer {
-    data_dir: String,
     pub(super) addr: SocketAddr,
     server: tokio::task::JoinHandle<()>,
 }
 
 impl CompatibilityServer {
-    pub(super) async fn start(label: &str) -> Self {
-        use_local_storage();
-        let data_dir = data_dir(label);
+    pub(super) async fn start(_label: &str) -> Self {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -48,11 +43,7 @@ impl CompatibilityServer {
         });
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        Self {
-            data_dir,
-            addr,
-            server,
-        }
+        Self { addr, server }
     }
 
     pub(super) async fn connect(&self) -> (tokio_postgres::Client, tokio::task::JoinHandle<()>) {
@@ -78,13 +69,11 @@ impl CompatibilityServer {
         self.server.abort();
         let _ = connection.await;
         let _ = self.server.await;
-        let _ = std::fs::remove_dir_all(self.data_dir);
     }
 
     async fn shutdown_without_client(self) {
         self.server.abort();
         let _ = self.server.await;
-        let _ = std::fs::remove_dir_all(self.data_dir);
     }
 }
 

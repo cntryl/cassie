@@ -32,7 +32,6 @@ fn run_queries_with_config(
     queries: Vec<String>,
     config: CassieRuntimeConfig,
 ) -> Vec<Frames> {
-    crate::support_sql::use_local_storage();
     let path = crate::support_sql::data_dir(label);
     let _directory = FixtureDirectory(path.clone());
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -41,7 +40,7 @@ fn run_queries_with_config(
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
         cassie.startup().expect("startup catalog identity fixture");
         let server = wire::spawn_server(cassie).await;
         let socket = tokio::net::TcpStream::connect(server.addr)

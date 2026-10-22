@@ -1,7 +1,6 @@
 #[test]
 fn should_stop_vectorized_join_after_unordered_limit_budget() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_model_vectorized_join_limit_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -11,7 +10,7 @@ fn should_stop_vectorized_join_after_unordered_limit_budget() {
     runtime.block_on(async {
         let mut config = vectorized_join_config();
         config.limits.vectorized_join_batch_size = 8;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -94,7 +93,6 @@ fn should_stop_vectorized_join_after_unordered_limit_budget() {
 #[test]
 fn should_push_unordered_left_join_limit_into_left_source_scan() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_model_left_join_source_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -107,7 +105,7 @@ fn should_push_unordered_left_join_limit_into_left_source_scan() {
         // The bounded source, qualified rows, and joined output overlap.
         // 64 KiB fits that working set; an eager 200-row source still cannot fit.
         config.limits.query_memory_budget_bytes = 64 * 1024;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -188,7 +186,6 @@ fn should_push_unordered_left_join_limit_into_left_source_scan() {
 #[test]
 fn should_keep_null_trailing_index_keys_in_bounded_indexed_join() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_model_indexed_join_null_trailing_key");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -197,7 +194,7 @@ fn should_keep_null_trailing_index_keys_in_bounded_indexed_join() {
 
     runtime.block_on(async {
             let cassie =
-                Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+                Cassie::new_in_memory_with_config(vectorized_join_config()).unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             for sql in [
@@ -243,7 +240,6 @@ fn should_keep_null_trailing_index_keys_in_bounded_indexed_join() {
 #[test]
 fn should_probe_indexed_left_source_for_bounded_inner_join() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_model_indexed_inner_join_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -255,7 +251,7 @@ fn should_probe_indexed_left_source_for_bounded_inner_join() {
         config.limits.vectorized_join_batch_size = 8;
         // Admit the two indexed rows, source conversion, and retained output together.
         config.limits.query_memory_budget_bytes = 64 * 1024;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         seed_indexed_join_tables(&cassie, &session);
@@ -284,7 +280,6 @@ fn should_probe_indexed_left_source_for_bounded_inner_join() {
 #[test]
 fn should_stream_unindexed_bounded_inner_join_until_output_budget() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_model_streaming_inner_join_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -296,7 +291,7 @@ fn should_stream_unindexed_bounded_inner_join_until_output_budget() {
         // Preserve the original preemptive dense path while admitting retained state.
         config.limits.vectorized_join_batch_size = 64;
         config.limits.query_memory_budget_bytes = 64 * 1024;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -396,7 +391,6 @@ fn should_stream_unindexed_bounded_inner_join_until_output_budget() {
 #[test]
 fn should_stream_dense_bounded_inner_join_without_materializing_right_source() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_model_dense_streaming_inner_join_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -409,7 +403,7 @@ fn should_stream_dense_bounded_inner_join_without_materializing_right_source() {
         // The capacity admits both current source rows plus retained joined output.
         config.limits.vectorized_join_batch_size = 64;
         config.limits.query_memory_budget_bytes = 64 * 1024;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

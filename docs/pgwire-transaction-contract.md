@@ -31,6 +31,34 @@ buffer limit, ignored Flush/Sync during copy-in, and late-frame recovery.
 No transactional DDL, extended COPY, distributed transactions, new isolation
 levels, or persistent transaction format is introduced.
 
+## Selected local-development contract expansion
+
+The table above describes the current implementation. The local-development
+gate selects the following database-scoped transactional DDL extension under
+[#833](https://github.com/cntryl/cassie/issues/833); it remains unsupported
+until implementation and acceptance evidence are complete:
+
+- Supported schema, table, and scalar-index CREATE/ALTER/DROP operations stage
+  catalog and row changes within the owning Midge database family.
+- The owning session sees its staged objects and can read or write through them.
+  Other sessions see the previous committed catalog and rows until commit.
+- Commit publishes catalog changes and staged row writes atomically in that
+  family. Rollback discards both. Savepoint rollback restores the catalog and
+  row state that existed at the savepoint.
+- A failed DDL or constraint check aborts the explicit transaction until
+  rollback or rollback to a valid savepoint. Failed changes do not reserve
+  relation or index names after recovery.
+- Schema/data changes invalidate affected prepared plans and cached results at
+  publication. Rolled-back changes never become visible to another session.
+- Cross-database transactions, broader isolation levels, and persistent format
+  changes remain outside this selected contract.
+
+Focused acceptance includes create/evolve/populate, deliberately failing
+migrations and writes, cross-session visibility, savepoint and transaction
+rollback, named constraint errors, index contents, and restart readback. Broader
+catalog snapshot semantics remain with their existing owners; this contract
+does not select full PostgreSQL catalog MVCC.
+
 ## Origins and protocol recovery
 
 | State | Visibility and ownership | ReadyForQuery |

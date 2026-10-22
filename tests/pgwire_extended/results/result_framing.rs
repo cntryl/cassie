@@ -10,9 +10,8 @@ const OID_BOOL: i32 = 16;
 type Frames = Vec<(u8, Vec<u8>)>;
 
 fn configured_cassie(label: &str, setup: &[&str]) -> (Cassie, String) {
-    support::use_local_storage();
     let path = support::data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     for sql in setup {

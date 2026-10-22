@@ -77,8 +77,8 @@ fn simulate_interrupted_rollup_refresh(cassie: &Cassie, name: &str) {
         .expect("remove output after replacement begins");
 }
 
-fn create_rollup_publication_fixture(path: &str) -> (std::sync::Arc<Cassie>, String, String, u64) {
-    let cassie = std::sync::Arc::new(Cassie::new_with_data_dir(path).unwrap());
+fn create_rollup_publication_fixture() -> (std::sync::Arc<Cassie>, String, String, u64) {
+    let cassie = std::sync::Arc::new(crate::support_sql::new_in_memory_cassie().unwrap());
     cassie.startup().unwrap();
     let setup = cassie.create_session("setup", None);
     cassie

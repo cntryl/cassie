@@ -4,17 +4,16 @@ use cassie::app::{Cassie, CassieSession};
 use cassie::executor::QueryResult;
 use cassie::types::Value;
 
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn with_scores(label: &str, test: impl FnOnce(&Cassie, &CassieSession)) {
-    use_local_storage();
     let path = data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         run(&cassie, &session, "CREATE TABLE scores (g TEXT, v BIGINT)");

@@ -61,3 +61,60 @@ fn should_not_resolve_missing_schema_qualified_index_in_another_schema() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_drop_the_first_unqualified_index_in_search_path_order() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("drop_index_search_path_order").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE SCHEMA compat_index_path_first",
+                "CREATE SCHEMA compat_index_path_second",
+                "CREATE TABLE compat_index_path_first.rows (id INT)",
+                "CREATE TABLE compat_index_path_second.rows (id INT)",
+                "CREATE INDEX shared_path_idx ON compat_index_path_first.rows (id)",
+                "CREATE INDEX shared_path_idx ON compat_index_path_second.rows (id)",
+                "SET search_path TO compat_index_path_first, compat_index_path_second",
+            ],
+        )
+        .await
+        .expect("create same-named indexes and select their search order");
+
+        // Act
+        client
+            .batch_execute("DROP INDEX shared_path_idx")
+            .await
+            .expect("drop the first matching index in search_path order");
+        let remaining = client
+            .query(
+                "SELECT schemaname, indexname \
+                 FROM pg_catalog.pg_indexes \
+                 WHERE indexname = 'shared_path_idx' \
+                   AND schemaname IN (\
+                     'compat_index_path_first', 'compat_index_path_second') \
+                 ORDER BY schemaname",
+                &[],
+            )
+            .await
+            .expect("inspect indexes after the search-path drop");
+
+        // Assert
+        assert_eq!(
+            remaining
+                .iter()
+                .map(|row| (row.get::<_, String>(0), row.get::<_, String>(1)))
+                .collect::<Vec<_>>(),
+            vec![(
+                "compat_index_path_second".to_owned(),
+                "shared_path_idx".to_owned(),
+            )]
+        );
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

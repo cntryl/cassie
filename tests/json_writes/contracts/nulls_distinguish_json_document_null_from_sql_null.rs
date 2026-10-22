@@ -1,7 +1,7 @@
 #[test]
 fn should_distinguish_json_document_null_from_sql_null() {
     // Arrange
-    with_local_json_database("json_document_null", |cassie, session| {
+    with_json_database(|cassie, session| {
         cassie
             .execute_sql(
                 session,
@@ -94,7 +94,7 @@ fn should_distinguish_json_document_null_from_sql_null() {
 
 #[test]
 fn should_allow_json_null_in_required_json_field() {
-    with_local_json_database("json_null_required_rest", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -124,7 +124,7 @@ fn should_allow_json_null_in_required_json_field() {
 
 #[test]
 fn should_preserve_json_null_in_rest_document() {
-    with_local_json_database("json_null_rest_document", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -152,7 +152,7 @@ fn should_preserve_json_null_in_rest_document() {
 
 #[test]
 fn should_omit_sql_null_fields_from_raw_documents() {
-    with_local_json_database("json_null_raw_payload", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -196,7 +196,7 @@ fn should_omit_sql_null_fields_from_raw_documents() {
 
 #[test]
 fn should_return_json_null_from_insert_returning() {
-    with_local_json_database("json_null_insert_returning", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -225,7 +225,7 @@ fn should_return_json_null_from_insert_returning() {
 
 #[test]
 fn should_preserve_json_null_in_upsert() {
-    with_local_json_database("json_null_upsert", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -261,7 +261,7 @@ fn should_preserve_json_null_in_upsert() {
 
 #[test]
 fn should_distinguish_null_values_after_update() {
-    with_local_json_database("json_null_update", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -323,15 +323,13 @@ fn should_distinguish_null_values_after_update() {
 #[test]
 fn should_preserve_json_null_in_column_storage_paths() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("json_null_column_storage");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -423,13 +421,12 @@ fn should_preserve_json_null_in_column_storage_paths() {
 
         drop(session);
         drop(cassie);
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_enforce_uniqueness_for_json_null_but_allow_multiple_sql_nulls() {
-    with_local_json_database("json_null_unique_values", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -499,7 +496,7 @@ fn should_enforce_uniqueness_for_json_null_but_allow_multiple_sql_nulls() {
 
 #[test]
 fn should_evaluate_partial_unique_predicates_with_json_null_semantics() {
-    with_local_json_database("json_null_partial_unique", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -548,7 +545,7 @@ fn should_evaluate_partial_unique_predicates_with_json_null_semantics() {
 
 #[test]
 fn should_check_json_null_foreign_keys_as_values() {
-    with_local_json_database("json_null_foreign_key", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -598,7 +595,7 @@ fn should_check_json_null_foreign_keys_as_values() {
 
 #[test]
 fn should_assign_sql_null_when_foreign_key_delete_uses_set_null() {
-    with_local_json_database("json_null_fk_delete_setnull", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -652,7 +649,7 @@ fn should_assign_sql_null_when_foreign_key_delete_uses_set_null() {
 
 #[test]
 fn should_assign_sql_null_when_foreign_key_update_uses_set_null() {
-    with_local_json_database("json_null_fk_update_setnull", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(
@@ -706,7 +703,7 @@ fn should_assign_sql_null_when_foreign_key_update_uses_set_null() {
 
 #[test]
 fn should_cascade_sql_null_when_parent_json_null_becomes_sql_null() {
-    with_local_json_database("json_null_fk_update_cascade", |cassie, session| {
+    with_json_database(|cassie, session| {
         // Arrange
         cassie
             .execute_sql(

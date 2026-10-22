@@ -2,7 +2,7 @@ use cassie::app::{Cassie, ProjectionReplayBatch, ProjectionReplayEvent};
 use cassie::catalog::ProjectionVerificationState;
 
 use super::support_metrics as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn canonical_projection(cassie: &Cassie, projection: &str) -> String {
     cassie
@@ -25,7 +25,6 @@ fn projection_metric_delta(
 #[test]
 fn should_record_projection_replay_write_amplification() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_replay_write_amplification");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -33,7 +32,7 @@ fn should_record_projection_replay_write_amplification() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -100,7 +99,6 @@ fn should_record_projection_replay_write_amplification() {
 #[test]
 fn should_record_duplicate_replay_checks_without_row_puts() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_replay_duplicate_checks");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -108,7 +106,7 @@ fn should_record_duplicate_replay_checks_without_row_puts() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -181,7 +179,6 @@ fn should_record_duplicate_replay_checks_without_row_puts() {
 #[test]
 fn should_record_projection_rebuild_write_categories() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_rebuild_write_categories");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -189,7 +186,7 @@ fn should_record_projection_rebuild_write_categories() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -250,7 +247,6 @@ fn should_record_projection_rebuild_write_categories() {
 #[test]
 fn should_leave_projection_rebuild_hashes_current_after_refresh() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_rebuild_current_hashes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -258,7 +254,7 @@ fn should_leave_projection_rebuild_hashes_current_after_refresh() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -329,7 +325,6 @@ fn should_leave_projection_rebuild_hashes_current_after_refresh() {
 #[test]
 fn should_record_projection_activation_metadata_write() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_activation_metadata_write");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -337,7 +332,7 @@ fn should_record_projection_activation_metadata_write() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

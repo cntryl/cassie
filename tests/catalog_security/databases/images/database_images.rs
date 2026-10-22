@@ -1,16 +1,12 @@
-use super::support_executor as support;
-use cassie::app::Cassie;
 use cassie::catalog::{
     canonical_relation_name, FunctionArgMeta, FunctionMeta, ProcedureMeta, Volatility,
 };
 use cassie::types::{DataType, FieldSchema, Schema};
-use support::*;
 
 #[test]
 fn should_round_trip_one_database_as_bounded_chunks() {
     // Arrange
-    let source_path = data_dir("source");
-    let cassie = Cassie::new_with_data_dir(&source_path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     cassie
         .midge
@@ -75,15 +71,12 @@ fn should_round_trip_one_database_as_bounded_chunks() {
         .get_document(&source_collection, "row-1")
         .expect("source row lookup")
         .is_some());
-
-    let _ = std::fs::remove_dir_all(source_path);
 }
 
 #[test]
 fn should_reject_qualified_database_restore_targets() {
     // Arrange
-    let source_path = data_dir("qualified_restore_target");
-    let cassie = Cassie::new_with_data_dir(&source_path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
 
     // Act
@@ -91,15 +84,12 @@ fn should_reject_qualified_database_restore_targets() {
 
     // Assert
     assert!(result.is_err(), "qualified database targets are invalid");
-
-    let _ = std::fs::remove_dir_all(source_path);
 }
 
 #[test]
 fn should_reject_restore_when_target_matches_existing_database_case_insensitively() {
     // Arrange
-    let source_path = data_dir("case_restore_source");
-    let cassie = Cassie::new_with_data_dir(&source_path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     cassie
         .midge
@@ -150,15 +140,12 @@ fn should_reject_restore_when_target_matches_existing_database_case_insensitivel
         .expect("live row lookup")
         .expect("live row remains present");
     assert_eq!(live_row.payload["code"], "live");
-
-    let _ = std::fs::remove_dir_all(source_path);
 }
 
 #[test]
 fn should_round_trip_program_catalog_metadata() {
     // Arrange
-    let source_path = data_dir("program_image_source");
-    let cassie = Cassie::new_with_data_dir(&source_path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     cassie
         .midge
@@ -238,6 +225,4 @@ fn should_round_trip_program_catalog_metadata() {
             body: "SELECT 1".to_string(),
         })
     );
-
-    let _ = std::fs::remove_dir_all(source_path);
 }

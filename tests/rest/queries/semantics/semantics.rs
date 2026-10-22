@@ -1,9 +1,8 @@
 #[test]
 fn should_crud_collection_documents_through_rest() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("crud");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "rest_docs";
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -69,9 +68,8 @@ fn should_crud_collection_documents_through_rest() {
 #[test]
 fn should_apply_declared_on_delete_actions_to_rest_document_deletes() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("rest_on_delete_actions");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("root", None);
     for sql in [
@@ -134,9 +132,8 @@ fn should_apply_declared_on_delete_actions_to_rest_document_deletes() {
 #[test]
 fn should_create_rest_collection_for_session_database_scope() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("rest_collection_session_scope");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let default_session = cassie.create_session("root", Some("postgres".to_string()));
     cassie
@@ -178,7 +175,7 @@ fn should_create_rest_collection_for_session_database_scope() {
 fn should_apply_default_values_for_rest_ingest() {
     // Arrange
     let path = format!("/tmp/cassie-rest-default-{}", Uuid::new_v4());
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "rest_constraint_defaults";
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -221,9 +218,8 @@ fn should_apply_default_values_for_rest_ingest() {
 #[test]
 fn should_allow_case_distinct_rest_collection_fields() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("collection-case-distinct-fields");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("root", None);
     let body = serde_json::json!({

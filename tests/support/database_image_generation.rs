@@ -4,19 +4,27 @@ use cassie::app::{Cassie, CassieSession, DatabaseBackupStream};
 pub struct Fixture {
     pub cassie: Cassie,
     pub session: CassieSession,
-    path: String,
+    // Dropped after Cassie so the local Midge engine has closed before cleanup.
+    _data_dir: DataDirectory,
+}
+
+struct DataDirectory(String);
+
+impl Drop for DataDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }
 
 impl Fixture {
-    /// Opens and seeds one local disk-backed source database.
+    /// Opens and seeds one local source database for image export and restore.
     ///
     /// # Panics
     ///
     /// Panics when fixture initialization fails.
     pub fn seeded() -> Self {
-        super::support_sql::use_local_storage();
-        let path = super::support_sql::data_dir("database-image-generation");
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let data_dir = super::support_sql::data_dir("database-image-generation");
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("Cassie");
         cassie.startup().expect("startup");
         cassie
             .midge
@@ -52,7 +60,7 @@ impl Fixture {
         Self {
             cassie,
             session,
-            path,
+            _data_dir: DataDirectory(data_dir),
         }
     }
 
@@ -92,11 +100,5 @@ impl Fixture {
             backup.next_chunk().is_err(),
             "failed stream cannot resume toward a footer"
         );
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
     }
 }

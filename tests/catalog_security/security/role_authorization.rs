@@ -9,20 +9,15 @@ use tokio_postgres::NoTls;
 use super::support_sql as support;
 use support::*;
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 #[test]
 fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
     // Arrange
-    use_local_storage();
     let path = data_dir("statement_families");
     let config = CassieRuntimeConfig {
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
         .authenticate_role("root", Some("sa-secret"), None)
@@ -115,13 +110,12 @@ fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
 #[test]
 fn should_enforce_authenticated_read_only_access_through_rest() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rest");
     let config = CassieRuntimeConfig {
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
         .authenticate_role("root", Some("sa-secret"), None)
@@ -218,13 +212,12 @@ fn should_enforce_authenticated_read_only_access_through_rest() {
 #[test]
 fn should_report_insufficient_privilege_sqlstate_through_pgwire() {
     // Arrange
-    use_local_storage();
     let path = data_dir("pgwire");
     let config = CassieRuntimeConfig {
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
         .authenticate_role("root", Some("sa-secret"), None)

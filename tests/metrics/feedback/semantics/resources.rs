@@ -1,7 +1,6 @@
 #[test]
 fn should_evict_runtime_feedback_when_retention_limit_is_exceeded() {
     // Arrange
-    use_local_storage();
     let path = data_dir("feedback_eviction");
     let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.feedback_entries = 1;
@@ -11,7 +10,7 @@ fn should_evict_runtime_feedback_when_retention_limit_is_exceeded() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let collection = "metrics_feedback_eviction";
         register_feedback_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -45,7 +44,6 @@ fn should_evict_runtime_feedback_when_retention_limit_is_exceeded() {
 #[test]
 fn should_use_runtime_feedback_for_candidate_budget() {
     // Arrange
-    use_local_storage();
     let path = data_dir("adaptive_candidate_feedback");
     let config = adaptive_candidate_config(1, 100);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -54,7 +52,7 @@ fn should_use_runtime_feedback_for_candidate_budget() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            let cassie = Cassie::new_in_memory_with_config(config).unwrap();
             let collection = "metrics_adaptive_candidate_feedback";
             register_adaptive_candidate_collection(&cassie, collection);
             let session = cassie.create_session("tester", None);

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_rustls::rustls::pki_types::ServerName;
@@ -57,7 +56,6 @@ async fn connect_tls(
 #[test]
 fn should_execute_pgwire_query_over_negotiated_tls() {
     // Arrange
-    support::use_local_storage();
     let data_path = support::data_dir("tls-query");
     let tls_path = std::env::temp_dir().join(format!("cassie-pgwire-tls-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&tls_path).expect("TLS directory");
@@ -69,7 +67,7 @@ fn should_execute_pgwire_query_over_negotiated_tls() {
     std::fs::write(&key_path, identity.signing_key.serialize_pem()).expect("key fixture");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -118,7 +116,6 @@ fn should_execute_pgwire_query_over_negotiated_tls() {
 #[test]
 fn should_preserve_pgwire_cancel_protocol_over_tls() {
     // Arrange
-    support::use_local_storage();
     let data_path = support::data_dir("tls-cancel");
     let tls_path = std::env::temp_dir().join(format!("cassie-pgwire-tls-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&tls_path).expect("TLS directory");
@@ -130,7 +127,7 @@ fn should_preserve_pgwire_cancel_protocol_over_tls() {
     std::fs::write(&key_path, identity.signing_key.serialize_pem()).expect("key fixture");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -180,11 +177,10 @@ fn should_preserve_pgwire_cancel_protocol_over_tls() {
 #[test]
 fn should_reject_invalid_pgwire_tls_identity_before_listening() {
     // Arrange
-    support::use_local_storage();
     let data_path = support::data_dir("tls-invalid-identity");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let config = CassieRuntimeConfig {
             pgwire_tls_cert_file: Some("/tmp/cassie-missing-pgwire-cert.pem".to_string()),

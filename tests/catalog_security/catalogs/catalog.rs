@@ -77,7 +77,6 @@ fn should_execute_sql_query_after_catalog_hydration() {
 #[test]
 fn should_persist_namespace_on_create_schema() {
     // Arrange
-    use_local_storage();
     let path = data_dir("create_schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -85,7 +84,7 @@ fn should_persist_namespace_on_create_schema() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie
             .midge
             .ensure_families_ready()
@@ -104,7 +103,7 @@ fn should_persist_namespace_on_create_schema() {
             .midge
             .list_namespaces()
             .iter()
-            .any(|name| name == "analytics"));
+            .any(|name| name == &canonical_schema_name("postgres", "analytics")));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -113,7 +112,6 @@ fn should_persist_namespace_on_create_schema() {
 #[test]
 fn should_rename_schema_through_sql() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rename_schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -121,7 +119,7 @@ fn should_rename_schema_through_sql() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         let next_schema = canonical_schema_name("postgres", "reporting_archive");
@@ -160,7 +158,6 @@ fn should_rename_schema_through_sql() {
 #[test]
 fn should_drop_schema_through_sql() {
     // Arrange
-    use_local_storage();
     let path = data_dir("drop_schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -168,7 +165,7 @@ fn should_drop_schema_through_sql() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -196,7 +193,6 @@ fn should_drop_schema_through_sql() {
 #[test]
 fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
     // Arrange
-    use_local_storage();
     let path = data_dir("create_schema_if_not_exists");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -204,7 +200,7 @@ fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.create_namespace("analytics").unwrap();
 
         let initial = cassie.midge.list_namespaces();
@@ -219,7 +215,9 @@ fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
         assert_eq!(result.command(), "CREATE SCHEMA");
         let namespaced = cassie.midge.list_namespaces();
         assert_eq!(namespaced.len(), initial.len());
-        assert!(namespaced.iter().any(|name| name == "analytics"));
+        assert!(namespaced
+            .iter()
+            .any(|name| name == &canonical_schema_name("postgres", "analytics")));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -228,7 +226,6 @@ fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
 #[test]
 fn should_rename_column_through_sql() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rename_column");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -236,7 +233,7 @@ fn should_rename_column_through_sql() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         let relation = canonical_relation_name("postgres", "public", "rename_column_docs");
@@ -294,7 +291,6 @@ fn run_case_insensitive_catalog_scenario(
     act: &str,
     probe: &str,
 ) -> (Result<(), String>, Result<usize, String>) {
-    use_local_storage();
     let path = data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -302,7 +298,7 @@ fn run_case_insensitive_catalog_scenario(
         .expect("runtime");
 
     let outcome = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         for sql in setup {

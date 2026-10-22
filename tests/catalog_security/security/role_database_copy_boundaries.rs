@@ -1,12 +1,9 @@
 use super::support_pgwire as support;
 
-use cassie::app::Cassie;
 use tokio::io::AsyncWriteExt;
 
-fn database_copy_error(test_name: &str, sql: &str) -> Vec<(char, String)> {
-    support::use_local_storage();
-    let path = support::data_dir(test_name);
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+fn database_copy_error(sql: &str) -> Vec<(char, String)> {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
         .authenticate_role("root", Some("postgres"), None)
@@ -75,7 +72,6 @@ fn database_copy_error(test_name: &str, sql: &str) -> Vec<(char, String)> {
         server.stop().await;
         fields
     });
-    let _ = std::fs::remove_dir_all(path);
     fields
 }
 
@@ -85,7 +81,7 @@ fn should_reject_non_admin_database_backup_even_with_connect_grant() {
     let sql = "BACKUP DATABASE denied_copy TO STDOUT";
 
     // Act
-    let fields = database_copy_error("role-database-backup", sql);
+    let fields = database_copy_error(sql);
 
     // Assert
     assert!(fields
@@ -99,7 +95,7 @@ fn should_reject_non_admin_database_restore_even_with_connect_grant() {
     let sql = "RESTORE DATABASE denied_copy FROM STDIN";
 
     // Act
-    let fields = database_copy_error("role-database-restore", sql);
+    let fields = database_copy_error(sql);
 
     // Assert
     assert!(fields

@@ -1,13 +1,10 @@
 #[test]
 fn should_reject_invalid_rest_vector_index_options() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rest_invalid_hnsw_options");
     let path_for_cleanup = path.clone();
     let embedding_server = MockOpenAiServer::spawn(vec![]);
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        tei_runtime_with_server(embedding_server.base_url()),
+    let cassie = Cassie::new_in_memory_with_config(tei_runtime_with_server(embedding_server.base_url()),
     )
     .unwrap();
     cassie.startup().unwrap();

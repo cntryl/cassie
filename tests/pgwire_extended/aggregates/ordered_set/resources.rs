@@ -37,8 +37,8 @@ fn current_thread_runtime() -> tokio::runtime::Runtime {
         .expect("runtime")
 }
 
-fn configured_instance(path: &str, config: CassieRuntimeConfig) -> Cassie {
-    let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("Cassie");
+fn configured_instance(_path: &str, config: CassieRuntimeConfig) -> Cassie {
+    let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
     cassie
         .startup()
         .expect("start ordered-set aggregate fixture");
@@ -68,8 +68,9 @@ async fn connect(address: SocketAddr) -> (OwnedReadHalf, OwnedWriteHalf, i32, i3
     (reader, writer, process_id, secret_key)
 }
 
-fn seed_ordered_set_input(path: &str, row_count: i32) {
-    let cassie = Cassie::new_with_data_dir(path).expect("create ordered-set input fixture");
+fn seed_ordered_set_input(_path: &str, row_count: i32) {
+    let cassie =
+        crate::support_sql::new_in_memory_cassie().expect("create ordered-set input fixture");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -152,7 +153,6 @@ fn assert_active_query_marker(frames: &[(u8, Vec<u8>)], marker: &str) {
 fn should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_memory_budget_is_exceeded(
 ) {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("ordered-set-retained-state-budget");
     let _directory = AggregateFixtureDirectory(path.clone());
     let runtime = current_thread_runtime();
@@ -251,7 +251,6 @@ fn should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_m
 #[test]
 fn should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("ordered-set-cancellation");
     let _directory = AggregateFixtureDirectory(path.clone());
     let runtime = current_thread_runtime();

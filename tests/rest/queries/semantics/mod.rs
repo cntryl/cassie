@@ -1,7 +1,7 @@
 use std::sync::{mpsc, Arc, Barrier};
 use std::time::Duration;
 
-use cassie::app::{Cassie, CassieError, CatalogObjectKind};
+use cassie::app::{CassieError, CatalogObjectKind};
 use cassie::catalog::{canonical_relation_name, FieldConstraint};
 use cassie::midge::adapter::{
     schema_write_conflict_test_guard, schema_write_conflict_worker_guard,

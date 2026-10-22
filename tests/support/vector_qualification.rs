@@ -43,7 +43,22 @@ pub const ROWS: [(&str, [f32; 3]); 5] = [
     ("negative", [-1.0, 0.0, 0.0]),
     ("orthogonal", [0.0, 1.0, 0.0]),
 ];
-pub fn fixture(metric: &str, options: Option<&str>) -> (Cassie, String, Arc<Provider>) {
+fn config() -> CassieRuntimeConfig {
+    let mut config = CassieRuntimeConfig::from_env().expect("config");
+    config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
+        model: "vector-qualification".into(),
+        dimensions: 3,
+    });
+    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+    config
+}
+
+pub fn fixture(metric: &str, options: Option<&str>) -> (Cassie, Arc<Provider>) {
+    let cassie = Cassie::new_in_memory_with_config(config()).expect("in-memory Cassie");
+    populated_fixture(cassie, metric, options)
+}
+
+pub fn persistent_fixture(metric: &str, options: Option<&str>) -> (Cassie, String, Arc<Provider>) {
     let path = std::env::temp_dir()
         .join(format!(
             "cassie-vector-qualification-{}",
@@ -51,13 +66,16 @@ pub fn fixture(metric: &str, options: Option<&str>) -> (Cassie, String, Arc<Prov
         ))
         .to_string_lossy()
         .into_owned();
-    let mut config = CassieRuntimeConfig::from_env().expect("config");
-    config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
-        model: "vector-qualification".into(),
-        dimensions: 3,
-    });
-    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-    let mut cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config()).expect("Cassie");
+    let (cassie, provider) = populated_fixture(cassie, metric, options);
+    (cassie, path, provider)
+}
+
+fn populated_fixture(
+    mut cassie: Cassie,
+    metric: &str,
+    options: Option<&str>,
+) -> (Cassie, Arc<Provider>) {
     let provider = Arc::new(Provider::default());
     cassie.embedding_provider = provider.clone();
     let session = cassie.create_session("tester", None);
@@ -99,7 +117,7 @@ pub fn fixture(metric: &str, options: Option<&str>) -> (Cassie, String, Arc<Prov
         .rebuild_cardinality_stats_for_collection(&collection)
         .expect("authoritative fixture cardinality");
     cassie.catalog.set_cardinality_stats(&collection, stats);
-    (cassie, path, provider)
+    (cassie, provider)
 }
 pub fn oracle(metric: &str, query: &[f32], descending: bool) -> Vec<(String, f64)> {
     let mut rows: Vec<(String, f64)> = ROWS

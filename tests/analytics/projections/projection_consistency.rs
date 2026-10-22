@@ -14,10 +14,8 @@ fn canonical_collection(name: &str) -> String {
 fn create_manifest_source(
     label: &str,
     title: &str,
-) -> (Cassie, String, String, ProjectionManifestExportOptions) {
-    use_local_storage();
-    let dir = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&dir).expect("cassie");
+) -> (Cassie, String, ProjectionManifestExportOptions) {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -57,7 +55,7 @@ fn create_manifest_source(
     options.generated_ms = Some(4_000_000_000_000);
     options.ttl_ms = Some(86_400_000);
     options.include_row_hashes = true;
-    (cassie, dir, projection, options)
+    (cassie, projection, options)
 }
 
 async fn spawn_rest_server(
@@ -97,7 +95,7 @@ async fn login_cookie(client: &reqwest::Client, base_url: &str) -> String {
 #[test]
 fn should_export_projection_verification_manifest_with_canonical_ordering() {
     // Arrange
-    let (cassie, _dir, projection, options) = create_manifest_source("instance-a", "bravo");
+    let (cassie, projection, options) = create_manifest_source("instance-a", "bravo");
 
     // Act
     let first = cassie
@@ -126,8 +124,8 @@ fn should_export_projection_verification_manifest_with_canonical_ordering() {
 #[test]
 fn should_compare_equal_manifests_as_consistent() {
     // Arrange
-    let (left, _left_dir, projection, left_options) = create_manifest_source("instance-a", "bravo");
-    let (right, _right_dir, _, right_options) = create_manifest_source("instance-b", "bravo");
+    let (left, projection, left_options) = create_manifest_source("instance-a", "bravo");
+    let (right, _, right_options) = create_manifest_source("instance-b", "bravo");
     let left_manifest = left
         .export_projection_verification_manifest(&projection, left_options)
         .expect("left manifest");
@@ -153,8 +151,8 @@ fn should_compare_equal_manifests_as_consistent() {
 #[test]
 fn should_report_row_level_divergence_when_hashes_are_available() {
     // Arrange
-    let (left, _left_dir, projection, left_options) = create_manifest_source("instance-a", "bravo");
-    let (right, _right_dir, _, right_options) = create_manifest_source("instance-b", "charlie");
+    let (left, projection, left_options) = create_manifest_source("instance-a", "bravo");
+    let (right, _, right_options) = create_manifest_source("instance-b", "charlie");
     let left_manifest = left
         .export_projection_verification_manifest(&projection, left_options)
         .expect("left manifest");
@@ -178,8 +176,8 @@ fn should_report_row_level_divergence_when_hashes_are_available() {
 #[test]
 fn should_report_stale_manifest_state() {
     // Arrange
-    let (left, _left_dir, projection, left_options) = create_manifest_source("instance-a", "bravo");
-    let (right, _right_dir, _, right_options) = create_manifest_source("instance-b", "bravo");
+    let (left, projection, left_options) = create_manifest_source("instance-a", "bravo");
+    let (right, _, right_options) = create_manifest_source("instance-b", "bravo");
     let left_manifest = left
         .export_projection_verification_manifest(&projection, left_options)
         .expect("left manifest");
@@ -201,8 +199,8 @@ fn should_report_stale_manifest_state() {
 #[test]
 fn should_reject_incompatible_hash_metadata() {
     // Arrange
-    let (left, _left_dir, projection, left_options) = create_manifest_source("instance-a", "bravo");
-    let (right, _right_dir, _, right_options) = create_manifest_source("instance-b", "bravo");
+    let (left, projection, left_options) = create_manifest_source("instance-a", "bravo");
+    let (right, _, right_options) = create_manifest_source("instance-b", "bravo");
     let left_manifest = left
         .export_projection_verification_manifest(&projection, left_options)
         .expect("left manifest");
@@ -228,7 +226,7 @@ fn should_reject_incompatible_hash_metadata() {
 #[test]
 fn should_exclude_sensitive_values_from_manifest() {
     // Arrange
-    let (cassie, _dir, projection, mut options) = create_manifest_source("instance-a", "bravo");
+    let (cassie, projection, mut options) = create_manifest_source("instance-a", "bravo");
     options.include_row_hashes = true;
 
     // Act
@@ -318,8 +316,8 @@ fn should_rehydrate_persisted_consistency_report_after_restart() {
 #[test]
 fn should_record_consistency_metrics() {
     // Arrange
-    let (left, _left_dir, projection, left_options) = create_manifest_source("instance-a", "bravo");
-    let (right, _right_dir, _, right_options) = create_manifest_source("instance-b", "charlie");
+    let (left, projection, left_options) = create_manifest_source("instance-a", "bravo");
+    let (right, _, right_options) = create_manifest_source("instance-b", "charlie");
     let before = left.metrics();
     let left_manifest = left
         .export_projection_verification_manifest(&projection, left_options)
@@ -358,13 +356,12 @@ fn should_record_consistency_metrics() {
 #[test]
 fn should_support_admin_rest_manifest_consistency_workflow() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_consistency_rest");
     let config = CassieRuntimeConfig {
         password: "topsecret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -450,13 +447,12 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
 #[test]
 fn should_support_restful_projection_consistency_aliases() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_consistency_restful_aliases");
     let config = CassieRuntimeConfig {
         password: "topsecret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

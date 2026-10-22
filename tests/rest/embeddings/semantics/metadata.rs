@@ -6,15 +6,12 @@ fn should_fallback_before_rest_hnsw_search_given_incompatible_graph_metadata() {
         ("dimensions", "incompatible-dimensions"),
     ] {
         // Arrange
-        use_local_storage();
         let path = data_dir(&format!("rest-hnsw-metadata-{mutation}"));
         let embedding_server = MockOpenAiServer::spawn(vec![MockResponse {
             status: 200,
             body: tei_response_body(&[vec![1.0, 0.0, 0.0]]),
         }]);
-        let cassie = Cassie::new_with_data_dir_and_config(
-            &path,
-            tei_runtime_with_server(embedding_server.base_url()),
+        let cassie = Cassie::new_in_memory_with_config(tei_runtime_with_server(embedding_server.base_url()),
         )
         .expect("engine");
         let collection = "rest_hnsw_metadata";

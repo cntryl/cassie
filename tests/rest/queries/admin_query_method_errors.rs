@@ -6,10 +6,6 @@ use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 fn data_dir(label: &str) -> PathBuf {
     crate::support_temp_dirs::sweep_stale_once();
     std::env::temp_dir().join(format!(
@@ -73,7 +69,6 @@ async fn login_cookie(client: &Client, base_url: &str) -> String {
 #[test]
 fn should_return_method_not_allowed_for_known_admin_query_paths() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("method");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -81,7 +76,7 @@ fn should_return_method_not_allowed_for_known_admin_query_paths() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();

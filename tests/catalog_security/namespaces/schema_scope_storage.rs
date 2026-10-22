@@ -103,7 +103,6 @@ fn should_isolate_duplicate_relation_names_across_databases_after_restart() {
 #[test]
 fn should_rewrite_collection_sidecars_when_schema_is_renamed() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rename_schema_sidecars");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -111,7 +110,7 @@ fn should_rewrite_collection_sidecars_when_schema_is_renamed() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", Some("postgres".to_string()));
         let current = canonical_relation_name("postgres", "reporting", "metrics");
@@ -211,7 +210,6 @@ fn should_rewrite_collection_sidecars_when_schema_is_renamed() {
 #[test]
 fn should_reject_dropping_non_empty_schema_without_cascade() {
     // Arrange
-    use_local_storage();
     let path = data_dir("drop_non_empty_schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -219,7 +217,7 @@ fn should_reject_dropping_non_empty_schema_without_cascade() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", Some("postgres".to_string()));
         cassie
@@ -246,7 +244,6 @@ fn should_reject_dropping_non_empty_schema_without_cascade() {
 #[test]
 fn should_reject_dropping_current_or_non_empty_database() {
     // Arrange
-    use_local_storage();
     let path = data_dir("drop_database_guards");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -254,7 +251,7 @@ fn should_reject_dropping_current_or_non_empty_database() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let postgres = cassie.create_session("tester", Some("postgres".to_string()));
         cassie
@@ -288,7 +285,6 @@ fn should_reject_dropping_current_or_non_empty_database() {
 #[test]
 fn should_keep_database_when_user_program_metadata_exists() {
     // Arrange
-    use_local_storage();
     let path = data_dir("drop_database_user_programs");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -296,7 +292,7 @@ fn should_keep_database_when_user_program_metadata_exists() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let postgres = cassie.create_session("tester", Some("postgres".to_string()));
         cassie
@@ -349,7 +345,6 @@ fn should_keep_database_when_user_program_metadata_exists() {
 #[test]
 fn should_reject_low_level_database_drop_with_user_program_metadata() {
     // Arrange
-    use_local_storage();
     let path = data_dir("midge_drop_database_user_programs");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -357,7 +352,7 @@ fn should_reject_low_level_database_drop_with_user_program_metadata() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let postgres = cassie.create_session("tester", Some("postgres".to_string()));
         cassie

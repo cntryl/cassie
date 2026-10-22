@@ -5,7 +5,7 @@ use std::sync::atomic::Ordering;
 #[test]
 fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() {
     // Arrange
-    let (cassie, path, _) = fixture("dot", Some("index_type = bruteforce"));
+    let (cassie, _) = fixture("dot", Some("index_type = bruteforce"));
     let documents = (0..1020)
         .map(|index| {
             let id = format!("id{index:04}");
@@ -99,7 +99,6 @@ fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() 
         0
     );
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup");
 }
 
 #[test]
@@ -107,7 +106,7 @@ fn should_match_zero_vector_order_across_query_paths() {
     // Arrange
     for (metric, operator) in [("l2", "<->"), ("cosine", "<=>"), ("dot", "<#>")] {
         for options in [None, Some("index_type = bruteforce"), Some("index_type = hnsw, m = 4, ef_construction = 16, ef_search = 16"), Some("index_type = ivfflat, lists = 2, probes = 2, training_sample_size = 5, training_seed = 17")] {
-            let (cassie, path, provider) = fixture(metric, options);
+            let (cassie, provider) = fixture(metric, options);
             let session = cassie.create_session("tester", None);
             // Act
             for (name, query) in [("zero", vec![0.0;3]), ("unit", vec![1.0,0.0,0.0])] {
@@ -148,7 +147,6 @@ fn should_match_zero_vector_order_across_query_paths() {
             }
             assert_eq!(cassie.metrics()["query"]["current_accounted_memory_bytes"],0);
             drop(cassie);
-            std::fs::remove_dir_all(path).expect("cleanup");
         }
     }
 }
@@ -192,7 +190,7 @@ fn should_match_independent_metric_oracles_at_dispatch_boundaries() {
 #[test]
 fn should_validate_all_vector_operator_dimensions_before_zero_limit() {
     // Arrange
-    let (cassie, path, _) = fixture("l2", None);
+    let (cassie, _) = fixture("l2", None);
     let session = cassie.create_session("tester", None);
     // Act
     for operator in ["<->", "<=>", "<#>"] {
@@ -209,14 +207,13 @@ fn should_validate_all_vector_operator_dimensions_before_zero_limit() {
         }
     }
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup");
 }
 
 #[test]
 fn should_match_zero_vector_oracle_when_rest_normalized_sidecars_are_missing() {
     // Arrange
     for metric in ["l2", "cosine", "dot"] {
-        let (cassie, path, _) = fixture(metric, Some("index_type = bruteforce"));
+        let (cassie, _) = fixture(metric, Some("index_type = bruteforce"));
         let collection = cassie
             .catalog
             .get_schema("vectors")
@@ -254,7 +251,6 @@ fn should_match_zero_vector_oracle_when_rest_normalized_sidecars_are_missing() {
             0
         );
         drop(cassie);
-        std::fs::remove_dir_all(path).expect("cleanup");
     }
 }
 
@@ -262,7 +258,7 @@ fn should_match_zero_vector_oracle_when_rest_normalized_sidecars_are_missing() {
 fn should_search_explicit_sql_vectors_without_sources_when_normalized_sidecars_are_missing() {
     // Arrange
     for metric in ["cosine", "dot"] {
-        let (cassie, path, _) = fixture(metric, None);
+        let (cassie, _) = fixture(metric, None);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(&session, "DELETE FROM vectors", vec![])
@@ -309,7 +305,6 @@ fn should_search_explicit_sql_vectors_without_sources_when_normalized_sidecars_a
             0
         );
         drop(cassie);
-        std::fs::remove_dir_all(path).expect("cleanup");
     }
 }
 
@@ -317,7 +312,10 @@ fn should_search_explicit_sql_vectors_without_sources_when_normalized_sidecars_a
 fn should_preserve_restarted_vector_ordering() {
     // Arrange
     for (metric, operator) in [("l2", "<->"), ("cosine", "<=>"), ("dot", "<#>")] {
-        let (cassie, path, _) = fixture(metric, Some("index_type = bruteforce"));
+        let (cassie, path, _) = super::vector_qualification_support::persistent_fixture(
+            metric,
+            Some("index_type = bruteforce"),
+        );
         let query = format!("SELECT _id, embedding {operator} '[0,0,0]' AS distance FROM vectors WHERE embedding IS NOT NULL ORDER BY distance ASC LIMIT 2 OFFSET 1");
         let expected = oracle(metric, &[0.0; 3], false)[1..3]
             .iter()
@@ -350,7 +348,7 @@ fn should_preserve_restarted_vector_ordering() {
 #[test]
 fn should_match_vector_expression_order_on_generic_sql_path() {
     // Arrange
-    let (cassie, path, _) = fixture(
+    let (cassie, _) = fixture(
         "l2",
         Some("index_type = hnsw, m = 4, ef_construction = 16, ef_search = 16"),
     );
@@ -375,7 +373,6 @@ fn should_match_vector_expression_order_on_generic_sql_path() {
     }
     assert_eq!(cassie.metrics()["vector"]["hnsw_executions"], 0);
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup");
 }
 
 #[test]
@@ -383,7 +380,7 @@ fn should_fall_back_to_authoritative_vectors_for_partial_sidecars_or_missing_sta
     // Arrange
     for metric in ["cosine", "dot"] {
         for statistics in ["present", "missing", "stale"] {
-            let (cassie, path, _) = fixture(metric, Some("index_type = bruteforce"));
+            let (cassie, _) = fixture(metric, Some("index_type = bruteforce"));
             let collection = cassie
                 .catalog
                 .get_schema("vectors")
@@ -440,7 +437,6 @@ fn should_fall_back_to_authoritative_vectors_for_partial_sidecars_or_missing_sta
                 0
             );
             drop(cassie);
-            std::fs::remove_dir_all(path).expect("cleanup");
         }
     }
 }
@@ -449,7 +445,7 @@ fn should_fall_back_to_authoritative_vectors_for_partial_sidecars_or_missing_sta
 fn should_score_all_vectors_when_partial_sidecar_count_matches_source_cardinality() {
     // Arrange
     for metric in ["cosine", "dot"] {
-        let (cassie, path, _) = fixture(metric, Some("index_type = bruteforce"));
+        let (cassie, _) = fixture(metric, Some("index_type = bruteforce"));
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -515,14 +511,13 @@ fn should_score_all_vectors_when_partial_sidecar_count_matches_source_cardinalit
             0
         );
         drop(cassie);
-        std::fs::remove_dir_all(path).expect("cleanup");
     }
 }
 
 #[test]
 fn should_preserve_vector_window_boundary_contract() {
     // Arrange
-    let (cassie, path, _) = fixture("l2", Some("index_type = bruteforce"));
+    let (cassie, _) = fixture("l2", Some("index_type = bruteforce"));
     let session = cassie.create_session("tester", None);
     // Act
     for offset in [5, 8] {
@@ -548,5 +543,4 @@ fn should_preserve_vector_window_boundary_contract() {
         0
     );
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup");
 }

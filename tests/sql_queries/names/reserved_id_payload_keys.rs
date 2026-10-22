@@ -1,16 +1,14 @@
 use super::support_sql as support;
 
-use cassie::app::Cassie;
 use cassie::types::Value;
 
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 #[test]
 fn should_not_widen_wildcard_rows_with_a_stray_id_payload_key() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("reserved_id_stray_payload_key");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let _path = data_dir("reserved_id_stray_payload_key");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [

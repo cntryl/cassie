@@ -44,8 +44,6 @@ fn assert_native_time_series_path(before: &serde_json::Value, after: &serde_json
 fn should_preserve_signed_zero_float_partition_rows() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    super::support_sql::use_local_storage();
-    let path = super::support_sql::data_dir("signed-zero-qualification");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -53,7 +51,7 @@ fn should_preserve_signed_zero_float_partition_rows() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("config");
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("qualification", None);
         for table in ["zero_baseline", "zero_indexed"] {
@@ -85,7 +83,6 @@ fn should_preserve_signed_zero_float_partition_rows() {
         assert_eq!(counter(&after,"fallback_scans") - counter(&before,"fallback_scans"),0);
         assert_eq!(after["query"]["current_accounted_memory_bytes"].as_u64(),Some(0));
         drop(cassie);
-        std::fs::remove_dir_all(path).expect("remove fixture directory");
     });
 }
 
@@ -93,8 +90,6 @@ fn should_preserve_signed_zero_float_partition_rows() {
 fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
     // Arrange
     let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    super::support_sql::use_local_storage();
-    let path = super::support_sql::data_dir("time-series-spring-dst-fixed-day");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -102,7 +97,7 @@ fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("config");
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("qualification", None);
         for table in ["dst_day_baseline", "dst_day_indexed"] {
@@ -179,6 +174,5 @@ fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
         );
         assert_native_time_series_path(&before, &after);
         drop(cassie);
-        std::fs::remove_dir_all(path).expect("remove fixture directory");
     });
 }

@@ -1,13 +1,11 @@
-use cassie::app::Cassie;
 use cassie::types::Value;
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 #[test]
 fn should_accelerate_filtered_numeric_aggregates_over_encoded_selection() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_filtered_aggregate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -15,7 +13,7 @@ fn should_accelerate_filtered_numeric_aggregates_over_encoded_selection() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -110,7 +108,6 @@ fn should_accelerate_filtered_numeric_aggregates_over_encoded_selection() {
 #[test]
 fn should_preserve_empty_filtered_aggregate_semantics() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_empty_filtered_aggregate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -118,7 +115,7 @@ fn should_preserve_empty_filtered_aggregate_semantics() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -181,9 +178,8 @@ fn should_preserve_empty_filtered_aggregate_semantics() {
 // unfiltered column-batch path returns the exact total (oracle-corrections.md).
 fn should_sum_filtered_direct_bigint_aggregates_beyond_int64_exactly() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_filtered_overflow_class");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
         "CREATE TABLE ovf (id INT, amount BIGINT)",

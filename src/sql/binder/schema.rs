@@ -443,16 +443,34 @@ pub(super) fn bind_drop_index(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<DropIndexStatement, CassieError> {
-    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
-    if table.is_empty() {
-        return Err(CassieError::Planner(
-            "DROP INDEX requires a collection name".into(),
-        ));
-    }
     let name = statement.name.trim().to_string();
     if name.is_empty() {
         return Err(CassieError::Planner(
             "DROP INDEX requires an index name".into(),
+        ));
+    }
+
+    if statement.table.trim().is_empty() {
+        let resolved = schema_indexes::resolve_drop_index_name(&name, catalog, context)?;
+        if let Some(index) = resolved {
+            statement.table = index.collection;
+            statement.name = index.name;
+            return Ok(statement);
+        }
+        if statement.if_exists {
+            statement.name = name;
+            return Ok(statement);
+        }
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::Index,
+            name,
+        });
+    }
+
+    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
+    if table.is_empty() {
+        return Err(CassieError::Planner(
+            "DROP INDEX requires a collection name".into(),
         ));
     }
 

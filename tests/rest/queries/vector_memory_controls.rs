@@ -1,6 +1,4 @@
-use super::support_retrieval::{
-    circle_fixture, circle_fixture_with_row_limit, create_index, open_circle_fixture,
-};
+use super::support_retrieval::{circle_fixture, circle_fixture_with_row_limit, create_index};
 use super::support_retrieval_provider::CountingEmbeddingProvider;
 use cassie::app::CassieError;
 use cassie::embeddings::EmbeddingProvider;
@@ -8,12 +6,9 @@ use cassie::embeddings::EmbeddingProvider;
 #[test]
 fn should_reject_rest_vector_search_under_the_same_budget_as_sql() {
     // Arrange
-    super::support_sql::use_local_storage();
-    let (setup, path) = circle_fixture("rest_vector_budget", 64, 64 * 1024);
-    create_index(&setup, "index_type = bruteforce");
-    drop(setup);
-    let cassie = open_circle_fixture(&path, 1, 100_000);
-    cassie.startup().expect("hydrate persisted vector fixture");
+    let cassie = circle_fixture("rest_vector_budget", 64, 1024);
+    create_index(&cassie, "index_type = bruteforce");
+    cassie.startup().expect("start in-memory vector fixture");
     let session = cassie.create_session("tester", None);
     let before = cassie.metrics();
 
@@ -35,18 +30,16 @@ fn should_reject_rest_vector_search_under_the_same_budget_as_sql() {
     assert_eq!(after["vector"]["count"], before["vector"]["count"]);
     assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }
 
 #[test]
 fn should_preserve_zero_limit_with_a_tiny_rest_vector_budget() {
     // Arrange
-    super::support_sql::use_local_storage();
-    let (setup, path) = circle_fixture("rest_vector_zero_budget", 3, 64 * 1024);
-    create_index(&setup, "index_type = bruteforce");
-    drop(setup);
-    let mut denied = open_circle_fixture(&path, 1, 100_000);
-    denied.startup().expect("hydrate one-byte vector fixture");
+    let mut denied = circle_fixture("rest_vector_zero_budget_denied", 3, 512);
+    create_index(&denied, "index_type = bruteforce");
+    denied
+        .startup()
+        .expect("start denied in-memory vector fixture");
     let denied_provider = CountingEmbeddingProvider::install(&mut denied);
     drop(
         denied_provider
@@ -75,8 +68,11 @@ fn should_preserve_zero_limit_with_a_tiny_rest_vector_budget() {
 
     // The same zero-row request still owns metadata and a managed REST payload.
     // A separate small admitted budget qualifies empty success without vector work.
-    let mut cassie = open_circle_fixture(&path, 4 * 1024, 100_000);
-    cassie.startup().expect("hydrate admitted vector fixture");
+    let mut cassie = circle_fixture("rest_vector_zero_budget_admitted", 3, 4 * 1024);
+    create_index(&cassie, "index_type = bruteforce");
+    cassie
+        .startup()
+        .expect("start admitted in-memory vector fixture");
     let provider = CountingEmbeddingProvider::install(&mut cassie);
     drop(provider.embed_query("query").expect("provider control"));
     let counter_control = provider.calls();
@@ -100,10 +96,12 @@ fn should_preserve_zero_limit_with_a_tiny_rest_vector_budget() {
     let retired = cassie.metrics();
     drop(provider);
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 
     // Assert
-    assert!(rejected, "one byte cannot admit the required empty output");
+    assert!(
+        rejected,
+        "a low budget cannot admit the required empty output"
+    );
     assert_eq!(denied_counter_control, 1);
     assert_eq!(denied_provider_calls, 0);
     assert_eq!(denied_scan_after, denied_scan_before);
@@ -133,7 +131,7 @@ fn should_preserve_zero_limit_with_a_tiny_rest_vector_budget() {
 #[test]
 fn should_account_long_rest_query_cache_keys_before_copying_them() {
     // Arrange
-    let (cassie, path) = circle_fixture("rest-long-query-keys", 1, 4096);
+    let cassie = circle_fixture("rest-long-query-keys", 1, 4096);
     create_index(&cassie, "index_type = bruteforce");
     let body = serde_json::to_vec(&serde_json::json!({
         "field": "embedding", "query": "q".repeat(32 * 1024),
@@ -151,13 +149,12 @@ fn should_account_long_rest_query_cache_keys_before_copying_them() {
     assert_eq!(after["vector"]["count"], before["vector"]["count"]);
     assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }
 
 #[test]
 fn should_reserve_sparse_json_nodes_before_rest_vector_output() {
     // Arrange
-    let (cassie, path) = circle_fixture("rest-sparse-json-budget", 1, 16 * 1024);
+    let cassie = circle_fixture("rest-sparse-json-budget", 1, 16 * 1024);
     cassie
         .execute_sql(
             &cassie.create_session("tester", None),
@@ -188,13 +185,12 @@ fn should_reserve_sparse_json_nodes_before_rest_vector_output() {
     assert_eq!(after["vector"]["count"], before["vector"]["count"]);
     assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }
 
 #[test]
 fn should_enforce_actual_rest_vector_result_rows_without_rejecting_a_larger_request() {
     // Arrange
-    let (cassie, path) = circle_fixture_with_row_limit("rest-row-limit", 3, 1024 * 1024, 1);
+    let cassie = circle_fixture_with_row_limit("rest-row-limit", 3, 1024 * 1024, 1);
     create_index(&cassie, "index_type = bruteforce");
     let before = cassie.metrics();
 
@@ -218,7 +214,6 @@ fn should_enforce_actual_rest_vector_result_rows_without_rejecting_a_larger_requ
     assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
     assert_eq!(one.rows().len(), 1);
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }
 
 fn cosine_index(cassie: &cassie::app::Cassie) {
@@ -255,7 +250,7 @@ fn add_wide_payloads(cassie: &cassie::app::Cassie, rows: u32) {
 #[test]
 fn should_reject_cold_normalized_rest_search_without_success_metrics_given_low_memory() {
     // Arrange
-    let (cassie, path) = circle_fixture("rest_normalized_cold_budget", 64, 512);
+    let cassie = circle_fixture("rest_normalized_cold_budget", 64, 512);
     cosine_index(&cassie);
     let before = cassie.metrics();
 
@@ -276,14 +271,13 @@ fn should_reject_cold_normalized_rest_search_without_success_metrics_given_low_m
     );
     assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }
 
 #[test]
 fn should_reject_warm_normalized_rest_output_without_success_metrics_given_low_memory() {
     // Arrange
     // One wide row fits the conservative row-decode estimate; sixty-four do not.
-    let (cassie, path) = circle_fixture("rest_normalized_warm_budget", 64, 128 * 1024);
+    let cassie = circle_fixture("rest_normalized_warm_budget", 64, 128 * 1024);
     add_wide_payloads(&cassie, 64);
     cosine_index(&cassie);
     cassie::rest::search::vector_search(
@@ -311,14 +305,13 @@ fn should_reject_warm_normalized_rest_output_without_success_metrics_given_low_m
     );
     assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 }
 
 #[test]
 fn should_reject_rest_ann_output_before_success_given_low_memory() {
     // Arrange
     for index_type in ["hnsw", "ivfflat"] {
-        let (cassie, path) = circle_fixture(&format!("rest_{index_type}_output_budget"), 8, 32768);
+        let cassie = circle_fixture(&format!("rest_{index_type}_output_budget"), 8, 32768);
         add_wide_payloads(&cassie, 8);
         let options = match index_type {
                 "hnsw" => "index_type = hnsw, m = 2, ef_construction = 8, ef_search = 8",
@@ -351,14 +344,13 @@ fn should_reject_rest_ann_output_before_success_given_low_memory() {
         );
         assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
         drop(cassie);
-        std::fs::remove_dir_all(path).expect("cleanup fixture");
     }
 }
 
 #[test]
 fn should_serialize_finite_rest_vector_rows_from_each_cache_state() {
     // Arrange
-    let (cassie, path) = circle_fixture("rest_finite_cached", 1024, 1024 * 1024);
+    let cassie = circle_fixture("rest_finite_cached", 1024, 1024 * 1024);
     create_index(&cassie, "index_type = bruteforce");
     let request = br#"{"field":"embedding","query":"query","metric":"l2","limit":10}"#;
     let before = cassie.metrics();
@@ -376,7 +368,6 @@ fn should_serialize_finite_rest_vector_rows_from_each_cache_state() {
     drop(cached);
     let after_result_retirement = cassie.metrics();
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 
     // Assert
     assert_eq!(row_count, 10);
@@ -420,7 +411,7 @@ fn should_preserve_the_local_query_embedding_override_in_controlled_rest_search(
     use cassie::embeddings::EmbeddingProvider;
 
     // Arrange
-    let (cassie, path) = circle_fixture("rest-local-query-equivalence", 2, 1024 * 1024);
+    let cassie = circle_fixture("rest-local-query-equivalence", 2, 1024 * 1024);
     let provider = LocalProvider::with_config(LocalProviderConfig {
         model: "retrieval-controls".to_owned(),
         dimensions: 3,
@@ -467,7 +458,6 @@ fn should_preserve_the_local_query_embedding_override_in_controlled_rest_search(
     drop(result);
     let retired = cassie.metrics();
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup fixture");
 
     // Assert
     assert!(matching_row);

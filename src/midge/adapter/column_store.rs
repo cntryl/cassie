@@ -104,6 +104,24 @@ impl Midge {
         if let Some(database) = crate::catalog::relation_database_name(&name) {
             let _ = self.database_family(&database)?;
         }
+        let needs_storage_id = {
+            let tx = self.database_tx_for_collection(&name, super::TransactionMode::ReadOnly)?;
+            let schema_exists = tx
+                .get(&Self::collection_schema_key(&name))
+                .map_err(CassieError::from)?
+                .is_some();
+            let existing_metadata = Self::load_collection_metadata_from_tx(&tx, &name)?;
+            let storage_name_exists = Self::storage_relation_exists_case_insensitively(&tx, &name)?;
+            if require_absent
+                && (schema_exists || existing_metadata.is_some() || storage_name_exists)
+            {
+                return Ok((false, 0));
+            }
+            existing_metadata.is_none()
+        };
+        let storage_id = needs_storage_id
+            .then(|| self.allocate_object_id())
+            .transpose()?;
         let mut tx = self.begin_data_rw_tx_for(&name)?;
 
         let schema_key = Self::collection_schema_key(&name);
@@ -123,7 +141,12 @@ impl Midge {
         let storage_id = if let Some(existing) = existing_metadata.as_ref() {
             existing.storage_id
         } else {
-            self.allocate_object_id()?
+            storage_id.ok_or_else(|| {
+                CassieError::StorageRetryable(
+                    "midge write conflict: collection metadata changed during schema creation"
+                        .into(),
+                )
+            })?
         };
         metadata.storage_id = storage_id;
         let mut row_schema = RowSchema::from_schema(schema);

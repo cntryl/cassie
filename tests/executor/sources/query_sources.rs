@@ -97,10 +97,9 @@ fn should_execute_query_with_alias_filters() {
     // Arrange
     // Act
     // Assert
-    use_local_storage();
     let mut path = std::env::temp_dir();
     path.push(format!("cassie-exec-{}", Uuid::new_v4()));
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "exec_docs_alias";
     seed_alias_query_docs(&cassie, collection);
 
@@ -134,8 +133,7 @@ fn should_execute_query_respects_boolean_precedence() {
     // Arrange
     // Act
     // Assert
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "exec_precedence";
 
     let schema = Schema {
@@ -227,8 +225,7 @@ fn should_execute_query_parentheses_override_precedence() {
     // Arrange
     // Act
     // Assert
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "exec_precedence_paren";
 
     let schema = Schema {
@@ -320,8 +317,7 @@ fn should_execute_query_with_non_recursive_cte() {
     // Arrange
     // Act
     // Assert
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "exec_cte_simple";
 
     let schema = Schema {
@@ -390,8 +386,7 @@ fn should_execute_query_with_ordered_cte_dependencies() {
     // Arrange
     // Act
     // Assert
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "exec_cte_dependency";
 
     let schema = Schema {
@@ -451,8 +446,7 @@ fn should_execute_query_passes_params_to_cte_main_query() {
     // Arrange
     // Act
     // Assert
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "exec_cte_params";
 
     let schema = Schema {
@@ -512,8 +506,7 @@ fn should_execute_recursive_cte_until_stabilization() {
     // Arrange
     // Act
     // Assert
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "exec_cte_recursive";
 
     let schema = Schema {
@@ -572,8 +565,7 @@ fn should_execute_recursive_cte_enforces_depth_limit_when_no_stabilization() {
     // Arrange
     // Act
     // Assert
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "exec_cte_infinite";
 
     let schema = Schema {

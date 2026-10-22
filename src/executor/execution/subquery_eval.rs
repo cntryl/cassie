@@ -37,11 +37,20 @@ fn execute(
     context: &ExistsResolutionContext<'_>,
     subquery: &SubqueryExpr,
 ) -> Result<SubqueryOutcome, QueryError> {
+    let single_row = matches!(
+        subquery.kind,
+        SubqueryKind::Scalar | SubqueryKind::Row { .. }
+    );
+    let controls = if single_row {
+        context.controls.for_uncapped_input()
+    } else {
+        context.controls.clone()
+    };
     let logical = build_exists_logical_plan(context, &subquery.query)?;
     let (logical, _bound_memory) =
-        if crate::sql::pagination::plan_needs_resolution(&logical, context.controls)? {
+        if crate::sql::pagination::plan_needs_resolution(&logical, &controls)? {
             let (resolved, reservation) =
-                crate::sql::pagination::resolve_plan(&logical, context.params, context.controls)?;
+                crate::sql::pagination::resolve_plan(&logical, context.params, &controls)?;
             (resolved, Some(reservation))
         } else {
             (logical, None)
@@ -51,7 +60,7 @@ fn execute(
         .outer_row
         .map(|row| super::exists_correlated::scoped_outer_row(context, &logical, row))
         .transpose()?;
-    match run(context, &logical, outer_row.as_ref(), subquery) {
+    match run(context, &logical, outer_row.as_ref(), subquery, &controls) {
         Ok(rows) => Ok(SubqueryOutcome::Rows(Arc::new(rows))),
         Err(error) if is_interruption(&error) => Err(error),
         Err(error) => Ok(SubqueryOutcome::failed(error.into())),
@@ -63,14 +72,15 @@ fn run(
     logical: &LogicalPlan,
     outer_row: Option<&super::BatchRow>,
     subquery: &SubqueryExpr,
+    controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<SubqueryRows, QueryError> {
-    let mut subquery_context = context.cte_context.copy(context.controls)?;
+    let mut subquery_context = context.cte_context.copy(controls)?;
     let env = plan_execution_env(
         context.cassie,
         context.session,
         context.user_functions,
         context.params,
-        context.controls,
+        controls,
     );
     let rows = execute_plan_with_outer_row(&env, logical, &mut subquery_context, outer_row)?;
     let width = subquery.required_width();

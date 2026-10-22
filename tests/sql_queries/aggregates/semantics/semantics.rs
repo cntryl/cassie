@@ -1,7 +1,6 @@
 #[test]
 fn should_execute_grouped_count_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("aggregate_count");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_execute_grouped_count_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -67,7 +66,6 @@ fn should_execute_grouped_count_query() {
 #[test]
 fn should_execute_basic_numeric_aggregates_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("aggregate_numeric");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -75,7 +73,7 @@ fn should_execute_basic_numeric_aggregates_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -312,7 +310,6 @@ fn should_execute_ordered_set_rank_aggregate_family() {
 #[test]
 fn should_execute_row_number_window_function_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("window_row_number");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -320,7 +317,7 @@ fn should_execute_row_number_window_function_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -390,7 +387,6 @@ fn should_execute_row_number_window_function_query() {
 #[test]
 fn should_execute_basic_value_window_functions_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("window_basic_values");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -398,7 +394,7 @@ fn should_execute_basic_value_window_functions_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -480,7 +476,6 @@ fn should_execute_basic_value_window_functions_query() {
 #[test]
 fn should_filter_grouped_rows_with_having() {
     // Arrange
-    use_local_storage();
     let path = data_dir("aggregate_having");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -488,7 +483,7 @@ fn should_filter_grouped_rows_with_having() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

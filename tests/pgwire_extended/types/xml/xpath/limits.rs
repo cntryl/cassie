@@ -47,8 +47,8 @@ fn current_thread_runtime() -> tokio::runtime::Runtime {
         .expect("runtime")
 }
 
-fn configured_instance(path: &str, config: CassieRuntimeConfig) -> Cassie {
-    let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("Cassie");
+fn configured_instance(_path: &str, config: CassieRuntimeConfig) -> Cassie {
+    let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
     cassie.startup().expect("start XPath fixture");
     cassie
 }
@@ -263,7 +263,6 @@ async fn run_xpath_cancellation(
 #[test]
 fn should_reject_xpath_expansion_given_a_memory_budget_when_result_growth_exceeds_the_budget() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("xpath-expansion-memory-budget");
     let _directory = FixtureDirectory(path.clone());
     let runtime = current_thread_runtime();
@@ -352,7 +351,6 @@ fn should_reject_xpath_expansion_given_a_memory_budget_when_result_growth_exceed
 fn should_cancel_xpath_without_partial_output_given_expanding_results_when_cancel_request_arrives()
 {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("xpath-expansion-cancellation");
     let _directory = FixtureDirectory(path.clone());
     let runtime = current_thread_runtime();

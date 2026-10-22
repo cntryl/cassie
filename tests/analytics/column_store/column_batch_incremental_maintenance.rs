@@ -1,11 +1,7 @@
-use cassie::app::Cassie;
 use cassie::catalog::{ColumnBatchMetadata, ColumnBatchSegmentMeta};
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::Value;
 use std::sync::{Arc, Barrier};
-
-use super::support_sql as support;
-use support::{data_dir, use_local_storage};
 
 fn segment_owns(segment: &ColumnBatchSegmentMeta, id: &str) -> bool {
     segment
@@ -74,15 +70,13 @@ fn assert_median_split(before: &ColumnBatchMetadata, after: &ColumnBatchMetadata
 #[test]
 fn should_rewrite_only_the_touched_segment_for_single_row_dml() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("column_batch_incremental_single_row");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -170,22 +164,18 @@ fn should_rewrite_only_the_touched_segment_for_single_row_dml() {
             3
         );
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_split_an_overflowing_range_at_the_median() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("column_batch_incremental_split");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -275,22 +265,18 @@ fn should_split_an_overflowing_range_at_the_median() {
             1
         );
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_rewrite_one_segment_for_actual_deletes_only() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("column_batch_incremental_delete");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -379,16 +365,12 @@ fn should_rewrite_one_segment_for_actual_deletes_only() {
             1
         );
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_keep_concurrent_readers_on_complete_published_generations() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("column_batch_incremental_concurrent_readers");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("create Cassie"));
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -478,21 +460,18 @@ fn should_keep_concurrent_readers_on_complete_published_generations() {
         )
         .expect("final encoded read");
     assert_eq!(final_result.rows(), vec![vec![Value::Int64(3)]]);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_compact_excess_sparse_ranges_without_changing_query_results() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("column_batch_incremental_compaction");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -558,6 +537,4 @@ fn should_compact_excess_sparse_ranges_without_changing_query_results() {
             "sparse ranges did not trigger copy-on-write compaction"
         );
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }

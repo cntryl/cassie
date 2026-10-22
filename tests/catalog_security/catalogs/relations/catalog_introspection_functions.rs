@@ -3,7 +3,6 @@
 use crate::support_pgwire::{self, PgwireServer};
 use crate::support_sql;
 use crate::support_sql_fixture::sql_fixture;
-use cassie::app::Cassie;
 use cassie::types::Value;
 use tokio_postgres::{Client, NoTls};
 
@@ -15,9 +14,8 @@ async fn start_pgwire_fixture(
     tokio::task::JoinHandle<Result<(), tokio_postgres::Error>>,
     String,
 ) {
-    support_sql::use_local_storage();
     let path = support_sql::data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie instance");
+    let cassie = support_sql::new_in_memory_cassie().expect("create Cassie instance");
     cassie.startup().expect("start Cassie instance");
     let server = support_pgwire::spawn_server(cassie).await;
 
@@ -48,7 +46,7 @@ async fn stop_pgwire_fixture(
     connection.abort();
     let _ = connection.await;
     server.stop().await;
-    std::fs::remove_dir_all(path).expect("remove the isolated pgwire data directory");
+    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]

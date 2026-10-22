@@ -1,7 +1,7 @@
 use cassie::app::Cassie;
 use cassie::types::Value;
 
-use crate::support_sql::{data_dir, use_local_storage};
+use crate::support_sql::new_in_memory_cassie;
 
 pub struct GraphComparison {
     pub native_overlay: Vec<Vec<Value>>,
@@ -25,15 +25,13 @@ impl SeededGraphFixture {
     }
 
     pub fn compare(&self) -> GraphComparison {
-        use_local_storage();
-        let path = data_dir("seeded-graph-evidence");
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("graph evidence runtime");
 
         runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("graph evidence Cassie");
+            let cassie = new_in_memory_cassie().expect("graph evidence Cassie");
             cassie.startup().expect("start graph evidence Cassie");
             let session = cassie.create_session("graph-evidence", None);
             execute(&cassie, &session, "CREATE GRAPH social");
@@ -67,7 +65,6 @@ impl SeededGraphFixture {
             let adjacency = neighbors(&cassie, &session, "alice");
             let disconnected_adjacency = neighbors(&cassie, &session, "isolated");
 
-            let _ = std::fs::remove_dir_all(path);
             GraphComparison {
                 native_overlay,
                 adjacency,

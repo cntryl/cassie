@@ -1,6 +1,6 @@
 # Product Roadmap
 
-This document owns Cassie's product goal, scope, exclusions, release order, and future work. Current behavior and status live in [Feature Support](feature-support.md); readiness evidence and blockers live in [Production Readiness](production-readiness.md).
+This document owns Cassie's product goal, scope, exclusions, release order, and future work. Current behavior and status live in [Feature Support](feature-support.md); production evidence and blockers live in [Production Readiness](production-readiness.md). The finite local schema/query/pgwire gate is defined in [Local Development Readiness](local-development-readiness.md).
 
 Work is dependency-ordered. A later item does not begin while an earlier correctness or format dependency remains open.
 
@@ -35,9 +35,10 @@ Every issue and test must serve one of these five product areas:
    batch must safely reconcile the gap. Current replay does not combine the
    writes into one transaction. Cassie does not use cross-database transactions. `COPY` and
    `TRUNCATE` support rebuilds. There is no separate checkpoint or rebuild API.
-2. **Read-model lifecycle**: create, alter and drop tables, indexes, views and
-   materialized views; rebuild into a staging table and rename-swap; restart
-   and recovery.
+2. **Read-model lifecycle**: create, alter and drop schemas, tables, scalar
+   indexes, views and materialized views; selected database-scoped DDL publishes
+   with row changes in one Midge family; rebuild into a staging table and
+   rename-swap; restart and recovery.
 3. **Queries**: the explicitly documented `SELECT` behavior, types, functions
    and operators needed by read-model workloads. PostgreSQL compatibility is
    selected per behavior and recorded in the feature-support and compatibility
@@ -79,7 +80,7 @@ explicitly when a gate slips.
 | Target date | Gate | Exit condition | Status |
 | --- | --- | --- | --- |
 | 2026-10-23 | Replay contract | Prove that the owning database-family row batch can commit before the replay-state transaction, that ledger and checkpoint commit together, and that same-batch retry handles both an aborted replay-state commit and an error response after a successful replay-state commit without losing or double-applying projection state. | Complete locally on 2026-10-20; see [focused evidence](testing/validation.md). Hosted evidence remains blocked while Actions are disabled. |
-| 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Open; [read-only issue map](v0.3-scope-map.md) covers all 30 members. GitHub assignments remain unchanged. |
+| 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Open; [issue map](v0.3-scope-map.md) covers the 30-member snapshot. The selected #777/#842 slices were updated and unblocked; other membership decisions remain pending. |
 
 The replay recovery proof is complete locally; this does not establish a hosted
 pass. If later changes invalidate the proof, keep the v0.3 target visibly at risk
@@ -88,9 +89,16 @@ v0.3 is the MVP qualification target, not approval to replace a production hoste
 PostgreSQL service. Production replacement depends on the v1.0 qualification and
 workload-specific migration evidence.
 
-The v0.3 scope map is a read-only review artifact. The scope-freeze gate remains
-open until its proposed issue splits and milestone moves are applied; no GitHub
-issue was changed for that map.
+The local-development release gate is tracked separately from production
+qualification. It requires the selected schema and index lifecycle, relational
+query combinations, and pgwire/client workflows in
+[Local Development Readiness](local-development-readiness.md). Passing this
+gate does not promote broader PostgreSQL compatibility or production support.
+
+The v0.3 scope map records current milestone dispositions and dependency
+readback. The broader scope-freeze gate remains open for unrelated membership
+decisions. The selected local-development slices may proceed only where their
+own owner and prerequisite path have been explicitly bounded.
 
 | Milestone | Target date | Ships |
 | --- | --- | --- |

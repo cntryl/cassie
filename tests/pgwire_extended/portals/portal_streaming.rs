@@ -10,7 +10,6 @@ use super::support_pgwire as support;
 #[test]
 fn should_stop_portal_scan_after_requested_page_is_buffered() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-streaming-page");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -20,7 +19,7 @@ fn should_stop_portal_scan_after_requested_page_is_buffered() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -95,7 +94,6 @@ fn should_stop_portal_scan_after_requested_page_is_buffered() {
 #[test]
 fn should_cancel_suspended_portal_before_resume() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-suspended-cancel");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -105,7 +103,7 @@ fn should_cancel_suspended_portal_before_resume() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -201,7 +199,6 @@ fn should_cancel_suspended_portal_before_resume() {
 #[test]
 fn should_resume_portal_from_original_snapshot_after_concurrent_insert() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-snapshot-resume");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -211,7 +208,7 @@ fn should_resume_portal_from_original_snapshot_after_concurrent_insert() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -300,7 +297,6 @@ fn should_resume_portal_from_original_snapshot_after_concurrent_insert() {
 #[test]
 fn should_align_extended_wildcard_data_rows_with_row_description_when_table_declares_id() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("extended-wildcard-declared-id");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -351,7 +347,6 @@ fn should_align_extended_wildcard_data_rows_with_row_description_when_table_decl
 #[test]
 fn should_align_streaming_portal_wildcard_data_rows_with_row_description_when_table_declares_id() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-wildcard-declared-id");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -402,7 +397,6 @@ fn should_align_streaming_portal_wildcard_data_rows_with_row_description_when_ta
 /// Pipelines Parse, Bind, Describe(Statement), a row-limited Execute and
 /// Sync for `sql` over a three-row table and returns the frame tags.
 fn describe_statement_after_bind_tags(label: &str, sql: &str) -> Vec<u8> {
-    support::use_local_storage();
     let path = support::data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -410,7 +404,7 @@ fn describe_statement_after_bind_tags(label: &str, sql: &str) -> Vec<u8> {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         for sql in [
@@ -516,7 +510,6 @@ async fn commit_delete_from_second_connection(addr: std::net::SocketAddr, sql: &
 #[test]
 fn should_page_portal_from_one_result_when_delete_commits_during_staged_transaction() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-staged-concurrent-delete");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -527,7 +520,7 @@ fn should_page_portal_from_one_result_when_delete_commits_during_staged_transact
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         config.limits.parallel_scan_workers = 1;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -620,7 +613,6 @@ fn should_page_portal_from_one_result_when_delete_commits_during_staged_transact
 #[test]
 fn should_page_wildcard_portal_from_one_result_when_source_has_no_collection_schema() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-schemaless-concurrent-create");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -628,7 +620,7 @@ fn should_page_wildcard_portal_from_one_result_when_source_has_no_collection_sch
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         for name in ["portal_catalog_b", "portal_catalog_c", "portal_catalog_d"] {
@@ -714,7 +706,6 @@ fn should_page_wildcard_portal_from_one_result_when_source_has_no_collection_sch
 #[test]
 fn should_page_limited_portal_over_user_view() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-user-view-limited-page");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -722,7 +713,7 @@ fn should_page_limited_portal_over_user_view() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             for sql in [
@@ -771,7 +762,6 @@ fn should_page_limited_portal_over_user_view() {
 #[test]
 fn should_page_limited_portal_over_virtual_view_column() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-virtual-view-limited-page");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -779,7 +769,7 @@ fn should_page_limited_portal_over_virtual_view_column() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -835,8 +825,8 @@ fn should_page_limited_portal_over_virtual_view_column() {
     });
 }
 
-fn declared_id_table(path: &str, table: &str) -> (Cassie, String) {
-    let cassie = Cassie::new_with_data_dir(path).expect("cassie");
+fn declared_id_table(_path: &str, table: &str) -> (Cassie, String) {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     for sql in [

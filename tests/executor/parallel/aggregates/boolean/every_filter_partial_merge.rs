@@ -5,11 +5,10 @@ use super::*;
 #[test]
 fn should_merge_filtered_every_states_across_workers() {
     // Arrange
-    use_local_storage();
     let path = data_dir("postgresql18_every_filter_partial_merge");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
     let collection = "exec_pg18_every_filter_partial_merge";
     let session = cassie.create_session("tester", None);
     create_registered_collection(

@@ -156,11 +156,10 @@ fn should_lifecycle_retention_policy_metadata() {
 #[test]
 fn should_enforce_retention_idempotently() {
     // Arrange
-    use_local_storage();
     let path = data_dir("retention_enforce");
 
     runtime().block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -261,11 +260,10 @@ fn should_enforce_retention_idempotently() {
 #[test]
 fn should_enforce_foreign_key_actions_during_retention() {
     // Arrange
-    use_local_storage();
     let path = data_dir("retention_foreign_keys");
 
     runtime().block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             create_retention_foreign_key_fixture(&cassie, &session);
@@ -346,11 +344,10 @@ fn should_enforce_foreign_key_actions_during_retention() {
 #[test]
 fn should_mark_materialized_projection_stale_after_retention() {
     // Arrange
-    use_local_storage();
     let path = data_dir("retention_projection_stale");
 
     runtime().block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -417,11 +414,10 @@ fn should_mark_materialized_projection_stale_after_retention() {
 #[test]
 fn should_refresh_rollup_after_retention_enforcement() {
     // Arrange
-    use_local_storage();
     let path = data_dir("retention_rollup");
 
     runtime().block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie

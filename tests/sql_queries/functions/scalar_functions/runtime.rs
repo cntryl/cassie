@@ -1,4 +1,3 @@
-use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,10 +13,6 @@ use tokio_postgres::{NoTls, SimpleQueryMessage};
 use super::support_sql as support;
 use support::*;
 
-fn use_local_storage() {
-    env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 struct CompatibilityServer {
     data_dir: String,
     addr: SocketAddr,
@@ -26,11 +21,10 @@ struct CompatibilityServer {
 
 impl CompatibilityServer {
     async fn start(label: &str) -> Self {
-        use_local_storage();
         let data_dir = data_dir(label);
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -111,9 +105,8 @@ fn should_execute_string_scalar_functions_in_query_path() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("string_helpers");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         let table = "scalar_string_helpers";
 
@@ -191,9 +184,8 @@ fn should_execute_null_numeric_scalar_functions() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("coalesce_abs");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         let table = "scalar_null_helpers";
 
@@ -405,9 +397,8 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("udf_regression");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         let table = "scalar_udf_regression";
 
@@ -476,9 +467,8 @@ fn should_bucket_timestamps_into_fixed_windows() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("time_bucket_fixed_windows");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -542,9 +532,8 @@ fn should_bucket_timestamps_with_custom_origin() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("time_bucket_origin");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -594,9 +583,8 @@ fn should_validate_time_bucket_nulls_errors() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("time_bucket_errors");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -656,9 +644,8 @@ fn should_apply_time_bucket_grouping_having_ordering() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("time_bucket_grouping");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(

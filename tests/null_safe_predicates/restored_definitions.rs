@@ -30,7 +30,7 @@ fn should_reject_restored_null_safe_definitions_on_use() {
     let mut modified = 0;
     for (key, raw) in cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Schema, &[])
+        .raw_scan_prefix(StorageFamily::Data, &[])
         .expect("scan actual metadata keys")
     {
         let Ok(mut record) = serde_json::from_slice::<serde_json::Value>(&raw) else {
@@ -50,7 +50,7 @@ fn should_reject_restored_null_safe_definitions_on_use() {
             cassie
                 .midge
                 .raw_put(
-                    StorageFamily::Schema,
+                    StorageFamily::Data,
                     &key,
                     &serde_json::to_vec(&record).expect("encode actual metadata"),
                 )

@@ -81,7 +81,6 @@ fn should_persist_operational_assignment_metadata_after_restart() {
 #[test]
 fn should_not_route_or_filter_queries_from_operational_assignment_metadata() {
     // Arrange
-    use_local_storage();
     let path = data_dir("query_semantics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -89,7 +88,7 @@ fn should_not_route_or_filter_queries_from_operational_assignment_metadata() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -152,7 +151,6 @@ fn should_not_route_or_filter_queries_from_operational_assignment_metadata() {
 #[test]
 fn should_apply_last_write_wins_on_concurrent_assignment_updates() {
     // Arrange
-    use_local_storage();
     let path = data_dir("concurrent_update");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -160,7 +158,7 @@ fn should_apply_last_write_wins_on_concurrent_assignment_updates() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

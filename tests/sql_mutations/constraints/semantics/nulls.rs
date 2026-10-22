@@ -1,9 +1,8 @@
 #[test]
 fn should_satisfy_check_constraints_when_the_value_is_explicit_null() {
     // Arrange
-    use_local_storage();
     let path = data_dir("check_explicit_null");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     for sql in [

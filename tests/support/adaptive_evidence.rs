@@ -5,8 +5,7 @@ use cassie::types::Value;
 use serde_json::{json, Value as JsonValue};
 use sha2::{Digest, Sha256};
 use std::fmt::Write;
-use std::path::{Path, PathBuf};
-use uuid::Uuid;
+use std::path::Path;
 
 const TABLE: &str = "adaptive_profile_evidence";
 const BASE_INDEX: &str = "adaptive_profile_body_idx";
@@ -48,7 +47,6 @@ struct SemanticObservations {
 
 impl AdaptiveProfileEvidence {
     pub fn collect() -> Self {
-        std::env::set_var("CASSIE_STORAGE_MODE", "local");
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -307,10 +305,9 @@ fn observe_profile(
     config: CassieRuntimeConfig,
     seed_feedback: bool,
 ) -> ProfileObservation {
-    let path = evidence_path(profile);
     let config_evidence = config_json(&config);
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config)
-        .expect("create adaptive evidence Cassie");
+    let cassie =
+        Cassie::new_in_memory_with_config(config).expect("create adaptive evidence Cassie");
     cassie.startup().expect("start adaptive evidence Cassie");
     let session = cassie.create_session("adaptive-evidence", None);
     seed_fixture(&cassie, &session);
@@ -351,7 +348,6 @@ fn observe_profile(
     };
     drop(session);
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
     observation
 }
 
@@ -553,11 +549,4 @@ fn explain(cassie: &Cassie, session: &cassie::app::CassieSession, sql: &str) -> 
         .as_str()
         .expect("textual adaptive evidence plan")
         .to_string()
-}
-
-fn evidence_path(profile: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "cassie-adaptive-evidence-{profile}-{}",
-        Uuid::new_v4()
-    ))
 }

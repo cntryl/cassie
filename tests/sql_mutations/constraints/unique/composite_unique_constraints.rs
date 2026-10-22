@@ -5,6 +5,17 @@ use super::support_sql as support;
 use support::{data_dir, use_local_storage};
 
 fn start(label: &str, statements: &[&str]) -> (Cassie, CassieSession, String) {
+    let path = data_dir(label);
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in statements {
+        run(&cassie, &session, sql);
+    }
+    (cassie, session, path)
+}
+
+fn start_local(label: &str, statements: &[&str]) -> (Cassie, CassieSession, String) {
     use_local_storage();
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
@@ -172,7 +183,7 @@ fn should_manage_a_composite_unique_constraint_through_alter_table() {
 #[test]
 fn should_keep_a_composite_unique_constraint_across_its_ddl_lifecycle() {
     // Arrange
-    let (cassie, session, path) = start(
+    let (cassie, session, path) = start_local(
             "composite-unique-lifecycle",
             &[
                 "CREATE TABLE k (id INT PRIMARY KEY, a INT, b INT, CONSTRAINT k_ab UNIQUE (a, b))",

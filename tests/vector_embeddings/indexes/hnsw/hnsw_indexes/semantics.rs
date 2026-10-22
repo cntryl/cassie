@@ -2,9 +2,8 @@
 fn should_clean_batched_hnsw_sidecars_after_failed_publication_retry() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    use_local_storage();
     let path = data_dir("hnsw_batched_build_retry");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let collection = "hnsw_batched_build_retry";
     register_hnsw_collection(&cassie, collection);
@@ -93,9 +92,8 @@ fn should_clean_batched_hnsw_sidecars_after_failed_publication_retry() {
 #[test]
 fn should_store_hnsw_graph_state_in_the_data_family() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_graph_data_family");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let collection = "hnsw_graph_data_family";
     register_hnsw_collection(&cassie, collection);
@@ -127,9 +125,8 @@ fn should_store_hnsw_graph_state_in_the_data_family() {
 #[test]
 fn should_refresh_hnsw_graph_after_document_mutations() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_graph_refresh");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_graph_refresh";
     register_hnsw_collection(&cassie, collection);
@@ -164,9 +161,8 @@ fn should_refresh_hnsw_graph_after_document_mutations() {
 #[test]
 fn should_keep_hnsw_reads_safe_during_concurrent_mutation() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_concurrent_mutation");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_concurrent_mutation";
     register_hnsw_collection(&cassie, collection);
@@ -232,9 +228,8 @@ fn should_keep_hnsw_reads_safe_during_concurrent_mutation() {
 #[test]
 fn should_not_use_a_vector_index_on_a_case_distinct_sibling_field() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_case_distinct_vector_fields");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let collection = "hnsw_case_distinct_vector_fields";
     cassie
@@ -314,9 +309,8 @@ fn should_not_use_a_vector_index_on_a_case_distinct_sibling_field() {
 #[test]
 fn should_use_hnsw_graph_for_an_other_case_vector_field() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_sql_topk_field_case");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_sql_topk_field_case";
     register_hnsw_collection(&cassie, collection);
@@ -349,9 +343,8 @@ fn should_use_hnsw_graph_for_an_other_case_vector_field() {
 #[test]
 fn should_fall_back_deterministically_when_hnsw_graph_is_missing() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_missing_graph_fallback");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_missing_graph_fallback";
     register_hnsw_collection(&cassie, collection);
@@ -390,9 +383,8 @@ fn should_fall_back_deterministically_when_hnsw_graph_is_missing() {
 #[test]
 fn should_fall_back_when_same_row_count_hnsw_graph_fingerprint_is_stale() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_stale_fingerprint_fallback");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_stale_fingerprint_fallback";
     register_hnsw_collection(&cassie, collection);
@@ -417,9 +409,8 @@ fn should_fall_back_when_same_row_count_hnsw_graph_fingerprint_is_stale() {
 #[test]
 fn should_fall_back_when_hnsw_graph_neighbor_reference_is_corrupt() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_corrupt_neighbor_fallback");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_corrupt_neighbor_fallback";
     register_hnsw_collection(&cassie, collection);
@@ -464,9 +455,8 @@ fn should_omit_names_from_hnsw_hot_keys() {
 #[test]
 fn should_scale_hnsw_query_reads_with_reachable_nodes_not_corpus_size() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_point_read_scaling");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_point_read_scaling";
     register_hnsw_collection(&cassie, collection);
@@ -504,9 +494,8 @@ fn should_scale_hnsw_query_reads_with_reachable_nodes_not_corpus_size() {
 #[test]
 fn should_remove_hnsw_point_nodes_when_index_is_dropped() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_point_nodes_drop_cleanup");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_point_nodes_drop_cleanup";
     register_hnsw_collection(&cassie, collection);

@@ -10,7 +10,6 @@ use super::support_pgwire as support;
 #[test]
 fn should_cancel_only_the_backend_given_matching_process_id_and_secret() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("cancel-active-query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -22,7 +21,7 @@ fn should_cancel_only_the_backend_given_matching_process_id_and_secret() {
         config.password = "postgres".to_string();
         config.limits.cte_recursion_depth = 1_000_000;
         config.limits.query_memory_budget_bytes = 1024 * 1024 * 1024;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -87,7 +86,6 @@ fn should_cancel_only_the_backend_given_matching_process_id_and_secret() {
 #[test]
 fn should_ignore_a_cancel_request_given_a_stale_backend_secret() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("cancel-idle-query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -97,7 +95,7 @@ fn should_ignore_a_cancel_request_given_a_stale_backend_secret() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

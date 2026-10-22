@@ -23,7 +23,6 @@ fn assert_f64_close(actual: f64, expected: f64) {
 #[test]
 fn should_explain_vector_prefilter_for_indexed_equality_filter() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_vector_prefilter_indexed");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -31,7 +30,7 @@ fn should_explain_vector_prefilter_for_indexed_equality_filter() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -80,7 +79,6 @@ fn should_explain_vector_prefilter_for_indexed_equality_filter() {
 #[test]
 fn should_apply_vector_metadata_prefilter_for_supported_predicates() {
     // Arrange
-    use_local_storage();
     let path = data_dir("vector_prefilter_supported_predicates");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -88,7 +86,7 @@ fn should_apply_vector_metadata_prefilter_for_supported_predicates() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -154,7 +152,6 @@ fn should_apply_vector_metadata_prefilter_for_supported_predicates() {
 #[test]
 fn should_fall_back_for_unsupported_vector_metadata_predicate_without_changing_results() {
     // Arrange
-    use_local_storage();
     let path = data_dir("vector_prefilter_unsupported_predicate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -162,7 +159,7 @@ fn should_fall_back_for_unsupported_vector_metadata_predicate_without_changing_r
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -220,7 +217,6 @@ fn should_fall_back_for_unsupported_vector_metadata_predicate_without_changing_r
 #[test]
 fn should_explain_hybrid_prefilter_for_indexed_equality_filter() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_hybrid_prefilter_indexed");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -228,7 +224,7 @@ fn should_explain_hybrid_prefilter_for_indexed_equality_filter() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -277,7 +273,6 @@ fn should_explain_hybrid_prefilter_for_indexed_equality_filter() {
 #[test]
 fn should_reject_vector_index_when_embedding_dimensions_mismatch() {
     // Arrange
-    use_local_storage();
     let path = data_dir("vector_index_embedding_dimension_mismatch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -285,7 +280,7 @@ fn should_reject_vector_index_when_embedding_dimensions_mismatch() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -318,7 +313,6 @@ fn should_reject_vector_index_when_embedding_dimensions_mismatch() {
 #[test]
 fn should_reject_vector_components_outside_f32_range_on_write() {
     // Arrange
-    use_local_storage();
     let path = data_dir("vector_component_outside_f32_range");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -326,7 +320,7 @@ fn should_reject_vector_components_outside_f32_range_on_write() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -417,9 +411,8 @@ fn should_hydrate_hnsw_vector_index_options_after_restart() {
 #[test]
 fn should_reject_family_specific_sql_vector_index_options() {
     // Arrange
-    use_local_storage();
     let path = data_dir("sql_vector_index_family_options");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(openai_runtime_for_vectors()).unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
     cassie
@@ -463,7 +456,6 @@ fn should_reject_family_specific_sql_vector_index_options() {
 #[test]
 fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
     // Arrange
-    use_local_storage();
     let path = data_dir("normalized_sidecar_sql_rebuild");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -471,7 +463,7 @@ fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -568,9 +560,8 @@ fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
 #[test]
 fn should_reject_family_specific_rest_vector_index_options() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rest_vector_index_family_options");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(openai_runtime_for_vectors()).unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
     cassie

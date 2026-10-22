@@ -7,11 +7,11 @@ use super::support_pgwire as support;
 type Frames = Vec<(u8, Vec<u8>)>;
 type PortalPages = (Vec<String>, Vec<String>);
 
-fn seeded_cassie(path: &str, table: &str, count: usize) -> Cassie {
+fn seeded_cassie(_path: &str, table: &str, count: usize) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -78,7 +78,6 @@ async fn round_trip(
 /// Opens a transaction, suspends a streaming portal after two rows, stages
 /// `staged_sql` in the same transaction, and resumes the portal.
 fn resume_after_staged_write(label: &str, staged_sql: &str) -> PortalPages {
-    support::use_local_storage();
     let path = support::data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -173,7 +172,6 @@ fn should_resume_suspended_portal_from_original_result_after_staged_delete() {
 #[test]
 fn should_return_select_zero_when_completed_select_portal_executes_again() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-completed-select");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -231,7 +229,6 @@ fn should_return_select_zero_when_completed_select_portal_executes_again() {
 #[test]
 fn should_not_rerun_insert_when_completed_insert_portal_executes_again() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-completed-insert");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -297,7 +294,6 @@ fn should_not_rerun_insert_when_completed_insert_portal_executes_again() {
 #[test]
 fn should_drop_suspended_portal_when_extended_commit_ends_transaction() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-extended-commit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -374,7 +370,6 @@ fn should_drop_suspended_portal_when_extended_commit_ends_transaction() {
 #[test]
 fn should_drop_suspended_portal_given_commit_chain_when_next_transaction_remains_open() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("portal-extended-commit-chain");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -457,7 +452,6 @@ fn should_drop_suspended_portal_given_commit_chain_when_next_transaction_remains
 #[test]
 fn should_use_default_characteristics_given_failed_transaction_when_commit_or_rollback_chains() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("failed-chain-characteristics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -499,7 +493,6 @@ fn should_use_default_characteristics_given_failed_transaction_when_commit_or_ro
 fn should_report_transaction_status_given_implicit_begin_modes_when_prior_query_established_boundary(
 ) {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("implicit-begin-mode-boundary");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

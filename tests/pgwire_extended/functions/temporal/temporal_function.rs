@@ -669,7 +669,6 @@ fn should_bind_date_subtract_parameters_with_dst_zone() {
 #[test]
 fn should_cancel_pg_sleep_for() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("postgresql18-pg-sleep-cancel");
     let _directory = FixtureDirectory(path.clone());
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -679,7 +678,7 @@ fn should_cancel_pg_sleep_for() {
 
     // Act
     let (cancelled, recovered) = runtime.block_on(async {
-        let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("start cancellation fixture");
         let server = wire::spawn_server(cassie).await;
         let socket = tokio::net::TcpStream::connect(server.addr)
@@ -732,7 +731,6 @@ fn should_cancel_pg_sleep_for() {
 #[test]
 fn should_cancel_pg_sleep_until() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("postgresql18-pg-sleep-until-cancel");
     let _directory = FixtureDirectory(path.clone());
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -742,7 +740,7 @@ fn should_cancel_pg_sleep_until() {
 
     // Act
     let (cancelled, recovered) = runtime.block_on(async {
-        let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("start cancellation fixture");
         let server = wire::spawn_server(cassie).await;
         let socket = tokio::net::TcpStream::connect(server.addr)

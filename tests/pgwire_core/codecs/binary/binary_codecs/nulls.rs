@@ -1,11 +1,10 @@
 #[test]
 fn should_encode_stored_empty_array_with_zero_dimensions() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("binary-empty-array-result");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -54,11 +53,10 @@ fn should_encode_stored_empty_array_with_zero_dimensions() {
 #[test]
 fn should_apply_mixed_result_formats_with_null_values() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("binary-mixed-formats");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_result_codecs(&cassie);
 

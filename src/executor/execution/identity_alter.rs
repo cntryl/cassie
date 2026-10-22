@@ -175,7 +175,9 @@ fn create_identity_sequence(
     data_type: &crate::types::DataType,
     options: &SequenceOptions,
 ) -> Result<String, QueryError> {
-    let name = crate::catalog::serial_sequence_name(table, field);
+    let name = cassie
+        .midge
+        .canonical_collection_name(&crate::catalog::serial_sequence_name(table, field));
     let parameters = SequenceParameters::resolve(None, options, data_type)
         .map_err(|error| QueryError::Cassie(error.into()))?;
     let mut metadata = SequenceMeta::with_parameters(&name, parameters);
@@ -187,6 +189,7 @@ fn create_identity_sequence(
         .midge
         .allocate_object_id()
         .map_err(QueryError::from)?;
+    let metadata = super::sequence_command::canonicalize_sequence_metadata(cassie, metadata);
     cassie
         .midge
         .put_sequence(&metadata)

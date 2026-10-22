@@ -1,9 +1,8 @@
 #[test]
 fn should_reject_rest_delete_of_referenced_parent_row() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("rest_referenced_parent_delete");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("root", None);
     for sql in [
@@ -46,9 +45,8 @@ fn should_reject_rest_delete_of_referenced_parent_row() {
 #[test]
 fn should_reject_invalid_vector_dimensions_through_rest() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("bad_vector");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "rest_bad_vector";
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -85,9 +83,8 @@ fn should_reject_invalid_vector_dimensions_through_rest() {
 #[test]
 fn should_reject_missing_document_lookup_through_rest() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("missing_doc");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "rest_missing_doc";
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -123,7 +120,7 @@ fn should_reject_missing_document_lookup_through_rest() {
 fn should_reject_rest_ingest_when_not_null_constraint_is_violated() {
     // Arrange
     let path = format!("/tmp/cassie-rest-not-null-{}", Uuid::new_v4());
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "rest_constraint_not_null";
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -166,7 +163,7 @@ fn should_reject_rest_ingest_when_not_null_constraint_is_violated() {
 fn should_reject_rest_ingest_when_unique_constraint_is_violated() {
     // Arrange
     let path = format!("/tmp/cassie-rest-unique-{}", Uuid::new_v4());
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "rest_constraint_unique";
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -218,7 +215,7 @@ fn should_reject_rest_ingest_when_unique_constraint_is_violated() {
 fn should_reject_rest_ingest_when_check_constraint_is_violated() {
     // Arrange
     let path = format!("/tmp/cassie-rest-check-{}", Uuid::new_v4());
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "rest_constraint_check";
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -260,9 +257,8 @@ fn should_reject_rest_ingest_when_check_constraint_is_violated() {
 #[test]
 fn should_reject_rest_collection_creation_that_reuses_an_existing_table() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("collection-create-existing-table");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("root", None);
     cassie
@@ -351,9 +347,8 @@ fn should_reject_rest_collection_creation_that_reuses_an_existing_table() {
 #[test]
 fn should_reject_rest_collection_creation_that_reuses_an_existing_view() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("collection-create-existing-view");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("root", None);
     cassie
@@ -398,10 +393,9 @@ fn should_reject_rest_collection_creation_that_reuses_an_existing_view() {
 #[test]
 fn should_reject_concurrent_rest_collection_creation_when_sql_table_claims_name() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let _test_guard = schema_write_conflict_test_guard();
     let path = data_dir("collection-create-sql-race");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
     cassie.startup().expect("startup");
     let ready = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
@@ -492,10 +486,9 @@ fn should_reject_concurrent_rest_collection_creation_when_sql_table_claims_name(
 #[test]
 fn should_reject_concurrent_rest_collection_creation_when_sql_view_claims_name() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let _test_guard = schema_write_conflict_test_guard();
     let path = data_dir("collection-create-view-race");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
     cassie.startup().expect("startup");
     let setup_session = cassie.create_session("root", None);
     cassie

@@ -3,7 +3,7 @@ use super::support_sql as support;
 use cassie::app::{Cassie, CassieError, CassieSession};
 use cassie::types::Value;
 
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 #[test]
 fn should_resolve_aggregate_clauses_given_own_qualified_columns_when_values_and_types_are_projected(
@@ -103,9 +103,8 @@ fn should_resolve_aggregate_clauses_given_a_quoted_relation_alias_when_filter_pa
 }
 
 fn seeded(label: &str, statements: &[&str]) -> (Cassie, CassieSession, String) {
-    use_local_storage();
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in statements {

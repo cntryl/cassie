@@ -1,7 +1,6 @@
 #[test]
 fn should_reject_unsupported_transaction_control_sql() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_unsupported");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_reject_unsupported_transaction_control_sql() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -31,7 +30,6 @@ fn should_reject_unsupported_transaction_control_sql() {
 #[test]
 fn should_reject_savepoint_outside_transaction() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_savepoint_outside");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -39,7 +37,7 @@ fn should_reject_savepoint_outside_transaction() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -60,7 +58,6 @@ fn should_reject_savepoint_outside_transaction() {
 #[test]
 fn should_reject_advisory_lock_sql() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_advisory_lock");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -68,7 +65,7 @@ fn should_reject_advisory_lock_sql() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -100,7 +97,6 @@ fn should_reject_advisory_lock_sql() {
 #[test]
 fn should_reject_work_after_transaction_error_until_rollback() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_failed_state");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -108,7 +104,7 @@ fn should_reject_work_after_transaction_error_until_rollback() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

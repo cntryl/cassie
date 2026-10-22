@@ -16,7 +16,6 @@ use support::*;
 #[test]
 fn should_reject_text_true_for_transaction_local_set_config() {
     // Arrange
-    use_local_storage();
     let path = data_dir("set_config_transaction_local_text");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -24,7 +23,7 @@ fn should_reject_text_true_for_transaction_local_set_config() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -94,7 +93,6 @@ fn should_reject_text_true_for_transaction_local_set_config() {
 #[test]
 fn should_execute_coalesce_scalar_function_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_coalesce_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -102,7 +100,7 @@ fn should_execute_coalesce_scalar_function_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -142,7 +140,6 @@ fn should_execute_coalesce_scalar_function_query() {
 #[test]
 fn should_execute_numeric_scalar_function_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_numeric_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -150,7 +147,7 @@ fn should_execute_numeric_scalar_function_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -187,7 +184,6 @@ fn should_execute_numeric_scalar_function_query() {
 #[test]
 fn should_reject_abs_overflow_for_bigint_minimum() {
     // Arrange
-    use_local_storage();
     let path = data_dir("abs_bigint_overflow");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -195,7 +191,7 @@ fn should_reject_abs_overflow_for_bigint_minimum() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -219,7 +215,6 @@ fn should_reject_abs_overflow_for_bigint_minimum() {
 #[test]
 fn should_preserve_abs_at_numeric_boundaries() {
     // Arrange
-    use_local_storage();
     let path = data_dir("abs_numeric_boundaries");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -227,7 +222,7 @@ fn should_preserve_abs_at_numeric_boundaries() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
 
@@ -257,7 +252,6 @@ fn should_preserve_abs_at_numeric_boundaries() {
 #[test]
 fn should_filter_rows_with_cast_function_expression() {
     // Arrange
-    use_local_storage();
     let path = data_dir("predicate_cast_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -265,7 +259,7 @@ fn should_filter_rows_with_cast_function_expression() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -305,7 +299,6 @@ fn should_filter_rows_with_cast_function_expression() {
 #[test]
 fn should_filter_rows_with_postgres_style_cast_expression() {
     // Arrange
-    use_local_storage();
     let path = data_dir("predicate_pg_cast");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -313,7 +306,7 @@ fn should_filter_rows_with_postgres_style_cast_expression() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -353,7 +346,6 @@ fn should_filter_rows_with_postgres_style_cast_expression() {
 #[test]
 fn should_project_rows_with_cast_expressions() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_cast_expressions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -361,7 +353,7 @@ fn should_project_rows_with_cast_expressions() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -406,7 +398,6 @@ fn should_project_rows_with_cast_expressions() {
 #[test]
 fn should_reject_invalid_cast_expression() {
     // Arrange
-    use_local_storage();
     let path = data_dir("invalid_cast_expression");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -414,7 +405,7 @@ fn should_reject_invalid_cast_expression() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -453,9 +444,8 @@ fn should_reject_invalid_cast_expression() {
 #[test]
 fn should_evaluate_searched_case_literals() {
     // Arrange
-    use_local_storage();
     let path = data_dir("searched_case_literals");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
 

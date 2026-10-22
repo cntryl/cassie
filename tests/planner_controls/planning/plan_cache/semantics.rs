@@ -1,7 +1,6 @@
 #[test]
 fn should_report_diagnostic_plan_cache_hit_after_query_execution() {
     // Arrange
-    use_local_storage();
     let path = data_dir("diagnostic_cache_hit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_report_diagnostic_plan_cache_hit_after_query_execution() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "plan_cache_diagnostic_docs";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -65,7 +64,6 @@ fn should_report_diagnostic_plan_cache_hit_after_query_execution() {
 #[test]
 fn should_reuse_cached_plan_for_equivalent_sql_with_different_whitespace() {
     // Arrange
-    use_local_storage();
     let path = data_dir("reuse_equivalent_sql_whitespace");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -73,7 +71,7 @@ fn should_reuse_cached_plan_for_equivalent_sql_with_different_whitespace() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "plan_cache_whitespace_docs";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -136,7 +134,6 @@ fn should_reuse_cached_plan_for_equivalent_sql_with_different_whitespace() {
 #[test]
 fn should_reuse_cached_execution_result_without_additional_storage_reads() {
     // Arrange
-    use_local_storage();
     let path = data_dir("execution_result_cache_hit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -144,7 +141,7 @@ fn should_reuse_cached_execution_result_without_additional_storage_reads() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "execution_cache_docs";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -219,9 +216,7 @@ fn should_reuse_cached_execution_result_without_additional_storage_reads() {
 #[test]
 fn should_isolate_cached_plans_by_database() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("database_isolation");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     let setup = cassie.create_session("alice", None);
     for database in ["primary_db", "analytics_db"] {
@@ -285,13 +280,11 @@ fn should_isolate_cached_plans_by_database() {
     drop(setup);
     cassie.shutdown();
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("strict database fixture cleanup");
 }
 
 #[test]
 fn should_keep_first_non_durable_plan_miss_out_of_cf2() {
     // Arrange
-    use_local_storage();
     let path = data_dir("first_non_durable_miss_out_of_cf2");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -299,7 +292,7 @@ fn should_keep_first_non_durable_plan_miss_out_of_cf2() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "plan_cache_first_miss_docs";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -430,7 +423,6 @@ fn should_separate_cached_plans_by_adaptive_config() {
 #[test]
 fn should_evict_oldest_plan_when_cache_capacity_is_one() {
     // Arrange
-    use_local_storage();
     let path = data_dir("eviction");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -440,7 +432,7 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.plan_cache_entries = 1;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let collection = "plan_cache_eviction_docs";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -520,7 +512,6 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
 #[test]
 fn should_promote_non_durable_l1_plan_without_extra_cf2_reads_on_second_hit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("l1_promotion_without_extra_cf2_reads");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -528,7 +519,7 @@ fn should_promote_non_durable_l1_plan_without_extra_cf2_reads_on_second_hit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "plan_cache_l1_promotion_docs";
         let schema = Schema {
             fields: vec![FieldSchema {

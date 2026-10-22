@@ -15,11 +15,7 @@ use uuid::Uuid;
 fn should_bind_insert_statement_for_existing_collection() {
     // Arrange
     let sql = "INSERT INTO docs VALUES (1)";
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-parser-insert-binding-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

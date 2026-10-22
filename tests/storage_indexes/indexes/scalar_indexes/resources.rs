@@ -1,7 +1,6 @@
 #[test]
 fn should_query_rows_after_creating_ordered_bounded_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ordered_bounded_index_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_query_rows_after_creating_ordered_bounded_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -73,7 +72,6 @@ fn should_query_rows_after_creating_ordered_bounded_index() {
 #[test]
 fn should_include_null_sort_keys_in_indexed_order_by_limit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_order_null_keys");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -81,7 +79,7 @@ fn should_include_null_sort_keys_in_indexed_order_by_limit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         create_indexed_and_plain_tables(
@@ -137,7 +135,6 @@ fn should_include_null_sort_keys_in_indexed_order_by_limit() {
 #[test]
 fn should_keep_ordered_bounded_scan_for_not_null_indexed_column() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_order_not_null");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -145,7 +142,7 @@ fn should_keep_ordered_bounded_scan_for_not_null_indexed_column() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         create_indexed_and_plain_tables(
@@ -190,7 +187,6 @@ fn should_keep_ordered_bounded_scan_for_not_null_indexed_column() {
 #[test]
 fn should_replan_ordered_limit_after_dropping_not_null_on_indexed_column() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_order_drop_not_null");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -198,7 +194,7 @@ fn should_replan_ordered_limit_after_dropping_not_null_on_indexed_column() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         create_indexed_and_plain_tables(

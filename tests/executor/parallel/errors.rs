@@ -3,11 +3,10 @@
 #[test]
 fn should_sum_parallel_bigint_merges_beyond_int64_as_exact_numeric() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_aggregation_sum_overflow");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let collection = "exec_parallel_aggregation_overflow";
     let session = cassie.create_session("tester", None);
     create_registered_collection(&cassie, collection, &[("amount", DataType::BigInt)]);

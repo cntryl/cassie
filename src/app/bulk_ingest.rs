@@ -49,25 +49,40 @@ impl Cassie {
         result
     }
 
-    pub(crate) fn ingest_copy_csv_payload(
+    fn copy_from_csv_stdin_inner(
         &self,
         session: &CassieSession,
         statement: &CopyStatement,
         payload: &[u8],
         cancellation: Option<&QueryCancellationHandle>,
     ) -> Result<usize, CassieError> {
-        if let Some(cancellation) = cancellation {
-            self.copy_from_csv_stdin_with_cancellation(session, statement, payload, cancellation)
-        } else {
-            self.copy_from_csv_stdin(session, statement, payload)
+        let mut rows = parse_csv_payload(payload)?;
+        if statement.header && !rows.is_empty() {
+            rows.remove(0);
         }
+        self.copy_from_rows_inner(session, statement, rows, cancellation)
     }
 
-    fn copy_from_csv_stdin_inner(
+    pub(crate) fn ingest_copy_rows(
         &self,
         session: &CassieSession,
         statement: &CopyStatement,
-        payload: &[u8],
+        rows: Vec<Vec<Option<String>>>,
+        cancellation: Option<&QueryCancellationHandle>,
+    ) -> Result<usize, CassieError> {
+        let transactional = session.is_transaction_active();
+        let result = self.copy_from_rows_inner(session, statement, rows, cancellation);
+        if result.is_err() && transactional {
+            session.mark_transaction_failed();
+        }
+        result
+    }
+
+    fn copy_from_rows_inner(
+        &self,
+        session: &CassieSession,
+        statement: &CopyStatement,
+        rows: Vec<Vec<Option<String>>>,
         cancellation: Option<&QueryCancellationHandle>,
     ) -> Result<usize, CassieError> {
         check_copy_cancellation(cancellation)?;
@@ -92,10 +107,6 @@ impl Cassie {
             .get_schema(&statement.table)
             .ok_or_else(|| CassieError::CollectionNotFound(statement.table.clone()))?;
         let columns = copy_columns(&statement, schema.fields.as_slice())?;
-        let mut rows = parse_csv_payload(payload)?;
-        if statement.header && !rows.is_empty() {
-            rows.remove(0);
-        }
 
         let collections = self.referential_write_collections(&statement.table);
         let (affected, stats) = self.midge.with_collection_write_gates(&collections, || {
@@ -391,7 +402,20 @@ fn parse_copy_bool(raw: &str) -> Option<bool> {
     crate::types::boolean::parse_text(raw)
 }
 
-fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieError> {
+pub(crate) fn parse_copy_csv_payload(
+    payload: &[u8],
+    delimiter: char,
+    null_marker: &str,
+) -> Result<Vec<Vec<Option<String>>>, CassieError> {
+    parse_csv_payload_with_null_policy(payload, delimiter, null_marker, null_marker.is_empty())
+}
+
+fn parse_csv_payload_with_null_policy(
+    payload: &[u8],
+    delimiter: char,
+    null_marker: &str,
+    empty_unquoted_is_null: bool,
+) -> Result<Vec<Vec<Option<String>>>, CassieError> {
     let text = std::str::from_utf8(payload)
         .map_err(|_| CassieError::Parse("COPY payload must be UTF-8".to_string()))?;
     let mut rows = Vec::new();
@@ -411,13 +435,29 @@ fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieE
                 field.started = true;
                 field.quoted = true;
             }
-            ',' if !in_quotes => field.push_into(&mut row),
-            '\n' if !in_quotes => push_csv_row(&mut rows, &mut row, &mut field),
+            ch if ch == delimiter && !in_quotes => {
+                field.push_into(&mut row, null_marker, empty_unquoted_is_null);
+            }
+            '\n' if !in_quotes => {
+                push_csv_row(
+                    &mut rows,
+                    &mut row,
+                    &mut field,
+                    null_marker,
+                    empty_unquoted_is_null,
+                );
+            }
             '\r' if !in_quotes => {
                 if chars.peek() == Some(&'\n') {
                     chars.next();
                 }
-                push_csv_row(&mut rows, &mut row, &mut field);
+                push_csv_row(
+                    &mut rows,
+                    &mut row,
+                    &mut field,
+                    null_marker,
+                    empty_unquoted_is_null,
+                );
             }
             _ => {
                 field.value.push(ch);
@@ -432,7 +472,13 @@ fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieE
         ));
     }
     if field.started || !row.is_empty() {
-        push_csv_row(&mut rows, &mut row, &mut field);
+        push_csv_row(
+            &mut rows,
+            &mut row,
+            &mut field,
+            null_marker,
+            empty_unquoted_is_null,
+        );
     }
 
     Ok(rows)
@@ -442,8 +488,10 @@ fn push_csv_row(
     rows: &mut Vec<Vec<Option<String>>>,
     row: &mut Vec<Option<String>>,
     field: &mut CsvField,
+    null_marker: &str,
+    empty_unquoted_is_null: bool,
 ) {
-    field.push_into(row);
+    field.push_into(row, null_marker, empty_unquoted_is_null);
     rows.push(std::mem::take(row));
 }
 
@@ -455,12 +503,22 @@ struct CsvField {
 }
 
 impl CsvField {
-    /// PostgreSQL CSV reads an unquoted empty field as NULL; a quoted `""` stays empty.
-    fn push_into(&mut self, row: &mut Vec<Option<String>>) {
+    /// PostgreSQL CSV treats only an unquoted null marker as NULL.
+    fn push_into(
+        &mut self,
+        row: &mut Vec<Option<String>>,
+        null_marker: &str,
+        empty_unquoted_is_null: bool,
+    ) {
         let field = std::mem::take(self);
-        let is_null = field.value == COPY_NULL || (field.value.is_empty() && !field.quoted);
+        let is_null = !field.quoted
+            && (field.value == null_marker || (empty_unquoted_is_null && field.value.is_empty()));
         row.push((!is_null).then_some(field.value));
     }
+}
+
+fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieError> {
+    parse_csv_payload_with_null_policy(payload, ',', COPY_NULL, true)
 }
 
 #[cfg(test)]

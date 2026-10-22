@@ -345,16 +345,13 @@ fn assert_copy_out_response(frames: &[WireFrame], format: i16, columns: usize) {
         .iter()
         .find(|(tag, _)| *tag == b'H')
         .unwrap_or_else(|| panic!("COPY TO STDOUT should return CopyOutResponse: {frames:?}"));
-    assert_eq!(
-        i16::from_be_bytes(response.1[0..2].try_into().expect("format code")),
-        format
-    );
+    assert_eq!(response.1[0], u8::try_from(format).expect("format code"));
     let column_count = usize::try_from(i16::from_be_bytes(
-        response.1[2..4].try_into().expect("COPY column count"),
+        response.1[1..3].try_into().expect("COPY column count"),
     ))
     .expect("nonnegative COPY column count");
     assert_eq!(column_count, columns);
-    let (format_pairs, remainder) = response.1[4..].as_chunks::<2>();
+    let (format_pairs, remainder) = response.1[3..].as_chunks::<2>();
     assert!(
         remainder.is_empty(),
         "COPY format list must contain full pairs"

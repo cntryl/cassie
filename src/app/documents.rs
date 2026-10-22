@@ -525,7 +525,11 @@ impl Cassie {
         if value.chars().count() <= max {
             Ok(())
         } else {
-            Self::invalid_vector(field, format!("char({max})"))
+            Err(crate::app::DiagnosticError::new(
+                "22001",
+                format!("value too long for type character({max})"),
+            )
+            .into())
         }
     }
 
@@ -542,7 +546,11 @@ impl Cassie {
             if value.chars().count() <= (length as usize) {
                 Ok(())
             } else {
-                Self::invalid_vector(field, format!("varchar({length})"))
+                Err(crate::app::DiagnosticError::new(
+                    "22001",
+                    format!("value too long for type character varying({length})"),
+                )
+                .into())
             }
         } else {
             Ok(())

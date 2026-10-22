@@ -20,14 +20,14 @@ fn vector_cassie(_label: &str) -> Cassie {
     Cassie::new_in_memory_with_config(config).expect("create Cassie")
 }
 
-fn vector_cassie_with_memory_budget(_label: &str, query_memory_budget_bytes: usize) -> Cassie {
+fn vector_cassie_with_memory_budget(data_dir: &str, query_memory_budget_bytes: usize) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
         model: "deterministic-test".to_string(),
         dimensions: 3,
     });
     config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
-    Cassie::new_in_memory_with_config(config).expect("create Cassie")
+    Cassie::new_with_data_dir_and_config(data_dir, config).expect("create local Cassie")
 }
 
 fn seed_vector_collection(cassie: &Cassie, collection: &str, rows: usize) {
@@ -425,6 +425,7 @@ fn should_enforce_query_memory_budget_during_exact_vector_top_k() {
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_exact_memory_budget");
     let cassie = vector_cassie_with_memory_budget(&path, 64 * 1_024);
+    cassie.startup().expect("start seeded vector collection");
     let collection = "vector_exact_memory_budget";
     // Only the first storage identity changes; the twenty payloads and scores remain.
     // Its lexically first raw key alone exceeds the deeper target admission budget.
@@ -459,7 +460,10 @@ fn should_enforce_query_memory_budget_during_exact_vector_top_k() {
     // Assert
     for (budget, expected_visited, visited, error, before, after) in observations {
         let error = error.expect("exact vector query must reject its retained frontier");
-        assert!(matches!(error, CassieError::ResourceLimit(_)));
+        assert!(
+            matches!(error, CassieError::ResourceLimit(_)),
+            "unexpected error: {error:?}"
+        );
         assert!(
             error.to_string().contains("query memory budget"),
             "unexpected error at budget{budget}: {error}"

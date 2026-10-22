@@ -1,12 +1,11 @@
 #[test]
 fn should_reject_non_finite_rollup_output_before_publication() {
     // Arrange
-    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_non_finite_output");
 
     runtime().block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             cassie
@@ -59,11 +58,10 @@ fn should_reject_non_finite_rollup_output_before_publication() {
 #[test]
 fn should_reject_rollup_with_mismatched_source_generation() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rollup_generation_fence");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         seed_events(&cassie, &session, "rollup_generation_events");

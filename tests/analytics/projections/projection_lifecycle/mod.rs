@@ -9,10 +9,9 @@ use cassie::executor::set_projection_activation_failure_point;
 use cassie::midge::adapter::{
     schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
     set_projection_metadata_persistence_failure_point, set_projection_output_failure_point,
-    set_projection_replay_post_commit_failure_point,
-    set_projection_replay_schema_commit_failure_point,
-    set_projection_report_deletion_failure_point, set_schema_write_commit_barriers,
-    ProjectionOutputFailurePoint, SchemaWritePausePoint,
+    set_projection_replay_metadata_commit_failure_point,
+    set_projection_replay_post_commit_failure_point, set_projection_report_deletion_failure_point,
+    set_schema_write_commit_barriers, ProjectionOutputFailurePoint, SchemaWritePausePoint,
 };
 use cassie::sql::ast::{
     AlterMaterializedProjectionOperation, CopyFormat, CopyStatement, QueryStatement,
@@ -95,14 +94,42 @@ fn start_projection_version_fixture(
     CassieSession,
     String,
 ) {
-    use_local_storage();
+    start_projection_version_fixture_with_storage(label, false)
+}
+
+fn persistent_projection_version_fixture(
+    label: &str,
+) -> (
+    tokio::runtime::Runtime,
+    String,
+    Cassie,
+    CassieSession,
+    String,
+) {
+    start_projection_version_fixture_with_storage(label, true)
+}
+
+fn start_projection_version_fixture_with_storage(
+    label: &str,
+    persistent: bool,
+) -> (
+    tokio::runtime::Runtime,
+    String,
+    Cassie,
+    CassieSession,
+    String,
+) {
     let path = data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     let cassie = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = if persistent {
+            Cassie::new_with_data_dir(&path).unwrap()
+        } else {
+            crate::support_sql::new_in_memory_cassie().unwrap()
+        };
         cassie.startup().unwrap();
         cassie
     });

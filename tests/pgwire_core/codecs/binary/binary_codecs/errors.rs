@@ -1,10 +1,9 @@
 #[test]
 fn should_reject_incompatible_coalesce_before_sending_rows_over_pgwire() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("coalesce-wire-types");
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -81,11 +80,10 @@ fn should_reject_incompatible_coalesce_before_sending_rows_over_pgwire() {
 #[test]
 fn should_reject_binary_array_lengths_that_exceed_the_payload() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("binary-array-length");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let array = [
             1_i32.to_be_bytes().as_slice(),

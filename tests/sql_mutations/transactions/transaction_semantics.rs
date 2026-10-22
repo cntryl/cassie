@@ -3,15 +3,14 @@ use cassie::sql::ast::{CopyFormat, CopyStatement};
 use cassie::types::Value;
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn with_source_table<T>(
     label: &str,
     test: impl FnOnce(&Cassie, &cassie::app::CassieSession) -> T,
 ) -> T {
-    use_local_storage();
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie

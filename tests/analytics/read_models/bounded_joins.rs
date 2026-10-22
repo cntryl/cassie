@@ -146,7 +146,6 @@ fn select_inner_sql(users_table: &str, orders_table: &str, limit: usize) -> Stri
 #[test]
 fn should_sample_row_count_stats_to_reduce_larger_bounded_join_without_field_stats() {
     // Arrange
-    use_local_storage();
     let path = data_dir("row_count_sample_bounded_inner_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -156,11 +155,9 @@ fn should_sample_row_count_stats_to_reduce_larger_bounded_join_without_field_sta
     runtime.block_on(async {
         // The 1,000-row build retains its full converted body while qualified rows,
         // hash state, and 500 joined outputs overlap; preserve the bounded probe assertions.
-        let cassie = Cassie::new_with_data_dir_and_config(
-            &path,
-            vectorized_join_budget_config(8 * 1024 * 1024),
-        )
-        .unwrap();
+        let cassie =
+            Cassie::new_in_memory_with_config(vectorized_join_budget_config(8 * 1024 * 1024))
+                .unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         create_join_tables(
@@ -211,7 +208,6 @@ fn should_sample_row_count_stats_to_reduce_larger_bounded_join_without_field_sta
 #[test]
 fn should_use_fanout_stats_to_reduce_larger_bounded_join_build_side() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fanout_stats_bounded_inner_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -221,11 +217,9 @@ fn should_use_fanout_stats_to_reduce_larger_bounded_join_build_side() {
     runtime.block_on(async {
         // The 1,000-row build retains its full converted body while qualified rows,
         // hash state, and 500 joined outputs overlap; preserve the bounded probe assertions.
-        let cassie = Cassie::new_with_data_dir_and_config(
-            &path,
-            vectorized_join_budget_config(8 * 1024 * 1024),
-        )
-        .unwrap();
+        let cassie =
+            Cassie::new_in_memory_with_config(vectorized_join_budget_config(8 * 1024 * 1024))
+                .unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         create_join_tables(
@@ -276,7 +270,6 @@ fn should_use_fanout_stats_to_reduce_larger_bounded_join_build_side() {
 #[test]
 fn should_probe_indexed_right_source_for_bounded_inner_join() {
     // Arrange
-    use_local_storage();
     let path = data_dir("right_indexed_bounded_inner_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -284,7 +277,7 @@ fn should_probe_indexed_right_source_for_bounded_inner_join() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(vectorized_join_config()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         create_join_tables(
@@ -345,7 +338,6 @@ fn should_probe_indexed_right_source_for_bounded_inner_join() {
 #[test]
 fn should_keep_existing_left_index_probe_when_estimates_tie() {
     // Arrange
-    use_local_storage();
     let path = data_dir("indexed_bounded_tie");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -353,7 +345,7 @@ fn should_keep_existing_left_index_probe_when_estimates_tie() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(vectorized_join_config()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         create_join_tables(&cassie, &session, "bounded_tie_users", "bounded_tie_orders");
@@ -400,7 +392,6 @@ fn should_keep_existing_left_index_probe_when_estimates_tie() {
 #[test]
 fn should_select_smaller_build_side_for_late_match_bounded_inner_join() {
     // Arrange
-    use_local_storage();
     let path = data_dir("late_match_bounded_inner_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -408,7 +399,7 @@ fn should_select_smaller_build_side_for_late_match_bounded_inner_join() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(vectorized_join_config()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         create_join_tables(&cassie, &session, "late_small_users", "late_large_orders");
@@ -453,7 +444,6 @@ fn should_select_smaller_build_side_for_late_match_bounded_inner_join() {
 #[test]
 fn should_use_bounded_row_count_probe_when_cardinality_stats_are_missing() {
     // Arrange
-    use_local_storage();
     let path = data_dir("missing_stats_bounded_row_count_probe");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -461,7 +451,7 @@ fn should_use_bounded_row_count_probe_when_cardinality_stats_are_missing() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(vectorized_join_config()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         create_join_tables(
@@ -515,7 +505,6 @@ fn should_use_bounded_row_count_probe_when_cardinality_stats_are_missing() {
 #[test]
 fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_left() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ambiguous_missing_stats_bounded_inner_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -523,7 +512,7 @@ fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_l
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(vectorized_join_config()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         create_join_tables(
@@ -579,7 +568,6 @@ fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_l
 #[test]
 fn should_keep_existing_streaming_join_when_left_probe_exceeds_temp_budget() {
     // Arrange
-    use_local_storage();
     let path = data_dir("bounded_probe_temp_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -590,8 +578,7 @@ fn should_keep_existing_streaming_join_when_left_probe_exceeds_temp_budget() {
         // The count-only build cutoff is 64 KiB / 512 = 128 rows.
         // Row 129 must decline the left build while the bounded result still fits.
         let cassie =
-            Cassie::new_with_data_dir_and_config(&path, vectorized_join_budget_config(64 * 1024))
-                .unwrap();
+            Cassie::new_in_memory_with_config(vectorized_join_budget_config(64 * 1024)).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         create_join_tables(
@@ -649,7 +636,6 @@ fn should_keep_existing_streaming_join_when_left_probe_exceeds_temp_budget() {
 #[test]
 fn should_not_apply_bounded_side_selection_to_left_join_or_ordered_join() {
     // Arrange
-    use_local_storage();
     let path = data_dir("bounded_selection_exclusions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -657,7 +643,7 @@ fn should_not_apply_bounded_side_selection_to_left_join_or_ordered_join() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(vectorized_join_config()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         create_join_tables(&cassie, &session, "exclude_users", "exclude_orders");

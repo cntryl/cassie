@@ -88,11 +88,10 @@ fn aggregate_with_workers(
     values: &[serde_json::Value],
     sql: &str,
 ) -> Result<Vec<Vec<Value>>, String> {
-    use_local_storage();
     let path = data_dir(label);
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = workers;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let session = cassie.create_session("tester", None);
     create_registered_collection(&cassie, "exec_parallel_row_order", &[("v", data_type)]);
     put_documents(

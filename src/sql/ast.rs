@@ -558,6 +558,7 @@ pub enum SettingAction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropIndexStatement {
     pub name: String,
+    /// Empty when the SQL omits the optional `ON` relation qualifier.
     pub table: String,
     pub if_exists: bool,
 }

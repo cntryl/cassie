@@ -21,8 +21,7 @@ fn should_execute_query_filters_by_vector_score_function() {
     // Arrange
     // Act
     // Assert
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "exec_vector_score_filter";
 
     let schema = Schema {
@@ -87,8 +86,7 @@ fn should_execute_query_orders_by_vector_distance_function_parameterized() {
     // Arrange
     // Act
     // Assert
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let collection = "exec_vector_order_func";
 
     let schema = Schema {
@@ -170,8 +168,7 @@ fn should_order_by_pgvector_dot_operator() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_vector_dot_order";
 
         let schema = Schema {
@@ -256,8 +253,7 @@ fn should_order_by_pgvector_l2_operator() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_vector_l2_order";
 
         let schema = Schema {
@@ -342,8 +338,7 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_vector_mismatch";
 
         let schema = Schema {
@@ -392,9 +387,8 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
 #[test]
 fn should_execute_create_vector_index_command() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ddl_vector_index_create_command");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(openai_runtime_for_vectors()).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -462,9 +456,8 @@ fn should_execute_create_vector_index_command() {
 #[test]
 fn should_reject_invalid_hnsw_vector_index_options() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ddl_vector_index_invalid_hnsw");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(openai_runtime_for_vectors()).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -501,9 +494,8 @@ fn should_reject_invalid_hnsw_vector_index_options() {
 #[test]
 fn should_execute_drop_vector_index_command() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ddl_vector_index_drop_command");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(openai_runtime_for_vectors()).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

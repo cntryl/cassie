@@ -1,4 +1,4 @@
-use cassie::app::{Cassie, CassieError};
+use cassie::app::CassieError;
 use cassie::sql::ast::{
     QueryStatement, SelectItem, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit,
 };
@@ -7,7 +7,7 @@ use cassie::types::Value;
 use tokio_postgres::{Config, NoTls};
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 use super::support_pgwire as wire;
 
@@ -15,9 +15,8 @@ fn execute_window_query(
     label: &str,
     query: &str,
 ) -> Result<cassie::executor::QueryResult, CassieError> {
-    use_local_storage();
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -261,9 +260,8 @@ fn should_apply_range_window_frame_to_peers() {
 #[test]
 fn should_keep_large_integer_range_offsets_exact() {
     // Arrange
-    use_local_storage();
     let path = data_dir("window_range_exact_integer");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -434,7 +432,6 @@ fn should_default_deserialized_window_frame_exclusion() {
 #[test]
 fn should_not_return_unsupported_window_frame_sqlstate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("window_pgwire_error");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -442,7 +439,7 @@ fn should_not_return_unsupported_window_frame_sqlstate() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let server = wire::spawn_server(cassie).await;
         let mut config = Config::new();

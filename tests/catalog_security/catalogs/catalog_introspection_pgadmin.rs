@@ -3,9 +3,7 @@ use cassie::types::Value;
 
 use super::support_catalog as support;
 use super::support_data_dir as data_dir;
-use super::support_local_storage as local_storage;
 use data_dir::data_dir;
-use local_storage::use_local_storage;
 use support::{execute_statement, query_rows};
 
 struct PgAdminCatalogRows {
@@ -222,7 +220,6 @@ fn assert_pgadmin_catalog_rows(rows: &PgAdminCatalogRows) {
 #[test]
 fn should_support_pgadmin_browser_workflow_catalog_queries() {
     // Arrange
-    use_local_storage();
     let path = data_dir("pgadmin_browser");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -230,7 +227,7 @@ fn should_support_pgadmin_browser_workflow_catalog_queries() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", Some("postgres".to_string()));
         apply_pgadmin_catalog_fixture(&cassie, &session);

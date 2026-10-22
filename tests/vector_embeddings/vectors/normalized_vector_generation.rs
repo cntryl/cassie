@@ -6,15 +6,10 @@ use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema};
 use cntryl_midge::{TransactionMode, WriteOptions};
 
-use super::support_sql as support;
-use support::{data_dir, use_local_storage};
-
 #[test]
 fn should_reject_normalized_vectors_from_an_older_collection_generation() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("normalized_vector_generation");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let collection = "normalized_vector_generation_docs";
     let schema = Schema {
@@ -75,8 +70,6 @@ fn should_reject_normalized_vectors_from_an_older_collection_generation() {
             .expect("read sidecars"),
         [] as [cassie::embeddings::NormalizedVectorRecord; 0]
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 fn rewrite_sidecar_generation(cassie: &Cassie, collection: &str, generation: u64) {

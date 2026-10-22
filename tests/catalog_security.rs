@@ -19,8 +19,6 @@ mod support_catalog_sessions;
 mod support_data_dir;
 #[path = "support/executor.rs"]
 mod support_executor;
-#[path = "support/local_storage.rs"]
-mod support_local_storage;
 #[path = "support/pgwire.rs"]
 mod support_pgwire;
 #[path = "support/sql.rs"]

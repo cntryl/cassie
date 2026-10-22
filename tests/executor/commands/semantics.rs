@@ -23,7 +23,6 @@ use support::*;
 #[test]
 fn should_support_projection_aliases_for_function_columns() {
     // Arrange
-    use_local_storage();
     let path = data_dir("function_alias");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -31,7 +30,7 @@ fn should_support_projection_aliases_for_function_columns() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_function_alias";
 
         let schema = Schema {
@@ -105,8 +104,7 @@ fn should_project_function_columns() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_projection_mix";
 
         let schema = Schema {
@@ -192,7 +190,7 @@ fn should_fail_unknown_function_during_execution() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_unknown_function";
 
         let schema = Schema {
@@ -290,9 +288,8 @@ fn should_execute_table_lifecycle_commands() {
 
     runtime.block_on(async {
         // Arrange
-        use_local_storage();
         let path = data_dir("ddl_command");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         let table_name = "ddl_table";
 
@@ -359,9 +356,8 @@ fn should_execute_table_lifecycle_commands() {
 #[test]
 fn should_retry_table_creation_after_primary_key_publication_failure() {
     // Arrange
-    use_local_storage();
     let path = data_dir("create-table-primary-key-retry");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     let table = "create_table_primary_key_retry";
@@ -407,9 +403,8 @@ fn should_execute_alter_table_rename_column_command() {
 
     runtime.block_on(async {
         // Arrange
-        use_local_storage();
         let path = data_dir("ddl_rename_column_command");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -470,9 +465,8 @@ fn should_execute_index_lifecycle_commands() {
 
     runtime.block_on(async {
         // Arrange
-        use_local_storage();
         let path = data_dir("ddl_index_command");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -535,9 +529,8 @@ fn should_execute_create_composite_index_command() {
 
     runtime.block_on(async {
         // Arrange
-        use_local_storage();
         let path = data_dir("ddl_composite_index_command");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -594,9 +587,8 @@ fn should_evaluate_user_function_body_after_create() {
 
     runtime.block_on(async {
         // Arrange
-        use_local_storage();
         let path = data_dir("create_function_exec");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         let collection = "udf_eval";
@@ -677,9 +669,8 @@ fn should_reject_function_use_after_drop() {
 
     runtime.block_on(async {
         // Arrange
-        use_local_storage();
         let path = data_dir("drop_function_exec");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         let collection = "udf_drop";
@@ -787,7 +778,6 @@ fn should_execute_procedure_body_with_arguments_after_restart() {
 #[test]
 fn should_reject_procedure_bodies_with_transaction_control() {
     // Arrange
-    use_local_storage();
     let path = data_dir("procedure_transaction_control");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -795,7 +785,7 @@ fn should_reject_procedure_bodies_with_transaction_control() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -819,7 +809,6 @@ fn should_reject_procedure_bodies_with_transaction_control() {
 #[test]
 fn should_reject_recursive_procedure_calls() {
     // Arrange
-    use_local_storage();
     let path = data_dir("procedure_recursion");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -827,7 +816,7 @@ fn should_reject_recursive_procedure_calls() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 

@@ -57,8 +57,9 @@ specialized CBM2 acceleration do not by themselves establish that execution mode
   owner of durability/recovery mechanics; Cassie owns query-visible semantics.
 - PostgreSQL wire remains the primary query interface. REST remains secondary and
   administrative. This target does not create an alternate query/storage service.
-- The accepted on-disk layout remains cassie-midge-layout-v2. No legacy reader,
-  migration or compatibility support is introduced by this target.
+- The current on-disk layout is cassie-midge-layout-v3. The v2 layout was not
+  shipped; existing pre-release v2 directories must be recreated. No legacy
+  reader or migration utility is part of the current product contract.
 - PostgreSQL 18 supplies a version-pinned semantic/protocol comparison for
   selected documented workflows, not a new server/client certification or
   promise of complete SQL parity.

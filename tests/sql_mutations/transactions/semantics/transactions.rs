@@ -1,7 +1,6 @@
 #[test]
 fn should_transition_session_state_for_transaction_control() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_state");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_transition_session_state_for_transaction_control() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -32,7 +31,6 @@ fn should_transition_session_state_for_transaction_control() {
 #[test]
 fn should_restore_idle_state_on_rollback() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_rollback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -40,7 +38,7 @@ fn should_restore_idle_state_on_rollback() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
@@ -60,7 +58,6 @@ fn should_restore_idle_state_on_rollback() {
 #[test]
 fn should_restore_search_path_after_transaction_rollback() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_rollback_search_path");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -68,7 +65,7 @@ fn should_restore_search_path_after_transaction_rollback() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         setup_search_path_rollback_tables(&cassie, &session);
@@ -153,7 +150,6 @@ fn should_restore_search_path_after_transaction_rollback() {
 #[test]
 fn should_rollback_to_savepoint_discard_later_writes() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_savepoint_rollback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -161,7 +157,7 @@ fn should_rollback_to_savepoint_discard_later_writes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -215,7 +211,6 @@ fn should_rollback_to_savepoint_discard_later_writes() {
 #[test]
 fn should_release_savepoint_prevent_later_rollback_to_it() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_savepoint_release");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -223,7 +218,7 @@ fn should_release_savepoint_prevent_later_rollback_to_it() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
@@ -248,7 +243,6 @@ fn should_release_savepoint_prevent_later_rollback_to_it() {
 #[test]
 fn should_rollback_to_savepoint_recover_failed_transaction() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_savepoint_failed_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -256,7 +250,7 @@ fn should_rollback_to_savepoint_recover_failed_transaction() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -312,7 +306,6 @@ fn should_rollback_to_savepoint_recover_failed_transaction() {
 #[test]
 fn should_discard_transaction_writes_after_rollback() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_rollback_writes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -320,7 +313,7 @@ fn should_discard_transaction_writes_after_rollback() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -362,7 +355,6 @@ fn should_discard_transaction_writes_after_rollback() {
 #[test]
 fn should_commit_multi_collection_transaction_atomically() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_multi_collection_atomic");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -370,7 +362,7 @@ fn should_commit_multi_collection_transaction_atomically() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -426,7 +418,6 @@ fn should_commit_multi_collection_transaction_atomically() {
 #[test]
 fn should_allow_work_after_failed_transaction_rollback() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_failed_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -434,7 +425,7 @@ fn should_allow_work_after_failed_transaction_rollback() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -475,7 +466,6 @@ fn should_allow_work_after_failed_transaction_rollback() {
 #[test]
 fn should_discard_transaction_update_after_rollback() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_update_rollback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -483,7 +473,7 @@ fn should_discard_transaction_update_after_rollback() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -532,7 +522,6 @@ fn should_discard_transaction_update_after_rollback() {
 #[test]
 fn should_discard_transaction_delete_after_rollback() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_delete_rollback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -540,7 +529,7 @@ fn should_discard_transaction_delete_after_rollback() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -589,7 +578,6 @@ fn should_discard_transaction_delete_after_rollback() {
 #[test]
 fn should_read_own_transaction_update_before_commit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_update_read_your_writes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -597,7 +585,7 @@ fn should_read_own_transaction_update_before_commit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -645,7 +633,6 @@ fn should_read_own_transaction_update_before_commit() {
 #[test]
 fn should_read_own_transaction_delete_before_commit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_delete_read_your_writes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -653,7 +640,7 @@ fn should_read_own_transaction_delete_before_commit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

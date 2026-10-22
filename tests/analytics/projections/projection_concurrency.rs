@@ -14,7 +14,6 @@ use uuid::Uuid;
 
 fn data_dir(label: &str) -> String {
     crate::support_temp_dirs::sweep_stale_once();
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     std::env::temp_dir()
         .join(format!(
             "cassie-projection-concurrency-{label}-{}",
@@ -58,7 +57,7 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
     // Arrange
     let _guard = projection_concurrency_test_guard();
     let path = data_dir("refresh");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
     cassie.startup().expect("startup");
     let setup = cassie.create_session("setup", None);
     cassie
@@ -161,7 +160,7 @@ fn should_keep_concurrent_replay_checkpoint_monotonic() {
     // Arrange
     let _guard = projection_concurrency_test_guard();
     let path = data_dir("replay-checkpoint");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
     cassie.startup().expect("startup");
     let setup = cassie.create_session("setup", None);
     cassie
@@ -233,7 +232,7 @@ fn should_apply_concurrent_duplicate_replay_event_once() {
     // Arrange
     let _guard = projection_concurrency_test_guard();
     let path = data_dir("replay-duplicate");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
     cassie.startup().expect("startup");
     let setup = cassie.create_session("setup", None);
     cassie

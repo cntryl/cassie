@@ -16,7 +16,6 @@ fn should_drop_metrics_fixture_without_shutdown_timeout() {
 #[test]
 fn should_cancel_before_operator_switch_without_leaking_resources_or_success() {
     // Arrange
-    use_local_storage();
     let path = data_dir("operator_switch_cancellation");
     let mut config = operator_switch_config(true, 0);
     config.limits.max_query_workers = 1;
@@ -26,7 +25,7 @@ fn should_cancel_before_operator_switch_without_leaking_resources_or_success() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            let cassie = Cassie::new_in_memory_with_config(config).unwrap();
             let session = cassie.create_session("tester", None);
             create_switch_join_tables(
                 &cassie,

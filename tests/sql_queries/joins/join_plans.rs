@@ -22,7 +22,6 @@ fn vectorized_join_config() -> CassieRuntimeConfig {
 #[test]
 fn should_explain_hash_join_strategy_for_inner_equi_join() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_hash_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -30,7 +29,7 @@ fn should_explain_hash_join_strategy_for_inner_equi_join() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -71,7 +70,6 @@ fn should_explain_hash_join_strategy_for_inner_equi_join() {
 #[test]
 fn should_explain_semi_join_strategy_for_exists_predicate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_semi_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -79,7 +77,7 @@ fn should_explain_semi_join_strategy_for_exists_predicate() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -120,7 +118,6 @@ fn should_explain_semi_join_strategy_for_exists_predicate() {
 #[test]
 fn should_explain_anti_join_strategy_for_not_exists_predicate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_anti_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -128,7 +125,7 @@ fn should_explain_anti_join_strategy_for_not_exists_predicate() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -169,7 +166,6 @@ fn should_explain_anti_join_strategy_for_not_exists_predicate() {
 #[test]
 fn should_explain_merge_join_strategy_when_ordering_matches_equi_key() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_merge_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -177,7 +173,7 @@ fn should_explain_merge_join_strategy_when_ordering_matches_equi_key() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -220,7 +216,6 @@ fn should_explain_merge_join_strategy_when_ordering_matches_equi_key() {
 #[test]
 fn should_not_select_merge_join_for_non_equi_predicate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_non_equi_join_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -228,7 +223,7 @@ fn should_not_select_merge_join_for_non_equi_predicate() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -269,7 +264,6 @@ fn should_not_select_merge_join_for_non_equi_predicate() {
 #[test]
 fn should_explain_vectorized_join_enabled_for_inner_equi_join() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_vectorized_join_enabled");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -278,7 +272,7 @@ fn should_explain_vectorized_join_enabled_for_inner_equi_join() {
 
     runtime.block_on(async {
         let cassie =
-            Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+            Cassie::new_in_memory_with_config(vectorized_join_config()).unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -321,7 +315,6 @@ fn should_explain_vectorized_join_enabled_for_inner_equi_join() {
 #[test]
 fn should_explain_vectorized_join_fallback_for_unsupported_join_type() {
     // Arrange
-    use_local_storage();
     let path = data_dir("explain_vectorized_join_unsupported");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -330,7 +323,7 @@ fn should_explain_vectorized_join_fallback_for_unsupported_join_type() {
 
     runtime.block_on(async {
         let cassie =
-            Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+            Cassie::new_in_memory_with_config(vectorized_join_config()).unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie

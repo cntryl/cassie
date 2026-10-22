@@ -395,7 +395,15 @@ fn index_definition(index: &IndexMeta) -> String {
     let include = if index.include_fields.is_empty() {
         String::new()
     } else {
-        format!(" INCLUDE ({})", index.include_fields.join(", "))
+        format!(
+            " INCLUDE ({})",
+            index
+                .normalized_include_fields()
+                .iter()
+                .map(|field| crate::catalog::object_identity::quote_identifier(field))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     };
     let predicate = index
         .predicate
@@ -405,14 +413,23 @@ fn index_definition(index: &IndexMeta) -> String {
     let keys = index
         .normalized_fields()
         .into_iter()
+        .map(|field| crate::catalog::object_identity::quote_identifier(&field))
         .chain(index.normalized_expressions())
         .collect::<Vec<_>>()
         .join(", ");
+    let qualified_table = format!(
+        "{}.{}",
+        crate::catalog::object_identity::quote_identifier(
+            &relation_schema_name(&index.collection,)
+        ),
+        crate::catalog::object_identity::quote_identifier(&local_name(&index.collection))
+    );
     format!(
-        "CREATE {}INDEX {} ON {} ({})",
+        "CREATE {}INDEX {} ON {} USING {} ({})",
         if index.unique { "UNIQUE " } else { "" },
-        local_name(&index.name),
-        local_name(&index.collection),
+        crate::catalog::object_identity::quote_identifier(&local_name(&index.name)),
+        qualified_table,
+        index.access_method(),
         keys
     ) + &include
         + &predicate

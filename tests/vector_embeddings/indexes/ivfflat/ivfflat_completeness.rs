@@ -132,9 +132,8 @@ fn assert_exact_fallback(cassie: &Cassie, collection: &str, expected_reason: &st
 #[test]
 fn should_fallback_exactly_given_missing_membership_in_probed_ivfflat_list() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ivfflat_missing_probed_membership");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let collection = "ivfflat_missing_probed_membership";
     seed_ivfflat(&cassie, collection);
     remove_one_membership(&cassie, collection);
@@ -149,9 +148,8 @@ fn should_fallback_exactly_given_missing_membership_in_probed_ivfflat_list() {
 #[test]
 fn should_fallback_exactly_given_corrupt_ivfflat_list_count() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ivfflat_corrupt_list_count");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let collection = "ivfflat_corrupt_list_count";
     seed_ivfflat(&cassie, collection);
     let mut state = cassie
@@ -267,9 +265,8 @@ fn should_rebuild_unsupported_ivfflat_training_version_on_restart() {
 #[test]
 fn should_reject_corrupt_membership_key_when_hydrating_ivfflat_state() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ivfflat_corrupt_membership_key");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let collection = "ivfflat_corrupt_membership_key";
     seed_ivfflat(&cassie, collection);
     let mut corrupt_key = cassie

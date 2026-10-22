@@ -63,7 +63,6 @@ fn should_keep_order_by_direction_through_distinct() {
 #[test]
 fn should_apply_limit_offset_after_ordering() {
     // Arrange
-    use_local_storage();
     let path = data_dir("limit_offset_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -71,7 +70,7 @@ fn should_apply_limit_offset_after_ordering() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
 
         let collection = "sql_limit_offset_order";
         let schema = Schema {
@@ -169,7 +168,6 @@ fn should_apply_limit_offset_after_ordering() {
 #[test]
 fn should_page_by_row_id_with_storage_top_k() {
     // Arrange
-    use_local_storage();
     let path = data_dir("row_id_storage_top_k");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -177,7 +175,7 @@ fn should_page_by_row_id_with_storage_top_k() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_row_id_storage_top_k";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -235,7 +233,6 @@ fn should_page_by_row_id_with_storage_top_k() {
 #[test]
 fn should_page_by_row_id_with_keyset_cursor() {
     // Arrange
-    use_local_storage();
     let path = data_dir("row_id_keyset");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -243,7 +240,7 @@ fn should_page_by_row_id_with_keyset_cursor() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_row_id_keyset";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -301,7 +298,6 @@ fn should_page_by_row_id_with_keyset_cursor() {
 #[test]
 fn should_filter_projected_scan_range_query_without_changing_results() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projected_scan_range");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -309,7 +305,7 @@ fn should_filter_projected_scan_range_query_without_changing_results() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_projected_scan_range";
         let schema = Schema {
             fields: vec![
@@ -388,7 +384,6 @@ fn should_filter_projected_scan_range_query_without_changing_results() {
 #[test]
 fn should_filter_projected_scan_simple_equality_query_without_changing_results() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projected_scan_equality");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -396,7 +391,7 @@ fn should_filter_projected_scan_simple_equality_query_without_changing_results()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_projected_scan_equality";
         let schema = Schema {
             fields: vec![
@@ -465,7 +460,6 @@ fn should_filter_projected_scan_simple_equality_query_without_changing_results()
 #[test]
 fn should_apply_vector_distance_offset_after_ordering() {
     // Arrange
-    use_local_storage();
     let path = data_dir("vector_distance_offset_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -473,7 +467,7 @@ fn should_apply_vector_distance_offset_after_ordering() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_vector_distance_offset_order";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -546,7 +540,6 @@ fn should_apply_vector_distance_offset_after_ordering() {
 #[test]
 fn should_apply_fulltext_offset_after_score_ordering() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_top_k_offset");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -554,7 +547,7 @@ fn should_apply_fulltext_offset_after_score_ordering() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_fulltext_top_k_offset";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -626,7 +619,6 @@ fn should_apply_fulltext_offset_after_score_ordering() {
 #[test]
 fn should_apply_hybrid_offset_after_score_ordering() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hybrid_top_k_offset");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -634,7 +626,7 @@ fn should_apply_hybrid_offset_after_score_ordering() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_hybrid_top_k_offset";
         let schema = Schema {
             fields: vec![
@@ -713,7 +705,6 @@ fn should_apply_hybrid_offset_after_score_ordering() {
 #[test]
 fn should_order_timestamps_with_mixed_utc_offsets_by_instant() {
     // Arrange
-    use_local_storage();
     let path = data_dir("timestamp_mixed_offset_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -721,7 +712,7 @@ fn should_order_timestamps_with_mixed_utc_offsets_by_instant() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -771,9 +762,8 @@ fn ordered_case_session(
     label: &str,
     statements: &[&str],
 ) -> (Cassie, cassie::app::CassieSession, String) {
-    use_local_storage();
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in statements {

@@ -3,7 +3,6 @@
 use std::ops::AsyncFnOnce;
 use std::time::Duration;
 
-use cassie::app::Cassie;
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 
@@ -51,28 +50,16 @@ pub struct Sessions {
     server: wire::PgwireServer,
 }
 
-struct Directory(String);
-
-impl Drop for Directory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-pub fn with_sessions<F, R>(label: &str, body: F) -> R
+pub fn with_sessions<F, R>(_label: &str, body: F) -> R
 where
     F: AsyncFnOnce(&mut Sessions) -> R,
 {
-    wire::use_local_storage();
-    // Declared before the runtime: on panic, all server tasks and storage
-    // owners are dropped before the fixture directory is removed.
-    let directory = Directory(wire::data_dir(label));
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&directory.0).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("startup backend fixture");
         let server = wire::spawn_server(cassie).await;
         let admin = Session::connect(&server).await;

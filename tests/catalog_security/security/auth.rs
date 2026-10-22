@@ -38,7 +38,7 @@ fn should_default_new_session_database_from_config() {
         database: "tenant_db".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -63,7 +63,7 @@ fn should_expose_session_identity_in_context_functions() {
         database: "postgres".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -111,7 +111,7 @@ fn should_present_default_admin_role_in_pg_roles() {
     let config = CassieRuntimeConfig {
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -145,7 +145,7 @@ fn should_persist_created_login_role_in_pg_roles() {
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -194,7 +194,7 @@ fn should_authenticate_persisted_login_role_with_password() {
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -249,7 +249,7 @@ fn should_rotate_login_role_password() {
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -292,7 +292,7 @@ fn should_require_an_explicit_database_grant_for_non_admin_roles() {
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     cassie.startup().unwrap();
     let admin = cassie
         .authenticate_role("root", Some("sa-secret"), None)
@@ -345,7 +345,7 @@ fn should_drop_login_role() {
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -396,7 +396,7 @@ fn should_reject_authentication_for_dropped_login_role() {
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -436,7 +436,7 @@ fn should_require_opaque_rest_sessions() {
         password: "topsecret".to_string(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

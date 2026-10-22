@@ -4,12 +4,11 @@ use cassie::sql::ast::{CopyFormat, CopyStatement};
 use cassie::types::Value;
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn with_copy_table(test_name: &str, test: impl FnOnce(&Cassie, &CassieSession)) {
-    use_local_storage();
     let path = data_dir(test_name);
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie

@@ -1,9 +1,7 @@
 #[test]
 fn should_reject_invalid_json_string_comparands() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("invalid_json_string_comparands");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -28,5 +26,4 @@ fn should_reject_invalid_json_string_comparands() {
             matches!(result, Err(CassieError::Planner(message)) if message.contains("invalid JSON literal"))
         );
     }
-    let _ = std::fs::remove_dir_all(path);
 }

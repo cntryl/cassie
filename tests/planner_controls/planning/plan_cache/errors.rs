@@ -1,7 +1,6 @@
 #[test]
 fn should_invalidate_cached_execution_result_after_write() {
     // Arrange
-    use_local_storage();
     let path = data_dir("execution_result_cache_invalidation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_invalidate_cached_execution_result_after_write() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "execution_cache_invalidation_docs";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -76,7 +75,6 @@ fn should_invalidate_cached_execution_result_after_write() {
 #[test]
 fn should_invalidate_cached_plan_after_ddl_changes_catalog_state() {
     // Arrange
-    use_local_storage();
     let path = data_dir("invalidate_after_ddl");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -84,7 +82,7 @@ fn should_invalidate_cached_plan_after_ddl_changes_catalog_state() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "plan_cache_ddl_docs";
         let schema = Schema {
             fields: vec![FieldSchema {

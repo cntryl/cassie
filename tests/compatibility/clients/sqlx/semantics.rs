@@ -1,5 +1,3 @@
-use super::support_sql as support;
-
 use std::net::SocketAddr;
 use std::process::{Command, Stdio};
 use std::sync::Arc;
@@ -8,7 +6,6 @@ use std::time::{Duration, Instant};
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
-use support::data_dir;
 
 struct ProbeOutput {
     success: bool,
@@ -19,19 +16,15 @@ struct ProbeOutput {
 }
 
 struct CompatibilityServer {
-    data_dir: String,
     addr: SocketAddr,
     server: tokio::task::JoinHandle<()>,
 }
 
 impl CompatibilityServer {
     async fn start() -> Self {
-        std::env::set_var("CASSIE_STORAGE_MODE", "memory");
-        let data_dir = data_dir("sqlx_probe");
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config.clone())
-            .expect("construct Cassie");
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("construct Cassie");
         cassie.startup().expect("start Cassie");
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -44,17 +37,12 @@ impl CompatibilityServer {
                 .await;
         });
         tokio::time::sleep(Duration::from_millis(50)).await;
-        Self {
-            data_dir,
-            addr,
-            server,
-        }
+        Self { addr, server }
     }
 
     async fn shutdown(self) {
         self.server.abort();
         let _ = self.server.await;
-        let _ = std::fs::remove_dir_all(self.data_dir);
     }
 }
 

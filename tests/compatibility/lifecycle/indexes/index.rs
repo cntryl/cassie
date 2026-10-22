@@ -73,39 +73,40 @@ fn should_report_descending_btree_key_order() {
 }
 
 #[test]
-fn should_publish_hash_index_method_in_catalog_definition() {
+fn should_reject_hash_indexes_until_storage_supports_the_method() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
         let server = CompatibilityServer::start("hash_index_catalog").await;
         let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_hash_index_rows (id INT)",
-                "INSERT INTO compat_hash_index_rows VALUES (1), (2)",
-                "CREATE INDEX compat_hash_index_idx \
-                   ON compat_hash_index_rows USING hash (id)",
-            ],
-        )
-        .await
-        .expect("create an index using the PostgreSQL hash method");
+        client
+            .batch_execute("CREATE TABLE compat_hash_index_rows (id INT)")
+            .await
+            .expect("create a table for the unsupported hash index");
 
         // Act
-        let definition: String = client
+        let rejected = client
+            .batch_execute(
+                "CREATE INDEX compat_hash_index_idx \
+                   ON compat_hash_index_rows USING hash (id)",
+            )
+            .await
+            .expect_err("hash index creation must not claim an unsupported access method");
+        let index_count: i64 = client
             .query_one(
-                "SELECT indexdef FROM pg_catalog.pg_indexes \
+                "SELECT count(*) FROM pg_catalog.pg_indexes \
                  WHERE tablename = 'compat_hash_index_rows' \
                    AND indexname = 'compat_hash_index_idx'",
                 &[],
             )
             .await
-            .expect("read the hash-index definition")
+            .expect("check that the rejected index was not published")
             .try_get(0)
-            .expect("index definition");
+            .expect("index count");
 
         // Assert
-        assert!(definition.contains("USING hash (id)"), "{definition:?}");
+        assert_eq!(db_error(&rejected).code().code(), "0A000");
+        assert_eq!(index_count, 0);
 
         drop(client);
         server.shutdown(connection).await;

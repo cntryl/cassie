@@ -1,8 +1,9 @@
 use cassie::app::Cassie;
+use cassie::config::CassieRuntimeConfig;
 
 use super::support_pgwire::{
     complete_startup, data_dir, parse_error_fields, read_wire_frame, simple_query_frame,
-    spawn_server, use_local_storage,
+    spawn_server,
 };
 
 async fn query_sqlstate(
@@ -34,7 +35,9 @@ async fn query_sqlstate(
 
 async fn sqlstates_for(label: &str, setup: &[&str], statements: &[&str]) -> Vec<Option<String>> {
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::from_env().expect("runtime config"))
+            .expect("create Cassie");
     cassie.startup().expect("startup");
     let server = spawn_server(cassie).await;
     let mut socket = tokio::net::TcpStream::connect(server.addr)
@@ -63,7 +66,6 @@ async fn sqlstates_for(label: &str, setup: &[&str], statements: &[&str]) -> Vec<
 #[test]
 fn should_report_undefined_table_sqlstate_for_projection_maintenance_on_missing_objects() {
     // Arrange
-    use_local_storage();
     let statements = [
         "VERIFY PROJECTION missing_maintenance_target",
         "DIFF PROJECTION missing_maintenance_target WITH missing_maintenance_other",
@@ -90,7 +92,6 @@ fn should_report_undefined_table_sqlstate_for_projection_maintenance_on_missing_
 #[test]
 fn should_report_undefined_object_sqlstate_for_projection_maintenance_on_missing_version() {
     // Arrange
-    use_local_storage();
     let setup = [
             "CREATE TABLE missing_version_docs (title TEXT)",
             "INSERT INTO missing_version_docs (title) VALUES ('alpha')",
@@ -122,7 +123,6 @@ fn should_report_undefined_object_sqlstate_for_projection_maintenance_on_missing
 #[test]
 fn should_report_undefined_table_sqlstate_when_serial_default_sequence_is_missing() {
     // Arrange
-    use_local_storage();
     let setup = [
         "CREATE TABLE public.missing_sequence_orders (order_no SERIAL, label TEXT)",
         "DROP SEQUENCE public.missing_sequence_orders_order_no_seq",
@@ -146,7 +146,6 @@ fn should_report_undefined_table_sqlstate_when_serial_default_sequence_is_missin
 #[test]
 fn should_report_invalid_schema_sqlstate_when_creating_in_a_missing_schema() {
     // Arrange
-    use_local_storage();
     let setup = [
         "CREATE SCHEMA existing_target",
         "CREATE TABLE public.ghost_source (id INT)",

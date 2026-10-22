@@ -37,7 +37,6 @@ fn should_match_builtin_regcollation_identity() {
 #[test]
 fn should_encode_regcollation_identity_on_wire() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("issue-818-regcollation-wire-identity");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -47,7 +46,7 @@ fn should_encode_regcollation_identity_on_wire() {
 
     // Act
     let batches = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let server = wire::spawn_server(cassie).await;
         let socket = tokio::net::TcpStream::connect(server.addr)

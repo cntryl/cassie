@@ -39,7 +39,6 @@ fn should_parse_column_index_with_segment_size() {
 #[test]
 fn should_read_covered_projection_from_column_batch_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -47,7 +46,7 @@ fn should_read_covered_projection_from_column_batch_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -198,7 +197,6 @@ fn should_persist_hydrate_drop_column_batch_metadata() {
 #[test]
 fn should_select_constant_codec_for_repeated_column_values() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_rle_codec");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -206,7 +204,7 @@ fn should_select_constant_codec_for_repeated_column_values() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -277,7 +275,6 @@ fn should_select_constant_codec_for_repeated_column_values() {
 #[test]
 fn should_fallback_to_row_blobs_for_corrupt_column_segment() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_corrupt_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -285,7 +282,7 @@ fn should_fallback_to_row_blobs_for_corrupt_column_segment() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -349,7 +346,6 @@ fn should_fallback_to_row_blobs_for_corrupt_column_segment() {
 #[test]
 fn should_prune_column_batch_segments_for_range_filter() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_range_pruning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -357,7 +353,7 @@ fn should_prune_column_batch_segments_for_range_filter() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -425,7 +421,6 @@ fn should_prune_column_batch_segments_for_range_filter() {
 #[test]
 fn should_preserve_sparse_nulls_during_column_batch_scan_pruning() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_sparse_null_pruning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -433,7 +428,7 @@ fn should_preserve_sparse_nulls_during_column_batch_scan_pruning() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -489,7 +484,6 @@ fn should_preserve_sparse_nulls_during_column_batch_scan_pruning() {
 #[test]
 fn should_rebuild_column_batch_scan_metadata_after_update_delete() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_scan_rebuild");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -497,7 +491,7 @@ fn should_rebuild_column_batch_scan_metadata_after_update_delete() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -568,7 +562,6 @@ fn should_rebuild_column_batch_scan_metadata_after_update_delete() {
 #[test]
 fn should_fallback_to_row_blobs_for_active_session_changes() {
     // Arrange
-    use_local_storage();
     let path = data_dir("column_batch_session_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -576,7 +569,7 @@ fn should_fallback_to_row_blobs_for_active_session_changes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(

@@ -26,7 +26,7 @@ fn should_startup_be_idempotent_without_state_corruption() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
 
         let collection = canonical_relation_name("postgres", "public", "runtime_docs");
@@ -115,7 +115,7 @@ fn should_startup_not_create_side_effects_in_default_family() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
 
         let collection = "runtime_default_guard";
@@ -164,7 +164,7 @@ fn should_health_after_startup_reports_ready_state() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
 
         let before = cassie.health();
         assert_eq!(before["ready"].as_bool(), Some(false));
@@ -192,7 +192,7 @@ fn should_clear_ready_state_after_shutdown() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
 
         // Act
@@ -246,7 +246,7 @@ fn should_create_session_without_mutating_runtime_state() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
 
         let before_health = cassie.health();

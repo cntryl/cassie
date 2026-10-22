@@ -6,7 +6,6 @@ use cassie::executor::QueryResult;
 pub struct JoinFixture {
     pub cassie: Cassie,
     session: CassieSession,
-    path: String,
 }
 
 impl JoinFixture {
@@ -16,25 +15,18 @@ impl JoinFixture {
     ///
     /// Panics when engine construction or a setup statement fails.
     pub fn new(native: bool, setup: &[&str]) -> Self {
-        crate::support_sql::use_local_storage();
-        let path = crate::support_sql::data_dir("typed-join-differential");
         let mut config = CassieRuntimeConfig::default();
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         config.limits.vectorized_joins_enabled = native;
         config.limits.vectorized_join_batch_size = 2;
-        let cassie =
-            Cassie::new_with_data_dir_and_config(&path, config).expect("configured join engine");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("configured join engine");
         let session = cassie.create_session("tester", None);
         for sql in setup {
             cassie
                 .execute_sql(&session, sql, vec![])
                 .expect("join setup");
         }
-        Self {
-            cassie,
-            session,
-            path,
-        }
+        Self { cassie, session }
     }
 
     /// Runs one join witness.
@@ -55,11 +47,5 @@ impl JoinFixture {
         self.cassie
             .execute_sql(&self.session, sql, params)
             .expect("join query")
-    }
-}
-
-impl Drop for JoinFixture {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
     }
 }

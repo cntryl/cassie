@@ -520,13 +520,18 @@ fn plan_create_index(statement: &CreateIndexStatement) -> Result<LogicalPlan, Ca
 }
 
 fn plan_drop_index(statement: &DropIndexStatement) -> Result<LogicalPlan, CassieError> {
-    require_name(&statement.table, "DROP INDEX requires a collection name")?;
     require_name(&statement.name, "DROP INDEX requires an index name")?;
-    plan_table_command(
-        &statement.table,
-        "DROP INDEX requires a collection name",
-        LogicalCommand::DropIndex(statement.clone()),
-    )
+    if statement.table.trim().is_empty() {
+        Ok(single_row_command_plan(LogicalCommand::DropIndex(
+            statement.clone(),
+        )))
+    } else {
+        plan_table_command(
+            &statement.table,
+            "DROP INDEX requires a collection name",
+            LogicalCommand::DropIndex(statement.clone()),
+        )
+    }
 }
 
 fn command_plan(

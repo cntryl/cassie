@@ -1,7 +1,6 @@
 //! Reuses the established wire fixture and caller-specific SQLSTATE families.
 
 use super::support_pgwire as support;
-use cassie::app::Cassie;
 use cassie::types::DataType;
 
 type WireFrame = (u8, Vec<u8>);
@@ -69,14 +68,13 @@ fn should_preserve_declared_boolean_array_bind_rejection() {
 }
 
 fn run_cycles(label: &str, cycles: Vec<Vec<Vec<u8>>>) -> Vec<Vec<WireFrame>> {
-    support::use_local_storage();
     let path = support::data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     let batches = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         for sql in [

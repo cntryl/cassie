@@ -47,7 +47,6 @@ fn should_parse_projection_compare_command() {
 #[test]
 fn should_diff_projection_hashes_deterministically() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_diff_hashes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -55,7 +54,7 @@ fn should_diff_projection_hashes_deterministically() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -104,7 +103,6 @@ fn should_diff_projection_hashes_deterministically() {
 #[test]
 fn should_compare_projection_manifest_root_digest() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_compare_manifest");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -112,7 +110,7 @@ fn should_compare_projection_manifest_root_digest() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -157,7 +155,6 @@ fn should_compare_projection_manifest_root_digest() {
 #[test]
 fn should_report_projection_diff_resume_cursor_for_bounded_output() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_diff_resume_cursor");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -165,7 +162,7 @@ fn should_report_projection_diff_resume_cursor_for_bounded_output() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -238,7 +235,6 @@ fn should_report_projection_diff_resume_cursor_for_bounded_output() {
 #[test]
 fn should_reject_projection_manifest_missing_hash_metadata() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_compare_missing_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -246,7 +242,7 @@ fn should_reject_projection_manifest_missing_hash_metadata() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

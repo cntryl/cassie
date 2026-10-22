@@ -23,14 +23,13 @@ fn configured_cassie_with_memory(
     max_result_rows: usize,
     query_memory_budget_bytes: usize,
 ) -> (Cassie, CassieRuntimeConfig, String) {
-    support::use_local_storage();
     let path = support::data_dir(label);
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.max_result_rows = max_result_rows;
     config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("cassie");
     cassie.startup().expect("startup");
     (cassie, config, path)
 }

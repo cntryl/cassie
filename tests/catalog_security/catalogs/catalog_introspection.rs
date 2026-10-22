@@ -18,7 +18,6 @@ fn data_dir(name: &str) -> PathBuf {
 #[test]
 fn should_list_user_tables_through_information_schema() {
     // Arrange
-    use_local_storage();
     let path = data_dir("tables");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -26,12 +25,9 @@ fn should_list_user_tables_through_information_schema() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir_and_config(
-                &path,
-                cassie::config::CassieRuntimeConfig {
+            let cassie = Cassie::new_in_memory_with_config(cassie::config::CassieRuntimeConfig {
                     ..cassie::config::CassieRuntimeConfig::default()
-                },
-            )
+                })
             .unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
@@ -207,7 +203,6 @@ fn should_reflect_table_rename_drop_lifecycle_after_restart() {
 #[test]
 fn should_list_indexes_through_pg_catalog() {
     // Arrange
-    use_local_storage();
     let path = data_dir("indexes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -215,7 +210,7 @@ fn should_list_indexes_through_pg_catalog() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -256,7 +251,6 @@ fn should_list_indexes_through_pg_catalog() {
 #[test]
 fn should_list_primary_key_index_through_pg_catalog() {
     // Arrange
-    use_local_storage();
     let path = data_dir("primary_key_index");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -264,7 +258,7 @@ fn should_list_primary_key_index_through_pg_catalog() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -293,7 +287,7 @@ fn should_list_primary_key_index_through_pg_catalog() {
             assert_eq!(
                 selected.rows()[0][1],
                 Value::String(
-                    "CREATE UNIQUE INDEX catalog_primary_key_docs_pkey ON catalog_primary_key_docs (id)"
+                    "CREATE UNIQUE INDEX catalog_primary_key_docs_pkey ON public.catalog_primary_key_docs USING btree (id)"
                         .to_string()
                 )
             );
@@ -305,7 +299,6 @@ fn should_list_primary_key_index_through_pg_catalog() {
 #[test]
 fn should_list_composite_indexes_through_pg_catalog() {
     // Arrange
-    use_local_storage();
     let path = data_dir("composite_indexes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -313,7 +306,7 @@ fn should_list_composite_indexes_through_pg_catalog() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -347,7 +340,7 @@ fn should_list_composite_indexes_through_pg_catalog() {
                 vec![vec![
                     Value::String("catalog_title_score_idx".to_string()),
                     Value::String(
-                        "CREATE INDEX catalog_title_score_idx ON catalog_composite_index_docs (title, score)"
+                        "CREATE INDEX catalog_title_score_idx ON public.catalog_composite_index_docs USING btree (title, score)"
                             .to_string()
                     ),
                 ]]
@@ -435,7 +428,6 @@ fn should_report_column_store_storage_metadata_after_restart() {
 #[test]
 fn should_list_namespaces_through_pg_catalog() {
     // Arrange
-    use_local_storage();
     let path = data_dir("namespaces");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -443,7 +435,7 @@ fn should_list_namespaces_through_pg_catalog() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -477,7 +469,6 @@ fn should_list_namespaces_through_pg_catalog() {
 #[test]
 fn should_list_constraints_through_information_schema() {
     // Arrange
-    use_local_storage();
     let path = data_dir("constraints");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -485,7 +476,7 @@ fn should_list_constraints_through_information_schema() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -522,7 +513,6 @@ fn should_list_constraints_through_information_schema() {
 #[test]
 fn should_return_admin_role_for_pg_roles_catalog_view() {
     // Arrange
-    use_local_storage();
     let path = data_dir("empty_pg_roles");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -530,7 +520,7 @@ fn should_return_admin_role_for_pg_roles_catalog_view() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -552,7 +542,6 @@ fn should_return_admin_role_for_pg_roles_catalog_view() {
 #[test]
 fn should_list_supported_types_through_pg_catalog_type_view() {
     // Arrange
-    use_local_storage();
     let path = data_dir("pg_type");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -560,7 +549,7 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -651,7 +640,6 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
 #[test]
 fn should_list_user_defined_views_through_catalog_views() {
     // Arrange
-    use_local_storage();
     let path = data_dir("views");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -659,7 +647,7 @@ fn should_list_user_defined_views_through_catalog_views() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie

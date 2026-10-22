@@ -99,14 +99,12 @@ fn should_finish_preparation_only_portals_on_error_recovery_sync() {
 #[test]
 fn should_roll_back_implicit_read_ownership_on_revoked_copy_access() {
     // Arrange
-    wire::use_local_storage();
-    let path = wire::data_dir("implicit-copy-revoked-access");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("current-thread runtime");
     runtime.block_on(async {
-        let (cassie, admin, password) = copy_access_fixture(&path);
+        let (cassie, admin, password) = copy_access_fixture();
         let server = wire::spawn_server(cassie.clone()).await;
         let owner = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -201,7 +199,6 @@ fn should_roll_back_implicit_read_ownership_on_revoked_copy_access() {
         drop((reader, writer));
         server.stop().await;
     });
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
@@ -292,14 +289,13 @@ fn should_roll_back_only_the_implicit_segment_after_an_explicit_commit() {
 #[test]
 fn should_release_unsynced_implicit_ownership_on_disconnect() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("implicit-disconnect-ownership");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("current-thread runtime");
     runtime.block_on(async {
-        let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("startup");
         let fixture = cassie.create_session("tester", None);
         cassie

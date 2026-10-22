@@ -1,7 +1,6 @@
 #[test]
 fn should_return_gateway_timeout_for_admin_query_deadlines() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("deadline");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -12,7 +11,7 @@ fn should_return_gateway_timeout_for_admin_query_deadlines() {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_timeout_ms = 1;
         let cassie =
-            Cassie::new_with_data_dir_and_config(&data_dir, config).expect("cassie with config");
+            Cassie::new_in_memory_with_config(config).expect("cassie with config");
         cassie.startup().expect("startup");
         let collection = canonical_relation_name("postgres", "public", "rest_admin_timeout_docs");
         cassie
@@ -74,7 +73,6 @@ fn should_return_gateway_timeout_for_admin_query_deadlines() {
 #[test]
 fn should_acknowledge_admin_query_cancellation_before_returning() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("operation-cancellation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -85,7 +83,7 @@ fn should_acknowledge_admin_query_cancellation_before_returning() {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.cte_recursion_depth = 1_000_000;
         config.limits.query_memory_budget_bytes = 1024 * 1024 * 1024;
-        let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config).expect("cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
         cassie.startup().expect("startup");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();

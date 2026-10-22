@@ -1,7 +1,6 @@
 #[test]
 fn should_reject_dml_against_materialized_projection_output() {
     // Arrange
-    use_local_storage();
     let path = data_dir("materialized_projection_read_only");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_reject_dml_against_materialized_projection_output() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

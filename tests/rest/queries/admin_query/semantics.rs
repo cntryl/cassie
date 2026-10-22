@@ -1,8 +1,7 @@
 #[test]
 fn should_scope_each_admin_request_to_its_explicit_database() {
     // Arrange
-    use_local_storage();
-    let cassie = Cassie::new_with_data_dir(data_dir("explicit-database-scope")).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let admin = cassie
         .authenticate_role("root", Some("postgres"), None)
         .expect("admin session");
@@ -85,7 +84,6 @@ fn should_scope_each_admin_request_to_its_explicit_database() {
 #[test]
 fn should_execute_admin_query_through_rest() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("execute");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -93,7 +91,7 @@ fn should_execute_admin_query_through_rest() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
@@ -128,7 +126,6 @@ fn should_execute_admin_query_through_rest() {
 #[test]
 fn should_complete_admin_query_workflow_given_one_authenticated_session() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("authenticated-workflow");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -136,7 +133,7 @@ fn should_complete_admin_query_workflow_given_one_authenticated_session() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
@@ -182,7 +179,6 @@ fn should_complete_admin_query_workflow_given_one_authenticated_session() {
 #[test]
 fn should_validate_admin_query_through_rest() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("validate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -190,7 +186,7 @@ fn should_validate_admin_query_through_rest() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
@@ -238,7 +234,6 @@ fn should_validate_admin_query_through_rest() {
 #[test]
 fn should_explain_admin_query_through_rest() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("explain");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -246,7 +241,7 @@ fn should_explain_admin_query_through_rest() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
@@ -307,7 +302,6 @@ fn should_explain_admin_query_through_rest() {
 #[test]
 fn should_return_admin_query_schema_sections_in_stable_order() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -315,7 +309,7 @@ fn should_return_admin_query_schema_sections_in_stable_order() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
@@ -390,7 +384,6 @@ fn should_return_admin_query_schema_sections_in_stable_order() {
 #[test]
 fn should_serve_restful_admin_aliases() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("restful-aliases");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -398,7 +391,7 @@ fn should_serve_restful_admin_aliases() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;

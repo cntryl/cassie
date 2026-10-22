@@ -14,8 +14,6 @@ mod postgresql18_binary_bytea_compat;
 mod postgresql18_cte_compat;
 #[path = "protocol/explain_options.rs"]
 mod postgresql18_explain_options;
-#[path = "types/geometry/geometry.rs"]
-mod postgresql18_geometry_compat;
 #[path = "grammar.rs"]
 mod postgresql18_grammar;
 #[path = "functions/math/math.rs"]
@@ -28,8 +26,6 @@ mod postgresql18_network_compat;
 mod postgresql18_numeric_compat;
 #[path = "query_execution.rs"]
 mod postgresql18_query_inventory_wave2;
-#[path = "aggregates/ranges/range.rs"]
-mod postgresql18_range_compat;
 #[path = "ctes/recursive_cte_cancellation.rs"]
 mod postgresql18_recursive_cte_cancellation;
 #[path = "subqueries/row_subquery_wire_semantics.rs"]
@@ -56,8 +52,6 @@ mod postgresql18_text_compat;
 mod postgresql18_uuid_hash_lsn_compat;
 #[path = "aggregates/windows/window_function_wire.rs"]
 mod postgresql18_window_function_wire;
-#[path = "types/xml/xml.rs"]
-mod postgresql18_xml_compat;
 #[path = "routines/record_functions.rs"]
 mod record_functions;
 #[path = "subqueries/scalar_subqueries.rs"]
@@ -116,12 +110,6 @@ mod type_resolution_polymorphic;
 #[path = "type_resolution/prepared_descriptors.rs"]
 mod type_resolution_prepared_descriptors;
 
-#[path = "types/geometry/degenerate_codecs.rs"]
-mod types_geometry_degenerate_codecs;
-
-#[path = "types/geometry/null_metadata.rs"]
-mod types_geometry_null_metadata;
-
 #[path = "types/json/jsonpath/cancellation.rs"]
 mod types_json_jsonpath_cancellation;
 
@@ -133,9 +121,6 @@ mod types_money_restart;
 
 #[path = "types/uuid_lsn/restart.rs"]
 mod types_uuid_lsn_restart;
-
-#[path = "types/xml/xpath/limits.rs"]
-mod types_xml_xpath_limits;
 
 #[path = "aggregates/array_agg/resources.rs"]
 mod aggregates_array_agg_resources;

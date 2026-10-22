@@ -8,9 +8,6 @@ use cntryl_midge::TransactionMode;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-use super::support_executor as support;
-use support::data_dir;
-
 fn without_fallback() {
     std::env::remove_var("CASSIE_STORAGE_MODE");
 }
@@ -33,14 +30,13 @@ fn put_legacy_document(cassie: &Cassie, collection: &str, id: &str, payload: &se
 #[test]
 fn should_store_rows_as_field_id_blobs_in_data_family() {
     // Arrange
-    let path = data_dir("row_blob_data");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
 
         let collection = "cf_layout_row_blob";
@@ -94,22 +90,19 @@ fn should_store_rows_as_field_id_blobs_in_data_family() {
             legacy_doc_entries,
             [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
         );
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_preserve_monotonic_relation_ids_across_object_lifecycle() {
     // Arrange
-    let path = data_dir("relation_ids");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let schema = Schema { fields: Vec::new() };
         cassie
             .midge
@@ -149,22 +142,19 @@ fn should_preserve_monotonic_relation_ids_across_object_lifecycle() {
         assert!(first > 0);
         assert_eq!(renamed, first);
         assert!(second > first);
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_reduce_fixed_query_hot_row_fixture_by_at_least_twenty_five_percent() {
     // Arrange
-    let path = data_dir("query_hot_bytes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "public.customer_activity_observation_records";
         let field_names = [
             "customer_account_external_identifier",
@@ -223,22 +213,19 @@ fn should_reduce_fixed_query_hot_row_fixture_by_at_least_twenty_five_percent() {
             .windows(collection.len())
             .any(|window| window == collection.as_bytes()));
         assert!(compact_bytes.saturating_mul(4) <= baseline_bytes.saturating_mul(3));
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_preserve_retired_field_ids_in_row_schema_metadata() {
     // Arrange
-    let path = data_dir("row_schema_ids");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
 
         let collection = "cf_layout_row_schema";
@@ -281,7 +268,7 @@ fn should_preserve_retired_field_ids_in_row_schema_metadata() {
             .unwrap();
         let schema_entries = cassie
             .midge
-            .raw_scan_prefix(StorageFamily::Schema, b"")
+            .raw_scan_prefix(StorageFamily::Data, b"")
             .unwrap();
 
         // Assert
@@ -313,22 +300,19 @@ fn should_preserve_retired_field_ids_in_row_schema_metadata() {
         assert_eq!(body["retired"], false);
         assert_eq!(status["field_id"], 3);
         assert_eq!(status["retired"], false);
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_ignore_legacy_document_rows_after_layout_break() {
     // Arrange
-    let path = data_dir("legacy_scan");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
 
         let collection = "cf_layout_legacy_scan";
@@ -357,22 +341,19 @@ fn should_ignore_legacy_document_rows_after_layout_break() {
 
         // Assert
         assert!(documents.is_empty());
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_iterate_rebuild_rows_across_storage_sources() {
     // Arrange
-    let path = data_dir("row_rebuild_iter");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
 
         let collection = "cf_layout_rebuild_iter";
@@ -421,22 +402,19 @@ fn should_iterate_rebuild_rows_across_storage_sources() {
             "row"
         );
         assert!(rows.iter().any(|row| row.id == "row-1"));
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_project_active_fields_for_rebuild_rows() {
     // Arrange
-    let path = data_dir("row_rebuild_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
 
         let collection = "cf_layout_rebuild_projection";
@@ -494,7 +472,5 @@ fn should_project_active_fields_for_rebuild_rows() {
         // Assert
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].payload, serde_json::json!({"title": "alpha"}));
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }

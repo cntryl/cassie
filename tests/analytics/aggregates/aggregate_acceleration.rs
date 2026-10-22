@@ -9,7 +9,6 @@ use support::*;
 #[test]
 fn should_accelerate_numeric_aggregates_from_column_summaries() {
     // Arrange
-    use_local_storage();
     let path = data_dir("aggregate_accel_numeric");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -17,7 +16,7 @@ fn should_accelerate_numeric_aggregates_from_column_summaries() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -90,7 +89,6 @@ fn should_accelerate_numeric_aggregates_from_column_summaries() {
 #[test]
 fn should_accelerate_aggregates_for_case_distinct_columns_independently() {
     // Arrange
-    use_local_storage();
     let path = data_dir("aggregate_accel_case_distinct_columns");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -98,7 +96,7 @@ fn should_accelerate_aggregates_for_case_distinct_columns_independently() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -150,7 +148,6 @@ fn should_accelerate_aggregates_for_case_distinct_columns_independently() {
 #[test]
 fn should_maintain_aggregate_summaries_after_update_delete() {
     // Arrange
-    use_local_storage();
     let path = data_dir("aggregate_accel_maintenance");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -158,7 +155,7 @@ fn should_maintain_aggregate_summaries_after_update_delete() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -230,7 +227,6 @@ fn should_maintain_aggregate_summaries_after_update_delete() {
 #[test]
 fn should_fallback_to_row_blobs_for_grouped_aggregates() {
     // Arrange
-    use_local_storage();
     let path = data_dir("aggregate_accel_group_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -238,7 +234,7 @@ fn should_fallback_to_row_blobs_for_grouped_aggregates() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(

@@ -2,15 +2,14 @@ use cassie::app::Cassie;
 use cassie::types::Value;
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn with_two_collections<T>(
     label: &str,
     test: impl FnOnce(&Cassie, &cassie::app::CassieSession) -> T,
 ) -> T {
-    use_local_storage();
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -192,9 +191,8 @@ fn should_recover_after_multi_collection_rollback() {
 #[test]
 fn should_commit_cross_collection_delete_cascade() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_stage_cascade");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -264,9 +262,8 @@ fn should_commit_cross_collection_delete_cascade() {
 #[test]
 fn should_commit_cross_collection_update_cascade() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_stage_update_cascade");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie

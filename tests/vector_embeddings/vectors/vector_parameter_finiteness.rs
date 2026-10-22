@@ -1,14 +1,9 @@
-use cassie::app::Cassie;
 use cassie::types::{Value, Vector};
 
 #[test]
 fn should_reject_non_finite_vector_parameter_components_without_writing() {
     // Arrange
-    let path = std::env::temp_dir().join(format!(
-        "cassie-vector-parameter-finiteness-{}",
-        uuid::Uuid::new_v4()
-    ));
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -73,5 +68,4 @@ fn should_reject_non_finite_vector_parameter_components_without_writing() {
         ]]
     );
     drop(cassie);
-    std::fs::remove_dir_all(path).expect("cleanup");
 }

@@ -1,6 +1,5 @@
 //! PostgreSQL 18.6 residual aggregate and window boundaries for #806.
 
-use cassie::app::Cassie;
 use cassie::types::Value;
 use std::time::Duration;
 
@@ -10,7 +9,6 @@ use crate::support_sql_fixture::sql_fixture;
 type Frames = Vec<(u8, Vec<u8>)>;
 
 fn run_invalid_percentile_and_recovery() -> Vec<Frames> {
-    wire::use_local_storage();
     let path = wire::data_dir("issue-806-percentile-invalid-fraction-sqlstate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -18,7 +16,7 @@ fn run_invalid_percentile_and_recovery() -> Vec<Frames> {
         .expect("current-thread runtime");
 
     let batches = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("start Cassie before pgwire queries");
         let server = wire::spawn_server(cassie).await;
         let socket = tokio::net::TcpStream::connect(server.addr)

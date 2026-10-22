@@ -3,7 +3,6 @@
 use std::time::Duration;
 
 use crate::support_pgwire as wire;
-use cassie::app::Cassie;
 use tokio::io::AsyncWriteExt;
 
 struct FixtureDirectory(String);
@@ -24,14 +23,13 @@ fn current_thread_runtime() -> tokio::runtime::Runtime {
 #[test]
 fn should_cancel_recursive_cte_execution_without_publishing_partial_rows() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("issue-801-recursive-cte-cancel");
     let _directory = FixtureDirectory(path.clone());
     let runtime = current_thread_runtime();
 
     // Act
     let (baseline, cancelled, recovery) = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie
             .startup()
             .expect("start recursive CTE cancellation fixture");

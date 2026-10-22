@@ -24,6 +24,7 @@ pub(super) fn create_sequence(
     let mut metadata = crate::catalog::SequenceMeta::with_parameters(&statement.name, parameters);
     metadata.persistence = statement.persistence;
     metadata.owned_by = sequence_owner(statement.owned_by.as_ref());
+    let mut metadata = canonicalize_sequence_metadata(cassie, metadata);
     let output = empty_command("CREATE SEQUENCE", controls)?;
     metadata.object_id = cassie
         .midge
@@ -64,7 +65,10 @@ pub(super) fn alter_sequence(
             metadata.set_parameters(parameters);
             metadata.set_cursor(cursor);
             if let Some(owned_by) = statement.owned_by.as_ref() {
-                metadata.owned_by = sequence_owner(Some(owned_by));
+                metadata.owned_by = sequence_owner(Some(owned_by)).map(|mut owner| {
+                    owner.table = cassie.midge.canonical_collection_name(&owner.table);
+                    owner
+                });
             }
             if let Some(persistence) = statement.persistence {
                 metadata.persistence = persistence;
@@ -72,7 +76,9 @@ pub(super) fn alter_sequence(
             Ok(())
         })
         .map_err(QueryError::from)?;
-    cassie.catalog.register_sequence(updated);
+    cassie
+        .catalog
+        .register_sequence(canonicalize_sequence_metadata(cassie, updated));
     Ok(output)
 }
 
@@ -203,6 +209,7 @@ pub(super) fn persist_created_sequences(
             .midge
             .allocate_object_id()
             .map_err(QueryError::from)?;
+        let sequence = canonicalize_sequence_metadata(cassie, sequence);
         cassie
             .midge
             .put_sequence(&sequence)
@@ -210,6 +217,17 @@ pub(super) fn persist_created_sequences(
         cassie.catalog.register_sequence(sequence);
     }
     Ok(())
+}
+
+pub(super) fn canonicalize_sequence_metadata(
+    cassie: &Cassie,
+    mut sequence: crate::catalog::SequenceMeta,
+) -> crate::catalog::SequenceMeta {
+    sequence.name = cassie.midge.canonical_collection_name(&sequence.name);
+    if let Some(owner) = sequence.owned_by.as_mut() {
+        owner.table = cassie.midge.canonical_collection_name(&owner.table);
+    }
+    sequence
 }
 
 pub(super) fn alter_column_set_default(

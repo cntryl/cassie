@@ -1,15 +1,13 @@
 #[test]
 fn should_normalize_json_text_writes() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("json_text_insert_update");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -79,6 +77,5 @@ fn should_normalize_json_text_writes() {
             vec![vec![Value::Json(serde_json::json!({"c": 3}))]]
         );
 
-        let _ = std::fs::remove_dir_all(path);
     });
 }

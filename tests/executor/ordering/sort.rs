@@ -26,8 +26,7 @@ fn should_sort_with_stable_tiebreaker() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_stable_tie";
 
         let schema = Schema {
@@ -116,8 +115,7 @@ fn should_sort_by_projection_alias_with_different_case() {
         .expect("runtime");
 
     runtime.block_on(async {
-            use_local_storage();
-            let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             let collection = "exec_hybrid_alias_case";
 
             let schema = Schema {
@@ -213,8 +211,7 @@ fn should_sort_shadowing_alias_independently_of_source_nulls() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -264,8 +261,7 @@ fn should_sort_by_unprojected_column_before_projection() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_order_by_unprojected_field";
 
         let schema = Schema {
@@ -339,8 +335,7 @@ fn should_be_deterministic_for_repeated_execution_metadata() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "exec_repeated_metadata";
 
         let schema = Schema {

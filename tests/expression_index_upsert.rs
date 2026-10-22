@@ -10,9 +10,8 @@ const TABLE: &str = "expression_index_upsert_rows";
 const ROW_COUNT: usize = 512;
 
 fn start(label: &str) -> (Cassie, CassieSession, String) {
-    support_sql::use_local_storage();
     let path = support_sql::data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie

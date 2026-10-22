@@ -50,7 +50,6 @@ async fn login_cookie(client: &Client, base_url: &str) -> String {
 #[test]
 fn should_map_idle_savepoint_controls_to_rest_bad_requests() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     crate::support_temp_dirs::sweep_stale_once();
     let data_dir = std::env::temp_dir().join(format!("cassie-rest-tx-errors-{}", Uuid::new_v4()));
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -59,7 +58,7 @@ fn should_map_idle_savepoint_controls_to_rest_bad_requests() {
         .expect("runtime");
 
     let responses = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();

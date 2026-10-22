@@ -6,7 +6,7 @@ use cassie::app::Cassie;
 use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
-use pgwire_support::{data_dir, simple_query_frame, startup_frame, use_local_storage};
+use pgwire_support::{data_dir, simple_query_frame, startup_frame};
 
 type WireFrame = (u8, Vec<u8>);
 type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
@@ -189,7 +189,6 @@ fn assert_pgwire_metrics(metrics: &serde_json::Value) {
 #[test]
 fn should_record_pgwire_connection_metrics() {
     // Arrange
-    use_local_storage();
     let path = data_dir("session_messages");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -199,7 +198,7 @@ fn should_record_pgwire_connection_metrics() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         seed_pgwire_metrics_collection(&cassie);
         let (addr, server) = spawn_pgwire_metrics_server(&cassie, config).await;

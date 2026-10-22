@@ -7,10 +7,6 @@ use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 fn data_dir(label: &str) -> PathBuf {
     crate::support_temp_dirs::sweep_stale_once();
     std::env::temp_dir().join(format!("cassie-rest-sessions-{label}-{}", Uuid::new_v4()))
@@ -62,7 +58,6 @@ fn cookie(response: &reqwest::Response) -> String {
 #[test]
 fn should_reject_invalid_rest_login_without_issuing_a_cookie() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("invalid-login");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -70,7 +65,7 @@ fn should_reject_invalid_rest_login_without_issuing_a_cookie() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
 
@@ -96,7 +91,6 @@ fn should_reject_invalid_rest_login_without_issuing_a_cookie() {
 #[test]
 fn should_revoke_cookie_session_after_logout() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("session-lifecycle");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -104,7 +98,7 @@ fn should_revoke_cookie_session_after_logout() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
         let login = client
@@ -166,9 +160,8 @@ fn should_revoke_cookie_session_after_logout() {
 #[test]
 fn should_revoke_a_non_admin_rest_session_on_logout() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("non-admin-session-lifecycle");
-    let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let root = cassie
         .authenticate_role("root", Some("postgres"), None)
         .expect("root session");
@@ -267,7 +260,6 @@ fn should_revoke_a_non_admin_rest_session_on_logout() {
 #[test]
 fn should_reject_password_bearing_bearer_credentials() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("bearer-rejected");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -275,7 +267,7 @@ fn should_reject_password_bearing_bearer_credentials() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
 
@@ -297,7 +289,6 @@ fn should_reject_password_bearing_bearer_credentials() {
 #[test]
 fn should_ignore_forwarding_headers_when_deriving_plaintext_cookie_security() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("forwarded-headers");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -305,7 +296,7 @@ fn should_ignore_forwarding_headers_when_deriving_plaintext_cookie_security() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
 
@@ -338,7 +329,6 @@ fn should_ignore_forwarding_headers_when_deriving_plaintext_cookie_security() {
 #[test]
 fn should_secure_external_https_login_logout_cookies() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("external-https");
     let config = CassieRuntimeConfig {
         rest_external_https: true,
@@ -350,8 +340,7 @@ fn should_secure_external_https_login_logout_cookies() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie =
-            Cassie::new_with_data_dir_and_config(&data_dir, config).expect("configured cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("configured cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
         let login = client
@@ -394,7 +383,6 @@ fn should_secure_external_https_login_logout_cookies() {
 #[test]
 fn should_refund_success_before_throttling_excess_rest_logins() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("login-throttle");
     let config = CassieRuntimeConfig {
         auth_user_attempts_per_minute: 1,
@@ -407,8 +395,7 @@ fn should_refund_success_before_throttling_excess_rest_logins() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie =
-            Cassie::new_with_data_dir_and_config(&data_dir, config).expect("configured cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("configured cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
         let valid_login = || {
@@ -463,7 +450,6 @@ fn should_refund_success_before_throttling_excess_rest_logins() {
 #[test]
 fn should_map_oversized_rest_sql_to_bad_request() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("sql-resource-limit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -471,7 +457,7 @@ fn should_map_oversized_rest_sql_to_bad_request() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
         let login = client

@@ -9,11 +9,10 @@ mod filter_partial_merge;
 #[test]
 fn should_merge_boolean_aggregate_states_across_workers() {
     // Arrange
-    use_local_storage();
     let path = data_dir("postgresql18_boolean_aggregate_merge");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

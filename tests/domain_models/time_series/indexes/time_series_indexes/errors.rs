@@ -1,9 +1,8 @@
 #[test]
 fn should_reject_unsupported_time_series_bucket_width() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_unsupported_bucket_width");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
     cassie
@@ -52,7 +51,6 @@ fn should_reject_unsupported_time_series_bucket_width() {
 #[test]
 fn should_reject_time_series_index_on_non_timestamp_field() {
     // Arrange
-    use_local_storage();
     let path = data_dir("time_series_index_invalid_type");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -60,7 +58,7 @@ fn should_reject_time_series_index_on_non_timestamp_field() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

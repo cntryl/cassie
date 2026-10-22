@@ -126,7 +126,7 @@ pub struct PendingBackfill {
 
 impl PendingBackfill {
     pub fn capture(cassie: &Cassie, source_generation: u64, publish_sql_index: bool) -> Self {
-        let pending = records(cassie, StorageFamily::Schema, b"index-publication");
+        let pending = records(cassie, StorageFamily::Data, b"index-publication");
         assert_eq!(pending.len(), 1, "exactly one durable publication intent");
         let record: serde_json::Value =
             serde_json::from_slice(&pending[0].1).expect("pending publication JSON");
@@ -142,7 +142,7 @@ impl PendingBackfill {
             .expect("publication ID")
             .to_string();
         uuid::Uuid::parse_str(&publication_id).expect("valid publication identity");
-        let staged = records(cassie, StorageFamily::Schema, b"vector-backfill-row");
+        let staged = records(cassie, StorageFamily::Data, b"vector-backfill-row");
         assert_eq!(staged.len(), 2, "exact staged payload count");
         let mut rows = staged
             .into_iter()
@@ -227,7 +227,7 @@ pub fn raw_rows(cassie: &Cassie) -> RawRecords {
 pub fn assert_cleanup(cassie: &Cassie) {
     for family in [b"index-publication".as_slice(), b"vector-backfill-row"] {
         assert!(
-            records(cassie, StorageFamily::Schema, family).is_empty(),
+            records(cassie, StorageFamily::Data, family).is_empty(),
             "startup must clean publication intent and staged payloads"
         );
     }
@@ -257,23 +257,23 @@ fn publication_key(family: &[u8], components: &[&[u8]]) -> Vec<u8> {
 }
 
 pub fn pending_record(cassie: &Cassie) -> (Vec<u8>, serde_json::Value) {
-    schema_record(cassie, |record| record.get("vector_backfill").is_some())
+    database_record(cassie, |record| record.get("vector_backfill").is_some())
 }
 
 pub fn staged_record(cassie: &Cassie) -> (Vec<u8>, serde_json::Value) {
-    schema_record(cassie, |record| {
+    database_record(cassie, |record| {
         record.get("id").is_some() && record.get("payload").is_some()
     })
 }
 
-fn schema_record(
+fn database_record(
     cassie: &Cassie,
     matches: impl Fn(&serde_json::Value) -> bool,
 ) -> (Vec<u8>, serde_json::Value) {
     cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Schema, &[])
-        .expect("scan schema")
+        .raw_scan_prefix(StorageFamily::Data, &[])
+        .expect("scan database family")
         .into_iter()
         .filter_map(|(key, raw)| {
             serde_json::from_slice::<serde_json::Value>(&raw)
@@ -284,11 +284,11 @@ fn schema_record(
         .expect("expected publication record")
 }
 
-pub fn write_schema_record(cassie: &Cassie, key: Vec<u8>, record: Option<&serde_json::Value>) {
+pub fn write_database_record(cassie: &Cassie, key: Vec<u8>, record: Option<&serde_json::Value>) {
     let mut tx = cassie
         .midge
-        .schema_tx(TransactionMode::ReadWrite)
-        .expect("schema transaction");
+        .data_tx(TransactionMode::ReadWrite)
+        .expect("database transaction");
     if let Some(record) = record {
         tx.put(
             key,
@@ -313,13 +313,13 @@ impl OrphanPublicationArtifacts {
         let artifacts = Self {
             entries: [
                 (
-                    StorageFamily::Schema,
+                    StorageFamily::Data,
                     publication_key(b"vector-backfill-row", &[publication, &0_u64.to_be_bytes()]),
                     br#"{"id":"unused","payload":{"body":"unused","embedding":[1.0,0.0,0.0]}}"#
                         .to_vec(),
                 ),
                 (
-                    StorageFamily::Schema,
+                    StorageFamily::Data,
                     publication_key(b"vector-backfill-row", &[publication, &1_u64.to_be_bytes()]),
                     b"not-json".to_vec(),
                 ),
@@ -352,11 +352,11 @@ impl OrphanPublicationArtifacts {
             );
         }
         assert_eq!(
-            records(cassie, StorageFamily::Schema, b"index-publication"),
+            records(cassie, StorageFamily::Data, b"index-publication"),
             [] as [(Vec<u8>, Vec<u8>); 0]
         );
         assert_eq!(
-            records(cassie, StorageFamily::Schema, b"vector-backfill-row").len(),
+            records(cassie, StorageFamily::Data, b"vector-backfill-row").len(),
             2,
             "exact orphan staged record count"
         );

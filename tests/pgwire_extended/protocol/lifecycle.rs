@@ -207,7 +207,6 @@ fn assert_close_cascade_frames(frames: &[WireFrame], cassie: &Cassie) {
 #[test]
 fn should_close_statement_cascade_referenced_portals_before_reuse() {
     // Arrange
-    use_local_storage();
     let path = data_dir("close_cascade");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -216,7 +215,7 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
 
     runtime.block_on(async {
         let config = CassieRuntimeConfig::from_env().expect("runtime config");
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_close_cascade_collection(&cassie);
 
@@ -246,7 +245,6 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
 /// fixture and returns the frames through `ReadyForQuery` plus the
 /// server's prepared-statement and portal counts afterwards.
 fn run_close_batch(label: &str, batch: &[Vec<u8>]) -> (Vec<WireFrame>, Option<u64>, Option<u64>) {
-    use_local_storage();
     let path = data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -255,7 +253,7 @@ fn run_close_batch(label: &str, batch: &[Vec<u8>]) -> (Vec<WireFrame>, Option<u6
 
     runtime.block_on(async {
         let config = CassieRuntimeConfig::from_env().expect("runtime config");
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_close_cascade_collection(&cassie);
         let (addr, server) = spawn_pgwire_server(&cassie).await;
@@ -335,8 +333,7 @@ fn should_keep_counts_at_zero_given_repeated_close_of_one_statement() {
 #[test]
 fn should_close_transaction_portals_at_transaction_end() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("transaction_portal_cleanup");
+    let _path = data_dir("transaction_portal_cleanup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -344,7 +341,7 @@ fn should_close_transaction_portals_at_transaction_end() {
 
     runtime.block_on(async {
         let config = CassieRuntimeConfig::from_env().expect("runtime config");
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_close_cascade_collection(&cassie);
 

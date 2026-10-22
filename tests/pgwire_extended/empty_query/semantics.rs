@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use cassie::app::Cassie;
-
 use super::support_pgwire as support;
 
 const ANSWER_LIMIT: Duration = Duration::from_secs(10);
@@ -9,9 +7,8 @@ const ANSWER_LIMIT: Duration = Duration::from_secs(10);
 /// Sends each batch in turn on one connection and returns the tags of the
 /// frames answering each batch through its `ReadyForQuery`.
 fn run_batches(label: &str, batches: Vec<Vec<Vec<u8>>>) -> Vec<Vec<u8>> {
-    support::use_local_storage();
     let path = support::data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

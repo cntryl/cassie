@@ -1,4 +1,3 @@
-use cassie::app::Cassie;
 use cassie::types::Value;
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -8,21 +7,16 @@ fn data_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("cassie-upsert-{name}-{}", Uuid::new_v4()))
 }
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 #[test]
 fn should_upsert_when_conflict_key_has_a_noncanonical_input_shape() {
     // Arrange
-    use_local_storage();
     let path = data_dir("canonical_conflict_keys");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie.execute_sql(&session, "CREATE TABLE canonical_float (k FLOAT UNIQUE, v INT)", vec![]).unwrap();
@@ -70,14 +64,13 @@ fn should_upsert_when_conflict_key_has_a_noncanonical_input_shape() {
 #[test]
 fn should_update_conflicting_row_given_parameters_excluded_filter_and_returning() {
     // Arrange
-    use_local_storage();
     let path = data_dir("update");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie.execute_sql(&session, "CREATE TABLE upsert_docs (id INT PRIMARY KEY, tenant TEXT, title TEXT, note TEXT)", vec![]).unwrap();
@@ -101,14 +94,13 @@ fn should_update_conflicting_row_given_parameters_excluded_filter_and_returning(
 #[test]
 fn should_reject_invalid_conflict_update_before_mutation() {
     // Arrange
-    use_local_storage();
     let path = data_dir("binding");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie.execute_sql(&session, "CREATE TABLE upsert_bind (id INT PRIMARY KEY, title TEXT)", vec![]).unwrap();
@@ -132,14 +124,13 @@ fn should_reject_invalid_conflict_update_before_mutation() {
 #[test]
 fn should_persist_only_committed_upsert_given_rollback_then_commit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transactions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie.execute_sql(&session, "CREATE TABLE upsert_tx (id INT PRIMARY KEY, title TEXT)", vec![]).unwrap();
@@ -167,14 +158,13 @@ fn should_persist_only_committed_upsert_given_rollback_then_commit() {
 #[test]
 fn should_reject_upsert_update_of_referenced_key() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign-key-restrict");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -237,14 +227,13 @@ fn should_reject_upsert_update_of_referenced_key() {
 #[test]
 fn should_cascade_upsert_update_of_referenced_key() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign-key-cascade");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -302,14 +291,13 @@ fn should_cascade_upsert_update_of_referenced_key() {
 #[test]
 fn should_reject_transaction_conflict_resolution_of_referenced_key() {
     // Arrange
-    use_local_storage();
     let path = data_dir("foreign-key-transaction-conflict");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let transaction_session = cassie.create_session("transaction", None);
             let concurrent_session = cassie.create_session("concurrent", None);

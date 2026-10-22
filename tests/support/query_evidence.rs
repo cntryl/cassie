@@ -1,7 +1,7 @@
 use cassie::app::Cassie;
 use cassie::types::Value;
 
-use uuid::Uuid;
+use crate::support_sql::new_in_memory_cassie;
 
 pub struct SeededQueryFixture {
     seed: u64,
@@ -32,17 +32,14 @@ impl SeededQueryFixture {
     }
 
     pub fn compare_indexed_pages_with_overlay(&self) -> PageComparison {
-        std::env::set_var("CASSIE_STORAGE_MODE", "local");
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("query evidence runtime");
 
         runtime.block_on(async {
-            let row_path = data_dir("query-evidence-row");
-            let indexed_path = data_dir("query-evidence-indexed");
-            let row_cassie = Cassie::new_with_data_dir(&row_path).expect("row Cassie");
-            let indexed_cassie = Cassie::new_with_data_dir(&indexed_path).expect("indexed Cassie");
+            let row_cassie = new_in_memory_cassie().expect("row Cassie");
+            let indexed_cassie = new_in_memory_cassie().expect("indexed Cassie");
             row_cassie.startup().expect("start row Cassie");
             indexed_cassie.startup().expect("start indexed Cassie");
 
@@ -52,9 +49,6 @@ impl SeededQueryFixture {
 
             let row_baseline = execute_pages(&row_cassie, "query_evidence_row", self.rows);
             let indexed = execute_pages(&indexed_cassie, "query_evidence_indexed", self.rows);
-
-            let _ = std::fs::remove_dir_all(row_path);
-            let _ = std::fs::remove_dir_all(indexed_path);
 
             PageComparison {
                 indexed: indexed.pages,
@@ -209,11 +203,4 @@ fn seeded_rows(seed: u64, rows: usize) -> Vec<(Option<String>, Option<i64>)> {
             }
         })
         .collect()
-}
-
-fn data_dir(label: &str) -> String {
-    crate::support_temp_dirs::sweep_stale_once();
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-{label}-{}", Uuid::new_v4()));
-    path.to_string_lossy().into_owned()
 }

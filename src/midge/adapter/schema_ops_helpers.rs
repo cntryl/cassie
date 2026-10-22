@@ -9,7 +9,7 @@ pub(super) fn clear_pending_collection_rename(
     current: &str,
     next: &str,
 ) -> Result<(), CassieError> {
-    let mut tx = midge.begin_schema_rw_tx()?;
+    let mut tx = midge.begin_data_rw_tx_for(current)?;
     tx.delete(Midge::schema_operation_key(current, next))
         .map_err(CassieError::from)?;
     tx.commit(midge.write_options_sync())
@@ -21,7 +21,7 @@ pub(super) fn clear_pending_field_drop(
     collection: &str,
     field: &str,
 ) -> Result<(), CassieError> {
-    let mut tx = midge.begin_schema_rw_tx()?;
+    let mut tx = midge.begin_data_rw_tx_for(collection)?;
     tx.delete(Midge::field_drop_operation_key(collection, field))
         .map_err(CassieError::from)?;
     tx.commit(midge.write_options_sync())

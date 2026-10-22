@@ -3,12 +3,11 @@ use super::support_sql as support;
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn seeded(label: &str) -> (Cassie, CassieSession, String) {
-    use_local_storage();
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [
@@ -45,9 +44,8 @@ fn should_create_a_scalar_index_on_an_other_case_column() {
 #[test]
 fn should_not_use_a_scalar_range_index_on_a_case_distinct_sibling_column() {
     // Arrange
-    use_local_storage();
     let path = data_dir("index_case_distinct_scalar_range");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [
@@ -137,9 +135,8 @@ fn should_create_a_unique_index_on_an_other_case_column() {
 #[test]
 fn should_bind_case_distinct_unique_indexes_to_their_exact_columns() {
     // Arrange
-    use_local_storage();
     let path = data_dir("index_case_distinct_unique");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [
@@ -222,9 +219,8 @@ fn should_create_an_expression_index_over_an_other_case_column() {
 #[test]
 fn should_not_use_an_expression_index_on_a_case_distinct_sibling_column() {
     // Arrange
-    use_local_storage();
     let path = data_dir("index_case_distinct_expression");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [

@@ -1,5 +1,4 @@
 use super::support_sql as support;
-use cassie::app::Cassie;
 use support::*;
 
 const PIPELINE_APPLICATION_STATEMENTS: &[&str] = &[
@@ -93,10 +92,9 @@ const PIPELINE_APPLICATION_STATEMENTS: &[&str] = &[
 #[test]
 fn should_apply_pipeline_application_schema() {
     // Arrange
-    use_local_storage();
     let path = data_dir("pipeline");
     let path_for_cleanup = path.clone();
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("schema-app", None);
 

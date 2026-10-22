@@ -7,12 +7,11 @@ use cassie::sql::parser::parse_statement;
 use cassie::types::{DataType, FieldSchema, Schema, Value};
 
 use super::support_sql as support;
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn seeded_integer_collection(name: &str, values: &[i64]) -> (Cassie, PathBuf) {
-    use_local_storage();
     let path = data_dir(name);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let collection = format!("{name}_seed");
     let schema = Schema {
         fields: vec![FieldSchema {
@@ -145,9 +144,8 @@ fn should_apply_recursive_cte_column_aliases() {
 #[test]
 fn should_pass_parameters_through_recursive_terms() {
     // Arrange
-    use_local_storage();
     let path = data_dir("recursive_parameters");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
 
     // Act
@@ -266,11 +264,10 @@ fn should_reject_multiple_recursive_references() {
 #[test]
 fn should_reject_recursive_working_table_over_memory_budget() {
     // Arrange
-    use_local_storage();
     let path = data_dir("recursive_temp_budget");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("create Cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("create Cassie");
     let session = cassie.create_session("tester", None);
 
     // Act

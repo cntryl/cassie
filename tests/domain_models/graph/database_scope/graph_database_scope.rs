@@ -1,4 +1,3 @@
-use cassie::app::Cassie;
 use cassie::types::Value;
 
 use super::support_graph as support;
@@ -7,11 +6,9 @@ use support::*;
 #[test]
 fn should_store_graph_data_in_its_session_database() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_database_scope_data");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let admin = cassie.create_session("tester", Some("postgres".to_string()));
             cassie
@@ -69,19 +66,15 @@ fn should_store_graph_data_in_its_session_database() {
                 postgres_graph.is_err(),
                 "another database must not resolve the graph metadata"
             );
-
-            let _ = std::fs::remove_dir_all(path);
         });
 }
 
 #[test]
 fn should_allow_same_graph_name_in_multiple_databases() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_database_scope_names");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let admin = cassie.create_session("tester", Some("postgres".to_string()));
             for database in ["tenant_a", "tenant_b"] {
@@ -156,18 +149,15 @@ fn should_allow_same_graph_name_in_multiple_databases() {
                 second_database_neighbors.rows(),
                 vec![vec![Value::String("tenant_b_node".to_string())]]
             );
-            let _ = std::fs::remove_dir_all(path);
         });
 }
 
 #[test]
 fn should_drop_empty_database_when_graph_exists_in_another_database() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_database_scope_empty");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let admin = cassie.create_session("tester", Some("postgres".to_string()));
         for database in ["tenant_a", "tenant_empty"] {
@@ -186,9 +176,7 @@ fn should_drop_empty_database_when_graph_exists_in_another_database() {
         // Assert
         assert!(
             empty_database_drop.is_ok(),
-            "a graph in another database must not make an empty database non-empty"
+            "a graph in another database must not make an empty database non-empty: {empty_database_drop:?}"
         );
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }

@@ -3,7 +3,6 @@
 use std::time::{Duration, Instant};
 
 use crate::support_pgwire as wire;
-use cassie::app::Cassie;
 use tokio::io::AsyncWriteExt;
 
 struct MergeFixtureDirectory(String);
@@ -93,8 +92,8 @@ struct MergeCancellationEvidence {
     active_query_observed: bool,
 }
 
-async fn prepare_merge_session(path: &str) -> MergeSession {
-    let cassie = Cassie::new_with_data_dir(path).expect("Cassie");
+async fn prepare_merge_session(_path: &str) -> MergeSession {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("start MERGE cancellation fixture");
     let server = wire::spawn_server(cassie).await;
     let (observer_reader, observer_writer) = connect_activity_observer(server.addr).await;
@@ -304,7 +303,6 @@ fn assert_merge_cancellation(evidence: &MergeCancellationEvidence) {
 fn should_cancel_without_partial_mutations_or_returning_rows_given_a_running_merge_when_cancel_request_arrives(
 ) {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("merge-cancellation-atomic-returning");
     let _directory = MergeFixtureDirectory(path.clone());
     let runtime = tokio::runtime::Builder::new_current_thread()

@@ -15,7 +15,6 @@ use support::*;
 #[test]
 fn should_execute_insert_values_with_explicit_columns_returning_columns() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_returning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -23,7 +22,7 @@ fn should_execute_insert_values_with_explicit_columns_returning_columns() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -59,7 +58,6 @@ fn should_execute_insert_values_with_explicit_columns_returning_columns() {
 #[test]
 fn should_return_stored_canonical_typed_text_from_insert_update_returning() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_returning_canonical");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -67,7 +65,7 @@ fn should_return_stored_canonical_typed_text_from_insert_update_returning() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -134,7 +132,6 @@ fn should_return_stored_canonical_typed_text_from_insert_update_returning() {
 #[test]
 fn should_insert_values_using_table_column_order() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_table_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -142,7 +139,7 @@ fn should_insert_values_using_table_column_order() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -181,7 +178,6 @@ fn should_insert_values_using_table_column_order() {
 #[test]
 fn should_insert_multiple_values_rows() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_multiple_values");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -189,7 +185,7 @@ fn should_insert_multiple_values_rows() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -226,7 +222,6 @@ fn should_insert_multiple_values_rows() {
 #[test]
 fn should_return_generated_row_id_from_insert_values() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_id");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -234,7 +229,7 @@ fn should_return_generated_row_id_from_insert_values() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -266,7 +261,6 @@ fn should_return_generated_row_id_from_insert_values() {
 #[test]
 fn should_execute_insert_returning_wildcard() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_returning_wildcard");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -274,7 +268,7 @@ fn should_execute_insert_returning_wildcard() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -309,7 +303,6 @@ fn should_execute_insert_returning_wildcard() {
 #[test]
 fn should_execute_insert_returning_scalar_function() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_returning_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -317,7 +310,7 @@ fn should_execute_insert_returning_scalar_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -351,7 +344,6 @@ fn should_execute_insert_returning_scalar_function() {
 #[test]
 fn should_reject_insert_returning_unknown_function() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_returning_unknown_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -359,7 +351,7 @@ fn should_reject_insert_returning_unknown_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -392,7 +384,6 @@ fn should_reject_insert_returning_unknown_function() {
 #[test]
 fn should_reject_insert_values_when_not_null_constraint_fails() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_not_null");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -400,7 +391,7 @@ fn should_reject_insert_values_when_not_null_constraint_fails() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -429,7 +420,6 @@ fn should_reject_insert_values_when_not_null_constraint_fails() {
 #[test]
 fn should_reject_insert_values_when_not_null_column_is_missing() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_missing_not_null");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -437,7 +427,7 @@ fn should_reject_insert_values_when_not_null_column_is_missing() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -466,7 +456,6 @@ fn should_reject_insert_values_when_not_null_column_is_missing() {
 #[test]
 fn should_apply_default_values_for_insert_values() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_defaults");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -474,7 +463,7 @@ fn should_apply_default_values_for_insert_values() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -506,7 +495,6 @@ fn should_apply_default_values_for_insert_values() {
 #[test]
 fn should_preserve_explicit_insert_value_when_default_exists() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_explicit_default");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -514,7 +502,7 @@ fn should_preserve_explicit_insert_value_when_default_exists() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -545,7 +533,6 @@ fn should_preserve_explicit_insert_value_when_default_exists() {
 #[test]
 fn should_round_trip_insert_values_vector_field() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_vector_round_trip");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -553,7 +540,7 @@ fn should_round_trip_insert_values_vector_field() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -593,7 +580,6 @@ fn should_round_trip_insert_values_vector_field() {
 #[test]
 fn should_reject_insert_values_when_vector_dimensions_mismatch() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_vector_dimensions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -601,7 +587,7 @@ fn should_reject_insert_values_when_vector_dimensions_mismatch() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -633,7 +619,6 @@ fn should_reject_insert_values_when_vector_dimensions_mismatch() {
 #[test]
 fn should_reject_insert_values_with_duplicate_target_column() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_duplicate_column");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -641,7 +626,7 @@ fn should_reject_insert_values_with_duplicate_target_column() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -670,7 +655,6 @@ fn should_reject_insert_values_with_duplicate_target_column() {
 #[test]
 fn should_reject_insert_values_with_unknown_target_column() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_unknown_column");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -678,7 +662,7 @@ fn should_reject_insert_values_with_unknown_target_column() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -707,7 +691,6 @@ fn should_reject_insert_values_with_unknown_target_column() {
 #[test]
 fn should_store_insert_values_as_row_blobs() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_values_row_blob");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -715,7 +698,7 @@ fn should_store_insert_values_as_row_blobs() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -764,7 +747,6 @@ fn should_store_insert_values_as_row_blobs() {
 #[test]
 fn should_project_missing_sparse_row_fields_as_null() {
     // Arrange
-    use_local_storage();
     let path = data_dir("sparse_row_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -772,7 +754,7 @@ fn should_project_missing_sparse_row_fields_as_null() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -811,7 +793,6 @@ fn should_project_missing_sparse_row_fields_as_null() {
 #[test]
 fn should_reject_an_invalid_timestamp_string_on_insert() {
     // Arrange
-    use_local_storage();
     let path = data_dir("insert_invalid_timestamp");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -819,7 +800,7 @@ fn should_reject_an_invalid_timestamp_string_on_insert() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -850,7 +831,6 @@ fn should_reject_an_invalid_timestamp_string_on_insert() {
 #[test]
 fn should_cast_a_timestamp_string_to_its_canonical_utc_form() {
     // Arrange
-    use_local_storage();
     let path = data_dir("cast_timestamp_canonical");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -858,7 +838,7 @@ fn should_cast_a_timestamp_string_to_its_canonical_utc_form() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 

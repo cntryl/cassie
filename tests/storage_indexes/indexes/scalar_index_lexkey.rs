@@ -8,7 +8,6 @@ use support::*;
 #[test]
 fn should_scan_scalar_index_with_signed_float_bounds() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_lexkey_numeric_bounds");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -16,7 +15,7 @@ fn should_scan_scalar_index_with_signed_float_bounds() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             let session = cassie.create_session("tester", None);
 
             cassie
@@ -89,7 +88,6 @@ fn should_scan_scalar_index_with_signed_float_bounds() {
 #[test]
 fn should_match_full_scan_for_signed_zero_float_scalar_index_constraints() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_lexkey_negative_zero_equality");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -97,7 +95,7 @@ fn should_match_full_scan_for_signed_zero_float_scalar_index_constraints() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         for (table, indexed) in [
             ("negative_zero_baseline", false),
@@ -173,7 +171,6 @@ fn should_match_full_scan_for_signed_zero_float_scalar_index_constraints() {
 #[test]
 fn should_match_full_scan_for_signed_zero_float_expression_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_lexkey_signed_zero_expression_index");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -181,7 +178,7 @@ fn should_match_full_scan_for_signed_zero_float_expression_index() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             let session = cassie.create_session("tester", None);
             for (table, indexed) in [
                 ("signed_zero_expression_baseline", false),
@@ -247,7 +244,6 @@ fn should_match_full_scan_for_signed_zero_float_expression_index() {
 #[test]
 fn should_match_full_scan_for_numeric_expression_index_bounds() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_lexkey_numeric_expression_bounds");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -255,7 +251,7 @@ fn should_match_full_scan_for_numeric_expression_index_bounds() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         for (table, indexed) in [
             ("numeric_expression_baseline", false),
@@ -379,7 +375,6 @@ fn seed_float_tables_with_index_first(cassie: &Cassie, session: &cassie::app::Ca
 #[test]
 fn should_match_unindexed_float_results_when_scalar_index_precedes_writes() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_lexkey_float_index_first");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -387,7 +382,7 @@ fn should_match_unindexed_float_results_when_scalar_index_precedes_writes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         seed_float_tables_with_index_first(&cassie, &session);
         let literal_predicates = [
@@ -466,7 +461,6 @@ fn should_match_unindexed_float_results_when_scalar_index_precedes_writes() {
 #[test]
 fn should_match_integer_shaped_literals_in_float_scalar_indexes() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_lexkey_whole_float");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -474,7 +468,7 @@ fn should_match_integer_shaped_literals_in_float_scalar_indexes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         for table in ["whole_float_baseline", "whole_float_indexed"] {
             cassie
@@ -555,15 +549,13 @@ fn should_match_integer_shaped_literals_in_float_scalar_indexes() {
 #[test]
 fn should_match_full_scan_for_fractional_bounds_on_integer_scalar_indexes() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("scalar_lexkey_fractional_integer");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         for table in ["fractional_int_baseline", "fractional_int_indexed"] {
             cassie
@@ -634,15 +626,13 @@ fn should_match_full_scan_for_fractional_bounds_on_integer_scalar_indexes() {
 #[test]
 fn should_match_full_scan_for_large_integral_float_bounds_on_bigint_indexes() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("scalar_lexkey_large_float_bigint");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         let session = cassie.create_session("tester", None);
         let boundary = 1_i64 << 62;
         let float_boundary = 4_611_686_018_427_387_904.0;
@@ -712,7 +702,6 @@ fn should_match_full_scan_for_large_integral_float_bounds_on_bigint_indexes() {
 #[test]
 fn should_scan_composite_scalar_index_with_embedded_nul_text() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_lexkey_nul_text");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -720,7 +709,7 @@ fn should_scan_composite_scalar_index_with_embedded_nul_text() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             let session = cassie.create_session("tester", None);
 
             cassie
@@ -845,7 +834,6 @@ fn seq_column(cassie: &Cassie, session: &cassie::app::CassieSession, sql: &str) 
 #[test]
 fn should_preserve_same_second_timestamp_order_across_index_paths() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_lexkey_same_second_timestamps");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -853,7 +841,7 @@ fn should_preserve_same_second_timestamp_order_across_index_paths() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
             let session = cassie.create_session("tester", None);
             seed_same_second_timestamp_tables(&cassie, &session);
             let cases = [

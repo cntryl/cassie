@@ -8,9 +8,8 @@ use super::support_sql as support;
 #[test]
 fn should_not_resolve_a_renamed_column_alias_after_adding_its_old_name() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("renamed_column_alias_reuse");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -67,9 +66,8 @@ fn should_not_resolve_a_renamed_column_alias_after_adding_its_old_name() {
 #[test]
 fn should_delete_unique_index_storage_when_index_is_dropped() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("drop_unique_index_storage");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -215,9 +213,8 @@ fn should_not_restore_dropped_column_values_after_readding_the_name() {
 #[test]
 fn should_backfill_float_reservations_after_adding_unique_constraint() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("alter_unique_constraint_float_backfill");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -271,9 +268,8 @@ fn should_backfill_float_reservations_after_adding_unique_constraint() {
 #[test]
 fn should_backfill_timestamp_reservations_after_creating_unique_index() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("create_unique_index_timestamp_backfill");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -330,9 +326,8 @@ fn should_backfill_timestamp_reservations_after_creating_unique_index() {
 #[test]
 fn should_reject_unique_constraint_when_preexisting_rows_duplicate() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("alter_unique_constraint_existing_duplicates");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -369,9 +364,8 @@ fn should_reject_unique_constraint_when_preexisting_rows_duplicate() {
 #[test]
 fn should_reject_unique_index_when_preexisting_rows_duplicate() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("create_unique_index_existing_duplicates");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [

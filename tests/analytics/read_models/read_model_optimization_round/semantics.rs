@@ -1,7 +1,6 @@
 #[test]
 fn should_lock_scalar_read_model_hot_path_access_paths() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_model_hot_paths");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_lock_scalar_read_model_hot_path_access_paths() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         seed_read_model_hot_paths(&cassie, &session);
         let before = cassie.metrics();
@@ -61,7 +60,6 @@ fn should_lock_scalar_read_model_hot_path_access_paths() {
 #[test]
 fn should_lock_column_batch_covered_read_hot_path() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_model_column_batch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -69,7 +67,7 @@ fn should_lock_column_batch_covered_read_hot_path() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -163,7 +161,6 @@ fn should_lock_column_batch_covered_read_hot_path() {
 #[test]
 fn should_lock_vectorized_join_hot_path_when_enabled() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_model_vectorized_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -171,7 +168,7 @@ fn should_lock_vectorized_join_hot_path_when_enabled() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(vectorized_join_config()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -245,7 +242,6 @@ fn should_lock_vectorized_join_hot_path_when_enabled() {
 #[test]
 fn should_lock_pgwire_prepared_read_hot_path_metrics() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_model_pgwire_prepared");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -255,7 +251,7 @@ fn should_lock_pgwire_prepared_read_hot_path_metrics() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

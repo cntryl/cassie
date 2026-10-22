@@ -1,16 +1,11 @@
 use cassie::app::{Cassie, CassieError, CassieSession};
 
-use super::support_sql as support;
-use support::{data_dir, use_local_storage};
-
 fn assert_insufficient_privilege(result: &Result<cassie::executor::QueryResult, CassieError>) {
     assert!(matches!(result, Err(CassieError::InsufficientPrivilege)));
 }
 
-fn with_roles(test_name: &str, test: impl FnOnce(&Cassie, &CassieSession, &CassieSession)) {
-    use_local_storage();
-    let path = data_dir(test_name);
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+fn with_roles(_test_name: &str, test: impl FnOnce(&Cassie, &CassieSession, &CassieSession)) {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
         .authenticate_role("root", Some("postgres"), None)
@@ -34,7 +29,6 @@ fn with_roles(test_name: &str, test: impl FnOnce(&Cassie, &CassieSession, &Cassi
         .expect("reader");
     test(&cassie, &admin, &reader);
     drop(cassie);
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]

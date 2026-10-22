@@ -222,7 +222,6 @@ async fn shutdown_pgwire_server(server: tokio::task::JoinHandle<Result<(), cassi
 #[test]
 fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
     // Arrange
-    use_local_storage();
     let path = data_dir("reuse");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -232,7 +231,7 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_score_collection(&cassie, "extended_query_numbers");
         let (addr, server) = spawn_pgwire_server(&cassie).await;
@@ -264,7 +263,6 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
 #[test]
 fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parse_once");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -274,7 +272,7 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_score_collection(&cassie, "extended_query_parse_once");
         let (addr, server) = spawn_pgwire_server(&cassie).await;

@@ -1,17 +1,10 @@
 use cassie::app::Cassie;
 use cassie::types::Value;
-use std::path::PathBuf;
-use uuid::Uuid;
 
-fn use_local_storage() {
+fn use_fallback_embeddings() {
     if std::env::var("CASSIE_EMBEDDINGS_PROVIDER").is_err() {
         std::env::set_var("CASSIE_EMBEDDINGS_PROVIDER", "fallback");
     }
-}
-
-fn data_dir(name: &str) -> PathBuf {
-    crate::support_temp_dirs::sweep_stale_once();
-    std::env::temp_dir().join(format!("cassie-catalog-orm-{name}-{}", Uuid::new_v4()))
 }
 
 struct OrmMetadataRows {
@@ -203,15 +196,14 @@ fn assert_orm_metadata_rows(rows: &OrmMetadataRows) {
 #[test]
 fn should_expose_orm_introspection_metadata_through_catalog_views() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("metadata");
+    use_fallback_embeddings();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         apply_orm_metadata_fixture(&cassie);
 
@@ -220,7 +212,5 @@ fn should_expose_orm_introspection_metadata_through_catalog_views() {
 
         // Assert
         assert_orm_metadata_rows(&rows);
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }

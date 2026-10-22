@@ -1,7 +1,6 @@
 #[test]
 fn should_keep_autocommit_writes_visible_after_success() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_autocommit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_keep_autocommit_writes_visible_after_success() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -46,7 +45,6 @@ fn should_keep_autocommit_writes_visible_after_success() {
 #[test]
 fn should_not_bump_data_epoch_for_no_op_delete() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_no_op_delete_data_epoch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -54,7 +52,7 @@ fn should_not_bump_data_epoch_for_no_op_delete() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -102,7 +100,6 @@ fn should_not_bump_data_epoch_for_no_op_delete() {
 #[test]
 fn should_replace_same_id_in_single_statement() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction_same_id_replace");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -110,7 +107,7 @@ fn should_replace_same_id_in_single_statement() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

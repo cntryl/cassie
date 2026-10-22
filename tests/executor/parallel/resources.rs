@@ -1,11 +1,10 @@
 #[test]
 fn should_fallback_parallel_scoring_when_worker_limit_is_one() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_scoring_fallback");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_scoring_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -53,11 +52,10 @@ fn should_fallback_parallel_scoring_when_worker_limit_is_one() {
 #[test]
 fn should_fallback_parallel_scan_when_worker_limit_is_one() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_scan_single_worker");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_scan_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -124,11 +122,10 @@ fn should_fallback_parallel_scan_when_worker_limit_is_one() {
 #[test]
 fn should_preserve_having_order_limit_offset_for_parallel_aggregation() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_aggregation_having_order");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -187,11 +184,10 @@ fn should_preserve_having_order_limit_offset_for_parallel_aggregation() {
 #[test]
 fn should_fallback_parallel_aggregation_when_worker_limit_is_one() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_aggregation_single_worker");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

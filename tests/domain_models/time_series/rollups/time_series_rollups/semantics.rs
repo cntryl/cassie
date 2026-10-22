@@ -1,12 +1,10 @@
 #[test]
 fn should_rewrite_query_after_rollup_creation() {
     // Arrange
-    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
-    let path = data_dir("rollup_rewrite");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         seed_events(&cassie, &session, "rollup_rewrite_events");
@@ -51,19 +49,16 @@ fn should_rewrite_query_after_rollup_creation() {
         ));
         assert!(cassie.catalog.get_rollup(&rollup_name).is_some());
 
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_preserve_rollup_output_after_non_finite_refresh_failure() {
     // Arrange
-    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
-    let path = data_dir("rollup_non_finite_refresh");
 
     runtime().block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             cassie
@@ -140,19 +135,16 @@ fn should_preserve_rollup_output_after_non_finite_refresh_failure() {
                 [row] if matches!(row.get(2), Some(Value::Float64(value)) if value.is_infinite())
             ));
 
-            let _ = std::fs::remove_dir_all(path);
-        });
+            });
 }
 
 #[test]
 fn should_fail_closed_for_legacy_rollup_definition_version() {
     // Arrange
-    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
-    let path = data_dir("rollup_legacy_definition_version");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         seed_events(&cassie, &session, "legacy_rollup_events");
@@ -195,18 +187,15 @@ fn should_fail_closed_for_legacy_rollup_definition_version() {
             Some(0)
         );
 
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_not_rewrite_to_a_rollup_after_a_grouped_column_name_is_reused() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("rollup_column_rename_name_reuse");
 
     runtime().block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             cassie
@@ -278,17 +267,14 @@ fn should_not_rewrite_to_a_rollup_after_a_grouped_column_name_is_reused() {
                 Value::String(plan) if plan.contains("rollup_rewrite=none")
             ));
 
-            let _ = std::fs::remove_dir_all(path);
-        });
+            });
 }
 
 #[test]
 fn should_serialize_concurrent_rollup_publication_after_source_change() {
     // Arrange
-    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
-    let path = data_dir("rollup_publication_concurrency");
-    let (cassie, source, rollup, initial_generation) = create_rollup_publication_fixture(&path);
+    let (cassie, source, rollup, initial_generation) = create_rollup_publication_fixture();
     let updated_generation = initial_generation.saturating_add(1);
 
     let first_paused = std::sync::Arc::new(std::sync::Barrier::new(2));
@@ -384,19 +370,15 @@ fn should_serialize_concurrent_rollup_publication_after_source_change() {
             Value::Int64(101),
         ]]
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_refresh_rollup_for_dml_movement() {
     // Arrange
-    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
-    let path = data_dir("rollup_dml");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         seed_events(&cassie, &session, "rollup_dml_events");
@@ -447,19 +429,16 @@ fn should_refresh_rollup_for_dml_movement() {
             ]
         );
 
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_fallback_to_source_when_rollup_is_stale() {
     // Arrange
-    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
-    let path = data_dir("rollup_stale");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         seed_events(&cassie, &session, "rollup_stale_events");
@@ -483,19 +462,16 @@ fn should_fallback_to_source_when_rollup_is_stale() {
         assert_eq!(selected.rows().len(), 2);
         assert_eq!(metrics["rollups"]["stale_fallbacks"].as_u64(), Some(1));
 
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_record_rollup_debt_after_refresh_failure() {
     // Arrange
-    use_local_storage();
     let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
-    let path = data_dir("rollup_maintenance_debt");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         seed_events(&cassie, &session, "rollup_maintenance_events");
@@ -538,7 +514,6 @@ fn should_record_rollup_debt_after_refresh_failure() {
             Some("maintenance_pending")
         );
 
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
@@ -588,19 +563,16 @@ fn should_retry_rollup_debt_on_startup() {
         assert_eq!(recovered.rows()[0][3], Value::Int64(12));
         assert_eq!(remaining_debt.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_move_rollup_debt_with_collection_rename() {
     // Arrange
-    use_local_storage();
     let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
-    let path = data_dir("rollup_rename_debt");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         seed_events(&cassie, &session, "rollup_rename_events");
@@ -627,17 +599,14 @@ fn should_move_rollup_debt_with_collection_rename() {
             .has_rollup_maintenance_debt("rollup_renamed_events")
             .unwrap());
 
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_keep_rollup_sum_of_integer_column_in_bigint() {
     // Arrange
-    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
-    let path = data_dir("rollup_sum_bigint");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -673,5 +642,4 @@ fn should_keep_rollup_sum_of_integer_column_in_bigint() {
             Value::Int64(60_001)
         ]]
     );
-    let _ = std::fs::remove_dir_all(&path);
 }

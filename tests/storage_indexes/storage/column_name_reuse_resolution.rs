@@ -4,9 +4,8 @@ use cassie::types::Value;
 use super::support_sql as support;
 
 fn open(label: &str, statements: &[&str]) -> (Cassie, CassieSession, String) {
-    support::use_local_storage();
     let path = support::data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in statements {

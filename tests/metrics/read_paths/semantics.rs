@@ -258,7 +258,6 @@ fn assert_scalar_read_metrics(before: &serde_json::Value, after: &serde_json::Va
 #[test]
 fn should_record_runtime_metrics_for_ordered_read_paths() {
     // Arrange
-    use_local_storage();
     let path = data_dir("metrics_read_paths_ordered");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -266,7 +265,7 @@ fn should_record_runtime_metrics_for_ordered_read_paths() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         seed_ordered_read_collection(&cassie, "metrics_ordered_read_paths");
         let session = cassie.create_session("tester", None);
         let before = cassie.metrics();
@@ -294,7 +293,6 @@ fn should_record_runtime_metrics_for_ordered_read_paths() {
 #[test]
 fn should_record_runtime_metrics_for_scalar_index_read_paths() {
     // Arrange
-    use_local_storage();
     let path = data_dir("metrics_read_paths_scalar");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -302,7 +300,7 @@ fn should_record_runtime_metrics_for_scalar_index_read_paths() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         seed_scalar_read_collection(&cassie, "metrics_scalar_read_paths");
         let session = cassie.create_session("tester", None);
         let before = cassie.metrics();

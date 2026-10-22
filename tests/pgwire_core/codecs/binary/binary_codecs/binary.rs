@@ -1,11 +1,10 @@
 #[test]
 fn should_encode_binary_result_codecs_with_exact_bytes() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("binary-result-codecs");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_result_codecs(&cassie);
 
@@ -69,11 +68,10 @@ fn should_encode_binary_result_codecs_with_exact_bytes() {
 #[test]
 fn should_decode_binary_temporal_uuid_parameters() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("binary-parameter-codecs");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_parameter_codecs(&cassie);
         let uuid = [
@@ -128,11 +126,10 @@ fn should_decode_binary_temporal_uuid_parameters() {
 #[test]
 fn should_encode_binary_vector_array_codecs() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("binary-unsupported-codecs");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_unsupported_codecs(&cassie);
 
@@ -200,11 +197,10 @@ fn should_encode_binary_vector_array_codecs() {
 #[test]
 fn should_decode_binary_vector_array_parameters() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("binary-vector-array-parameters");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -270,12 +266,11 @@ fn should_decode_binary_vector_array_parameters() {
 #[test]
 fn should_store_empty_array_given_zero_dimension_binary_parameter() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("binary-empty-array-bind");
     let empty_array = empty_int_array_body();
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -323,12 +318,11 @@ fn should_store_empty_array_given_zero_dimension_binary_parameter() {
 #[test]
 fn should_read_wide_vector_columns_in_binary_format_under_vector_oids() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("binary-wide-vectors");
     let dimensions = [1025_usize, 1536];
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         for dimension in dimensions {
@@ -399,7 +393,6 @@ fn should_read_wide_vector_columns_in_binary_format_under_vector_oids() {
 #[test]
 fn should_encode_aggregated_array_columns_in_binary_format() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("binary-grouped-arrays");
     let queries = [
         "SELECT tags FROM grouped_tags",
@@ -409,7 +402,7 @@ fn should_encode_aggregated_array_columns_in_binary_format() {
     ];
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -469,11 +462,10 @@ fn should_encode_aggregated_array_columns_in_binary_format() {
 fn should_encode_bigint_sum_as_exact_binary_numeric() {
     // Arrange
     const EXACT_SUM: i64 = 9_007_199_254_740_993;
-    support::use_local_storage();
     let path = support::data_dir("binary-integer-sum");
 
     runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie

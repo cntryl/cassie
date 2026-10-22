@@ -23,7 +23,6 @@ fn hybrid_params(query: &str) -> Vec<Value> {
 #[test]
 fn should_order_hybrid_top_k_by_score_with_limit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hybrid_top_k_limit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -31,7 +30,7 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_hybrid_top_k_limit";
         let schema = Schema {
             fields: vec![
@@ -102,7 +101,6 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
 #[test]
 fn should_generate_hybrid_candidates_from_text_matches() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hybrid_text_candidates");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -110,7 +108,7 @@ fn should_generate_hybrid_candidates_from_text_matches() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_hybrid_text_candidates";
         let schema = Schema {
             fields: vec![
@@ -189,7 +187,6 @@ fn should_generate_hybrid_candidates_from_text_matches() {
 #[test]
 fn should_explain_mixed_text_vector_execution_stages() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hybrid_explain_mixed_stages");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -197,7 +194,7 @@ fn should_explain_mixed_text_vector_execution_stages() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "sql_hybrid_explain_mixed_stages";
         let schema = Schema {
             fields: vec![
@@ -358,7 +355,6 @@ fn execute_missing_vector_hybrid_query(
 #[test]
 fn should_skip_hybrid_text_candidate_without_vector() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hybrid_missing_vector");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -366,7 +362,7 @@ fn should_skip_hybrid_text_candidate_without_vector() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         let collection = "sql_hybrid_missing_vector";
         setup_missing_vector_hybrid_fixture(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -409,14 +405,13 @@ fn bounded_hybrid_fixture_with_limits(
     max_candidates: usize,
     query_memory_budget_bytes: Option<usize>,
 ) -> (Cassie, String, &'static str) {
-    use_local_storage();
     let path = data_dir("hybrid_bounded_candidates");
     let mut config = CassieRuntimeConfig::from_env().unwrap();
     config.limits.adaptive_candidate_max = max_candidates;
     if let Some(query_memory_budget_bytes) = query_memory_budget_bytes {
         config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
     }
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let collection = "hybrid_bounded_candidates";
     let schema = Schema {
         fields: vec![

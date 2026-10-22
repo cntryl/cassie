@@ -13,7 +13,6 @@ const OID_UNKNOWN: i32 = 705;
 #[test]
 fn should_describe_typed_insert_returning_metadata() {
     // Arrange
-    use_local_storage();
     let path = data_dir("typed_insert_returning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -21,7 +20,7 @@ fn should_describe_typed_insert_returning_metadata() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -93,7 +92,6 @@ fn should_describe_typed_insert_returning_metadata() {
 #[test]
 fn should_infer_parameter_metadata_for_crud_returning_flows() {
     // Arrange
-    use_local_storage();
     let path = data_dir("infer_crud_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -101,7 +99,7 @@ fn should_infer_parameter_metadata_for_crud_returning_flows() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -186,7 +184,6 @@ fn should_infer_parameter_metadata_for_crud_returning_flows() {
 #[test]
 fn should_infer_case_result_parameter_types_from_sibling_branches() {
     // Arrange
-    use_local_storage();
     let path = data_dir("infer_case_parameters");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -194,7 +191,7 @@ fn should_infer_case_result_parameter_types_from_sibling_branches() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             for statement in [
@@ -264,7 +261,6 @@ fn should_infer_case_result_parameter_types_from_sibling_branches() {
 #[test]
 fn should_reuse_unnamed_statement_metadata_lifecycle() {
     // Arrange
-    use_local_storage();
     let path = data_dir("unnamed_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -272,7 +268,7 @@ fn should_reuse_unnamed_statement_metadata_lifecycle() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -340,7 +336,6 @@ fn should_reuse_unnamed_statement_metadata_lifecycle() {
 #[test]
 fn should_preserve_table_free_parameter_oids_through_describe() {
     // Arrange
-    use_local_storage();
     let path = data_dir("table_free_parameter_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -348,7 +343,7 @@ fn should_preserve_table_free_parameter_oids_through_describe() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let server = spawn_server(cassie.clone()).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
@@ -391,7 +386,6 @@ fn should_preserve_table_free_parameter_oids_through_describe() {
 #[test]
 fn should_recover_ready_state_after_extended_statement_error() {
     // Arrange
-    use_local_storage();
     let path = data_dir("extended_error_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -399,7 +393,7 @@ fn should_recover_ready_state_after_extended_statement_error() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -496,7 +490,6 @@ fn should_describe_builtin_function_results_with_runtime_types() {
     // Arrange
     const OID_INT8: i32 = 20;
     const OID_FLOAT8: i32 = 701;
-    use_local_storage();
     let path = data_dir("builtin_function_result_types");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -527,7 +520,7 @@ fn should_describe_builtin_function_results_with_runtime_types() {
     ];
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie

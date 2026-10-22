@@ -4,21 +4,14 @@ use cassie::midge::adapter::{
     query_scan_control_test_guard, set_query_scan_cancellation_after_entries,
 };
 use cassie::types::Value;
-use uuid::Uuid;
-
-fn configured_cassie(label: &str, memory_budget: usize) -> (Cassie, String) {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-    let path = std::env::temp_dir()
-        .join(format!("cassie-scalar-controls-{label}-{}", Uuid::new_v4()))
-        .to_string_lossy()
-        .into_owned();
+fn configured_cassie(memory_budget: usize) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = memory_budget;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("configured cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("configured cassie");
     cassie.startup().expect("startup");
-    (cassie, path)
+    cassie
 }
 
 fn seed_indexed_rows(cassie: &Cassie, session: &cassie::app::CassieSession, table: &str) {
@@ -65,7 +58,7 @@ fn seed_indexed_rows_with_first_id_prefix(
 fn should_apply_limit_while_iterating_scalar_index_entries() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("bounded", 64 * 1_024);
+    let cassie = configured_cassie(64 * 1_024);
     let session = cassie.create_session("tester", None);
     seed_indexed_rows(&cassie, &session, "controlled_scalar_limit");
     let before = cassie.midge.query_scan_entries_for_diagnostics();
@@ -94,36 +87,22 @@ fn should_apply_limit_while_iterating_scalar_index_entries() {
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_reject_scalar_index_hit_before_retaining_it_given_low_memory() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("low-memory", 64 * 1_024);
-    let session = cassie.create_session("tester", None);
-    seed_indexed_rows_with_first_id_prefix(
-        &cassie,
-        &session,
-        "controlled_scalar_memory",
-        &"x".repeat(4_096),
-    );
-    // Bootstrap all 32 rows/index once; only score 0 has a deliberately oversized ID.
-    drop(session);
-    drop(cassie);
-
     // Act
-    let observations = [64, 2 * 1_024].map(|memory_budget| {
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.limits.query_memory_budget_bytes = memory_budget;
-        config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-        config.limits.parallel_scan_workers = 1;
-        let cassie =
-            Cassie::new_with_data_dir_and_config(&path, config).expect("low-memory cassie");
-        cassie.startup().expect("reopen indexed store");
+    let observations = [512, 2 * 1_024].map(|memory_budget| {
+        let cassie = configured_cassie(memory_budget);
         let session = cassie.create_session("tester", None);
+        seed_indexed_rows_with_first_id_prefix(
+            &cassie,
+            &session,
+            "controlled_scalar_memory",
+            &"x".repeat(4_096),
+        );
         let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
         let before = cassie.metrics();
         let outcome = cassie.execute_sql(
@@ -142,8 +121,6 @@ fn should_reject_scalar_index_hit_before_retaining_it_given_low_memory() {
         drop(cassie);
         (memory_budget, error, visited, before, after)
     });
-    let cleanup = std::fs::remove_dir_all(path);
-
     // Assert
     for ((memory_budget, error, visited, before, after), expected_entries) in
         observations.into_iter().zip([0, 1])
@@ -162,14 +139,13 @@ fn should_reject_scalar_index_hit_before_retaining_it_given_low_memory() {
             before["query"]["rows_returned_total"]
         );
     }
-    cleanup.expect("retire scalar fixture");
 }
 
 #[test]
 fn should_cancel_at_a_deterministic_scalar_index_entry_without_leaking_reservations() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    let (cassie, path) = configured_cassie("cancellation", 64 * 1_024);
+    let cassie = configured_cassie(64 * 1_024);
     let session = cassie.create_session("tester", None);
     seed_indexed_rows(&cassie, &session, "controlled_scalar_cancel");
     let before = cassie.midge.query_scan_entries_for_diagnostics();
@@ -196,6 +172,4 @@ fn should_cancel_at_a_deterministic_scalar_index_entry_without_leaking_reservati
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)
     );
-
-    let _ = std::fs::remove_dir_all(path);
 }

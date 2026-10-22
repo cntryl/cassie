@@ -858,7 +858,7 @@ impl Midge {
     ) -> Result<Option<VectorIndexRecord>, CassieError> {
         let requested_collection = collection.to_string();
         let collection = self.canonical_collection_name(collection);
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let Some(raw) = tx
             .get(&Self::vector_index_key(&collection, field))
             .map_err(CassieError::from)?

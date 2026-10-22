@@ -24,8 +24,8 @@ vector index metadata, a unique publication ID, the prepared-row count, source
 collection generation, a SHA-256 digest of the ordered length-framed staged row records, whether SQL index metadata is also published, and the normal
 rollup/materialized-projection maintenance-debt flags.
 
-Prepared row payloads are separate schema-family records keyed by publication ID and
-row ordinal using the existing LexKey encoding. Stage at most 5,000 rows per schema
+Prepared row payloads are separate owning-database-family records keyed by publication ID and
+row ordinal using the existing LexKey encoding. Stage at most 5,000 rows per database-family
 transaction, then persist the pending intent only after every row record is durable.
 Unreferenced staging records are disposable and are removed during startup cleanup before request admission.
 Missing, malformed, duplicate-identity, digest-mismatched or extra staged rows fail closed.
@@ -33,14 +33,14 @@ Missing, malformed, duplicate-identity, digest-mismatched or extra staged rows f
 ## Publication And Recovery
 
 1. Verify the captured collection generation before applying prepared payloads.
-2. Commit all prepared rows through the normal document batch path in one data-family
+2. Commit all prepared rows through the normal document batch path in one database-family
    transaction. An applied marker carrying the publication ID is committed in that same
    transaction, along with collection generation, data epoch and derived maintenance
    debt. Thus a storage failure cannot leave a partially applied backfill.
 3. Build generation-bound vector sidecars with the existing bounded build transactions.
    Prepared embeddings are reused; replay never contacts the embedding provider.
 4. Atomically publish vector metadata, optional SQL index metadata, and remove the
-   pending intent in one schema-family transaction. Register runtime catalog metadata
+   pending intent in one owning-database-family transaction. Register runtime catalog metadata
    before releasing the collection write gate.
 5. Delete staging records and the applied marker after publication. Interrupted cleanup
    is harmless and retried on startup.

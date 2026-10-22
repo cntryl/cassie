@@ -3,21 +3,17 @@ use cassie::config::{
     CassieRuntimeConfig, EmbeddingsRuntimeConfig, ExecutionResultCacheEnabled, LocalRuntimeConfig,
 };
 
-pub fn circle_fixture(name: &str, rows: u32, budget: usize) -> (Cassie, String) {
+pub fn circle_fixture(name: &str, rows: u32, budget: usize) -> Cassie {
     circle_fixture_with_row_limit(name, rows, budget, 100_000)
 }
 
 pub fn circle_fixture_with_row_limit(
-    name: &str,
+    _name: &str,
     rows: u32,
     budget: usize,
     max_result_rows: usize,
-) -> (Cassie, String) {
-    let path = std::env::temp_dir()
-        .join(format!("cassie-{name}-{}", uuid::Uuid::new_v4()))
-        .to_string_lossy()
-        .into_owned();
-    let cassie = open_circle_fixture(&path, budget, max_result_rows);
+) -> Cassie {
+    let cassie = new_circle_fixture(budget, max_result_rows);
     cassie
         .execute_sql(
             &cassie.create_session("tester", None),
@@ -40,10 +36,10 @@ pub fn circle_fixture_with_row_limit(
         .midge
         .put_fresh_documents("docs", documents)
         .expect("seed vectors");
-    (cassie, path)
+    cassie
 }
 
-pub fn open_circle_fixture(path: &str, budget: usize, max_result_rows: usize) -> Cassie {
+fn new_circle_fixture(budget: usize, max_result_rows: usize) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
         model: "retrieval-controls".to_string(),
@@ -52,7 +48,7 @@ pub fn open_circle_fixture(path: &str, budget: usize, max_result_rows: usize) ->
     config.limits.query_memory_budget_bytes = budget;
     config.limits.max_result_rows = max_result_rows;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-    Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie")
+    Cassie::new_in_memory_with_config(config).expect("create in-memory Cassie")
 }
 
 pub fn create_index(cassie: &Cassie, options: &str) {

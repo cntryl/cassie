@@ -11,7 +11,6 @@ use support::*;
 #[test]
 fn should_pack_internal_key_segments_with_compact_markers() {
     // Arrange
-    use_local_storage();
     let path = data_dir("key_segment_compaction");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -19,7 +18,7 @@ fn should_pack_internal_key_segments_with_compact_markers() {
         .unwrap();
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         // Act

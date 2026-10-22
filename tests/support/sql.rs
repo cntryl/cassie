@@ -17,9 +17,15 @@ pub struct TimeSeriesSidecarRecord {
     pub generation: u64,
 }
 
+/// Selects disk-backed Midge storage for tests that exercise persistence or restart recovery.
 pub fn use_local_storage() {
     std::env::set_var("CASSIE_STORAGE_MODE", "local");
     std::env::set_var("CASSIE_STORAGE_PATH", data_dir("fallback"));
+}
+
+pub fn new_in_memory_cassie() -> Result<Cassie, cassie::app::CassieError> {
+    let config = CassieRuntimeConfig::from_env()?;
+    Cassie::new_in_memory_with_config(config)
 }
 
 pub fn data_dir(label: &str) -> String {

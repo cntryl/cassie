@@ -374,8 +374,7 @@ fn should_reject_unknown_trailing_tokens_after_query() {
 #[test]
 fn should_reject_unresolvable_order_by_identifier_during_binding() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -409,8 +408,7 @@ fn should_reject_unresolvable_order_by_identifier_during_binding() {
 #[test]
 fn should_allow_projection_alias_order_by_during_binding() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -444,8 +442,7 @@ fn should_allow_projection_alias_order_by_during_binding() {
 #[test]
 fn should_reject_unknown_projection_column_during_binding() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

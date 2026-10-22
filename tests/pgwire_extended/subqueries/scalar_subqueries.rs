@@ -309,7 +309,6 @@ fn should_evaluate_an_uncorrelated_volatile_scalar_subquery_once() {
 #[test]
 fn should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("issue-762-scalar-subquery-cancel");
     let _directory = ScalarSubqueryFixtureDirectory(path.clone());
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -319,7 +318,7 @@ fn should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_re
 
     // Act
     let (baseline, cancelled, recovery, active_query_observed) = runtime.block_on(async {
-        let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("start scalar cancellation fixture");
         let server = wire::spawn_server(cassie).await;
         let (mut observer_reader, mut observer_writer) =

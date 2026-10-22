@@ -36,18 +36,23 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
     let on_pos = find_top_level_keyword(remainder, 0, "on")
         .ok_or_else(|| SqlError::new("CREATE INDEX requires 'ON' clause".to_string()))?;
 
-    let name = parse_identifier(remainder[..on_pos].trim())?;
-    if name.is_empty() {
+    let raw_name = remainder[..on_pos].trim();
+    let name = if raw_name.is_empty() {
+        String::new()
+    } else {
+        parse_identifier(raw_name)?
+    };
+    if !raw_name.is_empty() && name.is_empty() {
         return Err(SqlError::new("CREATE INDEX missing index name".to_string()));
     }
 
     let remainder = remainder[on_pos + 2..].trim();
     let (table, remainder) = parse_index_target(remainder)?;
-    let (kind, remainder) = parse_index_kind(remainder)?;
+    let (kind, access_method, remainder) = parse_index_kind(remainder)?;
     let (fields, expressions, remainder) = parse_index_fields(remainder)?;
     let (include_fields, remainder) = parse_index_include_fields(remainder)?;
     let (predicate, remainder) = parse_index_predicate(remainder)?;
-    let (options, remainder) = parse_index_options(remainder)?;
+    let (mut options, remainder) = parse_index_options(remainder)?;
 
     if !remainder.is_empty() {
         return Err(SqlError::new("unsupported CREATE INDEX syntax".to_string()));
@@ -64,6 +69,12 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
         return Err(SqlError::unsupported(
             "expression indexes are only supported for scalar index methods".to_string(),
         ));
+    }
+    if matches!(kind, IndexKind::Scalar) && access_method == Some("hash") {
+        options.insert(
+            crate::catalog::IndexMeta::ACCESS_METHOD_OPTION.to_string(),
+            "hash".to_string(),
+        );
     }
 
     Ok(ParsedStatement {
@@ -90,27 +101,43 @@ pub(in crate::sql::parser) fn parse_drop_index_statement(
     let rest = trimmed[10..].trim();
 
     let (if_exists, rest) = parse_if_exists(rest);
-    let on_pos = find_top_level_keyword(rest, 0, "on")
-        .ok_or_else(|| SqlError::new("DROP INDEX requires 'ON' clause".to_string()))?;
-
-    let name = rest[..on_pos].trim();
-    let table = rest[on_pos + 2..].trim();
-    if name.is_empty() || table.is_empty() {
+    if starts_with_keyword(rest, "concurrently") {
         return Err(SqlError::new(
-            "DROP INDEX requires index name and table".to_string(),
+            "DROP INDEX CONCURRENTLY is not supported".to_string(),
         ));
     }
-    if table.contains(' ') {
-        return Err(SqlError::new(
-            "unsupported tokens after DROP INDEX table name".to_string(),
-        ));
-    }
+    let (name, table) = match find_top_level_keyword(rest, 0, "on") {
+        Some(on_pos) => {
+            let name = rest[..on_pos].trim();
+            let table = rest[on_pos + 2..].trim();
+            if name.is_empty() || table.is_empty() {
+                return Err(SqlError::new(
+                    "DROP INDEX requires index name and table".to_string(),
+                ));
+            }
+            if table.contains(' ') {
+                return Err(SqlError::new(
+                    "unsupported tokens after DROP INDEX table name".to_string(),
+                ));
+            }
+            (name, table.to_string())
+        }
+        None if !rest.is_empty() => {
+            crate::sql::ast::IdentifierPath::parse(rest).map_err(SqlError::new)?;
+            (rest, String::new())
+        }
+        None => {
+            return Err(SqlError::new(
+                "unsupported tokens after DROP INDEX name".to_string(),
+            ));
+        }
+    };
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::DropIndex(DropIndexStatement {
             name: name.to_string(),
-            table: table.to_string(),
+            table,
             if_exists,
         }),
     })
@@ -134,35 +161,65 @@ pub(in crate::sql::parser) fn parse_index_target(
     Ok((table, raw[split..].trim_start()))
 }
 
-pub(in crate::sql::parser) fn parse_index_kind(raw: &str) -> Result<(IndexKind, &str), SqlError> {
+pub(in crate::sql::parser) fn parse_index_kind(
+    raw: &str,
+) -> Result<(IndexKind, Option<&'static str>, &str), SqlError> {
     if !starts_with_keyword(raw, "using") {
-        return Ok((IndexKind::Scalar, raw));
+        return Ok((IndexKind::Scalar, None, raw));
     }
 
     let remainder = raw[5..].trim_start();
     if starts_with_keyword(remainder, "btree") {
-        return Ok((IndexKind::Scalar, remainder[5..].trim_start()));
+        return Ok((
+            IndexKind::Scalar,
+            Some("btree"),
+            remainder[5..].trim_start(),
+        ));
     }
     if starts_with_keyword(remainder, "hash") {
-        return Ok((IndexKind::Scalar, remainder[4..].trim_start()));
+        return Ok((IndexKind::Scalar, Some("hash"), remainder[4..].trim_start()));
     }
     if starts_with_keyword(remainder, "gin") {
-        return Ok((IndexKind::FullText, remainder[3..].trim_start()));
+        return Ok((
+            IndexKind::FullText,
+            Some("gin"),
+            remainder[3..].trim_start(),
+        ));
     }
     if starts_with_keyword(remainder, "fulltext") {
-        return Ok((IndexKind::FullText, remainder[8..].trim_start()));
+        return Ok((
+            IndexKind::FullText,
+            Some("fulltext"),
+            remainder[8..].trim_start(),
+        ));
     }
     if starts_with_keyword(remainder, "vector") {
-        return Ok((IndexKind::Vector, remainder[6..].trim_start()));
+        return Ok((
+            IndexKind::Vector,
+            Some("vector"),
+            remainder[6..].trim_start(),
+        ));
     }
     if starts_with_keyword(remainder, "column") {
-        return Ok((IndexKind::Column, remainder[6..].trim_start()));
+        return Ok((
+            IndexKind::Column,
+            Some("column"),
+            remainder[6..].trim_start(),
+        ));
     }
     if starts_with_keyword(remainder, "time_series") {
-        return Ok((IndexKind::TimeSeries, remainder[11..].trim_start()));
+        return Ok((
+            IndexKind::TimeSeries,
+            Some("time_series"),
+            remainder[11..].trim_start(),
+        ));
     }
     if starts_with_keyword(remainder, "timeseries") {
-        return Ok((IndexKind::TimeSeries, remainder[10..].trim_start()));
+        return Ok((
+            IndexKind::TimeSeries,
+            Some("timeseries"),
+            remainder[10..].trim_start(),
+        ));
     }
 
     Err(SqlError::new("unsupported index method".to_string()))

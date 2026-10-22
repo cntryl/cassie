@@ -6,11 +6,9 @@ use support::*;
 #[test]
 fn should_read_an_inserted_edge_inside_its_transaction() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_transaction_insert");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = new_in_memory_cassie().expect("cassie");
         let writer = cassie.create_session("writer", None);
         create_graph(&cassie, &writer);
         execute(&cassie, &writer, "BEGIN");
@@ -29,18 +27,15 @@ fn should_read_an_inserted_edge_inside_its_transaction() {
             vec![vec![Value::String("bob".into()), Value::Float64(2.0)]]
         );
         execute(&cassie, &writer, "ROLLBACK");
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_hide_a_deleted_edge_only_from_its_transaction_until_commit() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_transaction_delete");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = new_in_memory_cassie().expect("cassie");
         let writer = cassie.create_session("writer", None);
         let reader = cassie.create_session("reader", None);
         create_graph(&cassie, &writer);
@@ -69,18 +64,15 @@ fn should_hide_a_deleted_edge_only_from_its_transaction_until_commit() {
             vec![vec![Value::String("bob".into()), Value::Float64(2.0)]]
         );
         assert_eq!(reader_after, [] as [std::vec::Vec<cassie::types::Value>; 0]);
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_expand_across_edges_staged_in_one_transaction() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_transaction_expansion");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = new_in_memory_cassie().expect("cassie");
         let writer = cassie.create_session("writer", None);
         create_graph(&cassie, &writer);
         execute(&cassie, &writer, "BEGIN");
@@ -109,18 +101,15 @@ fn should_expand_across_edges_staged_in_one_transaction() {
             ]
         );
         execute(&cassie, &writer, "ROLLBACK");
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_merge_both_directions_for_transactional_neighbors() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_transaction_neighbors");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = new_in_memory_cassie().expect("cassie");
         let writer = cassie.create_session("writer", None);
         create_graph(&cassie, &writer);
         execute(&cassie, &writer, "BEGIN");
@@ -147,18 +136,15 @@ fn should_merge_both_directions_for_transactional_neighbors() {
             "transaction-overlay"
         );
         execute(&cassie, &writer, "ROLLBACK");
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_restore_a_graph_edge_after_savepoint_rollback() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_transaction_savepoint");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = new_in_memory_cassie().expect("cassie");
         let writer = cassie.create_session("writer", None);
         create_graph(&cassie, &writer);
         execute(&cassie, &writer, "BEGIN");
@@ -188,18 +174,15 @@ fn should_restore_a_graph_edge_after_savepoint_rollback() {
         // Assert
         assert_eq!(rows, vec![vec![Value::String("bob".into())]]);
         execute(&cassie, &writer, "ROLLBACK");
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_choose_the_lowest_cost_path_from_transactional_edges() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_transaction_shortest_path");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = new_in_memory_cassie().expect("cassie");
         let writer = cassie.create_session("writer", None);
         create_graph(&cassie, &writer);
         execute(&cassie, &writer, "BEGIN");
@@ -229,18 +212,15 @@ fn should_choose_the_lowest_cost_path_from_transactional_edges() {
             ]]
         );
         execute(&cassie, &writer, "ROLLBACK");
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_read_an_updated_edge_inside_its_transaction() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_transaction_update");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = new_in_memory_cassie().expect("cassie");
         let writer = cassie.create_session("writer", None);
         let reader = cassie.create_session("reader", None);
         create_graph(&cassie, &writer);
@@ -270,18 +250,15 @@ fn should_read_an_updated_edge_inside_its_transaction() {
             vec![vec![Value::String("bob".into()), Value::Float64(2.0)]]
         );
         execute(&cassie, &writer, "ROLLBACK");
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_publish_a_graph_edge_to_other_sessions_only_after_commit() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_transaction_visibility");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = new_in_memory_cassie().expect("cassie");
         let writer = cassie.create_session("writer", None);
         let reader = cassie.create_session("reader", None);
         create_graph(&cassie, &writer);
@@ -305,7 +282,6 @@ fn should_publish_a_graph_edge_to_other_sessions_only_after_commit() {
         );
         assert_eq!(reader_before, [] as [std::vec::Vec<cassie::types::Value>; 0]);
         assert_eq!(reader_after, writer_rows);
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
@@ -323,11 +299,9 @@ fn upper_type_rows(cassie: &Cassie, session: &cassie::app::CassieSession) -> Vec
 #[test]
 fn should_match_an_other_case_node_type_on_the_adjacency_sidecar() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_node_type_case_sidecar");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = new_in_memory_cassie().expect("cassie");
             let writer = cassie.create_session("writer", None);
             create_graph(&cassie, &writer);
             execute(
@@ -344,18 +318,15 @@ fn should_match_an_other_case_node_type_on_the_adjacency_sidecar() {
                 rows,
                 vec![vec![Value::String("bob".into()), Value::String("person".into())]]
             );
-            let _ = std::fs::remove_dir_all(path);
         });
 }
 
 #[test]
 fn should_return_the_far_endpoint_for_an_other_case_node_type_on_the_row_scan() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("graph_node_type_case_row_scan");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = new_in_memory_cassie().expect("cassie");
             let writer = cassie.create_session("writer", None);
             create_graph(&cassie, &writer);
             execute(
@@ -391,6 +362,5 @@ fn should_return_the_far_endpoint_for_an_other_case_node_type_on_the_row_scan() 
                 vec![vec![Value::String("bob".into()), Value::Int64(1)]]
             );
             execute(&cassie, &writer, "ROLLBACK");
-            let _ = std::fs::remove_dir_all(path);
         });
 }

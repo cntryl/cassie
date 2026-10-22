@@ -5,16 +5,27 @@ use cassie::types::Value;
 use cntryl_midge::{TransactionMode, WriteOptions};
 
 use super::support_executor as support;
-use support::{
-    create_text_collection, data_dir, fulltext_index, put_document, put_fulltext_index,
-    use_local_storage,
-};
+use support::{create_text_collection, data_dir, fulltext_index, put_document, put_fulltext_index};
 
 const COLLECTION: &str = "fulltext_index_completeness";
 const INDEX: &str = "fulltext_body_idx";
 
 fn seed_index(path: &str, documents: impl IntoIterator<Item = (String, String)>) -> Cassie {
-    let cassie = Cassie::new_with_data_dir(path).expect("create Cassie");
+    seed_index_with_storage(Some(path), documents)
+}
+
+fn seed_memory_index(documents: impl IntoIterator<Item = (String, String)>) -> Cassie {
+    seed_index_with_storage(None, documents)
+}
+
+fn seed_index_with_storage(
+    path: Option<&str>,
+    documents: impl IntoIterator<Item = (String, String)>,
+) -> Cassie {
+    let cassie = match path {
+        Some(path) => Cassie::new_with_data_dir(path).expect("create Cassie"),
+        None => crate::support_sql::new_in_memory_cassie().expect("create Cassie"),
+    };
     cassie.startup().expect("start Cassie");
     let collection = canonical_relation_name("postgres", DEFAULT_SCHEMA, COLLECTION);
     create_text_collection(&cassie, &collection, &["id", "body"]);
@@ -84,10 +95,9 @@ fn long_document_id(index: usize) -> String {
 #[test]
 fn should_fallback_when_one_posting_block_is_missing_among_valid_blocks() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_missing_posting_block");
     let documents = (0..96).map(|index| (long_document_id(index), "alpha".to_string()));
-    let cassie = seed_index(&path, documents);
+    let cassie = seed_memory_index(documents);
     let blocks = artifacts_with_magic(&cassie, *b"FTB1");
     assert!(blocks.len() > 1, "fixture must span posting blocks");
     delete_data_key(&cassie, blocks[1].0.clone());
@@ -108,15 +118,11 @@ fn should_fallback_when_one_posting_block_is_missing_among_valid_blocks() {
 #[test]
 fn should_fallback_when_a_candidate_is_missing_document_statistics() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_missing_document_stats");
-    let cassie = seed_index(
-        &path,
-        [
-            ("d1".to_string(), "alpha".to_string()),
-            ("d2".to_string(), "alpha".to_string()),
-        ],
-    );
+    let cassie = seed_memory_index([
+        ("d1".to_string(), "alpha".to_string()),
+        ("d2".to_string(), "alpha".to_string()),
+    ]);
     let stats = artifacts_with_magic(&cassie, *b"FTD1");
     delete_data_key(&cassie, stats[0].0.clone());
     let before = fallback_count(&cassie, "invalid_persisted_artifact");
@@ -136,15 +142,11 @@ fn should_fallback_when_a_candidate_is_missing_document_statistics() {
 #[test]
 fn should_fallback_before_top_k_publishes_a_dangling_candidate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_dangling_candidate");
-    let cassie = seed_index(
-        &path,
-        [
-            ("d1".to_string(), "alpha".to_string()),
-            ("d2".to_string(), "alpha".to_string()),
-        ],
-    );
+    let cassie = seed_memory_index([
+        ("d1".to_string(), "alpha".to_string()),
+        ("d2".to_string(), "alpha".to_string()),
+    ]);
     let source_key = cassie
         .midge
         .raw_scan_prefix(StorageFamily::Data, b"")
@@ -172,7 +174,6 @@ fn should_fallback_before_top_k_publishes_a_dangling_candidate() {
 #[test]
 fn should_rebuild_a_malformed_manifest_during_startup() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_malformed_manifest_restart");
     let cassie = seed_index(&path, [("d1".to_string(), "alpha beta".to_string())]);
     replace_artifact(&cassie, *b"FTG1", b"malformed-manifest".to_vec());
@@ -196,7 +197,6 @@ fn should_rebuild_a_malformed_manifest_during_startup() {
 #[test]
 fn should_rebuild_old_fulltext_metadata_during_startup() {
     // Arrange
-    use_local_storage();
     let path = data_dir("fulltext_old_metadata_restart");
     let cassie = seed_index(&path, [("d1".to_string(), "alpha beta".to_string())]);
     let (_, mut metadata) = artifacts_with_magic(&cassie, *b"FTM1")

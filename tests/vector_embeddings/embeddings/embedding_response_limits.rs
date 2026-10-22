@@ -155,20 +155,14 @@ fn provider_configs(base_url: &str) -> Vec<EmbeddingsRuntimeConfig> {
 }
 
 fn assert_remote_providers_reject_oversized_response(status: u16, framing: Framing) {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let (base_url, server) = spawn_server(status, framing, 6);
-    for (index, embeddings) in provider_configs(&base_url).into_iter().enumerate() {
-        let data_dir = std::env::temp_dir().join(format!(
-            "cassie-embedding-limit-{index}-{}",
-            uuid::Uuid::new_v4()
-        ));
+    for embeddings in provider_configs(&base_url) {
         let config = CassieRuntimeConfig {
             embeddings,
             embeddings_max_response_bytes: 32,
             ..CassieRuntimeConfig::default()
         };
-        let cassie =
-            Cassie::new_with_data_dir_and_config(&data_dir, config).expect("provider cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("provider cassie");
 
         let error = cassie
             .embedding_provider
@@ -183,7 +177,6 @@ fn assert_remote_providers_reject_oversized_response(status: u16, framing: Frami
             }
         ));
         drop(cassie);
-        let _ = std::fs::remove_dir_all(data_dir);
     }
     server.join().expect("mock server");
 }

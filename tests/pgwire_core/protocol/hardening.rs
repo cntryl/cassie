@@ -101,12 +101,11 @@ fn seed_binary_bind_docs(cassie: &Cassie, collection: &str) {
 #[test]
 fn should_close_connection_after_oversized_startup_frame() {
     // Arrange
-    use_local_storage();
     let path = data_dir("oversized_startup");
     let runtime = runtime();
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let server = spawn_server(cassie.clone()).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
@@ -149,14 +148,13 @@ fn should_close_connection_after_oversized_startup_frame() {
 #[test]
 fn should_close_connection_after_oversized_password_frame() {
     // Arrange
-    use_local_storage();
     let path = data_dir("oversized_password");
     let runtime = runtime();
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "secret".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("cassie");
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("cassie");
         cassie.startup().expect("startup");
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -222,12 +220,11 @@ fn should_close_connection_after_oversized_password_frame() {
 #[test]
 fn should_reject_duplicate_named_parse_until_sync() {
     // Arrange
-    use_local_storage();
     let path = data_dir("duplicate_parse");
     let runtime = runtime();
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let server = spawn_server(cassie.clone()).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
@@ -263,12 +260,11 @@ fn should_reject_duplicate_named_parse_until_sync() {
 #[test]
 fn should_invalidate_portals_when_unnamed_statement_is_replaced() {
     // Arrange
-    use_local_storage();
     let path = data_dir("unnamed_replace");
     let runtime = runtime();
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let server = spawn_server(cassie.clone()).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
@@ -308,12 +304,11 @@ fn should_invalidate_portals_when_unnamed_statement_is_replaced() {
 #[test]
 fn should_reject_unsupported_bind_format_codes() {
     // Arrange
-    use_local_storage();
     let path = data_dir("bad_formats");
     let runtime = runtime();
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_scores(&cassie, "bad_format_scores");
         let server = spawn_server(cassie.clone()).await;
@@ -353,12 +348,11 @@ fn should_reject_unsupported_bind_format_codes() {
 #[test]
 fn should_apply_portal_result_format_to_row_description() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rowdesc_binary");
     let runtime = runtime();
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_scores(&cassie, "rowdesc_scores");
         let server = spawn_server(cassie.clone()).await;
@@ -397,12 +391,11 @@ fn should_apply_portal_result_format_to_row_description() {
 #[test]
 fn should_decode_binary_bind_parameters_by_oid() {
     // Arrange
-    use_local_storage();
     let path = data_dir("binary_binds");
     let runtime = runtime();
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_binary_bind_docs(&cassie, "binary_bind_docs");
         let server = spawn_server(cassie.clone()).await;
@@ -459,12 +452,11 @@ fn should_decode_binary_bind_parameters_by_oid() {
 #[test]
 fn should_resume_suspended_portal_after_execute_limit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("portal_suspend");
     let runtime = runtime();
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_scores(&cassie, "portal_suspend_scores");
         let server = spawn_server(cassie.clone()).await;

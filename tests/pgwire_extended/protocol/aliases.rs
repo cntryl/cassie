@@ -1,18 +1,15 @@
 use crate::support_pgwire as wire;
-use cassie::app::Cassie;
 use tokio::io::BufReader;
 
 #[test]
 fn should_resume_parameterized_alias_prefix_portals() {
     // Arrange
-    crate::support_sql::use_local_storage();
-    let path = crate::support_sql::data_dir("alias-wire");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         for sql in [
@@ -65,20 +62,17 @@ fn should_resume_parameterized_alias_prefix_portals() {
         drop(socket);
         server.stop().await;
     });
-    std::fs::remove_dir_all(path).expect("cleanup");
 }
 
 #[test]
 fn should_describe_qualified_derived_fields_by_declared_label() {
     // Arrange
-    crate::support_sql::use_local_storage();
-    let path = crate::support_sql::data_dir("qualified-derived-label-wire");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("startup");
         let server = wire::spawn_server(cassie).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
@@ -169,5 +163,4 @@ fn should_describe_qualified_derived_fields_by_declared_label() {
         drop(socket);
         server.stop().await;
     });
-    std::fs::remove_dir_all(path).expect("cleanup");
 }

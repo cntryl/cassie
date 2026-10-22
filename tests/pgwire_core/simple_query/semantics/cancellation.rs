@@ -1,7 +1,6 @@
 #[test]
 fn should_report_deadline_exceeded_with_query_canceled_sqlstate() {
     // Arrange
-    use_local_storage();
     let path = data_dir("query_deadline");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -11,7 +10,7 @@ fn should_report_deadline_exceeded_with_query_canceled_sqlstate() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_timeout_ms = 1;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().expect("startup");
         seed_simple_query_collection(&cassie);
         let (addr, server) = spawn_pgwire_server_with_config(&cassie, config).await;

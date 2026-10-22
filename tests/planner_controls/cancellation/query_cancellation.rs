@@ -34,9 +34,8 @@ fn should_report_cancellation_handle_state() {
 #[test]
 fn should_cancel_embedded_query_before_execution() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("embedded-query-cancelled");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     let cancellation = QueryCancellationHandle::new();
@@ -94,13 +93,11 @@ fn should_allow_memory_reservation_after_a_prior_reservation_is_dropped() {
 #[test]
 fn should_cancel_embedded_query_during_recursive_execution() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("embedded-query-active-cancel");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.cte_recursion_depth = 1_000_000;
     config.limits.query_memory_budget_bytes = 1024 * 1024 * 1024;
-    let cassie =
-        Arc::new(Cassie::new_with_data_dir_and_config(&path, config).expect("configured cassie"));
+    let cassie = Arc::new(Cassie::new_in_memory_with_config(config).expect("configured cassie"));
     cassie.startup().expect("startup");
     let cancellation = QueryCancellationHandle::new();
     let query_cancellation = cancellation.clone();
@@ -133,12 +130,10 @@ fn should_cancel_embedded_query_during_recursive_execution() {
 #[test]
 fn should_cancel_embedded_query_during_ordered_execution() {
     // Arrange
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("embedded-ordered-query-cancel");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = 1024 * 1024 * 1024;
-    let cassie =
-        Arc::new(Cassie::new_with_data_dir_and_config(&path, config).expect("configured cassie"));
+    let cassie = Arc::new(Cassie::new_in_memory_with_config(config).expect("configured cassie"));
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie

@@ -11,23 +11,23 @@ use cassie::types::{Value, Vector};
 use super::support_sql as support;
 use support::*;
 
-fn vector_cassie(path: &str) -> Cassie {
+fn vector_cassie(_label: &str) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
         model: "deterministic-test".to_string(),
         dimensions: 3,
     });
-    Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie")
+    Cassie::new_in_memory_with_config(config).expect("create Cassie")
 }
 
-fn vector_cassie_with_memory_budget(path: &str, query_memory_budget_bytes: usize) -> Cassie {
+fn vector_cassie_with_memory_budget(_label: &str, query_memory_budget_bytes: usize) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
         model: "deterministic-test".to_string(),
         dimensions: 3,
     });
     config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
-    Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie")
+    Cassie::new_in_memory_with_config(config).expect("create Cassie")
 }
 
 fn seed_vector_collection(cassie: &Cassie, collection: &str, rows: usize) {
@@ -298,7 +298,6 @@ fn should_return_finite_hnsw_distance_for_f32_max_after_normalized_rounding() {
 #[test]
 fn should_match_exact_top_k_with_hnsw_for_bound_vector_parameters() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_hnsw_exact_baseline");
     let cassie = vector_cassie(&path);
@@ -336,7 +335,6 @@ fn should_match_exact_top_k_with_hnsw_for_bound_vector_parameters() {
 #[test]
 fn should_reach_ivfflat_recall_threshold_against_exact_top_k() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_ivfflat_recall_baseline");
     let cassie = vector_cassie(&path);
@@ -376,7 +374,6 @@ fn should_reach_ivfflat_recall_threshold_against_exact_top_k() {
 #[test]
 fn should_use_explicit_exact_fallback_for_filtered_hnsw_after_delete() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_hnsw_filtered_fallback");
     let cassie = vector_cassie(&path);
@@ -425,7 +422,6 @@ fn should_use_explicit_exact_fallback_for_filtered_hnsw_after_delete() {
 #[test]
 fn should_enforce_query_memory_budget_during_exact_vector_top_k() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_exact_memory_budget");
     let cassie = vector_cassie_with_memory_budget(&path, 64 * 1_024);
@@ -596,7 +592,6 @@ fn should_release_scoring_pause_when_a_diagnostic_endpoint_disconnects() {
 #[test]
 fn should_preserve_finite_l2_distances_for_ivfflat_magnitudes_above_f32_max() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_ivfflat_magnitude_range");
     let cassie = vector_cassie(&path);
@@ -639,7 +634,6 @@ fn should_preserve_finite_l2_distances_for_ivfflat_magnitudes_above_f32_max() {
 #[test]
 fn should_preserve_finite_l2_distances_for_hnsw_magnitudes_above_f32_max() {
     // Arrange
-    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_hnsw_magnitude_range");
     let cassie = vector_cassie(&path);

@@ -5,10 +5,6 @@ use uuid::Uuid;
 use super::support_sql as support;
 use support::canonical_test_collection;
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
 fn data_dir(label: &str) -> String {
     crate::support_temp_dirs::sweep_stale_once();
     let mut path = std::env::temp_dir();
@@ -106,9 +102,8 @@ fn assert_no_uppercase_response_keys_at(
 #[test]
 fn should_serialize_admin_query_values_as_plain_json() {
     // Arrange
-    use_local_storage();
     let path = data_dir("query-values");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     setup_query_values(&cassie);
 
@@ -153,9 +148,8 @@ fn should_serialize_admin_query_values_as_plain_json() {
 #[test]
 fn should_preserve_user_payload_key_shape() {
     // Arrange
-    use_local_storage();
     let path = data_dir("payload-shape");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let collection = "rest_json_payload_shape";
     collections::create(
@@ -203,9 +197,8 @@ fn should_preserve_user_payload_key_shape() {
 #[test]
 fn should_store_a_value_under_the_declared_field_name_given_a_differently_cased_key() {
     // Arrange
-    use_local_storage();
     let path = data_dir("payload-key-case");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let collection = "rest_json_payload_key_case";
     collections::create(
@@ -240,9 +233,8 @@ fn should_store_a_value_under_the_declared_field_name_given_a_differently_cased_
 #[test]
 fn should_enforce_unique_given_a_differently_cased_payload_key() {
     // Arrange
-    use_local_storage();
     let path = data_dir("payload-key-case-unique");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("root", None);
     cassie
@@ -286,9 +278,8 @@ fn should_enforce_unique_given_a_differently_cased_payload_key() {
 #[test]
 fn should_reject_payload_keys_that_name_the_same_field() {
     // Arrange
-    use_local_storage();
     let path = data_dir("payload-key-case-duplicate");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let collection = "rest_json_payload_key_duplicate";
     collections::create(
@@ -330,9 +321,8 @@ fn should_reject_payload_keys_that_name_the_same_field() {
 #[test]
 fn should_keep_metadata_response_keys_snake_case() {
     // Arrange
-    use_local_storage();
     let path = data_dir("response-keys");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     setup_query_values(&cassie);
     let collection_response = collections::create(

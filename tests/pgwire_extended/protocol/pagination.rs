@@ -5,14 +5,13 @@ use tokio::io::BufReader;
 #[test]
 fn should_preserve_wire_pagination_contract() {
     // Arrange
-    crate::support_sql::use_local_storage();
     let path = crate::support_sql::data_dir("pagination-wire");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         for sql in [

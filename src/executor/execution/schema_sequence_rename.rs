@@ -60,14 +60,19 @@ pub(super) fn rename_owned_table_sequences(cassie: &Cassie, table: &str) -> Resu
         let sequence = cassie.midge.get_sequence(current_name)?.ok_or_else(|| {
             QueryError::General(format!("sequence '{current_name}' does not exist"))
         })?;
-        renames.push((index, current_name.to_string(), next_name, sequence));
+        renames.push((index, next_name, sequence));
     }
 
-    for (index, current_name, next_name, mut sequence) in renames {
-        sequence.name.clone_from(&next_name);
+    for (index, next_name, mut sequence) in renames {
+        let stored_name = sequence.name.clone();
+        sequence.name = cassie.midge.canonical_collection_name(&next_name);
+        if let Some(owner) = sequence.owned_by.as_mut() {
+            owner.table = table.to_string();
+        }
+        sequence = super::super::sequence_command::canonicalize_sequence_metadata(cassie, sequence);
         cassie.midge.put_sequence(&sequence)?;
-        cassie.midge.delete_sequence(&current_name)?;
-        cassie.catalog.unregister_sequence(&current_name);
+        cassie.midge.delete_sequence(&stored_name)?;
+        cassie.catalog.unregister_sequence(&stored_name);
         cassie.catalog.register_sequence(sequence);
         constraints[index].default_sequence = Some(next_name.clone());
         constraints[index].default_expression =

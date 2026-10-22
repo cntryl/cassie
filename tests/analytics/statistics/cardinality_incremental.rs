@@ -17,7 +17,6 @@ fn metric_delta(after: &serde_json::Value, before: &serde_json::Value, key: &str
 #[test]
 fn should_increment_cardinality_for_unindexed_document_write_without_rebuild() {
     // Arrange
-    use_local_storage();
     let path = data_dir("incremental_unindexed_cardinality");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -25,7 +24,7 @@ fn should_increment_cardinality_for_unindexed_document_write_without_rebuild() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -74,7 +73,6 @@ fn should_increment_cardinality_for_unindexed_document_write_without_rebuild() {
 #[test]
 fn should_rebuild_cardinality_when_index_membership_changes() {
     // Arrange
-    use_local_storage();
     let path = data_dir("indexed_cardinality_rebuild");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -82,7 +80,7 @@ fn should_rebuild_cardinality_when_index_membership_changes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

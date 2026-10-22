@@ -1,13 +1,11 @@
 use cassie::app::{Cassie, CassieError, CatalogObjectKind};
 use cassie::sql::ast::QueryStatement;
 
-fn cassie(label: &str) -> Cassie {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-    let path = std::env::temp_dir().join(format!(
-        "cassie-database-connect-{label}-{}",
-        uuid::Uuid::new_v4()
-    ));
-    let cassie = Cassie::new_with_data_dir(path).expect("cassie");
+fn cassie(_label: &str) -> Cassie {
+    let cassie = Cassie::new_in_memory_with_config(
+        cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),
+    )
+    .expect("cassie");
     cassie.startup().expect("startup");
     cassie
 }

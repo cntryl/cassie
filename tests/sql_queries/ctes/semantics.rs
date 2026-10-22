@@ -15,7 +15,6 @@ use support::*;
 #[test]
 fn should_execute_sql_with_non_recursive_cte() {
     // Arrange
-    use_local_storage();
     let path = data_dir("cte_non_recursive");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -23,7 +22,7 @@ fn should_execute_sql_with_non_recursive_cte() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "integration_cte";
 
         let schema = Schema {
@@ -96,7 +95,6 @@ fn should_execute_sql_with_non_recursive_cte() {
 #[test]
 fn should_execute_sql_with_recursive_cte() {
     // Arrange
-    use_local_storage();
     let path = data_dir("cte_recursive");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -104,7 +102,7 @@ fn should_execute_sql_with_recursive_cte() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let collection = "integration_recursive_cte";
 
         let schema = Schema {
@@ -163,9 +161,8 @@ fn should_execute_sql_with_recursive_cte() {
 #[test]
 fn should_report_declared_column_types_when_selecting_from_a_cte() {
     // Arrange
-    use_local_storage();
     let path = data_dir("cte_result_column_metadata");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -220,9 +217,8 @@ fn should_describe_cte_column_types_before_execution() {
     // Arrange
     // The extended protocol describes a statement without running it, so
     // this path needs the CTE's types just as the result path does.
-    use_local_storage();
     let path = data_dir("cte_describe_column_metadata");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -251,9 +247,8 @@ fn should_describe_cte_column_types_before_execution() {
 #[test]
 fn should_report_typed_aggregate_aliases_through_a_cte() {
     // Arrange
-    use_local_storage();
     let path = data_dir("cte_aggregate_column_metadata");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -295,9 +290,8 @@ fn should_report_typed_aggregate_aliases_through_a_cte() {
 #[test]
 fn should_report_column_types_through_a_recursive_cte() {
     // Arrange
-    use_local_storage();
     let path = data_dir("cte_recursive_column_metadata");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
 

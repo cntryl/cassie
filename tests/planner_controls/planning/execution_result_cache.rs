@@ -14,10 +14,8 @@ fn cache_config(max_entries: usize, max_bytes: usize) -> CassieRuntimeConfig {
 #[test]
 fn should_execute_session_mutations_for_each_matching_session() {
     // Arrange
-    use_local_storage();
     let path = data_dir("session-mutating-builtins");
-    let cassie =
-        Cassie::new_with_data_dir_and_config(&path, cache_config(128, 1_048_576)).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(cache_config(128, 1_048_576)).expect("cassie");
     let setup = cassie.create_session("reader", None);
     cassie
         .execute_sql(&setup, "CREATE TABLE cache_seed (marker INT)", vec![])
@@ -84,9 +82,8 @@ fn should_execute_session_mutations_for_each_matching_session() {
 #[test]
 fn should_isolate_current_user_results() {
     // Arrange
-    use_local_storage();
     let path = data_dir("current-user");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let alice = cassie.create_session("alice", None);
     let bob = cassie.create_session("bob", None);
     cassie
@@ -138,9 +135,8 @@ fn should_isolate_current_user_results() {
 #[test]
 fn should_isolate_execution_results_given_different_authenticated_roles() {
     // Arrange
-    use_local_storage();
     let path = data_dir("authenticated-roles");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let alice = cassie.create_session("alice", None);
     let bob = cassie.create_session("bob", None);
     cassie
@@ -176,9 +172,8 @@ fn should_isolate_execution_results_given_different_authenticated_roles() {
 #[test]
 fn should_isolate_execution_results_given_different_search_paths() {
     // Arrange
-    use_local_storage();
     let path = data_dir("search-paths");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let setup = cassie.create_session("setup", None);
     for sql in [
@@ -222,9 +217,8 @@ fn should_isolate_execution_results_given_different_search_paths() {
 #[test]
 fn should_isolate_execution_results_given_different_session_settings() {
     // Arrange
-    use_local_storage();
     let path = data_dir("session-settings");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let first = cassie.create_session("reader", None);
     let second = cassie.create_session("reader", None);
     cassie
@@ -261,9 +255,8 @@ fn should_isolate_execution_results_given_different_session_settings() {
 #[test]
 fn should_bypass_cached_results_during_transaction() {
     // Arrange
-    use_local_storage();
     let path = data_dir("transaction");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let session = cassie.create_session("alice", None);
     cassie
         .execute_sql(&session, "CREATE TABLE cache_tx_docs (title TEXT)", vec![])
@@ -317,9 +310,8 @@ fn should_bypass_cached_results_during_transaction() {
 #[test]
 fn should_bypass_non_immutable_user_functions() {
     // Arrange
-    use_local_storage();
     let path = data_dir("stable-udf");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let session = cassie.create_session("alice", None);
     cassie
         .execute_sql(
@@ -351,9 +343,8 @@ fn should_bypass_non_immutable_user_functions() {
 #[test]
 fn should_bypass_volatile_user_functions() {
     // Arrange
-    use_local_storage();
     let path = data_dir("volatile-udf");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let session = cassie.create_session("alice", None);
     cassie
         .execute_sql(
@@ -385,9 +376,8 @@ fn should_bypass_volatile_user_functions() {
 #[test]
 fn should_bypass_volatile_user_functions_after_startup_qualifies_catalog_names() {
     // Arrange
-    use_local_storage();
     let path = data_dir("started-volatile-udf");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("alice", None);
     cassie
@@ -421,9 +411,8 @@ fn should_bypass_volatile_user_functions_after_startup_qualifies_catalog_names()
 #[test]
 fn should_bypass_volatile_user_functions_called_with_different_identifier_case() {
     // Arrange
-    use_local_storage();
     let path = data_dir("volatile-udf-case");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let session = cassie.create_session("alice", None);
     cassie
         .execute_sql(
@@ -456,9 +445,8 @@ fn should_bypass_volatile_user_functions_called_with_different_identifier_case()
 #[test]
 fn should_cache_immutable_user_functions() {
     // Arrange
-    use_local_storage();
     let path = data_dir("immutable-udf");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let session = cassie.create_session("alice", None);
     cassie
         .execute_sql(
@@ -487,9 +475,8 @@ fn should_cache_immutable_user_functions() {
 #[test]
 fn should_observe_savepoint_rollback_without_cache() {
     // Arrange
-    use_local_storage();
     let path = data_dir("savepoint");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let session = cassie.create_session("alice", None);
     cassie
         .execute_sql(
@@ -551,9 +538,8 @@ fn should_observe_savepoint_rollback_without_cache() {
 #[test]
 fn should_bypass_virtual_catalog_results() {
     // Arrange
-    use_local_storage();
     let path = data_dir("virtual-catalog");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("alice", None);
 
@@ -578,9 +564,8 @@ fn should_bypass_virtual_catalog_results() {
 #[test]
 fn should_reject_oversized_cache_entries() {
     // Arrange
-    use_local_storage();
     let path = data_dir("oversized");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, cache_config(64, 1)).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(cache_config(64, 1)).expect("cassie");
     let session = cassie.create_session("alice", None);
 
     // Act
@@ -606,10 +591,8 @@ fn should_reject_oversized_cache_entries() {
 #[test]
 fn should_evict_least_recently_used_result() {
     // Arrange
-    use_local_storage();
     let path = data_dir("lru");
-    let cassie =
-        Cassie::new_with_data_dir_and_config(&path, cache_config(2, 1_000_000)).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(cache_config(2, 1_000_000)).expect("cassie");
     let session = cassie.create_session("alice", None);
     cassie
         .execute_sql(&session, "CREATE TABLE cache_lru (marker TEXT)", vec![])
@@ -657,10 +640,8 @@ fn should_evict_least_recently_used_result() {
 #[test]
 fn should_evict_results_over_byte_budget() {
     // Arrange
-    use_local_storage();
     let path = data_dir("byte-budget");
-    let cassie =
-        Cassie::new_with_data_dir_and_config(&path, cache_config(64, 220)).expect("cassie");
+    let cassie = Cassie::new_in_memory_with_config(cache_config(64, 220)).expect("cassie");
     let session = cassie.create_session("alice", None);
 
     // Act
@@ -691,9 +672,8 @@ fn should_evict_results_over_byte_budget() {
 #[test]
 fn should_remain_fresh_during_concurrent_invalidation() {
     // Arrange
-    use_local_storage();
     let path = data_dir("concurrent-invalidation");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
     let setup = cassie.create_session("setup", None);
     cassie
         .execute_sql(

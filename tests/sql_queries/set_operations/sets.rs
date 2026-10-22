@@ -15,7 +15,6 @@ use support::*;
 #[test]
 fn should_execute_distinct_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("distinct_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -23,7 +22,7 @@ fn should_execute_distinct_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -66,7 +65,6 @@ fn should_execute_distinct_query() {
 #[test]
 fn should_execute_union_all_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("union_all_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -74,7 +72,7 @@ fn should_execute_union_all_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -135,7 +133,6 @@ fn should_execute_union_all_query() {
 #[test]
 fn should_execute_union_query_with_deduplication() {
     // Arrange
-    use_local_storage();
     let path = data_dir("union_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -143,7 +140,7 @@ fn should_execute_union_query_with_deduplication() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -199,7 +196,6 @@ fn should_execute_union_query_with_deduplication() {
 #[test]
 fn should_execute_intersect_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("intersect_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -207,7 +203,7 @@ fn should_execute_intersect_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -251,7 +247,6 @@ fn should_execute_intersect_query() {
 #[test]
 fn should_execute_except_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("except_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -259,7 +254,7 @@ fn should_execute_except_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -299,7 +294,6 @@ fn should_execute_except_query() {
 #[test]
 fn should_execute_distinct_on_query_with_ordering() {
     // Arrange
-    use_local_storage();
     let path = data_dir("distinct_on_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -307,7 +301,7 @@ fn should_execute_distinct_on_query_with_ordering() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -356,7 +350,6 @@ fn should_execute_distinct_on_query_with_ordering() {
 #[test]
 fn should_apply_order_limit_offset_after_union_all() {
     // Arrange
-    use_local_storage();
     let path = data_dir("union_global_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -364,7 +357,7 @@ fn should_apply_order_limit_offset_after_union_all() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -403,7 +396,6 @@ fn should_apply_order_limit_offset_after_union_all() {
 #[test]
 fn should_execute_chained_union_all_query() {
     // Arrange
-    use_local_storage();
     let path = data_dir("union_all_chained");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -411,7 +403,7 @@ fn should_execute_chained_union_all_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         for table in ["union_chain_a", "union_chain_b", "union_chain_c"] {

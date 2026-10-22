@@ -2,7 +2,7 @@
 fn should_keep_projection_version_output_when_metadata_persistence_fails() {
     // Arrange
     let (runtime, path, cassie, session, projection) =
-        start_projection_version_fixture("projection_version_persist_failure");
+        persistent_projection_version_fixture("projection_version_persist_failure");
     runtime.block_on(async {
         execute_statement(
             &cassie,
@@ -48,7 +48,7 @@ fn should_keep_projection_version_output_when_metadata_persistence_fails() {
 fn should_delete_projection_reports_when_dropping_a_projection_before_restart() {
     // Arrange
     let (runtime, path, cassie, session, projection) =
-        start_projection_version_fixture("projection_drop_report_cleanup");
+        persistent_projection_version_fixture("projection_drop_report_cleanup");
     runtime.block_on(async {
             execute_statement(
                 &cassie,

@@ -34,9 +34,6 @@ fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
 #[test]
 fn should_persist_vector_index_metadata() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("persist");
-    let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -44,7 +41,7 @@ fn should_persist_vector_index_metadata() {
 
     runtime.block_on(async move {
         // Act
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
 
         let collection = "index_meta_docs";
@@ -109,23 +106,18 @@ fn should_persist_vector_index_metadata() {
         // Assert
         assert_eq!(loaded, record);
     });
-
-    let _ = std::fs::remove_dir_all(path_for_cleanup);
 }
 
 #[test]
 fn should_persist_hnsw_vector_index_metadata() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("persist_hnsw");
-    let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async move {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let collection = "hnsw_index_meta_docs";
         let schema = Schema {
@@ -194,8 +186,6 @@ fn should_persist_hnsw_vector_index_metadata() {
         assert_eq!(graph.row_count, 0);
         assert_ne!(graph.source_fingerprint, 0);
     });
-
-    let _ = std::fs::remove_dir_all(path_for_cleanup);
 }
 
 #[test]
@@ -407,15 +397,13 @@ fn should_rebuild_missing_normalized_sidecars_on_restart() {
 #[test]
 fn should_remove_vector_state_when_dropping_vector_field() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("drop_vector_field");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async move {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let collection = "drop_vector_field_docs";
         let schema = Schema {
@@ -493,17 +481,12 @@ fn should_remove_vector_state_when_dropping_vector_field() {
             .get_index(collection, "drop_vector_field_idx")
             .unwrap()
             .is_none());
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_document_values() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("normalized_dimension_mismatch");
-    let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -511,7 +494,7 @@ fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_d
 
     runtime.block_on(async move {
         // Act
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
 
         let collection = "normalized_dimension_mismatch_docs";
@@ -569,8 +552,6 @@ fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_d
             .to_string()
             .contains("expects 4 dimensions"));
     });
-
-    let _ = std::fs::remove_dir_all(path_for_cleanup);
 }
 
 #[test]

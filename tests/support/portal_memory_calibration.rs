@@ -1,7 +1,7 @@
-//! The original persisted materialized-portal fixture with a measured source cap.
+//! Materialized-portal resource fixture with a measured source cap.
 
 use crate::support_pgwire as wire;
-use crate::support_sql_fixture::{local_sql_fixture_with_config, SqlFixture};
+use crate::support_sql_fixture::{sql_fixture_with_config, SqlFixture};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,7 +32,7 @@ impl Fixture {
         }
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         config.limits.parallel_scan_workers = 1;
-        let storage = local_sql_fixture_with_config(label, &[], config.clone());
+        let storage = sql_fixture_with_config(label, &[], config.clone());
         storage.cassie.startup().expect("startup");
         storage
             .execute("CREATE TABLE portal_shared_memory (payload TEXT)")

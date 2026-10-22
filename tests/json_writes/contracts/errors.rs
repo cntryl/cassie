@@ -1,7 +1,7 @@
 #[test]
 fn should_reject_malformed_json_text_insert() {
     // Arrange
-    with_local_json_database("malformed_json_text_insert", |cassie, session| {
+    with_json_database(|cassie, session| {
         seed_valid_json_row(cassie, session, "malformed_json_insert");
 
         // Act
@@ -19,7 +19,7 @@ fn should_reject_malformed_json_text_insert() {
 #[test]
 fn should_reject_malformed_json_text_update() {
     // Arrange
-    with_local_json_database("malformed_json_text_update", |cassie, session| {
+    with_json_database(|cassie, session| {
         seed_valid_json_row(cassie, session, "malformed_json_update");
 
         // Act

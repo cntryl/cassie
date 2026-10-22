@@ -29,7 +29,6 @@ pub(super) enum RetrievalPhase {
     Assertions,
     QueryLocalsRetirement,
     FixtureFieldsRetirement,
-    DirectoryCleanup,
     EscapedReaderResults,
     ServerTeardown,
 }
@@ -58,7 +57,6 @@ impl RetrievalPhase {
             Self::Assertions => "assertions",
             Self::QueryLocalsRetirement => "query_locals_retirement",
             Self::FixtureFieldsRetirement => "fixture_fields_retirement",
-            Self::DirectoryCleanup => "directory_cleanup",
             Self::EscapedReaderResults => "escaped_reader_results",
             Self::ServerTeardown => "server_teardown",
         }
@@ -70,7 +68,6 @@ struct EvidenceContext {
     invocation: uuid::Uuid,
     caller: &'static str,
     case: &'static str,
-    path: Option<String>,
     started: Instant,
     sequence: Arc<AtomicU64>,
     midge: Option<Weak<Midge>>,
@@ -88,7 +85,6 @@ impl RetrievalPhaseEvidence {
                 invocation: uuid::Uuid::new_v4(),
                 caller,
                 case: "-",
-                path: None,
                 started: Instant::now(),
                 sequence: Arc::new(AtomicU64::new(0)),
                 midge: None,
@@ -102,13 +98,6 @@ impl RetrievalPhaseEvidence {
             context.case = case;
         }
         evidence
-    }
-
-    pub(super) fn for_path(mut self, path: &str) -> Self {
-        if let Some(context) = &mut self.context {
-            context.path = Some(path.to_owned());
-        }
-        self
     }
 
     pub(super) fn observe_midge(&mut self, midge: &Arc<Midge>) {
@@ -143,14 +132,13 @@ impl RetrievalPhaseEvidence {
         let strong_owners = context.midge.as_ref().map(Weak::strong_count);
         let _ = writeln!(
             stderr,
-            "CASSIE_RETRIEVAL_PHASE pid={} invocation={} caller={} case={} path={} \
+            "CASSIE_RETRIEVAL_PHASE pid={} invocation={} caller={} case={} \
              seq={sequence} phase={} state={state} elapsed_us={} \
              midge_strong_owners={strong_owners:?} unwinding={}",
             std::process::id(),
             context.invocation,
             context.caller,
             context.case,
-            context.path.as_deref().unwrap_or("-"),
             phase.label(),
             context.started.elapsed().as_micros(),
             std::thread::panicking(),

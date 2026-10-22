@@ -1,6 +1,6 @@
 //! PostgreSQL 18.6 mutation and data-modifying CTE gaps for #823, #825 and #834.
 
-use cassie::app::{Cassie, CassieError};
+use cassie::app::CassieError;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 use std::net::SocketAddr;
@@ -28,9 +28,8 @@ struct PgwireFixture {
 
 impl PgwireFixture {
     async fn start(label: &str) -> Self {
-        super::support_sql::use_local_storage();
         let data_dir = super::support_sql::data_dir(label);
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("create Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
 
         let config = CassieRuntimeConfig::from_env().expect("runtime config");

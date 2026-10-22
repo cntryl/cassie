@@ -38,9 +38,8 @@ fn seed_relation(cassie: &Cassie, name: &str, rows: usize) {
 #[test]
 fn should_enumerate_three_relation_inner_join_by_cardinality() {
     // Arrange
-    use_local_storage();
     let path = data_dir("memo_three_relation_order");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     seed_relation(&cassie, "memo_large", 8);
     seed_relation(&cassie, "memo_small", 1);
@@ -78,9 +77,8 @@ fn should_enumerate_three_relation_inner_join_by_cardinality() {
 #[test]
 fn should_use_deterministic_fallback_order_when_statistics_are_missing() {
     // Arrange
-    use_local_storage();
     let path = data_dir("memo_missing_stats_order");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     for name in ["zebra", "alpha", "middle"] {
         cassie
@@ -110,9 +108,8 @@ fn should_use_deterministic_fallback_order_when_statistics_are_missing() {
 #[test]
 fn should_keep_schema_qualified_relation_identity_during_join_reordering() {
     // Arrange
-    use_local_storage();
     let path = data_dir("memo_schema_qualified_identity");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -160,9 +157,8 @@ fn should_keep_schema_qualified_relation_identity_during_join_reordering() {
 #[test]
 fn should_preserve_outer_join_as_legality_barrier() {
     // Arrange
-    use_local_storage();
     let path = data_dir("memo_outer_join_barrier");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     for name in ["outer_left", "outer_right", "outer_tail"] {
         cassie
@@ -196,9 +192,8 @@ fn should_preserve_outer_join_as_legality_barrier() {
 #[test]
 fn should_enumerate_non_equality_inner_joins() {
     // Arrange
-    use_local_storage();
     let path = data_dir("memo_non_equality_order");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     seed_relation(&cassie, "range_large", 8);
     seed_relation(&cassie, "range_small", 1);
     seed_relation(&cassie, "range_medium", 3);
@@ -230,9 +225,8 @@ fn should_enumerate_non_equality_inner_joins() {
 #[test]
 fn should_use_greedy_expansion_above_eight_relations() {
     // Arrange
-    use_local_storage();
     let path = data_dir("memo_greedy_nine_relations");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     for index in 1..=9 {
         cassie
@@ -273,9 +267,8 @@ fn should_use_greedy_expansion_above_eight_relations() {
 #[test]
 fn should_explain_join_physical_properties_with_memory_bound() {
     // Arrange
-    use_local_storage();
     let path = data_dir("memo_physical_properties");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     let session = cassie.create_session("tester", None);
     for name in ["property_left", "property_right"] {
         cassie

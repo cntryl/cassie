@@ -1,9 +1,8 @@
 #[test]
 fn should_use_hnsw_graph_for_sql_vector_top_k_with_bounded_candidates() {
     // Arrange
-    use_local_storage();
     let path = data_dir("hnsw_sql_topk");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let collection = "hnsw_sql_topk";
     register_hnsw_collection(&cassie, collection);

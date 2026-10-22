@@ -6,18 +6,11 @@ use cassie::config::CassieRuntimeConfig;
 use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
 use tokio_postgres::NoTls;
-use uuid::Uuid;
 
-fn fixture(label: &str) -> (Cassie, CassieSession, String) {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-    let path = std::env::temp_dir()
-        .join(format!(
-            "cassie-database-connect-network-{label}-{}",
-            Uuid::new_v4()
-        ))
-        .to_string_lossy()
-        .to_string();
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+fn fixture(_label: &str) -> (Cassie, CassieSession) {
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::from_env().expect("runtime config"))
+            .expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
         .authenticate_role("root", Some("postgres"), None)
@@ -31,7 +24,7 @@ fn fixture(label: &str) -> (Cassie, CassieSession, String) {
             .execute_sql(&admin, sql, Vec::new())
             .expect("database access fixture");
     }
-    (cassie, admin, path)
+    (cassie, admin)
 }
 
 async fn spawn_pgwire_server(
@@ -91,7 +84,7 @@ fn set_database_access(cassie: &Cassie, admin: &CassieSession, grant: bool) {
 #[test]
 fn should_revalidate_connect_privileges_given_an_already_authenticated_session() {
     // Arrange
-    let (cassie, admin, path) = fixture("pgwire");
+    let (cassie, admin) = fixture("pgwire");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -134,14 +127,12 @@ fn should_revalidate_connect_privileges_given_an_already_authenticated_session()
         let _ = connection.await;
         let _ = server.await;
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_revalidate_database_connect_for_an_active_rest_session() {
     // Arrange
-    let (cassie, admin, path) = fixture("rest");
+    let (cassie, admin) = fixture("rest");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -191,6 +182,4 @@ fn should_revalidate_database_connect_for_an_active_rest_session() {
         shutdown.notify_waiters();
         let _ = server.await;
     });
-
-    let _ = std::fs::remove_dir_all(path);
 }

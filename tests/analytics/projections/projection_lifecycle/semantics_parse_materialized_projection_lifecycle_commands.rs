@@ -44,7 +44,6 @@ fn should_parse_materialized_projection_lifecycle_commands() {
 #[test]
 fn should_skip_existing_projection_events_while_applying_new_replay_events() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_replay_mixed_duplicate_batch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -52,7 +51,7 @@ fn should_skip_existing_projection_events_while_applying_new_replay_events() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -130,7 +129,6 @@ fn should_skip_existing_projection_events_while_applying_new_replay_events() {
 #[test]
 fn should_mark_large_replay_hashes_stale_without_eager_rebuild() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_replay_large_hashes_stale");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -138,7 +136,7 @@ fn should_mark_large_replay_hashes_stale_without_eager_rebuild() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -216,7 +214,6 @@ fn should_mark_large_replay_hashes_stale_without_eager_rebuild() {
 #[test]
 fn should_report_failed_freshness_for_out_of_order_replay() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_replay_out_of_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -224,7 +221,7 @@ fn should_report_failed_freshness_for_out_of_order_replay() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -387,7 +384,6 @@ fn should_fail_duplicate_event_id_in_batch_without_partial_replay() {
 #[test]
 fn should_refresh_materialized_projection_after_source_write() {
     // Arrange
-    use_local_storage();
     let path = data_dir("materialized_projection_refresh");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -395,7 +391,7 @@ fn should_refresh_materialized_projection_after_source_write() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -485,7 +481,6 @@ fn should_refresh_materialized_projection_after_source_write() {
 #[test]
 fn should_activate_built_materialized_projection_version() {
     // Arrange
-    use_local_storage();
     let path = data_dir("materialized_projection_versions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -493,7 +488,7 @@ fn should_activate_built_materialized_projection_version() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         let projection = seed_materialized_projection_version_fixture(&cassie, &session);
@@ -550,7 +545,6 @@ fn should_activate_built_materialized_projection_version() {
 #[test]
 fn should_allocate_new_projection_version_id_after_dropping_older_version() {
     // Arrange
-    use_local_storage();
     let path = data_dir("projection_version_id_after_drop");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -558,7 +552,7 @@ fn should_allocate_new_projection_version_id_after_dropping_older_version() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         let projection = seed_materialized_projection_version_fixture(&cassie, &session);

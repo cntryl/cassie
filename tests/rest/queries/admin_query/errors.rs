@@ -1,7 +1,6 @@
 #[test]
 fn should_reject_unauthorized_access_to_admin_query_routes() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("unauthorized");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -9,7 +8,7 @@ fn should_reject_unauthorized_access_to_admin_query_routes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
@@ -38,9 +37,8 @@ fn should_reject_unauthorized_access_to_admin_query_routes() {
 #[test]
 fn should_reject_nonfinite_admin_query_result() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("nonfinite-query-json");
-    let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("root", None);
     cassie
@@ -93,7 +91,6 @@ fn should_reject_nonfinite_admin_query_result() {
 #[test]
 fn should_map_admin_query_errors_to_semantic_http_statuses() {
     // Arrange
-    use_local_storage();
     let data_dir = data_dir("query-errors");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -101,7 +98,7 @@ fn should_map_admin_query_errors_to_semantic_http_statuses() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;

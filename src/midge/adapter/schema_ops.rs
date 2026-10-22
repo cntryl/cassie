@@ -36,7 +36,7 @@ struct PendingFieldRename {
 impl Midge {
     pub(crate) fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
         let collection = self.canonical_collection_name(collection);
-        let tx = self.begin_schema_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         if let Some(row_schema) = Self::load_row_schema_from_tx(&tx, &collection)? {
             return Ok(row_schema);
         }
@@ -74,33 +74,31 @@ impl Midge {
     }
 
     fn list_namespaces_raw(&self) -> Vec<String> {
-        let Ok(tx) = self.begin_schema_readonly_tx() else {
-            return Vec::new();
-        };
-
-        if let Ok(namespaces) = Self::load_namespaces(&tx) {
-            if !namespaces.is_empty() {
-                let mut namespaces = namespaces;
-                namespaces.sort();
-                namespaces.dedup();
-                return namespaces;
-            }
-        }
-
-        let Ok(scan) = tx
-            .scan(&Query::new().prefix(Self::namespace_prefix().into()))
-            .map_err(CassieError::from)
-            .and_then(collect_scan)
-        else {
-            return Vec::new();
-        };
-
         let mut namespaces = Vec::new();
-        let namespace_prefix = Self::namespace_prefix();
-        for (raw_key, _raw_value) in scan {
-            if let Some(name) = key_encoding::utf8_suffix_after_prefix(&raw_key, &namespace_prefix)
-            {
-                namespaces.push(name);
+        for database in self.database_names() {
+            let Ok(tx) = self.begin_database_readonly_tx(&database) else {
+                return Vec::new();
+            };
+            if let Ok(mut values) = Self::load_namespaces(&tx) {
+                if !values.is_empty() {
+                    namespaces.append(&mut values);
+                    continue;
+                }
+            }
+            let Ok(scan) = tx
+                .scan(&Query::new().prefix(Self::namespace_prefix().into()))
+                .map_err(CassieError::from)
+                .and_then(collect_scan)
+            else {
+                return Vec::new();
+            };
+            let namespace_prefix = Self::namespace_prefix();
+            for (raw_key, _raw_value) in scan {
+                if let Some(name) =
+                    key_encoding::utf8_suffix_after_prefix(&raw_key, &namespace_prefix)
+                {
+                    namespaces.push(name);
+                }
             }
         }
 
@@ -113,18 +111,18 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn drop_namespace(&self, namespace: &str) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        let mut namespaces = Self::load_namespaces(&tx)?;
         let canonical = self.canonical_namespace_name(namespace);
+        let mut tx = self.begin_namespace_rw_tx(&canonical)?;
+        let mut namespaces = Self::load_namespaces(&tx)?;
         let stored = namespaces
             .iter()
             .find(|entry| self.canonical_namespace_name(entry) == canonical)
             .cloned()
             .or_else(|| {
-                tx.get(&Self::namespace_key(namespace))
+                tx.get(&Self::namespace_key(&canonical))
                     .ok()
                     .flatten()
-                    .map(|_| namespace.to_string())
+                    .map(|_| canonical.clone())
             });
         let Some(stored) = stored else {
             return Err(CassieError::NotFound(format!(
@@ -146,16 +144,17 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn rename_namespace(&self, current_name: &str, next_name: &str) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        let mut namespaces = Self::load_namespaces(&tx)?;
         let current_canonical = self.canonical_namespace_name(current_name);
+        let next_canonical = self.canonical_namespace_name(next_name);
+        let mut tx = self.begin_namespace_rw_tx(&current_canonical)?;
+        let mut namespaces = Self::load_namespaces(&tx)?;
         let current_name = namespaces
             .iter()
             .find(|entry| self.canonical_namespace_name(entry) == current_canonical)
             .cloned()
-            .unwrap_or_else(|| current_name.to_string());
+            .unwrap_or_else(|| current_canonical.clone());
         let current_key = Self::namespace_key(&current_name);
-        let next_key = Self::namespace_key(next_name);
+        let next_key = Self::namespace_key(&next_canonical);
 
         let current_raw = tx
             .get(&current_key)
@@ -164,7 +163,6 @@ impl Midge {
                 CassieError::NotFound(format!("namespace '{current_name}' does not exist"))
             })?;
 
-        let next_canonical = self.canonical_namespace_name(next_name);
         if tx.get(&next_key).map_err(CassieError::from)?.is_some()
             || namespaces
                 .iter()
@@ -193,13 +191,13 @@ impl Midge {
         }
 
         namespaces.retain(|entry| entry != &current_name);
-        namespaces.push(next_name.to_string());
+        namespaces.push(next_canonical.clone());
         namespaces.sort();
         namespaces.dedup();
 
         tx.delete(current_key).map_err(CassieError::from)?;
         let mut renamed = metadata;
-        renamed.name = next_name.to_string();
+        renamed.name = next_canonical;
         tx.put(
             next_key,
             serde_json::to_vec(&renamed).map_err(|error| CassieError::Parse(error.to_string()))?,
@@ -221,7 +219,7 @@ impl Midge {
         let name = name_storage.as_str();
         let write_gate = self.collection_write_gate(name);
         let _write_guard = write_gate.lock();
-        let mut schema_tx = self.begin_schema_rw_tx()?;
+        let mut schema_tx = self.begin_data_rw_tx_for(name)?;
         let schema_key = Self::collection_schema_key(name);
         if schema_tx
             .get(&schema_key)
@@ -399,7 +397,7 @@ impl Midge {
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
         let target_generation = self.collection_generation(collection)?.saturating_add(1);
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
         let Some(schema_raw) = schema_raw else {
@@ -472,7 +470,7 @@ impl Midge {
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
         let target_generation = self.collection_generation(collection)?.saturating_add(1);
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
         let Some(schema_raw) = schema_raw else {
@@ -553,7 +551,7 @@ impl Midge {
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
         let target_generation = self.collection_generation(collection)?.saturating_add(1);
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
         let Some(schema_raw) = schema_raw else {
@@ -638,7 +636,7 @@ impl Midge {
         let next_name = next_name_storage.as_str();
         let write_gate = self.collection_write_gate(current_name);
         let _write_guard = write_gate.lock();
-        let mut schema_tx = self.begin_schema_rw_tx()?;
+        let mut schema_tx = self.begin_data_rw_tx_for(current_name)?;
         schema_ops_helpers::rename_collection_schema_entries(
             &mut schema_tx,
             current_name,
@@ -762,17 +760,13 @@ impl Midge {
         Ok(())
     }
 
-    /// Replays schema operations whose schema commit completed before their data-family work.
+    /// Replays schema operations whose catalog commit completed before derived-state cleanup.
     ///
     /// # Errors
     ///
     /// Returns an error when a journal record cannot be read, replayed, or cleared.
     pub fn replay_pending_schema_operations(&self) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
-        let entries = collect_scan(
-            tx.scan(&Query::new().prefix(Self::schema_operation_prefix().into()))
-                .map_err(CassieError::from)?,
-        )?;
+        let entries = self.scan_database_families(&Self::schema_operation_prefix())?;
         let pending = entries
             .into_iter()
             .map(|(_, raw)| {
@@ -833,11 +827,7 @@ impl Midge {
     }
 
     fn replay_pending_field_adds(&self) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
-        let entries = collect_scan(
-            tx.scan(&Query::new().prefix(Self::field_add_operation_prefix().into()))
-                .map_err(CassieError::from)?,
-        )?;
+        let entries = self.scan_database_families(&Self::field_add_operation_prefix())?;
         let pending = entries
             .into_iter()
             .map(|(_, raw)| {
@@ -864,7 +854,7 @@ impl Midge {
     }
 
     fn clear_pending_field_add(&self, collection: &str, field: &str) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.delete(Self::field_add_operation_key(collection, field))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
@@ -872,11 +862,7 @@ impl Midge {
     }
 
     fn replay_pending_field_renames(&self) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
-        let entries = collect_scan(
-            tx.scan(&Query::new().prefix(Self::field_rename_operation_prefix().into()))
-                .map_err(CassieError::from)?,
-        )?;
+        let entries = self.scan_database_families(&Self::field_rename_operation_prefix())?;
         let pending = entries
             .into_iter()
             .map(|(_, raw)| {
@@ -916,7 +902,7 @@ impl Midge {
         current: &str,
         next: &str,
     ) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.delete(Self::field_rename_operation_key(collection, current, next))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
@@ -924,11 +910,7 @@ impl Midge {
     }
 
     fn replay_pending_field_drops(&self) -> Result<(), CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
-        let entries = collect_scan(
-            tx.scan(&Query::new().prefix(Self::field_drop_operation_prefix().into()))
-                .map_err(CassieError::from)?,
-        )?;
+        let entries = self.scan_database_families(&Self::field_drop_operation_prefix())?;
         let pending = entries
             .into_iter()
             .map(|(_, raw)| {

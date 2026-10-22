@@ -67,8 +67,8 @@ async fn connect(address: SocketAddr) -> (OwnedReadHalf, OwnedWriteHalf, i32, i3
     (reader, writer, process_id, secret_key)
 }
 
-fn configured_instance(path: &str, config: CassieRuntimeConfig) -> Cassie {
-    let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("Cassie");
+fn configured_instance(_path: &str, config: CassieRuntimeConfig) -> Cassie {
+    let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
     cassie.startup().expect("start aggregate fixture");
     cassie
 }
@@ -166,7 +166,6 @@ where
 #[test]
 fn should_bound_aggregate_rows_without_publishing_partial_output() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("issue-804-aggregate-result-limit");
     let _directory = FixtureDirectory(path.clone());
     let runtime = current_thread_runtime();
@@ -345,7 +344,6 @@ fn run_aggregate_cancellation(
 #[test]
 fn should_cancel_aggregate_input_without_publishing_partial_output() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("issue-804-aggregate-cancellation");
     let _directory = FixtureDirectory(path.clone());
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");

@@ -1,11 +1,10 @@
 #[test]
 fn should_score_fulltext_candidates_with_parallel_workers() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_scoring_fulltext");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_scoring_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -62,11 +61,10 @@ fn should_score_fulltext_candidates_with_parallel_workers() {
 #[test]
 fn should_merge_parallel_scan_batches_deterministically() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_scan_merge");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_scan_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -137,11 +135,10 @@ fn should_merge_parallel_scan_batches_deterministically() {
 #[test]
 fn should_execute_grouped_aggregates_with_parallel_workers() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_aggregation_grouped");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -238,11 +235,10 @@ fn should_execute_grouped_aggregates_with_parallel_workers() {
 #[test]
 fn should_preserve_row_order_for_parallel_aggregate_queries_with_average() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_aggregation_ungrouped_nulls");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -314,11 +310,10 @@ fn should_preserve_row_order_for_parallel_aggregate_queries_with_average() {
 #[test]
 fn should_fallback_parallel_aggregation_for_distinct() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_aggregation_distinct_fallback");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -372,11 +367,10 @@ fn should_fallback_parallel_aggregation_for_distinct() {
 #[test]
 fn should_fallback_parallel_aggregation_for_user_defined_function() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parallel_aggregation_udf_fallback");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

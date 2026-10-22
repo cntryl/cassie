@@ -1,9 +1,8 @@
 #[test]
 fn should_encode_binary_copy_with_exact_int4_null_framing() {
     // Arrange
-    use_local_storage();
     let path = data_dir("copy-table-binary-out");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     seed_copy_export_rows(&cassie);
 
@@ -55,7 +54,6 @@ fn should_encode_binary_copy_with_exact_int4_null_framing() {
 #[test]
 fn should_execute_binary_simple_query_return_backend_frames() {
     // Arrange
-    use_local_storage();
     let path = data_dir("success");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -65,7 +63,7 @@ fn should_execute_binary_simple_query_return_backend_frames() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_simple_query_collection(&cassie);
 

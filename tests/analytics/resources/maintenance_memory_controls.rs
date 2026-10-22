@@ -10,15 +10,14 @@ use cassie::executor::projection::set_projection_build_failure_point;
 use cassie::executor::{self, QueryError};
 use cassie::runtime::QueryExecutionControls;
 
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn configured_cassie(label: &str, memory_budget: usize) -> (Cassie, String) {
-    use_local_storage();
     let path = data_dir(label);
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = memory_budget;
     config.limits.parallel_scan_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("configured Cassie");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("configured Cassie");
     cassie.startup().expect("startup");
     (cassie, path)
 }

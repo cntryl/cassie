@@ -35,9 +35,6 @@ fn should_wait_for_unique_conflict_owner_rollback_before_returning_insert() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        support::use_local_storage();
-        let path = support::data_dir("unique_conflict_owner_rollback");
-        let _directory = DataDirectory(path.clone());
         let crate::support_unique_conflict::Fixture {
             cassie,
             owner,
@@ -45,7 +42,7 @@ fn should_wait_for_unique_conflict_owner_rollback_before_returning_insert() {
             owner_connection,
             contender_connection,
             server,
-        } = crate::support_unique_conflict::start(&path).await;
+        } = crate::support_unique_conflict::start().await;
         owner
             .batch_execute(
                 "CREATE TABLE compat_unique_rollback_rows (id INT PRIMARY KEY, value TEXT UNIQUE)",

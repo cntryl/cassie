@@ -270,8 +270,7 @@ fn should_parse_alter_schema_rename_statement() {
 #[test]
 fn should_reject_create_schema_when_schema_exists_without_if_not_exists() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-schema-{}", Uuid::new_v4())).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -421,11 +420,7 @@ fn should_reject_create_table_constraints_without_parentheses() {
 #[test]
 fn should_reject_reserved_namespace_on_create_schema() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-parser-reserved-schema-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
 
     // Act
     let parsed = parse_statement("CREATE SCHEMA public").expect("parse should succeed");
@@ -446,11 +441,7 @@ fn should_reject_reserved_namespace_on_create_schema() {
 #[test]
 fn should_reject_reserved_namespace_on_drop_schema() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-parser-reserved-drop-schema-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
 
     // Act
     let parsed = parse_statement("DROP SCHEMA public").expect("parse should succeed");
@@ -471,11 +462,7 @@ fn should_reject_reserved_namespace_on_drop_schema() {
 #[test]
 fn should_reject_reserved_namespace_on_alter_schema() {
     // Arrange
-    let cassie = Cassie::new_with_data_dir(format!(
-        "/tmp/cassie-parser-reserved-alter-schema-{}",
-        Uuid::new_v4()
-    ))
-    .unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
 
     // Act
     let parsed =
@@ -497,8 +484,7 @@ fn should_reject_reserved_namespace_on_alter_schema() {
 #[test]
 fn should_reject_create_table_when_collection_exists_without_if_not_exists() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -529,8 +515,7 @@ fn should_reject_create_table_when_collection_exists_without_if_not_exists() {
 #[test]
 fn should_reject_drop_table_when_collection_missing_without_if_exists() {
     // Arrange
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

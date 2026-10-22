@@ -1,18 +1,15 @@
-use cassie::app::Cassie;
-
 use super::support_pgwire as support;
 
 type WireFrame = (u8, Vec<u8>);
 
 fn run_flag_queries(label: &str, binds: &[(&str, i32, &str)]) -> Vec<Vec<WireFrame>> {
-    support::use_local_storage();
     let path = support::data_dir(label);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     let batches = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         for sql in [

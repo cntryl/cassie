@@ -73,7 +73,6 @@ fn assert_metadata_cycle(
 #[test]
 fn should_report_declared_type_oids_for_direct_projection_wire_rows() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("direct_projection_type_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -83,7 +82,7 @@ fn should_report_declared_type_oids_for_direct_projection_wire_rows() {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         let password = uuid::Uuid::new_v4().to_string();
         config.password = password.clone();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("root", None);
         for statement in [

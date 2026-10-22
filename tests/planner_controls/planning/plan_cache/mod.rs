@@ -1,3 +1,4 @@
+use crate::support_sql::use_local_storage;
 use cassie::app::Cassie;
 use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;

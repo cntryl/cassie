@@ -60,7 +60,6 @@ fn seed_view_docs(cassie: &Cassie, collection: &str) {
 #[test]
 fn should_create_select_drop_user_defined_view() {
     // Arrange
-    use_local_storage();
     let path = data_dir("create_select_drop");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -68,7 +67,7 @@ fn should_create_select_drop_user_defined_view() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let collection = "view_docs";
         seed_view_docs(&cassie, collection);
@@ -108,7 +107,6 @@ fn should_create_select_drop_user_defined_view() {
 #[test]
 fn should_drop_quoted_mixed_case_view_when_referenced_unquoted() {
     // Arrange
-    use_local_storage();
     let path = data_dir("mixed_case_drop");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -116,7 +114,7 @@ fn should_drop_quoted_mixed_case_view_when_referenced_unquoted() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         seed_view_docs(&cassie, "view_mixed_case_docs");
         let session = cassie.create_session("tester", None);
@@ -151,7 +149,6 @@ fn should_drop_quoted_mixed_case_view_when_referenced_unquoted() {
 #[test]
 fn should_select_from_nested_user_defined_views() {
     // Arrange
-    use_local_storage();
     let path = data_dir("nested");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -159,7 +156,7 @@ fn should_select_from_nested_user_defined_views() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let collection = "view_nested_docs";
         seed_view_docs(&cassie, collection);
@@ -251,7 +248,6 @@ fn should_hydrate_user_defined_views_after_restart() {
 #[test]
 fn should_reject_dml_against_user_defined_view() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_only");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -259,7 +255,7 @@ fn should_reject_dml_against_user_defined_view() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let collection = "view_read_only_docs";
         seed_view_docs(&cassie, collection);

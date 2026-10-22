@@ -6,9 +6,9 @@ use super::support_sql as support;
 #[test]
 fn should_not_commit_an_orphaned_child_during_concurrent_parent_delete() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("foreign_key_concurrent_parent_delete");
-    let cassie = std::sync::Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+    let cassie =
+        std::sync::Arc::new(crate::support_sql::new_in_memory_cassie().expect("create Cassie"));
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -125,9 +125,8 @@ fn staged_parent_change_commit(
     usize,
     String,
 ) {
-    support::use_local_storage();
     let path = support::data_dir(name);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     create_copy_tables(&cassie, &session);
@@ -259,9 +258,8 @@ fn should_reject_a_parent_key_update_commit_after_a_concurrent_child_insert() {
 #[test]
 fn should_reject_a_copy_whose_middle_row_references_a_missing_parent() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("foreign_key_copy_missing_parent");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     create_copy_tables(&cassie, &session);
@@ -291,9 +289,8 @@ fn should_reject_a_copy_whose_middle_row_references_a_missing_parent() {
 #[test]
 fn should_reject_a_transactional_copy_commit_after_its_parent_is_deleted() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("foreign_key_transactional_copy_parent_delete");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     create_copy_tables(&cassie, &session);

@@ -1,9 +1,7 @@
-use crate::support_sql::{time_series_sidecar_records, use_local_storage};
+use crate::support_sql::{new_in_memory_cassie, time_series_sidecar_records};
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 use serde_json::Value as JsonValue;
-use std::path::PathBuf;
-use uuid::Uuid;
 
 const TABLE: &str = "time_series_width_evidence";
 const INDEX: &str = "time_series_width_evidence_idx";
@@ -13,7 +11,6 @@ pub struct TimeSeriesWidthEvidence {
 }
 
 struct WidthCase {
-    slug: &'static str,
     width: &'static str,
     lower: &'static str,
     upper: &'static str,
@@ -43,7 +40,6 @@ struct ScenarioResults {
 
 impl TimeSeriesWidthEvidence {
     pub fn collect() -> Self {
-        use_local_storage();
         let cases = width_cases()
             .into_iter()
             .map(|case| observe_width(&case))
@@ -132,19 +128,16 @@ impl TimeSeriesWidthEvidence {
 fn width_cases() -> [WidthCase; 3] {
     [
         WidthCase {
-            slug: "minutes_15",
             width: "15 minutes",
             lower: "1969-12-31T23:45:00Z",
             upper: "1970-01-01T00:15:00Z",
         },
         WidthCase {
-            slug: "hour_1",
             width: "1 hour",
             lower: "1969-12-31T23:00:00Z",
             upper: "1970-01-01T01:00:00Z",
         },
         WidthCase {
-            slug: "day_1",
             width: "1 day",
             lower: "1969-12-31T00:00:00Z",
             upper: "1970-01-02T00:00:00Z",
@@ -153,10 +146,8 @@ fn width_cases() -> [WidthCase; 3] {
 }
 
 fn observe_width(case: &WidthCase) -> WidthObservation {
-    let indexed_path = evidence_path(case.slug, "indexed");
-    let baseline_path = evidence_path(case.slug, "baseline");
-    let indexed = Cassie::new_with_data_dir(&indexed_path).expect("indexed Cassie");
-    let baseline = Cassie::new_with_data_dir(&baseline_path).expect("baseline Cassie");
+    let indexed = new_in_memory_cassie().expect("indexed Cassie");
+    let baseline = new_in_memory_cassie().expect("baseline Cassie");
     indexed.startup().expect("start indexed Cassie");
     baseline.startup().expect("start baseline Cassie");
     let indexed_session = indexed.create_session("time-series-evidence", None);
@@ -185,8 +176,6 @@ fn observe_width(case: &WidthCase) -> WidthObservation {
     drop(baseline_session);
     drop(indexed);
     drop(baseline);
-    let _ = std::fs::remove_dir_all(indexed_path);
-    let _ = std::fs::remove_dir_all(baseline_path);
 
     WidthObservation {
         width: case.width,
@@ -356,11 +345,4 @@ fn explain(cassie: &Cassie, session: &CassieSession, lower: &str, upper: &str) -
         .as_str()
         .expect("textual time-series evidence plan")
         .to_string()
-}
-
-fn evidence_path(slug: &str, mode: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "cassie-time-series-evidence-{slug}-{mode}-{}",
-        Uuid::new_v4()
-    ))
 }

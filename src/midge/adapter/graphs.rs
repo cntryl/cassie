@@ -463,7 +463,7 @@ mod tests {
             .list_graphs()
             .expect("list graphs")
             .into_iter()
-            .find(|candidate| candidate.name == graph.name)
+            .find(|candidate| candidate.name == midge.canonical_collection_name(&graph.name))
             .expect("persisted graph");
         let collection = midge.canonical_collection_name(&graph.edge_collection);
         let tx = midge

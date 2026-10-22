@@ -1,9 +1,8 @@
 #[test]
 fn should_bind_altered_check_constraint_to_declared_column_case() {
     // Arrange
-    use_local_storage();
     let path = data_dir("alter_constraint_column_case");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -31,9 +30,8 @@ fn should_bind_altered_check_constraint_to_declared_column_case() {
 #[test]
 fn should_bind_altered_unique_constraint_to_declared_column_case() {
     // Arrange
-    use_local_storage();
     let path = data_dir("alter_unique_constraint_column_case");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie

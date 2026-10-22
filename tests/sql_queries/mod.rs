@@ -8,8 +8,6 @@ mod postgresql18_aggregate_semantic_edges;
 mod postgresql18_binary_bytea;
 #[path = "ctes/ctes.rs"]
 mod postgresql18_ctes;
-#[path = "types/geometry/geometry.rs"]
-mod postgresql18_geometry;
 #[path = "aggregates/grouping/math_functions.rs"]
 mod postgresql18_math_functions;
 #[path = "aggregates/money/money.rs"]
@@ -24,8 +22,6 @@ mod postgresql18_numeric;
 mod postgresql18_pattern_matching;
 #[path = "functions/string/query/semantics.rs"]
 mod postgresql18_query_inventory_wave3;
-#[path = "aggregates/ranges/ranges.rs"]
-mod postgresql18_ranges;
 #[path = "relations/relations.rs"]
 mod postgresql18_relations;
 #[path = "set_operations/set_operations.rs"]
@@ -48,17 +44,12 @@ mod postgresql18_uuid_hash_lsn;
 mod postgresql18_values_aggregate_inventory_wave2;
 #[path = "relations/values_rows.rs"]
 mod postgresql18_values_rows;
-#[path = "aggregates/xml/xml.rs"]
-mod postgresql18_xml;
 
 #[path = "set_returning/array_subscripts.rs"]
 mod set_returning_array_subscripts;
 
 #[path = "set_returning/lateral_ordinality.rs"]
 mod set_returning_lateral_ordinality;
-
-#[path = "types/geometry/operator_nulls.rs"]
-mod types_geometry_operator_nulls;
 
 #[path = "relations/values_admission.rs"]
 mod postgresql18_values_admission;

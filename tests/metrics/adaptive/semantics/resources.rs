@@ -1,7 +1,6 @@
 #[test]
 fn should_report_adaptive_candidate_budget_in_explain() {
     // Arrange
-    use_local_storage();
     let path = data_dir("adaptive_candidate_explain");
     let config = adaptive_candidate_config(2, 100);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -10,7 +9,7 @@ fn should_report_adaptive_candidate_budget_in_explain() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let collection = "metrics_adaptive_candidate_explain";
         register_adaptive_candidate_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);

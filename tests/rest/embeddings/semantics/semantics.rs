@@ -1,7 +1,6 @@
 #[test]
 fn should_search_vector_docs_after_ingest() {
     // Arrange
-    use_local_storage();
     let path = data_dir("search_flow");
     let path_for_cleanup = path.clone();
 
@@ -30,7 +29,7 @@ fn should_search_vector_docs_after_ingest() {
 
     let server_base_url = openai_server.base_url();
     let cassie =
-        Cassie::new_with_data_dir_and_config(&path, openai_runtime_with_server(server_base_url))
+        Cassie::new_in_memory_with_config(openai_runtime_with_server(server_base_url))
             .unwrap();
 
     cassie.startup().unwrap();
@@ -51,7 +50,6 @@ fn should_search_vector_docs_after_ingest() {
 #[test]
 fn should_search_vector_docs_with_tei_provider() {
     // Arrange
-    use_local_storage();
     let path = data_dir("tei_search_flow");
     let path_for_cleanup = path.clone();
 
@@ -70,9 +68,7 @@ fn should_search_vector_docs_with_tei_provider() {
         },
     ]);
 
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        tei_runtime_with_server(embedding_server.base_url()),
+    let cassie = Cassie::new_in_memory_with_config(tei_runtime_with_server(embedding_server.base_url()),
     )
     .unwrap();
 
@@ -89,7 +85,6 @@ fn should_search_vector_docs_with_tei_provider() {
 #[test]
 fn should_apply_vector_search_offset_after_distance_ordering() {
     // Arrange
-    use_local_storage();
     let path = data_dir("vector_search_offset");
     let path_for_cleanup = path.clone();
 
@@ -112,9 +107,7 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
         },
     ]);
 
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        tei_runtime_with_server(embedding_server.base_url()),
+    let cassie = Cassie::new_in_memory_with_config(tei_runtime_with_server(embedding_server.base_url()),
     )
     .unwrap();
 
@@ -140,7 +133,6 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
 #[test]
 fn should_exclude_documents_without_vectors_from_rest_top_k() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rest_topk_missing_vector");
     let path_for_cleanup = path.clone();
     let openai_server = MockOpenAiServer::spawn(vec![
@@ -161,9 +153,7 @@ fn should_exclude_documents_without_vectors_from_rest_top_k() {
             }]),
         },
     ]);
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        openai_runtime_with_server(openai_server.base_url()),
+    let cassie = Cassie::new_in_memory_with_config(openai_runtime_with_server(openai_server.base_url()),
     )
     .expect("cassie");
     cassie.startup().expect("startup");
@@ -197,7 +187,6 @@ fn should_exclude_documents_without_vectors_from_rest_top_k() {
 #[test]
 fn should_fall_back_to_raw_vector_search_when_normalized_sidecars_are_missing() {
     // Arrange
-    use_local_storage();
     let path = data_dir("vector_search_normalized_fallback");
     let path_for_cleanup = path.clone();
 
@@ -216,9 +205,7 @@ fn should_fall_back_to_raw_vector_search_when_normalized_sidecars_are_missing() 
         },
     ]);
 
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        tei_runtime_with_server(embedding_server.base_url()),
+    let cassie = Cassie::new_in_memory_with_config(tei_runtime_with_server(embedding_server.base_url()),
     )
     .unwrap();
 
@@ -262,13 +249,10 @@ fn should_fall_back_to_raw_vector_search_when_normalized_sidecars_are_missing() 
 #[test]
 fn should_create_hnsw_vector_index_with_rest_option_parity() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rest_hnsw_options");
     let path_for_cleanup = path.clone();
     let embedding_server = MockOpenAiServer::spawn(vec![]);
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        tei_runtime_with_server(embedding_server.base_url()),
+    let cassie = Cassie::new_in_memory_with_config(tei_runtime_with_server(embedding_server.base_url()),
     )
     .unwrap();
     cassie.startup().unwrap();
@@ -307,7 +291,6 @@ fn should_create_hnsw_vector_index_with_rest_option_parity() {
 #[test]
 fn should_search_rest_hnsw_vector_index_with_graph_execution() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rest_hnsw_search");
     let path_for_cleanup = path.clone();
     let embedding_server = MockOpenAiServer::spawn(vec![
@@ -324,9 +307,7 @@ fn should_search_rest_hnsw_vector_index_with_graph_execution() {
             body: tei_response_body(&[vec![1.0, 0.0, 0.0]]),
         },
     ]);
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        tei_runtime_with_server(embedding_server.base_url()),
+    let cassie = Cassie::new_in_memory_with_config(tei_runtime_with_server(embedding_server.base_url()),
     )
     .unwrap();
     cassie.startup().unwrap();
@@ -365,7 +346,6 @@ fn should_search_rest_hnsw_vector_index_with_graph_execution() {
 #[test]
 fn should_search_rest_ivfflat_vector_index_with_trained_candidates() {
     // Arrange
-    use_local_storage();
     let path = data_dir("rest_ivfflat_search");
     let path_for_cleanup = path.clone();
     let embedding_server = MockOpenAiServer::spawn(vec![
@@ -382,9 +362,7 @@ fn should_search_rest_ivfflat_vector_index_with_trained_candidates() {
             body: tei_response_body(&[vec![1.0, 0.0, 0.0]]),
         },
     ]);
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        tei_runtime_with_server(embedding_server.base_url()),
+    let cassie = Cassie::new_in_memory_with_config(tei_runtime_with_server(embedding_server.base_url()),
     )
     .unwrap();
     cassie.startup().unwrap();
@@ -425,7 +403,6 @@ fn should_search_rest_ivfflat_vector_index_with_trained_candidates() {
 #[test]
 fn should_search_vector_docs_with_ollama_provider() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ollama_search_flow");
     let path_for_cleanup = path.clone();
 
@@ -444,9 +421,7 @@ fn should_search_vector_docs_with_ollama_provider() {
         },
     ]);
 
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        ollama_runtime_with_server(embedding_server.base_url()),
+    let cassie = Cassie::new_in_memory_with_config(ollama_runtime_with_server(embedding_server.base_url()),
     )
     .unwrap();
 
@@ -463,14 +438,11 @@ fn should_search_vector_docs_with_ollama_provider() {
 #[test]
 fn should_fail_vector_search_when_metric_incompatible_with_index() {
     // Arrange
-    use_local_storage();
     let path = data_dir("search_incompatible_metric");
     let path_for_cleanup = path.clone();
 
     let openai_server = MockOpenAiServer::spawn(vec![]);
-    let cassie = Cassie::new_with_data_dir_and_config(
-        &path,
-        openai_runtime_with_server(openai_server.base_url()),
+    let cassie = Cassie::new_in_memory_with_config(openai_runtime_with_server(openai_server.base_url()),
     )
     .unwrap();
 

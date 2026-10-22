@@ -3,20 +3,11 @@ fn should_skip_missing_table_drop_in_fresh_memory_storage() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let data_dir = support::data_dir("memory_drop_absent_table_if_exists");
-        let _data_directory = DataDirectory(data_dir.clone());
         let mut config = cassie::config::CassieRuntimeConfig::from_env()
             .expect("read runtime config for memory-backed fixture");
         config.password = "postgres".to_string();
-
-        let previous_storage_mode = std::env::var_os("CASSIE_STORAGE_MODE");
-        std::env::set_var("CASSIE_STORAGE_MODE", "memory");
-        let cassie_result = Cassie::new_with_data_dir_and_config(&data_dir, config.clone());
-        match previous_storage_mode {
-            Some(mode) => std::env::set_var("CASSIE_STORAGE_MODE", mode),
-            None => std::env::remove_var("CASSIE_STORAGE_MODE"),
-        }
-        let engine = cassie_result.expect("construct memory-backed Cassie fixture");
+        let engine = Cassie::new_in_memory_with_config(config.clone())
+            .expect("construct memory-backed Cassie fixture");
         engine
             .startup()
             .expect("start memory-backed Cassie fixture");

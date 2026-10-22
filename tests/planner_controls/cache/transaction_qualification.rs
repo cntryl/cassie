@@ -2,8 +2,6 @@ use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 use cassie::CassieRuntimeConfig;
 
-use crate::support_sql::{data_dir, use_local_storage};
-
 const QUERY: &str = "SELECT marker FROM cache_tx_qualified ORDER BY marker";
 
 fn metric(cassie: &Cassie, field: &str) -> u64 {
@@ -52,10 +50,7 @@ fn assert_transaction_read(cassie: &Cassie, session: &CassieSession, expected: &
 #[test]
 fn should_bypass_a_proven_warm_result_cache_through_savepoint_rollback() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("cache_warm_transaction_savepoint");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, CassieRuntimeConfig::default())
-        .expect("Cassie");
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("Cassie");
     let session = cassie.create_session("cache_reader", None);
     for sql in [
         "CREATE TABLE cache_tx_qualified (marker TEXT)",
@@ -108,6 +103,4 @@ fn should_bypass_a_proven_warm_result_cache_through_savepoint_rollback() {
     drop(session);
     cassie.shutdown();
     drop(cassie);
-    std::fs::remove_dir_all(&path).expect("cleanup after engine drops");
-    assert!(!std::path::Path::new(&path).exists());
 }

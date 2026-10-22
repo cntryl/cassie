@@ -11,7 +11,8 @@ use cassie::config::CassieRuntimeConfig;
 fn should_reject_parse_metadata_before_publication_when_shared_budget_is_exceeded() {
     // Arrange
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.limits.query_memory_budget_bytes = 1_024;
+    let budget_bytes = 8_192;
+    config.limits.query_memory_budget_bytes = budget_bytes;
     let fixture = sql_fixture_with_config("parse-metadata-budget", &[], config.clone());
     fixture.cassie.startup().expect("startup");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -28,13 +29,11 @@ fn should_reject_parse_metadata_before_publication_when_shared_budget_is_exceede
             .await
             .expect("bind listener");
         let address = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            address.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             Arc::new(fixture.cassie.clone()),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let socket = tokio::net::TcpStream::connect(address)
             .await
             .expect("connect pgwire");
@@ -98,6 +97,15 @@ fn should_reject_parse_metadata_before_publication_when_shared_budget_is_exceede
         wire::error_code(std::slice::from_ref(&first)).as_deref(),
         Some("53200"),
         "first Parse+Flush reply before Sync: {first:?}"
+    );
+    let first_message = wire::parse_error_fields(&first.1)
+        .into_iter()
+        .find_map(|(field, message)| (field == 'M').then_some(message))
+        .expect("over-budget Parse includes an ErrorResponse message");
+    let budget_suffix = format!(" > {budget_bytes}");
+    assert!(
+        first_message.ends_with(budget_suffix.as_str()),
+        "4096 parameter OIDs must exceed the configured metadata budget: {first_message}"
     );
     assert_eq!(first.0, b'E');
     assert_eq!(ignored, vec![(b'Z', vec![b'I'])]);

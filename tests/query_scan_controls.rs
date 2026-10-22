@@ -64,8 +64,5 @@ mod support_column_projection_fixture;
 #[path = "support/teardown_evidence.rs"]
 mod support_teardown_evidence;
 
-#[path = "support/retrieval_directory.rs"]
-mod support_retrieval_directory;
-
 #[path = "support/retrieval_phase_evidence.rs"]
 mod support_retrieval_phase_evidence;

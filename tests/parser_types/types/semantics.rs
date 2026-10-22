@@ -1,10 +1,5 @@
-use cassie::app::Cassie;
 use cassie::types::{DataType, Value, Vector};
 use uuid::Uuid;
-
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
 
 fn data_dir(label: &str) -> String {
     crate::support_temp_dirs::sweep_stale_once();
@@ -103,7 +98,6 @@ fn should_validate_deterministic_type_oid_assignments() {
 #[test]
 fn should_roundtrip_supported_sql_values() {
     // Arrange
-    use_local_storage();
     let path = data_dir("roundtrip");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -111,7 +105,7 @@ fn should_roundtrip_supported_sql_values() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -197,7 +191,7 @@ fn should_cast_string_to_uuid() {
 
     runtime.block_on(async {
         let path = data_dir("cast_uuid");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -229,7 +223,7 @@ fn should_cast_null_to_text() {
 
     runtime.block_on(async {
         let path = data_dir("cast_null_text");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -255,7 +249,7 @@ fn should_fail_when_casting_scalar_to_unsupported_type_family() {
 
     runtime.block_on(async {
         let path = data_dir("cast_unsupported_family");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 

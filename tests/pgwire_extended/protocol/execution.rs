@@ -266,7 +266,6 @@ fn assert_extended_lifecycle_frames(frames: &[WireFrame]) {
 #[test]
 fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
     // Arrange
-    use_local_storage();
     let path = data_dir("lifecycle");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -276,7 +275,7 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_extended_query_collection(&cassie);
 
@@ -305,7 +304,6 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
 #[test]
 fn should_preserve_unknown_for_incompatible_text_parameters() {
     // Arrange
-    use_local_storage();
     let path = data_dir("incompatible-text-parameters");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -313,7 +311,7 @@ fn should_preserve_unknown_for_incompatible_text_parameters() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
         cassie.startup().expect("startup");
         seed_incompatible_parameter_collection(&cassie);
         let (addr, server) = spawn_pgwire_server(&cassie).await;

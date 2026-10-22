@@ -1,4 +1,4 @@
-use super::{key_encoding, CassieError, IndexKind, Midge, StorageFamily, Uuid};
+use super::{key_encoding, CassieError, IndexKind, Midge, Uuid};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingSchemaCleanup {
@@ -15,6 +15,16 @@ pub(crate) enum PendingSchemaCleanupAction {
     Index { table: String, index: String },
     #[serde(rename = "DropView")]
     View { view: String },
+}
+
+impl PendingSchemaCleanup {
+    fn collection(&self) -> &str {
+        match &self.action {
+            PendingSchemaCleanupAction::Table { table, .. }
+            | PendingSchemaCleanupAction::Index { table, .. } => table,
+            PendingSchemaCleanupAction::View { view } => view,
+        }
+    }
 }
 
 impl Midge {
@@ -108,15 +118,9 @@ impl Midge {
         blocked_by_epoch: u64,
     ) -> Result<(), CassieError> {
         let table = self.canonical_collection_name(table);
-        let tx = self.begin_schema_readonly_tx()?;
-        if tx
-            .get(&Self::collection_schema_key(&table))
-            .map_err(CassieError::from)?
-            .is_none()
-        {
+        if self.collection_schema(&table).is_none() {
             return Err(CassieError::CollectionNotFound(table));
         }
-        drop(tx);
         let relation_id = self.row_schema(&table)?.relation_id;
         self.save_pending_schema_cleanup(&PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
@@ -134,11 +138,12 @@ impl Midge {
         index: &str,
         blocked_by_epoch: u64,
     ) -> Result<(), CassieError> {
+        let table = self.canonical_collection_name(table);
         self.save_pending_schema_cleanup(&PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
             blocked_by_epoch,
             action: PendingSchemaCleanupAction::Index {
-                table: table.to_string(),
+                table: table.clone(),
                 index: index.to_string(),
             },
         })
@@ -148,18 +153,16 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn defer_drop_view(&self, view: &str, blocked_by_epoch: u64) -> Result<(), CassieError> {
+        let view = self.canonical_collection_name(view);
         self.save_pending_schema_cleanup(&PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
             blocked_by_epoch,
-            action: PendingSchemaCleanupAction::View {
-                view: view.to_string(),
-            },
+            action: PendingSchemaCleanupAction::View { view: view.clone() },
         })
     }
 
     pub(crate) fn pending_schema_cleanups(&self) -> Result<Vec<PendingSchemaCleanup>, CassieError> {
-        let entries =
-            self.raw_scan_prefix(StorageFamily::Schema, &Self::schema_cleanup_prefix())?;
+        let entries = self.scan_database_families(&Self::schema_cleanup_prefix())?;
         let mut cleanups = Vec::new();
         for (_key, value) in entries {
             let cleanup: PendingSchemaCleanup =
@@ -192,8 +195,9 @@ impl Midge {
             }
         }
 
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::schema_cleanup_key(&cleanup.cleanup_id))
+        let collection = cleanup.collection();
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        tx.delete(Self::schema_cleanup_key(collection, &cleanup.cleanup_id))
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -224,13 +228,61 @@ impl Midge {
         &self,
         cleanup: &PendingSchemaCleanup,
     ) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(cleanup.collection())?;
         let value =
             serde_json::to_vec(cleanup).map_err(|error| CassieError::Parse(error.to_string()))?;
-        tx.put(Self::schema_cleanup_key(&cleanup.cleanup_id), value, None)
-            .map_err(CassieError::from)?;
+        tx.put(
+            Self::schema_cleanup_key(cleanup.collection(), &cleanup.cleanup_id),
+            value,
+            None,
+        )
+        .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{key_encoding, Midge, Uuid};
+    use crate::midge::adapter::StorageFamily;
+
+    #[test]
+    fn should_store_pending_schema_cleanup_in_database_family() {
+        // Arrange
+        let path =
+            std::env::temp_dir().join(format!("cassie_schema_cleanup_family_{}", Uuid::new_v4()));
+        let midge = Midge::new_with_data_dir(&path).expect("create Midge");
+        midge
+            .create_collection(
+                "schema_cleanup_family",
+                crate::types::Schema {
+                    fields: vec![crate::types::FieldSchema {
+                        name: "id".to_string(),
+                        data_type: crate::types::DataType::Int,
+                        nullable: false,
+                    }],
+                },
+            )
+            .expect("create collection");
+
+        // Act
+        midge
+            .defer_drop_collection("schema_cleanup_family", 0)
+            .expect("defer collection drop");
+        let prefix = key_encoding::schema_cleanup_prefix();
+        let database_entries = midge
+            .raw_scan_prefix(StorageFamily::Data, &prefix)
+            .expect("scan database-family cleanup records");
+        let global_entries = midge
+            .raw_scan_prefix(StorageFamily::Schema, &prefix)
+            .expect("scan global cleanup records");
+
+        // Assert
+        assert_eq!(database_entries.len(), 1);
+        assert_eq!(global_entries, Vec::<(Vec<u8>, Vec<u8>)>::new());
+        drop(midge);
+        std::fs::remove_dir_all(path).expect("remove test store");
     }
 }

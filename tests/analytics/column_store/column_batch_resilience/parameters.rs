@@ -10,7 +10,7 @@ fn should_recover_from_truncated_or_unknown_version_alp_chunks() {
             }
         })
         .collect::<Vec<_>>();
-    let fixture = ordered_numeric_fixture(
+    let fixture = persistent_ordered_numeric_fixture(
         "column_batch_alp_codec_version",
         "column_batch_alp_codec_version",
         "FLOAT",

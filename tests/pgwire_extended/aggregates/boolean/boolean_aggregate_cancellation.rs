@@ -37,8 +37,8 @@ fn current_thread_runtime() -> tokio::runtime::Runtime {
         .expect("runtime")
 }
 
-fn configured_instance(path: &str, config: CassieRuntimeConfig) -> Cassie {
-    let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("Cassie");
+fn configured_instance(_path: &str, config: CassieRuntimeConfig) -> Cassie {
+    let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
     cassie.startup().expect("start Boolean aggregate fixture");
     cassie
 }
@@ -85,7 +85,6 @@ fn boolean_over_value_product(cardinality: usize) -> String {
 #[test]
 fn should_cancel_boolean_aggregate_input_without_publishing_partial_output() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("issue-805-boolean-aggregate-cancellation");
     let _directory = FixtureDirectory(path.clone());
     let runtime = current_thread_runtime();

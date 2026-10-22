@@ -78,7 +78,7 @@ fn should_route_schema_data_temp_across_families() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let _ = cassie.midge.ensure_families_ready().unwrap();
 
         let collection = "cf_layout_docs";
@@ -150,7 +150,7 @@ fn should_route_schema_data_temp_across_families() {
         );
         assert!(schema_entries
             .iter()
-            .any(|(_, value)| value.as_slice() == b"cassie-midge-layout-v2"));
+            .any(|(_, value)| value.as_slice() == b"cassie-midge-layout-v3"));
         assert!(
             temp_entries.is_empty(),
             "temp family should start empty in bootstrap state"
@@ -188,7 +188,7 @@ fn should_reject_transactions_that_include_schema_plus_data_families() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
 
         // Act
@@ -240,7 +240,7 @@ fn should_reject_v1_data_prefix_after_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible cassie-midge-layout-v2 storage layout"),
+                .contains("incompatible cassie-midge-layout-v3 storage layout"),
             "unexpected error: {error}"
         );
 
@@ -260,7 +260,7 @@ fn should_reject_older_layout_marker() {
             .raw_scan_prefix(StorageFamily::Schema, b"")
             .unwrap()
             .into_iter()
-            .find_map(|(key, value)| (value.as_slice() == b"cassie-midge-layout-v2").then_some(key))
+            .find_map(|(key, value)| (value.as_slice() == b"cassie-midge-layout-v3").then_some(key))
             .expect("baseline layout marker key");
         let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
         tx.put(marker_key, b"cassie-midge-lexkey-v4".to_vec(), None)
@@ -281,7 +281,7 @@ fn should_reject_older_layout_marker() {
         "unexpected error: {diagnostic}"
     );
     assert!(
-        diagnostic.contains("expected baseline marker 'cassie-midge-layout-v2'"),
+        diagnostic.contains("expected baseline marker 'cassie-midge-layout-v3'"),
         "unexpected error: {diagnostic}"
     );
 
@@ -298,7 +298,7 @@ fn should_bootstrap_via_startup_path() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
 
         // Act
         cassie.startup().unwrap();
@@ -323,7 +323,7 @@ fn should_preserve_temp_family_during_startup() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let mut tx = cassie
             .midge
@@ -357,7 +357,7 @@ fn should_keep_cassie_metadata_off_default_family() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.midge.ensure_families_ready().unwrap();
 
         let collection = "cf_layout_default_guard";
@@ -415,7 +415,7 @@ fn should_make_startup_idempotent_when_reinvoked() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
 
         // Act
         cassie.startup().unwrap();

@@ -22,7 +22,6 @@ use support::*;
 fn should_not_persist_row_when_row_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    use_local_storage();
     let path = data_dir("write_row_failpoint");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -30,7 +29,7 @@ fn should_not_persist_row_when_row_family_failpoint_is_triggered() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -90,7 +89,6 @@ fn should_not_persist_row_when_row_family_failpoint_is_triggered() {
 fn should_not_persist_document_when_scalar_index_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    use_local_storage();
     let path = data_dir("write_scalar_index_failpoint");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -98,7 +96,7 @@ fn should_not_persist_document_when_scalar_index_family_failpoint_is_triggered()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -162,7 +160,6 @@ fn should_not_persist_document_when_scalar_index_family_failpoint_is_triggered()
 fn should_not_persist_document_when_time_series_index_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    use_local_storage();
     let path = data_dir("write_time_series_index_failpoint");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -170,7 +167,7 @@ fn should_not_persist_document_when_time_series_index_family_failpoint_is_trigge
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -234,7 +231,6 @@ fn should_not_persist_document_when_time_series_index_family_failpoint_is_trigge
 fn should_not_persist_document_when_graph_adjacency_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    use_local_storage();
     let path = data_dir("write_graph_adjacency_failpoint");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -242,7 +238,7 @@ fn should_not_persist_document_when_graph_adjacency_family_failpoint_is_triggere
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -306,7 +302,6 @@ fn should_not_persist_document_when_graph_adjacency_family_failpoint_is_triggere
 fn should_not_persist_document_when_normalized_vector_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    use_local_storage();
     let path = data_dir("write_normalized_vector_failpoint");
     {
         let mut config = CassieRuntimeConfig::from_env().unwrap();
@@ -314,7 +309,7 @@ fn should_not_persist_document_when_normalized_vector_family_failpoint_is_trigge
             model: "rollback-test".to_string(),
             dimensions: 3,
         });
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -387,7 +382,6 @@ fn should_not_persist_document_when_normalized_vector_family_failpoint_is_trigge
 fn should_not_persist_document_when_vector_state_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    use_local_storage();
     let path = data_dir("write_vector_state_failpoint");
     {
         let mut config = CassieRuntimeConfig::from_env().unwrap();
@@ -395,7 +389,7 @@ fn should_not_persist_document_when_vector_state_family_failpoint_is_triggered()
             model: "rollback-test".to_string(),
             dimensions: 3,
         });
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

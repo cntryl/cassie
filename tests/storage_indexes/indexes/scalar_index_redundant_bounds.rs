@@ -101,7 +101,6 @@ fn query_expression_rows(
 #[test]
 fn should_match_full_scan_when_intersecting_repeated_column_bounds() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_repeated_column_bounds");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -109,7 +108,7 @@ fn should_match_full_scan_when_intersecting_repeated_column_bounds() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             seed_score_table(&cassie, &session, "repeated_column_indexed", true);
@@ -168,7 +167,6 @@ fn should_match_full_scan_when_intersecting_repeated_column_bounds() {
 #[test]
 fn should_match_full_scan_when_intersecting_repeated_expression_bounds() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_repeated_expression_bounds");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -176,7 +174,7 @@ fn should_match_full_scan_when_intersecting_repeated_expression_bounds() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             seed_expression_table(&cassie, &session, "repeated_expression_indexed", true);
@@ -231,7 +229,6 @@ fn should_match_full_scan_when_intersecting_repeated_expression_bounds() {
 #[test]
 fn should_match_full_scan_for_contradictory_column_constraints() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_contradictory_column_constraints");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -239,7 +236,7 @@ fn should_match_full_scan_for_contradictory_column_constraints() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             seed_score_table(&cassie, &session, "contradictory_column_indexed", true);
@@ -296,7 +293,6 @@ fn should_match_full_scan_for_contradictory_column_constraints() {
 #[test]
 fn should_match_full_scan_for_contradictory_expression_constraints() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_contradictory_expression_constraints");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -304,7 +300,7 @@ fn should_match_full_scan_for_contradictory_expression_constraints() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             seed_expression_table(&cassie, &session, "contradictory_expression_indexed", true);
@@ -377,7 +373,6 @@ fn should_match_full_scan_for_contradictory_expression_constraints() {
 #[test]
 fn should_apply_residual_predicates_before_a_scalar_index_limit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("scalar_index_residual_predicate_limit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -385,7 +380,7 @@ fn should_apply_residual_predicates_before_a_scalar_index_limit() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             seed_score_table(&cassie, &session, "residual_limit_indexed", false);

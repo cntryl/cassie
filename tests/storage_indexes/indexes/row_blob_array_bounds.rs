@@ -1,5 +1,5 @@
 use super::support_data_dir::data_dir;
-use cassie::app::{Cassie, CassieError};
+use cassie::app::CassieError;
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema};
 
@@ -12,7 +12,7 @@ fn should_decode_minimum_width_array_elements_without_rejecting_valid_counts() {
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         let cases = [
             (
                 "nulls",
@@ -74,7 +74,7 @@ fn should_reject_impossible_stored_array_count_before_allocating() {
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         let collection = "array_count_bounds";
         cassie
             .midge

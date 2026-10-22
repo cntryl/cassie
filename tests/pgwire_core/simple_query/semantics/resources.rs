@@ -1,9 +1,8 @@
 #[test]
 fn should_encode_table_csv_delimiter_null_force_quote_options() {
     // Arrange
-    use_local_storage();
     let path = data_dir("copy-table-csv-out");
-    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     seed_copy_export_rows(&cassie);
 
@@ -42,7 +41,6 @@ fn should_encode_table_csv_delimiter_null_force_quote_options() {
 #[test]
 fn should_recover_pgwire_after_oversized_sql_resource_limit() {
     // Arrange
-    use_local_storage();
     let path = data_dir("sql-resource-limit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -54,7 +52,7 @@ fn should_recover_pgwire_after_oversized_sql_resource_limit() {
             password: "postgres".to_string(),
             ..CassieRuntimeConfig::default()
         };
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("cassie");
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("cassie");
         cassie.startup().expect("startup");
         let (addr, server) = spawn_pgwire_server_with_config(&cassie, config).await;
         let mut socket = tokio::net::TcpStream::connect(addr)

@@ -1,4 +1,4 @@
-use super::support_sql::{data_dir, use_local_storage};
+use super::support_sql::data_dir;
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 
@@ -8,9 +8,8 @@ const OID_INT4: i64 = 23;
 const OID_NUMERIC: i64 = 1700;
 
 fn seeded(label: &str) -> (Cassie, CassieSession, String) {
-    use_local_storage();
     let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in [

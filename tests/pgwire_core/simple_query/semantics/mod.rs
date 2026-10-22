@@ -10,7 +10,6 @@ use cassie::types::{DataType, FieldSchema, Schema};
 use pgwire_support::{
     copy_data_frame, copy_done_frame, data_dir, parse_data_row, parse_error_fields,
     password_message, read_until_ready, read_wire_frame, simple_query_frame, startup_frame,
-    use_local_storage,
 };
 
 type WireFrame = (u8, Vec<u8>);

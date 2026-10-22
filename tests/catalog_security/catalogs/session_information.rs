@@ -1,5 +1,4 @@
 use super::support_sql as support;
-use cassie::app::Cassie;
 use cassie::types::{DataType, Value};
 use support::*;
 
@@ -12,9 +11,8 @@ fn should_return_version_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("version");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
@@ -43,9 +41,8 @@ fn should_return_postgres_shaped_pg_catalog_version_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("pg_catalog_version");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
@@ -75,9 +72,8 @@ fn should_return_current_schema_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("schema");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
@@ -103,9 +99,8 @@ fn should_return_current_database_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("database");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
@@ -131,9 +126,8 @@ fn should_return_search_path_from_show_statement() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("show_search_path");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
@@ -171,9 +165,8 @@ fn should_return_sqlalchemy_dialect_show_metadata() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("show_sqlalchemy_metadata");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
@@ -206,9 +199,8 @@ fn should_treat_supported_set_statement_as_noop() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("set_supported");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
@@ -236,9 +228,8 @@ fn should_reject_unsupported_show_variable() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("show_unsupported");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
@@ -260,9 +251,8 @@ fn should_reject_unsupported_set_variable() {
         .expect("runtime");
 
     runtime.block_on(async {
-        use_local_storage();
         let path = data_dir("set_unsupported");
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act

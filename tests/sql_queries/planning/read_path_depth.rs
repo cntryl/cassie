@@ -8,7 +8,6 @@ use support::*;
 #[test]
 fn should_scan_mixed_order_suffix_when_prefix_order_field_is_equality_bound() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_path_mixed_order_prefix");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -16,7 +15,7 @@ fn should_scan_mixed_order_suffix_when_prefix_order_field_is_equality_bound() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -110,7 +109,6 @@ fn should_scan_mixed_order_suffix_when_prefix_order_field_is_equality_bound() {
 #[test]
 fn should_scan_index_prefix_then_sort_mixed_direction_suffix() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_path_mixed_order_suffix");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -118,7 +116,7 @@ fn should_scan_index_prefix_then_sort_mixed_direction_suffix() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -218,7 +216,6 @@ fn should_scan_index_prefix_then_sort_mixed_direction_suffix() {
 #[test]
 fn should_scan_nonselective_index_prefix_then_heap_mixed_direction_suffix() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_path_nonselective_mixed_order_suffix");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -226,7 +223,7 @@ fn should_scan_nonselective_index_prefix_then_heap_mixed_direction_suffix() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -426,7 +423,6 @@ fn should_scan_expression_index_after_restart_with_row_blob_projection() {
 #[test]
 fn should_scan_expression_index_range_with_row_blob_projection() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_path_expression_index_range");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -434,7 +430,7 @@ fn should_scan_expression_index_range_with_row_blob_projection() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -560,7 +556,6 @@ fn seed_nullable_expression_order_rows(cassie: &Cassie, session: &cassie::app::C
 #[test]
 fn should_return_null_expression_keys_after_index_ordered_rows() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_path_expression_index_order_asc");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -568,7 +563,7 @@ fn should_return_null_expression_keys_after_index_ordered_rows() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         seed_nullable_expression_order_rows(&cassie, &session);
@@ -640,7 +635,6 @@ fn should_return_null_expression_keys_after_index_ordered_rows() {
 #[test]
 fn should_decline_expression_index_order_limit_when_null_keys_sort_first() {
     // Arrange
-    use_local_storage();
     let path = data_dir("read_path_expression_index_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -648,7 +642,7 @@ fn should_decline_expression_index_order_limit_when_null_keys_sort_first() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         let session = cassie.create_session("tester", None);
 
         cassie

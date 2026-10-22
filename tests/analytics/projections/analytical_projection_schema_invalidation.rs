@@ -9,7 +9,6 @@ use support::*;
 #[test]
 fn should_fall_back_after_renaming_columns_used_by_projection() {
     // Arrange
-    use_local_storage();
     let path = data_dir("analytical_projection_column_rename_invalidation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -17,7 +16,7 @@ fn should_fall_back_after_renaming_columns_used_by_projection() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             cassie
@@ -79,7 +78,6 @@ fn should_fall_back_after_renaming_columns_used_by_projection() {
 #[test]
 fn should_fall_back_after_projected_column_name_is_reused() {
     // Arrange
-    use_local_storage();
     let path = data_dir("analytical_projection_column_drop_invalidation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -87,7 +85,7 @@ fn should_fall_back_after_projected_column_name_is_reused() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             cassie

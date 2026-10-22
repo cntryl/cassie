@@ -7,7 +7,6 @@ pub const COLLECTION: &str = "controlled_column_store";
 pub struct Fixture {
     pub cassie: Cassie,
     pub session: CassieSession,
-    path: String,
     payload_bytes: usize,
     column_store: bool,
 }
@@ -38,22 +37,19 @@ impl Fixture {
     }
 
     fn create(
-        label: &str,
+        _label: &str,
         budget: usize,
         workers: usize,
         rows: usize,
         payload_bytes: usize,
         column_store: bool,
     ) -> Self {
-        crate::support_sql::use_local_storage();
-        let path = crate::support_sql::data_dir(label);
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_memory_budget_bytes = budget;
         config.limits.parallel_scan_workers = workers;
         config.limits.vectorized_joins_enabled = true;
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-        let cassie =
-            Cassie::new_with_data_dir_and_config(&path, config).expect("controlled Cassie");
+        let cassie = Cassie::new_in_memory_with_config(config).expect("controlled Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         let suffix = if column_store {
@@ -81,7 +77,6 @@ impl Fixture {
         Self {
             cassie,
             session,
-            path,
             payload_bytes,
             column_store,
         }
@@ -129,12 +124,6 @@ impl Fixture {
             metrics["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
         );
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
     }
 }
 

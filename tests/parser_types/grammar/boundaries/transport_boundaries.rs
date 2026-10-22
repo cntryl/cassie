@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use cassie::app::{Cassie, CassieError};
+use cassie::app::CassieError;
 use reqwest::StatusCode;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Notify;
@@ -11,9 +11,8 @@ use super::support_pgwire as support;
 #[test]
 fn should_apply_the_same_parser_complexity_limit_given_rest_pgwire_and_direct_sql() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("parser-transport-limit");
-    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let direct_session = cassie.create_session("direct", None);
     let oversized = "x".repeat(1024 * 1024 + 1);

@@ -4,13 +4,13 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1642 |
-| Rust files | 1610 |
-| Rust test declarations | 8614 |
+| Files under `tests/` | 1614 |
+| Rust files | 1582 |
+| Rust test declarations | 8514 |
 | Python test declarations | 19 |
-| Static Rust registration instances | 8742 |
+| Static Rust registration instances | 8642 |
 | Cargo test targets | 32 |
-| Reconciled backfill names | 138 |
+| Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |
 | Unresolved module paths | 0 |
 | Duplicate registered test identities | 0 |
@@ -28,23 +28,23 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 
 | Owner | Source declarations | Review required |
 | --- | ---: | ---: |
-| [analytics](inventory/analytics.md) | 176 | 0 |
+| [analytics](inventory/analytics.md) | 179 | 0 |
 | [backend_ci](inventory/backend_ci.md) | 2 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 395 | 0 |
-| [compatibility](inventory/compatibility.md) | 515 | 0 |
+| [compatibility](inventory/compatibility.md) | 522 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
 | [domain_models](inventory/domain_models.md) | 87 | 0 |
-| [executor](inventory/executor.md) | 108 | 0 |
+| [executor](inventory/executor.md) | 110 | 0 |
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
 | [json_writes](inventory/json_writes.md) | 20 | 0 |
 | [metrics](inventory/metrics.md) | 58 | 0 |
 | [null_safe_predicates](inventory/null_safe_predicates.md) | 42 | 0 |
-| [parser_types](inventory/parser_types.md) | 372 | 0 |
+| [parser_types](inventory/parser_types.md) | 393 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 3740 | 8 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 3667 | 8 |
 | [planner_controls](inventory/planner_controls.md) | 123 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 75 | 0 |
@@ -54,10 +54,10 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
 | [sql_mutations](inventory/sql_mutations.md) | 310 | 0 |
-| [sql_queries](inventory/sql_queries.md) | 1796 | 0 |
+| [sql_queries](inventory/sql_queries.md) | 1738 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
-| [storage_indexes](inventory/storage_indexes.md) | 184 | 0 |
+| [storage_indexes](inventory/storage_indexes.md) | 182 | 0 |
 | [support](inventory/support.md) | 9 | 0 |
 | [temporal_predicate_literals](inventory/temporal_predicate_literals.md) | 1 | 0 |
 | [test_inventory](inventory/test_inventory.md) | 3 | 0 |
@@ -116,6 +116,7 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 | Proposed file | Test body lines | Tests |
 | --- | ---: | ---: |
 | `tests/executor/commands/semantics.rs` | 810 | 13 |
+| `tests/parser_types/grammar/expressions/semantics.rs` | 801 | 36 |
 | `tests/parser_types/grammar/indexes/semantics.rs` | 878 | 27 |
 | `tests/pgwire_extended/grammar/bytea_functions_parameters.rs` | 895 | 11 |
 | `tests/pgwire_extended/grammar/scalar_batch_09.rs` | 821 | 45 |
@@ -132,6 +133,6 @@ Each item links to a registered assertion in the backfill list. Authoring status
 
 | Status | Names |
 | --- | ---: |
-| `authored` | 124 |
+| `authored` | 117 |
 | `existing_equivalent` | 13 |
 | `oracle_corrected` | 1 |

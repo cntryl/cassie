@@ -4,8 +4,6 @@ use cassie::config::{
 };
 use cassie::types::Value;
 
-use super::support_sql as support;
-
 use super::support_retrieval_phase_evidence::{RetrievalPhase, RetrievalPhaseEvidence};
 
 const COLLECTION: &str = "specialized_retrieval_controls";
@@ -64,9 +62,9 @@ impl RetrievalCase {
 }
 
 struct RetrievalFixture {
-    // Fields drop in declaration order; storage owners must precede cleanup.
+    // Cassie drops before the diagnostic evidence owner.
     cassie: Cassie,
-    path: super::support_retrieval_directory::RetrievalDirectory,
+    evidence: RetrievalPhaseEvidence,
     case: RetrievalCase,
 }
 
@@ -105,7 +103,7 @@ impl RetrievalFixture {
             RetrievalCase::VectorExact => &[],
         };
         for (index, phase) in indexes {
-            self.path.evidence().entered(*phase);
+            self.evidence.entered(*phase);
             self.cassie
                 .execute_sql(
                     &self.cassie.create_session("tester", None),
@@ -113,7 +111,7 @@ impl RetrievalFixture {
                     vec![],
                 )
                 .expect("drop retrieval accelerator");
-            self.path.evidence().returned(*phase);
+            self.evidence.returned(*phase);
         }
     }
 }
@@ -121,21 +119,19 @@ impl RetrievalFixture {
 impl Drop for RetrievalFixture {
     fn drop(&mut self) {
         // Keep the restriction on moving the engine out of the fixture.
-        // The engine and directory guard then drop in declaration order.
-        self.path
-            .evidence()
+        self.evidence
             .entered(RetrievalPhase::FixtureFieldsRetirement);
     }
 }
 
 fn fixture(case: RetrievalCase, memory_budget: usize) -> RetrievalFixture {
-    fixture_with_setup(case, memory_budget, |_, _| {})
+    fixture_with_setup(case, memory_budget, |_| {})
 }
 
 fn fixture_with_setup(
     case: RetrievalCase,
     memory_budget: usize,
-    after_setup: impl FnOnce(&Cassie, &str),
+    after_setup: impl FnOnce(&Cassie),
 ) -> RetrievalFixture {
     fixture_with_evidence(
         case,
@@ -150,22 +146,16 @@ fn fixture_observed(
     memory_budget: usize,
     evidence: RetrievalPhaseEvidence,
 ) -> RetrievalFixture {
-    fixture_with_evidence(case, memory_budget, |_, _| {}, evidence)
+    fixture_with_evidence(case, memory_budget, |_| {}, evidence)
 }
 
 fn fixture_with_evidence(
     case: RetrievalCase,
     memory_budget: usize,
-    after_setup: impl FnOnce(&Cassie, &str),
-    evidence: RetrievalPhaseEvidence,
+    after_setup: impl FnOnce(&Cassie),
+    mut evidence: RetrievalPhaseEvidence,
 ) -> RetrievalFixture {
     evidence.entered(RetrievalPhase::StorageConfiguration);
-    support::use_local_storage();
-    let path = support::data_dir(&format!("specialized-{}", case.label()));
-    // Construct this before the engine so partial setup unwinds owner first.
-    let mut directory = super::support_retrieval_directory::RetrievalDirectory::new(path);
-    let mut evidence = evidence.for_path(directory.path());
-    directory.set_evidence(evidence.clone());
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = memory_budget;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
@@ -177,10 +167,8 @@ fn fixture_with_evidence(
     evidence.returned(RetrievalPhase::StorageConfiguration);
     evidence.not_applicable(RetrievalPhase::ServerTeardown);
     evidence.entered(RetrievalPhase::EngineConstruction);
-    let cassie =
-        Cassie::new_with_data_dir_and_config(directory.path(), config).expect("retrieval fixture");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("retrieval fixture");
     evidence.observe_midge(&cassie.midge);
-    directory.set_evidence(evidence.clone());
     evidence.returned(RetrievalPhase::EngineConstruction);
     evidence.entered(RetrievalPhase::Startup);
     cassie.startup().expect("startup retrieval fixture");
@@ -221,10 +209,10 @@ fn fixture_with_evidence(
         .expect("seed exact retrieval fixture");
     evidence.returned(RetrievalPhase::SeedRows);
     create_retrieval_indexes(&cassie, &session, case, &evidence);
-    after_setup(&cassie, directory.path());
+    after_setup(&cassie);
     RetrievalFixture {
         cassie,
-        path: directory,
+        evidence,
         case,
     }
 }
@@ -557,17 +545,17 @@ fn assert_selected_metrics(
     );
 }
 
-fn run_selected_retrieval_paths(caller: &'static str) -> Vec<String> {
+fn run_selected_retrieval_paths(caller: &'static str) -> usize {
     let invocation = RetrievalPhaseEvidence::new(caller);
     invocation.entered(RetrievalPhase::ThreadLocalGuard);
     let _guard = cassie::midge::adapter::query_scan_control_test_guard();
     invocation.returned(RetrievalPhase::ThreadLocalGuard);
-    let mut paths = Vec::new();
+    let mut fixtures = 0;
     for case in RetrievalCase::ALL {
         // Arrange
         let fixture = fixture_observed(case, 4 * 1024 * 1024, invocation.for_case(case.label()));
-        paths.push(fixture.path.path().to_owned());
-        let evidence = fixture.path.evidence().clone();
+        fixtures += 1;
+        let evidence = fixture.evidence.clone();
         let _query_locals = evidence.query_locals_scope();
         evidence.entered(RetrievalPhase::ReaderCreation);
         let session = fixture.cassie.create_session("reader", None);
@@ -642,7 +630,7 @@ fn run_selected_retrieval_paths(caller: &'static str) -> Vec<String> {
         drop((first, second));
         assert_query_cleanup(&fixture.cassie);
     }
-    paths
+    fixtures
 }
 #[test]
 fn should_publish_only_deterministic_bounded_final_retrieval_paths() {
@@ -652,21 +640,15 @@ fn should_publish_only_deterministic_bounded_final_retrieval_paths() {
 #[test]
 fn should_drop_retrieval_fixture_owners_without_shutdown_timeout() {
     // Arrange
-    let mut paths = Vec::new();
+    let mut fixtures = 0;
 
     // Act
     let warnings = super::support_teardown_evidence::capture_warnings(|| {
-        paths = run_selected_retrieval_paths("fixture_teardown_warnings");
+        fixtures = run_selected_retrieval_paths("fixture_teardown_warnings");
     });
 
     // Assert
-    assert_eq!(paths.len(), RetrievalCase::ALL.len());
-    for path in paths {
-        assert!(
-            !std::path::Path::new(&path).exists(),
-            "retrieval fixture directory survived teardown: {path}"
-        );
-    }
+    assert_eq!(fixtures, RetrievalCase::ALL.len());
     assert!(
         !warnings.contains("Midge graceful shutdown did not complete"),
         "retrieval teardown warnings: {warnings}"
@@ -674,22 +656,16 @@ fn should_drop_retrieval_fixture_owners_without_shutdown_timeout() {
 }
 
 #[test]
-fn should_clean_retrieval_directory_when_setup_unwinds() {
+fn should_drop_retrieval_fixture_when_setup_unwinds() {
     // Arrange
-    let mut path = String::new();
     let mut outcome = Ok(());
 
     // Act
     let warnings = super::support_teardown_evidence::capture_warnings(|| {
         outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            fixture_with_setup(
-                RetrievalCase::VectorHnsw,
-                4 * 1024 * 1024,
-                |_, directory| {
-                    path = directory.to_owned();
-                    panic!("controlled retrieval setup panic");
-                },
-            );
+            fixture_with_setup(RetrievalCase::VectorHnsw, 4 * 1024 * 1024, |_| {
+                panic!("controlled retrieval setup panic");
+            });
         }));
     });
 
@@ -699,8 +675,6 @@ fn should_clean_retrieval_directory_when_setup_unwinds() {
         error.downcast_ref::<&str>(),
         Some(&"controlled retrieval setup panic")
     );
-    assert_ne!(path, "");
-    assert!(!std::path::Path::new(&path).exists());
     assert!(
         !warnings.contains("Midge graceful shutdown did not complete"),
         "setup unwind warnings: {warnings}"
@@ -716,8 +690,7 @@ fn should_release_retrieval_engine_while_cloned_reader_results_remain_live() {
         4 * 1024 * 1024,
         invocation.for_case(RetrievalCase::VectorHnsw.label()),
     );
-    let evidence = fixture.path.evidence().clone();
-    let path = fixture.path.path().to_owned();
+    let evidence = fixture.evidence.clone();
     evidence.entered(RetrievalPhase::ReaderCreation);
     let reader = fixture.cassie.create_session("reader", None);
     let escaped_reader = reader.clone();
@@ -740,7 +713,6 @@ fn should_release_retrieval_engine_while_cloned_reader_results_remain_live() {
     evidence.entered(RetrievalPhase::Assertions);
     assert_eq!(escaped_reader.user, "reader");
     assert_eq!(result.rows().len(), RESULT_LIMIT);
-    assert!(!std::path::Path::new(&path).exists());
     assert!(
         !warnings.contains("Midge graceful shutdown did not complete"),
         "escaped reader teardown warnings: {warnings}"

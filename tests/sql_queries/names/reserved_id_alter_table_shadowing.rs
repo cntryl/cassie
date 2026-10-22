@@ -3,7 +3,7 @@ use super::support_sql as support;
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 
-use support::{data_dir, use_local_storage};
+use support::data_dir;
 
 fn run(cassie: &Cassie, session: &CassieSession, statements: &[&str]) {
     for statement in statements {
@@ -16,9 +16,8 @@ fn run(cassie: &Cassie, session: &CassieSession, statements: &[&str]) {
 #[test]
 fn should_shadow_the_identity_alias_after_adding_an_id_column() {
     // Arrange
-    use_local_storage();
     let path = data_dir("reserved_id_alter_add_id_column");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     run(

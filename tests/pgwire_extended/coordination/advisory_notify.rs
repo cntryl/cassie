@@ -1,7 +1,6 @@
 //! PostgreSQL 18.6 advisory-lock and LISTEN/NOTIFY wire semantics for #822.
 
 use crate::support_pgwire as wire;
-use cassie::app::Cassie;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -91,7 +90,6 @@ fn assert_command(frames: &Frames, expected_tag: &str) {
 #[test]
 fn should_observe_advisory_lock_ownership_across_pgwire_sessions() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("issue-822-advisory-lock-pgwire-sessions");
     let _directory = FixtureDirectory(path.clone());
     let runtime = current_thread_runtime();
@@ -106,7 +104,7 @@ fn should_observe_advisory_lock_ownership_across_pgwire_sessions() {
         owner_recovery,
         contender_recovery,
     ) = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("start advisory-lock fixture");
         let server = wire::spawn_server(cassie).await;
         let (mut owner_reader, mut owner_writer) = connect_session(&server).await;
@@ -307,14 +305,13 @@ async fn run_unlock_all_queries(
 #[test]
 fn should_release_session_locks_with_unlock_all_over_pgwire() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("issue-822-advisory-unlock-all-pgwire");
     let _directory = FixtureDirectory(path.clone());
     let runtime = current_thread_runtime();
 
     // Act
     let observations = runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie.startup().expect("start advisory unlock-all fixture");
         let server = wire::spawn_server(cassie).await;
         let (mut owner_reader, mut owner_writer) = connect_session(&server).await;

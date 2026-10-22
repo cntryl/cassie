@@ -2,8 +2,10 @@ use super::{
     bm25, normalize_relation_name, resolve_relation_path, schema_index_options, BindingContext,
     CassieError, Catalog, CollectionSchema, DataType, Expr, HashSet,
 };
-use crate::catalog::{derive_scoped_name, parse_name, ParsedName};
+use crate::catalog::{derive_scoped_name, local_name, parse_name, IndexMeta, ParsedName};
 use crate::sql::ast::{CreateIndexStatement, IdentifierPath};
+
+const MAX_GENERATED_INDEX_IDENTIFIER_BYTES: usize = 63;
 
 pub(super) fn bind_create_index(
     mut statement: CreateIndexStatement,
@@ -19,17 +21,17 @@ pub(super) fn bind_create_index(
     if !catalog.exists(&table) {
         return Err(CassieError::CollectionNotFound(table));
     }
+    reject_unsupported_scalar_access_method(&statement)?;
 
-    let name = match parse_name(statement.name.trim()).map_err(CassieError::Planner)? {
-        ParsedName::Unqualified(name) => derive_scoped_name(&table, |_| name),
-        _ => normalize_relation_name(statement.name.trim(), context)?,
+    let mut name = if statement.name.trim().is_empty() {
+        String::new()
+    } else {
+        match parse_name(statement.name.trim()).map_err(CassieError::Planner)? {
+            ParsedName::Unqualified(name) => derive_scoped_name(&table, |_| name),
+            _ => normalize_relation_name(statement.name.trim(), context)?,
+        }
     };
-    if name.is_empty() {
-        return Err(CassieError::Planner(
-            "CREATE INDEX requires an index name".into(),
-        ));
-    }
-    if statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
+    if !name.is_empty() && statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
         statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
         statement.name = name;
         return Ok(statement);
@@ -51,10 +53,15 @@ pub(super) fn bind_create_index(
         .get_schema(&table)
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
     let fields = declared_field_names(&schema, fields);
-    let expressions = expressions
-        .iter()
-        .map(|expr| declared_expression_columns(&schema, expr))
-        .collect::<Vec<_>>();
+    let expressions = declared_index_expressions(&schema, &expressions);
+    if name.is_empty() {
+        name = generated_index_name(&table, &fields, catalog);
+    }
+    if statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
+        statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
+        statement.name = name;
+        return Ok(statement);
+    }
     validate_index_shape(&statement, &fields, &expressions)?;
 
     let include_fields = declared_field_names(&schema, normalize_fields(&statement.include_fields));
@@ -113,6 +120,163 @@ pub(super) fn bind_create_index(
     statement.expressions = expressions;
     statement.include_fields = include_fields;
     Ok(statement)
+}
+
+fn reject_unsupported_scalar_access_method(
+    statement: &CreateIndexStatement,
+) -> Result<(), CassieError> {
+    let hash_method = statement
+        .options
+        .get(IndexMeta::ACCESS_METHOD_OPTION)
+        .is_some_and(|method| method.eq_ignore_ascii_case("hash"));
+    if statement.kind == crate::catalog::IndexKind::Scalar && hash_method {
+        return Err(CassieError::Unsupported(
+            "hash indexes are not supported by the scalar index implementation".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn declared_index_expressions(schema: &CollectionSchema, expressions: &[Expr]) -> Vec<Expr> {
+    expressions
+        .iter()
+        .map(|expression| declared_expression_columns(schema, expression))
+        .collect()
+}
+
+fn generated_index_name(table: &str, fields: &[String], catalog: &Catalog) -> String {
+    let indexed_columns = if fields.is_empty() {
+        vec!["expression".to_string()]
+    } else {
+        fields.to_vec()
+    };
+    let base = format!("{}_{}_idx", local_name(table), indexed_columns.join("_"));
+    let mut collision = 0_usize;
+
+    loop {
+        let suffix = if collision == 0 {
+            String::new()
+        } else {
+            format!("_{collision}")
+        };
+        let prefix_limit = MAX_GENERATED_INDEX_IDENTIFIER_BYTES.saturating_sub(suffix.len());
+        let local = format!(
+            "{}{suffix}",
+            truncate_identifier_prefix(&base, prefix_limit)
+        );
+        let scoped = derive_scoped_name(table, |_| local);
+        if catalog.get_index(table, &scoped).is_none() {
+            return scoped;
+        }
+        collision = collision.saturating_add(1);
+    }
+}
+
+fn truncate_identifier_prefix(value: &str, max_bytes: usize) -> &str {
+    let mut end = value.len().min(max_bytes);
+    while !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    &value[..end]
+}
+
+pub(super) fn resolve_drop_index_name(
+    raw: &str,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<Option<IndexMeta>, CassieError> {
+    let reference = parse_name(raw).map_err(CassieError::Planner)?;
+    if matches!(reference, ParsedName::DatabaseQualified { .. }) {
+        // Keep DROP INDEX inside the same database-scoping contract as relation
+        // references, even when IF EXISTS is present.
+        normalize_relation_name(raw, context)?;
+    }
+
+    let (database, schema, local) = match reference {
+        ParsedName::Unqualified(local) => (None, None, local),
+        ParsedName::SchemaQualified { schema, name } => (None, Some(schema), name),
+        ParsedName::DatabaseQualified {
+            database,
+            schema,
+            name,
+        } => (Some(database), Some(schema), name),
+    };
+    let indexes = catalog.all_indexes_snapshot();
+    let schemas = schema.map_or_else(
+        || {
+            context
+                .relation_search_order()
+                .into_iter()
+                .map(str::to_owned)
+                .collect()
+        },
+        |schema| vec![schema],
+    );
+
+    for schema in schemas {
+        let matching = indexes
+            .iter()
+            .filter(|index| {
+                index_name_matches_scope(index, context, database.as_deref(), &schema, &local)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        match matching.as_slice() {
+            [] => {}
+            [index] => return Ok(Some(index.clone())),
+            _ => {
+                return Err(CassieError::Planner(format!(
+                    "index reference '{raw}' is ambiguous in schema '{schema}'"
+                )));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn index_name_matches_scope(
+    index: &IndexMeta,
+    context: &BindingContext,
+    database: Option<&str>,
+    schema: &str,
+    local: &str,
+) -> bool {
+    let (index_database, index_schema, index_local) = match parse_name(&index.name) {
+        Ok(ParsedName::DatabaseQualified {
+            database,
+            schema,
+            name,
+        }) => (Some(database), schema, name),
+        Ok(ParsedName::SchemaQualified { schema, name }) => (
+            crate::catalog::relation_database_name(&index.collection),
+            schema,
+            name,
+        ),
+        Ok(ParsedName::Unqualified(name)) => match parse_name(&index.collection) {
+            Ok(ParsedName::DatabaseQualified {
+                database,
+                schema,
+                name: _,
+            }) => (Some(database), schema, name),
+            Ok(ParsedName::SchemaQualified { schema, name: _ }) => (None, schema, name),
+            Ok(ParsedName::Unqualified(_)) | Err(_) => {
+                (None, crate::catalog::DEFAULT_SCHEMA.to_string(), name)
+            }
+        },
+        Err(_) => return false,
+    };
+    let effective_database = index_database.unwrap_or_else(|| context.database.clone());
+    let database_matches = database.map_or_else(
+        || {
+            !context.scopes_database_objects()
+                || effective_database.eq_ignore_ascii_case(&context.database)
+        },
+        |database| effective_database.eq_ignore_ascii_case(database),
+    );
+
+    database_matches
+        && index_schema.eq_ignore_ascii_case(schema)
+        && index_local.eq_ignore_ascii_case(local)
 }
 
 fn bind_index_predicate(

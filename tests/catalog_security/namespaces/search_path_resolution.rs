@@ -3,13 +3,11 @@ use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 use support::*;
 
-fn start(label: &str) -> (Cassie, CassieSession, String) {
-    use_local_storage();
-    let path = data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+fn start(_label: &str) -> (Cassie, CassieSession) {
+    let cassie = new_in_memory_cassie().unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
-    (cassie, session, path)
+    (cassie, session)
 }
 
 fn run(cassie: &Cassie, session: &CassieSession, sql: &str) {
@@ -21,7 +19,7 @@ fn run(cassie: &Cassie, session: &CassieSession, sql: &str) {
 #[test]
 fn should_keep_renamed_table_in_its_source_schema() {
     // Arrange
-    let (cassie, session, path) = start("rename_keeps_schema");
+    let (cassie, session) = start("rename_keeps_schema");
     run(&cassie, &session, "CREATE SCHEMA reporting");
     run(&cassie, &session, "CREATE TABLE reporting.orders (id INT)");
     run(
@@ -47,13 +45,12 @@ fn should_keep_renamed_table_in_its_source_schema() {
     assert!(cassie
         .execute_sql(&session, "SELECT id FROM public.archive", vec![])
         .is_err());
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_reject_schema_qualified_rename_target() {
     // Arrange
-    let (cassie, session, path) = start("rename_rejects_qualified_target");
+    let (cassie, session) = start("rename_rejects_qualified_target");
     run(&cassie, &session, "CREATE SCHEMA reporting");
     run(&cassie, &session, "CREATE TABLE orders (id INT)");
 
@@ -69,13 +66,12 @@ fn should_reject_schema_qualified_rename_target() {
     assert!(cassie
         .execute_sql(&session, "SELECT id FROM public.orders", vec![])
         .is_ok());
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_drop_view_found_later_in_search_path() {
     // Arrange
-    let (cassie, session, path) = start("drop_view_search_path");
+    let (cassie, session) = start("drop_view_search_path");
     run(&cassie, &session, "CREATE SCHEMA beta");
     run(&cassie, &session, "CREATE TABLE beta.base (id INT)");
     run(
@@ -92,13 +88,12 @@ fn should_drop_view_found_later_in_search_path() {
     assert!(cassie
         .execute_sql(&session, "SELECT id FROM v", vec![])
         .is_err());
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_drop_projection_found_later_in_search_path() {
     // Arrange
-    let (cassie, session, path) = start("drop_projection_search_path");
+    let (cassie, session) = start("drop_projection_search_path");
     run(&cassie, &session, "CREATE SCHEMA beta");
     run(&cassie, &session, "CREATE TABLE beta.base (id INT)");
     run(
@@ -113,13 +108,12 @@ fn should_drop_projection_found_later_in_search_path() {
 
     // Assert
     assert!(dropped.is_ok(), "projection p resolves through search_path");
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_resolve_unqualified_catalog_names_to_pg_catalog_first() {
     // Arrange
-    let (cassie, session, path) = start("pg_catalog_precedence");
+    let (cassie, session) = start("pg_catalog_precedence");
     run(&cassie, &session, "CREATE TABLE pg_class (relname TEXT)");
     run(
         &cassie,
@@ -140,13 +134,12 @@ fn should_resolve_unqualified_catalog_names_to_pg_catalog_first() {
 
     // Assert
     assert!(rows.is_empty(), "unqualified pg_class must be the catalog");
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_accept_postgres_default_search_path() {
     // Arrange
-    let (cassie, session, path) = start("default_search_path");
+    let (cassie, session) = start("default_search_path");
 
     // Act
     let set = cassie.execute_sql(&session, "SET search_path TO \"$user\", public", vec![]);
@@ -163,13 +156,12 @@ fn should_accept_postgres_default_search_path() {
     assert!(cassie
         .execute_sql(&session, "SELECT id FROM public.lands_in_public", vec![])
         .is_ok());
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_resolve_user_search_path_entry_to_role_schema() {
     // Arrange
-    let (cassie, session, path) = start("user_search_path_schema");
+    let (cassie, session) = start("user_search_path_schema");
     run(&cassie, &session, "CREATE SCHEMA tester");
     run(&cassie, &session, "SET search_path TO \"$user\", public");
 
@@ -180,13 +172,12 @@ fn should_resolve_user_search_path_entry_to_role_schema() {
     assert!(cassie
         .execute_sql(&session, "SELECT id FROM tester.owned_by_user", vec![])
         .is_ok());
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_skip_missing_search_path_schemas_when_creating() {
     // Arrange
-    let (cassie, session, path) = start("missing_search_path_schema_create");
+    let (cassie, session) = start("missing_search_path_schema_create");
     run(
         &cassie,
         &session,
@@ -200,12 +191,11 @@ fn should_skip_missing_search_path_schemas_when_creating() {
     assert!(cassie
         .execute_sql(&session, "SELECT id FROM public.skips_missing", vec![])
         .is_ok());
-    let _ = std::fs::remove_dir_all(path);
 }
 #[test]
 fn should_report_the_existing_schema_used_by_name_binding() {
     // Arrange
-    let (cassie, session, path) = start("current_existing_schema");
+    let (cassie, session) = start("current_existing_schema");
     run(&cassie, &session, "CREATE SCHEMA tester");
     let raw = cassie::app::CassieSession::new("tester".into(), None);
 
@@ -272,5 +262,4 @@ fn should_report_the_existing_schema_used_by_name_binding() {
             .rows(),
         vec![vec![Value::String("public".into())]]
     );
-    let _ = std::fs::remove_dir_all(path);
 }

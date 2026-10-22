@@ -18,11 +18,9 @@ fn runtime() -> tokio::runtime::Runtime {
 #[test]
 fn should_serve_authenticated_queries_given_an_owned_listener_when_clients_connect_immediately() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("bound-listener-startup");
     let config = CassieRuntimeConfig::default();
-    let cassie =
-        Arc::new(Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("Cassie"));
+    let cassie = Arc::new(Cassie::new_in_memory_with_config(config.clone()).expect("Cassie"));
     cassie.startup().expect("startup");
     runtime().block_on(async {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -67,14 +65,12 @@ fn should_serve_authenticated_queries_given_an_owned_listener_when_clients_conne
 #[test]
 fn should_reject_insecure_transport_given_a_wildcard_listener_when_serving_is_requested() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("bound-listener-transport");
     let config = CassieRuntimeConfig {
         password: "bound-listener-test-password".to_owned(),
         ..CassieRuntimeConfig::default()
     };
-    let cassie =
-        Arc::new(Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("Cassie"));
+    let cassie = Arc::new(Cassie::new_in_memory_with_config(config.clone()).expect("Cassie"));
     let error = runtime().block_on(async {
         let listener = tokio::net::TcpListener::bind("0.0.0.0:0")
             .await
@@ -94,15 +90,13 @@ fn should_reject_insecure_transport_given_a_wildcard_listener_when_serving_is_re
 #[test]
 fn should_reject_invalid_tls_identity_given_an_owned_listener_when_serving_is_requested() {
     // Arrange
-    wire::use_local_storage();
     let path = wire::data_dir("bound-listener-invalid-tls");
     let config = CassieRuntimeConfig {
         pgwire_tls_cert_file: Some(format!("{path}/missing-cert.pem")),
         pgwire_tls_key_file: Some(format!("{path}/missing-key.pem")),
         ..CassieRuntimeConfig::default()
     };
-    let cassie =
-        Arc::new(Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("Cassie"));
+    let cassie = Arc::new(Cassie::new_in_memory_with_config(config.clone()).expect("Cassie"));
     let error = runtime().block_on(async {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

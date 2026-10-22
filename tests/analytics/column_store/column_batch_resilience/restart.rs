@@ -1,7 +1,7 @@
 #[test]
 fn should_reconcile_failed_refresh_debt_after_restart() {
     // Arrange
-    let fixture = amount_fixture(
+    let fixture = persistent_amount_fixture(
         "column_batch_failed_refresh",
         "column_batch_failed_refresh",
         &[Value::Int64(2)],
@@ -61,7 +61,7 @@ fn should_reconcile_failed_refresh_debt_after_restart() {
 #[test]
 fn should_rebuild_generation_mismatch_after_restart() {
     // Arrange
-    let fixture = amount_fixture(
+    let fixture = persistent_amount_fixture(
         "column_batch_generation_mismatch",
         "column_batch_generation_mismatch",
         &[Value::Int64(4), Value::Int64(6)],
@@ -119,7 +119,7 @@ fn should_rebuild_truncated_fsst_chunk_after_restart() {
             }
         })
         .collect::<Vec<_>>();
-    let fixture = ordered_numeric_fixture(
+    let fixture = persistent_ordered_numeric_fixture(
         "column_batch_fsst_restart",
         "column_batch_fsst_restart",
         "TEXT",
@@ -192,7 +192,7 @@ fn should_rebuild_truncated_fsst_chunk_after_restart() {
 #[test]
 fn should_rebuild_old_metadata_format_after_restart() {
     // Arrange
-    let fixture = amount_fixture(
+    let fixture = persistent_amount_fixture(
         "column_batch_metadata_format",
         "column_batch_metadata_format",
         &[Value::Int64(3), Value::Int64(7)],
@@ -228,7 +228,7 @@ fn should_rebuild_old_metadata_format_after_restart() {
 #[test]
 fn should_reconcile_invalid_summary_formats_after_restart() {
     // Arrange
-    let fixture = amount_fixture(
+    let fixture = persistent_amount_fixture(
         "column_batch_summary_recovery",
         "column_batch_summary_recovery",
         &[Value::Int64(3), Value::Int64(7)],
@@ -305,7 +305,7 @@ fn should_reconcile_invalid_summary_formats_after_restart() {
 #[test]
 fn should_rebuild_source_count_mismatch_after_restart() {
     // Arrange
-    let fixture = amount_fixture(
+    let fixture = persistent_amount_fixture(
         "column_batch_source_count",
         "column_batch_source_count",
         &[Value::Int64(2), Value::Int64(5)],
@@ -340,7 +340,7 @@ fn should_rebuild_source_count_mismatch_after_restart() {
 #[test]
 fn should_fallback_when_any_segment_is_missing_and_rebuild_after_restart() {
     // Arrange
-    let fixture = amount_fixture(
+    let fixture = persistent_amount_fixture(
         "column_batch_missing_segment",
         "column_batch_missing_segment",
         &[Value::Int64(1), Value::Int64(2), Value::Int64(3)],

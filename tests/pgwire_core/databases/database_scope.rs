@@ -3,9 +3,7 @@ use super::support_pgwire as pgwire_support;
 use std::time::Duration;
 
 use cassie::app::Cassie;
-use pgwire_support::{
-    data_dir, parse_error_fields, read_wire_frame, startup_frame, use_local_storage,
-};
+use pgwire_support::{data_dir, parse_error_fields, read_wire_frame, startup_frame};
 
 fn password_frame(password: &str) -> Vec<u8> {
     pgwire_support::password_message(password)
@@ -14,7 +12,6 @@ fn password_frame(password: &str) -> Vec<u8> {
 #[test]
 fn should_report_3d000_for_missing_startup_database() {
     // Arrange
-    use_local_storage();
     let path = data_dir("missing_database");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -24,7 +21,7 @@ fn should_report_3d000_for_missing_startup_database() {
     runtime.block_on(async {
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

@@ -40,7 +40,6 @@ fn scalar_index_sidecars(cassie: &Cassie, collection: &str) -> Vec<(Vec<u8>, Vec
 #[test]
 fn should_defer_drop_table_physical_cleanup_until_pinned_schema_epoch_drains() {
     // Arrange
-    use_local_storage();
     let path = data_dir("drop_table_deferred_cleanup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -48,7 +47,7 @@ fn should_defer_drop_table_physical_cleanup_until_pinned_schema_epoch_drains() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -105,7 +104,6 @@ fn should_defer_drop_table_physical_cleanup_until_pinned_schema_epoch_drains() {
 #[test]
 fn should_defer_drop_index_sidecar_cleanup_until_pinned_schema_epoch_drains() {
     // Arrange
-    use_local_storage();
     let path = data_dir("drop_index_deferred_cleanup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -113,7 +111,7 @@ fn should_defer_drop_index_sidecar_cleanup_until_pinned_schema_epoch_drains() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -214,7 +212,6 @@ fn should_defer_drop_index_sidecar_cleanup_until_pinned_schema_epoch_drains() {
 #[test]
 fn should_defer_drop_view_metadata_cleanup_until_pinned_schema_epoch_drains() {
     // Arrange
-    use_local_storage();
     let path = data_dir("drop_view_deferred_cleanup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -222,7 +219,7 @@ fn should_defer_drop_view_metadata_cleanup_until_pinned_schema_epoch_drains() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -336,15 +333,13 @@ fn should_finish_pending_schema_cleanup_on_startup_without_rehydrating_dropped_t
 #[test]
 fn should_execute_saved_plan_with_schema_snapshot_after_column_rename() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("saved_plan_column_rename");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -402,23 +397,19 @@ fn should_execute_saved_plan_with_schema_snapshot_after_column_rename() {
             cassie::types::Value::String("alpha".to_string())
         );
         assert!(old_name.is_err());
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_execute_saved_plan_with_schema_snapshot_after_column_drop() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("saved_plan_column_drop");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -472,23 +463,19 @@ fn should_execute_saved_plan_with_schema_snapshot_after_column_drop() {
         );
         assert_eq!(current.columns().len(), 1);
         assert!(dropped.is_err());
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }
 
 #[test]
 fn should_keep_saved_wildcard_plan_on_schema_snapshot_after_column_add() {
     // Arrange
-    use_local_storage();
-    let path = data_dir("saved_plan_column_add");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -544,7 +531,5 @@ fn should_keep_saved_wildcard_plan_on_schema_snapshot_after_column_add() {
                 .collect::<Vec<_>>(),
             vec!["id", "title", "status"]
         );
-
-        let _ = std::fs::remove_dir_all(path);
     });
 }

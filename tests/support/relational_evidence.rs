@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use cassie::app::Cassie;
 use cassie::types::Value;
 
-use crate::support_sql::{data_dir, use_local_storage};
+use crate::support_sql::new_in_memory_cassie;
 
 #[derive(Clone)]
 struct Fact {
@@ -39,15 +39,13 @@ impl SeededRelationalFixture {
     }
 
     pub fn execute(&self) -> RelationalComparison {
-        use_local_storage();
-        let path = data_dir("seeded-relational-evidence");
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("relational evidence runtime");
 
         runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("relational evidence Cassie");
+            let cassie = new_in_memory_cassie().expect("relational evidence Cassie");
             cassie.startup().expect("start relational evidence Cassie");
             let session = cassie.create_session("relational-evidence", None);
             execute(
@@ -123,7 +121,6 @@ impl SeededRelationalFixture {
             );
             let expected_aggregate = expected_aggregate(&facts);
 
-            let _ = std::fs::remove_dir_all(path);
             RelationalComparison {
                 keyed_join,
                 filtered_cross_join,

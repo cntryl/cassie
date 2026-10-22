@@ -1,7 +1,6 @@
 #[test]
 fn should_reject_adaptive_candidate_cap_overflow() {
     // Arrange
-    use_local_storage();
     let path = data_dir("adaptive_candidate_cap");
     let config = adaptive_candidate_config(1, 1);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -10,7 +9,7 @@ fn should_reject_adaptive_candidate_cap_overflow() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let collection = "metrics_adaptive_candidate_cap";
         register_adaptive_candidate_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -50,7 +49,6 @@ fn should_reject_adaptive_candidate_cap_overflow() {
 #[test]
 fn should_skip_runtime_operator_switch_for_unsupported_join_type() {
     // Arrange
-    use_local_storage();
     let path = data_dir("operator_switch_unsupported");
     let config = operator_switch_config(true, 0);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -59,7 +57,7 @@ fn should_skip_runtime_operator_switch_for_unsupported_join_type() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         let session = cassie.create_session("tester", None);
         create_switch_join_tables(
             &cassie,

@@ -2,13 +2,12 @@
 use cassie::app::{Cassie, CassieSession};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 
-pub fn fixture() -> (Cassie, CassieSession, String, String) {
-    let path = crate::support_sql::data_dir("column-limit-retention");
+pub fn fixture() -> (Cassie, CassieSession, String) {
     let mut config = CassieRuntimeConfig::from_env().expect("configuration");
     config.limits.query_memory_budget_bytes = 1024 * 1024;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("engine");
+    let cassie = Cassie::new_in_memory_with_config(config).expect("engine");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -35,5 +34,5 @@ pub fn fixture() -> (Cassie, CassieSession, String, String) {
         )
         .expect("column index");
 
-    (cassie, session, path, payload)
+    (cassie, session, payload)
 }

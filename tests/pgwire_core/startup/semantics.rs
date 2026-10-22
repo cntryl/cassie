@@ -4,9 +4,7 @@ use std::time::Duration;
 
 use cassie::app::Cassie;
 
-use pgwire_support::{
-    data_dir, parse_error_fields, password_message, startup_frame, use_local_storage,
-};
+use pgwire_support::{data_dir, parse_error_fields, password_message, startup_frame};
 
 const TEST_PASSWORD: &str = "cassie-pgwire-startup-password";
 
@@ -120,7 +118,6 @@ fn parse_parameter_status(payload: &[u8]) -> (String, String) {
 #[test]
 fn should_validate_every_startup_parameter_regardless_of_user_value() {
     // Arrange
-    use_local_storage();
     let path = data_dir("startup_parameter_validation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -129,7 +126,7 @@ fn should_validate_every_startup_parameter_regardless_of_user_value() {
 
     runtime.block_on(async {
             let config = authenticated_config();
-            let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+            let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
             cassie.startup().unwrap();
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
                 .await
@@ -197,7 +194,6 @@ fn should_validate_every_startup_parameter_regardless_of_user_value() {
 #[test]
 fn should_support_binary_startup_with_password_authentication() {
     // Arrange
-    use_local_storage();
     let path = data_dir("auth_ok");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -206,7 +202,7 @@ fn should_support_binary_startup_with_password_authentication() {
 
     runtime.block_on(async {
         let config = authenticated_config();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -247,7 +243,6 @@ fn should_support_binary_startup_with_password_authentication() {
 #[test]
 fn should_emit_startup_parameter_statuses_after_password_authentication() {
     // Arrange
-    use_local_storage();
     let path = data_dir("parameter_statuses");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -256,7 +251,7 @@ fn should_emit_startup_parameter_statuses_after_password_authentication() {
 
     runtime.block_on(async {
         let config = authenticated_config();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -314,7 +309,6 @@ fn should_emit_startup_parameter_statuses_after_password_authentication() {
 #[test]
 fn should_emit_backend_key_data_after_authentication() {
     // Arrange
-    use_local_storage();
     let path = data_dir("backend_key_data");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -323,7 +317,7 @@ fn should_emit_backend_key_data_after_authentication() {
 
     runtime.block_on(async {
         let config = authenticated_config();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -374,7 +368,6 @@ fn should_emit_backend_key_data_after_authentication() {
 #[test]
 fn should_accept_libpq_startup_hints_with_password_authentication() {
     // Arrange
-    use_local_storage();
     let path = data_dir("libpq_hints");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -383,7 +376,7 @@ fn should_accept_libpq_startup_hints_with_password_authentication() {
 
     runtime.block_on(async {
         let config = authenticated_config();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -431,7 +424,6 @@ fn should_accept_libpq_startup_hints_with_password_authentication() {
 #[test]
 fn should_return_not_supported_for_ssl_request() {
     // Arrange
-    use_local_storage();
     let path = data_dir("ssl_request");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -440,7 +432,7 @@ fn should_return_not_supported_for_ssl_request() {
 
     runtime.block_on(async {
         let config = authenticated_config();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -482,7 +474,6 @@ fn should_return_not_supported_for_ssl_request() {
 #[test]
 fn should_error_when_password_does_not_match_for_cleartext_auth() {
     // Arrange
-    use_local_storage();
     let path = data_dir("auth_failure");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -492,7 +483,7 @@ fn should_error_when_password_does_not_match_for_cleartext_auth() {
     runtime.block_on(async {
         let mut config = authenticated_config();
         config.password = "correct-password".to_string();
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

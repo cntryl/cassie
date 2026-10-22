@@ -5,6 +5,34 @@ use std::time::Duration;
 use super::{FieldSchema, IndexKind, IndexMeta, Midge, Schema};
 
 #[test]
+fn should_decode_pending_field_add_without_default_from_legacy_record() {
+    // Arrange
+    let pending = super::schema_ops::PendingFieldAdd {
+        collection: "postgres.public.records".to_string(),
+        field: FieldSchema {
+            name: "added".to_string(),
+            data_type: crate::types::DataType::Int,
+            nullable: true,
+        },
+        default_value: Some(serde_json::json!(7)),
+        target_generation: 2,
+    };
+    let mut legacy_record = serde_json::to_value(pending).expect("serialize field-add record");
+    legacy_record
+        .as_object_mut()
+        .expect("field-add record is an object")
+        .remove("default_value");
+
+    // Act
+    let decoded: super::schema_ops::PendingFieldAdd =
+        serde_json::from_value(legacy_record).expect("decode legacy field-add record");
+
+    // Assert
+    assert_eq!(decoded.default_value, None);
+    assert_eq!(decoded.target_generation, 2);
+}
+
+#[test]
 fn should_serialize_field_rename_with_collection_writes() {
     // Arrange
     let path =

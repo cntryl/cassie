@@ -109,6 +109,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | **DDL** | | |
 | CREATE/DROP TABLE, VIEW, SEQUENCE, DATABASE, SCHEMA, INDEX | Supported | — |
 | ALTER TABLE single action | Supported | #839 (multi-action, ALTER TYPE, rename/move) |
+| ALTER TABLE ADD COLUMN IF NOT EXISTS | Supported for the selected single-action form; an existing field is preserved, and literal defaults are applied to historical rows with rollback/restart coverage | #839 |
 | CREATE OR REPLACE VIEW, ALTER VIEW, updatable views | Absent | #839 |
 | Multi-name DROP, CASCADE/RESTRICT, IF EXISTS everywhere | Partial | #839 |
 | CREATE TABLE AS, LIKE, SELECT INTO, UNLOGGED | Absent | #826 |

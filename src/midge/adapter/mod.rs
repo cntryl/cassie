@@ -57,6 +57,7 @@ thread_local! {
     static UNIQUE_CONSTRAINT_CLEANUP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static COLLECTION_RENAME_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static FIELD_ADD_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static FIELD_ADD_BACKFILL_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static FIELD_RENAME_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static FIELD_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static OPERATOR_FEEDBACK_PERSISTENCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
@@ -279,6 +280,20 @@ pub(crate) fn check_field_add_failure_point() -> Result<(), CassieError> {
     if FIELD_ADD_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure after field add schema commit".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_field_add_backfill_failure_point(enabled: bool) {
+    FIELD_ADD_BACKFILL_FAILPOINT.set(enabled);
+}
+
+pub(crate) fn check_field_add_backfill_failure_point() -> Result<(), CassieError> {
+    if FIELD_ADD_BACKFILL_FAILPOINT.replace(false) {
+        return Err(CassieError::Execution(
+            "injected test failure after field-add default backfill batch".to_string(),
         ));
     }
     Ok(())

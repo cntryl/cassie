@@ -931,6 +931,39 @@ impl CassieSession {
             .collect()
     }
 
+    pub(crate) fn apply_literal_default_to_staged_rows(
+        &self,
+        collection: &str,
+        field: &str,
+        default_value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        if !self.is_transaction_active() || default_value.is_null() {
+            return Ok(());
+        }
+
+        for (staged_collection, changes) in self.transaction_writes() {
+            if !crate::catalog::name_matches(&staged_collection, collection) {
+                continue;
+            }
+            for (id, change) in changes {
+                let TransactionRowChange::Upsert(mut payload) = change else {
+                    continue;
+                };
+                let Some(object) = payload.as_object_mut() else {
+                    return Err(CassieError::Execution(format!(
+                        "staged row '{id}' in '{staged_collection}' is not a JSON object"
+                    )));
+                };
+                if object.contains_key(field) {
+                    continue;
+                }
+                object.insert(field.to_owned(), default_value.clone());
+                self.stage_document_write(&staged_collection, id, payload)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn stage_conflict_intent(&self, intent: TransactionConflictIntent) {
         self.transaction.lock().conflict_intents.push(intent);
     }

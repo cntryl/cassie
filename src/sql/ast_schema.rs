@@ -16,6 +16,8 @@ pub enum AlterTableOperation {
         field: String,
         data_type: DataType,
         #[serde(default)]
+        if_not_exists: bool,
+        #[serde(default)]
         constraints: Vec<FieldConstraint>,
     },
     AddConstraint {

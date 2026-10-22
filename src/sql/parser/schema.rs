@@ -416,10 +416,12 @@ pub(super) fn parse_alter_table_operation(
     let lower = raw.to_lowercase();
     if lower.starts_with("add column") {
         let field_def = raw["add column".len()..].trim();
+        let (if_not_exists, field_def) = parse_if_not_exists(field_def);
         let definition = parse_field_definition_for_table(field_def, Some(table))?;
         return Ok(AlterTableOperation::AddColumn {
             field: definition.name,
             data_type: definition.data_type,
+            if_not_exists,
             constraints: definition.constraints,
         });
     }

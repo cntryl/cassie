@@ -54,30 +54,37 @@ impl Cassie {
         ) {
             return Ok(());
         }
-        let physical = if matches!(parsed.statement, QueryStatement::Select(_)) {
-            let key = self.plan_cache_key_from_fingerprint(
-                sql_fingerprint,
-                parameter_types,
-                ExecutionMode::ExtendedQuery,
-                session.database.clone(),
-                &session.search_path(),
-            );
-            self.resolve_physical_plan_with_parameter_oids(
-                parsed,
-                key,
-                Some(session),
-                Some(controls),
-                parameter_types,
-            )?
-            .0
-        } else {
-            self.compile_physical_plan_with_parameter_oids(
-                parsed,
-                Some(session),
-                Some(controls),
-                parameter_types,
-            )?
-        };
+        let catalog_overlay = session.transaction_catalog_overlay();
+        let mut scoped_cassie = self.clone();
+        if let Some(catalog) = catalog_overlay.as_ref() {
+            scoped_cassie.catalog = catalog.clone();
+        }
+        let physical =
+            if matches!(parsed.statement, QueryStatement::Select(_)) && catalog_overlay.is_none() {
+                let key = self.plan_cache_key_from_fingerprint(
+                    sql_fingerprint,
+                    parameter_types,
+                    ExecutionMode::ExtendedQuery,
+                    session.database.clone(),
+                    &session.search_path(),
+                );
+                scoped_cassie
+                    .resolve_physical_plan_with_parameter_oids(
+                        parsed,
+                        key,
+                        Some(session),
+                        Some(controls),
+                        parameter_types,
+                    )?
+                    .0
+            } else {
+                scoped_cassie.compile_physical_plan_with_parameter_oids(
+                    parsed,
+                    Some(session),
+                    Some(controls),
+                    parameter_types,
+                )?
+            };
         crate::executor::check_bound_plan_constants(&physical.logical, controls, parameters)?;
         controls.check_interruption()
     }

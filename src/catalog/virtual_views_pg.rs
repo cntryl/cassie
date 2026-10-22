@@ -6,6 +6,9 @@ use crate::types::{DataType, Value};
 
 use super::VirtualRow;
 
+#[path = "virtual_views_pg/index_definitions.rs"]
+mod index_definitions;
+
 pub(super) fn namespace_schema() -> Vec<(String, DataType)> {
     vec![int("oid"), text("nspname"), int("nspowner"), text("nspacl")]
 }
@@ -62,6 +65,7 @@ pub(super) fn index_schema() -> Vec<(String, DataType)> {
         text("indkey"),
         int("indnatts"),
         int("indnkeyatts"),
+        text("indoption"),
         bool("indisvalid"),
         bool("indisready"),
         text("indpred"),
@@ -231,12 +235,21 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
                 bool_value("indisunique", index.unique),
                 bool_value("indisprimary", primary),
                 string("indkey", index_keys(catalog, &index)),
-                int_value("indnatts", index_key_count(catalog, &index)),
+                int_value("indnatts", index_attribute_count(catalog, &index)),
                 int_value("indnkeyatts", index_key_count(catalog, &index)),
+                string("indoption", index_options(&index)),
                 bool_value("indisvalid", true),
                 bool_value("indisready", true),
                 string("indpred", index.predicate.clone().unwrap_or_default()),
-                string("indexprs", index.normalized_expressions().join(", ")),
+                string(
+                    "indexprs",
+                    index
+                        .normalized_expressions()
+                        .iter()
+                        .map(|expression| format_stored_expression(expression))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                ),
             ]
         })
         .collect()
@@ -391,48 +404,30 @@ fn sorted_indexes(catalog: &Catalog) -> Vec<IndexMeta> {
     indexes
 }
 
-fn index_definition(index: &IndexMeta) -> String {
-    let include = if index.include_fields.is_empty() {
-        String::new()
-    } else {
-        format!(
-            " INCLUDE ({})",
-            index
-                .normalized_include_fields()
-                .iter()
-                .map(|field| crate::catalog::object_identity::quote_identifier(field))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    };
-    let predicate = index
-        .predicate
-        .as_ref()
-        .map(|predicate| format!(" WHERE {predicate}"))
-        .unwrap_or_default();
-    let keys = index
-        .normalized_fields()
+pub(super) fn index_definition_by_oid(catalog: &Catalog, oid: i64) -> Option<String> {
+    sorted_indexes(catalog)
         .into_iter()
-        .map(|field| crate::catalog::object_identity::quote_identifier(&field))
-        .chain(index.normalized_expressions())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let qualified_table = format!(
-        "{}.{}",
-        crate::catalog::object_identity::quote_identifier(
-            &relation_schema_name(&index.collection,)
-        ),
-        crate::catalog::object_identity::quote_identifier(&local_name(&index.collection))
-    );
-    format!(
-        "CREATE {}INDEX {} ON {} USING {} ({})",
-        if index.unique { "UNIQUE " } else { "" },
-        crate::catalog::object_identity::quote_identifier(&local_name(&index.name)),
-        qualified_table,
-        index.access_method(),
-        keys
-    ) + &include
-        + &predicate
+        .find(|index| index_oid(&index.name) == oid)
+        .map(|index| index_definition(&index))
+}
+
+pub(super) fn index_definition_by_name(catalog: &Catalog, name: &str) -> Option<String> {
+    let matches = sorted_indexes(catalog)
+        .into_iter()
+        .filter(|index| crate::catalog::name_matches(&index.name, name))
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [index] => Some(index_definition(index)),
+        _ => None,
+    }
+}
+
+pub(super) fn index_definition(index: &IndexMeta) -> String {
+    index_definitions::index_definition(index)
+}
+
+pub(super) fn format_stored_expression(raw: &str) -> String {
+    index_definitions::format_stored_expression(raw)
 }
 
 fn index_is_primary(catalog: &Catalog, index: &IndexMeta) -> bool {
@@ -500,6 +495,16 @@ fn index_keys(catalog: &Catalog, index: &IndexMeta) -> String {
                 .into_iter()
                 .map(|_| "0".to_string()),
         )
+        .chain(index.normalized_include_fields().into_iter().map(|field| {
+            schema
+                .fields
+                .iter()
+                .position(|candidate| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(&candidate.name)
+                        == crate::sql::ColumnIdentifierPath::stored_field_key(&field)
+                })
+                .map_or_else(|| "0".to_string(), |position| (position + 1).to_string())
+        }))
         .collect::<Vec<_>>();
     keys.join(" ")
 }
@@ -514,7 +519,28 @@ fn index_key_count(catalog: &Catalog, index: &IndexMeta) -> usize {
             .split_whitespace()
             .filter(|key| !key.is_empty())
             .count()
+            .saturating_sub(index.normalized_include_fields().len())
     }
+}
+
+fn index_attribute_count(catalog: &Catalog, index: &IndexMeta) -> usize {
+    index_key_count(catalog, index) + index.normalized_include_fields().len()
+}
+
+fn index_options(index: &IndexMeta) -> String {
+    (0..index.normalized_fields().len() + index.normalized_expressions().len())
+        .map(|position| {
+            let descending = index
+                .key_option(position, "order")
+                .is_some_and(|order| order.eq_ignore_ascii_case("desc"));
+            let nulls_first = index
+                .key_option(position, "nulls")
+                .map_or(descending, |nulls| nulls.eq_ignore_ascii_case("first"));
+            u8::from(descending) | (u8::from(nulls_first) << 1)
+        })
+        .map(|option| option.to_string())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn constraint_for_field<'a>(

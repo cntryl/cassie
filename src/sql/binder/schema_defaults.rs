@@ -65,6 +65,7 @@ pub(super) fn bind_alter_defaults(
             field,
             data_type,
             constraints,
+            ..
         } => bind_constraint_defaults(field, data_type, constraints),
         AlterTableOperation::AlterColumnSetDefault {
             field,

@@ -1,8 +1,9 @@
 use cassie::app::Cassie;
 use cassie::midge::adapter::{
     set_collection_drop_failure_point, set_collection_rename_failure_point,
-    set_field_add_failure_point, set_field_drop_failure_point, set_field_rename_failure_point,
-    set_index_drop_failure_point, Midge, StorageFamily,
+    set_field_add_backfill_failure_point, set_field_add_failure_point,
+    set_field_drop_failure_point, set_field_rename_failure_point, set_index_drop_failure_point,
+    Midge, StorageFamily,
 };
 use cassie::types::{DataType, FieldSchema, Schema};
 
@@ -13,6 +14,25 @@ static COLLECTION_DROP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex:
 static COLLECTION_RENAME_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 static INDEX_DROP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 static FIELD_ADD_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static FIELD_ADD_BACKFILL_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn write_added_field_before_recovery(midge: &Midge, collection: &str) {
+    let interrupted_rows = midge
+        .scan_documents(collection)
+        .expect("read rows after the schema commit");
+    let mut overridden_row = interrupted_rows
+        .into_iter()
+        .find(|row| row.payload.get("keep").and_then(serde_json::Value::as_str) == Some("alpha"))
+        .expect("find the row whose post-commit value should win");
+    overridden_row
+        .payload
+        .as_object_mut()
+        .expect("row payload is an object")
+        .insert("added".to_string(), serde_json::json!(42));
+    midge
+        .put_document(collection, Some(overridden_row.id), overridden_row.payload)
+        .expect("write a value before field-add recovery");
+}
 
 #[test]
 fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
@@ -33,10 +53,10 @@ fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
     cassie
         .execute_sql(
             &session,
-            "INSERT INTO field_add_recovery (keep) VALUES ('alpha')",
+            "INSERT INTO field_add_recovery (keep) VALUES ('alpha'), ('beta')",
             vec![],
         )
-        .expect("seed row");
+        .expect("seed rows");
     cassie
         .execute_sql(
             &session,
@@ -47,15 +67,12 @@ fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
     let collection = canonical_test_collection(&cassie, "field_add_recovery");
     // Act
     set_field_add_failure_point(true);
+    let session = cassie.create_session("tester", None);
     assert!(cassie
-        .midge
-        .alter_collection_add_column(
-            &collection,
-            FieldSchema {
-                name: "added".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            },
+        .execute_sql(
+            &session,
+            "ALTER TABLE field_add_recovery ADD COLUMN added INT DEFAULT 7",
+            vec![],
         )
         .is_err());
     let schema_after_interrupt = cassie
@@ -66,6 +83,7 @@ fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
         .fields
         .iter()
         .any(|field| field.name == "added"));
+    write_added_field_before_recovery(&cassie.midge, &collection);
     drop(cassie);
 
     let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
@@ -74,7 +92,7 @@ fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
     let result = restarted
         .execute_sql(
             &restarted_session,
-            "SELECT keep, added FROM field_add_recovery",
+            "SELECT keep, added FROM field_add_recovery ORDER BY keep",
             vec![],
         )
         .expect("query after field-add replay");
@@ -101,12 +119,18 @@ fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
     // Assert
     assert_eq!(
         result.rows(),
-        vec![vec![
-            cassie::types::Value::String("alpha".to_string()),
-            cassie::types::Value::Null,
-        ]]
+        vec![
+            vec![
+                cassie::types::Value::String("alpha".to_string()),
+                cassie::types::Value::Int64(42),
+            ],
+            vec![
+                cassie::types::Value::String("beta".to_string()),
+                cassie::types::Value::Int64(7),
+            ],
+        ]
     );
-    assert_eq!(generation, 2);
+    assert_eq!(generation, 3);
     assert_eq!(root.built_generation, generation);
     assert_eq!(metadata.built_generation, generation);
     assert!(restarted_again
@@ -114,6 +138,68 @@ fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
         .root_hash(&collection)
         .expect("read root after second restart")
         .is_some());
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_resume_add_column_default_backfill_after_batch_interruption() {
+    // Arrange
+    use_local_storage();
+    let _failpoint_guard = FIELD_ADD_BACKFILL_FAILPOINT_GUARD.lock().unwrap();
+    let path = data_dir("schema_operation_field_add_backfill_recovery");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE field_add_backfill_recovery (keep TEXT)",
+            vec![],
+        )
+        .expect("create table");
+    let collection = canonical_test_collection(&cassie, "field_add_backfill_recovery");
+    let documents = (0..257)
+        .map(|index| (None, serde_json::json!({"keep": format!("row-{index}")})))
+        .collect();
+    cassie
+        .midge
+        .put_documents(&collection, documents)
+        .expect("seed more rows than one backfill batch");
+
+    // Act
+    set_field_add_backfill_failure_point(true);
+    assert!(cassie
+        .execute_sql(
+            &session,
+            "ALTER TABLE field_add_backfill_recovery ADD COLUMN added INT DEFAULT 7",
+            vec![],
+        )
+        .is_err());
+    let interrupted_rows = cassie
+        .midge
+        .scan_documents(&collection)
+        .expect("read rows after the interrupted backfill");
+    let backfilled_count = interrupted_rows
+        .iter()
+        .filter(|row| row.payload.get("added").and_then(serde_json::Value::as_i64) == Some(7))
+        .count();
+    drop(cassie);
+
+    let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    restarted.startup().expect("resume field-add backfill");
+    let recovered_rows = restarted
+        .midge
+        .scan_documents(&collection)
+        .expect("read rows after backfill recovery");
+    drop(restarted);
+
+    // Assert
+    assert_eq!(backfilled_count, 256);
+    assert_eq!(recovered_rows.len(), 257);
+    assert!(recovered_rows
+        .iter()
+        .all(|row| { row.payload.get("added").and_then(serde_json::Value::as_i64) == Some(7) }));
 
     let _ = std::fs::remove_dir_all(path);
 }

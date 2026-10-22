@@ -11,13 +11,18 @@ pub(super) fn admit(
     parameter_type_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<AdmittedParameterTypes, ExtendedQueryError> {
+    let catalog_overlay = session.transaction_catalog_overlay();
+    let mut scoped_cassie = cassie.clone();
+    if let Some(catalog) = catalog_overlay.as_ref() {
+        scoped_cassie.catalog = catalog.clone();
+    }
     crate::sql::parse_analysis::normalize_type_functions(parsed, parameter_type_oids, controls)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    let admitted = with_function_input_scope(cassie, session, |scope| {
+    let admitted = with_function_input_scope(&scoped_cassie, session, |scope| {
         crate::sql::checked_wire_parse_parameter_types_in_scope(
             parsed,
             parameter_type_oids,
-            &cassie.catalog,
+            &scoped_cassie.catalog,
             controls,
             Some(scope),
         )
@@ -28,8 +33,8 @@ pub(super) fn admit(
     crate::sql::parse_analysis::validate(
         parsed,
         admitted.types(),
-        &cassie.catalog,
-        &cassie.binding_context_for_session(Some(session)),
+        &scoped_cassie.catalog,
+        &scoped_cassie.binding_context_for_session(Some(session)),
         controls,
     )
     .map_err(|error| ExtendedQueryError::cassie(&error))?;

@@ -42,6 +42,7 @@ pub(super) fn bind_alter_checks(
             field,
             data_type,
             constraints,
+            ..
         } => {
             if matches!(data_type, DataType::Boolean) {
                 booleans.insert(crate::sql::ColumnIdentifierPath::stored_field_key(field));

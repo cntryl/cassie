@@ -189,6 +189,11 @@ impl Cassie {
             (mode, parameter_type_oids),
             controls,
         )?;
+        if session.transaction_catalog_overlay().is_some() {
+            // Transactional DDL can change names and output columns without
+            // publishing a new shared schema epoch until commit.
+            cache_context.cache_key = None;
+        }
         if bound_parameters {
             // Physical access paths depend on actual bounds, while the plan key
             // deliberately contains parameter shapes rather than values.

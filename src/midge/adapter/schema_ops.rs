@@ -1,9 +1,10 @@
 use super::{
     check_collection_drop_failure_point, check_collection_rename_failure_point,
-    check_field_add_failure_point, check_field_drop_failure_point,
-    check_field_rename_failure_point, collect_scan, key_encoding, CassieError, CollectionMeta,
-    FieldConstraint, FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta, ProjectionMeta,
-    Query, RetentionPolicyMeta, RowSchema, Schema,
+    check_field_add_backfill_failure_point, check_field_add_failure_point,
+    check_field_drop_failure_point, check_field_rename_failure_point, collect_scan, key_encoding,
+    CassieError, CollectionMeta, DocumentWriteBatchOptions, DocumentWriteOp, FieldConstraint,
+    FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta, ProjectionMeta, Query,
+    RetentionPolicyMeta, RowSchema, Schema,
 };
 
 #[path = "schema_ops_field_maintenance.rs"]
@@ -19,10 +20,12 @@ struct PendingCollectionRename {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct PendingFieldAdd {
-    collection: String,
-    field: FieldSchema,
-    target_generation: u64,
+pub(super) struct PendingFieldAdd {
+    pub(super) collection: String,
+    pub(super) field: FieldSchema,
+    #[serde(default)]
+    pub(super) default_value: Option<serde_json::Value>,
+    pub(super) target_generation: u64,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -392,6 +395,15 @@ impl Midge {
         collection: &str,
         field: FieldSchema,
     ) -> Result<(), CassieError> {
+        self.alter_collection_add_column_with_default(collection, field, None)
+    }
+
+    pub(crate) fn alter_collection_add_column_with_default(
+        &self,
+        collection: &str,
+        field: FieldSchema,
+        default_value: Option<serde_json::Value>,
+    ) -> Result<(), CassieError> {
         let collection_storage = self.canonical_collection_name(collection);
         let collection = collection_storage.as_str();
         let write_gate = self.collection_write_gate(collection);
@@ -441,6 +453,7 @@ impl Midge {
                 .ok_or_else(|| {
                     CassieError::Execution("added field missing from updated schema".to_string())
                 })?,
+            default_value,
             target_generation,
         };
         tx.put(
@@ -792,6 +805,9 @@ impl Midge {
     }
 
     fn complete_field_add_data(&self, pending: &PendingFieldAdd) -> Result<(), CassieError> {
+        if let Some(default_value) = pending.default_value.as_ref() {
+            self.backfill_added_field_default(pending, default_value)?;
+        }
         let current_generation = self.collection_generation(&pending.collection)?;
         let generation = current_generation.max(pending.target_generation);
         let mut data_tx = self.begin_data_rw_tx_for(&pending.collection)?;
@@ -824,6 +840,49 @@ impl Midge {
             .map_err(CassieError::from)?;
         self.complete_column_batch_maintenance(&pending.collection, generation, None)?;
         self.complete_projection_hash_maintenance(&pending.collection, generation, 0)
+    }
+
+    fn backfill_added_field_default(
+        &self,
+        pending: &PendingFieldAdd,
+        default_value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        if default_value.is_null() {
+            return Ok(());
+        }
+
+        let mut write_options = DocumentWriteBatchOptions::sync(self.write_options_sync());
+        write_options.normalized_vector_collection = Some(pending.collection.clone());
+        write_options.refresh_after_commit = false;
+        for batch in self.scan_documents_batched(&pending.collection, 256)? {
+            let mut operations = Vec::new();
+            for document in batch {
+                let mut payload = document.payload;
+                let Some(object) = payload.as_object_mut() else {
+                    return Err(CassieError::Parse(format!(
+                        "row '{}' in '{}' is not a JSON object",
+                        document.id, pending.collection
+                    )));
+                };
+                if object.contains_key(&pending.field.name) {
+                    continue;
+                }
+                object.insert(pending.field.name.clone(), default_value.clone());
+                operations.push(DocumentWriteOp::Put {
+                    id: document.id,
+                    payload,
+                });
+            }
+            if !operations.is_empty() {
+                self.apply_document_write_batch_with_options(
+                    &pending.collection,
+                    operations,
+                    &write_options,
+                )?;
+                check_field_add_backfill_failure_point()?;
+            }
+        }
+        Ok(())
     }
 
     fn replay_pending_field_adds(&self) -> Result<(), CassieError> {

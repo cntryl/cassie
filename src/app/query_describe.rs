@@ -72,9 +72,12 @@ impl Cassie {
         if let crate::sql::ast::QueryStatement::SessionObject(statement) = &parsed.statement {
             return self.describe_session_object(session, statement, wire_output);
         }
-        let controls = self.runtime.query_controls(std::time::Instant::now());
+        let (scoped_cassie, can_use_shared_plan_cache) = self.catalog_scope_for_session(session);
+        let controls = scoped_cassie
+            .runtime
+            .query_controls(std::time::Instant::now());
         let admitted = super::query_parameters::admit_parameter_types(
-            self,
+            &scoped_cassie,
             session,
             &parsed,
             crate::sql::PrivateParameterTypeInput::Wire(parameter_type_oids),
@@ -107,18 +110,19 @@ impl Cassie {
         let database = session
             .and_then(super::CassieSession::current_database)
             .map(str::to_string);
-        let cache_key = matches!(parsed.statement, crate::sql::ast::QueryStatement::Select(_))
-            .then(|| {
-                self.plan_cache_key_from_fingerprint(
-                    sql_fingerprint,
-                    parameter_type_oids,
-                    crate::runtime::ExecutionMode::DescribeQuery,
-                    database,
-                    &search_path,
-                )
-            });
+        let cache_key = (can_use_shared_plan_cache
+            && matches!(parsed.statement, crate::sql::ast::QueryStatement::Select(_)))
+        .then(|| {
+            scoped_cassie.plan_cache_key_from_fingerprint(
+                sql_fingerprint,
+                parameter_type_oids,
+                crate::runtime::ExecutionMode::DescribeQuery,
+                database,
+                &search_path,
+            )
+        });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
-            self.resolve_physical_plan_with_parameter_oids(
+            scoped_cassie.resolve_physical_plan_with_parameter_oids(
                 parsed,
                 key,
                 session,
@@ -127,7 +131,7 @@ impl Cassie {
             )?
         } else {
             (
-                self.compile_physical_plan_with_parameter_oids(
+                scoped_cassie.compile_physical_plan_with_parameter_oids(
                     parsed,
                     session,
                     Some(&controls),
@@ -139,33 +143,42 @@ impl Cassie {
 
         crate::sql::binder::validate_coalesce_plan(
             &physical.logical,
-            &self.catalog,
-            &self.binding_context_for_session(session),
+            &scoped_cassie.catalog,
+            &scoped_cassie.binding_context_for_session(session),
             parameter_type_oids,
             false,
         )?;
         crate::sql::binder::validate_boolean_parameter_plan(
             &physical.logical,
-            &self.catalog,
-            &self.binding_context_for_session(session),
+            &scoped_cassie.catalog,
+            &scoped_cassie.binding_context_for_session(session),
             parameter_type_oids,
         )?;
 
         let columns = if wire_output {
-            self.pgwire_columns_for_plan(
+            scoped_cassie.pgwire_columns_for_plan(
                 &physical.logical,
                 session,
                 parameter_type_oids,
                 &controls,
             )?
         } else {
-            self.columns_for_plan(&physical.logical, session, parameter_type_oids)
+            scoped_cassie.columns_for_plan(&physical.logical, session, parameter_type_oids)
         };
         if let Some(key) = cache_key.as_ref() {
-            self.observe_query_plan_usage(key, &physical, &provenance)?;
+            scoped_cassie.observe_query_plan_usage(key, &physical, &provenance)?;
         }
 
         Ok(columns)
+    }
+
+    fn catalog_scope_for_session(&self, session: Option<&super::CassieSession>) -> (Self, bool) {
+        let catalog_overlay = session.and_then(super::CassieSession::transaction_catalog_overlay);
+        let mut scoped_cassie = self.clone();
+        if let Some(catalog) = catalog_overlay.as_ref() {
+            scoped_cassie.catalog = catalog.clone();
+        }
+        (scoped_cassie, catalog_overlay.is_none())
     }
 
     pub(super) fn columns_for_plan(

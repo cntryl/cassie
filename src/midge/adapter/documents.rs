@@ -330,10 +330,8 @@ impl Midge {
                 prepared_writes.push((collection.clone(), context, prepared));
             }
 
-            let mut tx = self.begin_raw_database_adapter_tx(
-                &database,
-                cntryl_midge::TransactionMode::ReadWrite,
-            )?;
+            let mut tx = self
+                .begin_database_adapter_tx(&database, cntryl_midge::TransactionMode::ReadWrite)?;
             tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
             if let Some(overlay) = overlay {
                 Self::apply_storage_overlay_to_transaction(&mut tx, overlay)?;

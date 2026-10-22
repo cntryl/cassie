@@ -621,6 +621,22 @@ pub(super) fn bind_alter_table(
         .map(|field| field.name.clone())
         .collect::<HashSet<_>>();
 
+    let add_column_already_exists = match &statement.operation {
+        AlterTableOperation::AddColumn {
+            field,
+            if_not_exists: true,
+            ..
+        } => existing_fields.iter().any(|existing| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(existing)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+        }),
+        _ => false,
+    };
+    if add_column_already_exists {
+        statement.table = canonical_relation_path(&table)?;
+        return Ok(statement);
+    }
+
     if let AlterTableOperation::RenameTo { table: target } = &mut statement.operation {
         *target = rename_target_in_source_schema(&table, target.trim(), context)?;
     }
@@ -663,11 +679,7 @@ pub(super) fn validate_alter_schema(
     catalog: &Catalog,
 ) -> Result<(), CassieError> {
     match operation {
-        AlterTableOperation::AddColumn {
-            field,
-            data_type: _,
-            constraints: _,
-        } => {
+        AlterTableOperation::AddColumn { field, .. } => {
             validate_alter_add_column(table, field, existing_fields)?;
         }
         AlterTableOperation::AddConstraint { constraints } => {

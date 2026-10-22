@@ -183,7 +183,14 @@ pub(super) fn alter_table(
         .collection_storage_mode(&statement.table)
         .is_some_and(crate::catalog::collections::CollectionStorageMode::uses_column_store_storage);
     let output = empty_command("ALTER TABLE", controls)?;
+    let staged_default =
+        session.and_then(|session| staged_add_column_default(cassie, session, statement));
     execute_alter_table_operation(cassie, statement, is_column_store)?;
+    if let (Some(session), Some((field, default_value))) = (session, staged_default) {
+        session
+            .apply_literal_default_to_staged_rows(&statement.table, &field, &default_value)
+            .map_err(QueryError::Cassie)?;
+    }
     if let Some(session) = session {
         match &statement.operation {
             AlterTableOperation::RenameTo { table: next_table } => session
@@ -336,12 +343,14 @@ fn execute_alter_table_operation(
             field,
             data_type,
             constraints,
+            if_not_exists,
         } => alter_table_add_column(
             cassie,
             &statement.table,
             field,
             data_type,
             constraints,
+            *if_not_exists,
             is_column_store,
         ),
         AlterTableOperation::AddConstraint { constraints } => {
@@ -387,17 +396,76 @@ fn execute_alter_table_operation(
     }
 }
 
+fn staged_add_column_default(
+    cassie: &Cassie,
+    session: &CassieSession,
+    statement: &AlterTableStatement,
+) -> Option<(String, serde_json::Value)> {
+    if !session.is_transaction_active() {
+        return None;
+    }
+    let AlterTableOperation::AddColumn {
+        field,
+        constraints,
+        if_not_exists,
+        ..
+    } = &statement.operation
+    else {
+        return None;
+    };
+    if *if_not_exists
+        && cassie
+            .catalog
+            .get_schema(&statement.table)
+            .is_some_and(|schema| {
+                schema.fields.iter().any(|existing| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(&existing.name)
+                        == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+                })
+            })
+    {
+        return None;
+    }
+    constraints
+        .iter()
+        .find(|constraint| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+        })
+        .and_then(|constraint| constraint.default_value.clone())
+        .map(|default_value| (field.clone(), default_value))
+}
+
 fn alter_table_add_column(
     cassie: &Cassie,
     table: &str,
     field: &str,
     data_type: &DataType,
     constraints: &[crate::catalog::FieldConstraint],
+    if_not_exists: bool,
     is_column_store: bool,
 ) -> Result<(), QueryError> {
+    if if_not_exists
+        && cassie.catalog.get_schema(table).is_some_and(|schema| {
+            schema.fields.iter().any(|existing| {
+                crate::sql::ColumnIdentifierPath::stored_field_key(&existing.name)
+                    == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+            })
+        })
+    {
+        return Ok(());
+    }
+
     ensure_row_store_alter_supported(is_column_store, "ALTER TABLE ADD COLUMN")?;
     let sequences =
         super::sequence_command::prepare_add_column_sequences(cassie, data_type, constraints)?;
+    let default_value = constraints
+        .iter()
+        .find(|constraint| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+        })
+        .and_then(|constraint| constraint.default_value.clone());
     let mut gated_collections = vec![table.to_string()];
     gated_collections.extend(
         constraints
@@ -417,7 +485,11 @@ fn alter_table_add_column(
             };
             cassie
                 .midge
-                .alter_collection_add_column(table, field_schema.clone())
+                .alter_collection_add_column_with_default(
+                    table,
+                    field_schema.clone(),
+                    default_value.clone(),
+                )
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
@@ -434,7 +506,8 @@ fn alter_table_add_column(
                 cassie.catalog.register_constraints(table, merged);
             }
             refresh_table_cardinality_stats(cassie, table)
-        })
+        })?;
+    Ok(())
 }
 
 fn alter_table_add_constraint(

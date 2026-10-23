@@ -83,7 +83,7 @@ async fn wait_for_running_query(cassie: &Cassie, baseline: u64) -> u64 {
 }
 
 #[test]
-fn should_cancel_boolean_aggregate_input_without_publishing_partial_output() {
+fn should_cancel_boolean_aggregate_query_without_publishing_partial_output() {
     // Arrange
     let runtime = current_thread_runtime();
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
@@ -176,7 +176,7 @@ fn should_cancel_boolean_aggregate_input_without_publishing_partial_output() {
     assert_eq!(cancelled.last().map(|frame| frame.0), Some(b'Z'));
     assert!(
         cancel_elapsed < Duration::from_secs(2),
-        "explicit cancellation should stop Boolean aggregate input before the query deadline: {cancel_elapsed:?}"
+        "explicit cancellation should interrupt the Boolean aggregate query before the query deadline: {cancel_elapsed:?}"
     );
 
     assert_eq!(wire::error_code(&recovery), None);

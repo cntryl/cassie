@@ -83,6 +83,7 @@ pub(crate) enum FunctionInputSignature {
     PercentileFraction,
     OrderedSetOrderKey,
     HypotheticalSetArguments,
+    RegexpReplace,
     Positional(&'static [i32]),
 }
 
@@ -148,6 +149,7 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::Chr => Some(FunctionInputSignature::Positional(&[23])),
         FunctionId::RegexpLike => Some(FunctionInputSignature::Positional(&[25, 25, 25])),
         FunctionId::RegexpCount => Some(FunctionInputSignature::Positional(&[25, 25, 23, 25])),
+        FunctionId::RegexpReplace => Some(FunctionInputSignature::RegexpReplace),
         _ => None,
     }
 }
@@ -177,7 +179,8 @@ mod tests {
             (FunctionId::Translate, &[25, 25, 25][..]),
         ];
 
-        // Act / Assert
+        // Act
+        // Assert
         for (function, expected) in signatures {
             assert_eq!(positional(function), expected, "{function:?}");
         }
@@ -195,10 +198,15 @@ mod tests {
             (FunctionId::RegexpCount, &[25, 25, 23, 25][..]),
         ];
 
-        // Act / Assert
+        // Act
+        // Assert
         for (function, expected) in signatures {
             assert_eq!(positional(function), expected, "{function:?}");
         }
+        assert!(matches!(
+            input_signature(FunctionId::RegexpReplace),
+            Some(FunctionInputSignature::RegexpReplace)
+        ));
     }
 
     #[test]
@@ -211,7 +219,8 @@ mod tests {
             FunctionId::CumeDist,
         ];
 
-        // Act / Assert
+        // Act
+        // Assert
         assert!(matches!(
             input_signature(FunctionId::Mode),
             Some(FunctionInputSignature::OrderedSetOrderKey)

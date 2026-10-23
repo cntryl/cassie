@@ -102,35 +102,11 @@ fn infer_inputs(
     }
     let data_type = match functions::input_signature(metadata.id) {
         Some(FunctionInputSignature::Positional(oids)) => {
-            let mut integer_substring = false;
-            if metadata.id == functions::FunctionId::Substring {
-                for argument in function.args.iter().skip(1) {
-                    integer_substring |= matches!(
-                        argument_type(argument, field_types, catalog, inference)?,
-                        ArgumentType::Known(DataType::SmallInt | DataType::Int)
-                    );
-                }
-            }
-            let oids = if function
-                .name
-                .rsplit('.')
-                .next()
-                .is_some_and(|name| name.eq_ignore_ascii_case("substring"))
-                && !integer_substring
-            {
-                &[25, 25, 25]
-            } else {
-                oids
-            };
-            for (argument, oid) in function.args.iter().zip(oids) {
-                let data_type = match *oid {
-                    20 => DataType::BigInt,
-                    23 => DataType::Int,
-                    701 => DataType::Float,
-                    _ => DataType::Text,
-                };
-                infer_parameter_type_from_expected_expr(argument, &data_type, inference);
-            }
+            infer_positional_inputs(function, metadata.id, oids, field_types, catalog, inference)?;
+            None
+        }
+        Some(FunctionInputSignature::RegexpReplace) => {
+            infer_regexp_replace_inputs(function, field_types, catalog, inference)?;
             None
         }
         Some(FunctionInputSignature::Text) => Some(DataType::Text),
@@ -168,6 +144,80 @@ fn infer_inputs(
         for argument in &function.args {
             infer_parameter_type_from_expected_expr(argument, &data_type, inference);
         }
+    }
+    Ok(())
+}
+
+fn infer_positional_inputs(
+    function: &FunctionCall,
+    function_id: functions::FunctionId,
+    oids: &'static [i32],
+    field_types: &FieldTypeMap,
+    catalog: &Catalog,
+    inference: &mut ParameterInference,
+) -> Result<(), ParameterAdmissionError> {
+    let mut integer_substring = false;
+    if function_id == functions::FunctionId::Substring {
+        for argument in function.args.iter().skip(1) {
+            integer_substring |= matches!(
+                argument_type(argument, field_types, catalog, inference)?,
+                ArgumentType::Known(DataType::SmallInt | DataType::Int)
+            );
+        }
+    }
+    let oids = if function
+        .name
+        .rsplit('.')
+        .next()
+        .is_some_and(|name| name.eq_ignore_ascii_case("substring"))
+        && !integer_substring
+    {
+        &[25, 25, 25]
+    } else {
+        oids
+    };
+    for (argument, oid) in function.args.iter().zip(oids) {
+        let data_type = match *oid {
+            20 => DataType::BigInt,
+            23 => DataType::Int,
+            701 => DataType::Float,
+            _ => DataType::Text,
+        };
+        infer_parameter_type_from_expected_expr(argument, &data_type, inference);
+    }
+    Ok(())
+}
+
+fn infer_regexp_replace_inputs(
+    function: &FunctionCall,
+    field_types: &FieldTypeMap,
+    catalog: &Catalog,
+    inference: &mut ParameterInference,
+) -> Result<(), ParameterAdmissionError> {
+    let oids = match function.args.len() {
+        3 => &[25, 25, 25][..],
+        4 => {
+            let start_or_flags = argument_type(&function.args[3], field_types, catalog, inference)?;
+            if matches!(
+                start_or_flags,
+                ArgumentType::Known(DataType::SmallInt | DataType::Int)
+            ) {
+                &[25, 25, 25, 23][..]
+            } else {
+                &[25, 25, 25, 25][..]
+            }
+        }
+        5 => &[25, 25, 25, 23, 23][..],
+        6 => &[25, 25, 25, 23, 23, 25][..],
+        _ => &[],
+    };
+    for (argument, oid) in function.args.iter().zip(oids) {
+        let data_type = if *oid == 23 {
+            DataType::Int
+        } else {
+            DataType::Text
+        };
+        infer_parameter_type_from_expected_expr(argument, &data_type, inference);
     }
     Ok(())
 }
@@ -342,7 +392,9 @@ fn function_result_type(
                     .map_or(ArgumentType::Unqualified, ArgumentType::Known),
             )
         }
-        Some(FunctionInputSignature::Text) if metadata.return_type == FunctionReturnType::Text => {
+        Some(FunctionInputSignature::Text | FunctionInputSignature::RegexpReplace)
+            if metadata.return_type == FunctionReturnType::Text =>
+        {
             Ok(ArgumentType::Known(DataType::Text))
         }
         Some(FunctionInputSignature::Positional(_)) => {

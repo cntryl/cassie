@@ -144,6 +144,7 @@ pub enum FunctionId {
     Chr,
     RegexpLike,
     RegexpCount,
+    RegexpReplace,
     StartsWith,
     NumNulls,
     NumNonNulls,

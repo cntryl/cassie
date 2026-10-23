@@ -269,24 +269,31 @@ pub(super) fn refresh_materialized_projection(
 
 pub(super) fn refresh_materialized_view(
     cassie: &Cassie,
-    session: Option<&crate::app::CassieSession>,
+    _session: Option<&crate::app::CassieSession>,
     statement: &crate::sql::ast::RefreshMaterializedViewStatement,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let output = empty_command("REFRESH MATERIALIZED VIEW", controls)?;
     require_sql_materialized_view(cassie, &statement.name)?;
-    if statement.with_data {
-        refresh_materialized_projection_data(
-            cassie,
-            session,
-            &statement.name,
-            user_functions,
-            controls,
-        )?;
-    } else {
-        clear_materialized_view_data(cassie, &statement.name)?;
-    }
+    let gated_name = statement.name.clone();
+    cassie.midge.with_collection_gates(
+        std::slice::from_ref(&gated_name),
+        || -> Result<(), QueryError> {
+            if statement.with_data {
+                super::materialized_view_concurrent::refresh_materialized_view_versioned(
+                    cassie,
+                    &statement.name,
+                    user_functions,
+                    controls,
+                    false,
+                )?;
+            } else {
+                clear_materialized_view_data(cassie, &statement.name)?;
+            }
+            Ok(())
+        },
+    )?;
     Ok(output)
 }
 
@@ -522,7 +529,7 @@ pub(super) fn alter_materialized_projection(
     }
 }
 
-fn activate_projection_version(
+pub(super) fn activate_projection_version(
     cassie: &Cassie,
     name: &str,
     version_id: &str,

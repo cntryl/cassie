@@ -119,6 +119,8 @@ mod graph_command;
 mod identity_alter;
 mod materialized_projection;
 pub(crate) use materialized_projection::projection_verification_column_definitions;
+mod materialized_view_concurrent;
+pub(crate) use materialized_view_concurrent::refresh_materialized_view_concurrently_external;
 mod materialized_projection_maintenance;
 mod materialized_projection_versions;
 mod projection_diff;

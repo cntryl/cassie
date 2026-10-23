@@ -233,6 +233,10 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     })
 }
 
+pub(crate) fn is_concurrent_materialized_view_refresh(sql: &str) -> bool {
+    materialized_view::is_concurrent_refresh(sql)
+}
+
 fn parse_statement_body(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let lower = trimmed.to_ascii_lowercase();

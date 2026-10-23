@@ -671,6 +671,19 @@ fn should_require_a_unique_index_for_concurrent_materialized_view_refresh() {
             .batch_execute("REFRESH MATERIALIZED VIEW CONCURRENTLY compat_mv_concurrent")
             .await
             .expect_err("concurrent refresh requires a full-row unique index");
+        assert_eq!(db_error(&missing_unique_index).code().code(), "55000");
+        client
+            .batch_execute(
+                "CREATE UNIQUE INDEX compat_mv_concurrent_partial_uq \
+                 ON compat_mv_concurrent (item_id) WHERE item_id = 1",
+            )
+            .await
+            .expect("create a partial unique index that does not cover every row");
+        let partial_unique_index = client
+            .batch_execute("REFRESH MATERIALIZED VIEW CONCURRENTLY compat_mv_concurrent")
+            .await
+            .expect_err("a partial unique index does not qualify for concurrent refresh");
+        assert_eq!(db_error(&partial_unique_index).code().code(), "55000");
         client
             .batch_execute(
                 "CREATE UNIQUE INDEX compat_mv_concurrent_id_uq \
@@ -719,6 +732,245 @@ fn should_require_a_unique_index_for_concurrent_materialized_view_refresh() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_reject_unqualified_index_shapes_for_concurrent_materialized_view_refresh() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("materialized_view_concurrent_index_shapes").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_mv_index_shapes_source (id INT PRIMARY KEY, label TEXT)",
+                "INSERT INTO compat_mv_index_shapes_source VALUES (1, 'one'), (2, 'two')",
+                "CREATE MATERIALIZED VIEW compat_mv_index_shapes (item_id, item_label) AS \
+                   SELECT id, label FROM compat_mv_index_shapes_source WITH DATA",
+                "CREATE UNIQUE INDEX compat_mv_index_shapes_partial_uq \
+                   ON compat_mv_index_shapes (item_id) WHERE item_id = 1",
+                "CREATE UNIQUE INDEX compat_mv_index_shapes_expression_uq \
+                   ON compat_mv_index_shapes ((lower(item_label)))",
+                "UPDATE compat_mv_index_shapes_source \
+                   SET label = 'changed' WHERE id = 2",
+            ],
+        )
+        .await
+        .expect("create view, nonqualifying unique indexes, and a pending source change");
+
+        // Act
+        let error = client
+            .batch_execute("REFRESH MATERIALIZED VIEW CONCURRENTLY compat_mv_index_shapes")
+            .await
+            .expect_err("partial and expression indexes do not qualify");
+        let rows = client
+            .query(
+                "SELECT item_id, item_label FROM compat_mv_index_shapes ORDER BY item_id",
+                &[],
+            )
+            .await
+            .expect("read the old output after eligibility rejection");
+
+        // Assert
+        assert_eq!(db_error(&error).code().code(), "55000");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1].get::<_, String>(1), "two");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_preserve_indexes_after_ordinary_materialized_view_refresh() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("materialized_view_ordinary_refresh_indexes").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_mv_ordinary_refresh_source (id INT PRIMARY KEY, label TEXT)",
+                "INSERT INTO compat_mv_ordinary_refresh_source VALUES (1, 'one')",
+                "CREATE MATERIALIZED VIEW compat_mv_ordinary_refresh (item_id, item_label) AS \
+                   SELECT id, label FROM compat_mv_ordinary_refresh_source WITH DATA",
+                "CREATE UNIQUE INDEX compat_mv_ordinary_refresh_id_uq \
+                   ON compat_mv_ordinary_refresh (item_id)",
+                "UPDATE compat_mv_ordinary_refresh_source SET label = 'updated' WHERE id = 1",
+            ],
+        )
+        .await
+        .expect("create and index a populated view, then change its source");
+
+        // Act
+        client
+            .batch_execute("REFRESH MATERIALIZED VIEW compat_mv_ordinary_refresh")
+            .await
+            .expect("refresh the view without concurrent mode");
+        let catalog = client
+            .query_one(
+                "SELECT hasindexes, ispopulated FROM pg_matviews \
+                 WHERE matviewname = 'compat_mv_ordinary_refresh'",
+                &[],
+            )
+            .await
+            .expect("inspect refreshed view state");
+        let rows = client
+            .query("SELECT item_label FROM compat_mv_ordinary_refresh", &[])
+            .await
+            .expect("read ordinary refresh output");
+
+        // Assert
+        assert!(catalog.get::<_, bool>(0));
+        assert!(catalog.get::<_, bool>(1));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get::<_, String>(0), "updated");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_preserve_active_materialized_view_when_concurrent_refresh_cannot_rebuild_unique_index() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("materialized_view_concurrent_refresh_failure").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_mv_concurrent_failure_source (id INT PRIMARY KEY, label TEXT)",
+                "INSERT INTO compat_mv_concurrent_failure_source VALUES (1, 'one'), (2, 'two')",
+                "CREATE MATERIALIZED VIEW compat_mv_concurrent_failure (item_id, item_label) AS \
+                   SELECT id, label FROM compat_mv_concurrent_failure_source WITH DATA",
+                "CREATE UNIQUE INDEX compat_mv_concurrent_failure_label_uq \
+                   ON compat_mv_concurrent_failure (item_label)",
+            ],
+        )
+        .await
+        .expect("create populated view and its unique label index");
+        client
+            .execute(
+                "UPDATE compat_mv_concurrent_failure_source SET label = 'one' WHERE id = 2",
+                &[],
+            )
+            .await
+            .expect("make the replacement output violate its unique index");
+
+        // Act
+        let refresh_error = client
+            .batch_execute(
+                "REFRESH MATERIALIZED VIEW CONCURRENTLY compat_mv_concurrent_failure",
+            )
+            .await
+            .expect_err("reject a replacement that violates the carried unique index");
+        let rows = client
+            .query(
+                "SELECT item_id, item_label FROM compat_mv_concurrent_failure ORDER BY item_id",
+                &[],
+            )
+            .await
+            .expect("read the previously active output after refresh failure");
+        let catalog = client
+            .query_one(
+                "SELECT hasindexes, ispopulated FROM pg_matviews \
+                 WHERE matviewname = 'compat_mv_concurrent_failure'",
+                &[],
+            )
+            .await
+            .expect("inspect the view state after refresh failure");
+
+        // Assert
+        assert_eq!(db_error(&refresh_error).code().code(), "23505");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].get::<_, String>(1), "one");
+        assert_eq!(rows[1].get::<_, String>(1), "two");
+        assert!(catalog.get::<_, bool>(0));
+        assert!(catalog.get::<_, bool>(1));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_concurrent_refresh_of_unpopulated_materialized_view() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("materialized_view_concurrent_refresh_unpopulated").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_mv_concurrent_unpopulated_source (id INT PRIMARY KEY)",
+            )
+            .await
+            .expect("create source table");
+        client
+            .batch_execute(
+                "CREATE MATERIALIZED VIEW compat_mv_concurrent_unpopulated AS \
+                   SELECT id FROM compat_mv_concurrent_unpopulated_source WITH NO DATA",
+            )
+            .await
+            .expect("create an unpopulated materialized view");
+
+        // Act
+        let refresh_error = client
+            .batch_execute(
+                "REFRESH MATERIALIZED VIEW CONCURRENTLY compat_mv_concurrent_unpopulated",
+            )
+            .await
+            .expect_err("concurrent refresh requires an already populated view");
+
+        // Assert
+        assert_eq!(db_error(&refresh_error).code().code(), "55000");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_concurrent_refresh_with_no_data() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("materialized_view_concurrent_refresh_no_data").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_mv_concurrent_no_data_source (id INT PRIMARY KEY)")
+            .await
+            .expect("create source table");
+        client
+            .batch_execute(
+                "CREATE MATERIALIZED VIEW compat_mv_concurrent_no_data AS \
+                   SELECT id FROM compat_mv_concurrent_no_data_source",
+            )
+            .await
+            .expect("create populated materialized view");
+
+        // Act
+        let refresh_error = client
+            .batch_execute(
+                "REFRESH MATERIALIZED VIEW CONCURRENTLY compat_mv_concurrent_no_data WITH NO DATA",
+            )
+            .await
+            .expect_err("CONCURRENTLY cannot be combined with WITH NO DATA");
+
+        // Assert
+        assert_eq!(db_error(&refresh_error).code().code(), "42601");
+        assert!(db_error(&refresh_error)
+            .message()
+            .contains("CONCURRENTLY and WITH NO DATA options cannot be used together"));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
 #[test]
 fn should_skip_existing_relation_for_create_table_as_if_not_exists() {
     // Arrange

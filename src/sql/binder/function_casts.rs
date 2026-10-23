@@ -71,7 +71,28 @@ fn lower_type_of(function: &FunctionCall, types: &ResultTypes) -> Option<Expr> {
     let oid = if primitive_casts::unknown_literal(argument) || matches!(argument, Expr::Null) {
         705
     } else {
-        types.expression_type(argument)?.type_oid()
+        let data_type = types.expression_type(argument)?;
+        let percentile_id = match argument {
+            Expr::Function(percentile) => crate::sql::functions::function(&percentile.name)
+                .map(|metadata| metadata.id)
+                .filter(|id| {
+                    matches!(
+                        id,
+                        crate::sql::functions::FunctionId::PercentileCont
+                            | crate::sql::functions::FunctionId::PercentileDisc
+                    )
+                }),
+            Expr::Column(_) => types.percentile_function_for_column(argument),
+            _ => None,
+        };
+        let percentile_array_oid = match (&data_type, percentile_id) {
+            (DataType::Array(element), Some(_)) => u32::try_from(element.type_oid())
+                .ok()
+                .and_then(crate::catalog::builtin_identity::builtin_array_oid)
+                .map(i64::from),
+            _ => None,
+        };
+        percentile_array_oid.unwrap_or_else(|| data_type.type_oid())
     };
     Some(Expr::Cast {
         expr: Box::new(Expr::IntegerLiteral(oid)),

@@ -199,13 +199,20 @@ impl Cassie {
             logical,
             &user_functions,
         );
-        crate::executor::aggregate::columns_from_projection_with_wildcard(
+        let mut columns = crate::executor::aggregate::columns_from_projection_with_wildcard(
             &logical.projection,
             collection_schema.as_ref(),
             wildcard_fields.as_deref(),
             &user_functions,
             parameter_type_oids,
-        )
+        );
+        crate::executor::aggregate::apply_percentile_array_oids_for_query(
+            &logical.source,
+            &logical.ctes,
+            &logical.projection,
+            &mut columns,
+        );
+        columns
     }
 
     /// `RETURNING` columns of `UPDATE ... FROM`, `DELETE ... USING` and `MERGE`,

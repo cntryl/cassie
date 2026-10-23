@@ -20,6 +20,12 @@ const MICROSECONDS_PER_DAY: i64 = 86_400_000_000;
 /// Renders `value` with PostgreSQL's text output function for the column's
 /// declared `type_oid`.
 pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
+    if let (Value::Json(array), Some(element_type)) = (value, builtin_array_element_type(type_oid))
+    {
+        if let Some(formatted) = crate::types::array::format_text_array(array, &element_type) {
+            return formatted;
+        }
+    }
     match value {
         Value::Null => "NULL".to_string(),
         // boolout emits a single `t`/`f`; a JSON column keeps JSON's spelling.
@@ -59,7 +65,10 @@ pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8
         return encode_vector(value, type_oid);
     }
     if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
-        return encode_array(value, type_oid);
+        return encode_array(value, type_oid, type_oid - OID_ARRAY_BASE);
+    }
+    if let Some(element_oid) = builtin_array_element_oid(type_oid) {
+        return encode_array(value, type_oid, element_oid);
     }
     let codec = binary_codec_for_oid(type_oid)?;
     match codec.kind {
@@ -121,6 +130,16 @@ pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8
     }
 }
 
+fn builtin_array_element_oid(array_oid: i64) -> Option<i64> {
+    let array_oid = u32::try_from(array_oid).ok()?;
+    crate::catalog::builtin_identity::builtin_array_element_oid(array_oid).map(i64::from)
+}
+
+fn builtin_array_element_type(array_oid: i64) -> Option<crate::types::DataType> {
+    let element_oid = u32::try_from(builtin_array_element_oid(array_oid)?).ok()?;
+    crate::types::builtin::builtin_for_oid(element_oid).map(|metadata| metadata.kind.data_type())
+}
+
 fn binary_codec_for_oid(type_oid: i64) -> io::Result<&'static BinaryCodec> {
     u32::try_from(type_oid)
         .ok()
@@ -134,6 +153,8 @@ fn validate_binary_oid(type_oid: i64) -> io::Result<()> {
     }
     if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
         binary_codec_for_oid(type_oid - OID_ARRAY_BASE).map(|_| ())
+    } else if let Some(element_oid) = builtin_array_element_oid(type_oid) {
+        binary_codec_for_oid(element_oid).map(|_| ())
     } else {
         binary_codec_for_oid(type_oid).map(|_| ())
     }
@@ -287,11 +308,10 @@ fn decode_native(
     Ok(Value::Typed(value))
 }
 
-fn encode_array(value: &Value, type_oid: i64) -> io::Result<Vec<u8>> {
+fn encode_array(value: &Value, type_oid: i64, element_oid: i64) -> io::Result<Vec<u8>> {
     let Value::Json(serde_json::Value::Array(values)) = value else {
         return invalid_value("array");
     };
-    let element_oid = type_oid - OID_ARRAY_BASE;
     let codec = binary_codec_for_oid(element_oid)?;
     let has_null = values.iter().any(serde_json::Value::is_null);
     let mut encoded = Vec::new();

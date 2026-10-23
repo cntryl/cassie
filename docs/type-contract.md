@@ -60,7 +60,11 @@ the adapter uses the legacy `33000 + n` element residue before applying the
 array formula. Neither formula defines the complete element-family, dimension,
 lower-bound or document-null behavior, and neither is the PostgreSQL standard
 array ABI. In particular, scalar support does not imply matching array support.
-ARRAY(VECTOR) remains excluded from pgwire.
+ARRAY(VECTOR) remains excluded from pgwire. Ordered-set `percentile_cont` and
+`percentile_disc` array results are a bounded output exception: for registered
+built-in element types, result metadata and `pg_typeof` use PostgreSQL's
+built-in array OID, with PostgreSQL text and binary array output. This does not
+change array input binding or the private identity used by other SQL arrays.
 
 ## Native extended identities
 

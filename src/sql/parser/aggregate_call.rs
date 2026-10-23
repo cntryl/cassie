@@ -18,6 +18,8 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
     let close = lexical::matching_paren(raw, open)
         .ok_or_else(|| SqlError::syntax("unterminated function call".into()))?;
     let tail = lexical::trim_separators(&raw[close + 1..]);
+    let (within_group, tail) = parse_within_group(tail)?;
+    let has_within_group = !within_group.is_empty();
     let filter = if tail.is_empty() {
         None
     } else {
@@ -41,7 +43,7 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
     } else {
         AggregateQuantifier::Default
     };
-    let (args_raw, order_by) = if let Some((position, end)) =
+    let (args_raw, aggregate_order_by) = if let Some((position, end)) =
         super::clauses::find_top_level_keyword_span(body, 0, "order by")
     {
         let order = lexical::trim_separators(&body[end..]);
@@ -51,6 +53,16 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
         (&body[..position], parse_order_by(order)?)
     } else {
         (body, Vec::new())
+    };
+    if has_within_group && !aggregate_order_by.is_empty() {
+        return Err(SqlError::syntax(
+            "WITHIN GROUP calls cannot also have aggregate-local ORDER BY".into(),
+        ));
+    }
+    let order_by = if has_within_group {
+        within_group
+    } else {
+        aggregate_order_by
     };
     let (resolved_name, args) = if let Some(call) = text_call::arguments(name, args_raw)? {
         call
@@ -75,6 +87,18 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
             "aggregate star does not accept ORDER BY".into(),
         ));
     }
+    if matches!(
+        crate::sql::functions::function(&resolved_name).map(|metadata| metadata.id),
+        Some(
+            crate::sql::functions::FunctionId::PercentileCont
+                | crate::sql::functions::FunctionId::PercentileDisc
+        )
+    ) && (!has_within_group || order_by.len() != 1)
+    {
+        return Err(SqlError::syntax(
+            "percentile aggregates require one WITHIN GROUP ORDER BY key".into(),
+        ));
+    }
     Ok(Some(FunctionCall {
         name: resolved_name,
         args,
@@ -82,6 +106,28 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
         filter,
         order_by,
     }))
+}
+
+fn parse_within_group(raw: &str) -> Result<(Vec<super::OrderExpr>, &str), SqlError> {
+    let Some(end) = lexical::pattern_end(raw, 0, "within group") else {
+        return Ok((Vec::new(), raw));
+    };
+    let body = lexical::trim_separators(&raw[end..]);
+    let close = lexical::matching_paren(body, 0)
+        .ok_or_else(|| SqlError::syntax("WITHIN GROUP requires a parenthesized clause".into()))?;
+    let clause = lexical::trim_separators(&body[1..close]);
+    let order_end = lexical::pattern_end(clause, 0, "order by")
+        .ok_or_else(|| SqlError::syntax("WITHIN GROUP requires ORDER BY".into()))?;
+    let order = lexical::trim_separators(&clause[order_end..]);
+    if order.is_empty() {
+        return Err(SqlError::syntax(
+            "WITHIN GROUP ORDER BY requires keys".into(),
+        ));
+    }
+    Ok((
+        parse_order_by(order)?,
+        lexical::trim_separators(&body[close + 1..]),
+    ))
 }
 
 fn parse_filter(raw: &str) -> Result<super::Expr, SqlError> {
@@ -123,6 +169,31 @@ mod tests {
         assert!(matches!(call.args.as_slice(), [Expr::Column(name)] if name == "amount"));
         assert!(matches!(call.filter.as_deref(), Some(Expr::Column(name)) if name == "included"));
         assert_eq!(call.order_by.len(), 1);
+        assert!(matches!(call.order_by[0].direction, SortDirection::Desc));
+        assert_eq!(call.order_by[0].nulls, Some(NullsOrder::Last));
+    }
+
+    #[test]
+    fn should_parse_ordered_set_ordering_before_filter_given_a_percentile_call() {
+        // Arrange
+        let sql = "percentile_cont(0.25) WITHIN GROUP (ORDER BY amount DESC NULLS LAST) FILTER (WHERE included)";
+
+        // Act
+        let call = parse_function(sql)
+            .expect("valid ordered-set aggregate syntax")
+            .expect("function call");
+
+        // Assert
+        assert_eq!(call.name, "percentile_cont");
+        assert!(
+            matches!(
+                call.args.as_slice(),
+                [Expr::NumericLiteral(value)] if value == "0.25"
+            ) || matches!(call.args.as_slice(), [Expr::NumberLiteral(value)] if value.to_bits() == 0.25_f64.to_bits())
+        );
+        assert!(matches!(call.filter.as_deref(), Some(Expr::Column(name)) if name == "included"));
+        assert_eq!(call.order_by.len(), 1);
+        assert!(matches!(call.order_by[0].expr, Expr::Column(ref name) if name == "amount"));
         assert!(matches!(call.order_by[0].direction, SortDirection::Desc));
         assert_eq!(call.order_by[0].nulls, Some(NullsOrder::Last));
     }

@@ -5,9 +5,11 @@ mod catalog;
 mod datum_size;
 mod numeric_identity;
 mod object_identity;
+mod percentile_identity;
 mod sequences;
 pub(crate) use numeric_identity::has_unselected_numeric;
 pub(crate) use object_identity::lookup_kind as object_lookup_kind;
+pub(crate) use percentile_identity::percentile_function_for_column;
 pub(crate) use sequences::SEQUENCE_FUNCTION_NAMES;
 mod runtime;
 pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};
@@ -53,6 +55,8 @@ pub enum FunctionId {
     StringAgg,
     BoolAnd,
     BoolOr,
+    PercentileCont,
+    PercentileDisc,
     Search,
     SearchScore,
     VectorDistance,
@@ -403,6 +407,38 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         name: "pg_catalog.every",
         arity: FunctionArity::Exact(1),
         return_type: FunctionReturnType::Boolean,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PercentileCont,
+        name: "percentile_cont",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Unknown,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PercentileCont,
+        name: "pg_catalog.percentile_cont",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Unknown,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PercentileDisc,
+        name: "percentile_disc",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Unknown,
+        is_aggregate: true,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PercentileDisc,
+        name: "pg_catalog.percentile_disc",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Unknown,
         is_aggregate: true,
         bypass_arity_validation: false,
     },

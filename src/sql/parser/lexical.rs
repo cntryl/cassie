@@ -187,6 +187,32 @@ pub(super) fn matching_paren(input: &str, open_at: usize) -> Option<usize> {
     None
 }
 
+pub(super) fn matching_bracket(input: &str, open_at: usize) -> Option<usize> {
+    if input.as_bytes().get(open_at) != Some(&b'[') {
+        return None;
+    }
+    let mut depth = 1usize;
+    let mut index = open_at + 1;
+    while index < input.len() {
+        if let Some(end) = quoted_end(input, index).or_else(|| comment_end(input, index)) {
+            index = end;
+            continue;
+        }
+        match input.as_bytes()[index] {
+            b'[' => depth += 1,
+            b']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += input[index..].chars().next().map_or(0, char::len_utf8);
+    }
+    None
+}
+
 pub(super) fn without_comments(input: &str) -> Cow<'_, str> {
     let mut output: Option<Vec<u8>> = None;
     let mut index = 0;

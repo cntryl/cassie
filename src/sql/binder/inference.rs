@@ -685,34 +685,28 @@ pub(crate) fn infer_function_return_type(
     let name = function.name.to_ascii_lowercase();
     if let Some(data_type) =
         types::temporal_function_type(function, source_schema, user_functions, parameter_types)
+            .or_else(|| {
+                super::extended_inference::function_type(
+                    function,
+                    source_schema,
+                    user_functions,
+                    parameter_types,
+                )
+                .or_else(|| {
+                    numeric_function_type(function, source_schema, user_functions, parameter_types)
+                })
+            })
     {
         return Some(data_type);
     }
-    if let Some(kind) = super::extended_inference::function_type(
+    if let Some(data_type) = primitive_cast_return_type(
         function,
+        &name,
         source_schema,
         user_functions,
         parameter_types,
-    )
-    .or_else(|| numeric_function_type(function, source_schema, user_functions, parameter_types))
-    {
-        return Some(kind);
-    }
-    if let Some(target) = crate::sql::functions::primitive_casts::candidate(function) {
-        let source = infer_expr_type(
-            &function.args[0],
-            source_schema,
-            user_functions,
-            parameter_types,
-        );
-        let exact = user_functions.get(&name).is_some_and(|metadata| {
-            metadata.args.len() == 1 && source.as_ref() == Some(&metadata.args[0].data_type)
-        });
-        if crate::sql::functions::primitive_casts::unknown_literal(&function.args[0])
-            || !exact && (!user_functions.contains_key(&name) || source.is_some())
-        {
-            return Some(target.data_type);
-        }
+    ) {
+        return Some(data_type);
     }
     if let Some(metadata) = user_functions.get(&name).filter(|metadata| {
         !crate::sql::functions::has_distinct_builtin_arity(
@@ -724,6 +718,15 @@ pub(crate) fn infer_function_return_type(
         return Some(metadata.return_type.clone());
     }
     let metadata = crate::sql::functions::function(&name)?;
+    if let Some(data_type) = selected_percentile_return_type(
+        function,
+        metadata.id,
+        source_schema,
+        user_functions,
+        parameter_types,
+    ) {
+        return Some(data_type);
+    }
     match metadata.return_type {
         crate::sql::functions::FunctionReturnType::Float => Some(DataType::Float),
         crate::sql::functions::FunctionReturnType::Text => Some(DataType::Text),
@@ -734,15 +737,13 @@ pub(crate) fn infer_function_return_type(
         crate::sql::functions::FunctionReturnType::Timestamp => Some(DataType::Timestamp),
         crate::sql::functions::FunctionReturnType::ObjectId(kind) => Some(DataType::ObjectId(kind)),
         crate::sql::functions::FunctionReturnType::FirstComparedArgument => {
-            let argument_types = function
-                .args
-                .iter()
-                .map(|argument| {
-                    infer_expr_type(argument, source_schema, user_functions, parameter_types)
-                        .unwrap_or(DataType::Null)
-                })
-                .collect::<Vec<_>>();
-            super::conditional_types::result_type(&name, &argument_types).ok()
+            first_compared_argument_return_type(
+                function,
+                &name,
+                source_schema,
+                user_functions,
+                parameter_types,
+            )
         }
         crate::sql::functions::FunctionReturnType::FirstNonNullArgument => {
             let argument_types = function
@@ -783,6 +784,101 @@ pub(crate) fn infer_function_return_type(
         crate::sql::functions::FunctionReturnType::Math
         | crate::sql::functions::FunctionReturnType::Unknown => None,
     }
+}
+
+fn first_compared_argument_return_type(
+    function: &FunctionCall,
+    name: &str,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
+    let argument_types = function
+        .args
+        .iter()
+        .map(|argument| {
+            infer_expr_type(argument, source_schema, user_functions, parameter_types)
+                .unwrap_or(DataType::Null)
+        })
+        .collect::<Vec<_>>();
+    super::conditional_types::result_type(name, &argument_types).ok()
+}
+
+fn primitive_cast_return_type(
+    function: &FunctionCall,
+    name: &str,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
+    let target = crate::sql::functions::primitive_casts::candidate(function)?;
+    let source = infer_expr_type(
+        &function.args[0],
+        source_schema,
+        user_functions,
+        parameter_types,
+    );
+    let exact = user_functions.get(name).is_some_and(|metadata| {
+        metadata.args.len() == 1 && source.as_ref() == Some(&metadata.args[0].data_type)
+    });
+    (crate::sql::functions::primitive_casts::unknown_literal(&function.args[0])
+        || !exact && (!user_functions.contains_key(name) || source.is_some()))
+    .then_some(target.data_type)
+}
+
+fn selected_percentile_return_type(
+    function: &FunctionCall,
+    id: crate::sql::functions::FunctionId,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
+    if !matches!(
+        id,
+        crate::sql::functions::FunctionId::PercentileCont
+            | crate::sql::functions::FunctionId::PercentileDisc
+    ) {
+        return None;
+    }
+    ordered_set_percentile_return_type(function, id, source_schema, user_functions, parameter_types)
+}
+
+fn ordered_set_percentile_return_type(
+    function: &FunctionCall,
+    id: crate::sql::functions::FunctionId,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
+    let order_type = function.order_by.first().and_then(|order| {
+        infer_expr_type(&order.expr, source_schema, user_functions, parameter_types)
+    })?;
+    let result_element = match id {
+        crate::sql::functions::FunctionId::PercentileCont
+            if matches!(
+                order_type,
+                DataType::Extended(crate::types::extended::ExtendedType::Interval { .. })
+            ) =>
+        {
+            order_type
+        }
+        crate::sql::functions::FunctionId::PercentileCont => DataType::Float,
+        crate::sql::functions::FunctionId::PercentileDisc => order_type,
+        _ => return None,
+    };
+    let fraction_is_array = function.args.first().is_some_and(|fraction| {
+        matches!(
+            fraction,
+            Expr::Subquery(subquery)
+                if matches!(subquery.kind, crate::sql::ast::SubqueryKind::Array)
+        ) || infer_expr_type(fraction, source_schema, user_functions, parameter_types)
+            .is_some_and(|data_type| matches!(data_type, DataType::Array(_)))
+    });
+    Some(if fraction_is_array {
+        DataType::Array(Box::new(result_element))
+    } else {
+        result_element
+    })
 }
 
 pub(crate) fn infer_expr_type(

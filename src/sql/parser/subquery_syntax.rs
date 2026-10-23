@@ -70,12 +70,48 @@ pub(super) fn scalar(raw: &str) -> Result<Option<Expr>, SqlError> {
 /// `ARRAY(SELECT ...)`.
 pub(super) fn array(raw: &str) -> Result<Option<Expr>, SqlError> {
     let raw = lexical::trim_separators(raw);
-    if !starts_with_keyword(raw, "array") {
+    let Some(end) = lexical::pattern_end(raw, 0, "array") else {
         return Ok(None);
+    };
+    let remainder = lexical::trim_separators(&raw[end..]);
+    if remainder.starts_with('[') {
+        return array_constructor(remainder).map(Some);
     }
     body(&raw[5..])
         .map(|inner| sublink(SubqueryKind::Array, inner))
         .transpose()
+}
+
+fn array_constructor(raw: &str) -> Result<Expr, SqlError> {
+    let close = lexical::matching_bracket(raw, 0)
+        .ok_or_else(|| SqlError::syntax("unterminated ARRAY constructor".into()))?;
+    if !lexical::trim_separators(&raw[close + 1..]).is_empty() {
+        return Err(SqlError::syntax(
+            "unexpected text after ARRAY constructor".into(),
+        ));
+    }
+    let body = lexical::trim_separators(&raw[1..close]);
+    let query = if body.is_empty() {
+        "SELECT NULL AS _cassie_array_value WHERE FALSE".to_owned()
+    } else {
+        let rows = super::split_csv(body)
+            .into_iter()
+            .map(|value| {
+                if lexical::trim_separators(value).is_empty() {
+                    return Err(SqlError::syntax(
+                        "ARRAY constructor contains a missing element".into(),
+                    ));
+                }
+                Ok(format!("({})", lexical::trim_separators(value)))
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .join(", ");
+        format!(
+            "SELECT _cassie_array_value FROM (VALUES {rows}) \
+             AS _cassie_array_source(_cassie_array_value)"
+        )
+    };
+    sublink(SubqueryKind::Array, &query)
 }
 
 /// The outer operands of a sublink predicate: a row constructor's fields, or

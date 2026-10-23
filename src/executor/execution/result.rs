@@ -49,12 +49,18 @@ pub(super) fn build_select_result(
     let wildcard_shape =
         aggregate::wildcard_shape_for_plan(&cassie.catalog, &plan.logical, user_functions);
     let wildcard_fields = wildcard_shape.as_ref().map(|(fields, _)| fields.as_slice());
-    let columns = aggregate::columns_from_projection_with_wildcard(
+    let mut columns = aggregate::columns_from_projection_with_wildcard(
         &plan.logical.projection,
         collection_schema.as_ref(),
         wildcard_fields,
         user_functions,
         &[],
+    );
+    aggregate::apply_percentile_array_oids_for_query(
+        &plan.logical.source,
+        &plan.logical.ctes,
+        &plan.logical.projection,
+        &mut columns,
     );
     // Derived wildcard schemas display physical `_id` as `id`, so
     // declares_id alone cannot distinguish it from a real declared field.

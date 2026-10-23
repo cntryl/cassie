@@ -166,6 +166,11 @@ fn apply_field_constraint(
     pending_constraint_name: &mut Option<String>,
     saw_constraint: &mut bool,
 ) -> Result<bool, SqlError> {
+    if is_column_storage_option(token) {
+        return Err(SqlError::unsupported(format!(
+            "column {token} options are not supported"
+        )));
+    }
     match token.to_lowercase().as_str() {
         "constraint" => {
             let name = parts
@@ -173,19 +178,7 @@ fn apply_field_constraint(
                 .ok_or_else(|| SqlError::new("CONSTRAINT requires a name".into()))?;
             *pending_constraint_name = Some(super::schema_identifiers::parse_identifier(&name)?);
         }
-        "not" => {
-            let next = parts
-                .next()
-                .ok_or_else(|| SqlError::new("NOT must be followed by NULL".into()))?;
-            if !next.eq_ignore_ascii_case("null") {
-                return Err(SqlError::new(format!(
-                    "unsupported constraint '{token} {next}'"
-                )));
-            }
-            *saw_constraint = true;
-            constraint.not_null = true;
-            constraint.not_null_ownership = constraint.not_null_ownership.with_explicit();
-        }
+        "not" => apply_not_null_constraint(token, parts, constraint, saw_constraint)?,
         "null" => return Err(SqlError::new("unexpected NULL constraint".to_string())),
         "unique" => {
             *saw_constraint = true;
@@ -262,6 +255,30 @@ fn apply_field_constraint(
         other => return Err(SqlError::new(format!("unsupported constraint '{other}'"))),
     }
     Ok(false)
+}
+
+fn apply_not_null_constraint(
+    token: &str,
+    parts: &mut impl Iterator<Item = String>,
+    constraint: &mut FieldConstraint,
+    saw_constraint: &mut bool,
+) -> Result<(), SqlError> {
+    let next = parts
+        .next()
+        .ok_or_else(|| SqlError::new("NOT must be followed by NULL".into()))?;
+    if !next.eq_ignore_ascii_case("null") {
+        return Err(SqlError::new(format!(
+            "unsupported constraint '{token} {next}'"
+        )));
+    }
+    *saw_constraint = true;
+    constraint.not_null = true;
+    constraint.not_null_ownership = constraint.not_null_ownership.with_explicit();
+    Ok(())
+}
+
+fn is_column_storage_option(token: &str) -> bool {
+    token.eq_ignore_ascii_case("storage") || token.eq_ignore_ascii_case("compression")
 }
 
 fn parse_field_unique_null_policy(

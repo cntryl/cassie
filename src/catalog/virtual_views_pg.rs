@@ -2,7 +2,7 @@ use crate::catalog::{
     local_name, name_matches, relation_belongs_to_database, relation_schema_name,
     schema_belongs_to_database, Catalog, FieldConstraint, IndexMeta,
 };
-use crate::types::{DataType, Value};
+use crate::types::{DataType, ObjectIdKind, Value};
 
 use super::VirtualRow;
 
@@ -18,6 +18,7 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
         int("oid"),
         text("relname"),
         text("relkind"),
+        oid("relam"),
         text("relnamespace"),
         int("relnamespace_oid"),
         int("relowner"),
@@ -26,6 +27,19 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
         int("reltuples"),
         text("relacl"),
         text("reloptions"),
+    ]
+}
+
+pub(super) fn access_method_schema() -> Vec<(String, DataType)> {
+    vec![oid("oid"), text("amname")]
+}
+
+pub(super) fn pg_am() -> Vec<VirtualRow> {
+    vec![
+        vec![int_value("oid", 2), string("amname", "heap")],
+        vec![int_value("oid", 403), string("amname", "btree")],
+        vec![int_value("oid", 405), string("amname", "hash")],
+        vec![int_value("oid", 2742), string("amname", "gin")],
     ]
 }
 
@@ -371,6 +385,7 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta
         ),
         string("relname", relation_name),
         string("relkind", kind),
+        int_value("relam", relation_access_method_oid(kind, index)),
         string("relnamespace", &schema_name),
         int_value(
             "relnamespace_oid",
@@ -395,6 +410,19 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta
             |value| string("reloptions", value),
         ),
     ]
+}
+
+fn relation_access_method_oid(kind: &str, index: Option<&IndexMeta>) -> i64 {
+    match kind {
+        "r" => 2,
+        "i" => index.map_or(0, |index| match index.access_method() {
+            "btree" => 403,
+            "hash" => 405,
+            "gin" => 2742,
+            _ => 0,
+        }),
+        _ => 0,
+    }
 }
 
 fn index_reloptions(index: &IndexMeta) -> Option<String> {
@@ -742,6 +770,43 @@ fn text(name: &str) -> (String, DataType) {
 
 fn int(name: &str) -> (String, DataType) {
     (name.to_string(), DataType::Int)
+}
+
+fn oid(name: &str) -> (String, DataType) {
+    (name.to_string(), DataType::ObjectId(ObjectIdKind::Oid))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::catalog::IndexKind;
+
+    #[test]
+    fn should_leave_unselected_native_index_methods_without_catalog_oids() {
+        // Arrange
+        let indexes =
+            [IndexKind::Vector, IndexKind::Column, IndexKind::TimeSeries].map(|kind| IndexMeta {
+                collection: "items".to_string(),
+                name: "items_idx".to_string(),
+                field: "value".to_string(),
+                fields: vec!["value".to_string()],
+                expressions: Vec::new(),
+                include_fields: Vec::new(),
+                predicate: None,
+                kind,
+                unique: false,
+                options: std::collections::BTreeMap::new(),
+            });
+
+        // Act
+        let access_method_oids = indexes
+            .iter()
+            .map(|index| relation_access_method_oid("i", Some(index)))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(access_method_oids, vec![0, 0, 0]);
+    }
 }
 
 fn bool(name: &str) -> (String, DataType) {

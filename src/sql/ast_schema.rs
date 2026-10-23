@@ -41,6 +41,9 @@ pub enum AlterTableOperation {
     RenameTo {
         table: String,
     },
+    SetAccessMethod {
+        access_method: String,
+    },
     AlterColumnSetDefault {
         field: String,
         default_value: Option<serde_json::Value>,

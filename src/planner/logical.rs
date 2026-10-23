@@ -730,6 +730,13 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
                 ));
             }
         }
+        AlterTableOperation::SetAccessMethod { access_method } => {
+            if access_method != "heap" {
+                return Err(CassieError::Unsupported(format!(
+                    "unsupported ALTER TABLE access method '{access_method}'"
+                )));
+            }
+        }
         AlterTableOperation::AlterColumnSetDefault { field, .. }
         | AlterTableOperation::AlterColumnDropDefault { field }
         | AlterTableOperation::AlterColumnSetNotNull { field }

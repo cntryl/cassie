@@ -879,6 +879,9 @@ pub(super) fn validate_alter_schema(
                 ));
             }
         }
+        AlterTableOperation::SetAccessMethod { access_method } => {
+            validate_alter_table_access_method(access_method)?;
+        }
         AlterTableOperation::AlterColumnSetDefault { .. }
         | AlterTableOperation::AlterColumnDropDefault { .. }
         | AlterTableOperation::AlterColumnSetNotNull { .. }
@@ -889,6 +892,15 @@ pub(super) fn validate_alter_schema(
     }
 
     Ok(())
+}
+
+fn validate_alter_table_access_method(access_method: &str) -> Result<(), CassieError> {
+    if access_method == "heap" {
+        return Ok(());
+    }
+    Err(CassieError::Unsupported(format!(
+        "unsupported ALTER TABLE access method '{access_method}'"
+    )))
 }
 
 fn requalify_alter_add_column_sequences(

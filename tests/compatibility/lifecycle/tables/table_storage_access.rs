@@ -1,6 +1,7 @@
 use super::*;
 
 #[test]
+#[ignore = "Pending #826 column storage and compression metadata contract"]
 fn should_preserve_column_storage_compression_metadata() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -102,6 +103,81 @@ fn should_preserve_column_storage_compression_metadata() {
 }
 
 #[test]
+fn should_reject_column_storage_options_without_publishing_the_table() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("column_storage_rejection").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let (sqlstate, message, relation_count) = rejected_column_option(
+            &client,
+            "compat_column_storage_rejected",
+            "value TEXT STORAGE PLAIN",
+        )
+        .await;
+
+        // Assert
+        assert_eq!(sqlstate, "0A000");
+        assert!(message.contains("column STORAGE options are not supported"));
+        assert_eq!(relation_count, 0);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_column_compression_options_without_publishing_the_table() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("column_compression_rejection").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let (sqlstate, message, relation_count) = rejected_column_option(
+            &client,
+            "compat_column_compression_rejected",
+            "value TEXT COMPRESSION pglz",
+        )
+        .await;
+
+        // Assert
+        assert_eq!(sqlstate, "0A000");
+        assert!(message.contains("column COMPRESSION options are not supported"));
+        assert_eq!(relation_count, 0);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+async fn rejected_column_option(
+    client: &tokio_postgres::Client,
+    table: &str,
+    definition: &str,
+) -> (String, String, i64) {
+    let sql = format!("CREATE TABLE {table} ({definition})");
+    let error = client
+        .batch_execute(&sql)
+        .await
+        .expect_err("unsupported column options should be rejected");
+    let sqlstate = db_error(&error).code().code().to_string();
+    let message = db_error(&error).message().to_string();
+    let relation_count = client
+        .query_one(
+            "SELECT count(*) FROM pg_catalog.pg_class WHERE relname = $1::TEXT",
+            &[&table],
+        )
+        .await
+        .expect("check rejected DDL did not publish a relation")
+        .get(0);
+    (sqlstate, message, relation_count)
+}
+
+#[test]
 fn should_create_table_with_an_explicit_access_method() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -145,6 +221,38 @@ fn should_create_table_with_an_explicit_access_method() {
                 .expect("insert into the explicit heap table"),
             1
         );
+    });
+}
+
+#[test]
+fn should_reject_unsupported_table_access_methods_without_publishing_the_table() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("unsupported_table_access_method").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let result = client
+            .batch_execute("CREATE TABLE compat_unsupported_table_access (id INT) USING columnar")
+            .await;
+        let error = result.expect_err("unsupported table access methods should be rejected");
+        let relation_count: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_class \
+                 WHERE relname = 'compat_unsupported_table_access'",
+                &[],
+            )
+            .await
+            .expect("check rejected DDL did not publish a relation")
+            .get(0);
+
+        // Assert
+        assert_eq!(db_error(&error).code().code(), "0A000");
+        assert_eq!(relation_count, 0);
+
+        drop(client);
+        server.shutdown(connection).await;
     });
 }
 

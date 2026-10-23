@@ -16,6 +16,11 @@ pub(super) fn index_definition(index: &IndexMeta) -> String {
                 .join(", ")
         )
     };
+    let nulls_policy = if index.nulls_not_distinct() {
+        " NULLS NOT DISTINCT"
+    } else {
+        ""
+    };
     let predicate = index
         .predicate
         .as_ref()
@@ -70,6 +75,7 @@ pub(super) fn index_definition(index: &IndexMeta) -> String {
         index.access_method(),
         keys
     ) + &include
+        + nulls_policy
         + &predicate
         + &storage_options
 }

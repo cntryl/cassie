@@ -342,3 +342,72 @@ fn should_hydrate_partial_index_metadata_after_restart() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_preserve_unique_null_policy_after_restart() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("unique_null_policy_restart");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE sql_unique_null_policy_restart (key_value INT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO sql_unique_null_policy_restart VALUES (NULL)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE UNIQUE INDEX sql_unique_null_policy_restart_idx \
+                     ON sql_unique_null_policy_restart (key_value) NULLS NOT DISTINCT",
+                    vec![],
+                )
+                .unwrap();
+        }
+
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let session = restarted.create_session("tester", None);
+
+        // Act
+        let metadata = restarted
+            .execute_sql(
+                &session,
+                "SELECT indnullsnotdistinct FROM pg_catalog.pg_index \
+                 WHERE indexrelid = 'sql_unique_null_policy_restart_idx'",
+                vec![],
+            )
+            .unwrap();
+        let duplicate_null = restarted.execute_sql(
+            &session,
+            "INSERT INTO sql_unique_null_policy_restart VALUES (NULL)",
+            vec![],
+        );
+
+        // Assert
+        assert_eq!(metadata.rows(), &[vec![Value::Bool(true)]]);
+        assert!(
+            duplicate_null.is_err(),
+            "the hydrated unique index must continue to reject duplicate NULL keys"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

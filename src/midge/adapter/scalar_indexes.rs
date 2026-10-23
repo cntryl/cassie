@@ -357,6 +357,7 @@ impl Midge {
                 return Ok(None);
             };
             if value.is_null()
+                && !index.nulls_not_distinct()
                 && !row_schema.fields.iter().any(|field_meta| {
                     field_meta.name == field && matches!(field_meta.data_type, DataType::Json)
                 })
@@ -386,7 +387,7 @@ impl Midge {
                 None,
             )
             .map_err(CassieError::from)?;
-            if matches!(value, Value::Null) {
+            if matches!(value, Value::Null) && !index.nulls_not_distinct() {
                 return Ok(None);
             }
             values.push(query_value_to_json(value)?);

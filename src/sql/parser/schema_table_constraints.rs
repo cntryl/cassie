@@ -160,13 +160,20 @@ fn parse_table_constraint_body(
     }
 
     if starts_with_keyword(raw, "unique") {
-        let fields = parse_parenthesized_field_list(raw["unique".len()..].trim_start())?;
+        let (nulls_not_distinct, rest) =
+            parse_unique_nulls_policy(raw["unique".len()..].trim_start())?;
+        let fields = parse_parenthesized_field_list(rest)?;
         return Ok(fields
             .into_iter()
             .enumerate()
             .map(|(idx, field)| {
                 let mut constraint = FieldConstraint::new(field);
                 constraint.unique = true;
+                constraint.unique_null_policy = if nulls_not_distinct {
+                    crate::catalog::UniqueNullPolicy::NotDistinct
+                } else {
+                    crate::catalog::UniqueNullPolicy::Distinct
+                };
                 constraint.unique_name = constraint_name.map(str::to_string);
                 constraint.unique_ordinal = Some(u32::try_from(idx + 1).unwrap_or(u32::MAX));
                 constraint
@@ -210,6 +217,26 @@ fn parse_table_constraint_body(
     }
 
     Err(SqlError::new("unsupported table constraint".into()))
+}
+
+fn parse_unique_nulls_policy(raw: &str) -> Result<(bool, &str), SqlError> {
+    if !starts_with_keyword(raw, "nulls") {
+        return Ok((false, raw));
+    }
+    let rest = raw["nulls".len()..].trim_start();
+    if starts_with_keyword(rest, "not") {
+        let distinct = rest["not".len()..].trim_start();
+        if !starts_with_keyword(distinct, "distinct") {
+            return Err(SqlError::new("NULLS NOT requires DISTINCT".into()));
+        }
+        return Ok((true, distinct["distinct".len()..].trim_start()));
+    }
+    if starts_with_keyword(rest, "distinct") {
+        return Ok((false, rest["distinct".len()..].trim_start()));
+    }
+    Err(SqlError::new(
+        "NULLS requires DISTINCT or NOT DISTINCT".into(),
+    ))
 }
 
 fn parse_parenthesized_field_list(raw: &str) -> Result<Vec<String>, SqlError> {

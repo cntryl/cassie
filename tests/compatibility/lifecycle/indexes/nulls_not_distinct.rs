@@ -12,14 +12,14 @@ fn should_publish_unique_index_nulls_not_distinct_metadata() {
             &[
                 "CREATE TABLE compat_index_nulls_not_distinct_rows \
                    (id INT PRIMARY KEY, key_value INT, label TEXT)",
-                "CREATE UNIQUE INDEX compat_index_nulls_not_distinct_idx \
-                   ON compat_index_nulls_not_distinct_rows (key_value) NULLS NOT DISTINCT",
                 "INSERT INTO compat_index_nulls_not_distinct_rows \
                    VALUES (1, NULL, 'first')",
+                "CREATE UNIQUE INDEX compat_index_nulls_not_distinct_idx \
+                   ON compat_index_nulls_not_distinct_rows (key_value) NULLS NOT DISTINCT",
             ],
         )
         .await
-        .expect("create the unique index and insert its first NULL key");
+        .expect("build the unique index over its first NULL key");
 
         // Act
         let metadata = client
@@ -28,7 +28,7 @@ fn should_publish_unique_index_nulls_not_distinct_metadata() {
                         pg_catalog.pg_get_indexdef(index_row.indexrelid) \
                  FROM pg_catalog.pg_index AS index_row \
                  WHERE index_row.indexrelid = \
-                   'compat_index_nulls_not_distinct_idx'::regclass",
+                   'compat_index_nulls_not_distinct_idx'",
                 &[],
             )
             .await

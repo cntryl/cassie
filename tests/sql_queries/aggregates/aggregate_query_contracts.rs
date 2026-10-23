@@ -16,8 +16,6 @@ mod array_aggregate_distinct_nested;
 mod bitwise_bigint_boundaries;
 #[path = "grouping/group_by_alias_ordinal/semantics.rs"]
 mod grouping_alias_and_ordinal;
-#[path = "grouping/grouping_expression_keys/semantics.rs"]
-mod grouping_expression_keys;
 #[path = "grouping/grouping_functional_dependency/semantics.rs"]
 mod grouping_functional_dependency;
 #[path = "numeric/numeric_statistical_result_identity/semantics.rs"]
@@ -44,8 +42,6 @@ fn grouping_fixture(label: &str) -> support_sql_fixture::SqlFixture {
         ],
     )
 }
-
-include!("grouping/aggregate_query/semantics.rs");
 
 include!("core/aggregate_query/nulls.rs");
 

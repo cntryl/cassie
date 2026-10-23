@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1614,
-    "rust_files": 1582,
-    "rust_test_declarations": 8514,
+    "files": 1611,
+    "rust_files": 1579,
+    "rust_test_declarations": 8503,
     "python_test_declarations": 19,
-    "registered_rust_instances": 8642,
+    "registered_rust_instances": 8631,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -199416,285 +199416,6 @@
       }
     },
     {
-      "id": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs::should_expand_rollup_across_detail_subtotal_total_rows",
-      "name": "should_expand_rollup_across_detail_subtotal_total_rows",
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-      "line": 2,
-      "end_line": 48,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::should_expand_rollup_across_detail_subtotal_total_rows"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/grouping/aggregate_query",
-        "directory": "tests/sql_queries/aggregates/grouping/aggregate_query",
-        "file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs::should_expand_cube_into_each_grouping_set",
-      "name": "should_expand_cube_into_each_grouping_set",
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-      "line": 51,
-      "end_line": 109,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::should_expand_cube_into_each_grouping_set"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/grouping/aggregate_query",
-        "directory": "tests/sql_queries/aggregates/grouping/aggregate_query",
-        "file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs::should_expand_mixed_nested_grouping_sets_with_duplicates",
-      "name": "should_expand_mixed_nested_grouping_sets_with_duplicates",
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-      "line": 112,
-      "end_line": 171,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::should_expand_mixed_nested_grouping_sets_with_duplicates"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/grouping/aggregate_query",
-        "directory": "tests/sql_queries/aggregates/grouping/aggregate_query",
-        "file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs::should_distinguish_distinct_from_all_duplicate_grouping_sets",
-      "name": "should_distinguish_distinct_from_all_duplicate_grouping_sets",
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-      "line": 174,
-      "end_line": 231,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::should_distinguish_distinct_from_all_duplicate_grouping_sets"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/grouping/aggregate_query",
-        "directory": "tests/sql_queries/aggregates/grouping/aggregate_query",
-        "file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs::should_resolve_output_alias_inside_grouping_sets",
-      "name": "should_resolve_output_alias_inside_grouping_sets",
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-      "line": 234,
-      "end_line": 262,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::should_resolve_output_alias_inside_grouping_sets"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/grouping/aggregate_query",
-        "directory": "tests/sql_queries/aggregates/grouping/aggregate_query",
-        "file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs::should_resolve_output_ordinal_inside_grouping_sets",
-      "name": "should_resolve_output_ordinal_inside_grouping_sets",
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-      "line": 265,
-      "end_line": 293,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::should_resolve_output_ordinal_inside_grouping_sets"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/grouping/aggregate_query",
-        "directory": "tests/sql_queries/aggregates/grouping/aggregate_query",
-        "file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs::should_return_grouping_sets_indicators_as_int4_with_sum_results",
-      "name": "should_return_grouping_sets_indicators_as_int4_with_sum_results",
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-      "line": 296,
-      "end_line": 331,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::should_return_grouping_sets_indicators_as_int4_with_sum_results"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/grouping/aggregate_query",
-        "directory": "tests/sql_queries/aggregates/grouping/aggregate_query",
-        "file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/sql_queries/aggregates/grouping/aggregate_semantic_edges.rs::should_distinguish_source_nulls_from_rollup_nulls",
-      "name": "should_distinguish_source_nulls_from_rollup_nulls",
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_semantic_edges.rs",
-      "line": 2,
-      "end_line": 59,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_semantic_edges::should_distinguish_source_nulls_from_rollup_nulls"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/grouping",
-        "directory": "tests/sql_queries/aggregates/grouping",
-        "file": "tests/sql_queries/aggregates/grouping/aggregate_semantic_edges.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/sql_queries/aggregates/grouping/aggregate_semantic_edges.rs::should_preserve_filtered_distinct_aggregates_in_grouping_sets",
-      "name": "should_preserve_filtered_distinct_aggregates_in_grouping_sets",
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_semantic_edges.rs",
-      "line": 62,
-      "end_line": 156,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_semantic_edges::should_preserve_filtered_distinct_aggregates_in_grouping_sets"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/grouping",
-        "directory": "tests/sql_queries/aggregates/grouping",
-        "file": "tests/sql_queries/aggregates/grouping/aggregate_semantic_edges.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
       "id": "tests/sql_queries/aggregates/grouping/group_by_alias_ordinal/semantics.rs::should_group_by_output_alias_outside_grouping_sets",
       "name": "should_group_by_output_alias_outside_grouping_sets",
       "current_file": "tests/sql_queries/aggregates/grouping/group_by_alias_ordinal/semantics.rs",
@@ -199908,37 +199629,6 @@
         "file": "tests/sql_queries/aggregates/grouping/group_by_alias_ordinal/semantics.rs",
         "basis": "canonical_domain_path",
         "review": "recommended",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/sql_queries/aggregates/grouping/grouping_expression_keys/semantics.rs::should_report_grouping_bits_for_expression_keys",
-      "name": "should_report_grouping_bits_for_expression_keys",
-      "current_file": "tests/sql_queries/aggregates/grouping/grouping_expression_keys/semantics.rs",
-      "line": 8,
-      "end_line": 60,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::grouping_expression_keys::should_report_grouping_bits_for_expression_keys"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/grouping/grouping_expression_keys",
-        "directory": "tests/sql_queries/aggregates/grouping/grouping_expression_keys",
-        "file": "tests/sql_queries/aggregates/grouping/grouping_expression_keys/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
         "migration": "keep"
       }
     },
@@ -201404,7 +201094,7 @@
       "name": "should_execute_grouped_count_query",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
       "line": 2,
-      "end_line": 65,
+      "end_line": 64,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201434,8 +201124,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_execute_basic_numeric_aggregates_query",
       "name": "should_execute_basic_numeric_aggregates_query",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 68,
-      "end_line": 119,
+      "line": 67,
+      "end_line": 117,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201465,8 +201155,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_apply_distinct_filter_to_grouped_aggregates",
       "name": "should_apply_distinct_filter_to_grouped_aggregates",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 122,
-      "end_line": 153,
+      "line": 120,
+      "end_line": 151,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201496,8 +201186,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_apply_order_by_inside_string_aggregate",
       "name": "should_apply_order_by_inside_string_aggregate",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 156,
-      "end_line": 185,
+      "line": 154,
+      "end_line": 183,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201524,42 +201214,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_emit_grouping_set_detail_subtotal_grand_total_rows",
-      "name": "should_emit_grouping_set_detail_subtotal_grand_total_rows",
-      "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 188,
-      "end_line": 240,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "integration_sql_aggregates::should_emit_grouping_set_detail_subtotal_grand_total_rows"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "sql_queries",
-        "category": "aggregates/semantics",
-        "directory": "tests/sql_queries/aggregates/semantics",
-        "file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_return_statistical_aggregate_values_for_float_inputs",
       "name": "should_return_statistical_aggregate_values_for_float_inputs",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 243,
-      "end_line": 279,
+      "line": 186,
+      "end_line": 222,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201589,8 +201248,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_execute_ordered_set_rank_aggregate_family",
       "name": "should_execute_ordered_set_rank_aggregate_family",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 282,
-      "end_line": 310,
+      "line": 225,
+      "end_line": 253,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201620,8 +201279,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_execute_row_number_window_function_query",
       "name": "should_execute_row_number_window_function_query",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 313,
-      "end_line": 388,
+      "line": 256,
+      "end_line": 330,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201651,8 +201310,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_execute_basic_value_window_functions_query",
       "name": "should_execute_basic_value_window_functions_query",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 391,
-      "end_line": 478,
+      "line": 333,
+      "end_line": 419,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201682,8 +201341,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_filter_grouped_rows_with_having",
       "name": "should_filter_grouped_rows_with_having",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 481,
-      "end_line": 527,
+      "line": 422,
+      "end_line": 467,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201713,8 +201372,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_report_each_unaliased_aggregate_sharing_a_function_name",
       "name": "should_report_each_unaliased_aggregate_sharing_a_function_name",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 530,
-      "end_line": 556,
+      "line": 470,
+      "end_line": 496,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201744,8 +201403,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_report_each_unaliased_aggregate_from_column_batch_summaries",
       "name": "should_report_each_unaliased_aggregate_from_column_batch_summaries",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 559,
-      "end_line": 587,
+      "line": 499,
+      "end_line": 527,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201775,8 +201434,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_report_aggregate_value_when_a_column_shares_its_name",
       "name": "should_report_aggregate_value_when_a_column_shares_its_name",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 590,
-      "end_line": 611,
+      "line": 530,
+      "end_line": 551,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201806,8 +201465,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_accept_implicit_group_projection_without_bare_columns",
       "name": "should_accept_implicit_group_projection_without_bare_columns",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 614,
-      "end_line": 630,
+      "line": 554,
+      "end_line": 570,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201837,8 +201496,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_order_grouped_rows_by_group_key_or_output_alias",
       "name": "should_order_grouped_rows_by_group_key_or_output_alias",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 633,
-      "end_line": 658,
+      "line": 573,
+      "end_line": 598,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -201868,8 +201527,8 @@
       "id": "tests/sql_queries/aggregates/semantics/semantics.rs::should_order_grouped_rows_by_aggregate_expression",
       "name": "should_order_grouped_rows_by_aggregate_expression",
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
-      "line": 661,
-      "end_line": 693,
+      "line": 601,
+      "end_line": 633,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284054,8 +283713,8 @@
       "current_file": "tests/sql_queries/aggregates/aggregate_query_contracts.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 80,
-      "sha256": "20481f18b0a702827324e3b0b59f1fbc4847436b8ab49895424de4786b5d673b",
+      "lines": 76,
+      "sha256": "aacd956fca1db8f0537029da9e3c66653a0eb682c97f561366ad082cbbf1ada4",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -284231,36 +283890,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs",
-      "role": "test_module",
-      "action": "keep",
-      "lines": 331,
-      "sha256": "8c0c90b60bc9bd1b4f2dca2f7bed5ffe756ea996c88a5f49b9443745b20689e3",
-      "test_declarations": 7,
-      "registered_suites": [
-        "sql_queries"
-      ],
-      "destinations": [
-        "tests/sql_queries/aggregates/grouping/aggregate_query/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/sql_queries/aggregates/grouping/aggregate_semantic_edges.rs",
-      "role": "test_module",
-      "action": "keep",
-      "lines": 156,
-      "sha256": "636e2a67c38252d2e769b219eefc6a5124a589f97826b0f460366506badcab0b",
-      "test_declarations": 2,
-      "registered_suites": [
-        "sql_queries"
-      ],
-      "destinations": [
-        "tests/sql_queries/aggregates/grouping/aggregate_semantic_edges.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/sql_queries/aggregates/grouping/group_by_alias_ordinal/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -284272,21 +283901,6 @@
       ],
       "destinations": [
         "tests/sql_queries/aggregates/grouping/group_by_alias_ordinal/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/sql_queries/aggregates/grouping/grouping_expression_keys/semantics.rs",
-      "role": "test_module",
-      "action": "keep",
-      "lines": 60,
-      "sha256": "517f443224c6760812c7ca3fc690f71101585edd3ff9ab8a80810932e1656aef",
-      "test_declarations": 1,
-      "registered_suites": [
-        "sql_queries"
-      ],
-      "destinations": [
-        "tests/sql_queries/aggregates/grouping/grouping_expression_keys/semantics.rs"
       ],
       "line_limit": 1000
     },
@@ -284609,8 +284223,8 @@
       "current_file": "tests/sql_queries/aggregates/semantic_edges.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 34,
-      "sha256": "bd72de26468504d269f3794ac8d1289a5160f6479005f2ae5a107def411ff4a0",
+      "lines": 32,
+      "sha256": "ed2f720063566ff48c07610fb79bb222937f94dbbd0328655307063cefe5a0cb",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -284669,9 +284283,9 @@
       "current_file": "tests/sql_queries/aggregates/semantics/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 693,
-      "sha256": "64a5a18455951c2901e5f1441dcec43926d2f1ae50f63595bba66c48f9264468",
-      "test_declarations": 16,
+      "lines": 633,
+      "sha256": "c78c904a9265e5ef76cafa0cbca4d38b2858f1108a850c36fc61811436b5bf9d",
+      "test_declarations": 15,
       "registered_suites": [
         "sql_queries"
       ],

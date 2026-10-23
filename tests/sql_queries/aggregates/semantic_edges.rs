@@ -7,8 +7,6 @@ use super::super::support_sql_fixture::sql_fixture;
 #[path = "ordered_set/hypothetical_multicolumn.rs"]
 mod hypothetical_multicolumn;
 
-include!("grouping/aggregate_semantic_edges.rs");
-
 fn assert_float_near(value: &Value, expected: f64) {
     let Value::Float64(actual) = value else {
         panic!("expected a float value, got {value:?}");

@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1614 |
-| Rust files | 1582 |
-| Rust test declarations | 8514 |
+| Files under `tests/` | 1611 |
+| Rust files | 1579 |
+| Rust test declarations | 8503 |
 | Python test declarations | 19 |
-| Static Rust registration instances | 8642 |
+| Static Rust registration instances | 8631 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |

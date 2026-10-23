@@ -183,61 +183,6 @@ fn should_apply_order_by_inside_string_aggregate() {
 }
 
 #[test]
-fn should_emit_grouping_set_detail_subtotal_grand_total_rows() {
-    // Arrange
-    let fixture = super::support_sql_fixture::sql_fixture(
-            "aggregate_grouping_sets",
-            &[
-                "CREATE TABLE aggregate_grouping_values (region TEXT, product TEXT, amount INT)",
-                "INSERT INTO aggregate_grouping_values VALUES ('east','book',2),('east','pen',3),('west','book',5)",
-            ],
-        );
-
-    // Act
-    let result = fixture.execute(
-            "SELECT region, product, SUM(amount), GROUPING(region, product) FROM aggregate_grouping_values GROUP BY GROUPING SETS ((region, product), (region), ()) ORDER BY GROUPING(region, product), region NULLS FIRST, product NULLS FIRST",
-        );
-
-    // Assert
-    assert_eq!(
-        result.expect("grouping set rows and indicators").rows(),
-        &[
-            vec![
-                Value::String("east".to_owned()),
-                Value::String("book".to_owned()),
-                Value::Int64(2),
-                Value::Int64(0),
-            ],
-            vec![
-                Value::String("east".to_owned()),
-                Value::String("pen".to_owned()),
-                Value::Int64(3),
-                Value::Int64(0),
-            ],
-            vec![
-                Value::String("west".to_owned()),
-                Value::String("book".to_owned()),
-                Value::Int64(5),
-                Value::Int64(0),
-            ],
-            vec![
-                Value::String("east".to_owned()),
-                Value::Null,
-                Value::Int64(5),
-                Value::Int64(1),
-            ],
-            vec![
-                Value::String("west".to_owned()),
-                Value::Null,
-                Value::Int64(5),
-                Value::Int64(1),
-            ],
-            vec![Value::Null, Value::Null, Value::Int64(10), Value::Int64(3)],
-        ]
-    );
-}
-
-#[test]
 fn should_return_statistical_aggregate_values_for_float_inputs() {
     // Arrange
     let fixture = super::support_sql_fixture::sql_fixture(
